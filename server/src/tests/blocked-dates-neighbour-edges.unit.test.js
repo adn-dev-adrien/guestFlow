@@ -1,4 +1,4 @@
-// specs/public-api.md rule 15 (2026-10-27 audit) — the availability re-check of /quote,
+// specs/site/public-api.md rule 15 (2026-10-27 audit) — the availability re-check of /quote,
 // /booking-requests and /pay reads a window exactly as wide as the stay; a neighbour whose late
 // check-out or early check-in blocks a night INSIDE that window must still be seen.
 const test = require('node:test');

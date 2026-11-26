@@ -1,5 +1,5 @@
 // @ts-check
-// specs/devis-extras-parity-and-price-lock.md §7 — the devis fiche, against the real app + real API.
+// specs/devis/devis-extras-parity-and-price-lock.md §7 — the devis fiche, against the real app + real API.
 //
 // This is the spec that would have caught the reported bug: the fiche opened with an EMPTY
 // « Options et ressources » card, because the init path preselected a logement, deliberately cleared
@@ -13,7 +13,7 @@
 // independent of whatever properties the other specs left in the shared ephemeral DB.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty } from '../../fixtures/apiSeed.js';
-// The core seeds no catalogue (specs/plugins-phase-p-productisation.md rule 12): the spec brings one.
+// The core seeds no catalogue (specs/plugins/plugins-phase-p-productisation.md rule 12): the spec brings one.
 import { seedCateringOptions } from '../../fixtures/dbSeed.js';
 import { FAR_YEAR } from '../../fixtures/farYear.js';
 

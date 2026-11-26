@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26 verifier) — the money-dialog invariants I1-I6, generated: « Ajouter un produit » on the
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26 verifier) — the money-dialog invariants I1-I6, generated: « Ajouter un produit » on the
 // fiche (`AddProductDialog`: its price quote and the sale). The driver and the invariants are in `moneyDialogsHarness.jsx`.
 import React from 'react';
 import { fireEvent } from '@testing-library/react';

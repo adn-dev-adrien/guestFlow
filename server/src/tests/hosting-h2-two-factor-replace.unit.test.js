@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 48 and 50 (UX review of 2026-10-28) — changing the
+// specs/hosting/hosting-h2-account-security.md rules 48 and 50 (UX review of 2026-10-28) — changing the
 // authenticator app (or moving between the app and the email code) never leaves the account
 // unprotected: the current method keeps working until a code from the new one is confirmed, and the
 // swap of method, secret and backup codes is one transaction that keeps the trusted devices trusted.

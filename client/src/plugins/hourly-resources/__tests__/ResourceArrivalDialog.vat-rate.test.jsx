@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md §6, rule 48 (loop t1 AV-10) — each line of the mini SAS names its VAT rate as the server serves it (`line.vatRate`): the session, a stored extra
+// specs/sas/outside-booking-sas.md §6, rule 48 (loop t1 AV-10) — each line of the mini SAS names its VAT rate as the server serves it (`line.vatRate`): the session, a stored extra
 // and a priced draft extra. The rate is printed, never chosen or computed here.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

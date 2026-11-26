@@ -1,5 +1,5 @@
 /**
- * ARTICLES head — the only interface of « Articles » with the rest of GuestFlow (specs/pricing-components.md §3 rules
+ * ARTICLES head — the only interface of « Articles » with the rest of GuestFlow (specs/pricing/pricing-components.md §3 rules
  * 10, 14, 41, 47, 56). Facade over the family registry: it resolves the instance of each request, looks up its family,
  * calls `validate` then `price`, then coordinates the sold snapshot (rule 13), the stay allowance (rule 41) and « Offert »
  * (rule 14). It holds no per-type formula: those are the families'. Nobody calls a family or an instance directly.
@@ -240,7 +240,7 @@ function priceMerged(family, article, request, stay, allowance) {
   };
 }
 
-// Option-driven planning cards (specs/option-planning-card.md §3.4): the moments placed REPLACE the nights/days path.
+// Option-driven planning cards (specs/options/option-planning-card.md §3.4): the moments placed REPLACE the nights/days path.
 // Because the quantity is rebuilt from them the line cannot use the merge by units: its unit price is locked on its own.
 function priceCard(family, article, request, stay, allowance) {
   const { config } = article;

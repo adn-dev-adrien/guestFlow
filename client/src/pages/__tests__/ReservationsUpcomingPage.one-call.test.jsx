@@ -1,4 +1,4 @@
-// specs/upcoming-reservations-cards.md rule 6 — « Réservations à venir » loads in ONE call, however many
+// specs/planning/upcoming-reservations-cards.md rule 6 — « Réservations à venir » loads in ONE call, however many
 // stays are booked: the page renders the server's days and never fetches a reservation on its own
 // (review #8, m-9: ~350 calls per visit locked the app out behind the API rate limit).
 import { vi } from 'vitest';

@@ -1,6 +1,6 @@
 /**
  * ShareTable — part-to-whole as a thin segmented bar above the table of its figures
- * (specs/report-grammar.md rule 15; never a pie). Hovering or focusing a row brings its segment
+ * (specs/design-system/report-grammar.md rule 15; never a pie). Hovering or focusing a row brings its segment
  * forward, and hovering a segment its row. Shares and the total come from the server: the bar's
  * widths ARE the server's shares.
  *

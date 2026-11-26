@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 7 — the clean baseline of a loaded fiche is the LOADED form (with what
+// specs/reservations/reservation-save-keeps-pricing.md rule 7 — the clean baseline of a loaded fiche is the LOADED form (with what
 // the quote writes into it), never the live form: a note typed before the first quote lands is an edit, so
 // Enregistrer is enabled and sends it (slow phone, slow server).
 import React from 'react';

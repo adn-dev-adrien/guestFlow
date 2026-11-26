@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 17-21, 25, 28, 29 — the « Domotique » page renders what the server wrote:
+// specs/guest-app/guest-app-home-automation.md rules 17-21, 25, 28, 29 — the « Domotique » page renders what the server wrote:
 // the tile, the blocks in order, the day's min/max, the grid, an unavailable reading, a silent house, the phone offline.
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

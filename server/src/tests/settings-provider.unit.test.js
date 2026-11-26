@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 48 and 50 — SettingsProvider: resolution article → property → global → default,
+// specs/pricing/pricing-components.md §3 rules 48 and 50 — SettingsProvider: resolution article → property → global → default,
 // a key's scope is the NARROWEST layer allowed to set it, NULL is a value, each moved unit's `settingsSchema` validates,
 // and the PR A adapter returns exactly the values the engine read from the property row.
 const test = require('node:test');

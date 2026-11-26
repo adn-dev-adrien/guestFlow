@@ -1,5 +1,5 @@
 /**
- * The effective Qonto configuration — specs/qonto-settings-in-app.md §3 rules 2, 4, 5, 8.
+ * The effective Qonto configuration — specs/settings/qonto-settings-in-app.md §3 rules 2, 4, 5, 8.
  *
  * Until 2026-09-07 the client id, the secret and the hosts could only come from `server/.env.local`,
  * so rotating a secret Qonto had regenerated meant an SSH session and a restart. This module is the

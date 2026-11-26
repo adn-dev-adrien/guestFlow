@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 62 (spec review 2026-10-27) — the tariff snapshot is refreshed by
+// specs/pricing/tariff-recipes.md §3 rule 62 (spec review 2026-10-27) — the tariff snapshot is refreshed by
 // every save that rewrites the nights, so a night added later carries its season and a stay repriced
 // because its arrival moved (rule 57) replays that reprice. Before: a notes-only save moved the price.
 process.env.DB_PATH = ':memory:';

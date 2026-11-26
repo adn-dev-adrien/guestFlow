@@ -1,4 +1,4 @@
-// Shared by the module suites (specs/plugin-operator-provisioning.md): a customer whose space the
+// Shared by the module suites (specs/plugins/plugin-operator-provisioning.md): a customer whose space the
 // test can write to, as the space's own reconciliation would.
 const path = require('path');
 const Database = require('better-sqlite3');

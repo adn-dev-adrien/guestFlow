@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import GuestsBedsSection from '../reservation/GuestsBedsSection';
 import { ReservationFormProvider } from '../reservation/ReservationFormContext';
 
-// specs/bed-config-in-linen-card.md §10 follow-up #6 (2026-06-08).
+// specs/linen/bed-config-in-linen-card.md §10 follow-up #6 (2026-06-08).
 // The "Lits bébé" counter lives in the Voyageurs card and must appear whenever babies > 0,
 // independent of the bed-linen option — and it must reflect baby-bed AVAILABILITY: when other
 // reservations have taken every baby bed for the dates, the input is capped at 0 ("Dispo restante: 0").
@@ -33,7 +33,7 @@ function ctx(overrides = {}) {
   };
 }
 
-// specs/baby-bed-supplement.md §6 — the counter is the only place the cot is decided, so it says
+// specs/options/baby-bed-supplement.md §6 — the counter is the only place the cot is decided, so it says
 // what a cot costs. The amount comes from the catalogue option the engine bills, never from a
 // constant in the client.
 const COT_OPTION = { id: 30, title: 'Lit bébé', price: 5, autoOptionType: 'baby_bed', autoEnabled: 1 };

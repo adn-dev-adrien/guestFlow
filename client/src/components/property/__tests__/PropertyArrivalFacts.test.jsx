@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 1–2, 12, 25, 35 — the « Arrivée » block of a property:
+// specs/emails/guest-email-texts-made-simple.md rules 1–2, 12, 25, 35 — the « Arrivée » block of a property:
 // the facts, the code and the Wi-Fi password masked until « Modifier », the link to « Textes des
 // emails ». Controlled by the page (rule 35): no save button of its own.
 import React from 'react';

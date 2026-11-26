@@ -1,5 +1,5 @@
 /**
- * The arrival SAS commit contract of plugin steps (specs/plugins-phase-3c-hourly-resources.md rules
+ * The arrival SAS commit contract of plugin steps (specs/plugins/plugins-phase-3c-hourly-resources.md rules
  * 6–8). A plugin declares a hook with `ctx.sasCommit({ step, validate, complementItems, write })`;
  * the SAS controller runs them around the core commit, only while the plugin is live.
  *
@@ -10,7 +10,7 @@
  * `payload` is `pluginSteps[step]` of the commit body; `undefined` when the step did not run.
  *
  * Since SDK 2.0.0 the arrival PREVIEW calls `prepare` too, on every gesture of the recap
- * (specs/sas-arrival-total-server-side.md rules 10-12): `validate` and `complementItems` must be pure —
+ * (specs/sas/sas-arrival-total-server-side.md rules 10-12): `validate` and `complementItems` must be pure —
  * read, never write, same answer for the same reservation and payload. The preview discards `writes`.
  */
 
@@ -64,7 +64,7 @@ function prepare({ reservation, pluginSteps = {}, db = require('../database') })
     }
     for (const item of hook.complementItems(reservation, payload) || []) {
       const amount = roundMoneyStrict(item.amount);
-      // specs/pricing-components.md rule 90.3 — a component of a line (`component: { kind, resourceId }`) rides along, 0 € included:
+      // specs/pricing/pricing-components.md rule 90.3 — a component of a line (`component: { kind, resourceId }`) rides along, 0 € included:
       // the commit puts it on the line it belongs to, and a component that drops to 0 shrinks back.
       const component = item.component && item.component.kind ? { kind: String(item.component.kind), resourceId: Number(item.component.resourceId) } : null;
       if (!(amount > 0) && !(component && amount === 0)) continue;

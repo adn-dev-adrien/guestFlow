@@ -1,6 +1,6 @@
 // Review fixes, round 2 (verification of 2026-11-06), through the real controllers:
-//   specs/tourist-tax-report-v2.md §3 rules 37 and 38 (V1-1, D-HC15);
-//   specs/tourist-tax-declared-checkbox.md §3 rules 9 and 10 (V1-2, V1-6).
+//   specs/tourist-tax/tourist-tax-report-v2.md §3 rules 37 and 38 (V1-1, D-HC15);
+//   specs/tourist-tax/tourist-tax-declared-checkbox.md §3 rules 9 and 10 (V1-2, V1-6).
 // Each test owns a quarter of its own and moves the clock past it.
 process.env.DB_PATH = ':memory:';
 

@@ -1,6 +1,6 @@
 /**
  * ForgotPasswordPage — « Mot de passe oublié » at `/mot-de-passe-oublie`, before any session
- * (specs/hosting-h2-account-security.md rules 1, 3). The answer is the server's, the same whether the
+ * (specs/hosting/hosting-h2-account-security.md rules 1, 3). The answer is the server's, the same whether the
  * address has an account or not.
  */
 import React, { useState } from 'react';

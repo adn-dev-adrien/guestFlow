@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md §3.5 rule 22 — ce que le dialogue de confirmation dit
+// specs/payments/payment-schedule-and-cancellation.md §3.5 rule 22 — ce que le dialogue de confirmation dit
 // avant qu'un séjour ne soit annulé.
 //
 // Pourquoi ce fichier existe : c'est le dernier écran avant un geste irréversible qui touche à

@@ -1,6 +1,6 @@
 /**
  * GroupedList — foldable sections over a payload the server already grouped
- * (specs/options-resources-ux.md §4.2). Each section: a serif header with the label, a count pill and a
+ * (specs/options/options-resources-ux.md §4.2). Each section: a serif header with the label, a count pill and a
  * chevron, then its rows inside one white card with hairline dividers. The list renders nothing it was
  * not given: grouping, order and counts are the caller's data, not computed here.
  *

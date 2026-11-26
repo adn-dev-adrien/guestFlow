@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 4, 8, 9-11, 13-14 — the all-logements calendar: a current stay is a
+// specs/planning/calendar-property-parity.md rules 4, 8, 9-11, 13-14 — the all-logements calendar: a current stay is a
 // solid bar in the colour the server chose, a past one a soft tint, a closure a hatched bar on its logement's
 // lane that never opens a fiche, and « Aujourd'hui » is the only navigation.
 import React from 'react';
@@ -39,7 +39,7 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     expect(style.color).toBe('rgb(255, 255, 255)');
   });
 
-  // specs/ui-review-2026-10-19-operations.md rule 14 (live part) — a past stay keeps the soft tint and ink text.
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 14 (live part) — a past stay keeps the soft tint and ink text.
   it('rule 8 — a past stay is a 14 % tint with a stripe of its colour, ink text, no opacity', async () => {
     api.getCalendar.mockResolvedValue(payload([stay(1, '2026-07-02', '2026-07-04', { past: true })]));
     const { container } = renderCal();
@@ -64,7 +64,7 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     expect(onReservationClick).not.toHaveBeenCalled();
   });
 
-  // specs/ui-review-2026-10-19-operations.md rule 13 (live part) — a closure of every logement is not a lane:
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 13 (live part) — a closure of every logement is not a lane:
   // it hatches whole day columns and carries one label « Tout fermé ».
   it('a closure of every logement hatches the day columns and is labelled « Tout fermé », with no bar', async () => {
     api.getCalendar.mockResolvedValue(payload([], [{ id: 5, propertyId: null, propertyName: null, global: true, label: 'Hiver', startDate: '2026-07-20', endDate: '2026-07-22' }]));
@@ -86,7 +86,7 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     expect(top(container.querySelector('[data-bar="r1"]'))).toBe(top(container.querySelector('[data-closure-bar="c4"]')));
   });
 
-  // specs/cumulative-month-calendar.md rule 12
+  // specs/planning/cumulative-month-calendar.md rule 12
   it('legend — a platform is listed once whatever its stored casing, with a solid swatch, behind « Légende »', async () => {
     api.getCalendar.mockResolvedValue(payload([
       stay(1, '2026-07-20', '2026-07-22', { platform: 'Abracadaroom', platformDisplay: 'Abracadaroom', color: '#8A55B2' }),

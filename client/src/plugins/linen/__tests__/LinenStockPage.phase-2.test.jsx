@@ -1,6 +1,6 @@
-// specs/plugins-phase-2-hosts.md rule 15 — « Linge » reads and saves the stock through the plugin's
+// specs/plugins/plugins-phase-2-hosts.md rule 15 — « Linge » reads and saves the stock through the plugin's
 // settings, no longer through the core settings form. The laundry day left them for the laundry schedule
-// (specs/linen-laundry-days.md rule 21): saving the stock alone does not touch the schedule.
+// (specs/linen/linen-laundry-days.md rule 21): saving the stock alone does not touch the schedule.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -22,7 +22,7 @@ vi.mock('../../../api', () => ({
 import api from '../../../api';
 import LinenStockPage from '../LinenStockPage';
 
-test('specs/plugins-phase-2-hosts.md rule 15: the stock page loads and saves /api/plugins/linen/settings', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 15: the stock page loads and saves /api/plugins/linen/settings', async () => {
   api.getLaundrySchedule.mockResolvedValue({
     current: { effectiveFrom: '0001-01-01', weekdays: [4], turnaroundDays: 1, cycle: [{ dropWeekday: 4, pickUpWeekday: 4, waitDays: 7 }], longestWaitDays: 7 },
     pending: null,

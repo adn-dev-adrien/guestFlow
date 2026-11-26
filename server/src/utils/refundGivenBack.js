@@ -1,6 +1,6 @@
 /**
  * Refund register / given back — whether the lines a sale reference placed on a stay were given back by the refund register
- * (specs/guest-app.md rule 110 b, owner reading of 2026-11-16, loop t2 AG2-2).
+ * (specs/guest-app/guest-app.md rule 110 b, owner reading of 2026-11-16, loop t2 AG2-2).
  *
  * The lines are the stored rows whose `orderRef` starts with `refPrefix` (pricing-components rule 13: `order:<id>:<n>`). The
  * register keys a line as the line key scheme does (pricing-components rule 85, `keyLines`): the FIRST line of an article by the article

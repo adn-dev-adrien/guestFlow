@@ -1,5 +1,5 @@
 /**
- * STEP discountLevers — DISCOUNTS (specs/pricing-components.md §3 rule 52).
+ * STEP discountLevers — DISCOUNTS (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Normalises the price levers (discount percent, manual price) and the accommodation base a `percent_of_stay`
  * option is priced on.
@@ -17,7 +17,7 @@ const step = {
     const { customPrice, discountFixedAmount, discountPercent, discountTarget, extraGuestSurcharge, totalPrice } = ctx;
 
     // Price levers, normalised HERE rather than beside the totals below: a `percent_of_stay` option
-    // (specs/cancellation-insurance.md §3.1) is priced inside the option loop and needs them.
+    // (specs/payments/cancellation-insurance.md §3.1) is priced inside the option loop and needs them.
     // Rule 16: the percent of a stay discount aimed at the extras (or at everything) is shared out by `extras` over the lines and
     // the accommodation (rule 40); the nights' own formula then sees none, so nothing is discounted twice.
     const typedDiscountPercent = normalizeDiscountPercent(discountPercent);

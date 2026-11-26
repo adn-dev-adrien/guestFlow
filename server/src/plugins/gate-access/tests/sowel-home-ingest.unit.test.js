@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 3-6 — the catalogue, the selection it is answered with, and the readings
+// specs/guest-app/guest-app-home-automation.md rules 3-6 — the catalogue, the selection it is answered with, and the readings
 // and series of the selected pairs only, overwritten in place.
 const test = require('node:test');
 const assert = require('node:assert/strict');

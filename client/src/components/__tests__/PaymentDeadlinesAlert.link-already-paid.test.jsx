@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 50 (audit R9-C1) — the home « Échéances de paiement » card is a sender too:
+// specs/payments/payment-link-lifecycle.md rule 50 (audit R9-C1) — the home « Échéances de paiement » card is a sender too:
 // a « Relancer » refused 409 LINK_ALREADY_PAID has booked the payment, so the card re-reads its rows after the
 // refusal is shown; a request that left re-reads them as well (« Relancer » replaces « Envoyer la demande »). Its
 // e-mail draft dialog hands `onMoneyChanged` the same re-read. Any other refusal re-reads nothing.

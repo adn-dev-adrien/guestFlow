@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 16, 27 — the Suivi financier reads a split payment for what it put on the
+// specs/payments/mixed-method-payments.md rules 16, 27 — the Suivi financier reads a split payment for what it put on the
 // books: « encaissé » + « reste à payer » = « total de séjour » holds on every shape, and the « Encaissé » table
 // lists one row per settlement that adds up to the tile.
 process.env.DB_PATH = ':memory:';

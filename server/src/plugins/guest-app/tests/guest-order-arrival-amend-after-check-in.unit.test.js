@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 87, 110 a (owner, 2026-11-16, loop t1 AG-2) — an order taken before the arrival stays editable at the arrival SAS until the arrival is
+// specs/guest-app/guest-app.md rules 87, 110 a (owner, 2026-11-16, loop t1 AG-2) — an order taken before the arrival stays editable at the arrival SAS until the arrival is
 // VALIDATED, whatever the hour: a guest who arrives after the check-in time has the order changed at the door, the kept lines stay in the arrival complement
 // (never moved to the departure), and the edit closes once the arrival is marked.
 const fx = require('./guestOrderFixtures');

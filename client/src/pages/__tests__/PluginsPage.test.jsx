@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md rules 4-6, 14 and 21-24 — the Plugins page: tabs, search,
+// specs/plugins/plugins-phase-0-foundation.md rules 4-6, 14 and 21-24 — the Plugins page: tabs, search,
 // actions, two-click uninstall, refusal under the card, auth refresh after each change.
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';

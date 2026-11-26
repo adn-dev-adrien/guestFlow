@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 54 (stabilisation loop t2, B2-7; CLAUDE.md §6.0) — at « Payé maintenant », « Créer la facture dans Qonto » is offered iff the
+// specs/sas/outside-booking-sas.md rule 54 (stabilisation loop t2, B2-7; CLAUDE.md §6.0) — at « Payé maintenant », « Créer la facture dans Qonto » is offered iff the
 // server, asked with the payment typed, answers `invoiceable.ok`: the booking dialog's preview and the arrival's quote carry the payment, the dialogs read the answer.
 import React from 'react';
 import { vi } from 'vitest';

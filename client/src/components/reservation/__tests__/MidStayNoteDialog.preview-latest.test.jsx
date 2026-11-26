@@ -1,4 +1,4 @@
-// specs/mid-stay-notes.md rule 22 (reading of 2026-11-19, loop t26 UI26-2), specs/plugins-phase-1-sdk.md rule 54 — « Nouvelle note »
+// specs/sas/mid-stay-notes.md rule 22 (reading of 2026-11-19, loop t26 UI26-2), specs/plugins/plugins-phase-1-sdk.md rule 54 — « Nouvelle note »
 // previews its total through `useLatestPreview`: while a recompute is asked (the note's preview, or the fiche's live quote pricing a
 // prestation just added) the latest total stays, dimmed, and no settle button acts on it; a failure shows « — », its reason and
 // « Réessayer »; the « Plusieurs moyens » lines stay mounted through a recompute, come back as typed after a failure, and take the focus

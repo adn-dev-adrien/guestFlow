@@ -1,6 +1,6 @@
 /**
- * The 409 a write on a read-only stay answers (specs/payment-schedule-and-cancellation.md §3.5 rule 25 and
- * specs/calendar-property-parity.md rule 22).
+ * The 409 a write on a read-only stay answers (specs/payments/payment-schedule-and-cancellation.md §3.5 rule 25 and
+ * specs/planning/calendar-property-parity.md rule 22).
  *
  * A cancelled stay is history: its amounts and échéances are what accounting still reads and its dates are
  * back on sale. A duplicate set aside is not a stay at all any more: nothing may be collected, sent,
@@ -49,7 +49,7 @@ function guardReadOnly(database, options, idOf = (req) => req.params.id) {
 
 /**
  * Route middleware: a devis id on a stay write answers what GET /reservations/:id answers, 404 « Réservation
- * non trouvée » (specs/reservations-backend-mvc.md rule 25). A devis is saved, paid and deleted through
+ * non trouvée » (specs/tech/reservations-backend-mvc.md rule 25). A devis is saved, paid and deleted through
  * /devis/:id; the stay pipeline would re-price it, mark it paid, or rewrite a converted quote's frozen
  * figures. An unknown id falls through to the handler's own 404.
  */
@@ -64,7 +64,7 @@ function guardNotDevis(database, idOf = (req) => req.params.id) {
 const CAUTION_RETURN_KEYS = new Set(['cautionReturned', 'cautionReturnedDate']);
 
 /**
- * specs/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — the one write a cancelled stay takes on
+ * specs/payments/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — the one write a cancelled stay takes on
  * PATCH /payment: the return of a caution it still holds (received, not returned), the body carrying that mark and its
  * date only. Anything else — another mark, a return taken back, a caution never received — stays the cancelled refusal.
  */

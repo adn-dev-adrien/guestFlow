@@ -1,4 +1,4 @@
-// specs/public-online-payment.md rules 14-15 (audit 2026-10-28, public/payments) — a devis link paid for another amount than the quote asks:
+// specs/site/public-online-payment.md rules 14-15 (audit 2026-10-28, public/payments) — a devis link paid for another amount than the quote asks:
 //  - a re-priced devis retires its stale open links (finding 1a);
 //  - a stale link paid anyway books what was really received and alerts the admin (finding 1b),
 //    including the full links minted before the tourist tax joined the amount ;
@@ -143,11 +143,11 @@ test('the admin alert names the amounts for a mismatch and the double payment', 
   assert.match(buildPaidAfterCancelEmail(resa, { amountCents: 100 }, '', { doublePaid: true }).subject, /deux fois/);
 });
 
-// specs/plugins-phase-3a-online-payment.md rule 47 (audit R6 D1): an acompte link paid at another amount books the acompte
+// specs/plugins/plugins-phase-3a-online-payment.md rule 47 (audit R6 D1): an acompte link paid at another amount books the acompte
 // at what was received and the solde absorbs the gap; the alert says so, owes no complement nor trop-perçu, and the
 // confirmation goes out.
 for (const [deposit, balance, label] of [[120, 335.36, 'grown'], [80, 375.36, 'shrunk']]) {
-  // specs/plugins-phase-3a-online-payment.md rule 47
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 47
   test(`rule 47 — devis acompte link, acompte ${label}: the alert states the booking, the confirmation is sent`, async () => {
     const { db, id, links } = seed({ deposit: 100, balance: 355.36 });
     const link = links.create({ reservationId: id, type: 'deposit', amountCents: 10000, providerLinkId: 'old', url: 'u', status: 'open' });
@@ -166,7 +166,7 @@ for (const [deposit, balance, label] of [[120, 335.36, 'grown'], [80, 375.36, 's
   });
 }
 
-// specs/plugins-phase-3a-online-payment.md rule 47 (audit R6 E2)
+// specs/plugins/plugins-phase-3a-online-payment.md rule 47 (audit R6 E2)
 test('rule 47 (E2): a retired acompte link of a devis paid after a re-price tells the operator no confirmation was sent', async () => {
   const { db, id, links } = seed({ deposit: 100, balance: 355.36 });
   const link = links.create({ reservationId: id, type: 'deposit', amountCents: 10000, provider: 'qonto', providerLinkId: 'old', url: 'u', status: 'open' });

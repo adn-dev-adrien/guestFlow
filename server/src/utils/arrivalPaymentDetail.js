@@ -1,6 +1,6 @@
 /**
  * What the single arrival payment actually paid for, line by line
- * (specs/arrival-payment-detail-and-adjustment.md §3.1).
+ * (specs/sas/arrival-payment-detail-and-adjustment.md §3.1).
  *
  * The group records which BUCKETS one collection covered — acompte, solde, complément d'arrivée,
  * complément de fin de séjour. « solde 720,82 € » answers *which column stores this money*; the
@@ -211,7 +211,7 @@ function buildArrivalPaymentDetail(reservation, { buckets = [], complementDetail
     bucketsTotal = round2(bucketsTotal + round2(reservation.complementAmount));
     for (const line of ((complementDetail && complementDetail.detail) || [])) {
       // The taxe de séjour is collected once and shown once, whichever bucket carries it. Alone in this
-      // payment, the addition keeps its name (specs/platform-added-guests-tourist-tax.md rule 23).
+      // payment, the addition keeps its name (specs/tourist-tax/platform-added-guests-tourist-tax.md rule 23).
       if (line.kind === 'tax') {
         if (line.addedGuests && tax === 0) taxLabel = line.label;
         tax = round2(tax + round2(line.amount));

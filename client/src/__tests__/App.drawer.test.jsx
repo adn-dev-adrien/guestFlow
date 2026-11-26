@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rules 15–18 — the shell: the installed version at the foot of the
+// specs/planning/shell-and-home-day-first.md rules 15–18 — the shell: the installed version at the foot of the
 // drawer (not in the top bar), a 256 px drawer whose labels wrap, chevron buttons that say whether
 // their group is open, a named menu button, and the page title in the top bar of a phone.
 import React from 'react';

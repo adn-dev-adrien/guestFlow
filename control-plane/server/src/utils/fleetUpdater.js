@@ -1,5 +1,5 @@
 /**
- * Updating the fleet (specs/hosting-h1-fleet-runtime.md rules 10–11): one customer, a selection or
+ * Updating the fleet (specs/hosting/hosting-h1-fleet-runtime.md rules 10–11): one customer, a selection or
  * every instance, one at a time —
  *
  *   1. stop the instance, then snapshot its database (a consistent copy, and a backup forced

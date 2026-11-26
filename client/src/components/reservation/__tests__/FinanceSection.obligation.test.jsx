@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 75 — the « À rembourser » rows of the register of refund obligations: the server words the
+// specs/pricing/pricing-components.md §3 rule 75 — the « À rembourser » rows of the register of refund obligations: the server words the
 // row and its action, the fiche renders the button, asks, calls the close endpoint and re-reads the ledger.
 import { screen, waitFor, within } from '@testing-library/react';
 import React from 'react';

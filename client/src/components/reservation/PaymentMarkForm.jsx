@@ -1,6 +1,6 @@
 /**
  * PaymentMarkForm — the inline form under a ledger row that records a movement
- * (specs/reservation-payment-ledger.md rules 8-9, 26; §6). Never a dialog: the date, prefilled to
+ * (specs/payments/reservation-payment-ledger.md rules 8-9, 26; §6). Never a dialog: the date, prefilled to
  * today; « Caisse interne » on the complements only; on a platform payout, « Virement reçu »
  * prefilled with the expected net, the gap the server words and its one commission button. The server
  * validates and its refusal is shown under the field it names; the form stays open with the typed
@@ -20,7 +20,7 @@
  *   formatAmountInput: (number) → « 829,42 »
  *   previousDate: `YYYY-MM-DD` — the date of a payment just undone on this row, proposed again
  *
- * Split payments (specs/mixed-method-payments.md rules 21-22, 20, 17):
+ * Split payments (specs/payments/mixed-method-payments.md rules 21-22, 20, 17):
  *   - a row whose `action.split` is set offers « Plusieurs moyens » after « Annuler »: the lines replace the
  *     caisse-interne switch in place, « Un seul moyen » brings it back with the date kept; the submit then
  *     passes `{ date, tenders, shortfall }`;
@@ -117,7 +117,7 @@ export default function PaymentMarkForm({
   const dateError = error.field === 'date' ? error.message : '';
   const formError = error.field == null ? error.message : '';
   return (
-    // specs/plugins-phase-1-sdk.md rule 58 (I4) — the form is a focus region: its submit going busy, a tender line removed, the focus
+    // specs/plugins/plugins-phase-1-sdk.md rule 58 (I4) — the form is a focus region: its submit going busy, a tender line removed, the focus
     // stays in the form.
     <FocusKeeper
       component="form"

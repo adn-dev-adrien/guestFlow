@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The real-host scenarios of specs/hosting-h1-fleet-runtime.md, run INSIDE the throwaway host after
+ * The real-host scenarios of specs/hosting/hosting-h1-fleet-runtime.md, run INSIDE the throwaway host after
  * inside.sh bootstrapped it: everything goes through the console's HTTP API behind Caddy, and the
  * results are read on the host itself (systemd, /proc, the object storage). Prints one line per check
  * and exits non-zero when one fails.

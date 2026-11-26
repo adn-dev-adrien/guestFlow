@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 39 (audit R4 Q1): a bucket collected at arrival (the fiche's
+// specs/plugins/plugins-phase-3a-online-payment.md rule 39 (audit R4 Q1): a bucket collected at arrival (the fiche's
 // « Paiement unique » or the SAS check-in) retires its open link at once, and a link paid on a bucket
 // already settled never silently re-marks it.
 
@@ -87,7 +87,7 @@ test('rule 39: the SAS arrival collection retires the open link of the stay it c
   assert.equal(s.links.findById(s.B.id).status, 'cancelled');
 });
 
-// specs/plugins-phase-3a-online-payment.md rule 43 (audit R4 R1): the money of a payment at the door is never
+// specs/plugins/plugins-phase-3a-online-payment.md rule 43 (audit R4 R1): the money of a payment at the door is never
 // the link's, so the same day is no reason to stay silent.
 test('rule 43: a card payment at the door, then the link paid the same day, alerts (retry path)', async () => {
   const s = seed();

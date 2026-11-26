@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 7, 44 (audits R34-C-L2, R34-M-M1) — TenderLines: the whole amount typed on the
+// specs/payments/mixed-method-payments.md rules 7, 44 (audits R34-C-L2, R34-M-M1) — TenderLines: the whole amount typed on the
 // first line leaves the untyped last line at 0, which is no line (« Reste 0,00 € » and the submit agree); and where the
 // amount is paid whole (the acompte, an installment) a cash line starts on the books, no shortfall choice is offered,
 // and an installment has no « Caisse interne » at all.

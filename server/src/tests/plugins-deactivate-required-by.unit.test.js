@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 36 (operator decision 2026-10-27) — deactivating a plugin
+// specs/plugins/plugins-phase-4-registry.md rule 36 (operator decision 2026-10-27) — deactivating a plugin
 // that an ACTIVE plugin requires is refused like uninstalling it (rule 12): 409 REQUIRED_BY naming
 // the dependant. Found at the 2026-10-27 spec review: website-booking could be switched off while
 // google-vacation-rentals, which requires it, stayed active.

@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tourist-tax-included-services-deduction.md — in percentage mode the tax base is the DRY
+// specs/tourist-tax/tourist-tax-included-services-deduction.md — in percentage mode the tax base is the DRY
 // NIGHT: the accommodation charged, minus the reference value of the services sold inside the rate
 // (property defaults marked « offerte »). That value is a per-stay forfait computed on the guests
 // the rate includes, so it never moves with the size of the party.
@@ -184,9 +184,9 @@ test('customPrice and the discount drive the accommodation BEFORE the deduction'
   db.close();
 });
 
-// Rule 6 — the half of specs/tourist-tax-base-accommodation-only.md that stays. The brut is a
+// Rule 6 — the half of specs/tourist-tax/tourist-tax-base-accommodation-only.md that stays. The brut is a
 // payment figure; it never derives the base, with or without inclusions on the booking.
-// specs/tourist-tax-matches-the-office-calculation.md rule 2 repeals the decoupling, but rule 5
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 2 repeals the decoupling, but rule 5
 // keeps this deduction: on a platform booking the inclusions come out of the BRUT, not out of the
 // tariff. The office asked for the accommodation « hors options et ménage », whoever cashed it.
 test('the inclusions are deducted from the platform brut too', () => {

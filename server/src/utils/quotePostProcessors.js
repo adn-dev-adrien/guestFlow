@@ -1,5 +1,5 @@
 /**
- * The quote post-processor (specs/plugins-phase-3b-neat.md rules 1–6). A plugin declares it with
+ * The quote post-processor (specs/plugins/plugins-phase-3b-neat.md rules 1–6). A plugin declares it with
  * `ctx.quotePostProcessor`; the core builds the stay snapshot, asks it, and re-runs its own engine with
  * the answer. The engine stays pure and keeps freezing sold lines itself.
  *

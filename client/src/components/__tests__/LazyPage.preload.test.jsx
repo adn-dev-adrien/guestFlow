@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 10 — a page's chunk starts at boot for the URL asked, and the main
+// specs/tech/inte-performance.md rule 10 — a page's chunk starts at boot for the URL asked, and the main
 // pages are fetched when the browser is idle, unless the visitor asked to save data.
 import React from 'react';
 import { vi } from 'vitest';

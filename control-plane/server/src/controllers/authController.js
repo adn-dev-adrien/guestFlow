@@ -1,5 +1,5 @@
 /**
- * Operator login and second factor (specs/control-plane-plans-and-access.md rule 31).
+ * Operator login and second factor (specs/hosting/control-plane-plans-and-access.md rule 31).
  *
  * Login is two steps: the password opens a *pending* session; the second factor — a TOTP code, an
  * email code or a backup code — turns it into an operator session. Five wrong codes in a row lock

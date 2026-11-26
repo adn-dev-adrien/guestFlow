@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md §7 — the recette tool: a Qonto CSV export becomes stored credits.
+// specs/accounting/qonto-bank-reconciliation.md §7 — the recette tool: a Qonto CSV export becomes stored credits.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

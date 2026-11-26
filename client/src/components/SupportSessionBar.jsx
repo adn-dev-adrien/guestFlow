@@ -2,7 +2,7 @@
  * SupportSessionBar — the red bar « Session support — <expiry> » pinned to the bottom of every page
  * of a support session (clear of the app bar and the sticky action bars), so a screenshot is never
  * mistaken for the customer's own
- * (specs/hosting-h2-account-security.md rule 16). It also reports each page the support opens to
+ * (specs/hosting/hosting-h2-account-security.md rule 16). It also reports each page the support opens to
  * the access log (rule 15). Renders nothing outside a support session.
  */
 import React, { useEffect } from 'react';
@@ -39,7 +39,7 @@ export default function SupportSessionBar() {
         right: 0,
         zIndex: (t) => t.zIndex.drawer + 2,
         minHeight: SUPPORT_BAR_HEIGHT,
-        // Clear of the home indicator on a phone (specs/hosting-h2-account-security.md rule 16).
+        // Clear of the home indicator on a phone (specs/hosting/hosting-h2-account-security.md rule 16).
         boxSizing: 'content-box',
         pb: 'env(safe-area-inset-bottom, 0px)',
         bgcolor: 'error.main',

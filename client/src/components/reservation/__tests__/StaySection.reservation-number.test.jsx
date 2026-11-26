@@ -1,4 +1,4 @@
-// specs/reservation-number-and-search.md (amended 2026-10-18) — once a number is set it may be the
+// specs/reservations/reservation-number-and-search.md (amended 2026-10-18) — once a number is set it may be the
 // platform's own (an intake writes Booking's), so the hint no longer claims it was generated.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

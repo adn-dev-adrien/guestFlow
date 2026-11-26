@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md §3.2 + §3.4 — who does NOT receive an email of the sequence, and why.
+// specs/emails/guest-email-sequence.md §3.2 + §3.4 — who does NOT receive an email of the sequence, and why.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,7 +20,7 @@ function season(stableKey, stays, { client = CLIENT, sendDate, startDate = '2026
 }
 
 // rule 1 — a cancelled stay leaves the sequence from the moment it is cancelled.
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('a cancelled stay receives nothing', () => {
@@ -80,7 +80,7 @@ test('season mails: a client who never stayed is not a candidate at all', () => 
 });
 
 test('season mails: relay addresses are never prospected; one direct stay is enough', () => {
-  // The platforms ticked « Adresse e-mail relais » (specs/platform-settings-relay-and-review.md rule 2).
+  // The platforms ticked « Adresse e-mail relais » (specs/platforms/platform-settings-relay-and-review.md rule 2).
   setRelayChannels(['Airbnb', 'Booking']);
   const airbnb = { ...STAY, platform: 'Airbnb' };
   assert.equal(season(MAIL.NOVEMBER, [airbnb], { sendDate: '2027-11-15' }).blocked, 'relayAddress');

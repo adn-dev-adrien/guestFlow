@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 55 and specs/reservation-refunds.md rule 48, readings of 2026-11-02
+// specs/payments/payment-schedule-and-cancellation.md rule 55 and specs/payments/reservation-refunds.md rule 48, readings of 2026-11-02
 // (review of PR #929, F1). The cancellation requalified the commission withheld on a paid solde whole, even when a book
 // refund made before it had already reversed that solde's 706 at gross: the avoir then reversed 706 + 4457 the books no
 // longer held and 7588 kept money that was given back. Now each solde bucket requalifies at most what the books still

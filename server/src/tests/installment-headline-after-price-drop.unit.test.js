@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 48 (spec review of 2026-10-27, agent 3 F4) — after a price drop
+// specs/payments/reservation-payment-ledger.md rule 48 (spec review of 2026-10-27, agent 3 F4) — after a price drop
 // below an installment plan (direct-installments rule 8: nothing is lowered), the fiche's headline said
 // « Total du séjour 415 · Total perçu 515 » stored and « 415 » live, while 172 € had been collected. The
 // plan now counts for the stay (or for what it collected, when more), live and stored alike.

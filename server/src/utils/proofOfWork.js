@@ -1,5 +1,5 @@
 /**
- * Proof of work for the public requests of the website (specs/public-request-abuse-and-grouping.md rules
+ * Proof of work for the public requests of the website (specs/site/public-request-abuse-and-grouping.md rules
  * 1-5b). Expensive for a robot, invisible for a guest, and never a lockout: nothing here is shared by
  * every visitor except the flood surcharge, which only makes the work longer, capped.
  *

@@ -1,4 +1,4 @@
-// specs/settings.md rule 8 (audit R24-I1 and its observation, 2026-11-05) — through the real application: the logo is a PNG or
+// specs/settings/settings.md rule 8 (audit R24-I1 and its observation, 2026-11-05) — through the real application: the logo is a PNG or
 // a JPEG, judged on its name, its type and its first bytes; a refused file changes nothing; a new logo removes the
 // company-logo files of the other extensions; the devis PDF is still served whatever the stored logo holds.
 const test = require('node:test');

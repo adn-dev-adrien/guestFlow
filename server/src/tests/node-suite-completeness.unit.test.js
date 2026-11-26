@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 10 — a suite never reports green with tests of a file left unrun.
+// specs/tech/server-test-isolation.md rule 10 — a suite never reports green with tests of a file left unrun.
 // Audit R9 M-1: under `--test-force-exit` a child exited 0 partway through `sas-commit.unit.test.js` on
 // GitHub CI (8 898 tests reported instead of 8 910, job green). A child ending early is simulated here by
 // a test calling `process.exit(0)`: plain `node --test` reports that run green, the suites' flags must not.

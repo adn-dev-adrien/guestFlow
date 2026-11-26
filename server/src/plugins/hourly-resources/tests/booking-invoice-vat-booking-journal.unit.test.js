@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 62, specs/outside-booking-sas.md rules 56 (e), 57 (b) and specs/resource-booking-pricing-and-invoicing.md rules 14, 53 (stabilisation
+// specs/pricing/pricing-components.md rule 62, specs/sas/outside-booking-sas.md rules 56 (e), 57 (b) and specs/resources/resource-booking-pricing-and-invoicing.md rules 14, 53 (stabilisation
 // loop t5 B5-2) — the journal books a booking sold outside a stay as ONE line whose HT is the net of its TTC (`netOfTtc`, net first). The Qonto invoice of
 // the booking states that VAT: its items and its discount name the `booking:` group, and the issuer sends a `booking:` group with the booking journal's
 // cut — on its own invoice, and as the session paid on the booking inside a visit's document. Before, Qonto's per-line VAT drifted a cent (20 € − 15 € at

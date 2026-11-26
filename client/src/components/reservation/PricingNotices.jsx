@@ -7,7 +7,7 @@
  * Props:
  *   notices   Array<{ code: string, text: string, action?: string }> | undefined
  *   onAction  (action: string) => void — called by the button a notice with an `action` carries
- *   actionDisabled  boolean — the button shows but takes no click (the fiche is not the server's: specs/pricing-components.md rule 101)
+ *   actionDisabled  boolean — the button shows but takes no click (the fiche is not the server's: specs/pricing/pricing-components.md rule 101)
  */
 import React from 'react';
 import { Alert, Button } from '@mui/material';

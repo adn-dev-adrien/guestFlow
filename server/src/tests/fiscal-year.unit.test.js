@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/fiscal-year-and-nights-sold.md §3.1 — the exercise ends on the last day of the configured
+// specs/accounting/fiscal-year-and-nights-sold.md §3.1 — the exercise ends on the last day of the configured
 // CLOSING month and starts the day after. Pure arithmetic: every function takes its reference date as
 // a parameter, so nothing here depends on the wall clock.
 const fy = require('../utils/fiscalYear');
@@ -81,7 +81,7 @@ test('resolve() honours an explicit key, whatever today is', () => {
 });
 
 test('resolve() falls back to the current exercise on an absent or nonsense key', () => {
-  // specs/fiscal-year-and-nights-sold.md §3.5 rule 24 — a hand-edited URL degrades, never 400s.
+  // specs/accounting/fiscal-year-and-nights-sold.md §3.5 rule 24 — a hand-edited URL degrades, never 400s.
   for (const key of [undefined, null, '', 'abc', 0, 1999, 12345]) {
     assert.equal(fy.resolve(9, { key, today: '2026-08-12' }).key, 2026, `key=${String(key)}`);
   }

@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-24, 26 — the « Versements à venir » tile of the Suivi
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 21-24, 26 — the « Versements à venir » tile of the Suivi
 // financier: the server's figure and caption, a click opens the detail read from /finance/incoming (never from the
 // windowed dashboard detail), « Reçus ces 30 derniers jours » re-reads the other payload, a line opens its fiche.
 import React from 'react';

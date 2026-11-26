@@ -1,4 +1,4 @@
-// specs/guest-app.md §6.1 night register, rule 53 — night from the server's sunset (`isNight`) or the device's dark
+// specs/guest-app/guest-app.md §6.1 night register, rule 53 — night from the server's sunset (`isNight`) or the device's dark
 // scheme, unless the guest chose; the choice stays on the device; the tokens follow on the .app root.
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';

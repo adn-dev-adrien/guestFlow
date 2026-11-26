@@ -1,5 +1,5 @@
 /**
- * Booking → form hydration (specs/devis-extras-parity-and-price-lock.md §4.2).
+ * Booking → form hydration (specs/devis/devis-extras-parity-and-price-lock.md §4.2).
  *
  * A devis and a reservation are the same row with the same children, and `ReservationPage` is the same
  * form for both — but each load path used to map the API payload into form state on its own. The devis
@@ -20,7 +20,7 @@
  */
 export function hydrateSelectedOptions(options, stay, catalogue, buildCardGrid) {
   return (options || []).filter((o) => !o.isCustom && !o.laterLine).map((o) => {
-    // Option-driven planning cards (specs/option-planning-card.md §3.2): rebuild the working occurrence
+    // Option-driven planning cards (specs/options/option-planning-card.md §3.2): rebuild the working occurrence
     // grid from the stored {date,time}[] so the checklist restores the exact saved selection. The
     // option's catalog config (mode + slots) drives the grid.
     const cat = (catalogue || []).find((c) => Number(c.id) === Number(o.optionId));
@@ -37,7 +37,7 @@ export function hydrateSelectedOptions(options, stay, catalogue, buildCardGrid) 
       acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
       soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
       ...(cardOccurrences ? { cardOccurrences } : {}),
-      // specs/card-option-served-persons.md §3.2 — the served count is the operator's decision, so it
+      // specs/options/card-option-served-persons.md §3.2 — the served count is the operator's decision, so it
       // must come back on the form line: without it the next save re-bills the whole party.
       ...(o.cardPersons != null ? { cardPersons: Number(o.cardPersons) } : {}),
       ...(o.cardNights != null ? { cardNights: Number(o.cardNights) } : {}),
@@ -46,7 +46,7 @@ export function hydrateSelectedOptions(options, stay, catalogue, buildCardGrid) 
 }
 
 /**
- * The lines an article was sold on AFTER its first one (specs/pricing-components.md §3 rule 85; the server flags them `laterLine`) → the wire lines the form
+ * The lines an article was sold on AFTER its first one (specs/pricing/pricing-components.md §3 rule 85; the server flags them `laterLine`) → the wire lines the form
  * carries as they are and sends back with every quote and save: the form edits an article's first line, a later line is changed from « Ventes du
  * séjour ». Each names its `lineId` and its own `offered`, so a save updates that very row.
  */
@@ -101,7 +101,7 @@ export function hydrateSelectedResources(resources) {
     inComplement: Number(r.inComplement || 0) === 1,
     acompteContribTtc: r.acompteContribTtc != null ? Number(r.acompteContribTtc) : null,
     soldeContribTtc: r.soldeContribTtc != null ? Number(r.soldeContribTtc) : null,
-    // Hourly-scheduled resources (specs/resource-hourly-scheduling.md) — the session editor reads these
+    // Hourly-scheduled resources (specs/resources/resource-hourly-scheduling.md) — the session editor reads these
     // back; a devis used to drop them, so its « Bain nordique » came back empty and unbilled.
     sessions: Array.isArray(r.sessions) ? r.sessions : parseSessions(r.sessions),
   }));

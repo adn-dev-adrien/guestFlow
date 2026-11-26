@@ -1,4 +1,4 @@
-// specs/single-payment-at-check-in.md §3.3 rule 13 — le tableau « Encaissements du mois » montre UNE
+// specs/payments/single-payment-at-check-in.md §3.3 rule 13 — le tableau « Encaissements du mois » montre UNE
 // ligne par collecte, pas une par échéance.
 //
 // La règle était écrite depuis la v2.9.0 mais jamais construite : les cartes de journal regroupaient

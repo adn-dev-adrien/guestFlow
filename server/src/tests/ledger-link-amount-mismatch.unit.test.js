@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rules 31 and 47 — a payment link paid for an amount the
+// specs/payments/reservation-payment-ledger.md rules 31 and 47 — a payment link paid for an amount the
 // reservation no longer asks for (review of inte/plugins, 2026-10-23):
 //   - a `full` link paid after the stay grew an acompte settles the acompte AND the solde;
 //   - a retired complement link is recorded the way the fiche records it, and traced;
@@ -18,7 +18,7 @@ const { remainingToPay } = require('../utils/reservationSettlement');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const recordReal = (p) => recordStayPayment(depsFor(db), { ...p, keepPaymentOnCaptureFailure: true });

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 10, 14, 41, 47, 56 — the Articles head: the only interface of « Articles », dispatch to
+// specs/pricing/pricing-components.md §3 rules 10, 14, 41, 47, 56 — the Articles head: the only interface of « Articles », dispatch to
 // the family registry, refusals, the sold snapshot, the stay allowance, « offert », frozen instances.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/direct-installments.md rule 22 — an installment in arrears reads on the payment-deadline card.
+// specs/payments/direct-installments.md rule 22 — an installment in arrears reads on the payment-deadline card.
 import { deadlineHeadline, DEADLINE_STATE_LABELS, DEADLINE_STATE_BADGE } from '../paymentDeadlines';
 
 test('an installment in arrears is worded, plural and singular, and drawn as a warning', () => {

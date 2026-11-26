@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 9 and 10 (and 4, 5, 13) — what a Mollie credit may be matched
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 9 and 10 (and 4, 5, 13) — what a Mollie credit may be matched
 // to once Mollie's own account of it exists, and how loose the amount path may be. Fictional data, dates relative to today.
 const test = require('node:test');
 const assert = require('node:assert/strict');

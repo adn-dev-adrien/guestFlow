@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 16-18, 48 — the page editor: a block added from the palette, edited FR / EN, restricted
+// specs/guest-app/guest-app.md rules 16-18, 48 — the page editor: a block added from the palette, edited FR / EN, restricted
 // to one lodging on a shared page, removed, reordered, and « Enregistrer le brouillon » writing exactly that.
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';

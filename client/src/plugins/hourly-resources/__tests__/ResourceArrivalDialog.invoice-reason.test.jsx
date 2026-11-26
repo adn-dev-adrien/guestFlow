@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 48 (loop t2 UI2-5) — the « Facture » reason is the stored visit's: shown only while nothing is typed, and never for a refusal
+// specs/sas/outside-booking-sas.md rule 48 (loop t2 UI2-5) — the « Facture » reason is the stored visit's: shown only while nothing is typed, and never for a refusal
 // the server marks `silent` (no Qonto on the install, nothing to invoice, no payment yet) — a paid visit on an install without Qonto shows no invoice block.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

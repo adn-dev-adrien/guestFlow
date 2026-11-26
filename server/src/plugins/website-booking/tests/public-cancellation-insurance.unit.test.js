@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/cancellation-insurance.md §3.3 — what the public API ships to the WordPress widget.
+// specs/payments/cancellation-insurance.md §3.3 — what the public API ships to the WordPress widget.
 //
 // The catalogue half runs on stubbed models (like public-options-grouped.unit.test.js). The quote
 // half deliberately does NOT stub the pricing engine or the options model: it wires the REAL engine
@@ -9,7 +9,7 @@ require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Module = require('module');
@@ -18,7 +18,7 @@ const Database = require('better-sqlite3');
 const { buildModel } = require('../../../models/optionsModel');
 const { offerInsurance, withdrawInsurance } = require('../../../tests/insuranceOfferFixture');
 
-// The insurance is offered while a plugin prices it (specs/plugins-phase-3b-neat.md rule 5).
+// The insurance is offered while a plugin prices it (specs/plugins/plugins-phase-3b-neat.md rule 5).
 test.before(() => offerInsurance());
 test.after(() => withdrawInsurance());
 
@@ -197,7 +197,7 @@ test('no insurance configured → no block in the quote either', async () => {
   db.close();
 });
 
-// The default tariff is per-night (specs/cancellation-insurance.md §3.2 rule 13): the site must
+// The default tariff is per-night (specs/payments/cancellation-insurance.md §3.2 rule 13): the site must
 // announce « 3 € par nuit » and preview the same amount the engine will bill.
 
 test('a per-night insurance is announced by the night', async () => {

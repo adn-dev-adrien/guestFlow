@@ -1,4 +1,4 @@
-// specs/resource-booking-client-picker.md rule 7 — the server builds each option's `searchText`
+// specs/resources/resource-booking-client-picker.md rule 7 — the server builds each option's `searchText`
 // (accent-free, lower-case). The client folds what is typed the same way and keeps the options that
 // contain every typed word; deciding what is searchable stays on the server.
 

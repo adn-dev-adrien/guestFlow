@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rules 1-2 — a test process never opens the checkout's own database:
+// specs/tech/server-test-isolation.md rules 1-2 — a test process never opens the checkout's own database:
 // the preload gives it a temp DB_PATH and makes the default path throw.
 const test = require('node:test');
 const assert = require('node:assert/strict');

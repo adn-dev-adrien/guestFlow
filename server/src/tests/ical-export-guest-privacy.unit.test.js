@@ -1,4 +1,4 @@
-// specs/ical-export-guest-privacy.md — the public iCal feed of a property says « Réservé » on its
+// specs/platforms/ical-export-guest-privacy.md — the public iCal feed of a property says « Réservé » on its
 // dates and nothing about the guest: every platform subscribed to it reads it.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -34,20 +34,20 @@ const valueOf = (lines, key) => {
   return line ? line.slice(line.indexOf(':') + 1) : null;
 };
 
-test('specs/ical-export-guest-privacy.md rule 1: every stay reads « Réservé », whoever the guest and whatever the platform', () => {
+test('specs/platforms/ical-export-guest-privacy.md rule 1: every stay reads « Réservé », whoever the guest and whatever the platform', () => {
   const found = events(freshModel().exportProperty(1));
   assert.equal(found.length, 2);
   found.forEach((lines) => assert.equal(valueOf(lines, 'SUMMARY'), 'Réservé'));
 });
 
-test('specs/ical-export-guest-privacy.md rule 2: no name, e-mail, phone, platform, party or note reaches the feed', () => {
+test('specs/platforms/ical-export-guest-privacy.md rule 2: no name, e-mail, phone, platform, party or note reaches the feed', () => {
   const ics = freshModel().exportProperty(1);
   ['Marie', 'Vasseur', 'm.vasseur@example.fr', '+33612345678', 'Hugo', 'Lambert', 'guest.booking.com',
     'Airbnb', 'Booking', 'Adultes', 'Code portail', 'ATTENDEE', 'DESCRIPTION', 'mailto:']
     .forEach((needle) => assert.equal(ics.includes(needle), false, `${needle} leaked into the feed`));
 });
 
-test('specs/ical-export-guest-privacy.md rule 3: the UID and the dates keep their shape, so a platform updates the same block', () => {
+test('specs/platforms/ical-export-guest-privacy.md rule 3: the UID and the dates keep their shape, so a platform updates the same block', () => {
   const [first] = events(freshModel().exportProperty(1));
   assert.equal(valueOf(first, 'UID'), 'reservation-1@guestflow.local');
   assert.equal(valueOf(first, 'DTSTART').replace(/^.*:/, ''), '20270710');

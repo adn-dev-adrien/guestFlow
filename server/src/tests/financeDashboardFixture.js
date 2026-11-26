@@ -1,4 +1,4 @@
-// Shared fixture of the finance dashboard suites (specs/finance-dashboard-redesign.md): an in-memory
+// Shared fixture of the finance dashboard suites (specs/accounting/finance-dashboard-redesign.md): an in-memory
 // schema holding just the columns the finance models read, plus closures and refunds. Not a test file.
 
 const { todayIso: localTodayIso } = require('../utils/localDate');

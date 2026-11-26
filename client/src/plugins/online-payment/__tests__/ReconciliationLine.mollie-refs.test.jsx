@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 12 — a reconciled tranche shows the identifiers of its bank
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 12 — a reconciled tranche shows the identifiers of its bank
 // credit (Qonto transaction, Mollie settlement, Mollie payment) shortened with a copy button; a credit without any shows none.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/booking-pace.md — réservations à date vs the same date last year: what is on the books at a
+// specs/pricing/booking-pace.md — réservations à date vs the same date last year: what is on the books at a
 // date, the three figures per stay month, the non-comparable state, the pickup and the pickup curve.
 const { freshDb, insert } = require('./financeDashboardFixture');
 const bookingPaceModel = require('../models/bookingPaceModel');

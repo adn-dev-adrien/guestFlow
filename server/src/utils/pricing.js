@@ -86,7 +86,7 @@ module.exports = {
   matchNightRule,
   hasUnpricedNights,
   // The engine's own reading of a lodging's catalogue and of the free units, for the guest app's shop
-  // (specs/guest-app.md rules 24-25): it shows what the fiche will price.
+  // (specs/guest-app/guest-app.md rules 24-25): it shows what the fiche will price.
   applyFreeUnitsToLine,
   getApplicableOptions,
   getApplicableResources,

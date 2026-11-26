@@ -1,4 +1,4 @@
-// Per-devis capability token (specs/public-online-payment.md §7): generation + constant-time match.
+// Per-devis capability token (specs/site/public-online-payment.md §7): generation + constant-time match.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t22 UI22-1) — FocusKeeper: when the control holding the focus is removed,
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t22 UI22-1) — FocusKeeper: when the control holding the focus is removed,
 // disabled or hidden, the focus goes to the nearest anchor still drawn around it (never the document body); it never takes the focus from
 // anywhere else, and forgets a control the operator left on purpose.
 import React, { useState } from 'react';

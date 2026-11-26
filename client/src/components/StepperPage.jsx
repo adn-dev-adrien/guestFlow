@@ -1,5 +1,5 @@
 /**
- * StepperPage — a full-screen guided flow, one step per screen (specs/plugins-phase-p-productisation.md
+ * StepperPage — a full-screen guided flow, one step per screen (specs/plugins/plugins-phase-p-productisation.md
  * rule 23). Generic: any multi-step flow outside the side menu.
  *
  * Props:
@@ -12,10 +12,10 @@
  *   onLater      optional () => void — « Plus tard »
  *   busy         boolean — disables the actions and shows a spinner in the primary one
  *
- * Phone (specs/design-system-reference.md §9, UI/UX review 2026-10-18 decision 5 — the SAS rule): the
+ * Phone (specs/design-system/design-system-reference.md §9, UI/UX review 2026-10-18 decision 5 — the SAS rule): the
  * actions stack in a bar kept at the bottom of the screen, the primary one filled and LAST, under the
  * thumb; « Précédent » and « Plus tard » above it, neutral.
- * (specs/plugins-phase-p-productisation.md rule 44.)
+ * (specs/plugins/plugins-phase-p-productisation.md rule 44.)
  */
 import React from 'react';
 import { Box, Button, Card, CardContent, CircularProgress, LinearProgress, Stack, Typography } from '@mui/material';

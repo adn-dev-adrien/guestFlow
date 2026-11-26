@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 62 — « +28 % » / « −31 % », whole and signed.
+// specs/payments/reservation-payment-ledger.md rule 62 — « +28 % » / « −31 % », whole and signed.
 import { formatSignedPercent } from '../formatters';
 
 test('signs a whole percentage with a plus or the typographic minus', () => {

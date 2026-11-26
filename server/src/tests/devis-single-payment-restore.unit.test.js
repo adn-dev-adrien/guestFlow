@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 20 (D23 stored row, audit R33 N1), rule 19.
+// specs/payments/deposit-blocks-the-dates.md rule 20 (D23 stored row, audit R33 N1), rule 19.
 // D23 reads a devis whose solde falls on or before its validity date as ONE payment. A row whose columns still hold
 // an acompte — stored before the rule, or whose logement's « Solde dû … jours avant » changed since — disagreed with
 // that read: its open deposit link stayed payable (the stale-link guard compares with the columns), and paying it

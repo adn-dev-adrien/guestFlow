@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/server-test-isolation.md rule 23 (readings
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/tech/server-test-isolation.md rule 23 (readings
 // of 2026-11-18, loops t22 A22-1 and t23 UI23-1) — every TEST, not only the first of its file, runs
 // with the four SDK sale blocks' code cold and arriving late (`src/setupLateSaleChunks.js`, a setup file of vitest.config.js), so a test that acts before its dialog has the code fails
 // every time. This file checks that the delay is in place, and that every dialog waiting for that code (`useSaleComponentsReady`,

@@ -1,6 +1,6 @@
 /**
  * InsightCard — one « fait marquant »: a toned icon, a bold line and a caption
- * (specs/finance-dashboard-redesign.md rules 11, 43). Generic: the text comes ready-made from the
+ * (specs/accounting/finance-dashboard-redesign.md rules 11, 43). Generic: the text comes ready-made from the
  * server; it wraps inside any column width, never clipped.
  *
  * Props:

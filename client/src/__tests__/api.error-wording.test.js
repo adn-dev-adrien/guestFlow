@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 44 — what api.js throws is a French sentence: a failed connection, an
+// specs/design-system/ui-review-2026-10-19-operations.md rule 44 — what api.js throws is a French sentence: a failed connection, an
 // answer that is not JSON, a lost session; a refusal keeps its code in `error` and its own message.
 import { vi } from 'vitest';
 import api from '../api';

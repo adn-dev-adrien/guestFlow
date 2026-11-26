@@ -1,4 +1,4 @@
-// paymentLinksModel CRUD + open/paid lifecycle. See specs/online-payments-qonto.md §5.
+// paymentLinksModel CRUD + open/paid lifecycle. See specs/payments/online-payments-qonto.md §5.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

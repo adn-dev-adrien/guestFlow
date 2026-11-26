@@ -1,4 +1,4 @@
-// specs/tourist-tax-matches-the-office-calculation.md rule 8 — a baby is not an occupant for the
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 8 — a baby is not an occupant for the
 // divisor.
 //
 // The engine divided the nightly cost by `adults + children + teens + babies`, and dividing by more
@@ -72,7 +72,7 @@ test('the divisor is adults + children + teens, and the caption says so', () => 
 });
 
 // The Marchand declaration of August 2026: 3 adults, 1 child, 1 baby, filed with 4 occupants.
-// specs/tourist-tax-matches-the-office-calculation.md rule 9 — the taxable-person count is unchanged:
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 9 — the taxable-person count is unchanged:
 // the adults pay, whoever else shares the night. Only the divisor moved.
 test('a party of adults-only is unaffected — the rule only removes babies', () => {
   const db = createDb();

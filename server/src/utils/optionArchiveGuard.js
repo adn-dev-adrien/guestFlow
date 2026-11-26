@@ -1,6 +1,6 @@
 /**
- * Why an option cannot be archived, or '' when it can (specs/option-soft-delete.md rule 2,
- * specs/options-resources-ux.md rule 6). One function for `optionsModel.remove` and the catalogue
+ * Why an option cannot be archived, or '' when it can (specs/options/option-soft-delete.md rule 2,
+ * specs/options/options-resources-ux.md rule 6). One function for `optionsModel.remove` and the catalogue
  * view, so the row's disabled « Archiver » and the server's refusal never disagree.
  */
 

@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md rules 1-5 — « Adresse e-mail relais » and « Où laisser un
+// specs/platforms/platform-settings-relay-and-review.md rules 1-5 — « Adresse e-mail relais » and « Où laisser un
 // avis » (FR / EN): per platform, sent with the save, refused fields shown in red; an own channel has none.
 import React from 'react';
 import { vi } from 'vitest';

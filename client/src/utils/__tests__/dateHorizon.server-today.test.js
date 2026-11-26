@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13, second reading (review of PR #938, F8) — the client hints judge the
+// specs/tech/reservations-backend-mvc.md rule 13, second reading (review of PR #938, F8) — the client hints judge the
 // window from the server's Europe/Paris day when they know it, not from the device's date: on the boundary day a
 // device ahead of Paris refused a save the server accepts, one behind sent what the server refuses.
 import { stayDatesMessage, isQuotableStay } from '../stayDates';

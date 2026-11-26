@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 5 — the plugin engine (mount, gate, jobs, settings, secrets,
+// specs/plugins/plugin-removal-resilience.md rule 5 — the plugin engine (mount, gate, jobs, settings, secrets,
 // erasure) proved on a module of its own, so it is exercised whichever shipped plugins a cell removed.
 
 const { listenLocal } = require('./listenLocal');

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 41 and 85 — the free units of an article belong to the ARTICLE: the lines of a stay that sold it twice
+// specs/pricing/pricing-components.md §3 rules 41 and 85 — the free units of an article belong to the ARTICLE: the lines of a stay that sold it twice
 // share one allowance, counted once (never once per line). An article on one line is priced exactly as before.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/platform-payment-tourist-tax-as-option.md — for a platform_reversed booking (the platform
+// specs/tourist-tax/platform-payment-tourist-tax-as-option.md — for a platform_reversed booking (the platform
 // collects the tourist tax from the guest then reverses it to us, and WE remit it), the operator-
 // entered brut already INCLUDES the tax. The engine must count that reversed tax as part of the brut
 // (an option-like line already paid) instead of baking it into the accommodation AND adding it again
@@ -108,7 +108,7 @@ test('guard — the SAME platform_reversed booking WITHOUT a brut is unchanged (
 });
 
 test('offered tax (case 2) with a brut: the brut is ALREADY net of the tax → nothing is subtracted', () => {
-  // specs/platform-brut-excludes-offered-tourist-tax.md rule 2 — the platform collects the tax AND remits
+  // specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md rule 2 — the platform collects the tax AND remits
   // it to the commune itself, so the amount it bills us (its statement's « prix location + options »)
   // never contains the tax. Subtracting our own estimate (4.80 = 2 nights × 2 adults × 1.20) used to
   // under-state the CA and the commission by exactly that estimate — the accountant's 2026-08-24 report.
@@ -129,7 +129,7 @@ test('offered tax (case 2) with a brut: the brut is ALREADY net of the tax → n
 });
 
 test('Gîtes de France (the accountant’s Victor case): the whole brut is revenue, commission intact', () => {
-  // specs/platform-brut-excludes-offered-tourist-tax.md §1 — verbatim from the GdF contract n°9290:
+  // specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md §1 — verbatim from the GdF contract n°9290:
   // prix location 653 + forfait ménage 80 = 733 billed to us, taxe de séjour 14,40 collected AND
   // remitted by the centrale, montant net propriétaire 668. Before the fix the engine subtracted its own
   // 14,40 estimate from the brut, so the books showed 718,60 of CA and a 50,60 commission instead of 65.

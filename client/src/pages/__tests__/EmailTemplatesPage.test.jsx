@@ -1,8 +1,8 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * EmailTemplatesPage — the Emails page: « Emails à envoyer » + « Modèles d'emails » cards.
- * See specs/email-automation.md §6.1 + §6.10; the timeline of the templates is
- * specs/guest-email-texts-made-simple.md rule 44.
+ * See specs/emails/email-automation.md §6.1 + §6.10; the timeline of the templates is
+ * specs/emails/guest-email-texts-made-simple.md rule 44.
  */
 
 import React from 'react';
@@ -11,7 +11,7 @@ import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
-// Every plugin active (specs/plugins-phase-1-sdk.md rule 13 — the token picker lists plugin tokens).
+// Every plugin active (specs/plugins/plugins-phase-1-sdk.md rule 13 — the token picker lists plugin tokens).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -57,7 +57,7 @@ import EmailTemplatesPage from '../EmailTemplatesPage';
 
 const dialogs = useAppDialogs();
 
-// The server's shapes (specs/guest-email-texts-made-simple.md rules 43–44): one name, the « Quand ».
+// The server's shapes (specs/emails/guest-email-texts-made-simple.md rules 43–44): one name, the « Quand ».
 const REGISTRY_ROW = {
   id: 1, stableKey: 'arrival_reminder_7d', textsSection: 'j7', shipped: true,
   name: 'Rappel arrivée — J-7', displayName: 'Préparation du séjour', subject: 'S', body: 'B',
@@ -104,7 +104,7 @@ function renderPage() {
   );
 }
 
-test('specs/guest-email-texts-made-simple.md rule 44: the emails read in stay order, by name, with « personnalisé » only on the operator’s own', async () => {
+test('specs/emails/guest-email-texts-made-simple.md rule 44: the emails read in stay order, by name, with « personnalisé » only on the operator’s own', async () => {
   renderPage();
   expect(await screen.findByText('Préparation du séjour')).toBeInTheDocument();
   expect(screen.getByText('Bienvenue')).toBeInTheDocument();
@@ -114,7 +114,7 @@ test('specs/guest-email-texts-made-simple.md rule 44: the emails read in stay or
   expect(moments).toEqual(['Avant l’arrivée', 'Pendant le séjour']);
 });
 
-test('specs/guest-email-texts-made-simple.md rule 44: the « Quand » under each name; the mode only when it is « Auto »', async () => {
+test('specs/emails/guest-email-texts-made-simple.md rule 44: the « Quand » under each name; the mode only when it is « Auto »', async () => {
   renderPage();
   expect(await screen.findByText('7 jours avant l’arrivée')).toBeInTheDocument();
   expect(screen.queryByText('Manuel')).not.toBeInTheDocument();
@@ -130,7 +130,7 @@ test('opening the create dialog yields an empty form + disabled submit', async (
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });
 
-// specs/guest-email-texts-made-simple.md rules 10, 37 — the variables are the server's, labelled,
+// specs/emails/guest-email-texts-made-simple.md rules 10, 37 — the variables are the server's, labelled,
 // behind « + Variable ».
 test('the variables and conditions of the server are offered by « + Variable » in the dialog', async () => {
   const user = userEvent.setup();
@@ -160,7 +160,7 @@ test('the "Emails à envoyer" card shows the queue when non-empty', async () => 
   expect(screen.getByText('Villa A')).toBeInTheDocument();
 });
 
-test('specs/guest-email-texts-made-simple.md rule 44: the operator’s own row opens its editor; a shipped row opens its texts', async () => {
+test('specs/emails/guest-email-texts-made-simple.md rule 44: the operator’s own row opens its editor; a shipped row opens its texts', async () => {
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Modifier les textes : Préparation du séjour' }));
@@ -169,7 +169,7 @@ test('specs/guest-email-texts-made-simple.md rule 44: the operator’s own row o
   expect(await screen.findByRole('heading', { name: 'Bienvenue' })).toBeInTheDocument();
 });
 
-test('specs/guest-email-texts-made-simple.md rule 44: « Supprimer » sits in « ⋯ »; a shipped email cannot be deleted, only switched off', async () => {
+test('specs/emails/guest-email-texts-made-simple.md rule 44: « Supprimer » sits in « ⋯ »; a shipped email cannot be deleted, only switched off', async () => {
   let answer;
   api.deleteEmailTemplate.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
   const user = userEvent.setup();
@@ -184,7 +184,7 @@ test('specs/guest-email-texts-made-simple.md rule 44: « Supprimer » sits in «
   expect(screen.queryByRole('heading', { name: 'Bienvenue' })).not.toBeInTheDocument();
 });
 
-test('specs/guest-email-texts-made-simple.md rule 44: « Envoi automatique… » from « ⋯ », after its confirmation, never as the first item', async () => {
+test('specs/emails/guest-email-texts-made-simple.md rule 44: « Envoi automatique… » from « ⋯ », after its confirmation, never as the first item', async () => {
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
@@ -195,7 +195,7 @@ test('specs/guest-email-texts-made-simple.md rule 44: « Envoi automatique… »
   await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(1, { sendMode: 'auto' }));
 });
 
-test('specs/guest-email-texts-made-simple.md rule 44: a refused confirmation keeps the email manual', async () => {
+test('specs/emails/guest-email-texts-made-simple.md rule 44: a refused confirmation keeps the email manual', async () => {
   const user = userEvent.setup();
   dialogs.confirm.mockResolvedValueOnce(false);
   renderPage();
@@ -245,7 +245,7 @@ test('clicking the queue client name navigates to the reservation', async () => 
   expect(navigate).toHaveBeenCalledWith('/reservations/100');
 });
 
-// ---- automatic sending per template (specs/settings-rationalization.md rule 17b) ----
+// ---- automatic sending per template (specs/settings/settings-rationalization.md rule 17b) ----
 // A template's own mode is the only switch: no « Auto désactivé » state, no banner sending the
 // operator to a global setting.
 

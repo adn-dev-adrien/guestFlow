@@ -1,5 +1,5 @@
 /**
- * ChartMenu — the « ⋯ » menu of every report chart (specs/report-grammar.md rule 10): « Voir en
+ * ChartMenu — the « ⋯ » menu of every report chart (specs/design-system/report-grammar.md rule 10): « Voir en
  * tableau » / « Voir le graphique » toggles the view, « Copier les données » puts the chart's data on
  * the clipboard as CSV and says whether it worked (a browser may refuse). Generic: any chart.
  *

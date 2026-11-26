@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rule 21 (audit round 2, N5) — `cycleOf` answers for EVERY member of a
+// specs/plugins/plugin-dependencies.md rule 21 (audit round 2, N5) — `cycleOf` answers for EVERY member of a
 // strongly connected group, not only those on the one cycle `cycles()` reports; the loader leaves them all
 // unloaded as circular and `activate` refuses them all.
 const test = require('node:test');

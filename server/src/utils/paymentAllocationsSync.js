@@ -1,5 +1,5 @@
 /**
- * PAYMENT ALLOCATIONS — the live writers (specs/pricing-components.md §3 rule 74).
+ * PAYMENT ALLOCATIONS — the live writers (specs/pricing/pricing-components.md §3 rule 74).
  *
  * `payment_allocations` says which payment covered which line. The boot backfill wrote it from the stored columns; from then
  * on the application writes it as money moves: every path that ticks, unticks or edits a payment (an acompte, a solde, a

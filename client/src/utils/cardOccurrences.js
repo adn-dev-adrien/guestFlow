@@ -1,5 +1,5 @@
 /**
- * Option-driven planning card occurrences (specs/option-planning-card.md §3.2 + §3.4).
+ * Option-driven planning card occurrences (specs/options/option-planning-card.md §3.2 + §3.4).
  *
  * A card-option's billed quantity and its planning cards are both driven by the per-reservation
  * SELECTED occurrences. The reservation form keeps the FULL candidate grid as working state —
@@ -74,7 +74,7 @@ export function subtractMinutes(hhmm, mins) {
 // EXCEPTION — breakfast (`autoOptionType === 'breakfast'`): it is still served the DEPARTURE morning
 // even when the option's time falls after check-out (e.g. breakfast 09:00, check-out 08:00). In that
 // case the occurrence is kept but retimed to 30 min before the scheduled departure, so a short stay
-// whose check-out precedes breakfast still bills it (specs/option-planning-card.md §3.2). Returns the
+// whose check-out precedes breakfast still bills it (specs/options/option-planning-card.md §3.2). Returns the
 // time string to seed, or null to exclude the candidate.
 export function seedTime(option, date, time, startDate, endDate, checkInTime, checkOutTime) {
   const t = String(time || '');

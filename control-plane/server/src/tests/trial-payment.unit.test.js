@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 35 — a payment received during the free trial ends
+// specs/hosting/control-plane-plans-and-access.md rule 35 — a payment received during the free trial ends
 // the trial: the paid period starts that day, the state is active at once, the countdown runs to the
 // paid end, and the licence the instance reads no longer says « essai ».
 

@@ -1,6 +1,6 @@
 /**
  * ClientFormFields — the operator's « pas de mails après séjour » switch and the guest's own
- * unsubscribe, read-only (specs/guest-email-sequence.md rules 9-10).
+ * unsubscribe, read-only (specs/emails/guest-email-sequence.md rules 9-10).
  */
 
 import React, { useState } from 'react';

@@ -1,4 +1,4 @@
-// specs/translation-catalogue.md rule 20 (note 2026-10-18) — the card explains the loop impersonally,
+// specs/site/translation-catalogue.md rule 20 (note 2026-10-18) — the card explains the loop impersonally,
 // without « tu ».
 import React from 'react';
 import { vi } from 'vitest';

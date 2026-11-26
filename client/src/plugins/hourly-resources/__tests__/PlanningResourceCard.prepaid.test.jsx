@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 35 — the planning card of an outside booking is the preparation ticket: the badge of what was paid in advance and every option to prepare,
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 35 — the planning card of an outside booking is the preparation ticket: the badge of what was paid in advance and every option to prepare,
 // both read from the server's `badges` and `options`, and a link to the booking's fiche.
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';

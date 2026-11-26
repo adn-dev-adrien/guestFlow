@@ -1,5 +1,5 @@
 /**
- * One-shot (specs/payment-link-lifecycle.md rule 36): the stored payment templates nobody edited gain the
+ * One-shot (specs/payments/payment-link-lifecycle.md rule 36): the stored payment templates nobody edited gain the
  * sentence stating the link's end of validity, on the line right after the link.
  *
  * « Nobody edited » is judged per side (French `body`, English `bodyEn`): the stored text is, to the

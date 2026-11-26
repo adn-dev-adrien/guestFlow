@@ -1,6 +1,6 @@
 /**
  * DatesTakenBadge — « Dates prises » on a devis or an unpaid reservation whose nights another stay now holds
- * (specs/payment-link-lifecycle.md rule 48). The record stays as it is; the badge says so and opens the stay
+ * (specs/payments/payment-link-lifecycle.md rule 48). The record stays as it is; the badge says so and opens the stay
  * that took the dates. Renders nothing without a marker. Inside the router the link leaves through the page's
  * unsaved-changes guard, like a sidebar link (rule 48, audit R11-C1): a dirty fiche asks before it is left.
  *

@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md — the host drivers (H-D1 to H-D6): what each one writes and the
+// specs/hosting/hosting-h1-fleet-runtime.md — the host drivers (H-D1 to H-D6): what each one writes and the
 // exact commands it runs, through an injected exec. The systemd unit template (rule 1.5), the Caddy
 // site, closed page and redirect (rules 1.6, 3, 5) with a refused reload that keeps the previous
 // file, the Litestream configuration and commands (rules 12, 14), the instance environment (rules

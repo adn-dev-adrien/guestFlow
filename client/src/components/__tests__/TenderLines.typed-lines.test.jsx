@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t26) — any line the operator types in is typed: removing the line
+// specs/payments/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t26) — any line the operator types in is typed: removing the line
 // after it keeps its amount; the shortfall choice travels with the due it answered, through a remount on another due and back.
 import React, { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';

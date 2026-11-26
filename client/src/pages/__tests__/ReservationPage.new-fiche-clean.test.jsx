@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 40, reading of 2026-11-05 — a blank new fiche is clean until the operator's
+// specs/design-system/ui-review-2026-10-19-operations.md rule 40, reading of 2026-11-05 — a blank new fiche is clean until the operator's
 // first gesture: the logement's defaults, the welcome pack and the quote land on their own and none asks on leaving.
 import React from 'react';
 import { vi } from 'vitest';

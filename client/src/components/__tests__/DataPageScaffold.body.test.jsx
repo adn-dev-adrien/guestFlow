@@ -1,4 +1,4 @@
-// DataPageScaffold — the `body` slot (specs/clients-upcoming-past-directory.md §4.2): custom content in
+// DataPageScaffold — the `body` slot (specs/clients/clients-upcoming-past-directory.md §4.2): custom content in
 // place of the table, with the bar, the top content and the loading / error states kept.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,5 +1,5 @@
 /**
- * VAT settings (specs/pricing-components.md §3 rules 50, 51, 61): one rate per (vatClass, customerContext), read through
+ * VAT settings (specs/pricing/pricing-components.md §3 rules 50, 51, 61): one rate per (vatClass, customerContext), read through
  * SettingsProvider.for('vat', scope). A rate left `null` follows the regime's rate (PR A: every `hosted` rate is the
  * regime's; an `external` rate is the one set for its class in the catalogue (`vat_external_rates`), the resources' being the hourly
  * resources' standalone rate until the operator sets one). The regime

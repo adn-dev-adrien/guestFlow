@@ -1,6 +1,6 @@
 import { midStayNoteAccess } from '../midStayNoteAccess';
 
-// specs/mid-stay-notes.md §3.5 rule 17 — la règle est partagée par la barre d'actions et le bloc
+// specs/sas/mid-stay-notes.md §3.5 rule 17 — la règle est partagée par la barre d'actions et le bloc
 // « Encaissements en séjour ». Ce test est ce qui les empêche de diverger.
 
 const base = {

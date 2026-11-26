@@ -1,6 +1,6 @@
 /**
  * NoComparisonNotice — the one line that says why a report shows no comparison with last year
- * (specs/report-grammar.md rule 5): the tiles' pills read « — vs N-1 », this says why, once. The text
+ * (specs/design-system/report-grammar.md rule 5): the tiles' pills read « — vs N-1 », this says why, once. The text
  * comes ready-made from the server (or the page's constants); without text nothing renders.
  *
  * Props:

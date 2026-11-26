@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rules 18-19 — the cash projection draws the server's series and answers the date cursor.
+// specs/planning/mobile-dashboard-exercise-cash.md rules 18-19 — the cash projection draws the server's series and answers the date cursor.
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

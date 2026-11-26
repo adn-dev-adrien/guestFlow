@@ -1,7 +1,7 @@
-// specs/hourly-resource-quantity-and-sas-scheduling.md rules 28 + 34 « and vice versa » — fixed at the
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md rules 28 + 34 « and vice versa » — fixed at the
 // 2026-10-27 spec review (F6): a fiche session placed on a slot an external booking (or another stay's
 // session) already holds on a resource that exists once was saved; it is now refused 409. Since
-// specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 35), a slot a plugin holds for another stay too.
+// specs/plugins/plugins-phase-1-sdk.md rule 47 (guest-app rule 35), a slot a plugin holds for another stay too.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -87,7 +87,7 @@ test('without the plugin tables the check is the stay-only one', () => {
 // date-literal-ok: an input of the pure conflict check, never compared with today.
 const HELD_DAY = '2026-11-09';
 
-test('specs/plugins-phase-1-sdk.md rule 47: a slot a plugin holds for another stay is refused; the stay’s own hold is not', () => {
+test('specs/plugins/plugins-phase-1-sdk.md rule 47: a slot a plugin holds for another stay is refused; the stay’s own hold is not', () => {
   const db = freshDb();
   const holds = ({ resourceId, from }) => (resourceId === BATH && from === HELD_DAY
     ? [{ date: HELD_DAY, start: '18:00', end: '19:00', reservationId: 9, label: 'Commande client en attente de paiement' }] : []);

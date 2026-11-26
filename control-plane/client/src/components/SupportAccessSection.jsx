@@ -1,5 +1,5 @@
 /**
- * « Accès du support » on a customer's page (specs/hosting-h2-account-security.md rules 12-14,
+ * « Accès du support » on a customer's page (specs/hosting/hosting-h2-account-security.md rules 12-14,
  * §4.2): ask for access with a reason, see whether the customer answered, and — while an access is
  * open — « Ouvrir l'espace », which opens the customer's space in a new tab through a signed link
  * valid 2 minutes. The state is the server's, read from the instance.

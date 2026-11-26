@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the libellé of a Mollie credit stays short: the settlement
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the libellé of a Mollie credit stays short: the settlement
 // reference and the last 6 characters of Qonto's transaction id, never the 50-character id. And the Mollie facts of a month are
 // read once for the response, whichever number of times its stream is built. Fictional data only.
 const test = require('node:test');

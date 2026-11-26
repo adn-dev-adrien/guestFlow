@@ -1,7 +1,7 @@
 /**
- * Price-line contributors (specs/plugins-phase-3c-hourly-resources.md rules 1–4, 18). A plugin
+ * Price-line contributors (specs/plugins/plugins-phase-3c-hourly-resources.md rules 1–4, 18). A plugin
  * declares one with `ctx.priceLineContributor`. The Articles head reaches it through the plugin's `hourly`
- * family (specs/pricing-components.md §3 rule 47), inside the safety of `articles/pluginFamily.js`, and keeps doing
+ * family (specs/pricing/pricing-components.md §3 rule 47), inside the safety of `articles/pluginFamily.js`, and keeps doing
  * everything else itself: the locked snapshot, « offert », the contributions. This module only says which price
  * types a live plugin owns (`offered`).
  *

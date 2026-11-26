@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 35-38 — the generic suggested-articles provider keyed by sale context: the context key, the operator's order, the `external` / `hosted`
+// specs/sas/outside-booking-sas.md rules 35-38 — the generic suggested-articles provider keyed by sale context: the context key, the operator's order, the `external` / `hosted`
 // sellability filter, an article gone from the catalogue dropped at read time and never from the stored list, `ARTICLE_UNKNOWN`, at most 12, a plugin that is off
 // hiding its kind and keeping its rows, the settings payload and the HTTP face.
 process.env.DB_PATH = ':memory:';

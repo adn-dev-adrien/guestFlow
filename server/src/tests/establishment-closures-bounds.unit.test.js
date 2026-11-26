@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rules 18-20 (audit R19, 2026-11-02) — a closure is two real days at
+// specs/pricing/establishment-closures.md rules 18-20 (audit R19, 2026-11-02) — a closure is two real days at
 // most MAX_CLOSURE_DAYS apart, refused otherwise on create, update and the conflicts preview; a closure
 // is expanded only over the window asked, so a legacy closure ending in 9999 costs nothing; and the
 // occupied dates answer a bounded window whose `to` is exclusive.

@@ -1,5 +1,5 @@
 /**
- * ExternalSaleFields — the VAT classes come from the server (specs/outside-booking-sas.md rules 11, 48; round-1 finding UI-7, §6.0 fat backend): the menu lists the
+ * ExternalSaleFields — the VAT classes come from the server (specs/sas/outside-booking-sas.md rules 11, 48; round-1 finding UI-7, §6.0 fat backend): the menu lists the
  * `classes` of `GET /api/standalone-sales/vat-rates` with their `label`, and the « Taux de toute la classe … » phrase names the server's label. No client list.
  */
 import React from 'react';

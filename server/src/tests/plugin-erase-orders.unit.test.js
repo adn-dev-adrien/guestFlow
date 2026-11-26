@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 23 — an erase order travels in the licence, is executed
+// specs/plugins/plugin-operator-provisioning.md rule 23 — an erase order travels in the licence, is executed
 // once, only on an installed plugin the operator no longer wants, through the existing purge.
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');

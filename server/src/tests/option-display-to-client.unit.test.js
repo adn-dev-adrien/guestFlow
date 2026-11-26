@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { isClientVisibleOption } = require('../utils/optionVisibility');
 const { buildContext } = require('../utils/emailContextBuilder');
 
-// specs/laundry-bath-mat.md §3 rule 11 — the generic client-visibility flag hides "internal-only"
+// specs/linen/laundry-bath-mat.md §3 rule 11 — the generic client-visibility flag hides "internal-only"
 // options (displayToClient = 0) from every client-facing surface.
 
 test('isClientVisibleOption: default visible, only explicit 0 hides', () => {

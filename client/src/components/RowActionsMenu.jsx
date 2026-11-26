@@ -1,5 +1,5 @@
 /**
- * RowActionsMenu — the « ⋯ » menu of a list row (specs/ui-review-2026-10-19-operations.md rules 6-7).
+ * RowActionsMenu — the « ⋯ » menu of a list row (specs/design-system/ui-review-2026-10-19-operations.md rules 6-7).
  *
  * One control per row instead of a strip of icons: the row itself opens the item, the menu holds the
  * rest, and a destructive item sits last in the error colour. An action used daily can stay visible

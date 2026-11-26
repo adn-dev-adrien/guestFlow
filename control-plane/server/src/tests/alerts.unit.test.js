@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 18 — the operator's alerts on the console's home
+// specs/hosting/control-plane-plans-and-access.md rule 18 — the operator's alerts on the console's home
 // page: customers entering due, grace, read-only or suspended today, those already read-only or
 // suspended, and the failed steps. (The daily email and the failed payments come with C2b.)
 

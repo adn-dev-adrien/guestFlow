@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rules 12, 13, 17 — the option editor panel: sections in order, section chips,
+// specs/options/options-resources-ux.md rules 12, 13, 17 — the option editor panel: sections in order, section chips,
 // footer states, save and the unsaved-changes guard.
 import React from 'react';
 import { screen, within } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 2 and 43 — one direction of dependency, enforced statically: a unit under
+// specs/pricing/pricing-components.md §3 rules 2 and 43 — one direction of dependency, enforced statically: a unit under
 // `utils/pricing/` (sub-folders included) imports no unit downstream of it, no `models/`, no `database`, reaches none of
 // them through a module outside `utils/pricing/` either, reads no clock without an argument (`Date.now()`, `new Date()`,
 // `todayIso()`) and no `process.env`; NIGHTS, EXTRA GUESTS and TOURIST TAX know nothing of extras or payments, and EXTRAS

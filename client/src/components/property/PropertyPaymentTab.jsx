@@ -1,10 +1,10 @@
 /**
  * PropertyPaymentTab — « Paiement & caution » tab of the property page
- * (specs/settings-rationalization.md rule 21, specs/property-deposit-switch.md §6): the « Demander
+ * (specs/settings/settings-rationalization.md rule 21, specs/payments/property-deposit-switch.md §6): the « Demander
  * un acompte » switch (its % and due days shown only when on), the balance / single payment due
  * date, the cancellation delay and the default deposit.
  *
- * The four numbers are bounded fields fed by the server's limits (specs/settings-input-guards.md
+ * The four numbers are bounded fields fed by the server's limits (specs/settings/settings-input-guards.md
  * rules 9-14): a refusal shows under the field, in red.
  *
  * Props: form, errors, updateField(field, value), onZeroFocus(event), limits (the server's
@@ -60,7 +60,7 @@ export default function PropertyPaymentTab({ form, errors = {}, updateField, onZ
           {deposit && (
             <Box sx={{ display: 'flex', gap: 2, mt: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               {bounded('depositPercent', '% acompte', '')}
-              {/* specs/payment-schedule-and-cancellation.md §3.1 — due from the BOOKING, not the arrival. */}
+              {/* specs/payments/payment-schedule-and-cancellation.md §3.1 — due from the BOOKING, not the arrival. */}
               {bounded('depositDueDays', 'Acompte (jours après réservation)', '0 : à régler à la réservation.')}
             </Box>
           )}
@@ -76,11 +76,11 @@ export default function PropertyPaymentTab({ form, errors = {}, updateField, onZ
             {bounded('balanceDaysBefore', deposit ? 'Solde (jours avant l\'arrivée)' : 'Paiement (jours avant l\'arrivée)',
               "Échéance du solde — ou du paiement unique quand l'acompte est désactivé.")}
             {bounded('cancelAfterBalanceDueDays', 'Annulation (jours après échéance du solde)',
-              // specs/property-deposit-switch.md rule 14 — no acompte, nothing to keep.
+              // specs/payments/property-deposit-switch.md rule 14 — no acompte, nothing to keep.
               deposit
                 ? "Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre d'indemnité."
                 : "Délai avant de pouvoir annuler un séjour dont le paiement n'est pas réglé. Sans acompte, l'annulation suit les conditions des CGV.")}
-            {/* specs/guest-email-texts-made-simple.md rule 28 — empty: not sent, the stored amount stays (2026-10-18). */}
+            {/* specs/emails/guest-email-texts-made-simple.md rule 28 — empty: not sent, the stored amount stays (2026-10-18). */}
             {number('defaultCautionAmount', 'Caution par défaut (€)', form.defaultCautionAmount === '' ? 'Vide : rien n’est changé. 0 : pas de caution.' : '0 : pas de caution.', { step: 50, min: 0 })}
           </Box>
         </CardContent>

@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 13-15 — one fetch per month, a stale answer is dropped, a scope
+// specs/planning/calendar-property-parity.md rules 13-15 — one fetch per month, a stale answer is dropped, a scope
 // change empties the cache and keeps the month in view, a failed month retries alone, « Aujourd'hui » goes
 // back to the current month.
 import React from 'react';

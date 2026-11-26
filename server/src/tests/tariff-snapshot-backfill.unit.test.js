@@ -6,7 +6,7 @@ const path = require('path');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-recipes/spec.md §3.2 rule 12ter — THE BACKFILL.
+// specs/pricing/tariff-recipes.md §3.2 rule 12ter — THE BACKFILL.
 //
 // Freezing the tariff at creation only protects reservations created afterwards. Every booking
 // already sold — 44 of them on the real database, i.e. all of them — would still have been

@@ -1,5 +1,5 @@
 /**
- * The card payment of a plugin's basket — a guest order (specs/guest-app.md rules 33, 35, 36) — on the core's money
+ * The card payment of a plugin's basket — a guest order (specs/guest-app/guest-app.md rules 33, 35, 36) — on the core's money
  * path: the link is minted, polled, withdrawn and booked like every other payment link; only its paid effect is the
  * owning plugin's (`ctx.paymentBasket`, settled by `paymentPollRunner.applyPaidEffect`).
  *

@@ -1,5 +1,5 @@
 // « Validation en deux étapes » — the feature's name and the wording of its card and dialogs
-// (specs/hosting-h2-account-security.md rules 38–46). The sentences that carry a number or a date
+// (specs/hosting/hosting-h2-account-security.md rules 38–46). The sentences that carry a number or a date
 // (tries left, codes left, « depuis le … ») are worded by the server.
 
 export const TWO_FACTOR_NAME = 'Validation en deux étapes';

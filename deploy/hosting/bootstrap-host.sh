@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# One-time setup of a GuestFlow hosting host (specs/hosting-h1-fleet-runtime.md §4.4, §8).
+# One-time setup of a GuestFlow hosting host (specs/hosting/hosting-h1-fleet-runtime.md §4.4, §8).
 # Debian 12 / Ubuntu 24.04, run as root. Idempotent: running it again changes nothing that is in place.
 #
 #   sudo DOMAIN=guestflow.fr ACME_EMAIL=ops@guestflow.fr \
@@ -8,7 +8,7 @@
 #        S3_ACCESS_KEY_ID=… S3_SECRET_ACCESS_KEY=… \
 #        bash deploy/hosting/bootstrap-host.sh
 #
-# The object storage keys are typed once, here (specs/hosting-h1-fleet-runtime.md rule 27): they go
+# The object storage keys are typed once, here (specs/hosting/hosting-h1-fleet-runtime.md rule 27): they go
 # into the console's environment, which is their only source — /etc/default/litestream is rewritten
 # from it at every run, and rclone takes them from the console (no `rclone config`). BACKUP_URL,
 # BACKUP_ENDPOINT and BACKUP_REGION override the example's Scaleway values. Running the script again

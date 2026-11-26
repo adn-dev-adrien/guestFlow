@@ -1,5 +1,5 @@
 // A resource sold by the hour is offered only while its plugin is live
-// (specs/plugins-phase-3c-hourly-resources.md rules 18–20 — decision P14).
+// (specs/plugins/plugins-phase-3c-hourly-resources.md rules 18–20 — decision P14).
 
 const test = require('node:test');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');

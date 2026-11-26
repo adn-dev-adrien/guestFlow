@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 50 (audit R8 client N1) — a request refused 409 LINK_ALREADY_PAID has
+// specs/payments/payment-link-lifecycle.md rule 50 (audit R8 client N1) — a request refused 409 LINK_ALREADY_PAID has
 // just booked the payment on the server: the sender re-reads what it shows, so the fiche (or the devis) no
 // longer offers a request for money already received.
 import React from 'react';

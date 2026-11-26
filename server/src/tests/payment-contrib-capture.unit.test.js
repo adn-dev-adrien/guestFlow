@@ -99,7 +99,7 @@ function seedReservation(db, overrides = {}) {
 
 function getRow(db, id) { return db.prepare('SELECT * FROM reservations WHERE id = ?').get(id); }
 
-// specs/force-item-to-complement.md rule 7
+// specs/sas/force-item-to-complement.md rule 7
 test('deposit flip: pure accommodation, no options → all to accommodation contrib', () => {
   const db = createDb();
   const id = seedReservation(db);
@@ -109,7 +109,7 @@ test('deposit flip: pure accommodation, no options → all to accommodation cont
   assert.equal(after.touristTaxAcompteContribTtc, 0);
 });
 
-// specs/force-item-to-complement.md rule 8
+// specs/sas/force-item-to-complement.md rule 8
 test('deposit flip + option → both share pro-rata at depositPercent', () => {
   const db = createDb();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 100)").run();
@@ -126,7 +126,7 @@ test('deposit flip + option → both share pro-rata at depositPercent', () => {
   // Conservation: 30 + 60 = 90 ✓
 });
 
-// specs/force-item-to-complement.md rule 10
+// specs/sas/force-item-to-complement.md rule 10
 test('deposit flip: forced option gets NULL contrib (lives 100 % in complement)', () => {
   const db = createDb();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 100)").run();
@@ -142,8 +142,8 @@ test('deposit flip: forced option gets NULL contrib (lives 100 % in complement)'
   assert.equal(after.accommodationAcompteContribTtc, 60);
 });
 
-// specs/force-item-to-complement.md rule 15
-// specs/force-item-to-complement.md rule 16
+// specs/sas/force-item-to-complement.md rule 15
+// specs/sas/force-item-to-complement.md rule 16
 test('deposit + balance flips sum exactly to depositAmount + balanceAmount (conservation)', () => {
   const db = createDb();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 100)").run();
@@ -165,7 +165,7 @@ test('deposit + balance flips sum exactly to depositAmount + balanceAmount (cons
   assert.equal(after.accommodationSoldeContribTtc, 140);
 });
 
-// specs/force-item-to-complement.md rule 8
+// specs/sas/force-item-to-complement.md rule 8
 test('option added between deposit-paid and balance flip → 100 % in solde', () => {
   const db = createDb();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 100)").run();
@@ -188,7 +188,7 @@ test('option added between deposit-paid and balance flip → 100 % in solde', ()
   assert.equal(spa.soldeContribTtc, 50);
 });
 
-// specs/force-item-to-complement.md rule 9
+// specs/sas/force-item-to-complement.md rule 9
 test('un-flip clears acompte contribs back to NULL across all child + reservation rows', () => {
   const db = createDb();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 100)").run();
@@ -205,7 +205,7 @@ test('un-flip clears acompte contribs back to NULL across all child + reservatio
   assert.equal(opt.acompteContribTtc, null);
 });
 
-// specs/force-item-to-complement.md rule 5
+// specs/sas/force-item-to-complement.md rule 5
 test('tax-on-arrival → tourist tax contrib stays 0 on the deposit flip (tax in complement)', () => {
   const db = createDb({ withTax: true });
   // Airbnb-style platform that doesn't collect tax → tax-on-arrival path.
@@ -221,7 +221,7 @@ test('tax-on-arrival → tourist tax contrib stays 0 on the deposit flip (tax in
   assert.equal(after.accommodationAcompteContribTtc, 60);
 });
 
-// specs/force-item-to-complement.md rule 7
+// specs/sas/force-item-to-complement.md rule 7
 test('touristTaxInComplement on direct → tax contrib stays 0 on both flips', () => {
   const db = createDb({ withTax: true });
   const id = seedReservation(db, {
@@ -238,7 +238,7 @@ test('touristTaxInComplement on direct → tax contrib stays 0 on both flips', (
 });
 
 test('direct booking with acompte + tax-on-solde → tax contrib 0 on deposit, full tax on solde', () => {
-  // specs/tourist-tax-on-solde.md: when there is an acompte, the whole pre-arrival tax rides on the
+  // specs/tourist-tax/tourist-tax-on-solde.md: when there is an acompte, the whole pre-arrival tax rides on the
   // SOLDE. The deposit is 30 % of the ACCOMMODATION only (200 → 60, no tax); the balance carries the
   // accommodation remainder (140) + the full tax (4). Contribs must mirror that: 0 tax on the acompte,
   // the full 4 on the solde — never pro-rated across both buckets.

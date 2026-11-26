@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 12, reading of 2026-11-03 (review of PR #939, out of scope) — a
+// specs/payments/reservation-payment-ledger.md rule 12, reading of 2026-11-03 (review of PR #939, out of scope) — a
 // return is never dated before the receipt, also when one PATCH ticks both and sends no receipt date. The
 // receipt is then stamped today, and the return used to keep any earlier date it carried (received today,
 // returned three days ago) because the check read the absent date as ''. API-only: the fiche sends one mark

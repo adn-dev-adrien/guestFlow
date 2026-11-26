@@ -1,8 +1,8 @@
 /**
  * Sets aside the stays the removed « platform disabled » display filter used to hide AND that are the
- * copy of a visible stay (specs/calendar-property-parity.md rules 22-24).
+ * copy of a visible stay (specs/planning/calendar-property-parity.md rules 22-24).
  *
- * The filter (specs/platforms-and-ical-rework.md rule 10) hid, from a logement's calendar only, every
+ * The filter (specs/platforms/platforms-and-ical-rework.md rule 10) hid, from a logement's calendar only, every
  * stay whose platform had an `ical_sources` row with `disabled = 1` for that logement. Removing it makes
  * those stays visible again — which is right for the isolated ones (real past stays) and wrong for a
  * duplicate that sits on another stay. A hidden stay is a duplicate only when a visible stay of the same
@@ -21,7 +21,7 @@ const HIDDEN_BY_OLD_FILTER = `
        AND (lower(s.platformLabel) = lower(r.platform) OR lower(s.platformKey) = lower(r.platform))
   )`;
 
-// specs/payment-link-lifecycle.md rule 31 — one reading of « carries money », shared with the held dates.
+// specs/payments/payment-link-lifecycle.md rule 31 — one reading of « carries money », shared with the held dates.
 const { carriesMoneySql } = require('./stayMoney');
 const { withdrawSupersededLinks } = require('./paymentLinkLifecycle');
 
@@ -104,7 +104,7 @@ const CONFLICT_WHY = {
 /**
  * Sets the true copies aside, each with its audit entry, and stamps the ambiguous cases with
  * `bookingConflictAt` so the existing conflict alert shows them — all in one transaction. The open payment
- * links of a copy set aside are withdrawn (specs/payment-link-lifecycle.md rule 12, `superseded`), their
+ * links of a copy set aside are withdrawn (specs/payments/payment-link-lifecycle.md rule 12, `superseded`), their
  * deactivation owed to the poll. Returns what the boot log prints.
  */
 function setAsideDuplicates(db) {

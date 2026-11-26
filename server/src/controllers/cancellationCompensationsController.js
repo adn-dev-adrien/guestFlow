@@ -1,6 +1,6 @@
 /**
  * Cancellation compensations controller — CRUD behind `/api/accounting/cancellation-compensations`
- * (specs/cancellation-compensation.md §4.3).
+ * (specs/payments/cancellation-compensation.md §4.3).
  *
  * Thin: parses + validates through the pure `utils/cancellationCompensations` validators, then
  * delegates to `cancellationCompensationsModel`. The month/year pair filters ONLY the received
@@ -46,7 +46,7 @@ function parseId(req) {
 const defaultRefundsModel = () => require('../models/refundsModel');
 
 function createController(model = defaultModel, { today = getTodayIsoDate, refundsModel = null } = {}) {
-  // specs/reservation-refunds.md rule 48 — a kept acompte's card records what the cancellation kept; refunds reduce
+  // specs/payments/reservation-refunds.md rule 48 — a kept acompte's card records what the cancellation kept; refunds reduce
   // it in the journal only. The card says how much they already took, so reopening it can warn against re-receiving
   // it at a lower amount (the reduction would then count twice).
   const withIndemnityRefunds = (c) => {

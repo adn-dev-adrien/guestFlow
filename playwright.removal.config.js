@@ -1,5 +1,5 @@
 // @ts-check
-// The removal matrix's E2E suite (specs/plugin-removal-resilience.md rules 8-12, 15-17): the production
+// The removal matrix's E2E suite (specs/plugins/plugin-removal-resilience.md rules 8-12, 15-17): the production
 // build on the seeded database of a cell. `node scripts/plugin-removal.mjs cell <id>` runs it with the
 // plugin removed; `... sweep` runs the toggle sweep with every plugin present.
 const { defineConfig, devices } = require('@playwright/test');

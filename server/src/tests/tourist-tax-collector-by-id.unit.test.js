@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 3 and 70 (D1, PLAT O1) — the tourist-tax `collector` asks the channel whether a stay is
+// specs/pricing/pricing-components.md §3 rules 3 and 70 (D1, PLAT O1) — the tourist-tax `collector` asks the channel whether a stay is
 // the operator's own (`saleChannel`), never compares the platform to the word « direct » by hand. An unmatched platform keeps
 // the legacy default (the platform collects, the operator does not remit): no figure moves (Q-B18).
 const test = require('node:test');

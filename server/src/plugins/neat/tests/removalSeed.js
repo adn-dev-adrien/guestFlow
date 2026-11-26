@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — an insurance subscription of the direct stay and a cached premium.
+// specs/plugins/plugin-removal-resilience.md rule 11 — an insurance subscription of the direct stay and a cached premium.
 module.exports = {
   seed(db, { stays }) {
     db.prepare(`INSERT INTO neat_subscriptions (reservationId, environment, externalId, status, neatSubscriptionId, premiumAmount, billedAmount)

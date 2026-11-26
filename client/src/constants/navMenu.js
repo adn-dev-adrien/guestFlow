@@ -1,4 +1,4 @@
-// Top-level entries of the side menu that plugin modules add (slot `nav.items`, specs/plugins-phase-1-sdk.md
+// Top-level entries of the side menu that plugin modules add (slot `nav.items`, specs/plugins/plugins-phase-1-sdk.md
 // rule 13): `{ path, label, Icon, after }`, drawn right after the core entry whose path is `after` (else after
 // « Calendrier », the end of the day-to-day group). Each is visible through `canSeeRoute`, like every page — its
 // plugin active, its roles allowed. A page under a submenu uses that submenu's own slot (`calendar.menu`, …).

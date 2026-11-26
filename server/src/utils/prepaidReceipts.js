@@ -1,5 +1,5 @@
 /**
- * Money a stay received in advance from a plugin's prepaid instrument (SDK 2.33.0, specs/mixed-method-payments.md rules 60-63),
+ * Money a stay received in advance from a plugin's prepaid instrument (SDK 2.33.0, specs/payments/mixed-method-payments.md rules 60-63),
  * written where every reader of the stay's money already looks: a settlement whose tender line has the method `prepaid`
  * (`paymentTenders.PREPAID`). The stay's price, tourist tax, commission and statistics are those of the same stay paid by card:
  * the line only says HOW a part of its acompte or solde was received.
@@ -175,7 +175,7 @@ const owedCentsOn = (database, stayId) => owedOnStay(database, stayId).reduce((s
 
 /**
  * The fiche takes `amountCents` of a prepaid instrument on a confirmed stay: the acompte first, then the solde, then a reste
- * already open. An acompte unpaid is paid whole or not at all (specs/mixed-method-payments.md rule 44).
+ * already open. An acompte unpaid is paid whole or not at all (specs/payments/mixed-method-payments.md rule 44).
  * → `{ ok: true, appliedCents, settlements }` or `{ ok: false, status, error }`.
  */
 function recordOnStay({

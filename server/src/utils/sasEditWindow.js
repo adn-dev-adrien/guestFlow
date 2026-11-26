@@ -1,5 +1,5 @@
 /**
- * SAS edit window for the « Accueil » role (specs/reception-sas-today-only.md §3.1).
+ * SAS edit window for the « Accueil » role (specs/sas/reception-sas-today-only.md §3.1).
  *
  * A reception user only handles the work of the DAY: the arrival SAS of a reservation starting today,
  * the departure SAS of one ending today. The window opens at `D` 00:00 and closes at `D+1` 04:00 —

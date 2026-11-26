@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 78 and reservation-refunds rule 6 — the refunds a requalification avoir netted are
+// specs/pricing/pricing-components.md §3 rule 78 and reservation-refunds rule 6 — the refunds a requalification avoir netted are
 // recorded once in `refund_nettings`, as `cancellationNettedRefundIds` reads them today (payment-schedule rule 55 reading).
 process.env.DB_PATH = ':memory:';
 

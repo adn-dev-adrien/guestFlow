@@ -120,7 +120,7 @@ test('SAS button — opens the arrival SAS when not yet done', () => {
 });
 
 test('SAS button — once the arrival SAS is done it stays a clickable ✓ for re-edit', () => {
-  // specs/reopen-completed-sas.md §3 rule 1 — a finished SAS can be re-opened to review / correct.
+  // specs/sas/reopen-completed-sas.md §3 rule 1 — a finished SAS can be re-opened to review / correct.
   const onOpenSas = vi.fn();
   const r = { ...BASE, arrivalSasDoneAt: '2026-06-13 09:00:00' };
   render(<ReservationCard reservation={r} onToggleReady={noop} onOpenSas={onOpenSas} />);
@@ -130,7 +130,7 @@ test('SAS button — once the arrival SAS is done it stays a clickable ✓ for r
   expect(onOpenSas).toHaveBeenCalledWith(100);
 });
 
-// specs/reception-sas-today-only.md §3.3 — the server resolves the lock reason and ships it in the
+// specs/sas/reception-sas-today-only.md §3.3 — the server resolves the lock reason and ships it in the
 // reception payload; the card only disables the control and prints the matching tooltip.
 test.each([
   ['done', "Check-in déjà effectué — modification réservée à l'administrateur"],
@@ -238,7 +238,7 @@ test('options + resources — chips rendered for non-empty lists', () => {
   expect(screen.getByText('Bain nordique ×1')).toBeInTheDocument();
 });
 
-// specs/force-extras-complement-on-platform.md — the arrival tile reports the complementary
+// specs/sas/force-extras-complement-on-platform.md — the arrival tile reports the complementary
 // payment + amount (collected on arrival for platform/iCal reservations).
 test('complement — shows "Complément à percevoir" with the amount when complementAmount > 0', () => {
   render(<ReservationCard reservation={{ ...BASE, complementAmount: 45, complementPaid: false }} onToggleReady={noop} />);
@@ -292,7 +292,7 @@ test('platform badge — absent when the reservation has no platform', () => {
   expect(screen.queryByText('Airbnb')).toBeNull();
 });
 
-// Bed-linen alert (specs/planning-arrival-alerts.md §3 bed-linen alert) — server-computed `bedLinenAlert`.
+// Bed-linen alert (specs/planning/planning-arrival-alerts.md §3 bed-linen alert) — server-computed `bedLinenAlert`.
 test('bed-linen alert — "non pris" when bedLinenAlert.type is no_linen', () => {
   render(<ReservationCard reservation={{ ...BASE, bedLinenAlert: { type: 'no_linen' } }} onToggleReady={noop} />);
   expect(screen.getByText('Linge de lit non pris')).toBeInTheDocument();

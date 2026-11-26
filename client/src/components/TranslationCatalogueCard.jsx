@@ -1,5 +1,5 @@
 /**
- * TranslationCatalogueCard — Réglages → Système (specs/translation-catalogue.md rule 20).
+ * TranslationCatalogueCard — Réglages → Système (specs/site/translation-catalogue.md rule 20).
  *
  * Translations are not typed into GuestFlow: it collects what needs translating, you download one
  * file, fill in the language columns and send it back. This card is the whole of that loop.

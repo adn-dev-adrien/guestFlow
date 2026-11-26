@@ -1,12 +1,12 @@
-// specs/reservation-payment-ledger.md rule 68 (D20, Adrien 2026-11-06) — the end-of-stay complement is collected once the
+// specs/payments/reservation-payment-ledger.md rule 68 (D20, Adrien 2026-11-06) — the end-of-stay complement is collected once the
 // check-out is done: the departure SAS committed when the sas plugin is live, otherwise the stay's last day reached. Every
 // path that would mark it before is refused, 409 END_OF_STAY_BEFORE_CHECKOUT: the fiche's mark (books, caisse interne, the
 // merged card of a deferred complement), the reconciliation's write, « Encaisser en une fois ». The fiche's mark is drawn
 // closed with its caption; « Tout solder » leaves it out. A mark taken back or a stored paid end of stay passes, untouched.
-// Payments during the stay (mid-stay notes) stay open (D20, second sentence; specs/mid-stay-notes.md).
-// specs/finance-dashboard-redesign.md rule 15, reading of 2026-11-06: « Tout solder » sends the server's `settleAllFields`.
-// specs/defer-arrival-complement-to-checkout.md rule 8, specs/qonto-bank-reconciliation.md rule 34 and
-// specs/single-payment-from-the-fiche.md rule 2bis, readings of 2026-11-06 (D20).
+// Payments during the stay (mid-stay notes) stay open (D20, second sentence; specs/sas/mid-stay-notes.md).
+// specs/accounting/finance-dashboard-redesign.md rule 15, reading of 2026-11-06: « Tout solder » sends the server's `settleAllFields`.
+// specs/sas/defer-arrival-complement-to-checkout.md rule 8, specs/accounting/qonto-bank-reconciliation.md rule 34 and
+// specs/payments/single-payment-from-the-fiche.md rule 2bis, readings of 2026-11-06 (D20).
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -260,7 +260,7 @@ test('the arrival SAS settles the stay and the arrival complement, never the end
   assert.deepEqual(endOfStayFlags(stay.id), [0, 0, null]);
 });
 
-// specs/finance-dashboard-redesign.md rule 15, reading of 2026-11-06 (audit R26 finding 3, reviewer's p4 probe): nothing to
+// specs/accounting/finance-dashboard-redesign.md rule 15, reading of 2026-11-06 (audit R26 finding 3, reviewer's p4 probe): nothing to
 // tick but the end of stay before the check-out → the row carries « Après le départ. », which closes « Tout solder ».
 test('« Tout solder » with only the end of stay left before the check-out: closed by the server, « Après le départ. »', async () => {
   const stay = await withEndOfStay();

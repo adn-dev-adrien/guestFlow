@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import RefundDialog from '../RefundDialog';
 
-// specs/pricing-components.md rule 112 (loop t8 UI8-4) — l'annonce « payés en espèces : rendus en caisse interne » ne vaut que tant que
+// specs/pricing/pricing-components.md rule 112 (loop t8 UI8-4) — l'annonce « payés en espèces : rendus en caisse interne » ne vaut que tant que
 // le moyen reste « Caisse interne » : un autre moyen la retire, y revenir la remet.
 
 vi.mock('../../../api', () => ({ __esModule: true, default: {} }));

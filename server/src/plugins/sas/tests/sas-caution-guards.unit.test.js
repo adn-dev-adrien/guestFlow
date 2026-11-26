@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 70 (audit R38-DB-L1, R38-C-L1) — the SAS writes the caution under the PATCH's
+// specs/payments/reservation-payment-ledger.md rule 70 (audit R38-DB-L1, R38-C-L1) — the SAS writes the caution under the PATCH's
 // rules 12 and 14: the departure SAS never returns a caution that was never received, and the arrival SAS's « non reçue »
 // clears the return with the receipt. The cancelled fiche's due return reads « À rendre ».
 process.env.DB_PATH = ':memory:';

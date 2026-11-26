@@ -1,5 +1,5 @@
 /**
- * The invoice issuer (specs/resource-booking-pricing-and-invoicing.md rules 1-2, 14, 17). A plugin declares one with
+ * The invoice issuer (specs/resources/resource-booking-pricing-and-invoicing.md rules 1-2, 14, 17). A plugin declares one with
  * `ctx.invoiceIssuer`; a plugin that sells asks for it here and never requires the issuer's plugin, so neither depends
  * on the other.
  *

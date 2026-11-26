@@ -1,5 +1,5 @@
 /**
- * specs/reservation-price-arithmetic.md rule 10 — a committed amount reads as money (« 7,20 »), never
+ * specs/reservations/reservation-price-arithmetic.md rule 10 — a committed amount reads as money (« 7,20 »), never
  * as the raw number (« 7.2 », review 2026-10-18, F9), and still parses back unchanged.
  */
 import React, { useState } from 'react';

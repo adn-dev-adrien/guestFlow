@@ -1,5 +1,5 @@
 /**
- * Guest email send ledger — sole DB access for `guest_email_sends` (specs/guest-email-sequence.md
+ * Guest email send ledger — sole DB access for `guest_email_sends` (specs/emails/guest-email-sequence.md
  * §3.3 rules 11-14 + §5).
  *
  * One row per dedup key, never purged. The UNIQUE `dedupKey` is the whole idempotence guarantee:

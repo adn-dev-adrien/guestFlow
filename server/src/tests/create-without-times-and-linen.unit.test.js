@@ -1,7 +1,7 @@
 // Spec review 2026-10-27 — two creation invariants read on what is actually stored:
-//   - specs/reservations-backend-mvc.md rule 9: a stay posted without times takes the property's
+//   - specs/tech/reservations-backend-mvc.md rule 9: a stay posted without times takes the property's
 //     default check-in / check-out, not 15:00 / 10:00;
-//   - specs/bed-config-in-linen-card.md rule 12: the « no linen → beds zeroed » invariant reads the
+//   - specs/linen/bed-config-in-linen-card.md rule 12: the « no linen → beds zeroed » invariant reads the
 //     lines the engine kept, so a linen option not offered on the property takes the beds with it.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

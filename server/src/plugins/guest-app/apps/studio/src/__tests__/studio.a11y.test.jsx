@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 40, 48 — the studio's reach: hours a lodging only follows are `inert`, not just greyed
+// specs/guest-app/guest-app.md rules 40, 48 — the studio's reach: hours a lodging only follows are `inert`, not just greyed
 // out under the pointer; an article's title toggle is a 44 px target.
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';

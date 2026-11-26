@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/stay-profile.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 and 16 — the « Profil
+// specs/accounting/stay-profile.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 and 16 — the « Profil
 // des séjours »: the dashboard's window and logement filter, non-cancelled stays only, the four
 // breakdowns and their bucket edges, shares adding up to 100, the monthly average basket against last
 // year (tourist tax excluded) and the source of every panel.
@@ -223,7 +223,7 @@ test('rules 12-13 — no history a year back: no N-1, no delta, one notice', () 
 });
 
 test('rule 12 — before a year of booking dates, a month not over has no N-1', () => {
-  // As specs/finance-dashboard-redesign.md rule 33 reads it.
+  // As specs/accounting/finance-dashboard-redesign.md rule 33 reads it.
   assert.equal(yoy.lastYearReading('2026-10', { today: '2026-11-05', snapshotKnown: false }), 'final'); // date-literal-ok: a pure function of its input
   assert.equal(yoy.lastYearReading('2026-11', { today: '2026-11-05', snapshotKnown: false }), null); // date-literal-ok: a pure function of its input
   assert.equal(yoy.lastYearReading('2026-11', { today: '2026-11-05', snapshotKnown: true }), 'knownAt'); // date-literal-ok: a pure function of its input

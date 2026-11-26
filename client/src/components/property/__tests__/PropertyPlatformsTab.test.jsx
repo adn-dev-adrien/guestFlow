@@ -1,5 +1,5 @@
 // PropertyPlatformsTab — only this property's calendars are edited here; the platform's global
-// settings are read-only chips linking to Plateformes (specs/settings-rationalization.md rule 18).
+// settings are read-only chips linking to Plateformes (specs/settings/settings-rationalization.md rule 18).
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';

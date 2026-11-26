@@ -1,5 +1,5 @@
 /**
- * The one door to Qonto — specs/qonto-settings-in-app.md §3 rules 9, 11, 12, 13.
+ * The one door to Qonto — specs/settings/qonto-settings-in-app.md §3 rules 9, 11, 12, 13.
  *
  * Every call to Qonto now goes through `withQonto`, for a reason the 2026-09-06 outage made plain:
  * the failure happened in the public payment path, and the operator's settings page — the only place
@@ -13,7 +13,7 @@ const { getValidQontoAccessToken } = require('./qontoAuth');
 const { resolveQontoConfig } = require('./qontoConfig');
 const { classifyQontoOutcome, qontoConnectionState, errorCodeOf, errorMessageOf } = require('./qontoHealth');
 // Shared by the instance's online-payment plugin and the control plane, each with its own settings store
-// (specs/plugins-phase-3a-online-payment.md rule 22): the caller always hands it in.
+// (specs/plugins/plugins-phase-3a-online-payment.md rule 22): the caller always hands it in.
 const guestflowSettings = () => { throw new Error('[qonto] a settings store is required'); };
 
 /** Where a call came from, so the operator reads "le paiement public a échoué", not "une erreur". */
@@ -64,7 +64,7 @@ function buildConfiguredQontoClient({ settings = guestflowSettings(), env = proc
 
 /**
  * Rule 13: a success erases the recorded failure, so the page shows now and not last month.
- * specs/settings-one-save-and-automatic-webhook.md rule 15: except the webhook check's own failure, which only a successful check clears
+ * specs/settings/settings-one-save-and-automatic-webhook.md rule 15: except the webhook check's own failure, which only a successful check clears
  * (`recordWebhookCheckSuccess`): no other call says anything about the subscription.
  */
 function recordQontoSuccess({ settings = guestflowSettings(), now = new Date() } = {}) {
@@ -113,7 +113,7 @@ function recordQontoFailure({ settings = guestflowSettings(), error, origin = 'a
  *
  * `recordSuccess: false` is for housekeeping calls whose success says nothing the operator asked
  * about — the webhook-subscription check
- * (specs/settings-one-save-and-automatic-webhook.md rule 11). Without it, that check, running right
+ * (specs/settings/settings-one-save-and-automatic-webhook.md rule 11). Without it, that check, running right
  * after « Tester la connexion », would erase the diagnosis the test had just recorded and leave the
  * page claiming a connection the test had refused. Failures are always recorded, whoever calls.
  */

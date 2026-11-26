@@ -1,6 +1,6 @@
 // A plan pins the tax it collected (D17, Adrien, 2026-11-05):
-//   specs/tourist-tax-matches-the-office-calculation.md rule 19 — fully paid, or a paid installment holding a tax share;
-//   specs/tourist-tax-matches-the-office-calculation.md rule 11 — an untick does not thaw what a save stamped (R23-DB-2).
+//   specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 19 — fully paid, or a paid installment holding a tax share;
+//   specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 11 — an untick does not thaw what a save stamped (R23-DB-2).
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');

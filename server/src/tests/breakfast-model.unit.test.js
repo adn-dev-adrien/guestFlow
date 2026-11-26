@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../models/breakfastModel');
 
-// specs/breakfast-option-and-planning-card.md §3 + §7.1. Pins:
+// specs/options/breakfast-option-and-planning-card.md §3 + §7.1. Pins:
 //   - rule 4: half-open `(startDate, endDate]` window — startDate morning excluded,
 //     endDate morning included.
 //   - rule 5: people served EACH morning, babies excluded — the party itself when the breakfast
@@ -97,7 +97,7 @@ function insertReservation(db, props) {
 function linkOption(db, reservationId, optionId, quantity = 1) {
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, ?)').run(reservationId, optionId, quantity);
 }
-// Occurrence-driven breakfast (specs/breakfast-option-planning-card.md): the option shows a planning
+// Occurrence-driven breakfast (specs/options/breakfast-option-planning-card.md): the option shows a planning
 // card, so the pricing engine stores `quantity = number of scheduled mornings` + the occurrence list.
 function linkScheduledBreakfast(db, reservationId, dates, time = '09:00') {
   db.prepare('UPDATE options SET showsPlanningCard = 1 WHERE id = 1').run();
@@ -272,7 +272,7 @@ test('multiple reservations on the same morning → both listed, total summed', 
   assert.equal(out['2026-06-10'].totalPersons, 6, '4 + 2 = 6 persons total');
 });
 
-// ── Breakfast time (specs/breakfast-time.md) ──────────────────────────────────────────────
+// ── Breakfast time (specs/options/breakfast-time.md) ──────────────────────────────────────────────
 test('breakfast time: reservation override wins, else the option default (08:00)', () => {
   const db = freshDb();
   insertProperty(db, 10, 'Gîte');
@@ -309,7 +309,7 @@ test('breakfast time: same-day items are sorted by time ascending', () => {
   assert.deepEqual(items.map((i) => i.breakfastTime), ['07:00', '08:00', '09:30']);
 });
 
-// ---- breakfast composition (specs/sas-breakfast-and-handover-note.md) ----
+// ---- breakfast composition (specs/sas/sas-breakfast-and-handover-note.md) ----
 
 test('items carry coffee/tea/chocolate/milk/pastries/cereals/bread/note from the reservation (clamped, trimmed)', () => {
   const db = freshDb();
@@ -422,7 +422,7 @@ test('getForReservation: NOT applicable when reservation has no breakfast option
 
 // ── Occurrence-driven breakfast: `quantity` = mornings, NOT a share of the party ──────────────────
 // Regression (2026-08-03): 2 guests × 2 nights showed « 4 personnes » on the check-in SAS and on the
-// planning card. specs/breakfast-option-planning-card.md made the pricing engine store
+// planning card. specs/options/breakfast-option-planning-card.md made the pricing engine store
 // `quantity = number of scheduled mornings`, but rule 5 kept multiplying the party by it.
 
 test('getForReservation: 2 guests × 2 scheduled mornings → 2 persons (not 4)', () => {
@@ -435,7 +435,7 @@ test('getForReservation: 2 guests × 2 scheduled mornings → 2 persons (not 4)'
   const r = buildModel(db).getForReservation(1);
   assert.equal(r.applicable, true);
   assert.equal(r.persons, 2, 'people served each morning = the party, not party × mornings');
-  // The smart defaults ride the corrected count (specs/sas-breakfast-bread-and-push.md rule 3).
+  // The smart defaults ride the corrected count (specs/sas/sas-breakfast-bread-and-push.md rule 3).
   assert.equal(r.pastries, 2);
   assert.equal(r.bread, 1);
 });
@@ -473,7 +473,7 @@ test('legacy (no planning card): quantity keeps its sub-occupation meaning', () 
   assert.equal(buildModel(db).getForReservation(1).persons, 2);
 });
 
-// specs/card-option-served-persons.md §3.4 rules 16-17 — the children do not always have breakfast:
+// specs/options/card-option-served-persons.md §3.4 rules 16-17 — the children do not always have breakfast:
 // the kitchen must prepare the number sold, not the party.
 
 test('a card-driven breakfast serves the covers sold, not the whole party', () => {

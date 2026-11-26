@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/pricing-min-nights-per-range.md — a season's date range can carry its OWN minimum nights.
+// specs/pricing/pricing-min-nights-per-range.md — a season's date range can carry its OWN minimum nights.
 // The engine resolves the effective minimum per night (range override ?? season default ?? 1) and
 // exposes `requiredMinNights` = MAX over the nights the stay actually touches. `minNightsBreached` /
 // `minNightsRules` keep their existing shapes so the 409 MIN_NIGHTS guards are unaffected.

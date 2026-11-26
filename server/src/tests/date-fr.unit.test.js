@@ -1,5 +1,5 @@
 // French-locale date + time formatters used by the email context builder.
-// See specs/email-automation.md §3 rule 5.
+// See specs/emails/email-automation.md §3 rule 5.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -17,7 +17,7 @@ test('formatDateLong: drops a time component if present', () => {
   assert.equal(formatDateLong('2026-06-15T15:00:00Z'), '15 juin 2026');
 });
 
-test('formatDateLong: lang="en" renders English months; default stays French (specs/email-language-fr-en.md)', () => {
+test('formatDateLong: lang="en" renders English months; default stays French (specs/emails/email-language-fr-en.md)', () => {
   assert.equal(formatDateLong('2026-06-15', 'en'), '15 June 2026');
   assert.equal(formatDateLong('2026-12-25', 'en'), '25 December 2026');
   assert.equal(formatDateLong('2026-01-01', 'en'), '1 January 2026');

@@ -1,5 +1,5 @@
 /**
- * Email template language selection (specs/email-language-fr-en.md §3 rules 2-3 and 9).
+ * Email template language selection (specs/emails/email-language-fr-en.md §3 rules 2-3 and 9).
  *
  * A template row holds a French `subject`/`body` and an optional English `subjectEn`/`bodyEn`.
  * Given a requested language, pick the right side. A template without an English version is never

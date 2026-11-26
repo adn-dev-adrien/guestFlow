@@ -1,4 +1,4 @@
-// Idempotent boot-time seed of every registry default. See specs/email-automation.md §3 rule 6.
+// Idempotent boot-time seed of every registry default. See specs/emails/email-automation.md §3 rule 6.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -37,7 +37,7 @@ test('fresh DB: every registry entry is inserted exactly once', () => {
   const row = db.prepare("SELECT * FROM email_templates WHERE stableKey = 'arrival_reminder_7d'").get();
   assert.ok(row, 'arrival_reminder_7d landed in the DB');
   assert.equal(row.dayOffset, -7);
-  // Sequence templates ship « manual » (specs/settings-rationalization.md rule 17b): with no master
+  // Sequence templates ship « manual » (specs/settings/settings-rationalization.md rule 17b): with no master
   // switch left, a template's own mode is the only thing that lets it leave by itself.
   assert.equal(row.sendMode, 'manual');
   assert.equal(row.enabled, 1);
@@ -93,7 +93,7 @@ test('three consecutive runs: insert once, skip thereafter — idempotent', () =
 });
 
 
-// specs/payment-schedule-and-cancellation.md §1 amendment, rule 44 — the guard rail. A money email is a
+// specs/payments/payment-schedule-and-cancellation.md §1 amendment, rule 44 — the guard rail. A money email is a
 // commercial act: the server cannot know the acompte arrived by transfer this morning or that a delay
 // was agreed by phone. Whoever adds the next dunning template has to make the same choice deliberately.
 test('no template that asks a guest for money may ship as auto-send (rule 44)', () => {

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 22, 39 — the article's quantity bound and lead time are judged only while it is sold: an
+// specs/guest-app/guest-app.md rules 22, 39 — the article's quantity bound and lead time are judged only while it is sold: an
 // unsold article (fields hidden) never blocks the save on them, nor sends them invalid.
 import { draftErrors, patchOf } from '../itemDraft';
 

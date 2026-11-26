@@ -1,4 +1,4 @@
-// Shared fixture of the franchise-threshold suites (specs/vat-optional-mode.md rules 35-44): the finance
+// Shared fixture of the franchise-threshold suites (specs/accounting/vat-optional-mode.md rules 35-44): the finance
 // dashboard's in-memory schema completed with what the follow-up reads — VAT periods, installments,
 // compensations and the threshold columns. Not a test file.
 

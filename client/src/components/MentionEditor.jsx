@@ -1,5 +1,5 @@
 /**
- * MentionEditor — the form of one email mention (specs/plugins-phase-p-productisation.md rule 7):
+ * MentionEditor — the form of one email mention (specs/plugins/plugins-phase-p-productisation.md rule 7):
  * its section, its options, the price it quotes, its proposal and confirmation texts. Specific to
  * « Textes des mails ».
  *

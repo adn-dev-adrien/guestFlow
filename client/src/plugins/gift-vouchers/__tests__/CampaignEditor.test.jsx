@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 2-10, 46, 47, 59 — the campaign editor: the sections, the lodging fields moved here from the settings (amounts, VAT, ideas),
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 2-10, 46, 47, 59 — the campaign editor: the sections, the lodging fields moved here from the settings (amounts, VAT, ideas),
 // the price the server computes for the content being edited (never computed here), the server's refusal shown under the field it names, the locked slug, the downloads.
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';

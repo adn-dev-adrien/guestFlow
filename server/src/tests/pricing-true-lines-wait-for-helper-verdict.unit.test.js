@@ -1,5 +1,5 @@
-// specs/self-update-and-releases.md rules 30b, 31, 57 (end-review verification V-3) — T10 and the schema floor
-// (specs/pricing-components.md rule 85) run once the update helper has VERIFIED 4.2.0 (health + version), not when 4.2.0's own boot writes
+// specs/hosting/self-update-and-releases.md rules 30b, 31, 57 (end-review verification V-3) — T10 and the schema floor
+// (specs/pricing/pricing-components.md rule 85) run once the update helper has VERIFIED 4.2.0 (health + version), not when 4.2.0's own boot writes
 // `done` itself. Three paths, the
 // helper's status writes being the helper's own `write_status` (server/scripts/apply-update.sh), run by bash:
 //   - a fresh install (no update in progress): T10 and the floor at boot;

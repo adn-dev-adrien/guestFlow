@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 34 — a booking paid on its own columns before its document keeps that money there: its mini SAS shows the session « Payée »
+// specs/sas/outside-booking-sas.md rule 34 — a booking paid on its own columns before its document keeps that money there: its mini SAS shows the session « Payée »
 // from those columns (counted by SETTLEMENT through one allocation of its whole amount), a new document holds only the extras sold from then on, and the
 // journal of the session does not move (the plugin still lists it, once).
 // A booking paid before its document keeps its own rules: resource-booking-pricing-and-invoicing rule 52.

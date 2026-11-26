@@ -1,4 +1,4 @@
-// specs/lodgify-decommission.md §3 rules 14 and 15 — a tombstone never covers the source that owned
+// specs/platforms/lodgify-decommission.md §3 rules 14 and 15 — a tombstone never covers the source that owned
 // the stay, and a stay re-claimed under a new UID drops its pending cancellation alert.
 // Incident of 2026-10-22: a Booking stay cancelled then re-booked on the same nights (same UID) was
 // skipped as an echo of its own tombstone, leaving its nights open to every other channel.

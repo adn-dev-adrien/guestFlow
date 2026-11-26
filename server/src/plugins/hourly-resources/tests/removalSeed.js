@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — a per-hour session carried by the direct stay, and a
+// specs/plugins/plugin-removal-resilience.md rule 11 — a per-hour session carried by the direct stay, and a
 // booking of the same resource that belongs to no stay.
 module.exports = {
   seed(db, { stays }) {

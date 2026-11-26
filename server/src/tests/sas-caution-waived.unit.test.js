@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 31 (2026-11-12, manual trial of 4.0.0) — « Non » on the check-in's caution page:
+// specs/sas/arrival-departure-sas.md rule 31 (2026-11-12, manual trial of 4.0.0) — « Non » on the check-in's caution page:
 // no caution is taken for the stay. Stored as a marker on the reservation; the effective caution reads 0 while it is
 // set, so the fiche, the ledger (« Caution · Sans objet », reservation-payment-ledger rule 74) and the departure SAS
 // (no caution to return) read the same thing. A caution received afterwards clears it.
@@ -57,7 +57,7 @@ function makeDb() {
     CREATE TABLE repair_amounts (id INTEGER PRIMARY KEY AUTOINCREMENT, repairKey TEXT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
   `);
-  // specs/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
+  // specs/payments/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
   db.prepare('INSERT INTO reservations (id, propertyId, adults, cautionAmount) VALUES (1, 7, 2, 0)').run();
   return { db, model: createReservationsModel(db) };

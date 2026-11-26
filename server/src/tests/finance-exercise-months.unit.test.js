@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 22 — the months of the selected exercise, revenue split
+// specs/accounting/finance-dashboard-redesign.md rule 22 — the months of the selected exercise, revenue split
 // « encaissé ou passé » / « à venir », as getSummary builds them in its exercise loop (so they add up
 // to yearTotal by construction). Carried over from finance-exercise-overview-charts.md rules 3, 8, 9.
 const { freshDb, insert, sum, THIS_YEAR } = require('./financeDashboardFixture');

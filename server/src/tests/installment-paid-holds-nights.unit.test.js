@@ -1,8 +1,8 @@
-// specs/payment-link-lifecycle.md rule 32, reading of 2026-11-01 (audit R11 reservations R11-1). A paid échéance is the
+// specs/payments/payment-link-lifecycle.md rule 32, reading of 2026-11-01 (audit R11 reservations R11-1). A paid échéance is the
 // stay's money (rule 31), so from that payment on the stay holds its nights (rule 37, « first paid wins »). Beside a
 // plan it is the only payment that can arrive (rule 63): its recorder withdraws the other requests' links on those
 // nights at once, like `stayPaymentRecorder` does for an acompte, never 15 minutes later at the lifecycle pass.
-// Also specs/direct-installments.md rule 50.
+// Also specs/payments/direct-installments.md rule 50.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

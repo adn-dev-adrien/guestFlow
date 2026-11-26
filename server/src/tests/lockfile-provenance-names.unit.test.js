@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 50 (audit r4, console hardening) — the lockfile's `version` and
+// specs/hosting/self-update-and-releases.md rule 50 (audit r4, console hardening) — the lockfile's `version` and
 // package name are validated before they build the canonical tarball path: no `%2F..%2F` can ride in
 // a path that is byte-for-byte what npm would fetch.
 

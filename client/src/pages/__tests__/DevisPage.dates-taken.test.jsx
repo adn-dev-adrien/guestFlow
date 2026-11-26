@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 48 — the devis list marks a quote whose nights another stay took since.
+// specs/payments/payment-link-lifecycle.md rule 48 — the devis list marks a quote whose nights another stay took since.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 37bis, 37ter, 37quater — the stock per article: a restock sets it, every sale counts when
+// specs/guest-app/guest-app.md rules 37bis, 37ter, 37quater — the stock per article: a restock sets it, every sale counts when
 // the article leaves the cellar (the app's orders in their commit, the website's and the staff's lines on the arrival
 // day or when written later), unpaid card orders hold their units, « Épuisé » stops the app only, the staff is pushed
 // once per threshold, and a late payment without its units is a conflict. On the app's database, stays around today.

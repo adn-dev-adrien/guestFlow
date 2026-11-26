@@ -5,7 +5,7 @@
 // silently drop information when they break: a range filtered out by mistake simply does not
 // appear, and nothing errors. Hence assertions on what is ABSENT as much as on what is present.
 //
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3.3 · specs/tariff-recipes/spec.md §3.4.
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3.3 · specs/pricing/tariff-recipes.md §3.4.
 
 import React from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';
@@ -39,7 +39,7 @@ import api from '../../api';
 import DialogProvider from '../../components/DialogProvider';
 import PropertyPricingSeasonsPage from '../PropertyPricingSeasonsPage';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // The page calls useToast, which lives behind DialogProvider.

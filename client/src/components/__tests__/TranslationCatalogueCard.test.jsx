@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-// specs/translation-catalogue.md rules 12, 20 — the card is the whole of the loop: what is still
+// specs/site/translation-catalogue.md rules 12, 20 — the card is the whole of the loop: what is still
 // missing, one file down, one file up. The behaviour worth guarding is the refusal: a file that
 // REMOVES translations must be confirmed, and cancelling must send nothing.
 

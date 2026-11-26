@@ -1,6 +1,6 @@
-// « À vérifier » of the Suivi financier: specs/finance-data-checks.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9 and 10.
+// « À vérifier » of the Suivi financier: specs/accounting/finance-data-checks.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9 and 10.
 // Every stay lives in the future of the real calendar and the clock is moved past it, so no case depends on the
-// day the suite runs (specs/server-test-isolation.md rule 6).
+// day the suite runs (specs/tech/server-test-isolation.md rule 6).
 process.env.DB_PATH = ':memory:';
 process.env.NODE_ENV = 'test';
 
@@ -223,7 +223,7 @@ test('rule 7: an undeclared row of 0 € leaves nothing to declare: its month is
   const month = lastNight(zero).slice(0, 7);
   const later = nextMonthStart(zero);
   const page = at(t, later, () => finance.getTouristTaxExtraction({ month }).data.reservations);
-  // specs/tourist-tax-declaration-month-stay-end.md rule 9 (D-HC10) — a tax frozen at 0 € is never ours to remit:
+  // specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 9 (D-HC10) — a tax frozen at 0 € is never ours to remit:
   // the page no longer lists it at all.
   assert.equal(page.some((r) => r.reservationId === zero), false, 'a tax frozen at 0 € leaves the page');
   const others = page.filter((r) => r.reservationId !== zero && r.declarable && !r.touristTaxDeclaredAt && r.taxAmount > 0);

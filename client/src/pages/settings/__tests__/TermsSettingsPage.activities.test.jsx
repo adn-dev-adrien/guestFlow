@@ -1,5 +1,5 @@
 /**
- * TermsSettingsPage — one tab per activity (specs/gift-voucher-campaigns.md rule 37). The tabs come from GET /api/terms/activities; each tab
+ * TermsSettingsPage — one tab per activity (specs/gift-vouchers/gift-voucher-campaigns.md rule 37). The tabs come from GET /api/terms/activities; each tab
  * is its own draft and its own versions; the lodging-only cards (public site address, plugin slot) stay on the lodging tab; a draft not saved
  * keeps the operator on its tab.
  */

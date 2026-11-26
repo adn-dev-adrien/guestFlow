@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 17 (verification R36b) — the client suites share one budget on a loaded runner:
+// specs/tech/server-test-isolation.md rule 17 (verification R36b) — the client suites share one budget on a loaded runner:
 // a 30 s `testTimeout` for every Vitest test and a 5 s wait for every Testing Library `findBy*` / `waitFor`, set once,
 // instead of per-test overrides that left the other dialog suites at Vitest's 5 s and Testing Library's 1 s.
 const test = require('node:test');

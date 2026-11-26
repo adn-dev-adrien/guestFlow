@@ -1,4 +1,4 @@
-// specs/guest-app.md §6.4 « Accessibility » — 44 px touch targets for the app bar's action and the wifi's « Copier »,
+// specs/guest-app/guest-app.md §6.4 « Accessibility » — 44 px touch targets for the app bar's action and the wifi's « Copier »,
 // and a visible focus ring on the booklet's search field (its input drops the global outline).
 import fs from 'node:fs';
 import path from 'node:path';

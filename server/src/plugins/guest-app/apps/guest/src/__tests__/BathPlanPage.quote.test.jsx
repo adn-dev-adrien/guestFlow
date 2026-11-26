@@ -1,4 +1,4 @@
-// specs/guest-app-bath-home-scheduling.md rules 15-19 — the price is the server's: the button carries the quote's total, the
+// specs/guest-app/guest-app-bath-home-scheduling.md rules 15-19 — the price is the server's: the button carries the quote's total, the
 // breakdown lines are the server's words. 0 € places the sessions at once (`POST /orders`, payment none); above, the line goes to
 // the cart and its payment choice.
 import { fireEvent, screen, waitFor } from '@testing-library/react';

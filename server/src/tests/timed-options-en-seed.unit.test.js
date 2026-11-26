@@ -1,5 +1,5 @@
 // EN translation seeding for the early-check-in / late-check-out typed defaults.
-// See specs/devis-english-language.md §3 rule 6.
+// See specs/devis/devis-english-language.md §3 rule 6.
 //
 // The 2 timed-default options are seeded per-property by `ensureDefaultTimedOptionsForProperty`
 // in `database.js`. Because that helper is bound to the production DB at module load time, we

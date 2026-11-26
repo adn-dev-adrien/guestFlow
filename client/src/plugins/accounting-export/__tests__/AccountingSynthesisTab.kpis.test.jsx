@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 25, 26 and 30 — the four figures of the synthesis as the server sends them:
+// specs/accounting/accounting-synthesis.md §3 rules 25, 26 and 30 — the four figures of the synthesis as the server sends them:
 // definition, secondary line, source, pill against last year; one notice when there is none; the regime's mention
 // instead of a VAT figure; the tourist tax's reason on a cut month.
 import React from 'react';

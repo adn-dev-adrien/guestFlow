@@ -1,4 +1,4 @@
-// specs/email-client-language-and-fiche-polish.md rule 2 and specs/email-language-fr-en.md rule 3b — the
+// specs/emails/email-client-language-and-fiche-polish.md rule 2 and specs/emails/email-language-fr-en.md rule 3b — the
 // language of a guest e-mail comes from the CLIENT (then the reservation, then French); an explicit
 // `lang` on the preview wins over all of them.
 const test = require('node:test');
@@ -54,7 +54,7 @@ test('rule 2: an English client gets the English side, a French client the Frenc
   assert.match(fr.body, /Corps FR/);
 });
 
-// specs/email-language-fr-en.md rule 3b
+// specs/emails/email-language-fr-en.md rule 3b
 test('rule 3b: an explicit lang wins over the client language, in both directions', async () => {
   const forced = await previewLang({ emailLanguage: 'fr', lang: 'en' });
   assert.equal(forced.lang, 'en');

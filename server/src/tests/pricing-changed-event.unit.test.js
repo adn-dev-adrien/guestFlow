@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rule 12 — the core announces `pricing.changed { propertyId | null,
+// specs/site/google-vacation-rentals-feed.md rule 12 — the core announces `pricing.changed { propertyId | null,
 // source }` once after every write that can move a price, a minimum stay, a changeover day or a closed
 // night, and never after a refused write. Real controllers over the real schema in memory.
 process.env.DB_PATH = ':memory:';

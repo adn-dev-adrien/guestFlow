@@ -6,10 +6,10 @@ const icalDateDriftModel = require('../models/icalDateDriftModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
-// Locks the contract of the iCal date-drift approval model (specs/ical-sync-override-locked-dates.md §3, §4, §5).
+// Locks the contract of the iCal date-drift approval model (specs/platforms/ical-sync-override-locked-dates.md §3, §4, §5).
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
@@ -158,7 +158,7 @@ test('approve: applies narrow override, flips outcome, writes history, preserves
     newStartDate: inDays(-111), newEndDate: inDays(-108),
   });
   const result = model.approve(rec.id);
-  // reservationId feeds the Google Calendar push hook (specs/google-calendar-oauth-rework.md rule 20).
+  // reservationId feeds the Google Calendar push hook (specs/settings/google-calendar-oauth-rework.md rule 20).
   assert.deepEqual(result, { ok: true, reservationId: 10 });
   const r = db.prepare('SELECT * FROM reservations WHERE id = 10').get();
   assert.equal(r.startDate, inDays(-111));

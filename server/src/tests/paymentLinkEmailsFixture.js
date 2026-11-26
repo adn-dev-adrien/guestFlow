@@ -1,4 +1,4 @@
-// Shared fixture of the specs/payment-link-lifecycle.md e-mail suites (rules 26, 27, 35, 36): the emails
+// Shared fixture of the specs/payments/payment-link-lifecycle.md e-mail suites (rules 26, 27, 35, 36): the emails
 // controller over an in-memory database with the default templates, a stay, a fake payment provider and
 // the real link service at a fixed clock. Nothing leaves the process; no SMTP, no provider.
 

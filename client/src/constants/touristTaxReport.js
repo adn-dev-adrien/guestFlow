@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §6 — the French strings of the « Taxe de séjour » page. Impersonal and short.
+// specs/tourist-tax/tourist-tax-report-v2.md §6 — the French strings of the « Taxe de séjour » page. Impersonal and short.
 
 export const TAX_PAGE = {
   title: 'Taxe de séjour',
@@ -34,7 +34,7 @@ export const TAX_PAGE = {
   remittedByTooltip: 'La plateforme reverse elle-même cette taxe à la commune.',
 };
 
-// specs/tourist-tax-report-v2.md rule 62 — a « nuitée » is not a night: the hint shown on hover wherever it is counted.
+// specs/tourist-tax/tourist-tax-report-v2.md rule 62 — a « nuitée » is not a night: the hint shown on hover wherever it is counted.
 export const PERSON_NIGHT_HINTS = {
   all: '1 nuitée = 1 personne pendant 1 nuit.',
   taxed: '1 nuitée = 1 personne pendant 1 nuit. Taxées : adultes × nuits.',
@@ -78,7 +78,7 @@ export const TAX_TOTALS = {
   allDeclared: 'tout est déclaré',
 };
 
-// specs/tourist-tax-report-v2.md rules 56-58 — the per-logement sections and the redesigned bottom banner.
+// specs/tourist-tax/tourist-tax-report-v2.md rules 56-58 — the per-logement sections and the redesigned bottom banner.
 export const TAX_PROPERTY = {
   declareError: 'Impossible de marquer ce logement déclaré.',
   stays: (n) => `${n} séjour${n > 1 ? 's' : ''} à déclarer`,

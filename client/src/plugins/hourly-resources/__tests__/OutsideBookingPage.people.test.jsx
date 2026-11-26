@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 4, 26 — the party declared at booking shows on the fiche of the passage, in the session block, and is corrected there: saved when the field is
+// specs/site/site-outside-resource-booking.md rules 4, 26 — the party declared at booking shows on the fiche of the passage, in the session block, and is corrected there: saved when the field is
 // left, empty meaning none, a refusal of the server shown under the field.
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 39, 46 — the card is a status and its actions: off = a
+// specs/hosting/hosting-h2-account-security.md rules 39, 46 — the card is a status and its actions: off = a
 // badge, one sentence and « Activer » (no method picker, no password field); on = the three lines the
 // server worded, a warning with « Nouveaux codes » from 3 backup codes left, the history folded.
 import React from 'react';

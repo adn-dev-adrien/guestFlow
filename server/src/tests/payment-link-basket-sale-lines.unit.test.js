@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 91 — owner 2026-11-15 « Brancher quand même », read with « éviter de toucher les anciens séjours »:
+// specs/pricing/pricing-components.md §3 rule 91 — owner 2026-11-15 « Brancher quand même », read with « éviter de toucher les anciens séjours »:
 // a new link on a stay booked once 4.2.0 is installed names the lines its sale detail collects in the acompte and the solde, each at
 // its own rate, for exactly the bucket's amount; a stay booked before (and every link already minted) keeps its basket.
 process.env.DB_PATH = ':memory:';

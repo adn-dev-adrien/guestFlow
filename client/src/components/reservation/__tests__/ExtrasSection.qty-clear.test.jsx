@@ -5,10 +5,10 @@ import { vi } from 'vitest';
 import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
-// specs/reservation-quantity-stepper.md §3 rule 7 — REGRESSION PIN.
+// specs/reservations/reservation-quantity-stepper.md §3 rule 7 — REGRESSION PIN.
 // Before QuantityField, clearing the option « Qté » committed 0 → setOptionQuantity dropped the
 // line → the option silently deselected. Now the field has min 1 and commits on blur, so an empty
 // field falls back to 1 and the option stays selected.

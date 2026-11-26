@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/complement-buckets-by-moment.md — le panneau range chaque montant sous le MOMENT où il est
+// specs/sas/complement-buckets-by-moment.md — le panneau range chaque montant sous le MOMENT où il est
 // encaissé. Il ne décide de rien : le serveur envoie `quote.complementSplit`, on vérifie qu'il est
 // rendu tel quel (et que l'ancien libellé « perçu en fin de séjour » sur la ligne d'arrivée a disparu).
 

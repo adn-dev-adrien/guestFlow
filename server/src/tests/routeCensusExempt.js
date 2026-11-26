@@ -1,4 +1,4 @@
-// The write routes input-shape-per-field does not run, each class with its one-line reason (specs/hosting-h2-account-security.md
+// The write routes input-shape-per-field does not run, each class with its one-line reason (specs/hosting/hosting-h2-account-security.md
 // rule 68, census). A new route gets a row in inputShapeBaselines.js, or a place here on purpose: route-census.unit.test.js
 // fails on one that has neither.
 const EXEMPT = {
@@ -178,7 +178,7 @@ const EXEMPT = {
     'POST /api/standalone-sales/:id/payment-link/:linkId/email',
     'PUT /api/settings/suggested-articles/:kind/:id',
   ],
-  'Judged by public-session-booking of hourly-resources (specs/site-outside-resource-booking.md rule 26: a whole number from 1 to 100, 404 on an unknown booking, no price moved).': [
+  'Judged by public-session-booking of hourly-resources (specs/site/site-outside-resource-booking.md rule 26: a whole number from 1 to 100, 404 on an unknown booking, no price moved).': [
     'PATCH /api/resource-bookings/:id/people',
   ],
   'Judged by the outside-visit suites of hourly-resources (visit-*: every field refused with a code, the window and the roles); a link route names its row in the URL.': [

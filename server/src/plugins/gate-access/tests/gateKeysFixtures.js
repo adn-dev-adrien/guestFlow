@@ -1,4 +1,4 @@
-// Shared fixtures for the gate-keys suites (specs/gate-access-sowel-connector.md). Not a test file:
+// Shared fixtures for the gate-keys suites (specs/guest-app/gate-access-sowel-connector.md). Not a test file:
 // a suite imports it without re-running another suite.
 
 const fs = require('fs');

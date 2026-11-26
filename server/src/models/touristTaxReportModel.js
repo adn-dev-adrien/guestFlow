@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md — the tourist-tax report over any period. It owns WHICH window, logement and
+// specs/tourist-tax/tourist-tax-report-v2.md — the tourist-tax report over any period. It owns WHICH window, logement and
 // declaration status are read; the declaration rows themselves come from financeModel.getTouristTaxRows, the very
 // rows of the monthly extraction, so a stay's amount is computed once (rule 1). The stays a platform remits itself
 // are read here, from the platform's mode (rule 6), and priced as their fiche shows them.

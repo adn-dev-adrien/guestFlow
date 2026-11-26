@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 50 — a request e-mail sent from the dialog and refused 409
+// specs/payments/payment-link-lifecycle.md rule 50 — a request e-mail sent from the dialog and refused 409
 // LINK_ALREADY_PAID has booked the payment: the dialog keeps the refusal on screen and asks its page to
 // re-read the money (`onMoneyChanged`, the installment card's hook); any other refusal re-reads nothing, and
 // `onSent` stays for a mail that left.

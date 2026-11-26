@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13, 14, 85 — the arrival SAS « Offrir » names ONE line: a ref `{ kind, id }` is the article's first line, a
+// specs/pricing/pricing-components.md §3 rules 13, 14, 85 — the arrival SAS « Offrir » names ONE line: a ref `{ kind, id }` is the article's first line, a
 // ref with `lineId` a later sale of it; the recap keys its lines the same way (`option:5`, `option:5:12`), so the client's choice reaches one row.
 const test = require('node:test');
 const assert = require('node:assert/strict');

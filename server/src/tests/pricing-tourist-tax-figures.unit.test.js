@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 3, 64 and 66 (commit « tourist tax through TOURIST TAX »): the person × night arithmetic of
+// specs/pricing/pricing-components.md §3 rules 3, 64 and 66 (commit « tourist tax through TOURIST TAX »): the person × night arithmetic of
 // the tax lives in TOURIST TAX (`personNights`, `unitFromTotal`), and the report of the tax a platform remits itself reads its two
 // figures from the TOURIST TAX slice of the pipeline, not from a replay of the whole quote. Proof on every stay of the
 // price-gate fixture: the slice answers what the full quote answers, to the bit.

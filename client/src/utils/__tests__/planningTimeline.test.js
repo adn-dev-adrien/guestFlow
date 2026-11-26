@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rules 14, 15 — empty days fold into runs of « Rien de prévu », today
+// specs/planning/dashboard-planning-scroll.md rules 14, 15 — empty days fold into runs of « Rien de prévu », today
 // is never folded, a run never crosses today, a plugin card makes a day non-empty, windows merge in order.
 import { buildTimeline } from '../planningTimeline';
 import { daysPayload, stay } from '../../pages/__tests__/planningDaysFixtures';

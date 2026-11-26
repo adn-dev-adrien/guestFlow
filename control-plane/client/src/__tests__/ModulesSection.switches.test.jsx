@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 10, 12, 14 — the customer's « Modules »: the two
+// specs/plugins/plugin-operator-provisioning.md rules 10, 12, 14 — the customer's « Modules »: the two
 // groups, a switch that saves at once (and asks before switching off), a refusal that snaps back
 // with the server's sentence, the state of each line and the retry.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/hourly-resource-quantity-and-sas-scheduling.md rule 36 (guest-app rule 79) — `heatFrom`: the cold path of the
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md rule 36 (guest-app rule 79) — `heatFrom`: the cold path of the
 // thermal model is `start >= heatFrom + heatUpMinutes`, counted from the present moment when the guest app asks, while
 // `notBefore` still bounds every start. Absent, it is `notBefore`: the SAS and the fiche answer as before.
 const test = require('node:test');

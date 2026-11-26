@@ -1,4 +1,4 @@
-// Graduations of the hero's cumulative curve (specs/finance-dashboard-redesign.md rule 30): on the
+// Graduations of the hero's cumulative curve (specs/accounting/finance-dashboard-redesign.md rule 30): on the
 // calendar, never on the sampled points — the 1st of each month past 62 days, the 1st, 8th, 15th,
 // 22nd and 29th below. January is named by its year once a month name could appear twice. Pure;
 // positions are days since the window's first day.

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 21 — the assistant's step « Vos emails », before
+// specs/emails/guest-email-texts-made-simple.md rule 21 — the assistant's step « Vos emails », before
 // « C'est prêt »: pre-filled by the server, the article as a choice, the J-2 of a sample stay rendered
 // with what is typed, every field skippable; « C'est prêt » lists what the emails still miss.
 import React from 'react';

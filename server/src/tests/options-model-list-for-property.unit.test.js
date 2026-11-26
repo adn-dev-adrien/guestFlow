@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../models/optionsModel');
 
-// specs/option-property-scope.md §3.3 — the public per-property options endpoint returns ONLY the
+// specs/options/option-property-scope.md §3.3 — the public per-property options endpoint returns ONLY the
 // options EXPLICITLY linked to that property. The legacy « no link = global (everywhere) » rule is
 // removed: an option with no property_options row is available NOWHERE. « Tous les logements » is now
 // encoded as a link to every property.

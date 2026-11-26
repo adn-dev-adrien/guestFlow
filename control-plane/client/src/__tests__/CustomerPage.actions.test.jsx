@@ -1,5 +1,5 @@
-// specs/control-plane-plans-and-access.md rules 7, 15, 19 and 20 — the customer page: the creation
-// steps and their actions (automatic since specs/hosting-h1-fleet-runtime.md rule 2), a payment with the server's preview, the refused override without a
+// specs/hosting/control-plane-plans-and-access.md rules 7, 15, 19 and 20 — the customer page: the creation
+// steps and their actions (automatic since specs/hosting/hosting-h1-fleet-runtime.md rule 2), a payment with the server's preview, the refused override without a
 // reason, and deprovisioning confirmed by the slug.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

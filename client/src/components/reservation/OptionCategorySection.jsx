@@ -4,7 +4,7 @@ import CollapsibleSection from '../CollapsibleSection';
 import OptionRow from './OptionRow';
 
 /**
- * One option category on the reservation form (specs/option-categories.md §3 rules 8-11).
+ * One option category on the reservation form (specs/options/option-categories.md §3 rules 8-11).
  *
  * The point of the component is the *pinned* slice: options that are enabled on this reservation,
  * or flagged `alwaysVisible` in the catalogue, render OUTSIDE the collapse. Folding a category can
@@ -31,7 +31,7 @@ export default function OptionCategorySection({ category, pinned = [], foldable 
   // Nothing left to reveal (every option is already pinned) → no affordance at all, rather than a
   // button that expands into an empty box.
   // One hidden line reads in the singular (« Voir l’option », not « Voir les 1 option » — fixed at the
-  // 2026-10-27 spec review, specs/option-categories.md rule 10).
+  // 2026-10-27 spec review, specs/options/option-categories.md rule 10).
   let toggleLabel = null;
   if (foldable.length === 1) toggleLabel = pinned.length > 0 ? 'Voir l’autre' : 'Voir l’option';
   else if (foldable.length > 1) toggleLabel = `Voir les ${foldable.length} ${pinned.length > 0 ? 'autres' : 'options'}`;

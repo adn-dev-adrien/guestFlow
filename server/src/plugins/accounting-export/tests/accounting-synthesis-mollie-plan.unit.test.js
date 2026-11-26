@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md rule 4 and specs/mollie-rolling-reserve-and-incoming-payments.md rule 29 (stabilisation loop t10 B10-3,
+// specs/accounting/accounting-synthesis.md rule 4 and specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 29 (stabilisation loop t10 B10-3,
 // 2026-11-17) — the synthesis reads the very rows the CSV writes: with « Exporter les versements Mollie reçus » off, the Mollie bank lines
 // leave the synthesis as they leave the CSV, and the Mollie rows ride on the accounts the operator set. Fictional data only.
 const test = require('node:test');

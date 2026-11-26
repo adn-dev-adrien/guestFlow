@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 33 (audit R2, finding N2) — the public guest email is bounded by its length first.
+// specs/settings/settings-rationalization.md rule 33 (audit R2, finding N2) — the public guest email is bounded by its length first.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -14,7 +14,7 @@ test('rule 33: the public booking guest validation returns in < 50 ms on the 195
   assert.ok(out.errors.some((e) => e.field === 'guest.email'));
 });
 
-// specs/wordpress-plugin.md rule 32 (audit R2, external N2) — format characters are stripped from a guest name.
+// specs/site/wordpress-plugin.md rule 32 (audit R2, external N2) — format characters are stripped from a guest name.
 test('rule 32: bidi overrides and zero-width characters are stripped from a public guest name, accents stay', () => {
   const out = validateGuest({ firstName: 'Cl\u200Baire', lastName: 'Gar\u202Enier Éloïse', email: 'a@b.fr', phone: '0612345678' });
   assert.equal(out.ok, true);

@@ -1,5 +1,5 @@
 // « Déclarée » waits for a stay paid and over (D16, Adrien, 2026-11-05):
-//   specs/tourist-tax-declared-checkbox.md rule 8 — the tick and its flag, main row and row of its own.
+//   specs/tourist-tax/tourist-tax-declared-checkbox.md rule 8 — the tick and its flag, main row and row of its own.
 // D16 withdraws D14's « a tax not yet collected can be declared »; the plan row placement stays.
 process.env.DB_PATH = ':memory:';
 

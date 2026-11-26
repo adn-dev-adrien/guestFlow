@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 24, 29, §6 — « Bons cadeaux »: the list with the server's states and outstanding total,
+// specs/gift-vouchers/gift-vouchers.md rules 24, 29, §6 — « Bons cadeaux »: the list with the server's states and outstanding total,
 // the search and state filter sent to the server, the empty and error states.
 import React from 'react';
 import { screen, waitFor, within } from '@testing-library/react';

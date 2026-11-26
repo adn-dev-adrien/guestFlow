@@ -29,7 +29,7 @@ That's it. Because each PR adds a **new file**, `git` never reports a conflict.
 
 ### A line about one plugin
 
-A bullet that starts with `plugin:<id>` belongs to that plugin (specs/plugins-phase-4-registry.md
+A bullet that starts with `plugin:<id>` belongs to that plugin (specs/plugins/plugins-phase-4-registry.md
 rules 24, 28); in `CHANGELOG.md` it appears as « **Plugin `<id>`** — … ». The operator reads the
 plugin's own lines elsewhere: in the update dialog of the Plugins page, from the plugin's
 `manifest.json`. So the same pull request also bumps the plugin's `version` and writes those lines,
@@ -55,7 +55,7 @@ fragments, condense them instead of publishing them whole:
    under a `### Détail` heading of its own, as one bullet. It carries the line pointing to the archive. It is a
    heading and a bullet because 3.21.0's update dialog parser glues any other line onto the bullet above it.
 
-4.0.0 is the example (`docs/changelog/4.0.0-detail.md`; specs/self-update-and-releases.md rule 56).
+4.0.0 is the example (`docs/changelog/4.0.0-detail.md`; specs/hosting/self-update-and-releases.md rule 56).
 
 ## Preview the pending changelog
 
@@ -83,7 +83,7 @@ node scripts/build-changelog.mjs --check-digest X.Y.Z
 ```
 
 That digest is the *only* thing the update dialog shows an operator before they click « Installer »;
-every other section is folded behind « Tout le changelog » (`specs/self-update-and-releases.md`
+every other section is folded behind « Tout le changelog » (`specs/hosting/self-update-and-releases.md`
 rule 20c). It is at most 6 lines of at most 160 characters, written **in French** — the one block in
 this repository deliberately not in English, because it exists to be read inside the application.
 

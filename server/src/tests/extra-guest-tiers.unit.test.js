@@ -7,7 +7,7 @@ const {
 } = require('../utils/extraGuestTiers');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 — the extra-guest supplement as a per-night
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1 — the extra-guest supplement as a per-night
 // tier table: 15 € the first night, 8 € from the second, carried forward for ever after.
 
 const AVENTURA = [{ fromNight: 1, price: 15 }, { fromNight: 2, price: 8 }];

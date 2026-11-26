@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 51 — the guest app's slots of an hourly resource stop at the resource's booking
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 51 — the guest app's slots of an hourly resource stop at the resource's booking
 // horizon (« Réservable jusqu'à », 3 months by default), on top of the stay: the days past it read closed, the answer
 // carries `horizonUntil`, and a session past it is refused by the scheduler's check.
 const { requirePlugins, applyPluginSchema } = require('../../sdk/testing');

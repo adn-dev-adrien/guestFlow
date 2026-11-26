@@ -1,4 +1,4 @@
-// specs/admin-account-management.md rule 21 (2026-11-09) — the SMTP client greets the server with the domain of the
+// specs/hosting/admin-account-management.md rule 21 (2026-11-09) — the SMTP client greets the server with the domain of the
 // address it sends From, never nodemailer's default `[127.0.0.1]` that lands in the receiver's `Received` header.
 const test = require('node:test');
 const assert = require('node:assert/strict');

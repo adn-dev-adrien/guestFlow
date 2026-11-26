@@ -1,6 +1,6 @@
 import { complementDeferralAccess } from '../complementDeferralAccess';
 
-// specs/defer-arrival-complement-to-checkout.md §3.3 rules 12-15 — c'est l'opérateur qui décide,
+// specs/sas/defer-arrival-complement-to-checkout.md §3.3 rules 12-15 — c'est l'opérateur qui décide,
 // tout le temps : ni le calendrier ni l'encaissement ne retirent le contrôle.
 
 const base = {

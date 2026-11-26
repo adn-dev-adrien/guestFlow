@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 8 and specs/plugins-phase-3a-online-payment.md rule 7 (review of
+// specs/payments/payment-link-lifecycle.md rule 8 and specs/plugins/plugins-phase-3a-online-payment.md rule 7 (review of
 // #897) — an acompte link and a full link settle the same acompte: two requests of those types started at
 // the same moment for one stay end with a single payable link, and the link a caller got back is the one
 // still open, never one the other request deactivated.

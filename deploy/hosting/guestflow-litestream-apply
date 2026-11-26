@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Writes /etc/litestream.yml and restarts Litestream (specs/hosting-h1-fleet-runtime.md H-D3, rule 21).
+# Writes /etc/litestream.yml and restarts Litestream (specs/hosting/hosting-h1-fleet-runtime.md H-D3, rule 21).
 # Installed by bootstrap-host.sh as /usr/local/sbin/guestflow-litestream-apply (root:root, 755) and
 # allowed to the console by /etc/sudoers.d/guestflow.
 #
@@ -27,7 +27,7 @@ url="$2"; endpoint="$4"; region="$6"; shift 6
 url="${url%/}"
 
 entry='^(c[0-9]{1,9})=(/srv/guestflow/instances/[a-z0-9-]{3,30}/data/guestflow\.db)$'
-out="# Written by guestflow-litestream-apply (specs/hosting-h1-fleet-runtime.md) — edits are overwritten."$'\n'
+out="# Written by guestflow-litestream-apply (specs/hosting/hosting-h1-fleet-runtime.md) — edits are overwritten."$'\n'
 if [[ $# -eq 0 ]]; then
   out+="dbs: []"$'\n'
 else

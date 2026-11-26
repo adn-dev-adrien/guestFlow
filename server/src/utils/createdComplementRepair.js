@@ -1,6 +1,6 @@
 /**
  * One-shot repair of the arrival complement a stay lost at creation —
- * specs/force-item-to-complement.md rule 18 (spec review of 2026-10-27).
+ * specs/sas/force-item-to-complement.md rule 18 (spec review of 2026-10-27).
  *
  * `insertReservation` never wrote `complementAmount`: a stay created with a line routed to the
  * complement (« Ménage 80 € » on « Complément ») stored 0 while the engine had already taken the line

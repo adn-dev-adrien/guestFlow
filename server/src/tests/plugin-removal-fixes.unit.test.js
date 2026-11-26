@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rules 1, 2, 6 — a plugin that is gone from the code leaves the
+// specs/plugins/plugin-removal-resilience.md rules 1, 2, 6 — a plugin that is gone from the code leaves the
 // core booting, never live, and never re-offers the payment link it carried.
 
 const test = require('node:test');
@@ -183,7 +183,7 @@ function emailsFixture() {
     smtpConfigured: () => true,
     decryptedSmtpSettings: () => ({}),
   };
-  // specs/payment-link-lifecycle.md rule 26 — a link the send would reuse (24 h left at least).
+  // specs/payments/payment-link-lifecycle.md rule 26 — a link the send would reuse (24 h left at least).
   const paymentLinksModel = { findOpenForStay: () => ({ url: 'https://pay.example/pl_X', expiresAt: new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString() }) };
   return buildController({
     database: db,

@@ -1,5 +1,5 @@
 // @ts-check
-// Global setup of the production-build suite (specs/plugins-phase-4-registry.md rule 19): seed the
+// Global setup of the production-build suite (specs/plugins/plugins-phase-4-registry.md rule 19): seed the
 // admin and every plugin but linen and neat (left for the install test), restart the server so it
 // loads the seeded packages, publish the registry versions the specs use, and log in.
 const { request } = require('@playwright/test');

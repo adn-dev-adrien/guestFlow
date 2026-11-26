@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/per-property-option-prices.md — the pricing engine must price a selected option at its
+// specs/options/per-property-option-prices.md — the pricing engine must price a selected option at its
 // EFFECTIVE per-property price: the property_option_prices override when present, else the base
 // price. An explicit override of 0 is a real free line.
 
@@ -74,7 +74,7 @@ test('explicit override of 0 → the option is free for this property', () => {
   db.close();
 });
 
-test('an option NOT linked to the property is not applied (specs/option-property-scope.md §3.3)', () => {
+test('an option NOT linked to the property is not applied (specs/options/option-property-scope.md §3.3)', () => {
   const db = createDb();
   // Re-point option 10's only link to a different property → it's available nowhere on property 1.
   db.prepare('DELETE FROM property_options WHERE optionId = 10').run();

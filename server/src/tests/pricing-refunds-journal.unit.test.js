@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 63 and 64 — the journal entries of a refund (`utils/pricing/refunds/journal.js`),
+// specs/pricing/pricing-components.md §3 rules 63 and 64 — the journal entries of a refund (`utils/pricing/refunds/journal.js`),
 // moved from the accounting-export plugin: the avoir of a refund, the share given back from an indemnity (cumulative, so the
 // shares add up to the compensation's HT), and the closing of a split stay's books.
 const test = require('node:test');

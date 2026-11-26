@@ -1,5 +1,5 @@
 /**
- * ExternalSaleFields — the three catalogue fields of an article sold with no stay (specs/pricing-components.md rules 53, 88; specs/outside-booking-sas.md rule 11):
+ * ExternalSaleFields — the three catalogue fields of an article sold with no stay (specs/pricing/pricing-components.md rules 53, 88; specs/sas/outside-booking-sas.md rule 11):
  * « Vendable hors séjour », the VAT class of the article, and the external customer's rate of that class. Generic: the option and the resource editors both draw it; it knows no
  * form, only a value and the server's list of classes with their rate.
  *

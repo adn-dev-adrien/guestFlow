@@ -1,4 +1,4 @@
-// specs/google-calendar-oauth-rework.md rule 26 (audit R4) — pushes and deletes of ONE reservation run in the order
+// specs/settings/google-calendar-oauth-rework.md rule 26 (audit R4) — pushes and deletes of ONE reservation run in the order
 // they were scheduled. Without it a push in flight (update answered 404, insert not sent yet) lets the
 // delete of a cancellation answer « absent », then creates the event of a cancelled stay.
 const test = require('node:test');

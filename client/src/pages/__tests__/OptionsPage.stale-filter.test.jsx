@@ -1,4 +1,4 @@
-// Audit R5 (2026-10-30), specs/ui-review-2026-10-19-operations.md rule 39 — a slow answer for a logement already left never replaces the catalogue shown.
+// Audit R5 (2026-10-30), specs/design-system/ui-review-2026-10-19-operations.md rule 39 — a slow answer for a logement already left never replaces the catalogue shown.
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

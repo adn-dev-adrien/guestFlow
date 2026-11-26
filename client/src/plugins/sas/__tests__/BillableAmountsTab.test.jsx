@@ -9,9 +9,9 @@ import DialogProvider from '../../../components/DialogProvider';
 import BillableAmountsTab from '../BillableAmountsTab';
 import api from '../../../api';
 
-// specs/ds-sweep-settings.md §3.1 rule 1 — the page owns ONE bar-level save for both lists (the two
+// specs/design-system/ds-sweep-settings.md §3.1 rule 1 — the page owns ONE bar-level save for both lists (the two
 // content « Enregistrer » rows are gone), load failures render a retryable ErrorAlert, and the keyed
-// extinguisher repair row stays protected (specs/extinguisher-seal-and-repair-amounts.md).
+// extinguisher repair row stays protected (specs/options/extinguisher-seal-and-repair-amounts.md).
 
 vi.mock('../../../api', () => ({
   default: {
@@ -19,7 +19,7 @@ vi.mock('../../../api', () => ({
     getRepairAmounts: vi.fn(),
     updateLinenItems: vi.fn(() => Promise.resolve([])),
     updateRepairAmounts: vi.fn(() => Promise.resolve([])),
-    // specs/plugins-phase-p-productisation.md rule 16 — the « Contrôle de l'extincteur » card.
+    // specs/plugins/plugins-phase-p-productisation.md rule 16 — the « Contrôle de l'extincteur » card.
     getPluginSettings: vi.fn(() => Promise.resolve({ extinguisherCheck: '1' })),
     savePluginSettings: vi.fn(() => Promise.resolve({ extinguisherCheck: '1' })),
   },

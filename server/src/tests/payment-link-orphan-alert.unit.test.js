@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 3-4 — a payment that lands on a link whose stay row is gone (an
+// specs/payments/payment-link-lifecycle.md rules 3-4 — a payment that lands on a link whose stay row is gone (an
 // orphan) is kept on the link as a money record, books nothing, confirms nothing, and alerts the admin
 // with an e-mail and a push that carry the link's facts and no URL (there is no fiche to open).
 
@@ -50,7 +50,7 @@ function spies() {
   };
 }
 
-// The poll opens with the lifecycle pass (specs/payment-link-lifecycle.md rules 13, 16): an open orphan is
+// The poll opens with the lifecycle pass (specs/payments/payment-link-lifecycle.md rules 13, 16): an open orphan is
 // withdrawn there, so the poll finds its payment on the retry path.
 test('rule 3 — poll: an open orphan link paid at the provider is withdrawn, keeps the payment, books nothing, confirms nothing, alerts', async () => {
   const { db, links } = seed();

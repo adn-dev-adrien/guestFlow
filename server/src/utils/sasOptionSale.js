@@ -1,6 +1,6 @@
 /**
  * Prestations sold by the arrival SAS — pricing + offer shaping
- * (specs/sas-breakfast-and-catering-upsell.md).
+ * (specs/sas/sas-breakfast-and-catering-upsell.md).
  *
  * The check-in wizard can sell the breakfast and the « Restauration » catalogue on the spot. It sends
  * INTENT only — which moments, or how many units — and everything that costs money is derived here,
@@ -9,7 +9,7 @@
  *   - card option (`showsPlanningCard`): `quantity = occurrences`, `billedUnits = occurrences ×
  *     persons` when the option is per-person ([pricing.js](pricing.js) `showsPlanningCard` branch);
  *   - per person (and per person per night): the operator picks how many people are served, stored in
- *     `cardPersons` with `quantity = 1` (specs/non-card-option-served-persons.md rules 12 and 28);
+ *     `cardPersons` with `quantity = 1` (specs/options/non-card-option-served-persons.md rules 12 and 28);
  *   - per night: the operator picks the nights, stored in `cardNights` with `quantity = 1` (rule 19);
  *   - anything else: the operator picks the units, and `quantity` is that number.
  *
@@ -38,7 +38,7 @@ function isPerPerson(option) {
 }
 
 // A tab still running the previous bundle sends the billed units of a per-person line
-// (specs/non-card-option-served-persons.md rule 28). They become people served, whole: the party is
+// (specs/options/non-card-option-served-persons.md rule 28). They become people served, whole: the party is
 // not involved, only the nights a per-person-per-night unit counts.
 function servedFromIntent(priceType, { servedPersons, units, nights }) {
   if (servedPersons != null || !(Number(units) > 0)) return servedPersons;
@@ -61,9 +61,9 @@ const spentOf = (priced) => (Number(priced.figures.freeUnits) > 0
  * @param {object} ctx     { unitPrice, persons, nights, stay, occurrences, units, servedPersons, maxPersons, freeUnits }
  *        `stay` ({ startDate, endDate, checkInTime, checkOutTime }) restricts the accepted moments to
  *        the candidate grid — the wizard can only sell moments the guest can actually attend.
- *        `servedPersons` is how many covers each moment serves (specs/card-option-served-persons.md
+ *        `servedPersons` is how many covers each moment serves (specs/options/card-option-served-persons.md
  *        §3.3): absent → the whole party, and it is clamped to `maxPersons` (the property capacity).
- *        `freeUnits` is the stay's grant left for the article (specs/pricing-components.md rule 41): the sale spends it as the engine does.
+ *        `freeUnits` is the stay's grant left for the article (specs/pricing/pricing-components.md rule 41): the sale spends it as the engine does.
  * @returns {{optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardOccurrences,
  *            cardPersons, freeUnits, freeUnitsAmount}|null}
  */
@@ -169,7 +169,7 @@ function priceCatalogueUpsell(option, { unitPrice, persons, nights, maxPersons }
 /**
  * One sellable option as the SAS payload exposes it: the price, the candidate moments (card option)
  * or the default billed quantity (everything else), and what THIS SAS already sold — so re-opening a
- * committed check-in reopens on the operator's own selection (specs/reopen-completed-sas.md).
+ * committed check-in reopens on the operator's own selection (specs/sas/reopen-completed-sas.md).
  */
 function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxPersons } = {}) {
   const price = round2(unitPrice != null ? unitPrice : option.price);
@@ -190,7 +190,7 @@ function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxP
     // What one « unit » of the fiche's Qté field means, and the value it pre-fills with.
     multiplier,
     defaultUnits: multiplier,
-    // How many covers a moment serves (specs/card-option-served-persons.md §3.3 rule 11): the party
+    // How many covers a moment serves (specs/options/card-option-served-persons.md §3.3 rule 11): the party
     // by default, this SAS's own decision when a committed check-in is re-opened, capped by the
     // property's capacity so a friend joining for dinner can still be served.
     defaultPersons: head,
@@ -205,11 +205,11 @@ function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxP
 
 /**
  * Default breakfast composition PER PERSON SERVED — the rule behind the pre-fill the SAS breakfast
- * page gets on a never-committed check-in (specs/sas-breakfast-bread-and-push.md rule 3): one pastry
+ * page gets on a never-committed check-in (specs/sas/sas-breakfast-bread-and-push.md rule 3): one pastry
  * per person, half a baguette per person, drinks left to the operator. Needed here because a
  * breakfast SOLD at check-in is composed in the same run, once `arrivalSasDoneAt` no longer gates the
  * defaults — and the wizard multiplies it by the number of breakfasts actually sold, which is not
- * always the whole party (specs/card-option-served-persons.md §3.4 rule 17).
+ * always the whole party (specs/options/card-option-served-persons.md §3.4 rule 17).
  */
 const BREAKFAST_COMPOSITION_PER_PERSON = {
   coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 1, cereals: 0, bread: 0.5,
@@ -253,7 +253,7 @@ function buildSasSaleOffers({
       cardOccurrences: line.cardOccurrences,
       billedUnits: Number(line.billedUnits || 0),
       // What this SAS decided about the covers, so a re-open reopens on it rather than on the party
-      // (specs/card-option-served-persons.md §3.3 rule 11).
+      // (specs/options/card-option-served-persons.md §3.3 rule 11).
       cardPersons: line.cardPersons != null ? Number(line.cardPersons) : null,
     });
   }
@@ -268,7 +268,7 @@ function buildSasSaleOffers({
 
   const sellable = (option) => Number(option?.autoEnabled || 0) !== 1
     && Number(option?.displayToClient == null ? 1 : option.displayToClient) !== 0
-    // The cancellation insurance is never sold at check-in (specs/cancellation-insurance.md §3.2
+    // The cancellation insurance is never sold at check-in (specs/payments/cancellation-insurance.md §3.2
     // rule 17): the stay has started, there is nothing left to cancel. Guarded here rather than
     // left to the category filter, so miscategorising it can't put it on the check-in screen.
     && Number(option?.isCancellationInsurance || 0) !== 1
@@ -284,7 +284,7 @@ function buildSasSaleOffers({
     // breakfast option without a planning card keeps being sold from the fiche.
     const available = offer.showsPlanningCard && offer.occurrences.length > 0 && persons > 0;
     // The price of ONE morning, by the very function the sale is billed with, so the offer page
-    // announces what the commit will bill (specs/breakfast-offer-price-server-side.md rules 1-3).
+    // announces what the commit will bill (specs/options/breakfast-offer-price-server-side.md rules 1-3).
     const oneMorning = available ? priceOptionSale(breakfastOption, {
       unitPrice: offer.unitPrice,
       persons,
@@ -323,7 +323,7 @@ function buildSasSaleOffers({
 
 /**
  * The options a sale may carry: what the offers above sell, the same way the read shows them
- * (specs/sas-breakfast-and-catering-upsell.md rule 15).
+ * (specs/sas/sas-breakfast-and-catering-upsell.md rule 15).
  * @param {{breakfast: object, catering: {options: object[]}}} offers  from `buildSasSaleOffers`
  * @returns {Set<number>}
  */

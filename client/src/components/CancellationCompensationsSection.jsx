@@ -1,6 +1,6 @@
 /**
  * CancellationCompensationsSection — the card of the « Indemnités d'annulation » page
- * (specs/cancellation-compensation.md §6.3, specs/plugins-phase-2-hosts.md rule 21).
+ * (specs/payments/cancellation-compensation.md §6.3, specs/plugins/plugins-phase-2-hosts.md rule 21).
  *
  * Two lists in one card: the compensations BANKED in the selected month (they carry the month's
  * journal entries) and, month-independent, the ones still PENDING — they have no accounting date
@@ -94,7 +94,7 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
     }
   }, [dialog, refresh, showSuccess, showError]);
 
-  // specs/reservation-refunds.md rule 48 — refunds reduce a kept acompte in the journal only: re-receiving it lower
+  // specs/payments/reservation-refunds.md rule 48 — refunds reduce a kept acompte in the journal only: re-receiving it lower
   // would count the reduction twice.
   const handleReopen = useCallback(async (compensation) => {
     const refunded = Number(compensation.indemnityRefundedTtc || 0);
@@ -145,7 +145,7 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
   const pending = data?.pending || [];
 
   const clientCell = (c) => c.clientName || `Indemnité #${c.id}`;
-  // specs/payment-schedule-and-cancellation.md §3.6 rule 33 — an indemnity is either what a platform
+  // specs/payments/payment-schedule-and-cancellation.md §3.6 rule 33 — an indemnity is either what a platform
   // pays back, or an acompte we already held and kept after cancelling for non-payment. The two are
   // the same accounting object but not the same story, so the card says which one it is and, for the
   // retained acompte, links to the stay it came from.

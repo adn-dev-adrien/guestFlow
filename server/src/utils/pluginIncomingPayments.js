@@ -1,5 +1,5 @@
 /**
- * The sums live plugins expect on the bank account (specs/mollie-rolling-reserve-and-incoming-payments.md rule 23),
+ * The sums live plugins expect on the bank account (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 23),
  * declared with `ctx.incomingPayments`. A provider that throws contributes nothing and costs a log line: the page
  * keeps the core's own kinds.
  */

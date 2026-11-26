@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 50 (stabilisation loop t4, apps note, 2026-11-16) — a surplus kept at 00:30 in Paris is a tip of that Paris day: the
+// specs/sas/outside-booking-sas.md rule 50 (stabilisation loop t4, apps note, 2026-11-16) — a surplus kept at 00:30 in Paris is a tip of that Paris day: the
 // row closes at the application's clock (never SQLite's), so the day the journal books it and the day its kept allocation carries agree at any hour.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

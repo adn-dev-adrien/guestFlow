@@ -33,7 +33,7 @@ export function makeMockContext(overrides = {}) {
     // core
     form,
     updateForm: vi.fn(),
-    // The page's « platform sale » answer from the server (specs/plugins-phase-p-productisation.md
+    // The page's « platform sale » answer from the server (specs/plugins/plugins-phase-p-productisation.md
     // rule 45); the mock answers as the engine does for a channel not counted as direct.
     isPlatformSale: String(form.platform || 'direct').toLowerCase() !== 'direct',
     // catalogs
@@ -70,16 +70,16 @@ export function makeMockContext(overrides = {}) {
     getQuantityMultiplier: () => 1,
     setOptionEnabled: vi.fn(), setOptionQuantity: vi.fn(),
     setResourceEnabled: vi.fn(), setResourceQuantity: vi.fn(),
-    // Card options (specs/option-planning-card.md §3.2 + card-option-served-persons.md §3.2): the
+    // Card options (specs/options/option-planning-card.md §3.2 + card-option-served-persons.md §3.2): the
     // occurrence grid and how many people each of its moments serves.
     setOptionCardOccurrences: vi.fn(), setOptionCardPersons: vi.fn(),
     setOptionTypedCount: vi.fn(),
-    // What the mid-stay note's « Annuler » puts back (specs/non-card-option-served-persons.md rule 31).
+    // What the mid-stay note's « Annuler » puts back (specs/options/non-card-option-served-persons.md rule 31).
     captureOptionsState: vi.fn(() => ({ selectedOptions: JSON.parse(JSON.stringify(form.selectedOptions)) })),
     restoreOptionsState: vi.fn(),
     setResourceSessions: vi.fn(),
     addCustomOption: vi.fn(), updateCustomOption: vi.fn(), removeCustomOption: vi.fn(),
-    // specs/bed-config-in-linen-card.md — added 2026-06-05. Default to "no bed-linen
+    // specs/linen/bed-config-in-linen-card.md — added 2026-06-05. Default to "no bed-linen
     // option enabled" so existing tests keep the bed-inputs sub-block hidden in ExtrasSection
     // by default. Tests that exercise the bed-linen card override these explicitly.
     firstEnabledBedLinenOptionId: null, bedLinenOptionEnabled: false,
@@ -89,7 +89,7 @@ export function makeMockContext(overrides = {}) {
     isDevisMode: false, reservationId: null,
     refreshToCurrentPricing: vi.fn(),
     accommodationBasePriceDisplay: '100.00', pricingQuote: null,
-    // specs/mid-stay-notes.md — the « Encaissements en séjour » block delegates the save + reload
+    // specs/sas/mid-stay-notes.md — the « Encaissements en séjour » block delegates the save + reload
     // to the page; the mocks let the block be exercised in isolation.
     // Like the page: the save runs the action without waiting for it and answers `true` (a refused save answers `false`).
     saveThenRun: vi.fn(async (action) => { if (typeof action === 'function') action(); return true; }),
@@ -107,7 +107,7 @@ export function makeMockContext(overrides = {}) {
       endOfStaySettled: Boolean(formOverrides && (formOverrides.endOfStayComplementPaid || formOverrides.endOfStayComplementPaidCash)),
       today: localIsoToday(),
     }),
-    // specs/reservation-refunds.md — server-owned register; empty by default, overridden by the
+    // specs/payments/reservation-refunds.md — server-owned register; empty by default, overridden by the
     // tests that exercise the « Remboursements » block.
     refunds: [],
     refundableLines: [],
@@ -118,7 +118,7 @@ export function makeMockContext(overrides = {}) {
     setRefundDialogOpen: vi.fn(),
     createRefund: vi.fn(),
     deleteRefund: vi.fn(),
-    // specs/reservation-payment-ledger.md — the server-built ledger and its round-trips.
+    // specs/payments/reservation-payment-ledger.md — the server-built ledger and its round-trips.
     ledger: null,
     checkLedgerEdit: vi.fn(async () => ({ ok: true, effects: [], formPatch: {} })),
     applyLedgerPatch: vi.fn(),
@@ -126,7 +126,7 @@ export function makeMockContext(overrides = {}) {
     resendPaymentRequest: vi.fn(),
     withdrawPaymentLink: vi.fn(async () => {}),
     settlePaymentLink: vi.fn(async () => {}),
-    // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line.
+    // specs/plugins/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line.
     pluginBlocks: {},
     setPluginBlock: vi.fn(),
     pluginLineContext: { reservationId: null, guestName: '' },

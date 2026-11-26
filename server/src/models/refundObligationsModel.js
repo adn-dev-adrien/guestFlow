@@ -1,5 +1,5 @@
 /**
- * Refund obligations model — sole DB access for `refund_obligations` (specs/pricing-components.md §3 rule 75).
+ * Refund obligations model — sole DB access for `refund_obligations` (specs/pricing/pricing-components.md §3 rule 75).
  *
  * The register of money that must leave and has not yet: a basket the plugin could not honour, a link paid twice, a payment
  * received on a withdrawn link, a paid line the operator lowered, money received for a stay that was never booked. It holds money

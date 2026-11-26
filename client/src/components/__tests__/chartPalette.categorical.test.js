@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 13 — the categories of a report chart take the theme's chart hues
+ * specs/design-system/report-grammar.md §3 rule 13 — the categories of a report chart take the theme's chart hues
  * minus the red (kept for alerts), each one a 3:1 mark on white; a series without its own colour gets
  * the n-th one, a dashed one the last-year edge.
  */

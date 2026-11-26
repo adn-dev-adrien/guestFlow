@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 4 — the catalogue as a composition sees it: every resource and option of the database with its tariff modes and whether it can be sold
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 4 — the catalogue as a composition sees it: every resource and option of the database with its tariff modes and whether it can be sold
 // to a customer with no stay; when it cannot, the French reason. Built from the engine's articles: the hourly modes, rates and following-hours rates are the family's reading of the resource.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

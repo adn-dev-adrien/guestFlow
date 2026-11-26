@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 44 and 45 — the one guest e-mail that leaves without validation is one named
+// specs/payments/payment-link-lifecycle.md rules 44 and 45 — the one guest e-mail that leaves without validation is one named
 // exception: `AUTO_SEND_EXCEPTIONS` holds `dates_unavailable_notice` alone, read by its sender alone; the policy still
 // answers « no » for it and for every other template; the template is seeded FR / EN, stored Manual, kept out of the
 // queue and the cron, its mode shown « Automatique (exception) » and never edited, its text editable; the history

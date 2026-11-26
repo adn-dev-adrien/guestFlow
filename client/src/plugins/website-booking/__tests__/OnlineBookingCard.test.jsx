@@ -1,8 +1,8 @@
 /**
  * OnlineBookingCard — the website-booking part of Paramètres › Conditions générales: the
- * closed-booking and outdated-plugin alerts, and the emergency switch (specs/terms-acceptance-record.md
+ * closed-booking and outdated-plugin alerts, and the emergency switch (specs/reservations/terms-acceptance-record.md
  * §3.4, rules 16-18). Moved from TermsSettingsPage.test.jsx with the card
- * (specs/plugins-phase-2-hosts.md rule 25): every verdict comes from GET /api/terms/online-booking.
+ * (specs/plugins/plugins-phase-2-hosts.md rule 25): every verdict comes from GET /api/terms/online-booking.
  */
 import React from 'react';
 import { vi } from 'vitest';

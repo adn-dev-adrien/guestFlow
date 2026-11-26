@@ -1,6 +1,6 @@
 /**
  * `GET /api/version` — public: the release that runs and when this process started. The console's
- * health check reads it to prove the expected release came up (specs/hosting-h1-fleet-runtime.md
+ * health check reads it to prove the expected release came up (specs/hosting/hosting-h1-fleet-runtime.md
  * rule 10), and asks with `?plugin=<id>` whether a plugin it pushed loaded (rule 11).
  *
  * The plugin answer goes only to the console: a request that carries the instance's proxy secret in

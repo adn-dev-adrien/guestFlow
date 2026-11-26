@@ -1,5 +1,5 @@
 /**
- * Chart tooltips of the Suivi financier — specs/finance-dashboard-redesign.md rules 10, 22 and 23.
+ * Chart tooltips of the Suivi financier — specs/accounting/finance-dashboard-redesign.md rules 10, 22 and 23.
  * Recharts draws nothing in jsdom (no layout), so the tooltip contents are rendered directly with the
  * payload Recharts hands them.
  */

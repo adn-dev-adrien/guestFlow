@@ -1,6 +1,6 @@
 /**
  * Resolver of the stay phase — the only place that asks « has this stay started? »
- * (specs/pricing-components.md §3 rule 44).
+ * (specs/pricing/pricing-components.md §3 rule 44).
  *
  * `phaseForReservation(id, now)` loads the stay's dates, times and arrival marks (rule 102: a validated arrival starts the stay), fills a missing or unreadable time (`9:00` and
  * `09:00:00` are read as 09:00; `abc` is unreadable) from the property (`defaultCheckIn` / `defaultCheckOut`, read through

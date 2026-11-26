@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 112 (loop t9 UI9-2) — the cash-part announcement describes the lines the dialog opened with: typing
+// specs/pricing/pricing-components.md rule 112 (loop t9 UI9-2) — the cash-part announcement describes the lines the dialog opened with: typing
 // another amount drops it (« Reste 30,00 € » would be false once 60 € leave the caisse interne), putting the amount back restores it.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -12,7 +12,7 @@ const PARSE_ERROR_HELPER = 'Analyse impossible';
  * Shared client form fields (Clients, Réservation, Modèles d'email).
  *
  * Address, email and phone accept a raw payload — dropped from a web page, or typed in one line for
- * the address — and the SERVER turns it into clean field values (specs/client-contact-smart-input.md).
+ * the address — and the SERVER turns it into clean field values (specs/clients/client-contact-smart-input.md).
  * Nothing is parsed here: the component only ships the raw string and renders what comes back.
  */
 export default function ClientFormFields({ form, setForm, cityOptions, emailError = false, phoneError = false, autoFocusEmail = false }) {
@@ -133,7 +133,7 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         error={phoneError || Boolean(parseFailed.phone)}
         helperText={parseFailed.phone ? PARSE_ERROR_HELPER : (phoneError ? 'Format téléphone invalide' : '')}
       />
-      {/* Langue des emails (specs/email-client-language-and-fiche-polish.md): toutes les communications
+      {/* Langue des emails (specs/emails/email-client-language-and-fiche-polish.md): toutes les communications
           de ce client sont rédigées dans cette langue. */}
       <FormControl fullWidth>
         <InputLabel>Langue des emails</InputLabel>
@@ -146,7 +146,7 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
           <MenuItem value="en">English</MenuItem>
         </Select>
       </FormControl>
-      {/* specs/guest-email-sequence.md rules 9-10 — the operator's switch, and the guest's own
+      {/* specs/emails/guest-email-sequence.md rules 9-10 — the operator's switch, and the guest's own
           unsubscribe (read-only here: only the guest can undo it from the link). */}
       <Box>
         <FormControlLabel

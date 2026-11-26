@@ -3,7 +3,7 @@
  *
  * Single source of truth for every literal the public API sends to the website, so the site can
  * keep doing what it already does: render what the server said, without owning one translation
- * table or one pluralisation rule (specs/site-english-version.md §3 rule 3, §4 preamble).
+ * table or one pluralisation rule (specs/site/site-english-version.md §3 rule 3, §4 preamble).
  *
  * Built like `devisPdfLabels.js`, deliberately: two frozen maps of identical shape, reached through
  * `labels(lang).<key>`, **failing loud** on an unknown language or an unknown key. A silent fallback
@@ -13,7 +13,7 @@
  * Some entries are functions: pluralisation and agreement differ between the two languages, and
  * that difference belongs here rather than in the caller.
  *
- * See specs/site-english-version.md §3 rules 3, 8, 10 and §4.1.
+ * See specs/site/site-english-version.md §3 rules 3, 8, 10 and §4.1.
  */
 
 // JS weekday convention (0 = Sunday), the one `utils/changeover.js` stores.
@@ -21,14 +21,14 @@ const FR_DAYS = Object.freeze(['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi'
 const EN_DAYS = Object.freeze(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
 
 const FR = Object.freeze({
-  // ── Price basis, per priceType (specs/public-planning-options.md) ──────────
+  // ── Price basis, per priceType (specs/site/public-planning-options.md) ──────────
   priceUnit: Object.freeze({
     per_person: 'par personne',
     per_person_per_night: 'par personne et par nuit',
     per_night: 'par nuit',
     per_stay: 'au séjour',
     per_participant_progressive: 'par participant',
-    // specs/cancellation-insurance.md §3.1 — `price` is a percentage for this type, so the unit
+    // specs/payments/cancellation-insurance.md §3.1 — `price` is a percentage for this type, so the unit
     // label says what the percentage applies to.
     percent_of_stay: 'du montant du séjour',
   }),
@@ -49,7 +49,7 @@ const FR = Object.freeze({
   sessionUnit: 'par séance',
   sessionQuantity: 'Nombre de séances',
 
-  // ── Portions: breakfasts and covers (specs/site-meal-portions.md) ──────────
+  // ── Portions: breakfasts and covers (specs/site/site-meal-portions.md) ──────────
   portions: Object.freeze({
     breakfast: Object.freeze({
       unit: 'petit déjeuner',
@@ -134,13 +134,13 @@ const FR = Object.freeze({
     resourceUnavailable: 'Ressource non disponible pour ce logement.',
     paymentProviderError: 'Erreur du fournisseur de paiement.',
     termsNotConfigured: 'Les conditions générales ne sont pas encore publiées.',
-    // specs/public-request-abuse-and-grouping.md rules 3, 7 and the transition edge case.
+    // specs/site/public-request-abuse-and-grouping.md rules 3, 7 and the transition edge case.
     challengeInvalid: 'La vérification anti-robot a échoué. Merci de renvoyer la demande.',
     challengeMissing: 'Le formulaire doit être mis à jour : merci de recharger la page.',
     requestsPendingForEmail: 'Plusieurs demandes sont déjà en cours pour cette adresse. Elles seront traitées rapidement.',
     // Rule 22.
     messageTooLong: 'Message trop long : 2 000 caractères au plus.',
-    // The CGV refusals of a booking request (specs/terms-acceptance-record.md rules 13, 15-16),
+    // The CGV refusals of a booking request (specs/reservations/terms-acceptance-record.md rules 13, 15-16),
     // bilingual since the 2026-10-27 spec review.
     termsUnavailableForBooking: 'Les réservations en ligne sont momentanément indisponibles.',
     termsNotAccepted: 'Vous devez accepter les conditions générales de location.',
@@ -148,7 +148,7 @@ const FR = Object.freeze({
   }),
 
   // One short sentence per refused contact field, printed by the site UNDER that field
-  // (specs/wordpress-plugin.md rule 28): the site maps `details[].field` to its input and never
+  // (specs/site/wordpress-plugin.md rule 28): the site maps `details[].field` to its input and never
   // writes a refusal of its own.
   fieldErrors: Object.freeze({
     required: 'Champ requis.',

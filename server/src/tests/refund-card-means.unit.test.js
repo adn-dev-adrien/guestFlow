@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 72 (owner O-3) — `card` is a means of refund: the guest's card was refunded from the
+// specs/pricing/pricing-components.md §3 rule 72 (owner O-3) — `card` is a means of refund: the guest's card was refunded from the
 // provider's space, by hand. GuestFlow calls no refund API; it keeps the provider's reference beside the refund. A card refund
 // is book money, like a transfer.
 process.env.DB_PATH = ':memory:';

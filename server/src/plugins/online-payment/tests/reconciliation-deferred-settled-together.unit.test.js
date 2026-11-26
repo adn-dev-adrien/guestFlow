@@ -1,5 +1,5 @@
-// Audit R28 verification V1 (2026-11-08) — specs/reservation-payment-ledger.md rule 69 and
-// specs/defer-arrival-complement-to-checkout.md rule 8. A credit confirmed on the merged « Complément de fin de séjour »
+// Audit R28 verification V1 (2026-11-08) — specs/payments/reservation-payment-ledger.md rule 69 and
+// specs/sas/defer-arrival-complement-to-checkout.md rule 8. A credit confirmed on the merged « Complément de fin de séjour »
 // receipt settles both buckets together; the receipt stays the merged one, reconciled, and « Défaire » clears both.
 const test = require('node:test');
 const assert = require('node:assert/strict');

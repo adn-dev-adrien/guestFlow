@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 53 (audit R24 F3) — « Télécharger la licence » follows `actions.downloadLicence`:
+// specs/hosting/hosting-h1-fleet-runtime.md rule 53 (audit R24 F3) — « Télécharger la licence » follows `actions.downloadLicence`:
 // a customer held off its address (rule 48) is offered no download.
 import React from 'react';
 import { screen } from '@testing-library/react';

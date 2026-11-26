@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * specs/reservation-refunds.md rule 48, reading of 2026-11-02 (review of #925): a kept acompte's card records what
+ * specs/payments/reservation-refunds.md rule 48, reading of 2026-11-02 (review of #925): a kept acompte's card records what
  * the cancellation kept; refunds reduce the indemnity in the journal only. Reopening a card whose stay already gave
  * part of it back warns that it is re-received at the same amount — a lower one would count the reduction twice.
  */

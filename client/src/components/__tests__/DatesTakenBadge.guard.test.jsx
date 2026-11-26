@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 48 (reading of 2026-11-01, audit R11-C1) — the linked badge asks the page's
+// specs/payments/payment-link-lifecycle.md rule 48 (reading of 2026-11-01, audit R11-C1) — the linked badge asks the page's
 // unsaved-changes guard (`window.__guestflowBeforeNavigate`) before it opens the stay; a modified click (new tab)
 // is left to the browser.
 import React from 'react';

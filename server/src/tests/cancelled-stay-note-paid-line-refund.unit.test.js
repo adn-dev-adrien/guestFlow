@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 106 d, specs/guest-app.md rule 110 b (stabilisation loop t6, S6-1 cancelled variant and S6-6, 2026-11-16; loop t7 D7-2) — a platform
+// specs/pricing/pricing-components.md §3 rule 106 d, specs/guest-app/guest-app.md rule 110 b (stabilisation loop t6, S6-1 cancelled variant and S6-6, 2026-11-16; loop t7 D7-2) — a platform
 // stay whose card app order was paid before the arrival, then cancelled: the cancellation's refund dialog offers the order on its own line (it is
 // money the establishment collected, never the least likely to have been), and giving it back there settles the `lineLowered` obligation an
 // offer of that line had opened. Before: on 13 of 38 platform stays of the 2026-11-11 copy the order sat inside « Hébergement », and on 23 the

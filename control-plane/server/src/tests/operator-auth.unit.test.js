@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 31 — operator access to the console: a password and a
+// specs/hosting/control-plane-plans-and-access.md rule 31 — operator access to the console: a password and a
 // second factor chosen by each operator (authenticator app or email code), backup codes, the
 // lockout (second factor only), a TOTP code accepted once, and a method that changes only with the
 // password and once its own code is typed.

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 65-69, 74, 76, 77, 85 (« Mon séjour » from J-7) — an order taken before the arrival, through the real
+// specs/guest-app/guest-app.md rules 65-69, 74, 76, 77, 85 (« Mon séjour » from J-7) — an order taken before the arrival, through the real
 // routes and the core's own commit: the shop is open from J-7, the order is collected on the arrival complement, the card
 // money is an arrival-moment note, the times offered are the stay's own, and what the stay holds is held until the arrival day.
 const fx = require('./guestOrderFixtures');

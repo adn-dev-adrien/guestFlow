@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 4, 5, 6 and 7 — which period a reservation is sold under: assigned by
+// specs/accounting/vat-optional-mode.md rules 4, 5, 6 and 7 — which period a reservation is sold under: assigned by
 // a trigger at insert (so no insert path can forget it), by booking day in Paris, by arrival, or for all;
 // final once assigned; a devis never converted is resolved live. The SQL trigger and its JS twin
 // (utils/vatRegime) run on the same matrix.

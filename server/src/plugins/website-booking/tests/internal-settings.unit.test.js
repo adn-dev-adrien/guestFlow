@@ -1,4 +1,4 @@
-// specs/public-request-abuse-and-grouping.md rule 34 (audit r5) — the proof-of-work latch and the last plugin version seen
+// specs/site/public-request-abuse-and-grouping.md rule 34 (audit r5) — the proof-of-work latch and the last plugin version seen
 // are the plugin's own state: the generic settings PUT refuses them, the plugin still writes them.
 const test = require('node:test');
 const assert = require('node:assert/strict');

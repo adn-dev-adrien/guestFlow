@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 33, 35 and §4.3 (`Idempotency-Key`) — an order sent again after a lost answer carries the
+// specs/guest-app/guest-app.md rules 33, 35 and §4.3 (`Idempotency-Key`) — an order sent again after a lost answer carries the
 // same key, so the server answers the first order instead of creating a second; a changed cart is a new key. An
 // unpaid card order whose link is still live offers « Reprendre le paiement ».
 import { fireEvent, screen, waitFor } from '@testing-library/react';

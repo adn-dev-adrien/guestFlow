@@ -1,5 +1,5 @@
-// specs/guest-email-sequence.md §3.5 rules 20-29 — what each property includes, what is booked, what
-// may still be proposed, and the paragraphs composed from it. Since specs/plugins-phase-p-productisation.md
+// specs/emails/guest-email-sequence.md §3.5 rules 20-29 — what each property includes, what is booked, what
+// may still be proposed, and the paragraphs composed from it. Since specs/plugins/plugins-phase-p-productisation.md
 // the wording is data: these cases read Solio's, as productisation_v1 writes it (rules 7–9, 24).
 
 const test = require('node:test');
@@ -109,7 +109,7 @@ test('bed configuration and the included nordic-bath duration', () => {
   assert.equal(content({ facts: { ...GRANJA, bathFreeMinutes: 0 } }).flags.hasBathIncluded, false);
 });
 
-// specs/guest-email-texts-made-simple.md rule 34 — the season is the property's, not the instance's.
+// specs/emails/guest-email-texts-made-simple.md rule 34 — the season is the property's, not the instance's.
 test('pool: mentioned only when the stay overlaps the season of the property', () => {
   assert.equal(content().flags.stayOverlapsPool, true);
   assert.equal(content({ reservation: { startDate: '2027-10-02', endDate: '2027-10-04' } }).flags.stayOverlapsPool, false);
@@ -153,7 +153,7 @@ test('J+1 review: Google only in direct; the platform first, Google as an extra,
   const direct = content({ settings }).vars.reviewParagraph;
   assert.match(direct, /notre page Google/);
   assert.doesNotMatch(direct, /Airbnb|Gîtes/);
-  // The wording is the platform's « Où laisser un avis » (specs/platform-settings-relay-and-review.md rule 3).
+  // The wording is the platform's « Où laisser un avis » (specs/platforms/platform-settings-relay-and-review.md rule 3).
   setPlatformReviewWhere({ GitesDeFrance: { fr: 'votre espace Gîtes de France', en: 'your Gîtes de France account' } });
   const gdf = content({ settings, reservation: { platform: 'GitesDeFrance' } }).vars.reviewParagraph;
   setPlatformReviewWhere({});

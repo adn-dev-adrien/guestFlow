@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 40-46 and 51 (UX review of 2026-10-28) — the activation:
+// specs/hosting/hosting-h2-account-security.md rules 40-46 and 51 (UX review of 2026-10-28) — the activation:
 // what `start` hands the client, the tries left on a wrong code, the 15-minute expiry, the email
 // fallback inside an enrolment with its resend gap, `cancel`, the status labels, the dashboard wording.
 

@@ -2,7 +2,7 @@
  * Establishment closures controller — orchestrates list / create / update / delete
  * with range validation, property existence check, and overlap detection.
  *
- * Order of the refusals (specs/payment-link-lifecycle.md rule 41): INVALID_RANGE, INVALID_PROPERTY,
+ * Order of the refusals (specs/payments/payment-link-lifecycle.md rule 41): INVALID_RANGE, INVALID_PROPERTY,
  * RESERVATION_OVERLAP, OPEN_PAYMENT_REQUEST, CLOSURE_OVERLAP. `conflicts` answers the same checks,
  * read-only, so the dialog warns before Save.
  *
@@ -89,7 +89,7 @@ function buildController({ database, model, onPricingChanged = emitPricingChange
     const refusal = refusalOf(input);
     if (refusal) return res.status(refusal.status).json(refusal.body);
     const result = model.insert(input);
-    // specs/google-vacation-rentals-feed.md rule 12 — `null` (every property) for an establishment-wide closure.
+    // specs/site/google-vacation-rentals-feed.md rule 12 — `null` (every property) for an establishment-wide closure.
     onPricingChanged(input.propertyId, 'closures');
     return res.json({ id: result.id });
   }

@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rule 17 (« A feed is read bounded and public-only »), reading of 2026-11-05 (audit R23,
+// specs/platforms/ical-import-hardening.md rule 17 (« A feed is read bounded and public-only »), reading of 2026-11-05 (audit R23,
 // E23-6 and R23-I7): the reserved ranges are not public, for the iCal feeds and the push door alike. No dial.
 const test = require('node:test');
 const assert = require('node:assert/strict');

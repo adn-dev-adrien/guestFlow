@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/property-capacity-single-total.md §3 — capacity is ONE total for everyone over 2
+// specs/reservations/property-capacity-single-total.md §3 — capacity is ONE total for everyone over 2
 // (adults + children + teens ≤ maxGuests), babies bounded separately and never counted in.
 
 const { checkGuestCapacity } = require('../utils/capacity');

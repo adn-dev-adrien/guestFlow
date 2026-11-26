@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 20, 21, 33, 34, 48, 49, 50 — the mail (the code, the contents, an invoice-style recap read from what was frozen, the PDF attached), the
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 20, 21, 33, 34, 48, 49, 50 — the mail (the code, the contents, an invoice-style recap read from what was frozen, the PDF attached), the
 // voucher's PDF (A6 two-sided, no amount on a bath, the back read from the campaign and the settings, the front frozen at issue), the merchant card (code box, no number, slug
 // locked once downloaded), the legal mention and the website on both backs, and « Télécharger » / « Renvoyer » for a voucher still usable only.
 process.env.DB_PATH = ':memory:';

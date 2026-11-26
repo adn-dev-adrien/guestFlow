@@ -1,5 +1,5 @@
 /**
- * French copy for the reception SAS locks (specs/reception-sas-today-only.md §3.3).
+ * French copy for the reception SAS locks (specs/sas/reception-sas-today-only.md §3.3).
  *
  * The server resolves WHY a SAS is locked ('done' | 'future' | 'past') and ships the reason in the
  * payload; this module is the single place that turns a reason into words, shared by the planning

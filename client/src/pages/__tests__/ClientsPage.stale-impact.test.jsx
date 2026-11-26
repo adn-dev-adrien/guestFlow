@@ -1,5 +1,5 @@
 /**
- * ClientsPage — a late answer about the client the operator has left (specs/clients.md §3 rules 17, 18).
+ * ClientsPage — a late answer about the client the operator has left (specs/clients/clients.md §3 rules 17, 18).
  *
  * Audit R18-C1: `handleDelete(id)` merged the `delete-impact` answer into whatever confirmation was on
  * screen. When client A's answer arrived after the operator had cancelled it and opened client B's
@@ -10,7 +10,7 @@
  * Rule 18 (review of PR #932): a forced deletion that fails after the operator moved on is still
  * reported, as a toast; a late orphan preview no longer reopens a cleanup popup the operator closed.
  */
-// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — these dialog walks run under the client
+// specs/tech/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — these dialog walks run under the client
 // suite's one 30 s budget (vitest.config.js), no per-test timeout.
 
 import React from 'react';

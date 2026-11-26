@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 35 and 27 — the acompte reminder no longer re-offers whatever
+// specs/payments/payment-link-lifecycle.md rules 35 and 27 — the acompte reminder no longer re-offers whatever
 // link is open: its send resolves the acompte link like a request (reused with 24 h left, else a fresh
 // one) and states its end; the solde reminder never carries a link. Still sent by hand (Manual).
 

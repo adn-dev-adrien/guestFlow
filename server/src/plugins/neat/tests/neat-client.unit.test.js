@@ -1,5 +1,5 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §4.1 — utils/neatClient.js.
+ * specs/plugins/neat-cancellation-insurance-subscription.md §4.1 — utils/neatClient.js.
  *
  * Auth + token reuse, single re-auth on 401, environment base URLs, request payloads, error
  * surfacing. All through an injected fetch stub — no network.

@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 8, 19, 22, 23 and 26 (audit R21-S5) — what the page does with a typed
+// specs/options/non-card-option-served-persons.md rules 8, 19, 22, 23 and 26 (audit R21-S5) — what the page does with a typed
 // number: it floors it, drops it when it equals the party or the stay, tags it with what it was typed for unless
 // the line is already flagged, keeps those tags out of « modified », asks before saving a flagged line, and clears
 // the flags once saved. The server's answers are faked: the page only carries the intent.

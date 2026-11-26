@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 24 — the ledger row says when its link stops: until when an open link
+// specs/payments/payment-link-lifecycle.md rule 24 — the ledger row says when its link stops: until when an open link
 // is valid, when a lapsed one expired (or that the stay began), that its deactivation is still owed at the
 // provider, and why a withdrawn one was withdrawn. « Renvoyer la demande » stays on a lapsed link, never on
 // dates taken (rule 11 would refuse it). Day and hour are the operator's, in Paris.

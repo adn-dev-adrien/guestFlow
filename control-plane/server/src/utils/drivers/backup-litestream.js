@@ -1,5 +1,5 @@
 /**
- * The `litestream` backup driver (specs/hosting-h1-fleet-runtime.md H-D3, rules 12–14, 21): every
+ * The `litestream` backup driver (specs/hosting/hosting-h1-fleet-runtime.md H-D3, rules 12–14, 21): every
  * instance database streams its WAL to EU object storage through one Litestream service, running as
  * its own unprivileged user. Its configuration is root-owned and written by the root wrapper
  * `guestflow-litestream-apply` (deploy/hosting/) from the target and the list of databases the console

@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md amendment 2026-11-13 — the planning card of a booking
+// specs/plugins/plugins-phase-3c-hourly-resources.md amendment 2026-11-13 — the planning card of a booking
 // outside a stay opens that booking in Calendrier › Ressources.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

@@ -1,6 +1,6 @@
 /**
  * GET /api/dashboard/attention — what asks for the operator on the home, counted and ordered here
- * (specs/shell-and-home-day-first.md §3.B).
+ * (specs/planning/shell-and-home-day-first.md §3.B).
  *
  * Every subject is read through the handler its own card calls (rule 7), so the box and the card can
  * never disagree; a source that fails is logged and named in `unavailable` (rule 20). Core sources are wired by the route;

@@ -1,4 +1,4 @@
-// Shared by vite.config.js and vitest.config.js (specs/control-plane-plans-and-access.md §4.2, Q6).
+// Shared by vite.config.js and vitest.config.js (specs/hosting/control-plane-plans-and-access.md §4.2, Q6).
 //
 // The console reuses GuestFlow's theme and generic components straight from `client/src`, imported
 // as `@gf/…`. Those files import React, MUI and the router by bare name; left alone, Node-style

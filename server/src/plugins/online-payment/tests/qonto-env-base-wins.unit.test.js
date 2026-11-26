@@ -1,4 +1,4 @@
-// specs/qonto-settings-in-app.md rule 5, reading of 2026-11-05 (audit R23) — a host variable that does not name Qonto
+// specs/settings/qonto-settings-in-app.md rule 5, reading of 2026-11-05 (audit R23) — a host variable that does not name Qonto
 // (a loopback fake, a dead port, a test double) wins even once an environment is stored: an auditor's probe relying on
 // it reached the real Qonto API. A leftover variable naming a real Qonto host still gives way to the chosen environment,
 // the regression rule 5 exists for, pinned in qonto-config.unit.test.js. Loopback only, nothing is dialled but the fake.

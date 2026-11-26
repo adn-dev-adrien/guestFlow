@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 8, 22 — a tap on a light: the switch moves on the press, the house
+// specs/guest-app/guest-app-home-automation.md rules 8, 22 — a tap on a light: the switch moves on the press, the house
 // confirms (the page is read again), or the switch goes back with the reason.
 import { act, fireEvent, screen } from '@testing-library/react';
 import {

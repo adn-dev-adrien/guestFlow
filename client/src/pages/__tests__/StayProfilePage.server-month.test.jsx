@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rule 27 (review R6-4) — the default month and the default custom dates
+// specs/accounting/stay-profile.md §3 rule 27 (review R6-4) — the default month and the default custom dates
 // come from the server's day, not the device's clock (invariant 33): a device a month behind still
 // opens the server's month.
 import React from 'react';

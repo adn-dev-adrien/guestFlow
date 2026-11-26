@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 3 (with specs/direct-installments.md rule 5). Money audit 2026-10-28
+// specs/reservations/reservation-save-keeps-pricing.md rule 3 (with specs/payments/direct-installments.md rule 5). Money audit 2026-10-28
 // (finding 2): the replay of a stored stay left out half of what the save passes, so an installment plan
 // was split over 1000,80 € while the fiche read « Total du séjour 928,80 » and « Total perçu 1000,80 » —
 // and removing the plan restamped the solde at the wrong total.

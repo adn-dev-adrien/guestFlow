@@ -6,10 +6,10 @@ import { vi } from 'vitest';
 import RepairedReservationNumbersAlert from '../RepairedReservationNumbersAlert';
 import api from '../../api';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'repaired-reservation-numbers', severity: 'todo', count: 1, title: 'Réservations restées sans numéro', detail: 'Un séjour fantôme bloque ses dates : vérifier qu’il s’agit d’un vrai séjour.' };
 
-// specs/reservation-number-and-search.md rule 15 — les séjours restés sans numéro, numérotés au
+// specs/reservations/reservation-number-and-search.md rule 15 — les séjours restés sans numéro, numérotés au
 // démarrage, restent sur le tableau de bord jusqu'à « Vu ».
 
 vi.mock('../../api', () => ({

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 41bis, 43 — the planning's « Commande client » card and its share of the day counter.
+// specs/guest-app/guest-app.md rules 41bis, 43 — the planning's « Commande client » card and its share of the day counter.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

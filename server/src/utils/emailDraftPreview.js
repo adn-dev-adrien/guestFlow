@@ -1,5 +1,5 @@
 /**
- * The full email rendered from a draft that is not saved yet (specs/guest-email-texts-made-simple.md
+ * The full email rendered from a draft that is not saved yet (specs/emails/guest-email-texts-made-simple.md
  * rules 13–15, 21).
  *
  * The draft is written inside a transaction that is always rolled back: the email is rendered by the

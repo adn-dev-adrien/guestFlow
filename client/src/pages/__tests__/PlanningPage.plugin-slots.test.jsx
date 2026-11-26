@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rules 5-6 — the planning is a host: plugins add day cards through
+// specs/plugins/plugins-phase-2-hosts.md rules 5-6 — the planning is a host: plugins add day cards through
 // `planning.days` and buttons through `planning.actions`, without the page knowing them. The
 // contributions here are fakes; the laundry is one of them in production.
 import React from 'react';
@@ -17,7 +17,7 @@ vi.mock('../../api', () => ({
   default: {
     getPlanningDays: vi.fn(async (range) => (await import('./planningDaysFixtures')).daysPayload(range)),
     // The server's date, in the week the clocks go back: the windows must still be 14 days long,
-    // whatever the time zone the suite runs in (specs/ds-sweep-planning.md rule 28).
+    // whatever the time zone the suite runs in (specs/design-system/ds-sweep-planning.md rule 28).
     // date-literal-ok: the server's own « today », mocked with the payload — the page compares nothing with the real calendar
     getToday: vi.fn(() => Promise.resolve({ today: '2026-10-25' })),
   },
@@ -82,7 +82,7 @@ beforeEach(() => {
   Object.keys(slots).forEach((k) => delete slots[k]);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 5: planning.days dates join the day set and the cards are ordered by rank', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 5: planning.days dates join the day set and the cards are ordered by rank', async () => {
   const laundry = dayContribution('linen', 'laundry', 100, { [TODAY]: 'x', [LATER]: 'y' });
   const other = dayContribution('other', 'notes', 50, { [TODAY]: 'z' });
   slots['planning.days'] = [laundry, other];
@@ -90,7 +90,7 @@ test('specs/plugins-phase-2-hosts.md rule 5: planning.days dates join the day se
 
   // LATER has no arrival, departure or core card: it renders because a contribution returned it.
   expect(await screen.findByText(new RegExp(`^laundry ${LATER} `))).toBeInTheDocument();
-  // Each window of the timeline asks the contribution for its own range (specs/dashboard-planning-scroll.md rule 11).
+  // Each window of the timeline asks the contribution for its own range (specs/planning/dashboard-planning-scroll.md rule 11).
   expect(laundry.load).toHaveBeenCalledWith({ from: TODAY, to: iso(13) });
   expect(laundry.load).toHaveBeenCalledWith({ from: iso(-14), to: iso(-1) });
   expect(laundry.load).toHaveBeenCalledWith({ from: iso(14), to: iso(27) });
@@ -99,7 +99,7 @@ test('specs/plugins-phase-2-hosts.md rule 5: planning.days dates join the day se
   expect(today.map((el) => el.querySelector('span').textContent.split(' ')[0])).toEqual(['notes', 'laundry']);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 5: reload() reloads that contribution only', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 5: reload() reloads that contribution only', async () => {
   const laundry = dayContribution('linen', 'laundry', 100, { [TODAY]: 'x' });
   const other = dayContribution('other', 'notes', 50, { [TODAY]: 'z' });
   slots['planning.days'] = [laundry, other];
@@ -107,13 +107,13 @@ test('specs/plugins-phase-2-hosts.md rule 5: reload() reloads that contribution 
   const [l, o] = await settled(laundry, other);
 
   fireEvent.click(await screen.findByText('Recharger laundry'));
-  // That contribution again over every loaded window (specs/dashboard-planning-scroll.md rule 21).
+  // That contribution again over every loaded window (specs/planning/dashboard-planning-scroll.md rule 21).
   await waitFor(() => expect(laundry.load).toHaveBeenCalledTimes(l * 2));
   expect(await screen.findByText(new RegExp(`^laundry ${TODAY} (${[...Array(l)].map((_, i) => l + i + 1).join('|')})$`))).toBeInTheDocument();
   expect(other.load).toHaveBeenCalledTimes(o);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 5: a failed load says so with the contribution message, and the other cards render', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 5: a failed load says so with the contribution message, and the other cards render', async () => {
   const broken = {
     pluginId: 'linen', key: 'laundry', rank: 100, load: vi.fn(() => Promise.reject(new Error('500'))),
     Component: Card({ label: 'laundry' }), errorMessage: "Le linge n'a pas pu être chargé.",
@@ -127,7 +127,7 @@ test('specs/plugins-phase-2-hosts.md rule 5: a failed load says so with the cont
   expect(screen.queryByText(/^laundry /)).not.toBeInTheDocument();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 6: planning.actions renders in the action bar, and its reload() reloads its plugin\'s cards', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 6: planning.actions renders in the action bar, and its reload() reloads its plugin\'s cards', async () => {
   const laundry = dayContribution('linen', 'laundry', 100, { [TODAY]: 'x' });
   const other = dayContribution('other', 'notes', 50, { [TODAY]: 'z' });
   slots['planning.days'] = [laundry, other];
@@ -146,7 +146,7 @@ test('specs/plugins-phase-2-hosts.md rule 6: planning.actions renders in the act
   expect(other.load).toHaveBeenCalledTimes(o);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 7: the day chip counts what a contribution says it holds to tick', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 7: the day chip counts what a contribution says it holds to tick', async () => {
   const tasks = dayContribution('other', 'tasks', 10, { [LATER]: 'x' }, { countTasks: () => ({ done: 1, total: 2 }) });
   const laundry = dayContribution('linen', 'laundry', 100, { [LATER]: 'y' });
   slots['planning.days'] = [tasks, laundry];

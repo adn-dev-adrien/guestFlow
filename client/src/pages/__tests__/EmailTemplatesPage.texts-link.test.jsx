@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 12 — the former entry points stay as links: a shipped
+// specs/emails/guest-email-texts-made-simple.md rule 12 — the former entry points stay as links: a shipped
 // template (the J-7 and its per-property hook included) points to its section of « Textes des
 // emails »; a template of the operator's own has no section.
 import React from 'react';

@@ -1,5 +1,5 @@
 /**
- * VAT RECAP — the VAT per rate a document prints (specs/pricing-components.md §3 rule 15, decision D12).
+ * VAT RECAP — the VAT per rate a document prints (specs/pricing/pricing-components.md §3 rule 15, decision D12).
  *
  * `vatByRateOf(quote)` → `[{ rate, label, base, vat, ttc }]`, ascending by rate, amounts in euros. It reads the three family
  * figures the VAT component already cut (`accommodation|options|resources` × `NetPrice` and `VatAmount`, rounded once per

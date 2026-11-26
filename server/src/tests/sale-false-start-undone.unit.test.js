@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-1 b, 2026-11-16) — the check-in box ticked before the check-in hour starts the
+// specs/pricing/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-1 b, 2026-11-16) — the check-in box ticked before the check-in hour starts the
 // stay (rule 102 a); unticked through the payments PATCH before that hour, the false start is undone: the lines it carved out to the departure come
 // back to the arrival with their money, the baseline goes, and the next sale, the move and the SAS read « before the arrival ». Unticked once the hour
 // has passed (or once something was collected) the start stands. Stays booked 20 days ahead (`saleRound1Fixtures`, check-in 15:00).

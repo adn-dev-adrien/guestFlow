@@ -3,7 +3,7 @@
  * 2026-10-08 infrastructure audit — AUTH-4 (finance/PII leak to reception) and DATA-1 (unbounded
  * range CPU/SQL DoS reachable by reception).
  *
- * Covers specs/reception-role-checkin-only.md rule 12ter (reception planning-event projection +
+ * Covers specs/sas/reception-role-checkin-only.md rule 12ter (reception planning-event projection +
  * bounded date range).
  */
 
@@ -19,7 +19,7 @@ const { createController } = optionalPlugin(() => require('../plugins/hourly-res
 const { buildController: buildPlanning } = optionalPlugin(() => require('../plugins/linen/planningController'));
 
 // The planning events are the `hourly-resources` plugin's, the laundry summary the `linen` plugin's
-// (specs/plugins-phase-3c-hourly-resources.md rule 10, specs/plugins-phase-2-hosts.md rule 4).
+// (specs/plugins/plugins-phase-3c-hourly-resources.md rule 10, specs/plugins/plugins-phase-2-hosts.md rule 4).
 const buildResourceBookings = (model) => createController({ bookings: () => model });
 
 function res() {
@@ -89,7 +89,7 @@ test('checkPlanningRange: ok, inverted, bad ISO, and the width ceiling', () => {
   assert.equal(checkPlanningRange(base, atCeiling), null);
   const overCeiling = new Date(Date.parse(base + 'T00:00:00Z') + (MAX_PLANNING_RANGE_DAYS + 1) * 86400000).toISOString().slice(0, 10);
   assert.deepEqual(checkPlanningRange(base, overCeiling), { status: 400, error: 'DATE_RANGE_TOO_WIDE', message: 'Période trop longue.' });
-  // A real calendar day (specs/linen-laundry-days.md rule 13): `9999-99-99` used to pass the shape check, parse
+  // A real calendar day (specs/linen/linen-laundry-days.md rule 13): `9999-99-99` used to pass the shape check, parse
   // to NaN and slip under the cap.
   for (const bad of ['2026-13-99', '9999-99-99', '2026-02-30', '2026-00-10']) assert.equal(isIsoDate(bad), false, bad);
   assert.equal(isIsoDate('2026-02-28'), true);

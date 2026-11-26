@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 28 (UI/UX review 2026-10-18, decision 3) — every requirement is
+// specs/site/wordpress-plugin.md rule 28 (UI/UX review 2026-10-18, decision 3) — every requirement is
 // refused on its own field, in French: all marked at once, the first one focused, the reason under
 // it, cleared live once corrected. The server's `details[].message` lands under the field it names,
 // and `gf:refused` tells a host that moved the engine's children which field refused.

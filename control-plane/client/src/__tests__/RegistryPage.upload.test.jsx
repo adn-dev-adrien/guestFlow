@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 8 — the « Registre » page: published versions, upload of
+// specs/plugins/plugins-phase-4-registry.md rule 8 — the « Registre » page: published versions, upload of
 // several packages with the refusal of each named, and withdrawal; a table on desktop, cards on a phone.
 import React from 'react';
 import { screen, fireEvent, within, waitFor } from '@testing-library/react';

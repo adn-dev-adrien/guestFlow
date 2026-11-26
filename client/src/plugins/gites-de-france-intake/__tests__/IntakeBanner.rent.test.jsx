@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rules 7, 12 — two rents fit the net: one button each.
+// specs/platforms/gites-de-france-mail-intake.md rules 7, 12 — two rents fit the net: one button each.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

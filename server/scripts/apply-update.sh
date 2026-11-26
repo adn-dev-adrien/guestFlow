@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# GuestFlow self-update — swap phase (specs/self-update-and-releases.md §3.E).
+# GuestFlow self-update — swap phase (specs/hosting/self-update-and-releases.md §3.E).
 #
 # Spawned DETACHED by the running application, which then dies when PM2 restarts it. This script has
 # to outlive its parent: it is the PM2 transposition of sowel's helper container (sowel spec 060) —

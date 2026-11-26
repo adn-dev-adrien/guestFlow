@@ -1,5 +1,5 @@
 // @ts-check
-// specs/ds-components.md rules 19-21 — review #8 (m-7 + the systemic touch targets), measured in a
+// specs/design-system/ds-components.md rules 19-21 — review #8 (m-7 + the systemic touch targets), measured in a
 // real browser. On a phone the settings bars read « Syst… » with Save over Cancel; at 900 px the
 // title of a bar with a centre node shrank to « P. »; 370 icon buttons were under 44 px. Review of
 // PR #700: six 39 px toggles on « Suivi financier », « Planning ressou… » with 120 px free.
@@ -37,7 +37,7 @@ test.describe('phone (390 px, touch)', () => {
     for (const url of ['/', '/planning', '/finance']) {
       await page.goto(url);
       // On a phone the page heading is the top bar's — the wordmark on the home
-      // (specs/shell-and-home-day-first.md rule 15); wait for it, then for the page's data.
+      // (specs/planning/shell-and-home-day-first.md rule 15); wait for it, then for the page's data.
       await expect(page.locator('header h1')).toBeVisible({ timeout: 10_000 });
       await page.waitForLoadState('networkidle');
       expect([url, await smallTargets(page)]).toEqual([url, []]);

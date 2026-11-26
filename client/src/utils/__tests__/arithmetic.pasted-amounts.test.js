@@ -1,4 +1,4 @@
-// specs/reservation-price-arithmetic.md rules 8-9 — an amount copied off a platform statement
+// specs/reservations/reservation-price-arithmetic.md rules 8-9 — an amount copied off a platform statement
 // carries a currency symbol and thousands separators. It used to be unreadable, and rule 4 then
 // silently reverted the field to its last committed value: on a fresh reservation that value is
 // empty, so pasting « 1 197,00 € » into « Total séjour facturé par la plateforme » simply erased

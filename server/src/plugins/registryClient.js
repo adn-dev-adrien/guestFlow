@@ -1,5 +1,5 @@
 /**
- * The official plugin registry, read by the instance (specs/plugins-phase-4-registry.md rules 6, 9).
+ * The official plugin registry, read by the instance (specs/plugins/plugins-phase-4-registry.md rules 6, 9).
  *
  *   GUESTFLOW_REGISTRY_URL          the registry's base, e.g. https://console.guestflow.fr/registry/v1
  *   GUESTFLOW_REGISTRY_PUBLIC_KEY   Ed25519, base64 DER SPKI; falls back to GUESTFLOW_LICENCE_PUBLIC_KEY

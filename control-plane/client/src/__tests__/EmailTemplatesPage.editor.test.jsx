@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 33 — the renewal emails: the mode switch, the editor
+// specs/hosting/control-plane-plans-and-access.md rule 33 — the renewal emails: the mode switch, the editor
 // with its placeholders and the server's preview, and the refusal of an unknown placeholder.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

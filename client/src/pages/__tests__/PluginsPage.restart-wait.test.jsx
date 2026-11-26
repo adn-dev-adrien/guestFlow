@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 13, 20, 32 — « Tout mettre à jour » follows the server's
+// specs/plugins/plugins-phase-4-registry.md rules 13, 20, 32 — « Tout mettre à jour » follows the server's
 // answer as a single update does (restart, reload, or the refreshed list), and a restart whose former
 // start time could not be read never reloads on the old process's answer.
 import React from 'react';

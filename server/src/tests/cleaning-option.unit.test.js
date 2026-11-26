@@ -1,4 +1,4 @@
-// Shared cleaning-option detection — specs/j1-arrival-reminder-email.md §4.1 + specs/sas-hide-settled-steps.md §3.
+// Shared cleaning-option detection — specs/emails/j1-arrival-reminder-email.md §4.1 + specs/sas/sas-hide-settled-steps.md §3.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

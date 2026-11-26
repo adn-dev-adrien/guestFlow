@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 14 (rule 13, the date horizon, met by keyboard entry) with specs/datepicker-close-on-select.md, reading of
+// specs/tech/reservations-backend-mvc.md rule 14 (rule 13, the date horizon, met by keyboard entry) with specs/planning/datepicker-close-on-select.md, reading of
 // 2026-11-02 (keyboard entry) — a date typed on the keyboard, digit by digit, still meets the horizon: the field
 // keeps the focus, « Date trop lointaine : 5 ans au plus. » shows under the dates, the quote, the occupied dates and
 // the resources' availability are never asked for it nor for the half-typed years on the way, and the save sends

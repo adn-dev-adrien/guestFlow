@@ -1,5 +1,5 @@
 /**
- * Platform penalties of a stay (specs/reconciliation-assisted-matching.md rules 23–31): what a platform
+ * Platform penalties of a stay (specs/accounting/reconciliation-assisted-matching.md rules 23–31): what a platform
  * keeps on a payout for a reason other than its commission or the tourist tax.
  *
  * Persistence only — the guards, the payout adjustment and the history live in

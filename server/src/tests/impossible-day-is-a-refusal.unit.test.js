@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 51 and specs/vat-optional-mode.md rule 15, readings of 2026-11-03
+// specs/accounting/finance-dashboard-redesign.md rule 51 and specs/accounting/vat-optional-mode.md rule 15, readings of 2026-11-03
 // (review of PR #940, side note) — a YYYY-MM-DD that names no day of the calendar (month 13 or 00, day 00 or
 // 32) is refused with the endpoint's own message. The round-trip used to run `toISOString()` on an Invalid
 // Date: a RangeError, so a 500 where the API owes a 400 / 422.

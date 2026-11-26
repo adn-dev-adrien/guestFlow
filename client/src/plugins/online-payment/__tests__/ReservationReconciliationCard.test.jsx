@@ -6,7 +6,7 @@ import DialogProvider from '../../../components/DialogProvider';
 import ReservationReconciliationCard from '../ReservationReconciliationCard';
 import { item, proposed, gap, done, bankSide } from './reconciliationFixtures';
 
-// specs/qonto-bank-reconciliation.md rules 25–27, 33, 39 — the fiche's card draws the server's block,
+// specs/accounting/qonto-bank-reconciliation.md rules 25–27, 33, 39 — the fiche's card draws the server's block,
 // confirms / discards / undoes on the spot and reloads the fiche after a write; nothing without a block.
 
 vi.mock('../../../api', () => ({

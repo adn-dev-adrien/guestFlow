@@ -1,5 +1,5 @@
 /**
- * One payment, several methods (specs/mixed-method-payments.md) — the pure rules of a « règlement »:
+ * One payment, several methods (specs/payments/mixed-method-payments.md) — the pure rules of a « règlement »:
  * which methods exist, what a set of lines may be, and what a recorded settlement counts for.
  *
  * A settlement is one manual payment of a target (a bucket, the single arrival payment, a mid-stay note,

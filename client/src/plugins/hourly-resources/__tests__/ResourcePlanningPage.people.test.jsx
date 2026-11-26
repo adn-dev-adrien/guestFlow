@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rule 4 — the people declared at booking are in the tooltip of a booking on the planning grid, and only when there are some.
+// specs/site/site-outside-resource-booking.md rule 4 — the people declared at booking are in the tooltip of a booking on the planning grid, and only when there are some.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

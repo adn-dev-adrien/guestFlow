@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rules 6–9, 11–14 — a card prints « Nécessite » and « Utilisé par », says
+// specs/plugins/plugin-dependencies.md rules 6–9, 11–14 — a card prints « Nécessite » and « Utilisé par », says
 // what a button would refuse before the click, and sends one flag once the operator confirmed the
 // plugins that follow.
 import React from 'react';

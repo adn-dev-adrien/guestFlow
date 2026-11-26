@@ -13,7 +13,7 @@ import { vi } from 'vitest';
  *   - The vatRateCommission caption shows the active rate; admin sees a clickable
  *     "modifiable dans Réglages" link, accountant sees plain italic text.
  *   - The cancellation-compensation account is editable and travels in the save payload; its VAT
- *     rate is displayed read-only (specs/cancellation-compensation.md §3.3 rule 19).
+ *     rate is displayed read-only (specs/payments/cancellation-compensation.md §3.3 rule 19).
  */
 
 import React from 'react';
@@ -77,7 +77,7 @@ test('renders the default account + every platform row from the GET payload', as
   // Each platform name appears as a row label.
   expect(await screen.findByText('Airbnb')).toBeInTheDocument();
   expect(screen.getByText('Gitedefrance')).toBeInTheDocument();
-  // specs/accounting-platform-commission-and-no-deposit.md rule 23 — the display label, never the key.
+  // specs/accounting/accounting-platform-commission-and-no-deposit.md rule 23 — the display label, never the key.
   expect(screen.getByText('Direct')).toBeInTheDocument();
   expect(screen.queryByText('direct')).toBeNull();
 });
@@ -91,7 +91,7 @@ test("Direct row is rendered with disabled inputs + the 'Pas de commission' capt
   expect(screen.getByText(/Pas de commission sur les réservations directes/i)).toBeInTheDocument();
 });
 
-// specs/settings-rationalization.md rule 14 — the two accounting VAT rates are edited here, next to
+// specs/settings/settings-rationalization.md rule 14 — the two accounting VAT rates are edited here, next to
 // the accounts that use them, by the admin and the accountant alike.
 test('both accounting VAT rates are editable fields, and a save sends them', async () => {
   const user = userEvent.setup();

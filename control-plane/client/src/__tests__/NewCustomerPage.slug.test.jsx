@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 7 and 21 — the new customer form: the server checks
+// specs/hosting/control-plane-plans-and-access.md rules 7 and 21 — the new customer form: the server checks
 // the slug as it is typed and computes the period and the price; a refused save names the field.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

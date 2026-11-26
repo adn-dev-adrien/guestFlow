@@ -7,15 +7,15 @@ import { test, expect } from '@playwright/test';
 const ROUTES = [
   { url: '/',                            heading: 'Tableau de bord' },
   { url: '/planning',                    heading: 'Planning' },
-  // Retitled « Calendrier » by the DS phase-5 sweep (specs/ds-sweep-planning.md rule 3).
+  // Retitled « Calendrier » by the DS phase-5 sweep (specs/design-system/ds-sweep-planning.md rule 3).
   { url: '/calendar',                    heading: 'Calendrier', exact: true },
   { url: '/finance',                     heading: 'Suivi financier' },
   { url: '/comptabilite',                heading: 'Comptabilité' },
-  // specs/plugins-phase-2-hosts.md rule 21 — the core compensations page, titled « Indemnités » so
-  // the title fits a phone's bar (specs/ds-components.md rule 25).
+  // specs/plugins/plugins-phase-2-hosts.md rule 21 — the core compensations page, titled « Indemnités » so
+  // the title fits a phone's bar (specs/design-system/ds-components.md rule 25).
   { url: '/finance/indemnites',          heading: 'Indemnités', exact: true },
   { url: '/devis',                       heading: 'Devis' },
-  // Paramètres pages (specs/settings-rationalization.md rule 2).
+  // Paramètres pages (specs/settings/settings-rationalization.md rule 2).
   { url: '/settings/etablissement',      heading: 'Établissement', exact: true },
   { url: '/settings/plateformes',        heading: 'Plateformes', exact: true },
   { url: '/settings/tva-exercice',       heading: 'TVA & exercice' },
@@ -23,7 +23,7 @@ const ROUTES = [
   { url: '/settings/integrations',       heading: 'Intégrations' },
   { url: '/settings/systeme',            heading: 'Système', exact: true },
   { url: '/settings/utilisateurs',       heading: 'Utilisateurs' },
-  // specs/terms-acceptance-record.md — the CGV page.
+  // specs/reservations/terms-acceptance-record.md — the CGV page.
   { url: '/parametres/conditions-generales', heading: 'Conditions générales' },
   { url: '/mon-compte',                  heading: 'Mon compte' },
   { url: '/properties',                  heading: 'Logements' },

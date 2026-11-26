@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 93 as completed by rule 103 (stabilisation loop t3, T3-5, 2026-11-16) — `saleDetail.buckets.plan` is the stored
+// specs/pricing/pricing-components.md §3 rule 93 as completed by rule 103 (stabilisation loop t3, T3-5, 2026-11-16) — `saleDetail.buckets.plan` is the stored
 // deposit + balance, like the arrival and departure buckets (rule 102 g): a stay whose engine of today prices its plan otherwise reads as stored.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

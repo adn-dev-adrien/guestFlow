@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 36 (audit R22, E22-4) — imapflow emits 'error' once connect() has resolved and throws
+// specs/platforms/airbnb-mail-intake.md rule 36 (audit R22, E22-4) — imapflow emits 'error' once connect() has resolved and throws
 // with no listener, so a network reset reached uncaughtException. Real ImapFlow against a loopback fake server: the
 // reader listens, logs the real cause, and the pass rejects as before. An uncaught throw fails the test by itself.
 const test = require('node:test');

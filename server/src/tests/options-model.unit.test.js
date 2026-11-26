@@ -189,7 +189,7 @@ test('REGRESSION: towel*PerPerson coerced to a non-negative integer floor', () =
   assert.equal(Number(got.towelSmallPerPerson), 1);
 });
 
-// --- per-property « inclus par défaut » (specs/per-property-default-options.md) ---
+// --- per-property « inclus par défaut » (specs/options/per-property-default-options.md) ---
 
 test('create persists per-property defaults; get/list expose propertyDefaults', () => {
   const { db, model } = freshModel();
@@ -213,8 +213,8 @@ test('a default implies applicability when the payload carries no scope', () => 
   assert.equal(db.prepare('SELECT COUNT(*) c FROM property_options WHERE propertyId = 3 AND optionId = ?').get(id).c, 1);
 });
 
-// specs/options-resources-ux.md rule 15 — with an explicit scope, a default outside it is dropped, not promoted.
-test('specs/options-resources-ux.md rule 15: a default outside the explicit scope is dropped', () => {
+// specs/options/options-resources-ux.md rule 15 — with an explicit scope, a default outside it is dropped, not promoted.
+test('specs/options/options-resources-ux.md rule 15: a default outside the explicit scope is dropped', () => {
   const { db, model } = freshModel();
   const { id } = model.create({
     title: 'Vélo', priceType: 'per_stay', price: 5, propertyIds: [],

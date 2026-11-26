@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 55 reading of 2026-11-02 (audit R17-L1). The fiche half of the
+// specs/payments/payment-schedule-and-cancellation.md rule 55 reading of 2026-11-02 (audit R17-L1). The fiche half of the
 // R16-L1 fix had no test: the suites built the ledger with a netted set of their own, so a break inside
 // `nettedRefundIdsOf` (its catch returns null, the refusal falls back to id order) hid « Supprimer » on an absorbed
 // refund while the DELETE route accepted it, all suites green. These cases go through `reservationsController.getById`

@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 28 — after a forced rollback the release that failed is
+// specs/hosting/hosting-h1-fleet-runtime.md rule 28 — after a forced rollback the release that failed is
 // marked « En échec » and is not the default target, and no scope is preselected: the whole fleet
 // is a choice the operator makes.
 import React from 'react';

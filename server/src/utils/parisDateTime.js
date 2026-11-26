@@ -1,6 +1,6 @@
 /**
  * A SQLite `datetime('now')` value — UTC, no zone — as the operator reads it: « 18/10/2026 02:11 »,
- * Europe/Paris (specs/email-history-rolling-window.md rule 8). Pure.
+ * Europe/Paris (specs/emails/email-history-rolling-window.md rule 8). Pure.
  */
 
 const DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' });

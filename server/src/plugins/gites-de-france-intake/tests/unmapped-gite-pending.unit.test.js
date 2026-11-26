@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 18 (audit 2026-10-27) — a mail for a gîte no property is tied
+// specs/platforms/gites-de-france-mail-intake.md rule 18 (audit 2026-10-27) — a mail for a gîte no property is tied
 // to yet waits `pending` and is applied once the operator maps the gîte; it used to end in a final
 // `error` that no later pass ever looked at again.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// The stay step reads the plan — specs/pricing-components.md rule 117 (stabilisation loop t8, S8-1).
+// The stay step reads the plan — specs/pricing/pricing-components.md rule 117 (stabilisation loop t8, S8-1).
 //
 // A paid line put back to billed moves the solde inside the commit: the « Séjour à régler » the wizard shows is the latest preview's
 // (`recap.stayPayment`), the commit sends the « Séjour » the recap showed (`displayedStayDue`), and a 409 STAY_DUE_CHANGED reads the recap again.

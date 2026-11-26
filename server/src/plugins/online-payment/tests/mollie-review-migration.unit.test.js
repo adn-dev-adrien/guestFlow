@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md §5 — `reconciliation_v3b` reaches the final Mollie schema from any state,
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md §5 — `reconciliation_v3b` reaches the final Mollie schema from any state,
 // and the bare-key rewrite of rule 8 reads exactly the links that have a split. Throwaway in-memory databases.
 const test = require('node:test');
 const assert = require('node:assert/strict');

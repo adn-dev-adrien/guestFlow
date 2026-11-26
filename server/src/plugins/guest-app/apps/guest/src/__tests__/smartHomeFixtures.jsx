@@ -1,4 +1,4 @@
-// Shared fixtures of the « Domotique » suites (specs/guest-app-home-automation.md). Not a test file: the `/home`
+// Shared fixtures of the « Domotique » suites (specs/guest-app/guest-app-home-automation.md). Not a test file: the `/home`
 // payload as the server writes it, and the stay session that shows the tile.
 import { ME_STAY, baseRoutes } from './guestFixtures';
 

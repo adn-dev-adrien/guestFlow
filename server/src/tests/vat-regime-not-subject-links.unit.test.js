@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 12 (c) and payment-links-vat rule 11 — under « Sans TVA » a payment link
+// specs/accounting/vat-optional-mode.md rule 12 (c) and payment-links-vat rule 11 — under « Sans TVA » a payment link
 // carries the same items (stay, « Taxe de séjour », « Ajustement ») and the same charged total, to the
 // cent, every item at VAT rate 0.
 

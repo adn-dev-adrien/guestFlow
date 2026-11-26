@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import BreakfastPrepDialog from '../BreakfastPrepDialog';
 
-// specs/planning-breakfast-prep-popup.md — non-zero filtering + pictogram rows.
+// specs/planning/planning-breakfast-prep-popup.md — non-zero filtering + pictogram rows.
 
 const FULL_ITEM = {
   reservationId: 42,

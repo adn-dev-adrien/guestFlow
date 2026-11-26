@@ -2,7 +2,7 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { pushSupported, registerServiceWorker, enablePush, appServerKeyMatches } from '../registerPush';
 
-// specs/pwa-push-notifications.md §4.2 — graceful degradation when push isn't supported.
+// specs/guest-app/pwa-push-notifications.md §4.2 — graceful degradation when push isn't supported.
 
 describe('registerPush graceful degradation', () => {
   afterEach(() => { vi.unstubAllGlobals(); });

@@ -1,0 +1,535 @@
+# Airbnb — fill the reservation fiche from the booking e-mail
+
+| Field | Value |
+|---|---|
+| **Status** | Implemented |
+| **Branch** | `feature/airbnb-mail-intake` → `master` |
+| **Plugin id** | `airbnb-intake` — installed inactive, like the other intake plugins |
+| **Created** | 2026-10-24 |
+| **Author** | Adrien |
+| **Related PR** | — |
+| **Decision page** | [docs/specs/2026-10-24-airbnb-mail-intake.html](../../docs/specs/2026-10-24-airbnb-mail-intake.html) |
+
+---
+
+## 1. Context
+
+An Airbnb booking reaches GuestFlow through the Airbnb iCal feed. The feed only carries dates: the import
+creates a placeholder fiche (client « Reserved Ical », 1 adult, no booking number, empty « Paiement
+plateforme »). Everything else is copied by hand from Airbnb. Booking and Gîtes de France already have an
+intake plugin (`booking-intake`, `gites-de-france-intake`); Airbnb has none, and the
+`/platform-booking-intake` skill has no Airbnb reference.
+
+For every new booking Airbnb sends to `contact@domainesolio.com` — the mailbox the Gîtes de France plugin
+already reads — a mail from `Airbnb <automated@airbnb.com>`, subject « Réservation confirmée : <Prénom Nom>
+arrive le <date> ». Measured on the raw message of réservation 202610003 (fiche 22326), saved as `.eml` on
+2026-10-25: `multipart/alternative` with a **text/plain** part (6,8 kB) and an HTML part (80 kB). The plain
+part, condensed (guest replaced by a fictitious one in the test fixture, tracking parameters dropped):
+
+```
+NOUVELLE RÉSERVATION CONFIRMÉE ! LOUIS ARRIVERA LE 26 DÉC.
+https://www.airbnb.fr/hosting/reservations/details/HMN2HQHJAQ?isPending=true&…   Lucas Delmas
+Identité vérifiée · 1 commentaire
+Sur Airbnb depuis 2024
+<guest's message, free text, several lines>
+Envoyer un message à Louis [https://www.airbnb.fr/hosting/thread/2709230398?…]
+https://www.airbnb.fr/rooms/1398287456607254737?…
+GÎTE 3* 10 PERS., VUE, BAIN NORDIQUE, ÂNE, CHÈVRE
+Arrivée        Départ
+sam. 26 déc.   mer. 30 déc.
+16:00          10:00
+VOYAGEURS
+5 adultes, 6 enfants, 2 bébés
+CODE DE CONFIRMATION
+HMN2HQHJAQ
+LE VOYAGEUR A PAYÉ
+288,65 € x 4 nuits   1 154,60 €
+Frais de service voyageur   0,00 €
+Taxes   81,66 €
+TOTAL (EUR)   1 236,26 €
+VERSEMENT DE L'HÔTE
+Taxes   52,80 €
+Frais de chambre pour 4 nuits   1 598,00 €
+Ajustement du tarif par nuit   -443,40 €
+Frais de service hôte (15,5 %)   -178,96 €
+VOUS GAGNEZ   1 028,44 €
+```
+
+It carries the guest's name, the party, the confirmation code, the **listing id** (`/rooms/<id>`), the
+links to the reservation and to the message thread, the dates and the whole money breakdown. It does
+**not** carry the guest's phone, e-mail or language, nor the year of the dates.
+
+### 1.1 What the two « Taxes » lines are — measured, not yet explained
+
+Measured on two bookings on 2026-10-24 (the mail of 202610003 and the « Revenus » panel of 202609003):
+
+| | 202610003 | 202609003 |
+|---|---|---|
+| Guest paid (« Total ») | 1 236,26 | 868,87 |
+| Taxes paid by the guest | 81,66 | 63,87 |
+| Taxes handed to the host (« Versement de l'hôte ») | 52,80 | 24,00 |
+| Taxes kept by Airbnb (difference) | 28,86 | 39,87 |
+| « Vous gagnez » | 1 028,44 | 704,22 |
+| « Frais de service hôte (15,5 %) » | 178,96 | 124,78 |
+| Total − Vous gagnez − taxes kept by Airbnb | **178,96** | **124,78** |
+
+- The taxes handed to the host are exactly **1,20 € × guests other than babies × nights** (52,80 =
+  1,20 × 11 × 4 ; 24,00 = 1,20 × 10 × 2) — La Granja's tourist-tax tariff, children included, whereas
+  GuestFlow taxes adults only.
+- With « taxe retenue » = taxes kept by Airbnb, the fiche's commission lands **exactly** on Airbnb's own
+  host service fee, on both bookings.
+- So the guest appears to pay two taxes: one Airbnb collects and remits itself, and 1,20 €/person/night
+  that Airbnb collects for the host and pays out to him. This looks like a tax configured on the Airbnb
+  listing on top of Airbnb's automatic collection. Whether to keep that listing setting is the operator's
+  call, outside this plugin (§8).
+- Fiche 202609003 was entered by hand with taxe retenue 24,00 and commission 140,65, i.e. the
+  opposite reading of the two lines.
+
+## 2. Goal
+
+When an Airbnb booking arrives, the operator opens a fiche that is already complete — guest name, party,
+confirmation code, guest message, and « Paiement plateforme » reconciled to the payout — and only has to
+add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche says why.
+
+---
+
+## 3. Functional rules
+
+### 3.1 Reading the mailbox
+
+0. **Everything below ships as the plugin `airbnb-intake`**: a base installation has none of it. It is
+   seeded installed but **inactive**, in a new `PLUGIN_SEED_BATCHES` ledger, like Gîtes de France and
+   Booking.
+   > *On `inte/plugins` (master sync of 2026-10-26):* the plugin engine there has no seed batches; like
+   > the other intakes, `airbnb-intake` is a new opt-in that waits, not installed, on the Plugins page
+   > (`plugins-phase-0-foundation.md` rule 10), and a database coming from v3.16.0 keeps the row it
+   > already has. It ships a `manifest.json` (1.0.0, `sdk ^2.3.0`), declares its dashboard line with
+   > `ctx.attention({ key: 'airbnb-intake' })` (« Mails Airbnb à vérifier », drawn by `AttentionCard`,
+   > `shell-and-home-day-first.md` rules 6, 9), and has its own « Airbnb » tab in Intégrations
+   > (`integrations-tab-per-plugin.md`). `sdk.mailbox` and the client `IntakeBanner` export make SDK
+   > **2.3.0** (a new entry point is a minor bump); the reader keeps inte's fix that logs out even when
+   > the INBOX lock is refused, and its injectable `ImapClient`.
+1. The plugin reads the mailbox GuestFlow sends from (`ctx.core.settings.mailbox()`, i.e.
+   `contact@domainesolio.com`), **read-only**: it never deletes, moves or flags a message.
+2. A pass runs **every 3 hours** (setting `pollEveryHours`, 1–24, default 3), plus « Relever maintenant »
+   in the settings. It looks at the last 30 days of mail whose sender is the configured address (setting
+   `senderAddress`, default `automated@airbnb.com`) whose subject starts with « Réservation confirmée : »
+   and whose text carries « NOUVELLE RÉSERVATION CONFIRMÉE », « CODE DE CONFIRMATION » and « VOUS GAGNEZ ». Any other Airbnb mail (messages, reminders, payouts, reviews) is
+   ignored and never stored.
+3. Each matching message is recorded once (`Message-ID` unique), with the parsed fields — never the raw
+   mail. A matching message that fails to parse is recorded `error` with the reason.
+4. **The IMAP reader moves to the SDK.** The Gîtes de France plugin's `mailboxReader.js` becomes the SDK
+   helper `sdk.mailbox.readMailsFrom({ host, port, user, password, sender, sinceDays })` and both plugins
+   call it; no IMAP code is duplicated. It also returns the subject and the `Date` header, which rule 6
+   needs. **The IMAP server is deduced from the sending one** when the plugin's « Serveur IMAP » is
+   empty: `smtp.<domain>` → `imap.<domain>` (`sdk.mailbox.imapHostFor`). *Found at implementation,
+   2026-10-25:* GuestFlow sends through `smtp.gmail.com`, and the Gîtes de France plugin read the mailbox
+   on that SMTP host — a pass could never have connected; it went unnoticed because no gîte is mapped in
+   production yet. Both plugins now read on `imap.gmail.com` by default.
+
+### 3.2 Parsing (pure, unit-tested)
+
+5. The **text/plain** part is parsed (the HTML is ignored; a mail without a plain part is an `error`).
+   Extracted fields: confirmation code; guest full name (subject « Réservation confirmée : <nom> arrive
+   le … », cross-checked with the name after the reservation link); listing id (`/rooms/<id>`) and listing
+   title; the reservation URL (`/hosting/reservations/details/<code>`) and the message-thread URL
+   (`/hosting/thread/<id>`), tracking parameters stripped; arrival and departure dates and times; adults /
+   children / babies; the guest's message (the lines between « Sur Airbnb depuis … » and « Envoyer un
+   message à … »); and the money lines of both columns: nights × nightly price, cleaning fee,
+   guest service fee, guest taxes, guest total; host taxes, room fees, nightly adjustment, host service
+   fee and its percentage, « Vous gagnez ».
+6. **The year is not in the mail.** Arrival = the first date on or after the mail's `Date` header
+   whose weekday matches the one printed (« sam. 26 déc. » sent 2026-10-24 → 2026-12-26). Departure
+   = the first matching date after arrival. No date satisfies the weekday → `error`.
+7. **Internal consistency before anything else, to the cent:**
+   - guest column: nights × nightly price + cleaning fee + guest service fee + guest taxes = total;
+   - host column: room fees + adjustment + cleaning fee + host taxes − host service fee = Vous gagnez;
+   - host service fee = percentage × (room fees + adjustment + cleaning fee), rounded to the cent;
+   - room fees + adjustment = nights × nightly price.
+   Any mismatch → `error`, nothing applied.
+8. Every space — inside amounts **and inside labels** — may be normal, non-breaking (U+00A0) or narrow
+   non-breaking (U+202F): the raw mail writes « 4 nuits », « 15,5 % », « 5 adultes » with them. Amounts
+   have a comma decimal. Verified 2026-10-25 on the real plain part: every field of rule 5 is read and
+   the three checks of rule 7 hold to the cent (commission 178,96 = Airbnb's fee). Names in title case (the listing title too, printed in capitals in the plain part); « enfants » → GuestFlow « Enfants 2–12 », « bébés » → « Bébés », Airbnb having no
+   teenager category.
+
+### 3.3 The « Paiement plateforme » block
+
+9. The plugin writes (reading A, decided 2026-10-24, §9):
+   - Brut = guest « Total (EUR) »;
+   - Virement reçu = « Vous gagnez »;
+   - Taxe de séjour retenue = guest taxes − host taxes (the part Airbnb keeps);
+   - Commission = `ctx.core.platformCommission({ gross, payout, touristTax })`, which must equal Airbnb's
+     « Frais de service hôte » — otherwise `error`.
+   This is the reading under which both measured bookings reconcile exactly (§1.1).
+10. The withheld box is written only when Airbnb's tax mode is `platform`
+    (`ctx.core.platformWithholdsTouristTax(propertyId, 'airbnb')`), as Booking does; in another mode it is
+    left empty and the banner says so.
+
+### 3.4 Matching and applying
+
+11. A message is matched to **one** reservation: platform Airbnb, property of the mail's **listing id**,
+    same arrival and departure, not cancelled. *Amended 2026-10-25 (operator: « facilement extensible et
+    générique »):* **nothing is typed for a property.** Each active Airbnb iCal feed's address carries the
+    listing id (`airbnb.fr/calendar/ical/<id>.ics`), so the property ↔ listing map is read from
+    `ical_sources` on every pass — a new property, or a new listing, is covered the day its feed is added,
+    and Estiva needs no more setup than La Granja. The plugin setting `listings` is only an **override**:
+    a property's own value (the id or a pasted `airbnb.fr/rooms/<id>` link) replaces what was detected for
+    that property, and covers one that has no Airbnb feed. A property may carry several listings.
+    Measured on production the same day: Granja → `1398287456607254737` (the id of the real mail),
+    Estiva → `1576845044615216441`. No match yet →
+    `pending`, retried at each pass (the iCal import may come later); still unmatched after 24 h → shown
+    on the dashboard.
+12. **Auto-apply** only onto an untouched iCal placeholder (`sourceType = 'ical'`, `icalSyncLocked = 0`,
+    brut empty — the Gîtes de France test). Applying = through `ctx.core.reservations.update` with history
+    line « Origine : Mail Airbnb du <date> »:
+    - a **new** client with the guest's first and last name (never the shared « Reserved Ical » client),
+      no e-mail, no phone, language left at its default;
+    - adults / children / babies, beds suggested as « Suggérer les lits » does, one cot per baby;
+    - booking number = confirmation code;
+    - the guest's message appended to the notes under « Airbnb, dd/mm : »;
+    - the cleaning fee ticked on the property's cleaning option when it has the same price, otherwise a
+      custom line with Airbnb's label (Gîtes de France rule 13);
+    - the « Paiement plateforme » block of §3.3.
+13. A fiche already edited by hand is **never overwritten**: the intake becomes a proposal on the fiche
+    with « Appliquer » / « Ignorer ».
+14. The fiche shows a banner while an intake is open: applied (closable, ends with « Téléphone et e-mail à
+    reprendre sur Airbnb. »), proposal, or error. Every state carries a « Voir sur Airbnb » link to the
+    reservation URL of rule 5, where the operator finds the phone.
+    *Reading of 2026-11-03 (audit R21, E21-1):* `POST /:intakeId/apply` writes a fiche once. Only the open banner's
+    client-side `busy` stood in the way, so a second tab or a lost response created a new client holding the first and
+    last name alone (detaching the contact typed since), overwrote the party, beds and notes, and piled up the custom
+    cleaning line. A dismissed intake is refused (`400` « Saisie ignorée »); an `applied` one writes nothing and answers
+    `{ status: 'applied' }`, so a stale tab reloads into the right banner; `proposed` and `error` (a retry) still apply.
+    The auto-apply is untouched: the pass calls `apply` directly. Airbnb 1.1.7. Test:
+    `airbnb-intake/tests/reapply-real-core.unit.test.js` (real core).
+15. Dashboard: one line per intake in `error` or unmatched for more than 24 h.
+16. Applying never sends an e-mail to the guest.
+17. Nothing is read while no property has an Airbnb listing (no feed, no override); a started or past stay is refused by
+    `ctx.core.reservations.update` (`PAST_RESERVATION`).
+18. *(Fixed at the 2026-10-27 audit.)* A started or past stay is refused **before** anything is written:
+    the intake becomes `error` « Séjour commencé : fiche à saisir à la main » and no client record is
+    created (rule 12 created the guest's client first, then the core refused the fiche, leaving an orphan
+    client). Same order as Gîtes de France and Booking.
+19. *(Fixed at the 2026-10-27 audit.)* One intake that throws during a pass is recorded as `error`
+    « Erreur inattendue : … » and the pass goes on with the next one; before, the exception aborted the
+    pass and the intake, still `pending` and first in line, blocked every later intake at every pass.
+20. *(Fixed at the 2026-10-27 audit.)* The tax mode of rule 10 is read from **the fiche's own platform**
+    row (`reservations.platform`, e.g. a renamed or second Airbnb channel), not from a hard-coded
+    `airbnb` key. (The Booking intake keeps its `booking` key on purpose: it rewrites the fiche's channel to
+    « Booking », so the fiche's platform before the write is not the one that will hold the tax.)
+21. *(Fixed at the 2026-10-27 spec review.)* The guest's client is created **in the same transaction as the
+    fiche's update**: the plugin hands its find-or-create payload to `ctx.core.reservations.update(id, patch,
+    { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first. A fiche the core
+    refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
+    no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
+22. *(Added 2026-10-28, audit finding F2.)* **The sender is proven, not read.** IMAP `SEARCH FROM` is a substring
+    match over the whole From field, display name included; the SDK reader (`mailAuthentication.js`) therefore
+    keeps a mail only when its header From address **equals** the configured sender
+    (case-insensitive), and flags it `authenticated` only when the `Authentication-Results` header written by the
+    mailbox's own server reports `dkim=pass` with a signing domain (`header.d`, or the domain of `header.i`) equal
+    to the sender's domain or listed in the `senderDomains` setting. Only one such header is trusted: the one
+    whose `authserv-id` is the `trustedAuthservId` setting (« Serveur de réception »), or, when empty, the provider's
+    known name (`smtp.gmail.com` → `mx.google.com`); for any other provider with the setting empty, no mail is
+    authenticated, so every one is a proposal. The header is read with an RFC 8601 tokenizer (quoted strings and
+    nested comments never split a result) and only the `dkim` result's `header.d` / `header.i` count. A mail that
+    fails is stored (`senderVerified = 0`) and, once matched, becomes a **proposal** — also listed on the dashboard
+    (rule 15 / 14) so it never sits unseen — whose banner is
+    « Expéditeur non vérifié » — it is never auto-applied, whatever `autoApply` says; the operator can still
+    apply it by hand. A forged proposal never counts as « already handled » for rule 8's dedup, so it cannot
+    shadow the genuine mail, and an unauthenticated mail that does not parse is kept as an `ignored` row (rule 26; it used to leave no row). Tests:
+    `server/src/tests/mail-sender-authentication.unit.test.js`, `airbnb-intake/tests/sender-verification.unit.test.js`,
+    `IntakeBanner.sender-verification.test.jsx`.
+23. *(Added 2026-10-28, audit finding H1 of authz.)* **The mailbox password has one destination.** The reader
+    connects over implicit TLS on 993 and requires STARTTLS on any other port (never plaintext); **the SDK pins the
+    host itself** (`sdk.mailbox.resolveImapHost`, applied inside `readMailsFrom` / `testConnection` against the core's
+    SMTP host, whatever the caller passes — so it holds for any plugin version): the SMTP server's own host, its
+    `imap.` counterpart, or a host one label away under the same parent (never two labels, a public suffix or an
+    IP), a configured host elsewhere being refused at save and ignored at use. The card shows the host used.
+    `imapHost`, `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId` are declared `supportLocked`:
+    refused to a support session when changed (`specs/hosting/hosting-h2-account-security.md` rule 18, which also refuses a
+    plugin rollback). Test:
+    `server/src/tests/mail-intake-credential-destination.unit.test.js`.
+
+24. *(Added 2026-10-28, audit finding F1.)* **Only the structured part of the mail decides.** The guest's free
+    message is printed before the rooms link, the dates, « Voyageurs », the code and both money columns, and the
+    parser used to take the first match of each, so a message could choose the code, the dates, the listing, the
+    party and the amounts of the fiche written (reproduced end to end: another guest's placeholder filled with
+    the attacker's identity and figures). Now: (a) every field is read after the **last** « Envoyer un message à »
+    line, the end of the guest block; (b) « Arrivée / Départ », « Voyageurs » and the code are anchored to
+    their header line (the code is the next non-blank line after « CODE DE CONFIRMATION »); (c) the code must
+    equal the code in the `/hosting/reservations/details/<CODE>` link at the top of the mail, and the arrival
+    must be the subject's « arrive le <j> <mois> » (error rows « Le code de confirmation ne correspond pas au
+    lien de la réservation » / « L’arrivée du mail ne correspond pas à son objet »); (d) a mail in which a key
+    header line (« CODE DE CONFIRMATION », « LE VOYAGEUR A PAYÉ », « VERSEMENT DE L'HÔTE », « VOUS GAGNEZ »,
+    « VOYAGEURS », « Arrivée   Départ ») appears more than once is refused (« Mail ambigu ») and nothing is
+    written. A harmless message such as « Arrivée possible ven. 25 déc. » parses as before. Test:
+    `airbnb-intake/tests/mail-injection.unit.test.js`.
+25. *(Added 2026-10-28, audit finding F7.)* **The « Voir sur Airbnb » link is an Airbnb link.** Reservation, thread
+    and rooms links are accepted only over `https` on an exact `airbnb.<tld>` or `www.airbnb.<tld>` host
+    (`www.airbnb.fr.secure.example` is not one); a lookalike gives no link. Test: same file.
+26. *(Added 2026-10-28, audit finding F2.)* **A hostile mail costs milliseconds and is read once.** The SDK reader
+    never reads a part past 256 KB (the mail is skipped) and turns HTML into text in linear time; the parser
+    ignores lines over 300 characters for its headers and caps the guest message at 4 000 characters, so 1 MB of
+    filler parses (or is refused) in under 200 ms. An unauthenticated mail that does not parse used to leave no
+    row, so it was re-read and re-parsed at every pass for 30 days; it is now stored as `ignored` (never open,
+    never on the dashboard), and an authenticated one stays an `error` row. Tests:
+    `airbnb-intake/tests/mail-injection.unit.test.js`, `server/src/tests/mail-reader-limits.unit.test.js`.
+
+27. *(Added 2026-10-28, review of PR #849.)* **Refinements of rules 24–25.** (a) Duplicate key headers are counted
+    in the parsed part only, case-sensitively (Airbnb prints them in capitals): the guest's own « Voyageurs » or
+    « Code de confirmation » refuses nothing, and a message that pastes whole header blocks changes nothing, since
+    it sits before the last « Envoyer un message à » line. (b) A confirmation with no guest message has no such
+    line, the structured part starts at the first non-blank line after « Sur Airbnb depuis … », which must be the thread link on an Airbnb host (the listing is then the rooms link between it and the « Arrivée   Départ » header): any text of the guest in between (and a missing « Sur Airbnb depuis ») refuses the mail. (c) « arrive le 1er juil. » is read in the subject and « 1er
+    juil. » in the body. (d) The link hosts are an explicit list (`airbnb.` + com, fr, de, es, it, co.uk, ch, be, ca…),
+    and the banner's `airbnbUrl` is not sent at all when the sender is unverified. (e) A mail refused at parsing is
+    stamped with the plugin version (`parserVersion`) and read again after an update (the same stamp as GdF rule 28), unless the operator dismissed it.
+    Tests: `airbnb-intake/tests/mail-injection.unit.test.js`.
+
+**Edge cases:**
+- Same mail twice → `Message-ID` dedup; a second mail with the same confirmation code → ignored once the
+  first is applied.
+- The guest's message announces more people than the party (« peut-être un 6ème ») → only the « Voyageurs »
+  line counts; the message lands in the notes.
+- Modification or cancellation mails → not parsed (Out of scope); the iCal flow handles cancellations.
+- A listing that no property is mapped to (no iCal feed carries its id) → `pending` then dashboard line
+  « Annonce inconnue : <titre> (<id>) », so the id can be pasted as an override.
+- IMAP down → logged, retried at the next pass; the iCal flow is unaffected.
+
+28. **Subject and heading are read on bounded lines** (audit R2 N3 + external N1, 2026-10-29). A subject over 300 characters is refused; the heading is read from lines of at most 300 characters; no `.+?\s+` backtracking. A 200 KB heading or a 3 KB subject costs milliseconds. Test: `airbnb-intake/tests/mail-parser-linear.unit.test.js`.
+29. **DKIM counts only the verdicts before the first `smtp.*` result** of the trusted header; the non-standard `d` alias is no signing domain (audit R2 external N3, 2026-10-29). A sender-written header under another name is never trusted; when the receiving server wrote none, a header forged under its own name cannot be told apart (accepted residual). A header with a bare value inside a result (`dkim=pass header.d=… x@evil.test`, the mark of an unquoted echo) is refused whole (`malformed-authentication-results`). The cut is kept as is: a provider that writes `spf` before `dkim` (Microsoft 365) gives only a proposal, never an auto-apply — auto-apply is tested on Gmail only. Auto-apply also assumes direct delivery to the trusted receiving server: no forward, no « check mail from other accounts » (POP fetch), no filter from another mailbox, or a forged header under the server's name would be the only one. Test: `tests/mail-sender-authentication.unit.test.js`.
+30. **A pass downloads each mail once, and holds none** (audit r3, external N5, 2026-10-29; amends rule 2's
+    « without a trace » and rule 26). The reader (SDK 2.15.0) takes `seen(messageId)` — a known Message-ID is
+    skipped before its body is downloaded — `onMail(mail)` — each mail is handed over as it is read, none is
+    kept — and `limit` (the service passes 200: a pass downloads at most 200 bodies, newest first). Every mail
+    that is not an intake is remembered as an `ignored` row, out of every list: a message, reminder or payout
+    (« Autre type de mail »), and a part over 256 KB (`skipped: 'tooLarge'`, « Mail trop volumineux »). Like the
+    other `ignored` rows they are read again when the plugin's version changes (rule 26). Heap and downloads are
+    bounded however many mails the sender flooded. Tests: `tests/mail-reader-flood.unit.test.js`,
+    `airbnb-intake/tests/mail-flood.unit.test.js`.
+31. *(Added (review of PR #865, 2026-10-29). (a) The cap bounds only the UNAUTHENTICATED mails: a mail with a good DKIM verdict
+    is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body). That
+    guarantee holds ONLY when the receiving server's `authserv-id` is known (Gmail, or `trustedAuthservId` set):
+    on any other mailbox no mail can be verified and rule 32 applies instead (rewritten 2026-10-29, audit r4,
+    external N1: the first wording claimed « a forged flood cannot push a genuine booking out of the 30-day
+    window » without that condition).
+    (b) The envelopes and the authentication header are fetched in bulk, 500 UIDs per request, instead of one
+    request per mail. (c) A pass is single-flight: the running promise lives at `register()` scope of the plugin's
+    `index.js` (each call builds its own service), so the job tick and « Lire maintenant » share one IMAP pass and
+    one result; the service keeps its own guard too. `insert` is `ON CONFLICT(messageId) DO NOTHING`, returns
+    `null` when nothing was written, and a pass counts as `read` only the rows it wrote. Test:
+    `tests/mail-intake-single-flight.unit.test.js`. (d) `count()` (« N mails … lus ») leaves out `ignored`
+    rows, and an `ignored` row older than the 30-day window plus one day is purged at the start of a pass.
+    Tests: `tests/mail-reader-flood.unit.test.js`, `airbnb-intake/tests/mail-flood.unit.test.js`.
+32. **When nothing can be verified, the cap is shared between the newest and the oldest unread mails; a capped
+    pass says so; a batch never blocks the server** (audit r4, external N1 and N2, 2026-10-29, SDK 2.16.0).
+    (a) With no trusted `authserv-id` every mail is unauthenticated, so a forged flood used to share the 200-mail
+    cap with the genuine mails, newest first, and could keep a genuine booking unread. The reader now reads the
+    newest half of the cap (a fresh mail is still read at once) and the OLDEST half of the unread mails: the front
+    of the backlog moves by half a cap every pass whatever arrives behind it, so a mail with `k` unread mails older
+    than it is read within `ceil((k + 1) / 100)` passes. This is a DELAY, not a guarantee against loss. Measured
+    (deque model, 30-day window): under a sustained flood of `r` forged mails per pass, `r` above 200, a mail can
+    wait up to 30 days (about t/2 for a mail arriving on day t at `r` = 250) and mails start to be lost after about
+    `30 + 3000 / (r - 200)` days (day 89 at 250 per pass, day 60 at 300, day 34 at 1000), never inside the first
+    30 days. Setting `trustedAuthservId` removes the limit (rule 31(a)); a WRONG `trustedAuthservId` verifies
+    nothing yet keeps the newest-only cap, as a trusted one does. (b) A pass that leaves mails behind reports them
+    (`onCap({ notRead, limit })`, the pass result carries `unread`); the plugin shows the line only once TWO passes
+    in a row hit the cap (a first read of a 30-day backlog or a re-read after a parser update drains within a
+    pass or two and is no flood), and clears it with a pass that is not capped, is skipped or throws
+    (`unreadMails`, `unreadStreak` settings). The home line is « Mails Airbnb non lus : N (afflux). » with
+    « Plafond de lecture atteint » and counts as ONE subject; with mails to check it adds « · N non lus
+    (afflux) » to « Mails Airbnb à vérifier ». (c) `verifyDkim`: the FIRST `Authentication-Results` header whose
+    authserv-id is the trusted one decides, as before (the receiving server writes its own on top; a header
+    below is the sender's). It is found by a prefix test plus a boundary (`;`, whitespace or end of value), so
+    `mx.google.com.x` is not it, and only it is tokenized; when it is over 4 KB the verification is REFUSED
+    (`oversized-authentication-results`) and no later header is tried: skipping it would believe a forged header
+    below it. An authserv-id preceded by a comment (RFC 8601 CFWS) is not found and fails closed. The batch loop
+    gives the event loop a turn (`setImmediate`) every 25 mails, so 500 mails of 64 KB headers no longer block the
+    server for a second. Airbnb 1.1.4 asks for `sdk ^2.16.0`. Tests: `tests/mail-reader-unverifiable.unit.test.js`,
+    `airbnb-intake/tests/mail-unread-attention.unit.test.js`.
+33. **The reader keeps small records, never the envelopes** (audit r5, external N3, 2026-10-30). Rule 32 kept the
+    whole envelope of every unseen unauthenticated mail until the cap was applied (+200 MB for 6 000 forged
+    32 KB subjects). A pass now keeps per mail only the uid, the verdict, the part ids, the dates, a subject
+    truncated to 998 characters and a Message-ID truncated to 998 characters (copied, so the sender-written string
+    is not kept alive); the Message-ID is also the `*_intakes` row key, now bounded. Test:
+    `tests/mail-reader-envelope-retention.unit.test.js` (child process with `--expose-gc`). Airbnb 1.1.5 and
+    Gîtes de France 1.4.7 ask for `sdk ^2.17.0` (also the `internal` counters, `plugins-phase-1-sdk.md` rule 34).
+34. **An unparsable Date header or a throwing mail never stops a pass** (audit r5, review of PR #874, R1, 2026-10-30).
+    imapflow hands a Date header it cannot parse over as the raw string; `new Date(raw).toISOString()` threw and one
+    forged mail blocked every pass for 30 days (on Gmail a verified booking stayed `pending`). The reader now keeps a
+    date only if it parses (otherwise the other date, then `now`, is used) and the service isolates each mail. One that
+    makes the intake step throw never stops the pass: a database error (`err.code` starting with `SQLITE_`) stores
+    nothing, is logged, and the mail is read again by the next pass (review of PR #874, R2: storing it would lose a
+    verified genuine mail for good); any other error is stored like a mail that does not parse (rule 26): `error` with
+    « Erreur de lecture : <reason> » for a verified mail, `ignored` otherwise. Tests: `airbnb-intake/tests/unparsable-date-header.unit.test.js`.
+35. **Applying a mail keeps the fiche's own lines, planning cards included** (audit R20, E20-1, 2026-11-03). The fill
+    rebuilt the catalogue options as `{ optionId, quantity, inComplement }`, which replaced the fiche's lines and dropped
+    a planning card's planned moments (`cardOccurrences`) and covers (`cardPersons`): the line came back « à planifier »
+    with the sold portions as its quantity, on the auto-apply and on « Appliquer » alike. The options, the custom lines
+    and the offered ids now start from `ctx.core.reservations.updateBody` (`plugins-phase-1-sdk.md` rule 38), the body
+    the update itself spreads the patch over; only the cleaning line is then set, as before (rule 12). The amounts do
+    not move. Airbnb 1.1.6 asks for `sdk ^2.21.0`. Test: `airbnb-intake/tests/card-lines-real-core.unit.test.js`
+    (real core, both paths).
+36. **A socket error stays inside the pass** (audit R22, E22-4, 2026-11-04). imapflow emits `'error'` once `connect()`
+    has resolved, and an EventEmitter with no listener throws: a plain network reset or socket timeout reached
+    `uncaughtException`, an alarming false signal, and would kill any process without that handler. `readMailsFrom` and
+    `testConnection` now listen before connecting and log `mail intake: <code> <message>`, the real cause, through the
+    caller's `log` (optional on `testConnection`). The call under way still rejects as before, so a pass never hangs.
+    Shared by every plugin reading a mailbox through `sdk.mailbox`. Test: `tests/mail-reader-socket-error.unit.test.js`.
+37. **A listing is tied to a logement that exists** (audit R42-EXT-L2 class, 2026-11-10). A key of `listings` that
+    names no logement of the core is refused « Logement inconnu. », nothing stored. A key already stored stays accepted, so the line of a logement deleted since never blocks a save. *Why:* the map read any digits as a logement; a phantom key bypassed the read pass's « nothing tied yet » skip and tied a logement created later (ids are AUTOINCREMENT, never reused, but given in order) to a listing nobody chose. Same class as google-vacation-rentals-feed rule 20. Test: `server/src/tests/plugin-settings-unknown-logement.unit.test.js`. airbnb-intake 1.1.9. *Reading of 2026-11-10 (audit R43-DB-L1):* the key is the logement's id as the page writes it — a key with leading zeros (« 01 », « 002 ») is refused « Logement inconnu. », nothing stored, where it used to pass as logement 1 through its number while the readers that look a key up as written saw no logement at all; a stored key is exempt exactly as stored. Test: `server/src/tests/plugin-settings-canonical-logement-key.unit.test.js`. airbnb-intake 1.1.10.
+
+---
+
+## 4. Architecture
+
+Model: `gites-de-france-intake` (same mailbox, same banner states, same placeholder test).
+
+### 4.1 Core — generic additions
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `plugins/sdk/` | `mailboxReader.js` | C (moved) | Moved from the Gîtes de France plugin: read-only IMAP, recent mails of one sender → `[{ messageId, receivedAt, sentAt, subject, text }]` (plain part, or the HTML reduced to text when there is none); `testConnection`; `imapHostFor(smtpHost)` (rule 4). |
+| `plugins/sdk/` | `index.js` | T | `sdk.mailbox.{ readMailsFrom, testConnection, imapHostFor }`, lazily required. |
+| `plugins/gites-de-france-intake/` | `index.js` | T | Reads through `sdk.mailbox`; IMAP host deduced (rule 4); `/mailbox` also returns `defaultHost`. |
+| `client/src/components/` | `IntakeBanner.jsx` | C | Generic, presentational banner: `severity, title?, children, details?, notes?, choices?, actions?, link?, onClose?, busy?, error?`. Exported from `client/src/plugins/sdk`. The Booking spec planned this extraction « when a third intake plugin appears »: this is it. The Gîtes de France and Booking banners render it, copy unchanged. |
+
+### 4.2 The plugin — server (`server/src/plugins/airbnb-intake/`)
+
+| File | T/C | Responsibility |
+|---|---|---|
+| `index.js` | C | `register(ctx)`: migration, settings, the 15-min job, `/api/airbnb-intake` router, data; reads the listings off `ical_sources`. |
+| `listings.js` | C | Pure: listing id from a link, ids detected from the iCal feed addresses, the effective `[propertyId, listingId]` pairs with overrides (rule 11). |
+| `mailParser.js` | C | Pure: mail text → booking or typed parse error (rules 5–8). |
+| `paymentBlock.js` | C | Pure: parsed money → the four « Paiement plateforme » fields + check (rules 9–10). |
+| `intakesModel.js` | C | CRUD on `airbnb_intakes`. |
+| `intakeService.js` | C | Pass: read → parse → match → apply or propose; apply / ignore. |
+| `tests/*.unit.test.js` | C | §7. |
+| `gites-de-france-intake/index.js` | T | Calls `ctx.core.mailbox.readFrom` instead of its own reader (deleted). |
+| `constants/plugins.js`, `plugins/index.js` | T | Catalogue, seed ledger v3, registration. |
+
+### 4.3 The plugin — client (`client/src/plugins/airbnb-intake/`)
+
+| File / slot | Responsibility |
+|---|---|
+| `IntakeBannerSlot.jsx` → `reservation.banners` | Fetches the banner payload, renders `IntakeBanner`. |
+| `IntakeAlert.jsx` → `dashboard.alerts` | « Mails Airbnb à vérifier ». |
+| `SettingsSection.jsx` → `settings.integrations` | Sender, frequency, listing of each property, « Relever maintenant », last pass. |
+| `plugins/index.js`, `constants/plugins.js`, `api.js` | Registration and the calls of §4.4. |
+
+**Component reuse:** consumes `IntakeBanner` (new generic, above), MUI `Card` as the other plugin settings
+sections. The Gîtes de France and Booking banners move onto `IntakeBanner` in the same change, their tests
+kept green.
+
+### 4.4 API contract (behind auth, 404 `PLUGIN_INACTIVE` when inactive)
+
+| Method | Endpoint | Body | Response |
+|---|---|---|---|
+| GET | `/api/airbnb-intake/reservation/:reservationId` | — | `{ intake: { id, status, error, receivedLabel, code, airbnbUrl, details[] } \| null }` |
+| POST | `/api/airbnb-intake/:intakeId/apply` | — | `{ status }` (`applied` when already applied, nothing written: rule 14) or 400 `{ error }` (« Saisie ignorée » when dismissed) |
+| POST | `/api/airbnb-intake/:intakeId/dismiss` | — | `{ ok }` |
+| GET | `/api/airbnb-intake` | — | `{ items }` (dashboard) |
+| POST | `/api/airbnb-intake/run` | — | `{ read, applied, proposed, pending, error, ignored }` or `{ skipped }` |
+
+---
+
+## 5. Data model
+
+Plugin table, created at install only:
+
+```sql
+CREATE TABLE IF NOT EXISTS airbnb_intakes (
+  id INTEGER PRIMARY KEY,
+  messageId TEXT NOT NULL UNIQUE,
+  receivedAt TEXT NOT NULL,
+  confirmationCode TEXT,
+  parsed TEXT,              -- JSON of rule 5 fields, never the raw mail
+  status TEXT NOT NULL,     -- pending | applied | proposed | ignored | error
+  error TEXT,
+  reservationId INTEGER,
+  appliedAt TEXT,
+  dismissedAt TEXT,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Settings: `senderAddress`, `imapHost`, `imapPort`, `pollEveryHours`, `listings` (JSON `{ propertyId: "<id or
+rooms link>" }`, optional override, rule 11), `autoApply` (1), `lastRunAt`. No core column, no core table. No existing record changes.
+
+## 6. UI / UX
+
+See the decision page. Copy, short and impersonal:
+
+- Applied (green, closable): « Rempli depuis le mail Airbnb du 24/10. Téléphone et e-mail à reprendre sur
+  Airbnb. » + link « Voir sur Airbnb » (every state carries it).
+- Proposal (blue): « Le mail Airbnb du 24/10 (HMN2HQHJAQ) concerne cette fiche, déjà modifiée à la main. »
+  [Appliquer] [Ignorer]
+- Error (red, closable): « Le mail Airbnb du 24/10 n’a pas pu être appliqué : <raison> ».
+- Dashboard: « Mails Airbnb à vérifier », one line per intake, « Ouvrir la fiche ».
+- Settings « Saisie Airbnb »: sender, frequency, « Annonce Airbnb de chaque logement » — « Reconnue d’après
+  le flux iCal Airbnb du logement : rien à saisir. Ce champ ne sert qu’à la corriger. », each field showing
+  « Reconnue : <id> » as its placeholder (id or pasted `airbnb.fr/rooms/…` link to override), « Remplir seul une
+  fiche iCal encore intacte », « Relever maintenant », last pass.
+
+Responsive: the banner buttons stack full width on `xs`, 44 px targets; settings rows stack on `xs`; no
+horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
+
+## 7. Test plan
+
+- [x] `airbnb-intake/tests/mailParser.unit.test.js` (8) — the plain part of the 202610003 `.eml`
+  (2026-10-25) as fixture, with a fictitious guest, code, listing and thread ids and no tracking
+  parameters (public repository), non-breaking spaces kept; the 202609003 figures (cleaning fee); year
+  inference across New Year and into the next year; each consistency refusal; other Airbnb mails.
+- [x] `airbnb-intake/tests/paymentBlock.unit.test.js` (4) — rule 9 on both measured bookings
+  (commission = host fee), refusals, rule 10 non-`platform` mode.
+- [x] `airbnb-intake/tests/intakeService.unit.test.js` (18) — auto-apply on a placeholder (own client,
+  party, code, notes, payment block, no times), notes appended, cleaning option, rule 10, proposal +
+  apply from the banner, pending → applied, unmapped listing on the dashboard, nothing read without a
+  listing, refused save, dedup, other mails skipped, unreadable booking mail, listing id or URL, IMAP
+  host deduction (rule 4), listings detected from the iCal feeds, override per property, two listings
+  on one property (rule 11).
+- [x] `airbnb-intake/tests/intake-audit-2026-10-27.unit.test.js` (3) — rules 18, 19, 20: no client for a
+  started stay, a throwing intake does not stop the pass, the fiche's platform row is asked for the tax mode.
+- [x] `airbnb-intake/tests/reapply-real-core.unit.test.js` (5) — rule 14, reading of 2026-11-03: a second POST writes
+  nothing (client, lines, history), typed values stay, auto-applied mail, dismissed refused, `error` retried.
+- [x] `airbnb-intake/tests/isolation.unit.test.js` (1) — no core file names the plugin outside registration.
+- [x] Gîtes de France suite unchanged (29) on the SDK reader.
+- [x] Client: `components/__tests__/IntakeBanner.test.jsx` (2), `airbnb-intake/__tests__/IntakeBanner.states.test.jsx`
+  (4); the Gîtes de France and Booking banner tests unchanged except their SDK mock (21).
+- [x] Rule 11 amendment, on the same production copy: no setting typed, the mapping read from `ical_sources`
+  gives Granja → …254737 and Estiva → …216441, and the real mail fills fiche 22326 as before.
+- [x] 2026-10-28 audit fix (rules 22–23): `server/src/tests/mail-sender-authentication.unit.test.js` (11), `mail-intake-credential-destination.unit.test.js` (5), `airbnb-intake/tests/sender-verification.unit.test.js` (8), client `IntakeBanner.sender-verification` (2). Plugin 1.1.0, SDK 2.12.0.
+- [x] Suites on 2026-10-25: server 4 943 ✓, client 1 467 ✓ (one flaky `TariffRecipeCard` timing test on
+  a first run, green alone twice and on the rerun), build ✓, E2E 89 ✓ (+1 skipped).
+- [x] Manual, on a copy of production of 2026-10-25 with the real mail injected in place of IMAP: fiche
+  22326 filled — Lucas Delmas (own client; « Reserved Ical » untouched), 5/6/2, beds 4 doubles +
+  5 simples + 2 cots, HMN2HQHJAQ, message in the notes, brut 1 236,26, taxe 28,86, virement 1 028,44,
+  commission 178,96, « Net perçu 1 028,44 € ✓ cohérent avec le virement »; a second pass writes nothing;
+  green banner with « Voir sur Airbnb » (desktop and 390 px, no horizontal scroll); settings card at
+  390 px; a Booking banner (22324) unchanged; plugin deactivated → `404 PLUGIN_INACTIVE`; `/mailbox`
+  answers `imap.gmail.com` for both plugins.
+
+## 8. Out of scope
+
+- Phone, e-mail and language of the guest (not in the mail; Airbnb relays messages).
+- Modification and cancellation mails.
+- Reading Airbnb's host pages (would need a userscript, as Booking does — rejected 2026-10-24 in favour of
+  the mail).
+- Changing the Airbnb listing's tax settings, or the tourist-tax model of GuestFlow (operator's call, §1.1).
+- Repairing fiche 202609003 or other past Airbnb fiches.
+
+## 9. Open questions
+
+None.
+
+**Resolved (2026-10-25, measured on the raw mail):**
+- ~~Listing → property~~ → by **listing id**, which every booking mail links (`airbnb.fr/rooms/<id>`), read
+  against the listing id of each property's Airbnb iCal feed — nothing to type (rule 11).
+- ~~Sender address~~ → `Airbnb <automated@airbnb.com>`, subject « Réservation confirmée : … » (rule 2).
+
+**Resolved (2026-10-24, operator):**
+- ~~What are the « Taxes » handed to the host?~~ → **reading A**: « Taxe de séjour retenue » = guest taxes −
+  host taxes, so the commission equals Airbnb's host service fee (rule 9). Fiche 202609003, entered the
+  other way, is left as it is (§8).
+- ~~Source~~ → the booking e-mail, not the Airbnb host pages.
+- ~~Mailbox~~ → `contact@domainesolio.com`, the one Gîtes de France already reads.

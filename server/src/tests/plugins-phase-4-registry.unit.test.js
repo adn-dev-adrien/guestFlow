@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md — plugin packages, the signed registry, install, update and
+// specs/plugins/plugins-phase-4-registry.md — plugin packages, the signed registry, install, update and
 // rollback from the Plugins page. Covers the manifest, the SDK version, the package store, the
 // registry client, the offers and their refusals, the loader's package path, the controller flows
 // and the migration of an existing install (Solio: twelve `builtin` rows → `bundled`).
@@ -176,13 +176,13 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // `ctx.core.clients.update` and the `planningDateRange` core module; 1.2.0 since `ctx.secretRoutes`,
 // the `qonto` core module (2026-10-18 code review) and `secrets.rotate`, for the website key's
 // « Régénérer ». 1.3.0 since the core modules `changeover` and
-// `pricing.calculateBaseStayPrice` (specs/wp-booking-widget-redesign.md rule 30); 1.4.0 since
-// `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9); 1.6.0 since the core modules `reservationLedger`, `reservationPaymentMark` and `platformDisplay` (specs/qonto-bank-reconciliation.md); 1.7.0 since the core
-// rate limiter `paymentStartLimiter` (specs/public-online-payment.md rule 7); 1.5.0
-// since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). 1.8.0 since the core module `devisHelpers` and `capacity.publicGuestCap` (specs/site-extra-guest-line.md). All minor bumps.
-// 2.0.0 since the client step contract lost `recapLines` (specs/sas-arrival-total-server-side.md
+// `pricing.calculateBaseStayPrice` (specs/site/wp-booking-widget-redesign.md rule 30); 1.4.0 since
+// `ctx.attention` and the client `AttentionCard` (specs/planning/shell-and-home-day-first.md rule 9); 1.6.0 since the core modules `reservationLedger`, `reservationPaymentMark` and `platformDisplay` (specs/accounting/qonto-bank-reconciliation.md); 1.7.0 since the core
+// rate limiter `paymentStartLimiter` (specs/site/public-online-payment.md rule 7); 1.5.0
+// since `ctx.setupStatus` (specs/plugins/plugins-phase-0-foundation.md rule 25). 1.8.0 since the core module `devisHelpers` and `capacity.publicGuestCap` (specs/site/site-extra-guest-line.md). All minor bumps.
+// 2.0.0 since the client step contract lost `recapLines` (specs/sas/sas-arrival-total-server-side.md
 // rules 13-14): a removal, hence the first major. 2.1.0 since the departure planner
-// (`planDepartureSas`, `resolveSasDepartureItems`, `departureSasPlan`; specs/sas-departure-recap-server-side.md
+// (`planDepartureSas`, `resolveSasDepartureItems`, `departureSasPlan`; specs/sas/sas-departure-recap-server-side.md
 // rule 26): additions only.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
   assert.match(SDK_VERSION, /^2\.\d+\.\d+$/);
@@ -672,7 +672,7 @@ test('§5, rule 25: an existing install\'s `builtin` rows become `bundled` and f
   assert.equal(model.syncBundled('linen', readSourceManifest('linen'), 'a'.repeat(64)), false, 'idempotent');
 });
 
-// The seed installs the twelve former core features only (specs/plugins-phase-0-foundation.md rule 10).
+// The seed installs the twelve former core features only (specs/plugins/plugins-phase-0-foundation.md rule 10).
 test('§5: a database seeded before phase 4 or after gets every seeded plugin as `bundled`', () => {
   const db = freshDb();
   db.prepare('INSERT INTO properties (id) VALUES (1)').run();
@@ -893,7 +893,7 @@ test('rule 31: same origin means same host AND port', async () => {
   assert.match(index, /same-origin writes: /);
 });
 
-// specs/plugin-removal-resilience.md rule 17 — the activation hooks wait for the whole install to commit.
+// specs/plugins/plugin-removal-resilience.md rule 17 — the activation hooks wait for the whole install to commit.
 test('rule 17: a requirement undone with its dependant never ran its activation hook; a committed install runs them all', { skip: skipWithout(['sas']) }, async () => {
   const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] });
   const { model, host } = setup({ bundled: [manifest('linen', '1.0.0'), sas] });

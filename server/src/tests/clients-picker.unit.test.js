@@ -1,4 +1,4 @@
-// specs/resource-booking-client-picker.md rules 1-7, 10 — the client picker of a resource session: three
+// specs/resources/resource-booking-client-picker.md rules 1-7, 10 — the client picker of a resource session: three
 // groups against the session's day, their order, the line under each name and the text it searches in.
 
 const test = require('node:test');
@@ -186,7 +186,7 @@ test('controller — GET /clients/picker hands the date to the model', () => {
   assert.deepEqual(body, { options: [] });
 });
 
-test('specs/resource-booking-client-picker.md rule 10 — GET /api/clients keeps its alphabetical list for the other pickers', () => {
+test('specs/resources/resource-booking-client-picker.md rule 10 — GET /api/clients keeps its alphabetical list for the other pickers', () => {
   const { addClient, addStay, model } = makeModel();
   addStay(addClient('Zola'), -1, 2);
   addClient('Abel');

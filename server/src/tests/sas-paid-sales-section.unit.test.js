@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 14, 23, 32 (mock M3, PR C C25) — the departure SAS lists what the stay already collected on its sold lines
+// specs/pricing/pricing-components.md §3 rules 14, 23, 32 (mock M3, PR C C25) — the departure SAS lists what the stay already collected on its sold lines
 // (« Déjà payé »), the operator may offer one of them and the SAS announces what is then owed back; reception sees none of it; the arrival SAS
 // keeps the section of the sales made for the departure.
 process.env.DB_PATH = ':memory:';

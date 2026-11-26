@@ -1,5 +1,5 @@
 /**
- * Email template context builder — pure (specs/email-automation.md §3 rule 3 + §4.4).
+ * Email template context builder — pure (specs/emails/email-automation.md §3 rule 3 + §4.4).
  *
  * Given the enriched reservation graph (reservation row + client + property + options +
  * app settings), produces a flat `{ vars, flags }` object the renderer consumes. Every
@@ -68,7 +68,7 @@ function formatBedConfig({ singleBeds, doubleBeds, babyBeds }, lang = 'fr') {
 }
 
 // Combine the property's stored French article with its name for "votre séjour <…>" phrasing
-// (specs/email-automation.md §3 rule 13). The article is operator-chosen per property — the
+// (specs/emails/email-automation.md §3 rule 13). The article is operator-chosen per property — the
 // only reliable source, since gender/elision can't be inferred from arbitrary brand names.
 //   'au'    + 'Gite'           → 'au Gite'
 //   'à la'  + 'Tente'          → 'à la Tente'
@@ -77,7 +77,7 @@ function formatBedConfig({ singleBeds, doubleBeds, babyBeds }, lang = 'fr') {
 function formatPropertyWithArticle(name, article, lang = 'fr') {
   // English has no gendered article to glue — the EN bodies phrase it as "at {{propertyWithArticle}}",
   // so the name alone reads cleanly. A French name starting with its own article contracts with it
-  // (specs/guest-email-texts-made-simple.md rule 30): « Le Fournil » → « au Fournil ».
+  // (specs/emails/guest-email-texts-made-simple.md rule 30): « Le Fournil » → « au Fournil ».
   return propertyArticle.format(safeStr(name), article, lang);
 }
 
@@ -104,36 +104,36 @@ function buildCgvUrl(settings, termsVersion) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-// The core may ask whether a plugin is live, never import it (specs/plugins-phase-0-foundation.md).
+// The core may ask whether a plugin is live, never import it (specs/plugins/plugins-phase-0-foundation.md).
 function hourlyResourcesLive() {
   try { return require('../plugins/sdk/registry').isLive('hourly-resources'); } catch { return false; }
 }
 
 function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, pluginContext = null, installment = null, cancellationKept = 0 }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
-  // specs/airbnb-no-checkout-chores.md rule 6 — a free « Frais de ménage » line is a cleaning
+  // specs/platforms/airbnb-no-checkout-chores.md rule 6 — a free « Frais de ménage » line is a cleaning
   // the guest paid for, exactly as the SAS reads it (isCleaningSoldForReservation).
   const customCleaningBooked = (customOptions || []).some((co) => isCleaningOption({ title: co.description }));
   const stayContent = buildStayContent({
     reservation, client, property, options, facts: { ...(stayFacts || {}), customCleaningBooked }, settings, lang, sequence: sequence || {},
-    // specs/guest-email-texts-made-simple.md rule 5 — the gate key already says how to get in.
+    // specs/emails/guest-email-texts-made-simple.md rule 5 — the gate key already says how to get in.
     gateAccess: Boolean(pluginContext && pluginContext.flags && pluginContext.flags.hasGateAccess),
   });
-  // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never appear in client emails —
+  // Internal-only options (specs/linen/laundry-bath-mat.md §3 rule 11) never appear in client emails —
   // drop them up-front so every option-derived list/flag/complement line below ignores them.
   options = (options || []).filter(isClientVisibleOption);
   const r = reservation || {};
   const c = client || {};
   const p = property || {};
   const linenByDefault = Boolean(bedLinenProvidedByDefault);
-  // specs/email-language-fr-en.md §3 rule 4 — every composed string below is emitted in `lang`.
+  // specs/emails/email-language-fr-en.md §3 rule 4 — every composed string below is emitted in `lang`.
   const L = normaliseLang(lang);
   const isEn = L === 'en';
   // An English email writes every amount the English way, « €963.39 », like the prices of its stay
-  // texts (« €8 per person »), never « 963,39 € » beside them (specs/email-language-fr-en.md rule 8).
-  // specs/email-language-fr-en.md rule 10 — one amount format across every template and stay text.
+  // texts (« €8 per person »), never « 963,39 € » beside them (specs/emails/email-language-fr-en.md rule 8).
+  // specs/emails/email-language-fr-en.md rule 10 — one amount format across every template and stay text.
   const money = (n) => emailAmount(n, isEn ? 'en' : 'fr');
-  // Localised catalog names (specs/email-client-language-and-fiche-polish.md §3 rule 4): in English use
+  // Localised catalog names (specs/emails/email-client-language-and-fiche-polish.md §3 rule 4): in English use
   // the option/resource English name, falling back to the French one when it's empty (never blanks an item).
   const optionName = (o) => {
     const fr = safeStr(o.title).trim();
@@ -169,16 +169,16 @@ function buildContext({ reservation, client, property, options = [], resources =
   // Name-matching fixes the bug where a hand-created « Ménage » option (no tag) left the "cleaning at
   // your charge" else-branch showing even when cleaning WAS booked; the SAS uses the same helper.
   // Also true on a channel that forbids checkout chores: the J-1 « il reste à votre charge » branch is a
-  // chore request (specs/airbnb-no-checkout-chores.md rules 6, 8).
+  // chore request (specs/platforms/airbnb-no-checkout-chores.md rules 6, 8).
   const hasCleaningOption = (options || []).some(isCleaningOption) || customCleaningBooked
     || isChoreFreeChannel((reservation || {}).platform);
 
   // "Linge fourni par défaut" — the reservation's PROPERTY includes bed linen as a default-offered
-  // option (specs/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the
+  // option (specs/emails/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the
   // beds will be made on arrival, and the bed-linen option is dropped from the "Option(s) réservée(s)"
   // list (it isn't a chosen extra). `optionsList` itself is left intact for other templates (e.g. J-7).
   // The owner's answer on the property wins; unanswered after the start assistant, nothing is said
-  // (specs/guest-email-texts-made-simple.md rule 28, 2026-10-18).
+  // (specs/emails/guest-email-texts-made-simple.md rule 28, 2026-10-18).
   const linenPending = pendingFactsOf(p).has('linen');
   const bedLinenProvided = !linenPending
     && (Number(p.bedLinenProvided) === 1 || (p.bedLinenProvided == null && linenByDefault));
@@ -193,7 +193,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   // never contradicts the "beds made" line.
   const bedLinenBringYourOwn = !hasBedLinenOption && !bedLinenProvided && !linenPending;
 
-  // Resources list (specs/manual-email-from-template.md is unrelated; this is J-1 §3 rule 4) —
+  // Resources list (specs/emails/manual-email-from-template.md is unrelated; this is J-1 §3 rule 4) —
   // booked resources' names, sorted alphabetically for stable rendering.
   const resourcesTitles = (resources || [])
     .map(resourceName)
@@ -202,9 +202,9 @@ function buildContext({ reservation, client, property, options = [], resources =
   const resourcesList = [...new Set(resourcesTitles)].join(', ');
   const hasResources = resourcesTitles.length > 0;
 
-  // A booked resource speaks through its own sentence (specs/plugins-phase-p-productisation.md rule
+  // A booked resource speaks through its own sentence (specs/plugins/plugins-phase-p-productisation.md rule
   // 11), `{{slots}}` recalling the slots placed on it while hourly resources are a live plugin
-  // (specs/plugins-phase-3c-hourly-resources.md rule 15). `hasNordicBath`, `nordicBathSchedule` and
+  // (specs/plugins/plugins-phase-3c-hourly-resources.md rule 15). `hasNordicBath`, `nordicBathSchedule` and
   // `nordicBathReminder` keep their names, so stored templates keep rendering.
   const parseSessions = (raw) => {
     if (Array.isArray(raw)) return raw;
@@ -240,14 +240,14 @@ function buildContext({ reservation, client, property, options = [], resources =
     .filter(Boolean)
     .join(' ');
 
-  // Complement to collect on arrival (specs/j1-complement-to-collect.md). The notice appears only
+  // Complement to collect on arrival (specs/emails/j2-email-coffee-and-sas-complement.md). The notice appears only
   // when an unpaid complement remains. The per-item breakdown matches the options/resources/custom
   // options flagged `inComplement` (paid ones, offered=0) + the tourist tax when it's in the
   // complement — so the guest knows what the complement corresponds to. The list may be partial vs.
   // the total (the complement can also carry an accommodation auto-gap), hence "comprend notamment".
   const complementAmountNum = Number(r.complementAmount || 0);
   const complementToCollect = complementAmountNum > 0 && Number(r.complementPaid || 0) !== 1;
-  // specs/defer-arrival-complement-to-checkout.md §3.3 rule 17 — the operator moved this collection to
+  // specs/sas/defer-arrival-complement-to-checkout.md §3.3 rule 17 — the operator moved this collection to
   // the door (from the arrival SAS recap or from the fiche). Same lines, same total: only the moment
   // the guest is told about changes. Without this the J-2 and J-1 announce an arrival collection the
   // operator has already decided not to make.
@@ -258,7 +258,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       inComplementItems.push({ label: safeStr(o.title).trim(), amount: Number(o.totalPrice || 0) });
     }
   }
-  // specs/platform-added-guests-tourist-tax.md rule 23.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 23.
   const addedGuestsTaxLabel = isEn ? 'Additional tourist tax' : ADDED_GUESTS_TAX_LABEL;
   for (const rr of (resources || [])) {
     if (Number(rr.inComplement || 0) === 1 && Number(rr.offered || 0) !== 1) {
@@ -275,7 +275,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   } else if (Number(r.touristTaxAddedGuestsAmount || 0) > 0) {
     inComplementItems.push({ label: addedGuestsTaxLabel, amount: Number(r.touristTaxAddedGuestsAmount) });
   }
-  // specs/j2-email-coffee-and-sas-complement.md — render the complement like the SAS check-in recap:
+  // specs/emails/j2-email-coffee-and-sas-complement.md — render the complement like the SAS check-in recap:
   // one itemised line per prestation (« label : qté × prix = total », or « label : total » without a
   // meaningful quantity) + a Total. When the caller passes the arrival-SAS breakdown
   // (`arrivalComplementDetail` = the SAME source of truth as the SAS: buildArrivalComplementDetail),
@@ -357,7 +357,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   // until a dedicated cautionMethod column lands. Also suppressed once the caution has been
   // RECEIVED (`cautionReceived = 1`): if the operator already has the caution in hand, no arrival
   // email should ask the guest to bring it (2026-06-22 fix — was reminding on a received caution).
-  // specs/payment-schedule-and-cancellation.md §3.3 + §3.7 — the day an unpaid solde costs the stay, derived from the
+  // specs/payments/payment-schedule-and-cancellation.md §3.3 + §3.7 — the day an unpaid solde costs the stay, derived from the
   // property's own delay. The sum kept is the cancellation's own figure (rule 61, utils/cancellationKeptForEmail),
   // handed in by the sender: the e-mail never works it out.
   const cancelOnDate = resolveCancelOn({
@@ -367,19 +367,19 @@ function buildContext({ reservation, client, property, options = [], resources =
   const retainedDepositAmount = Math.max(0, roundMoneyOrZero(cancellationKept));
 
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
-  // specs/caution-live-from-property.md §3 — caution is live from the property's current
+  // specs/payments/caution-live-from-property.md §3 — caution is live from the property's current
   // defaultCautionAmount until received, then frozen to the collected amount on the reservation.
-  // A caution the owner never stated (specs/guest-email-texts-made-simple.md rule 28) is no caution, and neither is one the
-  // check-in answered « Non » (specs/arrival-departure-sas.md rule 31).
+  // A caution the owner never stated (specs/emails/guest-email-texts-made-simple.md rule 28) is no caution, and neither is one the
+  // check-in answered « Non » (specs/sas/arrival-departure-sas.md rule 31).
   const cautionAmountNum = cautionReceivedFlag
     ? Number(r.cautionAmount || 0)
     : ((pendingFactsOf(p).has('caution') || Number(r.cautionWaived || 0) === 1) ? 0 : Number(p.defaultCautionAmount || 0));
   const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1 && !cautionReceivedFlag;
-  // Precise caution signal for the J-1 reminder (specs/j1-arrival-reminder-email.md §3 rule 5):
+  // Precise caution signal for the J-1 reminder (specs/emails/j1-arrival-reminder-email.md §3 rule 5):
   // the caution cheque is still owed when an amount is due AND it has not been received yet.
   const cautionNotReceived = cautionAmountNum > 0 && !cautionReceivedFlag;
 
-  // Baby-bed notice for the J-7 reminder (specs/j7-email-baby-beds.md). Only relevant when the
+  // Baby-bed notice for the J-7 reminder (specs/emails/j7-email-baby-beds.md). Only relevant when the
   // booking has at least one baby. If baby beds are provided → tell the guest how many; if the
   // booking has babies but NO baby bed (none left for the dates) → ask them to bring their own.
   const babiesNum = Number(r.babies || 0);
@@ -407,7 +407,7 @@ function buildContext({ reservation, client, property, options = [], resources =
 
   return {
     vars: {
-      // specs/guest-email-sequence.md §3.5 — composed per-property paragraphs of the sequence. Spread
+      // specs/emails/guest-email-sequence.md §3.5 — composed per-property paragraphs of the sequence. Spread
       // first so no existing token can ever be shadowed by them.
       ...stayContent.vars,
       // Client
@@ -432,7 +432,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       // Property
       propertyName:        safeStr(p.name),
       propertyWithArticle: formatPropertyWithArticle(p.name, p.nameArticle, L),
-      // The arrival address, else the company's (specs/guest-email-texts-made-simple.md rule 3).
+      // The arrival address, else the company's (specs/emails/guest-email-texts-made-simple.md rule 3).
       propertyAddress:     stayContent.vars.propertyAddress,
       // Financial
       finalPrice:      money(Number(r.finalPrice || 0)),
@@ -442,7 +442,7 @@ function buildContext({ reservation, client, property, options = [], resources =
 
       balanceAmount:   money(Number(r.balanceAmount || 0)),
       balanceDueDate:  formatDateLong(r.balanceDueDate, L),
-      // specs/payment-schedule-and-cancellation.md §3.7 rule 43 — the date an unpaid solde costs the
+      // specs/payments/payment-schedule-and-cancellation.md §3.7 rule 43 — the date an unpaid solde costs the
       // stay, and what would then be kept. Both derived server-side so no email ever does date math.
       cancelOnDate:    formatDateLong(cancelOnDate, L),
       retainedDepositAmount: money(retainedDepositAmount),
@@ -452,14 +452,14 @@ function buildContext({ reservation, client, property, options = [], resources =
       // Online payment link — empty by default; the sender injects the real URL per-send via
       // `extraContext` (the link is created on demand, it is not a reservation column).
       paymentLink:     '',
-      // specs/payment-link-lifecycle.md rule 36 — the end of validity of that link, filled with it.
+      // specs/payments/payment-link-lifecycle.md rule 36 — the end of validity of that link, filled with it.
       paymentLinkValidUntil: '',
-      // specs/deposit-blocks-the-dates.md rule 11 — what THIS request asks the guest to pay: the
+      // specs/payments/deposit-blocks-the-dates.md rule 11 — what THIS request asks the guest to pay: the
       // acompte when there is one, the solde otherwise (a last-minute stay owes a single payment, tourist
       // tax included and arrival complement excluded — rule 18). The sender overrides it per-send with the
       // amount the payment link actually charges; this default keeps template previews meaningful.
       paymentAmount:   money(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.balanceAmount || 0)),
-      // specs/direct-installments.md rule 21 — the installment this request asks for, and the whole plan.
+      // specs/payments/direct-installments.md rule 21 — the installment this request asks for, and the whole plan.
       // Empty outside an installment request (the plan is read by the sender, never derived here).
       installmentNumber:   installment ? String(installment.number) : '',
       installmentCount:    installment ? String(installment.count) : '',
@@ -484,13 +484,13 @@ function buildContext({ reservation, client, property, options = [], resources =
       companyName:  safeStr(settings.companyName),
       companyPhone: safeStr(settings.companyPhone),
       companyEmail: safeStr(settings.companyEmail),
-      // Email sender display name — the resolved identity (specs/settings-rationalization.md rule 12):
+      // Email sender display name — the resolved identity (specs/settings/settings-rationalization.md rule 12):
       // the override, else the legal company name. Used for the email signature.
       senderName:   resolveEmailIdentity(settings).fromName,
-      // specs/terms-acceptance-record.md rule 26 — the online CGV pinned to the version the guest
+      // specs/reservations/terms-acceptance-record.md rule 26 — the online CGV pinned to the version the guest
       // accepted (else the current one). Empty when no version is published or no site is known.
       cgvUrl: buildCgvUrl(settings, termsVersion),
-      // Variables of plugin modules (specs/plugins-phase-1-sdk.md rule 10), e.g. the gate key's
+      // Variables of plugin modules (specs/plugins/plugins-phase-1-sdk.md rule 10), e.g. the gate key's
       // `gateAccessCode` / `gateAccessUrl`. Empty for an inactive plugin, so a stored template never
       // shows its data.
       ...((pluginContext && pluginContext.tokens) || {}),
@@ -498,7 +498,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     flags: {
       ...stayContent.flags,
       hasReservationNumber: safeStr(r.reservationNumber).trim().length > 0,
-      // specs/guest-email-texts-made-simple.md rule 8 — a sentence built on the phone is left out
+      // specs/emails/guest-email-texts-made-simple.md rule 8 — a sentence built on the phone is left out
       // while the phone is empty, never printed with a hole.
       hasCompanyPhone: safeStr(settings.companyPhone).trim().length > 0,
       hasCgvUrl: Boolean(buildCgvUrl(settings, termsVersion)),
@@ -518,7 +518,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       hasNordicBath,
       hasBabyBedNotice,
       hasPaymentLink: false, // overridden per-send via extraContext when a payment link is attached
-      hasPaymentLinkValidUntil: false, // with it, when the link's end is known (specs/payment-link-lifecycle.md rule 59)
+      hasPaymentLinkValidUntil: false, // with it, when the link's end is known (specs/payments/payment-link-lifecycle.md rule 59)
       ...((pluginContext && pluginContext.flags) || {}),
     },
   };

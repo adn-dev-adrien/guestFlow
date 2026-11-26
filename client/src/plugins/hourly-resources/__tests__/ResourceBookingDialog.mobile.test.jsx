@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 22 — review #8, m-6: « Planning ressources › Nouvelle réservation »
+// specs/design-system/ds-components.md rule 22 — review #8, m-6: « Planning ressources › Nouvelle réservation »
 // opened as a floating box on a phone instead of full screen, like every other dialog.
 import React from 'react';
 import { vi } from 'vitest';

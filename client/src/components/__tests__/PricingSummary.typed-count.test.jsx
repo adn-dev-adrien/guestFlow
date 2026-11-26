@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 29 — the summary's line label prints the figure the server
+// specs/options/non-card-option-served-persons.md rule 29 — the summary's line label prints the figure the server
 // sends: a typed line is no longer « · 1 matin », or silent, whatever was typed.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

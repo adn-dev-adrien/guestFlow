@@ -1,6 +1,6 @@
 /**
  * Shows the `{{token}}` of an email text as its French label, and turns the label back into the
- * token (specs/guest-email-texts-made-simple.md rule 10). Purely presentational: the labels come from
+ * token (specs/emails/guest-email-texts-made-simple.md rule 10). Purely presentational: the labels come from
  * the server, and the server alone validates the stored `{{token}}` text.
  *
  *   {{clientFirstName}}   ⇄  ⟦Prénom du voyageur⟧
@@ -61,7 +61,7 @@ export function chipSnippet(entry, kind, dict) {
 }
 
 /**
- * The server's suggested fix applied to a raw text (specs/guest-email-texts-made-simple.md rule 41):
+ * The server's suggested fix applied to a raw text (specs/emails/guest-email-texts-made-simple.md rule 41):
  * every `{{unknown}}` (spaces allowed inside the braces) becomes `{{name}}`.
  */
 export function replaceVariable(raw, unknown, name) {
@@ -70,7 +70,7 @@ export function replaceVariable(raw, unknown, name) {
 }
 
 /**
- * A server message as the field shows its text (specs/guest-email-texts-made-simple.md rule 27):
+ * A server message as the field shows its text (specs/emails/guest-email-texts-made-simple.md rule 27):
  * « Variable inconnue : {{Depuis le lo gement}} » reads « Variable inconnue : ⟦Depuis le lo gement⟧ »,
  * the brackets the operator sees, never the stored braces.
  */

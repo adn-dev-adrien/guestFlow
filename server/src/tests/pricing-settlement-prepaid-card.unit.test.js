@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 21, 31 (class E8) — a card-paid line (a settled note that names it) is netted out of the arrival
+// specs/pricing/pricing-components.md §3 rules 21, 31 (class E8) — a card-paid line (a settled note that names it) is netted out of the arrival
 // complement and the pre-arrival split even when the stay has no arrival baseline yet (the arrival day before the check-in hour,
 // rule 19): the money the guest already paid is not asked a second time, and the lines nobody paid are untouched.
 process.env.DB_PATH = ':memory:';

@@ -1,5 +1,5 @@
 /**
- * What one module line says (specs/plugin-operator-provisioning.md rule 14): never what the operator
+ * What one module line says (specs/plugins/plugin-operator-provisioning.md rule 14): never what the operator
  * hopes, always what the space reports. Pure.
  *
  *   facts           `instances.readFacts()` — null when the space cannot be read

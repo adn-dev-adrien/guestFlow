@@ -1,8 +1,8 @@
 /**
- * SystemSettingsPage — Paramètres → Système (specs/settings-rationalization.md rule 2).
+ * SystemSettingsPage — Paramètres → Système (specs/settings/settings-rationalization.md rule 2).
  *
  * The installed version and its updates, the translation catalogue — downloaded, filled in outside
- * GuestFlow and sent back (specs/translation-catalogue.md rule 20) — and the public URL of the
+ * GuestFlow and sent back (specs/site/translation-catalogue.md rule 20) — and the public URL of the
  * application, used in the emails, the Google return address and the Qonto notifications, so it
  * lives here rather than in the SMTP card (rule 16). It is typed, never guessed from a request host.
  */
@@ -46,7 +46,7 @@ export default function SystemSettingsPage() {
           </Stack>
         </CardContent>
       </Card>
-      {/* specs/plugins-phase-p-productisation.md rule 22 — the start assistant, reopened at will. */}
+      {/* specs/plugins/plugins-phase-p-productisation.md rule 22 — the start assistant, reopened at will. */}
       <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>

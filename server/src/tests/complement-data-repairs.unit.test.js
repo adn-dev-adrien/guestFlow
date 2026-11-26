@@ -1,5 +1,5 @@
 /**
- * specs/sas-bath-linen-ghost-line.md + specs/frozen-complement-trusts-client.md — the two pure
+ * specs/linen/sas-bath-linen-ghost-line.md + specs/sas/frozen-complement-trusts-client.md — the two pure
  * helpers behind the boot repairs, and the repairs themselves against a real SQLite schema.
  */
 

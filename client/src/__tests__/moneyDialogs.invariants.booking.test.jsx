@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: an hourly booking
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: an hourly booking
 // (`ResourceBookingDialog`: its price, the invoice question of the payment typed, the save). The driver and the invariants are in
 // `moneyDialogsHarness.jsx`.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 87 and specs/pricing-components.md rules 25, 26 (review defect D5, H2 — no test existed) — the free units a line consumed stay with it: removing an unpaid
+// specs/guest-app/guest-app.md rule 87 and specs/pricing/pricing-components.md rules 25, 26 (review defect D5, H2 — no test existed) — the free units a line consumed stay with it: removing an unpaid
 // order line gives them back for the NEXT sale and re-prices no other standing line.
 const fx = require('./guestOrderFixtures');
 

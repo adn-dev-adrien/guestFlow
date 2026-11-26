@@ -1,5 +1,5 @@
 /**
- * A custom line the arrival SAS writes keeps its count (specs/arrival-departure-sas.md rule 29,
+ * A custom line the arrival SAS writes keeps its count (specs/sas/arrival-departure-sas.md rule 29,
  * 2026-10-27 spec review). Before the `quantity` column, « Taie d'oreiller » × 2 at 3,30 € was one
  * row worth 6,60 € and every reader showed « ×1 ».
  *

@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 44 — a contributed tab that throws leaves the page up.
+// specs/plugins/plugins-phase-4-registry.md rule 44 — a contributed tab that throws leaves the page up.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

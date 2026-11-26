@@ -73,7 +73,7 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
         ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
         ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
-        // Option-driven planning cards (specs/option-planning-card.md §3.2): the per-reservation
+        // Option-driven planning cards (specs/options/option-planning-card.md §3.2): the per-reservation
         // occurrence grid is the user's source of truth (like inComplement) — preserve it across
         // recomputes. Dropping it would make the next recompute send no occurrences → the server
         // returns no line → the option vanishes (the bug this fixes). The richer working grid
@@ -81,7 +81,7 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         ...(prevLine && Array.isArray(prevLine.cardOccurrences)
           ? { cardOccurrences: prevLine.cardOccurrences }
           : (Array.isArray(line.cardOccurrences) ? { cardOccurrences: line.cardOccurrences } : {})),
-        // specs/non-card-option-served-persons.md rule 30 — the field shows what is billed: a numeric
+        // specs/options/non-card-option-served-persons.md rule 30 — the field shows what is billed: a numeric
         // echo wins (the engine may have clamped the count), a `null` echo (« follows the party ») must
         // not wipe a number the operator is in the middle of typing. A stale answer never gets here:
         // the page drops it by request id.
@@ -93,7 +93,7 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         ...(line.servedNights != null ? { servedNights: Number(line.servedNights) } : {}),
         ...(prevLine && prevLine.typedAtParty != null ? { typedAtParty: prevLine.typedAtParty } : {}),
         ...(prevLine && prevLine.typedAtNights != null ? { typedAtNights: prevLine.typedAtNights } : {}),
-        // specs/welcome-pack-auto-options.md §3.4 — same reason as `cardOccurrences`: the pack tag is
+        // specs/options/welcome-pack-auto-options.md §3.4 — same reason as `cardOccurrences`: the pack tag is
         // form-local (the engine knows nothing about it), so rebuilding the line from the quote would
         // erase it, and with it the form's ability to take back what it added on a platform change.
         ...(prevLine && prevLine[WELCOME_PACK_TAG] ? { [WELCOME_PACK_TAG]: true } : {}),
@@ -150,7 +150,7 @@ const typedCountIn = (line, column) => (line && line[column] != null ? Number(li
 const lineOf = (lines, optionId) => (lines || []).find((l) => Number(l.optionId) === Number(optionId));
 
 /**
- * The clean baseline of the unsaved-changes guard after a quote (specs/non-card-option-served-persons.md
+ * The clean baseline of the unsaved-changes guard after a quote (specs/options/non-card-option-served-persons.md
  * rule 30). A numeric echo enters it only when that quote asked for the count the baseline holds: the
  * engine then read the stored line, so a clamped count is no edit. A count the quote asked for and the
  * baseline does not hold was typed meanwhile, and it stays an edit.

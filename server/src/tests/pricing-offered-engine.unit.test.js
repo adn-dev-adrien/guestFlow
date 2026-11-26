@@ -159,7 +159,7 @@ test('re-offering a locked offered line keeps it at 0 with the real price recove
 // --- The production regression: an offered line was persisted with its unit price LOST (0). ---
 // Without a stored unit price, the old reconstruction gave up and the line stayed at 0 even after
 // un-offering. The engine must now fall back to the current catalog price. See
-// specs/pricing-engine-thin-client.md §14.
+// specs/pricing/pricing-engine-thin-client.md §14.
 
 test('un-offering a locked offered line whose stored unitPrice was lost (0) restores the catalog price — the production bug', () => {
   const db = createDb();

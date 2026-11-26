@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 2 and 43 — TIMED OPTIONS (early check-in, late check-out): the unit's own tests.
+// specs/pricing/pricing-components.md §3 rules 2 and 43 — TIMED OPTIONS (early check-in, late check-out): the unit's own tests.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { timeToDecimalHour, computeAutoTimedOptionContext, getLateCheckoutNextNightReferencePrice } = require('../utils/pricing/timedOptions');
@@ -90,7 +90,7 @@ test('computeAutoTimedOptionContext returns null when the option is off or the t
   assert.equal(computeAutoTimedOptionContext({ option, checkInTime: '15:00', defaultCheckIn: '15:00' }), null);
 });
 
-// specs/pricing-components.md §3 rule 44 and the left-open item of verify-pr-a (Q-B19): the resolver reads `H:MM[:SS]`, so
+// specs/pricing/pricing-components.md §3 rule 44 and the left-open item of verify-pr-a (Q-B19): the resolver reads `H:MM[:SS]`, so
 // the timed options do too; prod holds no such time (0 rows), so no stored price moves.
 test('timeToDecimalHour reads H:MM and HH:MM:SS like the stay clock resolver', () => {
   assert.equal(timeToDecimalHour('09:00:00', 15), 9);

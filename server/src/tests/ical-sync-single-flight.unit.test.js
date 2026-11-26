@@ -1,4 +1,4 @@
-// specs/ical-sync-mapping-resilience.md rule 7 (audit R4-2) — one sync per source at a time. Two overlapping
+// specs/platforms/ical-sync-mapping-resilience.md rule 7 (audit R4-2) — one sync per source at a time. Two overlapping
 // syncs of the same source (the 5-minute pass, « Synchroniser », « Synchroniser tout ») are one observation
 // of the platform: a single degenerate empty answer must not be counted twice and wipe the mappings.
 const test = require('node:test');

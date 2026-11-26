@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t22 UI22-1), specs/outside-booking-sas.md rule 54 (reading 2026-11-18,
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t22 UI22-1), specs/sas/outside-booking-sas.md rule 54 (reading 2026-11-18,
 // loop t22) — when a server answer (or « Réessayer », or the operator's own action that the answer completes) removes, disables or hides
 // the control holding the focus, the focus stays in the sale dialog, never on the document body. Every file that draws a FocusKeeper is
 // enumerated from the code and needs at least one row here: a row focuses the control the answer takes away, lets the answer come, and

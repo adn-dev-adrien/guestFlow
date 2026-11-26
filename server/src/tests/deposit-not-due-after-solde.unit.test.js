@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 47 (spec review 2026-10-27) — booked 31 to 36 days
+// specs/payments/payment-schedule-and-cancellation.md rule 47 (spec review 2026-10-27) — booked 31 to 36 days
 // out, `booking + 7` fell after `arrival − 30`: the acompte was owed after the solde. It is now due no
 // later than the solde; a date already stored keeps its promise (rule 4).
 process.env.DB_PATH = ':memory:';

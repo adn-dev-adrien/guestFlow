@@ -1,9 +1,9 @@
-// specs/pricing-components.md §3 rules 63, 64 and 65 — the accounting output is a MOVE: every month of the golden database
+// specs/pricing/pricing-components.md §3 rules 63, 64 and 65 — the accounting output is a MOVE: every month of the golden database
 // leaves the same CSV bytes (latin-1, as the route writes them), the same sales JSON and the same synthesis (month windows and
 // whole years) as before the entry builders became `AccountingOutput` and the writers became exporters. The expected hashes
 // were captured on the code before the move; `ACCOUNTING_OUTPUT_UPDATE=1` rewrites them, which is only ever legitimate on
 // code that is known to answer as before.
-// Re-captured on 2026-11-17 when #1067 (the Mollie journal, specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) was
+// Re-captured on 2026-11-17 when #1067 (the Mollie journal, specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) was
 // merged: the 48 `sales/*` bodies gain `mollie: null` (no Mollie provider on the golden database), every other key unchanged, and
 // each sales body minus that key hashes to the previous capture (checked one by one).
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 29, 31, 37, 38 — a space on a release before the reconciler is
+// specs/plugins/plugin-operator-provisioning.md rules 29, 31, 37, 38 — a space on a release before the reconciler is
 // never seeded (the licence's choice would be taken for nothing); the console refuses an erase that
 // an installed plugin would stop (the line says so and offers the way out), shows the space's refusal
 // on the line, and stamps each licence after the one before it.

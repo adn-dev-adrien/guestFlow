@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 41, 42 and specs/control-plane-plans-and-access.md rule 46 —
+// specs/hosting/hosting-h1-fleet-runtime.md rules 41, 42 and specs/hosting/control-plane-plans-and-access.md rule 46 —
 // the fresh export of a late « Réessayer » never outlives the erasure, and its failure never marks the
 // finished closing as interrupted (audit R10 N1, N2).
 

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 66, 80 — PR C leaves no copy of a formula waiting for a later PR: every allow-list of the static guards is empty. (An entry would be allowed only if its
+// specs/pricing/pricing-components.md §3 rules 66, 80 — PR C leaves no copy of a formula waiting for a later PR: every allow-list of the static guards is empty. (An entry would be allowed only if its
 // reason says it was kept by the owner's decision, « kept (Q-C5) »; there is none.) The guards themselves are `no-duplicate-formulas`.
 const test = require('node:test');
 const assert = require('node:assert/strict');

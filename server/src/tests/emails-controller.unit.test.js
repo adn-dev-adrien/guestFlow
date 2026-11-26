@@ -1,6 +1,6 @@
 // Emails controller — preview / send / pending / acknowledge / history. Mocks the SMTP
 // transport entirely so a unit test can prove the routing without touching nodemailer.
-// See specs/email-automation.md §4.1 + §4.3.
+// See specs/emails/email-automation.md §4.1 + §4.3.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -127,7 +127,7 @@ test('preview: deposit_reminder injects the open deposit link as {{paymentLink}}
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
-  // specs/payment-link-lifecycle.md rule 26 — re-offered only while the send would reuse it: 24 h left at least.
+  // specs/payments/payment-link-lifecycle.md rule 26 — re-offered only while the send would reuse it: 24 h left at least.
   const expiresAt = new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString();
   const paymentLinksModel = { findOpenForStay: (id, type) => (id === 300 && type === 'deposit' ? { url: 'https://pay.qonto/pl_X', expiresAt } : null) };
   registry.reset();
@@ -247,7 +247,7 @@ test('send: client with no email + operator-typed override.to → sends to it AN
   assert.equal(db.prepare('SELECT email FROM clients WHERE id = 1').get().email, 'typed@guest.fr');
 });
 
-test('send: a typed recipient with a non-ASCII letter is saved in lower case (specs/clients.md rule 12)', async () => {
+test('send: a typed recipient with a non-ASCII letter is saved in lower case (specs/clients/clients.md rule 12)', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService({ sendImpl: async () => {} }) });
@@ -338,7 +338,7 @@ test('pending: routes through logModel.listPending', () => {
 });
 
 test('pending: an « auto » template stays the 08:00 pass\'s business, never proposed', () => {
-  // specs/settings-rationalization.md rule 17b — the template's own mode is the only switch.
+  // specs/settings/settings-rationalization.md rule 17b — the template's own mode is the only switch.
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Auto J-7', 'S', 'B', -7, 'auto', 1)").run();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });

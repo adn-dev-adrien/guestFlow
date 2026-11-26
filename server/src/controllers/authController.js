@@ -5,12 +5,12 @@
  * bound to the production usersModel. Sessions store only the safe user object (no hash).
  *
  * The second step, the forgotten password and the support sign-in link
- * (specs/hosting-h2-account-security.md) are HTTP glue here over their own controllers
+ * (specs/hosting/hosting-h2-account-security.md) are HTTP glue here over their own controllers
  * (twoFactorController, passwordResetController, supportAccessController), injected so the tests of
  * the plain login keep a fake users model.
  *
  * `login` and `me` also carry `enabledPlugins`, the ids of the active plugins: the client hides every
- * entry point of the others (specs/plugins-phase-0-foundation.md rule 14). It is not stored in the
+ * entry point of the others (specs/plugins/plugins-phase-0-foundation.md rule 14). It is not stored in the
  * session, so a plugin switched on or off shows at the next `/me`.
  */
 
@@ -40,15 +40,15 @@ function createAuthController(users, {
   cookieOptions = {},
   now = () => new Date(),
 } = {}) {
-  // `onboardingOpen` sends an admin to the start assistant (specs/plugins-phase-p-productisation.md
+  // `onboardingOpen` sends an admin to the start assistant (specs/plugins/plugins-phase-p-productisation.md
   // rule 20); the other roles never see it.
   const withPlugins = (user, session = {}) => ({
     ...user,
     enabledPlugins: activePlugins(),
-    // specs/plugin-operator-provisioning.md rule 3: the Plugins page exists where the administrator manages them.
+    // specs/plugins/plugin-operator-provisioning.md rule 3: the Plugins page exists where the administrator manages them.
     pluginsManageable: userHasRole(user, ADMIN) && pluginsManageable(),
     onboardingOpen: userHasRole(user, ADMIN) && !user.isSupport && onboardingOpen(),
-    // specs/hosting-h2-account-security.md rule 17: the support page exists on a managed instance only.
+    // specs/hosting/hosting-h2-account-security.md rule 17: the support page exists on a managed instance only.
     supportAccessEnabled: Boolean(supportAccess && supportAccess.enabled()) && userHasRole(user, ADMIN),
     // Rule 16: the red bar of a support session.
     supportSession: user.isSupport && session.supportExpiresAt ? { expiresAt: session.supportExpiresAt } : null,
@@ -64,7 +64,7 @@ function createAuthController(users, {
 
   function finishLogin(req, res, user, extra = {}) {
     // Track the last login so the admin can see who's been actively using their account and so the
-    // hard-delete guard knows whether a user has ever connected (specs/admin-account-management.md).
+    // hard-delete guard knows whether a user has ever connected (specs/hosting/admin-account-management.md).
     if (typeof users.touchLastLogin === 'function') users.touchLastLogin(user.id);
     req.session.user = user;
     delete req.session.pendingTwoFactor;
@@ -234,7 +234,7 @@ function createAuthController(users, {
     const sessionUser = req.session && req.session.user;
     if (!sessionUser) return res.status(401).json({ error: 'UNAUTHENTICATED' });
     const { currentPassword, newPassword } = req.body || {};
-    // specs/hosting-h2-account-security.md rule 68 — only a string is a new password; a current password that is
+    // specs/hosting/hosting-h2-account-security.md rule 68 — only a string is a new password; a current password that is
     // not one is a wrong one, counted by the guard below.
     if (currentPassword === undefined || currentPassword === null || currentPassword === '' || typeof newPassword !== 'string' || !newPassword) {
       return res.status(400).json({ error: 'MISSING_FIELDS' });
@@ -260,7 +260,7 @@ function createAuthController(users, {
 
     if (wasMustChange) {
       // First-login change: invalidate the session so the user has to log in again with the password
-      // they just set (specs/admin-account-management.md §3.3 rule 15). The client redirects to
+      // they just set (specs/hosting/admin-account-management.md §3.3 rule 15). The client redirects to
       // /login?reason=password-changed.
       if (req.session && typeof req.session.destroy === 'function') {
         return req.session.destroy(() => res.status(204).end());
@@ -307,8 +307,8 @@ const defaultController = createAuthController(defaultUsersModel, {
   supportAccess: services.supportAccess,
   passwordGuard: services.passwordGuard,
   cookieOptions: services.trustCookieOptions,
-  // The registry's answer: a plugin outside the licence (specs/control-plane-plans-and-access.md
-  // rule 12) or one that failed to start (specs/plugins-phase-1-sdk.md rule 4) reads as off everywhere.
+  // The registry's answer: a plugin outside the licence (specs/hosting/control-plane-plans-and-access.md
+  // rule 12) or one that failed to start (specs/plugins/plugins-phase-1-sdk.md rule 4) reads as off everywhere.
   activePlugins: () => {
     const registry = require('../plugins/sdk/registry');
     return require('../models/pluginsModel').listActiveIds().filter((id) => registry.isLive(id));

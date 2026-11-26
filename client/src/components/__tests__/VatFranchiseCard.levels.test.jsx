@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 39-41, §6.7 — the « Seuil de franchise » card renders the server's
+// specs/accounting/vat-optional-mode.md rules 39-41, §6.7 — the « Seuil de franchise » card renders the server's
 // payload: one badge and one sentence per level, last year beside it, an invitation when no threshold is
 // set, the way back to VAT when it is crossed, and nothing outside the franchise.
 import React from 'react';

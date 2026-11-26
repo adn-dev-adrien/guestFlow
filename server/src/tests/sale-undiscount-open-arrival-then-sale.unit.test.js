@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 d (stabilisation loop t4, S4-1, 2026-11-16) — at the open arrival, a discount set then removed leaves the
+// specs/pricing/pricing-components.md §3 rule 103 d (stabilisation loop t4, S4-1, 2026-11-16) — at the open arrival, a discount set then removed leaves the
 // arrival baseline at the line's whole worth (`fitArrivalBaseline`, D4-1): ticked and followed by a sale, the departure takes only that sale. Before:
 // the baseline stayed at the discounted net, the departure billed the given-back 10 € a second time (Σ buckets + 10 €).
 process.env.DB_PATH = ':memory:';

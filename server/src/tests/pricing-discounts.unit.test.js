@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 16 and 40 — DISCOUNTS alone: the target `nights` is today's euro formula bit for
+// specs/pricing/pricing-components.md §3 rules 16 and 40 — DISCOUNTS alone: the target `nights` is today's euro formula bit for
 // bit (percent or manual price), the targets `extras` and `all` and a fixed amount are PR B's (`pricing-discount-allocation`), an
 // unknown target throws, and the unit equals the
 // engine's accommodation on every stay of the price gate's fixture (skipped without the fixture).

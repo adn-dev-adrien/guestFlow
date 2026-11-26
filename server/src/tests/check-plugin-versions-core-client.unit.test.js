@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 28, reading of 2026-11-10 (audit R36-CON-L1) — a core client file a plugin's
+// specs/plugins/plugins-phase-4-registry.md rule 28, reading of 2026-11-10 (audit R36-CON-L1) — a core client file a plugin's
 // web app builds in (the studio's `@guestflow/…` imports and what they import) counts as a change of that plugin: its
 // package carries the build, so a core change reaching it under an unchanged version was only seen by the release's
 // `package` job, after the tag. The PR gate now asks for the bump; the release skill's pre-flight builds the apps first.

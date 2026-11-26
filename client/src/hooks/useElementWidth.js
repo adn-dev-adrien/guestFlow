@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 /**
  * useElementWidth — the measured width of an element, kept current by a ResizeObserver
- * (specs/report-grammar.md rule 35: a chart thins its labels from the room it really has, not from the
+ * (specs/design-system/report-grammar.md rule 35: a chart thins its labels from the room it really has, not from the
  * window's breakpoint). Returns a callback ref and the width: `null` until measured, or where
  * ResizeObserver does not exist (tests). The element may mount later (an empty chart that fills).
  *

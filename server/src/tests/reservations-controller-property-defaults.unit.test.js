@@ -2,7 +2,7 @@ const test = require('node:test');
 const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
-// Non-regression coverage for specs/devis-pdf-and-tourist-tax-fixes.md §3.3 rule 13:
+// Non-regression coverage for specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.3 rule 13:
 // `reservationsController.create` enforces property option defaults on the server side
 // so a UI bug, a raw API caller, or any future client surface cannot skip them.
 //
@@ -76,7 +76,7 @@ function buildController(defaults, captures, carriedOptionIds = []) {
       if (k === 'getBabyBedAvailability') return () => ({ availableBabyBeds: 99 });
       if (k === 'validateAvailability') return () => null;
       if (k === 'insertReservation') return (...args) => { captures.insertedReservation = args; return 1; };
-      // specs/tourist-tax-included-services-deduction.md rule 5 — what the stored reservation carries.
+      // specs/tourist-tax/tourist-tax-included-services-deduction.md rule 5 — what the stored reservation carries.
       if (k === 'listCarriedOptionIds') return () => carriedOptionIds;
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [], lockedTariff: null });
       if (k === 'replaceOptions') return () => null;
@@ -92,7 +92,7 @@ function buildController(defaults, captures, carriedOptionIds = []) {
     } }),
     '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': propertyOptionDefaultsModel,
-    // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
+    // The creation is one transaction (specs/reservations/reservation-number-and-search.md rule 13): run it inline.
     '../database': { prepare: () => ({ run: () => null, get: () => null, all: () => [] }), transaction: (fn) => fn },
   }, () => {
     delete require.cache[require.resolve(controllerModule)];
@@ -172,9 +172,9 @@ test('create propagates the offered=true default into offeredOptionIds (rule 11)
 
 
 // ── update: a service included in the rate cannot be dropped ────────────────────────────
-// specs/tourist-tax-included-services-deduction.md rules 4-5. The fiche locks the Switch ON; the
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rules 4-5. The fiche locks the Switch ON; the
 // server makes it a guarantee, so the declared tourist-tax base never depends on a keystroke.
-// Bounded by what the reservation ALREADY carries — specs/reservation-option-immutability.md rule 3.
+// Bounded by what the reservation ALREADY carries — specs/reservations/reservation-option-immutability.md rule 3.
 
 function updateReq(body) {
   return { params: { id: 1 }, body: { propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`, adults: 2, children: 0, teens: 0, babies: 0, checkInTime: '15:00', checkOutTime: '10:00', ...body } };
@@ -209,7 +209,7 @@ test('update leaves a BILLED default removable — only an included service is l
 });
 
 // ── the live preview quotes the same party as the save ──────────────────────────────────
-// specs/tourist-tax-included-services-deduction.md rule 16. A baby pays nothing but occupies the
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rule 16. A baby pays nothing but occupies the
 // lodging, and the tourist tax divides the night by the OCCUPANTS. `create`/`update` have always
 // forwarded `babies`; `calculatePrice` did not, so a stay with a cot showed one tax on the fiche and
 // stored another (Lodge #22275: 16,38 € on screen, 13,05 € declared).

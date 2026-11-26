@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 34 (R35-DB-M1, R35-DB-M2) — a resource booking sold outside a
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 34 (R35-DB-M1, R35-DB-M2) — a resource booking sold outside a
 // stay (plugin `hourly-resources`) whose payment is recorded, or that Qonto invoiced, is a sale of the journal: no delete
 // of its resource (cascade), its client or its property (SET NULL) takes it, forced or not; a client booked on a
 // resource is never an orphan of the cleanup.

@@ -1,4 +1,4 @@
-// Shared fixture of the rollback-queue suites (specs/self-update-and-releases.md rules 33, 43): what the manual queue
+// Shared fixture of the rollback-queue suites (specs/hosting/self-update-and-releases.md rules 33, 43): what the manual queue
 // of the rollback floor (v3.18.0 and v3.19.0, identical here) reads in `email_templates`. Copied from
 // `git show v3.19.0:server/src/models/emailLogModel.js` (`listPending`) and its registry's
 // `EVENT_TRIGGERED_STABLE_KEYS` and `DEFAULT_TEMPLATES`; a later floor that changes them must update this file.

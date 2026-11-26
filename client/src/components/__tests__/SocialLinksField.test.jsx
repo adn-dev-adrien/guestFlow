@@ -1,5 +1,5 @@
 // Review amendments: rule 50 — focus after « Retirer », named buttons, list error colour.
-// specs/settings-input-guards.md rules 35, 37, 38 — the ordered social links of the e-mail settings.
+// specs/settings/settings-input-guards.md rules 35, 37, 38 — the ordered social links of the e-mail settings.
 import React, { useState } from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rule 17 — the logement calendar on a phone is a day agenda: one row per day
+// specs/planning/calendar-property-parity.md rule 17 — the logement calendar on a phone is a day agenda: one row per day
 // with the day's content, today marked, « + Nouvelle réservation » on a free future day, a 44 px note button.
 import React from 'react';
 import { vi } from 'vitest';

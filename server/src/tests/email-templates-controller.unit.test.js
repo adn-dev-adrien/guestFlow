@@ -1,5 +1,5 @@
 // Email templates controller: validates payloads + surfaces 400 / 404.
-// See specs/email-automation.md §4.1.
+// See specs/emails/email-automation.md §4.1.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -134,7 +134,7 @@ test('GET: 404 on unknown id', () => {
   assert.equal(r.statusCode, 404);
 });
 
-// ---- automatic sending per template (specs/settings-rationalization.md rule 17b) ----
+// ---- automatic sending per template (specs/settings/settings-rationalization.md rule 17b) ----
 // No « Auto désactivé » flag any more: a template's mode is the only switch. Every write re-aligns the
 // 08:00 scheduler, and the first SEQUENCE template switched to « auto » fixes the sequence start date.
 

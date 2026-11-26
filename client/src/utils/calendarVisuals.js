@@ -54,7 +54,7 @@ export const closureHatch = (theme) => {
 };
 
 // A stay that is over: a 14 % tint of its platform colour, a 3 px stripe of it, ink text
-// (specs/calendar-property-parity.md rule 8).
+// (specs/planning/calendar-property-parity.md rule 8).
 export const barTint = (color) => alpha(color, 0.14);
 
 export function getBlockedNightInfo(dateStr, reservations) {

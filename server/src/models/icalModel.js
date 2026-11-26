@@ -3,10 +3,10 @@
 // (kind='devis') must never appear in the public feed, or external platforms would treat a tentative
 // quote as booked and block real reservations.
 //
-// It carries no guest data (specs/ical-export-guest-privacy.md): every platform subscribed to the feed
+// It carries no guest data (specs/platforms/ical-export-guest-privacy.md): every platform subscribed to the feed
 // reads it, so a guest's name or e-mail in it would hand one platform's guests to its competitors.
 //
-// It also advertises the establishment closures that apply to the property (specs/ical-export-closures.md).
+// It also advertises the establishment closures that apply to the property (specs/platforms/ical-export-closures.md).
 // Without them a platform happily sells a period the operator declared closed, and the sync guard added
 // in 2026-06 can only drop the incoming booking — the guest keeps a confirmation for a stay that leaves
 // no trace at all in GuestFlow. Exporting the closure prevents the sale instead.
@@ -19,7 +19,7 @@ const icalExportRangesModel = require('./icalExportRangesModel');
 const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 
 const DEFAULT_CLOSURE_LABEL = 'Fermeture établissement';
-// specs/ical-export-guest-privacy.md rule 1 — the same word for every stay, whoever the guest is.
+// specs/platforms/ical-export-guest-privacy.md rule 1 — the same word for every stay, whoever the guest is.
 const RESERVATION_SUMMARY = 'Réservé';
 const CLOSURE_DESCRIPTION = 'Période de fermeture — aucune réservation possible.';
 
@@ -71,7 +71,7 @@ function closureSummary(label) {
 // inclusive, end exclusive — so both columns go in untouched: a closure 2026-11-01 → 2027-03-01 blocks
 // the nights of 1 Nov through 28 Feb and leaves 1 March bookable.
 //
-// RFC 5545 (2026-10-27 spec review, specs/ical-export-closures.md rule 11): the two dates are all-day
+// RFC 5545 (2026-10-27 spec review, specs/platforms/ical-export-closures.md rule 11): the two dates are all-day
 // values, so they say `;VALUE=DATE` — the dates a platform reads are unchanged — and DTSTAMP is the UTC
 // date-time the feed was generated (§3.8.7.2 types it DATE-TIME; a date alone is invalid there).
 function formatIcalStamp(date) {
@@ -86,7 +86,7 @@ function eventDateLines(startDate, endDate, now = new Date()) {
   ];
 }
 
-// specs/ical-export-guest-privacy.md rules 1-3 — what a platform learns of a stay: its dates, nothing
+// specs/platforms/ical-export-guest-privacy.md rules 1-3 — what a platform learns of a stay: its dates, nothing
 // else. The UID keeps its namespace so a platform updates the same block across fetches.
 function reservationEventLines(reservation) {
   return [
@@ -185,7 +185,7 @@ function createIcalModel(database) {
         .forEach((closure) => lines.push(...closureEventLines(closure)));
 
       lines.push('END:VCALENDAR');
-      // specs/lodgify-decommission.md §3 rule 7 — remember what was just served, so a stay that later
+      // specs/platforms/lodgify-decommission.md §3 rule 7 — remember what was just served, so a stay that later
       // leaves the feed leaves a tombstone for the Booking echo filter. Never allowed to break the feed.
       try {
         icalExportRangesModel.create(database).refresh(propertyId);

@@ -1,5 +1,5 @@
 /**
- * Switching the VAT regime (specs/vat-optional-mode.md rules 14-19, 24-28): the preview of a switch, the
+ * Switching the VAT regime (specs/accounting/vat-optional-mode.md rules 14-19, 24-28): the preview of a switch, the
  * switch itself, and the undo of an unused or not-yet-started one. A switch is one transaction that
  * inserts a period, moves the reservations its scope names, and re-prices the stays whose proportional
  * tourist tax the regime moves with a TARGETED write (rule 27): the engine's figures under the old and
@@ -64,7 +64,7 @@ function monthsOfPayments(db, ids) {
     db.prepare(`SELECT paidDate FROM reservation_installments WHERE paid = 1 AND amountCents > 0 AND reservationId IN (${placeholders(ids)})`).all(...ids)
       .forEach((i) => dates.push(i.paidDate));
   }
-  // specs/mixed-method-payments.md rule 49 (audit R34-M-L1) — a split payment books each settlement in its own month (a reste
+  // specs/payments/mixed-method-payments.md rule 49 (audit R34-M-L1) — a split payment books each settlement in its own month (a reste
   // collected later included), for its lines on the books.
   if (tableExists(db, 'payment_settlements')) {
     db.prepare(`SELECT DISTINCT s.paidDate FROM payment_settlements s JOIN payment_tenders t ON t.settlementId = s.id AND t.internal = 0

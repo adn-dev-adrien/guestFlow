@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 43 and 66 — the dashboard card « Dates prises »: one row per stay told (or
+// specs/payments/payment-link-lifecycle.md rules 43 and 66 — the dashboard card « Dates prises »: one row per stay told (or
 // not) that its dates were taken, shaped by the server (client, logement, dates, the stay that took them, notice
 // sent or not and why), « Vu » acknowledges it; a stay over, gone or acknowledged leaves the card. Made-up stays.
 

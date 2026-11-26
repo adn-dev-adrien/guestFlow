@@ -1,5 +1,5 @@
 /**
- * Starts page chunks early (specs/inte-performance.md rule 10): the one the URL asks for at boot, in
+ * Starts page chunks early (specs/tech/inte-performance.md rule 10): the one the URL asks for at boot, in
  * parallel with `/auth/me`, and the main ones when the browser is idle after the first render.
  */
 import { matchPath } from 'react-router';

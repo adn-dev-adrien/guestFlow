@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 43 (UI/UX review 2026-10-18, proposal 13) — the plugin
+// specs/plugins/plugins-phase-p-productisation.md rule 43 (UI/UX review 2026-10-18, proposal 13) — the plugin
 // step asks three yes/no questions; the server maps each « oui » to its plugins, the plan decides
 // which may go, and a « non » never switches anything off.
 

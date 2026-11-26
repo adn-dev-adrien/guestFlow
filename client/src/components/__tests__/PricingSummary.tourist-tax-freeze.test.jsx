@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/tourist-tax-matches-the-office-calculation.md rules 12, 15 and 16 — what the fiche says about
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 12, 15 and 16 — what the fiche says about
 // a tourist tax it did not just compute.
 //
 // The bug this covers: a frozen stay showed its pinned AMOUNT above a caption recomputed under

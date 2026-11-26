@@ -1,5 +1,5 @@
 /**
- * specs/platform-tourist-tax-out-of-the-commission.md rules 4 + 21 — should the « Taxe de séjour
+ * specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rules 4 + 21 — should the « Taxe de séjour
  * retenue » box be seeded with the engine's figure?
  *
  * Pure decision, kept out of ReservationPage so it can be pinned on its own. It answers yes only for

@@ -14,7 +14,7 @@ import { localIsoToday } from '../../utils/isoDay';
 import { evaluateArithmetic } from '../../utils/arithmetic';
 
 /**
- * « Nouveau remboursement » — specs/reservation-refunds.md §6.
+ * « Nouveau remboursement » — specs/payments/reservation-refunds.md §6.
  *
  * An avoir: the operator ticks the billed prestations being given back (the server ships them, caps
  * included, in `refundableLines`), optionally adds a free line, and closes with a date + a means.
@@ -161,7 +161,7 @@ export default function RefundDialog({
   const unreadable = Object.values(selected).some((l) => !Number.isFinite(l.amount))
     || freeAmounts.some((v) => !Number.isFinite(v));
   // A free line with an amount but no label would be dropped by the server's own rule: refused here, never
-  // counted in a total that is not the one recorded (specs/reservation-refunds.md rule 41).
+  // counted in a total that is not the one recorded (specs/payments/reservation-refunds.md rule 41).
   const unlabeledFreeLine = (l, i) => Number.isFinite(freeAmounts[i]) && freeAmounts[i] > 0 && !String(l.label || '').trim();
   const missingLabel = freeLines.some(unlabeledFreeLine);
   let refusal = null;
@@ -171,7 +171,7 @@ export default function RefundDialog({
     const excess = round2(selected[overCapLine.key].amount - capOf(overCapLine));
     refusal = { tone: 'error', text: capOf(overCapLine) > 0 ? `${overCapLine.label} : dépasse le remboursable de ${formatCurrency(excess)}.` : `${overCapLine.label} : ${NOTHING_COLLECTED.toLowerCase()}` };
   } else if (overCollected && total > 0) {
-    // specs/reservation-refunds.md rule 50 (D10): the server refuses a book refund above what was collected; the caisse
+    // specs/payments/reservation-refunds.md rule 50 (D10): the server refuses a book refund above what was collected; the caisse
     // interne is off the books, so there it stays a warning.
     refusal = { tone: method === 'internal' ? 'warning' : 'error', text: `Dépasse l’encaissé de ${formatCurrency(round2(total - collectedTtc))}.` };
   }
@@ -262,7 +262,7 @@ export default function RefundDialog({
                           <Typography variant="caption" color="text.secondary">
                             Facturé {formatCurrency(line.billedTtc)}
                             {/* La taxe de séjour se rembourse À LA NUIT : le libellé annonce l'unité
-                                que le sélecteur manipule (specs/reservation-refunds.md §3.5). */}
+                                que le sélecteur manipule (specs/payments/reservation-refunds.md §3.5). */}
                             {line.unitLabel && line.quantity > 0 && line.unitPrice > 0
                               && ` · ${line.quantity} ${line.unitLabel}${line.quantity > 1 ? 's' : ''} à ${formatCurrency(line.unitPrice)}`}
                             {line.refundedTtc > 0 && ` · déjà remboursé ${formatCurrency(line.refundedTtc)}`}

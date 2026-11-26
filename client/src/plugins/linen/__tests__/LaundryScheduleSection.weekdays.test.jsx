@@ -1,4 +1,4 @@
-// specs/linen-laundry-days.md §3.4 rules 19-20 and 22 — the « Blanchisserie » card: day toggles, the
+// specs/linen/linen-laundry-days.md §3.4 rules 19-20 and 22 — the « Blanchisserie » card: day toggles, the
 // turnaround stepper, the refusals shown before Save, the server's cycle and its message.
 import React, { useState } from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
@@ -33,7 +33,7 @@ afterEach(() => vi.useRealTimers());
 
 const flushPreview = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(300); }); };
 
-test('specs/linen-laundry-days.md §3.4 rule 19: seven day toggles, Monday first, the schedule days pressed', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: seven day toggles, Monday first, the schedule days pressed', () => {
   render(<Harness initial={tuesdayThursday} />);
   const group = screen.getByRole('group', { name: 'Jours' });
   const buttons = Array.from(group.querySelectorAll('button'));
@@ -42,7 +42,7 @@ test('specs/linen-laundry-days.md §3.4 rule 19: seven day toggles, Monday first
   expect(screen.getByRole('button', { name: 'Mercredi' })).toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: ticking and unticking days edits the draft', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: ticking and unticking days edits the draft', () => {
   let latest;
   render(<Harness initial={tuesday} onValue={(v) => { latest = v; }} />);
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
@@ -53,7 +53,7 @@ test('specs/linen-laundry-days.md §3.4 rule 19: ticking and unticking days edit
   expect(latest.weekdays).toEqual([1, 4]);
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 20: unticking the last day keeps it ticked and says « Au moins un jour. »', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 20: unticking the last day keeps it ticked and says « Au moins un jour. »', () => {
   let latest;
   render(<Harness initial={tuesday} onValue={(v) => { latest = v; }} />);
   fireEvent.click(screen.getByRole('button', { name: 'Mardi' }));
@@ -65,7 +65,7 @@ test('specs/linen-laundry-days.md §3.4 rule 20: unticking the last day keeps it
   expect(screen.queryByText('Au moins un jour.')).not.toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 20: the stepper moves by one day, « − » stops at 1 and « + » at 14', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 20: the stepper moves by one day, « − » stops at 1 and « + » at 14', () => {
   let latest;
   render(<Harness initial={{ weekdays: [2], turnaroundText: '2' }} onValue={(v) => { latest = v; }} />);
   const minus = screen.getByRole('button', { name: 'Un jour de moins' });
@@ -83,7 +83,7 @@ test('specs/linen-laundry-days.md §3.4 rule 20: the stepper moves by one day, �
   expect(screen.getByText('jours')).toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 20: the arrow keys step the typed value', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 20: the arrow keys step the typed value', () => {
   let latest;
   render(<Harness initial={{ weekdays: [2], turnaroundText: '4' }} onValue={(v) => { latest = v; }} />);
   const input = screen.getByLabelText('Délai en jours');
@@ -94,7 +94,7 @@ test('specs/linen-laundry-days.md §3.4 rule 20: the arrow keys step the typed v
   expect(latest.turnaroundText).toBe('3');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 20: a typed value outside 1..14 or not an integer is flagged « Entre 1 et 14 jours. »', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 20: a typed value outside 1..14 or not an integer is flagged « Entre 1 et 14 jours. »', () => {
   render(<Harness initial={tuesday} />);
   const input = screen.getByLabelText('Délai en jours');
   for (const typed of ['0', '15', '2.5', 'abc', '', '-3']) {
@@ -107,14 +107,14 @@ test('specs/linen-laundry-days.md §3.4 rule 20: a typed value outside 1..14 or 
   expect(input).toHaveAttribute('aria-invalid', 'false');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 20: from an invalid typed value, « + » and « − » restart from the bounds', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 20: from an invalid typed value, « + » and « − » restart from the bounds', () => {
   let latest;
   render(<Harness initial={{ weekdays: [2], turnaroundText: 'abc' }} onValue={(v) => { latest = v; }} />);
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));
   expect(latest.turnaroundText).toBe('2');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 20: the server\'s message replaces the client\'s under the field it names', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 20: the server\'s message replaces the client\'s under the field it names', () => {
   const { rerender } = render(<LaundryScheduleSection value={{ weekdays: [2], turnaroundText: 'abc' }} onChange={() => {}} error={null} />);
   expect(screen.getByText('Entre 1 et 14 jours.')).toBeInTheDocument();
   rerender(<LaundryScheduleSection value={{ weekdays: [2], turnaroundText: 'abc' }} onChange={() => {}} error={{ field: 'turnaroundDays', message: 'Délai refusé par le serveur.' }} />);
@@ -124,7 +124,7 @@ test('specs/linen-laundry-days.md §3.4 rule 20: the server\'s message replaces 
   expect(screen.getByText('Jour invalide.')).toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: the cycle is the server\'s, one line per laundry day, refreshed after 250 ms', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: the cycle is the server\'s, one line per laundry day, refreshed after 250 ms', async () => {
   render(<Harness initial={tuesdayThursday} />);
   expect(api.previewLaundrySchedule).not.toHaveBeenCalled();
   await flushPreview();
@@ -136,7 +136,7 @@ test('specs/linen-laundry-days.md §3.4 rule 19: the cycle is the server\'s, one
   expect(cycle).toHaveTextContent('5 j');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: edits within the debounce window cost one preview; an invalid draft asks for none', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: edits within the debounce window cost one preview; an invalid draft asks for none', async () => {
   render(<Harness initial={tuesdayThursday} />);
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));
@@ -148,7 +148,7 @@ test('specs/linen-laundry-days.md §3.4 rule 19: edits within the debounce windo
   expect(api.previewLaundrySchedule).toHaveBeenCalledTimes(1);
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: a failed preview leaves the last good cycle', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: a failed preview leaves the last good cycle', async () => {
   render(<Harness initial={tuesdayThursday} />);
   await flushPreview();
   expect(screen.getByTestId('laundry-cycle')).toHaveTextContent('Mar. → jeu.');
@@ -158,17 +158,17 @@ test('specs/linen-laundry-days.md §3.4 rule 19: a failed preview leaves the las
   expect(screen.getByTestId('laundry-cycle')).toHaveTextContent('Mar. → jeu.');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 22: the caption built by the page shows under the fields', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 22: the caption built by the page shows under the fields', () => {
   render(<Harness initial={tuesdayThursday} caption="À partir de demain, mer. 29 oct." />);
   expect(screen.getByText('À partir de demain, mer. 29 oct.')).toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: the initial cycle shows before the first preview answers', () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: the initial cycle shows before the first preview answers', () => {
   render(<LaundryScheduleSection value={tuesdayThursday} onChange={() => {}} initialCycle={CYCLE} />);
   expect(screen.getByTestId('laundry-cycle')).toHaveTextContent('Jeu. → mar.');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: the cycle is not left dimmed once the value is invalid and no preview is pending', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: the cycle is not left dimmed once the value is invalid and no preview is pending', async () => {
   render(<Harness initial={tuesdayThursday} />);
   await flushPreview();
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));   // a preview is now in flight: dimmed

@@ -1,5 +1,5 @@
 /**
- * Keeps a `node --test` process away from the checkout's own state (specs/server-test-isolation.md
+ * Keeps a `node --test` process away from the checkout's own state (specs/tech/server-test-isolation.md
  * rules 1 and 4). Under the test runner (`NODE_TEST_CONTEXT` is set in every test child, with or
  * without the `npm test` preload), a process that names no database, secrets file or uploads folder
  * gets private ones in a throw-away temp directory, removed when the process exits.

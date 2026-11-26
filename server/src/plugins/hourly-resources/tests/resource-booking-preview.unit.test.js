@@ -1,4 +1,4 @@
-// specs/resource-supplements-total-server-side.md rules 1-7, 15 — the price of a booking draft is one
+// specs/resources/resource-supplements-total-server-side.md rules 1-7, 15 — the price of a booking draft is one
 // function, shared by the preview and the commit; the preview refuses what the commit refuses and
 // writes nothing; the displayed total is compared, never enforced.
 // « Bain fictif »: open 10:00-22:00, slot 30 min, minimum 60 min, guest 25 / 35 €/h from 19:00,

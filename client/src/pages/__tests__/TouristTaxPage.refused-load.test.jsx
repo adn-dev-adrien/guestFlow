@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rule 32 (review R1-04) — a first read the server refuses never dead-ends: its
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rule 32 (review R1-04) — a first read the server refuses never dead-ends: its
 // reason shows, and the page opens the default month with its pickers.
 import { vi } from 'vitest';
 import { screen, waitFor, fireEvent } from '@testing-library/react';

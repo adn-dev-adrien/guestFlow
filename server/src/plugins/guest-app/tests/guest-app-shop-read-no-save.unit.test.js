@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 24, 27 and specs/pricing-components.md rule 10 (review defect D9, L20) — reading the shop is reading: `GET /shop`, the slots and the delivery times run no save
+// specs/guest-app/guest-app.md rules 24, 27 and specs/pricing/pricing-components.md rule 10 (review defect D9, L20) — reading the shop is reading: `GET /shop`, the slots and the delivery times run no save
 // of the stay (no history entry, no bucket rewritten); only the quote plays one, in a transaction that is rolled back.
 const fx = require('./guestOrderFixtures');
 

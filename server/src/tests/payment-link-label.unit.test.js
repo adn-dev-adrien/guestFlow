@@ -1,4 +1,4 @@
-// Enriched Qonto payment-link stay label (specs/qonto-payment-link-reference.md).
+// Enriched Qonto payment-link stay label (specs/payments/qonto-payment-link-reference.md).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { buildStayLineLabel, guestName, truncate, frDate, nightsBetween } = require('../utils/paymentLinkLabel');

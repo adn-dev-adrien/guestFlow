@@ -1,6 +1,6 @@
 /**
  * BreakfastPrepDialog — « what to prepare » popup for a planning breakfast card
- * (specs/planning-breakfast-prep-popup.md).
+ * (specs/planning/planning-breakfast-prep-popup.md).
  *
  * Renders ONLY the non-zero items of the breakfast composition, each with the same
  * pictogram as the check-in SAS, plus the serving time (amber pill) and the note.

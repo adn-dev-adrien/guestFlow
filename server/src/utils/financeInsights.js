@@ -1,4 +1,4 @@
-// « Faits marquants » of the Suivi financier (specs/finance-dashboard-redesign.md §3.3 rule 11).
+// « Faits marquants » of the Suivi financier (specs/accounting/finance-dashboard-redesign.md §3.3 rule 11).
 // Pure: the figures come from the dashboard model, this file only turns them into French lines.
 
 const { MONTH_NAMES } = require('./financeWindow');

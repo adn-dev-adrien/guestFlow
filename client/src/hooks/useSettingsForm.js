@@ -1,7 +1,7 @@
 /**
  * useSettingsForm — load / edit / save a subset of `GET|PUT /api/settings`.
  *
- * Each settings page owns a few groups of the settings payload (specs/settings-rationalization.md
+ * Each settings page owns a few groups of the settings payload (specs/settings/settings-rationalization.md
  * rule 4: one Save per page, touching only its own fields). This hook holds the draft of those
  * groups, sends only the fields that changed, and wires the shared dirty-form guard.
  *

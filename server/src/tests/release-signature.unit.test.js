@@ -11,7 +11,7 @@ const { stageRelease, sha256File } = require('../utils/updateStaging');
 const { normaliseRelease } = require('../utils/releaseClient');
 const { resolvePaths } = require('../utils/deploymentPaths');
 
-// specs/self-update-and-releases.md rule 41: SHA256SUMS.sig, enforced only when a public key is configured.
+// specs/hosting/self-update-and-releases.md rule 41: SHA256SUMS.sig, enforced only when a public key is configured.
 
 const pair = crypto.generateKeyPairSync('ed25519');
 const publicKey = pair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');

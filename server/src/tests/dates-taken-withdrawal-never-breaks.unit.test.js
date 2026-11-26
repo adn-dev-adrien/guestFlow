@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 32 (review of #907, M1) — withdrawing the links of a stay whose nights were
+// specs/payments/payment-link-lifecycle.md rule 32 (review of #907, M1) — withdrawing the links of a stay whose nights were
 // taken is a side concern: a throw there never rolls back the iCal import (the over-booking record GuestFlow exists
 // to keep) nor turns a successful creation or save into a 500. It is logged and left to the lifecycle pass (rule 16).
 // Re-review of #907 (N1): an error that made SQLite abort the caller's whole transaction (disk full, I/O) is not

@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rule 20 — `progress` draws a thin bar glued under the page bar.
+// specs/planning/dashboard-planning-scroll.md rule 20 — `progress` draws a thin bar glued under the page bar.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

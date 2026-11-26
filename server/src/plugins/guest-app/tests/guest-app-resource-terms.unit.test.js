@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 37-38 — the terms of the `resource` activity in the guest app: a cart holding the bath owes them once
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 37-38 — the terms of the `resource` activity in the guest app: a cart holding the bath owes them once
 // per published version and per stay; nothing is asked while nothing is published; the acceptance lands on the stay with the channel
 // « guest-app » and in its history; an outdated version is refused.
 const fx = require('./guestOrderFixtures');

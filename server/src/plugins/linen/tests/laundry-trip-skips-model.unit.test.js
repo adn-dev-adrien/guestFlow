@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const laundryTripSkipsModel = require('../skipsModel');
 
-// specs/skip-laundry-trip.md §7.1 — pure DB-access coverage for the skips model.
+// specs/linen/skip-laundry-trip.md §7.1 — pure DB-access coverage for the skips model.
 
 const DDL = `
   CREATE TABLE IF NOT EXISTS laundry_trip_skips (

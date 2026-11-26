@@ -1,4 +1,4 @@
-// Payment poll runner (specs/online-payments-qonto.md §3.3/§3.4): a PAID deposit link on a devis
+// Payment poll runner (specs/payments/online-payments-qonto.md §3.3/§3.4): a PAID deposit link on a devis
 // converts it to a reservation and flags the deposit paid; idempotent; expired links are recorded.
 
 const test = require('node:test');
@@ -25,7 +25,7 @@ function seed() {
   return { db, devisId: Number(info.lastInsertRowid) };
 }
 
-// A payment-provider stub (specs/plugins-phase-3a-online-payment.md rule 4): the payment record is the
+// A payment-provider stub (specs/plugins/plugins-phase-3a-online-payment.md rule 4): the payment record is the
 // authoritative paid signal; the link status covers the expired/cancelled cases.
 // `outcome` ∈ 'paid' | 'open' | 'expired'.
 function qontoStub(outcome) {

@@ -5,7 +5,7 @@
  * `GET /api/properties/:id/documents/:docId/file` (audit 2026-10-28, authz L2).
  *
  * The sibling is taken from the REAL path of the uploads directory: a self-hosted release links
- * `server/uploads` into `data/uploads` (specs/self-update-and-releases.md rule 25b), so the documents
+ * `server/uploads` into `data/uploads` (specs/hosting/self-update-and-releases.md rule 25b), so the documents
  * land in `data/private-documents` and survive an update.
  *
  * `documents.filePath` stores `private/<name>` for those; a row written before the audit still holds
@@ -61,7 +61,7 @@ function downloadName(docName, file) {
  * Moves the files uploaded before the audit out of the public tree. Crash-safe order: the file is copied
  * under its final name (never over an existing one), the original is removed (no public copy is ever left
  * behind), then the row is updated; a retry recognises a file already in place. A row whose file is missing is logged and left alone.
- * Not additive after a rollback (specs/self-update-and-releases.md rule 39, accepted exception: the
+ * Not additive after a rollback (specs/hosting/self-update-and-releases.md rule 39, accepted exception: the
  * production instance holds no document).
  */
 function moveLegacyDocumentsToPrivate(db, log = console) {

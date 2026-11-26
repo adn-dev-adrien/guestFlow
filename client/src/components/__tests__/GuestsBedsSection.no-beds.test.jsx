@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import GuestsBedsSection from '../reservation/GuestsBedsSection';
 import { ReservationFormProvider } from '../reservation/ReservationFormContext';
 
-// specs/bed-config-in-linen-card.md §3 rule 1 + §7.2.
+// specs/linen/bed-config-in-linen-card.md §3 rule 1 + §7.2.
 // "Voyageurs et couchages" → "Voyageurs": the bed counters left the card. Pin the rename
 // and the absence of any bed `TextField` so a future regression that moves them back here
 // breaks the build before review.

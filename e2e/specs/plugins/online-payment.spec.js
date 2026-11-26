@@ -1,5 +1,5 @@
 // @ts-check
-// plugins/online-payment — specs/plugins-phase-3a-online-payment.md rules 5, 15, 17, 18.
+// plugins/online-payment — specs/plugins/plugins-phase-3a-online-payment.md rules 5, 15, 17, 18.
 // The payment buttons follow the server, not the plugin switch: with the plugin installed but Qonto
 // not connected (the E2E database never connects it), the fiche offers no payment request and the
 // endpoints refuse. Switched off, the Paiements page and its menu entry go too. The public site's
@@ -35,7 +35,7 @@ test('switched off, the Paiements page and its menu entry go; switched on, they 
   try {
     expect((await request.get('/api/payments/settings')).status()).toBe(404);
     await page.goto('/parametres/paiements');
-    // specs/plugins-phase-p-productisation.md rule 42 — an administrator stays on the address and reads why.
+    // specs/plugins/plugins-phase-p-productisation.md rule 42 — an administrator stays on the address and reads why.
     await expect(page.getByText('Plugin inactif')).toBeVisible({ timeout: 15_000 });
     await expect(page).toHaveURL(/\/parametres\/paiements$/);
     await expect(page.getByText('Connexion bancaire')).toHaveCount(0);

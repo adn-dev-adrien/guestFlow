@@ -1,19 +1,19 @@
 /**
- * Boots the plugin modules (specs/plugins-phase-1-sdk.md §3.A–B).
+ * Boots the plugin modules (specs/plugins/plugins-phase-1-sdk.md §3.A–B).
  *
  *   registerAll({ db })  every module's `register(ctx)`; a throw marks it failed (rule 4) and the
  *                        boot goes on. Then, for every installed module, its migrations and its
  *                        boot hooks.
  *   migrate(db, id)      one module's migrations — install time (rule 6).
  *   mountPublic(app)     `/public/...` mounts, outside the /api guards, in module-list order — the
- *                        whole /public/v1 tree since specs/plugins-phase-2-hosts.md rule 23.
+ *                        whole /public/v1 tree since specs/plugins/plugins-phase-2-hosts.md rule 23.
  *   mountApi(app)        `/api/...` mounts and single routes, after the core routers.
  *   startJobs()          the declared jobs, each tick skipped while the plugin is not live.
  *   isWebhook(m, path)   whether the guards must let a plugin's webhook through (phase 3a rule 12).
  *   roleMatchers(role)   the allowlist entries plugins declared for a restricted role
- *                        (specs/plugins-phase-2-hosts.md rule 3); receptionMatchers() is its phase 1 form.
+ *                        (specs/plugins/plugins-phase-2-hosts.md rule 3); receptionMatchers() is its phase 1 form.
  *
- * specs/plugins-phase-4-registry.md adds the package path (rules 13–14, 17, P27):
+ * specs/plugins/plugins-phase-4-registry.md adds the package path (rules 13–14, 17, P27):
  *   installResolver()    `guestflow/sdk` → the core SDK, and the npm packages of a plugin package →
  *                        the core's own node_modules (a package ships none, rule 1).
  *   loadPackages(...)    the modules of the installed rows, each from its package directory; a package
@@ -189,21 +189,21 @@ function syncLiveTransitions() {
 }
 
 /**
- * Specs/plugins-phase-4-registry.md rule 41 — an install that needed a restart ran no hook (the old code
+ * specs/plugins/plugins-phase-4-registry.md rule 41 — an install that needed a restart ran no hook (the old code
  * was still loaded). At the boot that follows, the plugins that owe them get their install hooks and
  * their activation hooks, once; the marker is cleared even if a hook fails (hooks never block).
  */
 async function runPendingInstallHooks(model) {
   const pending = model.pendingHooks();
   const requires = Object.fromEntries(model.list().map((row) => [row.id, ((row.manifest && row.manifest.requires) || []).map((r) => r.id)]));
-  // Requirements first (specs/plugin-dependencies.md rule 4), not the table's id order.
+  // Requirements first (specs/plugins/plugin-dependencies.md rule 4), not the table's id order.
   for (const id of postOrder(pending, (other) => requires[other] || [], pending)) {
     const kind = model.hooksPendingKind(id);
     model.clearHooksPending(id);
     if (!registry.get(id)) continue;
     // `syncLiveTransitions` has already announced every live plugin at this boot: forget it, or the hooks owed are skipped.
     announced.delete(id);
-    // A plugin only switched on (specs/plugin-dependencies.md rule 9) owes its activation hooks, not its install hooks.
+    // A plugin only switched on (specs/plugins/plugin-dependencies.md rule 9) owes its activation hooks, not its install hooks.
     if (kind === 'install') await runInstallHooks(id); // eslint-disable-line no-await-in-loop
     runActivateHooks(id);
   }
@@ -244,7 +244,7 @@ function unmountRecord(id) {
   mountedIds.delete(id);
 }
 
-// specs/plugins-phase-1-sdk.md rule 48 — the core's own trees, on every host, whatever a web app claims.
+// specs/plugins/plugins-phase-1-sdk.md rule 48 — the core's own trees, on every host, whatever a web app claims.
 const CORE_TREES = /^\/(api|public|uploads|plugin-assets)(\/|$)/;
 
 const hostOf = (req) => String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
@@ -393,7 +393,7 @@ function loadPackages({ store, rows, order, env, nameOf = (id) => id }) {
     manifests[id] = manifest;
     dirs[id] = dir;
   });
-  // specs/plugin-dependencies.md rule 5 — a dependency cycle leaves every member unloaded: neither could
+  // specs/plugins/plugin-dependencies.md rule 5 — a dependency cycle leaves every member unloaded: neither could
   // be switched on first.
   const { createGraph, cycleLabel } = require('../utils/pluginGraph');
   const graph = createGraph({ manifests, nameOf });
@@ -462,7 +462,7 @@ function roleMatchers(role) {
 const receptionMatchers = () => roleMatchers('reception');
 
 // Whether `path` (below /api, as the guards see it) is a webhook a live plugin declared — the guards
-// let it through to the plugin's own authentication (specs/plugins-phase-3a-online-payment.md rule 12).
+// let it through to the plugin's own authentication (specs/plugins/plugins-phase-3a-online-payment.md rule 12).
 function isWebhook(method, path) {
   if (method !== 'POST') return false;
   return registry.all().some((record) => record.webhooks.some((w) => w.path === `/api${path}`) && registry.isLive(record.id));

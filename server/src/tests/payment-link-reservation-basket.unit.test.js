@@ -1,4 +1,4 @@
-// specs/payment-links-vat.md rule 8 and specs/qonto-payment-link-reference.md rule 10 — a link
+// specs/payments/payment-links-vat.md rule 8 and specs/payments/qonto-payment-link-reference.md rule 10 — a link
 // created for a RESERVATION (no engine replay) carries its VAT basket built from the stored columns,
 // and its stay line names the logement, the reference and the guest (mega review #5, M6: one
 // « Solde séjour » line at 0 % with no reference, unidentifiable in Qonto).
@@ -42,7 +42,7 @@ test('rule 8 — the stored basket: solde minus tax at the VAT rate, plus a 0 % 
   assert.equal(storedLinkComponents({ ...row, touristTaxTotal: 500 }, 'balance', { vatRatePercent: 10, taxOnArrival: false, titles: TITLES }), null, 'a tax above the solde cannot be split');
 });
 
-// specs/qonto-payment-link-reference.md rule 10 — the stay line's title, checked below.
+// specs/payments/qonto-payment-link-reference.md rule 10 — the stay line's title, checked below.
 test('rule 8 — a reservation link is created as a VAT basket named after the stay (rule 10)', async () => {
   const { db, id } = seed();
   const sent = [];
@@ -57,7 +57,7 @@ test('rule 8 — a reservation link is created as a VAT basket named after the s
   assert.equal(sent.length, 1);
   const { items, expectedTotalCents } = sent[0];
   assert.equal(expectedTotalCents, 30720);
-  // specs/payment-links-vat.md rule 9 — the rounding cent, when there is one, rides on its own line.
+  // specs/payments/payment-links-vat.md rule 9 — the rounding cent, when there is one, rides on its own line.
   assert.deepEqual(items.filter((i) => i.title !== 'Ajustement').length, 2, 'two lines: the stay and the tourist tax');
   const stay = items[0];
   assert.match(stay.title, /Gîte/);
@@ -66,7 +66,7 @@ test('rule 8 — a reservation link is created as a VAT basket named after the s
   assert.equal(String(stay.vat_rate ?? stay.vatRate), '10');
 });
 
-// specs/qonto-payment-link-reference.md rule 10
+// specs/payments/qonto-payment-link-reference.md rule 10
 test('rule 10 — the single 0 % fallback line is named like the stay line too', async () => {
   const { db, id } = seed();
   const sent = [];

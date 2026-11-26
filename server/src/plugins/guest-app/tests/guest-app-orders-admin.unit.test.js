@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 11, 38, 43, 45 — the staff's side of the guest orders through the real routes: the « Commandes
+// specs/guest-app/guest-app.md rules 11, 38, 43, 45 — the staff's side of the guest orders through the real routes: the « Commandes
 // clients » list by delivery time (« À préparer » / « Toutes »), « Marquer livrée », the planning's « Commande client »
 // cards (what the staff prepares, never the breakfast nor the bath), and the reception's access.
 const fx = require('./guestOrderFixtures');

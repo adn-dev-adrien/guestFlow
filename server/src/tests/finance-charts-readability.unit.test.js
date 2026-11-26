@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rules 43-46 and specs/booking-pace.md rules 14-15 (UI/UX review
+// specs/accounting/finance-dashboard-redesign.md rules 43-46 and specs/pricing/booking-pace.md rules 14-15 (UI/UX review
 // 2026-10-18, proposals 8, 9, 18 and decisions 9-10): « meilleur mois » on months over only, the month
 // grammar of « Revenu par mois », the logement colour slots, the short hero curve, the current month
 // and the écart row of the pace chart.

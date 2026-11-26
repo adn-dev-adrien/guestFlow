@@ -1,4 +1,4 @@
-// specs/review-2026-10-18-reservations.md — the small reservation fixes of the review of 2026-10-18.
+// specs/design-system/review-2026-10-18-reservations.md — the small reservation fixes of the review of 2026-10-18.
 
 process.env.DB_PATH = ':memory:';
 

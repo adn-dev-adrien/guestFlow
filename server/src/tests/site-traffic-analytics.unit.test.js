@@ -2,7 +2,7 @@ const test = require('node:test');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
-// specs/site-traffic-analytics.md §3.C — the source of a website booking request: the validator that
+// specs/site/site-traffic-analytics.md §3.C — the source of a website booking request: the validator that
 // never refuses (rule 15), the channel classification (rule 16), the ready-to-render origin (rule 19)
 // and the row of the « Canaux de réservation » card a reservation belongs to (rule 21).
 const { validateAttribution } = optionalPlugin(() => require('../plugins/website-booking/publicInputValidation'));
@@ -11,7 +11,7 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 
 // ── rule 15 — validateAttribution ─────────────────────────────────────────────────────────
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('validateAttribution keeps the known keys, trimmed', { skip: skipWithout(['website-booking']) }, () => {

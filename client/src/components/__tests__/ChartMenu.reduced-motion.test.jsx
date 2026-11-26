@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 33 — under prefers-reduced-motion the « ⋯ » menu opens at once,
+ * specs/design-system/report-grammar.md §3 rule 33 — under prefers-reduced-motion the « ⋯ » menu opens at once,
  * with no grow animation.
  */
 import React from 'react';

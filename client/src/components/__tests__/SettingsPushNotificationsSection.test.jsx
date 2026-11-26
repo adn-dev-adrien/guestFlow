@@ -6,7 +6,7 @@ import SettingsPushNotificationsSection from '../SettingsPushNotificationsSectio
 import api from '../../api';
 import * as push from '../../push/registerPush';
 
-// specs/pwa-push-notifications.md §6 — per-user push prefs + per-device enable/disable.
+// specs/guest-app/pwa-push-notifications.md §6 — per-user push prefs + per-device enable/disable.
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -77,7 +77,7 @@ test('supported + enabled → shows « Désactiver » + the 4 preference switche
   expect(screen.getByLabelText('Nouvelle réservation')).toBeChecked();
   expect(screen.getByLabelText('Arrivées')).toBeChecked();
   expect(screen.getByLabelText('Départs')).toBeChecked();
-  // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md rule 6) — default ON.
+  // Breakfast serving-time push (specs/sas/sas-breakfast-bread-and-push.md rule 6) — default ON.
   expect(screen.getByLabelText('Petit déjeuner')).toBeChecked();
 
   fireEvent.click(screen.getByLabelText('Arrivées'));

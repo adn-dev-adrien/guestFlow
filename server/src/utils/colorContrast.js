@@ -1,5 +1,5 @@
 /**
- * WCAG contrast helpers for the calendar bars (specs/calendar-property-parity.md rules 5-7).
+ * WCAG contrast helpers for the calendar bars (specs/planning/calendar-property-parity.md rules 5-7).
  * Pure: a platform colour is judged against white and the theme ink, the two text colours a bar can carry.
  */
 const WHITE = '#FFFFFF';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 26, 29, 92 — what a seller that keeps its own row (the guest app) asks of `extraSale`: a line that takes none of the
+// specs/pricing/pricing-components.md §3 rules 26, 29, 92 — what a seller that keeps its own row (the guest app) asks of `extraSale`: a line that takes none of the
 // article's free units and says so, a card sale paid before the arrival written already settled and never above what was paid, the order a line belongs
 // to, no waiting order reserving anything (reading of 2026-11-13, guest-app rule 108), and where a sale taken now is collected.
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 31 and 39 — what a stolen operator cookie cannot do
+// specs/hosting/control-plane-plans-and-access.md rules 31 and 39 — what a stolen operator cookie cannot do
 // (security review 2026-10-23): guess the password through the method change, reuse the code that
 // confirmed the app, or keep a half-done login open; and the console's boot refusing to run as
 // production with a public session secret or without Caddy's proxy secret.

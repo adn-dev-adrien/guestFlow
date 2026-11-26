@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 20 — the plugin SDK sits in the initial bundle: nothing it imports
+ * specs/design-system/report-grammar.md §3 rule 20 — the plugin SDK sits in the initial bundle: nothing it imports
  * statically may reach Recharts, or every first page pays ~110 kB gzip for it (the CI bundle budget,
  * scripts/check-bundle-budget.mjs, measures the same thing on a real build).
  */

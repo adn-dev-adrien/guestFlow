@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 16-17 — one booklet per lodging, shared pages edited once, restricted blocks, duplicates
+// specs/guest-app/guest-app.md rules 16-17 — one booklet per lodging, shared pages edited once, restricted blocks, duplicates
 // that diverge; rules 19-20 — the EN → FR fallback per field and the accent-insensitive search; rules 48-49 — the
 // studio edits a draft, « Publier » publishes one lodging (and a shared page everywhere it is placed), guests read
 // the last published version; rule 11ter — the wifi and contact blocks read the lodging's facts. Through the routes.

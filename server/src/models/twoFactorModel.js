@@ -1,5 +1,5 @@
 /**
- * Second step of the login (specs/hosting-h2-account-security.md rules 6–10): the method, the TOTP
+ * Second step of the login (specs/hosting/hosting-h2-account-security.md rules 6–10): the method, the TOTP
  * secret, the enrolment in progress, the email code, the failures and the lock, the backup codes,
  * the « Plus tard » of the dashboard card, and the account's security history.
  *
@@ -120,7 +120,7 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     recordPendingFailure: (userId) => pendingFailStmt.run(Number(userId)),
     dropPending: (userId) => dropPendingStmt.run(Number(userId)),
     // `totpStep`: the step of the code that confirmed the enrolment, so that code cannot also open a
-    // session (specs/hosting-h2-account-security.md rule 28). `keepEnabledAt`: a replacement of the
+    // session (specs/hosting/hosting-h2-account-security.md rule 28). `keepEnabledAt`: a replacement of the
     // method (rule 48) keeps the date the step was turned on, so the trusted devices stay trusted; the
     // method, the secret and the backup codes change in this one transaction.
     activatePending: db.transaction((userId, nowIso, backupHashes, totpStep = null, { keepEnabledAt = false } = {}) => {

@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 50 (owner decision 2026-11-16, stabilisation loop t1 B-6; completes rules 30, 41) — a link paid above what the document
+// specs/sas/outside-booking-sas.md rule 50 (owner decision 2026-11-16, stabilisation loop t1 B-6; completes rules 30, 41) — a link paid above what the document
 // still asked and closed « rien à rembourser » is money kept: the journal books it as a tip on the day it was kept, on the plan's tip account, like a stay's
 // tip; a surplus refunded books nothing (it never reached the books).
 process.env.DB_PATH = ':memory:';

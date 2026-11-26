@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 21 and 22 — the migration: period 1 seeded from the current rate,
+// specs/accounting/vat-optional-mode.md rules 21 and 22 — the migration: period 1 seeded from the current rate,
 // every row pointing at it, the trigger created, all of it idempotent, and the settings column kept as a
 // mirror of the rate in force. Tables are the minimal ones the migration needs.
 

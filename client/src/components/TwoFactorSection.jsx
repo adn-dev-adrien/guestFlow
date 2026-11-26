@@ -1,5 +1,5 @@
 /**
- * TwoFactorSection — « Validation en deux étapes » in « Mon compte » (specs/hosting-h2-account-security.md
+ * TwoFactorSection — « Validation en deux étapes » in « Mon compte » (specs/hosting/hosting-h2-account-security.md
  * rules 38–39, 46–48, 51): a status card and its actions, nothing to fill in the card itself.
  *
  * - Off: a « Désactivée » badge, one sentence and « Activer », which opens the three-step

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 21 — offline: the booklet (and what a session reads to show it) stays readable without
+// specs/guest-app/guest-app.md rule 21 — offline: the booklet (and what a session reads to show it) stays readable without
 // network from the service worker's cache, its photos too; the shop, the orders, the gate and the sessions are
 // never answered from a cache (the app says « Connexion nécessaire »). The data cache is emptied on the page's
 // `purge` (the device holds no stay any more) and keeps at most 200 photos; the shell stays.

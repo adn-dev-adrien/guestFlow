@@ -1,5 +1,5 @@
 /**
- * ResponsiveTable — table on md+, stacked cards on xs (specs/ds-components.md §3.1; CLAUDE.md
+ * ResponsiveTable — table on md+, stacked cards on xs (specs/design-system/ds-components.md §3.1; CLAUDE.md
  * responsive rule: operator-critical lists must not be scroll-only tables on mobile).
  *
  * Props:
@@ -21,7 +21,7 @@
  *   cardsWhenOverflow?: boolean                   the cards also replace the table whenever the table,
  *                                                 measured, is wider than its container: no width ever
  *                                                 scrolls the table inside its card
- *                                                 (specs/tourist-tax-report-v2.md rule 48)
+ *                                                 (specs/tourist-tax/tourist-tax-report-v2.md rule 48)
  */
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Box, Card, CardContent, Stack, TableBody, TableHead, useMediaQuery } from '@mui/material';
@@ -64,7 +64,7 @@ export default function ResponsiveTable({
 
   // A new column set (`minWidth` moves with it) is measured afresh. New rows alone keep the last measure, so a reload
   // in the overflow band does not flip to the table for one pass and remount the cards — focus stays where it was
-  // (specs/tourist-tax-report-v2.md rule 53, review V3R-2).
+  // (specs/tourist-tax/tourist-tax-report-v2.md rule 53, review V3R-2).
   useLayoutEffect(() => { setNaturalWidth(0); }, [minWidth]);
 
   // A zero width (jsdom, a hidden tab) is « unknown », not « narrow ».

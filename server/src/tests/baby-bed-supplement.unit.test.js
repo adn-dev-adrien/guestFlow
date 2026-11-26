@@ -10,7 +10,7 @@ const {
   buildBabyBedSupplementLine,
 } = require('../utils/babyBedSupplement');
 
-// specs/baby-bed-supplement.md — 5 € per cot, for the WHOLE stay, derived by the engine from
+// specs/options/baby-bed-supplement.md — 5 € per cot, for the WHOLE stay, derived by the engine from
 // `reservations.babyBeds`; and never a cent added to a booking taken before the supplement existed.
 
 const OPTION = Object.freeze({

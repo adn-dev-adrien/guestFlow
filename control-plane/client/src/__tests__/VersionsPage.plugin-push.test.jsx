@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 11 — a plugin version from the registry is pushed, after a
+// specs/hosting/hosting-h1-fleet-runtime.md rule 11 — a plugin version from the registry is pushed, after a
 // confirmation, to the instances that have the plugin; the versions offered are the registry's
 // newer ones, a version that rolled back marked « en échec » and never preselected.
 import React from 'react';

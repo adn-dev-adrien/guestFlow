@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One system user per instance (specs/hosting-h1-fleet-runtime.md rule 21). Installed by
+# One system user per instance (specs/hosting/hosting-h1-fleet-runtime.md rule 21). Installed by
 # bootstrap-host.sh as /usr/local/sbin/guestflow-instance-identity (root:root, 755) and allowed to the
 # console by /etc/sudoers.d/guestflow.
 #

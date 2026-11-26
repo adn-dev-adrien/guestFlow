@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 44 (R23 verification F7) — a failed test mail keeps its code and says so in
+// specs/design-system/ui-review-2026-10-19-operations.md rule 44 (R23 verification F7) — a failed test mail keeps its code and says so in
 // French, never the transport's own words.
 const test = require('node:test');
 const assert = require('node:assert/strict');

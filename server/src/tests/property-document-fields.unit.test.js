@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rule 63 (audit R42-DB-L1 / R42-INJ-L2, 2026-11-10) — through the real application: a
+// specs/settings/settings-input-guards.md rule 63 (audit R42-DB-L1 / R42-INJ-L2, 2026-11-10) — through the real application: a
 // document's `type` is contract / rules / other, its `name` one text of at most 200 characters. A repeated or bracketed
 // field used to answer 500 (or store « A,b ») and leave the uploaded private file with no row pointing at it; a long
 // name or type was stored whole. Every refusal is a 400 before the row, and the upload is removed.

@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rule 17 — an iCal feed URL is operator input read from inside the LAN:
+// specs/platforms/ical-import-hardening.md rule 17 — an iCal feed URL is operator input read from inside the LAN:
 // private, loopback and link-local addresses are refused (literal, IPv4-mapped IPv6, by name, through a
 // redirect, through DNS rebinding), the body is capped at 5 MB, unless a dev setting lifts the address
 // check (audit 2026-10-28, review of PR #846).

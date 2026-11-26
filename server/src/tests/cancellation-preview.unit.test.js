@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the cancel dialog announced « Acompte conservé »
+// specs/payments/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the cancel dialog announced « Acompte conservé »
 // and « Solde abandonné » from a React formula over the live quote: a plan with a paid échéance read 0,00 € / 0,00 €
 // while the cancel kept 125 € as an indemnity and wrote 249,79 € off. GET /reservations/:id/cancel-preview now answers
 // the figures the cancel writes, from the same function, for every way the money can stand: a plan, a book refund

@@ -6,9 +6,9 @@ import { vi } from 'vitest';
 import TariffRecipesPage from '../TariffRecipesPage';
 import api from '../../../api';
 
-// specs/tariff-recipes/spec.md §3.5 (2026-10-27 audit) — the bar sat inside the page padding (24 px
+// specs/pricing/tariff-recipes.md §3.5 (2026-10-27 audit) — the bar sat inside the page padding (24 px
 // lower and narrower than on every other page) and the journal used a bold h6 instead of the
-// design-system `sectionHeader` role (specs/design-system.md §3.2).
+// design-system `sectionHeader` role (specs/design-system/design-system.md §3.2).
 
 vi.mock('../../../api', () => ({
   __esModule: true,

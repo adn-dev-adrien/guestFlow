@@ -1,5 +1,5 @@
 /**
- * The settings GuestFlow's Qonto module reads and writes (specs/control-plane-plans-and-access.md
+ * The settings GuestFlow's Qonto module reads and writes (specs/hosting/control-plane-plans-and-access.md
  * rule 32), on the console's own `qonto_settings` row. Same method names and the same semantics as
  * GuestFlow's `settingsModel` (server/src/models/settingsModel.js), so the shared `qontoService`,
  * `qontoWebhookRegistrar` and `qontoSettingsController` run over it unchanged:

@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 43, 44 — an export archive belongs to one link, so a purge
+// specs/hosting/hosting-h1-fleet-runtime.md rules 43, 44 — an export archive belongs to one link, so a purge
 // or a reactivation never deletes the file of a link still valid; and a late « Réessayer » that
 // crosses midnight on the eve of the erasure never mails a link already dead (audit R11 N2 and note).
 

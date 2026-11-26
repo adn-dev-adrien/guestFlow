@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 46 and 55, readings of 2026-11-01 (audit R11-2, review of #915) —
+// specs/payments/payment-link-lifecycle.md rules 46 and 55, readings of 2026-11-01 (audit R11-2, review of #915) —
 // « Transformer en devis » on a stay whose nights are held (or closed) is refused DATES_HELD (CLOSED_DATES): the fiche
 // shows « Devis non créé » with the server's message and the other stays (the closure) each to open, and stays on the
 // reservation. When the server already knows the stay itself blocks it (`convertToDevisLockedReason`), the action is

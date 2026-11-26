@@ -1,5 +1,5 @@
 /**
- * Boot cleanup of push subscriptions (specs/pwa-push-notifications.md rule 13): deletes the devices of
+ * Boot cleanup of push subscriptions (specs/guest-app/pwa-push-notifications.md rule 13): deletes the devices of
  * an owner who is not an active, non-support administrator, so a row left by an older version cannot
  * come back to life when the account is reactivated. Idempotent. Returns the number of rows deleted.
  */

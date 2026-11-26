@@ -1,4 +1,4 @@
-// Shared by the fiche's loader suites (specs/reservations-backend-mvc.md rules 16-17): a fiche with an arrival
+// Shared by the fiche's loader suites (specs/tech/reservations-backend-mvc.md rules 16-17): a fiche with an arrival
 // and a departure the test moves, and answers it holds back. `vi.mock(...)` stays in each test file.
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';

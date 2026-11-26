@@ -1,5 +1,5 @@
 /**
- * What a « Nouvelle note » collects (specs/mid-stay-notes.md rule 22, audit 2026-10-27). Pure.
+ * What a « Nouvelle note » collects (specs/sas/mid-stay-notes.md rule 22, audit 2026-10-27). Pure.
  *
  * The dialog sends only the keys the operator ticked and the remainder it opened on; the amounts are
  * derived here, per key:

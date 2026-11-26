@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 12 (AV-9) — an article stored on several lines reads under one title with its total, each line by its own label.
+// specs/sas/outside-booking-sas.md rule 12 (AV-9) — an article stored on several lines reads under one title with its total, each line by its own label.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import SuggestedArticlesStep from '../SuggestedArticlesStep';

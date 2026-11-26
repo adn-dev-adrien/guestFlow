@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md §3.3 — the SERVER decides what a payment request asks for. A devis
+// specs/payments/deposit-blocks-the-dates.md §3.3 — the SERVER decides what a payment request asks for. A devis
 // carrying an acompte gets the acompte email; a last-minute one, which has none, gets the full-payment
 // email instead of a 0 € link the API would refuse.
 

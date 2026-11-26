@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 49 (audit R24 E24-1) — a bank account with no credit stored yet gets its first
+// specs/accounting/qonto-bank-reconciliation.md rule 49 (audit R24 E24-1) — a bank account with no credit stored yet gets its first
 // read (rule 5), whatever was read on another account before; an account with credits stays incremental.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,5 +1,5 @@
 /**
- * The host side of a customer's life (specs/hosting-h1-fleet-runtime.md rules 1–7): the creation
+ * The host side of a customer's life (specs/hosting/hosting-h1-fleet-runtime.md rules 1–7): the creation
  * steps, run in order and shown live, then stopping (deprovisioning), restarting (reactivation),
  * renaming and erasing — every one through the drivers (H-D6), none by hand.
  *
@@ -146,7 +146,7 @@ function createProvisioner({
       for (const sub of ['data', 'uploads', 'private-documents', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
       hosting.ensure(c.id);
       syncEnv(c);
-      // specs/control-plane-plans-and-access.md rule 38 — no host path on the customer page.
+      // specs/hosting/control-plane-plans-and-access.md rule 38 — no host path on the customer page.
       return 'Créés.';
     },
     async secrets(c) {

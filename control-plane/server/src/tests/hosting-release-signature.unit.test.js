@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 41 (applied by specs/hosting-h1-fleet-runtime.md rule 8): the
+// specs/hosting/self-update-and-releases.md rule 41 (applied by specs/hosting/hosting-h1-fleet-runtime.md rule 8): the
 // console installs a fleet release only if it is signed by the configured key, once a key is configured.
 
 const test = require('node:test');

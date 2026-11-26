@@ -1,6 +1,6 @@
-// specs/accounting-synthesis.md §3 rule 16 — the last CSV download, stored beside the plugin's settings: one row,
+// specs/accounting/accounting-synthesis.md §3 rule 16 — the last CSV download, stored beside the plugin's settings: one row,
 // rewritten at each download, never an operator setting, unreadable = none.
-// specs/accountant-accounting-export.md §3 rule 38. The clock is pinned for the whole file: the dates are the « now »
+// specs/accounting/accountant-accounting-export.md §3 rule 38. The clock is pinned for the whole file: the dates are the « now »
 // handed to the stamp.
 process.env.DB_PATH = ':memory:';
 

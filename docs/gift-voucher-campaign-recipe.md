@@ -2,7 +2,7 @@
 
 A recipe is a gift voucher campaign written as data. You can carry it from one GuestFlow to another,
 read it and edit it by hand, or have an assistant write it. You export and import it from Bons
-cadeaux → Campagnes. The source of truth is `specs/gift-voucher-campaigns.md`, rule 10.
+cadeaux → Campagnes. The source of truth is `specs/gift-vouchers/gift-voucher-campaigns.md`, rule 10.
 
 ## The archive
 

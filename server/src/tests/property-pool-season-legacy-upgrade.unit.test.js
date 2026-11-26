@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 34 — an instance upgraded from the release where an
+// specs/emails/guest-email-texts-made-simple.md rule 34 — an instance upgraded from the release where an
 // empty pool bound still meant 06-15 → 08-31 (its app_settings columns declared with those defaults)
 // keeps that season on its properties, so « et pour la piscine » does not vanish from its J-7 email.
 // An instance created after plugins-phase-p-productisation.md rule 14 (columns defaulting to '')

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 9–10 (and specs/plugins-phase-p-productisation.md §6) —
+// specs/emails/guest-email-texts-made-simple.md rules 9–10 (and specs/plugins/plugins-phase-p-productisation.md §6) —
 // the single page: one section per email in send order, variables shown by label, one save for every
 // draft with the server's refusal under its field; the mentions keep their two orders.
 import { vi } from 'vitest';

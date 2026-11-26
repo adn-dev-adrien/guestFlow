@@ -1,6 +1,6 @@
 /**
  * PlatformStatementEditor — the statement fields of a platform payout row, opened from its amount
- * (specs/reservation-payment-ledger.md rule 25). The levers are the ones the fiche always had — « Total
+ * (specs/payments/reservation-payment-ledger.md rule 25). The levers are the ones the fiche always had — « Total
  * facturé par la plateforme » / « Montant total payé par le client », « Taxe de séjour retenue », the
  * per-échéance commissions — with their labels, helpers and server rules unchanged
  * (platform-payment-entry, platform-per-echeance-commission, platform-tourist-tax-out-of-the-commission).
@@ -14,7 +14,7 @@
  *   onApply(patch), onCancel()
  *   computeCommission(figures) → { commission } — « Calculer la commission » (server)
  *   received: { net, label } | null — the payout already received: its transfer is a field, prefilled, editable
- *     (specs/platform-statement-after-payout.md rules 3, 8)
+ *     (specs/platforms/platform-statement-after-payout.md rules 3, 8)
  *   preview(statement) → { netLabel } — the server's net against the transfer, nothing written (rules 3-4, 7);
  *     null when the statement is a draft saved with the fiche
  *   lockedReason: why the fields are disabled, shown under them
@@ -61,7 +61,7 @@ export default function PlatformStatementEditor({
   }, [preview, locked, draft]);
 
   // Which number to copy off the statement depends on the platform's tourist-tax mode, so the field
-  // says it (specs/platform-brut-excludes-offered-tourist-tax.md §6).
+  // says it (specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md §6).
   const taxOffered = Boolean(pricingQuote?.touristTaxOfferedByPlatform);
   const taxReversed = Boolean(pricingQuote?.touristTaxReversedByPlatform);
   const withheldFilled = !blank(draft.platformTouristTaxAmount);
@@ -141,7 +141,7 @@ export default function PlatformStatementEditor({
               </Button>
             </span>
           </Tooltip>
-          {/* specs/platform-tourist-tax-out-of-the-commission.md rule 12 — the amount that carries the
+          {/* specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 12 — the amount that carries the
               VAT, no longer the number typed above once the box holds something. */}
           {withheldFilled && !blank(draft.platformGrossAmount) && Number.isFinite(Number(draft.platformGrossAmount)) && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>

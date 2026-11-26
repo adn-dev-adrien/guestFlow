@@ -7,7 +7,7 @@ import FinanceDetailPanel from '../FinanceDetailPanel';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 
-// specs/vat-optional-mode.md rule 12 (a) and (d) — « Sans TVA »: the VAT lines of the résumé tarifaire give
+// specs/accounting/vat-optional-mode.md rule 12 (a) and (d) — « Sans TVA »: the VAT lines of the résumé tarifaire give
 // way to the server's legal mention (live and stored), and the finance hero drops its HT figure when the
 // server says it means nothing (`showHt`).
 

@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 27 (audit R37-RES-L2) — a link minted on a devis keeps the devis id, and the
+// specs/payments/deposit-blocks-the-dates.md rule 27 (audit R37-RES-L2) — a link minted on a devis keeps the devis id, and the
 // stay converted from it reads that link as its own: deleting the devis would withdraw the link the guest is about to
 // pay, with nothing said. While the stay lives, a converted devis holding an open link — or one still owing the
 // provider a deactivation or a last read — is refused deletion, 409 DEVIS_HOLDS_LINK, the link untouched; a paid or

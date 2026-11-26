@@ -1,5 +1,5 @@
 /**
- * The version of an open fiche after a write (specs/reservation-fiche-concurrency.md rule 4).
+ * The version of an open fiche after a write (specs/reservations/reservation-fiche-concurrency.md rule 4).
  *
  * `detail` is what `api.js` puts on the data-changed event: the stay a write touched and its `updatedAt`
  * before and after. The fiche adopts `after` only when `before` is the version it holds — its own write,

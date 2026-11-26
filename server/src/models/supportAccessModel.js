@@ -1,5 +1,5 @@
 /**
- * Support access with consent (specs/hosting-h2-account-security.md rules 12–16): the requests and
+ * Support access with consent (specs/hosting/hosting-h2-account-security.md rules 12–16): the requests and
  * their decision, the sign-in links already used, and the log of what the support did.
  *
  * An access is **pending** until an administrator decides, **open** once accepted and until it
@@ -53,7 +53,7 @@ function buildModel(db) {
     // false when the request was already decided.
     decide: (id, { decision, userId, nowIso, expiresAt }) => decideStmt.run(decision, Number(userId), nowIso, expiresAt || null, Number(id)).changes === 1,
     // Ending an access also removes the push devices the support account registered (rule 18 of
-    // specs/hosting-h2-account-security.md, rule 13 of specs/pwa-push-notifications.md).
+    // specs/hosting/hosting-h2-account-security.md, rule 13 of specs/guest-app/pwa-push-notifications.md).
     revoke: db.transaction((id, userId, nowIso) => {
       const revoked = revokeStmt.run(nowIso, Number(userId), Number(id)).changes === 1;
       if (revoked && hasTable('push_subscriptions')) {

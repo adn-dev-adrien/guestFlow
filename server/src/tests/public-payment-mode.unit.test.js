@@ -1,4 +1,4 @@
-// Per-property public payment mode (specs/public-online-deposit.md): deposit vs full decision, the raw
+// Per-property public payment mode (specs/site/public-online-deposit.md): deposit vs full decision, the raw
 // stored deposit amount (anti-drift), and the deposit VAT components.
 
 const test = require('node:test');
@@ -20,7 +20,7 @@ function seed({ enabled = 0, depositAmount = 90 } = {}) {
   return db;
 }
 
-// specs/property-deposit-switch.md rule 7 — the mode resolver keeps its shape after the rename: the
+// specs/payments/property-deposit-switch.md rule 7 — the mode resolver keeps its shape after the rename: the
 // deposit is still required to be positive, which is now also guaranteed upstream by the engine.
 test('mode = deposit only when the property opted in AND the deposit is positive', () => {
   assert.equal(resolvePublicPaymentMode(seed({ enabled: 1 }), 1, 9000), 'deposit');
@@ -28,7 +28,7 @@ test('mode = deposit only when the property opted in AND the deposit is positive
   assert.equal(resolvePublicPaymentMode(seed({ enabled: 1 }), 1, 0), 'full', 'zero deposit → full even if opted in');
 });
 
-// specs/deposit-blocks-the-dates.md rule 16 — the last-minute switch reaches the website for free: with
+// specs/payments/deposit-blocks-the-dates.md rule 16 — the last-minute switch reaches the website for free: with
 // no acompte on the devis, the mode falls back to `full`, so the site charges the stay once instead of
 // displaying an Acompte/Solde plan that no longer means anything. No plugin change, hence this anchor.
 test('a last-minute devis (no acompte) makes the website ask for the whole stay', () => {

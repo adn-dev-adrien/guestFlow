@@ -1,5 +1,5 @@
-// Audit R30-M-L1 (2026-11-08) — specs/dashboard-collection-alert.md §edge cases (reading R30-M-L1).
-// specs/defer-arrival-complement-to-checkout.md rule 24: since then the block stays `deferred` over an arrival complement COLLECTED at a 0 € end of stay (the merged paid card);
+// Audit R30-M-L1 (2026-11-08) — specs/planning/dashboard-collection-alert.md §edge cases (reading R30-M-L1).
+// specs/sas/defer-arrival-complement-to-checkout.md rule 24: since then the block stays `deferred` over an arrival complement COLLECTED at a 0 € end of stay (the merged paid card);
 // the Dashboard's arrivals cell then drew the money already taken at the door as « Complément reporté ». A complement
 // is « reporté » only while something of it is left to collect.
 const test = require('node:test');

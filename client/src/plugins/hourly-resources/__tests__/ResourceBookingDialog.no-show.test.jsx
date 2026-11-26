@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 27, 48 — « Client absent » and « Arrivée » in the booking dialog of an outside visit: offered iff the planning row's `actions`
+// specs/sas/outside-booking-sas.md rules 27, 48 — « Client absent » and « Arrivée » in the booking dialog of an outside visit: offered iff the planning row's `actions`
 // say so (loop t1 UI-9, loop t2 UI2-6/UI2-7: role, stay and day are the server's call, no browser-clock compare, no second read of the booking); asked, confirmed,
 // the answer of the no-show is the booking with its `actions`, shown absent with neither « Arrivée » nor « Client absent »; a refusal is shown where the action is.
 import React from 'react';

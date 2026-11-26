@@ -1,6 +1,6 @@
 /**
  * Payment schedule — the single source of truth for a reservation's three dates
- * (specs/payment-schedule-and-cancellation.md §3.1 to §3.3).
+ * (specs/payments/payment-schedule-and-cancellation.md §3.1 to §3.3).
  *
  *   acompte  → due when the guest BOOKS: `bookingDate + property.depositDueDays` (default 7),
  *              then FROZEN forever. It records a commitment taken on the booking day, so no
@@ -9,7 +9,7 @@
  *              never fall before the booking date — a stay booked 3 days out owes both at once.
  *              On a PLATFORM booking the solde is the platform's payout, not the guest's money:
  *              it falls `payoutDueDays` (10) AFTER the departure instead
- *              (specs/platform-payout-due-date.md).
+ *              (specs/platforms/platform-payout-due-date.md).
  *   annulation → `balanceDueDate + property.cancelAfterBalanceDueDays` (7). Computed on read,
  *              never stored: it is a consequence of the solde deadline, not a separate promise.
  *
@@ -86,7 +86,7 @@ function resolveDepositDueDate({
  *
  *   • **own channel** (`direct`, `Lodgify` — the guest pays US): rules 7-10 —
  *     `startDate − balanceDaysBefore`, never before the booking day.
- *   • **platform** (specs/platform-payout-due-date.md §3.1 rule 4): `endDate + payoutDueDays`. An OTA
+ *   • **platform** (specs/platforms/platform-payout-due-date.md §3.1 rule 4): `endDate + payoutDueDays`. An OTA
  *     settles AFTER the stay, so a deadline placed before the arrival described nothing real and
  *     could never be chased. The clamp on the booking date does not apply — a payout is by
  *     construction later than the booking.
@@ -112,7 +112,7 @@ function resolveBalanceDueDate({
     if (!end) return null;
     return addDaysToIsoDate(end, normalizePayoutDueDays(platformPayoutDueDays));
   }
-  // specs/deposit-blocks-the-dates.md rule 7 — a direct devis with no acompte owes ONE payment, and a
+  // specs/payments/deposit-blocks-the-dates.md rule 7 — a direct devis with no acompte owes ONE payment, and a
   // devis promises its dates until its validity date: that date IS the deadline. The derivation below
   // would clamp to the issue day and contradict the « Valable jusqu'au » pill printed on the same page.
   // The caller decides (a devis carrying an OTA name never had an acompte and keeps the derivation).
@@ -129,12 +129,12 @@ function resolveBalanceDueDate({
 }
 
 /**
- * Is the stay too close for an acompte to mean anything? (specs/deposit-blocks-the-dates.md rule 4)
+ * Is the stay too close for an acompte to mean anything? (specs/payments/deposit-blocks-the-dates.md rule 4)
  *
  * True when the stay starts within the property's solde window counted from the BOOKING day — the
  * case where the solde would fall on (or before) the day the stay was booked, leaving an acompte and
  * a solde due at once. The threshold is INCLUSIVE: a stay booked exactly `balanceDaysBefore` days out
- * is last-minute (specs/online-payments-qonto.md §3.7 edge case).
+ * is last-minute (specs/payments/online-payments-qonto.md §3.7 edge case).
  *
  * Either date missing → false: with nothing to compare, the historic acompte/solde split stands.
  */
@@ -145,7 +145,7 @@ function isLastMinuteStay({ bookingDate = null, startDate = null, balanceDaysBef
 }
 
 /**
- * D23 — does a quote owe ONE payment, due on its validity date? (specs/deposit-blocks-the-dates.md rule 19)
+ * D23 — does a quote owe ONE payment, due on its validity date? (specs/payments/deposit-blocks-the-dates.md rule 19)
  *
  * True when the solde deadline `startDate − balanceDaysBefore` falls on or before `validUntil`: an acompte
  * due on the validity date would then be owed after the solde. The last-minute switch (rule 4) seen from
@@ -161,7 +161,7 @@ function owesSinglePaymentByValidity({ startDate = null, validUntil = null, bala
 
 /**
  * Does a devis promise ONE payment, due on its validity date? Its stored acompte is 0 (a direct devis with no
- * acompte, specs/deposit-blocks-the-dates.md rule 7), or its solde falls on or before its validity date (D23,
+ * acompte, specs/payments/deposit-blocks-the-dates.md rule 7), or its solde falls on or before its validity date (D23,
  * rule 19). The conversion and the converted reservation's later saves keep that promise (rule 22, audit
  * R34-RES-L2). The caller judges the channel: an OTA devis never had an acompte to lose.
  */

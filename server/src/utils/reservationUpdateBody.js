@@ -1,12 +1,12 @@
 /**
- * Stored reservation → the PUT body the fiche sends on « Enregistrer » (specs/gites-de-france-mail-intake.md
+ * Stored reservation → the PUT body the fiche sends on « Enregistrer » (specs/platforms/gites-de-france-mail-intake.md
  * §4.1). The PUT rewrites every column from its body, so a server caller that wants to change three fields
  * must send the other hundred as they are: this is that « as they are », mirroring the fiche's load
  * (`client/src/utils/bookingFormHydration.js`) and save (`ReservationPage.jsx` handleSaveReservation)
  * mappings. The paid flags are not in it: the update reads them from the stored row anyway.
  *
  * Each stored catalogue line travels with its `lineId` (and its own `offered`): a stay that sold an article twice holds two lines, and a
- * save addresses each by its identity (specs/pricing-components.md §3 rule 85). A line the caller appends carries `newLine: true`.
+ * save addresses each by its identity (specs/pricing/pricing-components.md §3 rule 85). A line the caller appends carries `newLine: true`.
  *
  * @param {object} reservation  `reservationsModel.getByIdWithDetails(id)`
  * @param {Set<number>} autoEnabledOptionIds  option ids the engine adds itself (`options.autoEnabled = 1`)
@@ -24,7 +24,7 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
     propertyId: r.propertyId,
     clientId: r.clientId,
     reservationNumber: '',
-    // Nobody is in front of a server caller to answer the question (specs/non-card-option-served-persons.md rule 24).
+    // Nobody is in front of a server caller to answer the question (specs/options/non-card-option-served-persons.md rule 24).
     forceTypedCounts: true,
     startDate: r.startDate,
     endDate: r.endDate,

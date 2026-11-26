@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 79 (audit of the J-7 branch, item 6 / N13) — the home card's « Premier créneau libre » counts the bath's
+// specs/guest-app/guest-app.md rule 79 (audit of the J-7 branch, item 6 / N13) — the home card's « Premier créneau libre » counts the bath's
 // heat-up from NOW, like the slot picker: on the arrival day, once the stay window is open (check-in − 3 h) and before the 4 pm check-in,
 // a 3 h heat-up started now ends before 6.30 pm; counted from the check-in it would end at 7 pm.
 const fx = require('./guestOrderFixtures');
@@ -21,7 +21,7 @@ test('rule 79 (N13): the arrival day first free slot counts the heat-up from now
   // 12:30 UTC is 13:30 or 14:30 in Paris whatever the season: inside the window, before the check-in.
   const ctx = await openOrdering(stayId, { guestHost: 'sejour.example.test', now: new Date(`${isoPlus(0)}T12:30:00Z`) });
   try {
-    // specs/guest-app-bath-home-scheduling.md rule 6 — the home's bath card carries the first free slot of today.
+    // specs/guest-app/guest-app-bath-home-scheduling.md rule 6 — the home's bath card carries the first free slot of today.
     const [card] = (await ctx.call('GET', '/public/v1/guest/me')).body.data.bath;
     assert.ok(card && card.firstSlotToday, JSON.stringify(card));
     const hour = Number(card.firstSlotToday.slice(0, 2));

@@ -1,5 +1,5 @@
 // @ts-check
-// specs/tariff-recipes/spec.md §3.2 items 12bis-12ter — A SOLD RESERVATION NEVER MOVES.
+// specs/pricing/tariff-recipes.md §3.2 items 12bis-12ter — A SOLD RESERVATION NEVER MOVES.
 //
 // The rule the owner stated plainly: « une résa faite ne doit jamais bouger suite à un changement
 // de recette tarifaire ». Options, prices, supplement — nothing.
@@ -13,7 +13,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { createProperty, createClient, createReservation } from '../../fixtures/apiSeed.js';
-// The core seeds no catalogue (specs/plugins-phase-p-productisation.md rule 12): the spec brings one.
+// The core seeds no catalogue (specs/plugins/plugins-phase-p-productisation.md rule 12): the spec brings one.
 import { seedCateringOptions } from '../../fixtures/dbSeed.js';
 import { CLIENT_URL, API_TIMEOUT } from '../../clientUrl.js';
 

@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 22 — a guest app erased then reinstalled does not hand out an order id a stay line still cites.
+// specs/plugins/plugin-removal-resilience.md rule 22 — a guest app erased then reinstalled does not hand out an order id a stay line still cites.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -25,7 +25,7 @@ test('a fresh install with no cited order starts at 1', () => {
   assert.equal(id, 1);
 });
 
-// Loop t2 D2-2 — an unpaid card order is cited by its payment link only (specs/guest-app.md rule 108): the reinstall restarts above it too.
+// Loop t2 D2-2 — an unpaid card order is cited by its payment link only (specs/guest-app/guest-app.md rule 108): the reinstall restarts above it too.
 test('after a reinstall the first order id is above the order an open card link still names', () => {
   const db = new Database(':memory:');
   db.exec(`CREATE TABLE reservation_options (lineId INTEGER PRIMARY KEY, orderRef TEXT);

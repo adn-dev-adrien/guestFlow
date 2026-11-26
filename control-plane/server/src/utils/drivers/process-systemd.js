@@ -1,5 +1,5 @@
 /**
- * The `systemd` process driver (specs/hosting-h1-fleet-runtime.md H-D1): one template unit,
+ * The `systemd` process driver (specs/hosting/hosting-h1-fleet-runtime.md H-D1): one template unit,
  * `guestflow@.service` (deploy/hosting/), instantiated per slug. The console runs as the `guestflow`
  * user and calls `systemctl` through the sudoers rule the bootstrap installs, limited to these units.
  *

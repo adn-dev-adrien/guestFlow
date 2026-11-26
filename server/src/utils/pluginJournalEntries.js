@@ -1,5 +1,5 @@
 /**
- * The journal entries live plugins book for the accounting export (specs/mollie-rolling-reserve-and-incoming-payments.md
+ * The journal entries live plugins book for the accounting export (specs/payments/mollie-rolling-reserve-and-incoming-payments.md
  * rules 28-31), declared with `ctx.journalEntries`. The export reads them here from every live plugin and never requires
  * the booking plugin. A provider answers `{ entries, unattached, clearing }` for the window `{ from, to }`.
  */

@@ -1,5 +1,5 @@
 /**
- * STEP extras (external) — prices the requested articles for a customer with no stay (specs/pricing-components.md §3 rules 52, 53).
+ * STEP extras (external) — prices the requested articles for a customer with no stay (specs/pricing/pricing-components.md §3 rules 52, 53).
  *
  * The ARTICLES head is asked with `customerContext = 'external'`: the same families, no stay context (no persons, no nights, no free
  * units), and a family that reads the stay answers `NEEDS_STAY`. `quoted[i]` answers `requests[i]` (null when refused); `refusals` are

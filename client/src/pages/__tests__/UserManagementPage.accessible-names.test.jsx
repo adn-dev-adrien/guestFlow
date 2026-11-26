@@ -1,5 +1,5 @@
 /**
- * specs/settings-rationalization.md rule 34 — the four icon buttons of a user (table and cards) have an
+ * specs/settings/settings-rationalization.md rule 34 — the four icon buttons of a user (table and cards) have an
  * accessible name of their own, not just a tooltip on the wrapping span.
  */
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md §3.8 rules 58-63 — a platform stay sold far from the « Prix
+// specs/payments/reservation-payment-ledger.md §3.8 rules 58-63 — a platform stay sold far from the « Prix
 // plateformes » grid of its channel raises ONE alert; everything else says nothing.
 
 process.env.DB_PATH = ':memory:';

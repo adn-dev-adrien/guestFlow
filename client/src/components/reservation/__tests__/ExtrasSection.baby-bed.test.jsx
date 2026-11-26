@@ -5,10 +5,10 @@ import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import { makeMockContext } from './mockReservationForm';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
-// specs/baby-bed-supplement.md §6 — the cot supplement is engine-derived: its read-only row shows up
+// specs/options/baby-bed-supplement.md §6 — the cot supplement is engine-derived: its read-only row shows up
 // exactly when the ENGINE billed it, reads as a price per cot for the stay, and can never be ticked
 // by hand. Keying the row on the quote (not on the counter) is what keeps it honest on a booking
 // taken before the supplement existed: stored cots, no line, no row.

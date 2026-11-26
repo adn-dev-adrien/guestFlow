@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rules 9–10 — reading A: the withheld tax is what Airbnb keeps, and the
+// specs/platforms/airbnb-mail-intake.md rules 9–10 — reading A: the withheld tax is what Airbnb keeps, and the
 // commission is then Airbnb's host fee exactly. Measured on réservations 202610003 and 202609003.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -35,7 +35,7 @@ test('rule 10: outside the `platform` tax mode the box stays empty', () => {
   assert.equal(r.block.platformGrossAmount, 1236.26);
 });
 
-test('specs/pricing-components.md rule 70 — the commission is the core\'s PLATFORM PAYMENT (SDK platformCommission), never worked out here', () => {
+test('specs/pricing/pricing-components.md rule 70 — the commission is the core\'s PLATFORM PAYMENT (SDK platformCommission), never worked out here', () => {
   const booking = { total: 1236.26, payout: 1028.44, guestTaxes: 81.66, hostTaxes: 52.8, hostFee: 178.96 };
   const seen = [];
   const spy = (figures) => { seen.push(figures); return computePlatformCommission(figures); };

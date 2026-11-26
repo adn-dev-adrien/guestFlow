@@ -1,4 +1,4 @@
-// specs/terms-acceptance-record.md rule 7 — the public CGV reads: the current version, a given one
+// specs/reservations/terms-acceptance-record.md rule 7 — the public CGV reads: the current version, a given one
 // for the pinned `/cgv/?v=N` link, never a draft; 503 while nothing is published, 404 for an unknown
 // version.
 const test = require('node:test');

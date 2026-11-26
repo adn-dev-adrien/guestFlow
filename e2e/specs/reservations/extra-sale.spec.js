@@ -1,5 +1,5 @@
 // @ts-check
-// specs/pricing-components.md §6 — « Ajouter un produit » on a saved stay: the sale panel, the quote, the sale, no moment menu before the arrival,
+// specs/pricing/pricing-components.md §6 — « Ajouter un produit » on a saved stay: the sale panel, the quote, the sale, no moment menu before the arrival,
 // and the discount target selector, at 390 and 1280 px; rule 101 (loop t2 UI2-3): a typed note holds the panel, and the save keeps the sold line.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';

@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 
 const reservationsModel = require('../models/reservationsModel');
 
-// specs/platform-commission-line.md — the operator-entered platform commission is persisted on
+// specs/platforms/platform-commission-line.md — the operator-entered platform commission is persisted on
 // `reservations.platformCommissionAmount`: stored (clamped ≥ 0) for non-direct platforms, NULL for
 // direct bookings (no commission). This locks the round-trip so the fiche « net perçu » survives a save.
 
@@ -70,7 +70,7 @@ test('switching a reservation to direct clears the commission', () => {
   assert.equal(readCommission(db, id), null);
 });
 
-// specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation) round-trip.
+// specs/platforms/platform-payment-entry.md — brut (pins the total) + virement (reconciliation) round-trip.
 const readGross = (db, id) => db.prepare('SELECT platformGrossAmount FROM reservations WHERE id = ?').get(id).platformGrossAmount;
 const readPayout = (db, id) => db.prepare('SELECT platformPayoutAmount FROM reservations WHERE id = ?').get(id).platformPayoutAmount;
 
@@ -106,7 +106,7 @@ test('updateReservation persists new brut + virement; switching to direct clears
   assert.equal(readPayout(db, id), null);
 });
 
-// specs/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
+// specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
 // withheld, stored beside the brut it comes out of. NULL is meaningful here and is NOT 0: it is what
 // says the brut was typed tourist-tax-excluded, so every row written before this feature keeps
 // pricing exactly as it did.

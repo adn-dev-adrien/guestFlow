@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 51, 61, 62 and 65 — the VAT component alone: the rate by (vatClass, customerContext)
+// specs/pricing/pricing-components.md §3 rules 51, 61, 62 and 65 — the VAT component alone: the rate by (vatClass, customerContext)
 // under the subject and franchise regimes, one rounding per (vatClass, rate, customerContext) group, the allocation to the
 // group's amounts summing to the group, the per-rate output, and equality with each former copy of the split on a sweep
 // of amounts and rates. The golden months and the price gate (run beside this suite) prove the switched readers on the

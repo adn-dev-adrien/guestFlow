@@ -1,5 +1,5 @@
 // Merged « complément de fin de séjour » shown when the arrival complement was deferred to check-out.
-// See specs/defer-arrival-complement-to-checkout.md §3.2.
+// See specs/sas/defer-arrival-complement-to-checkout.md §3.2.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

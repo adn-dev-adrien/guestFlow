@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 42 and 43 — the home's attention line for the franchise threshold,
+// specs/accounting/vat-optional-mode.md rules 42 and 43 — the home's attention line for the franchise threshold,
 // and the follow-up as a read-only source.
 
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 9, 12–14, 16, 18, 20–22 — the Plugins page of a release:
+// specs/plugins/plugins-phase-4-registry.md rules 9, 12–14, 16, 18, 20–22 — the Plugins page of a release:
 // versions, the « Mise à jour x.y.z » chip and its dialog, « Tout mettre à jour », the refusals in
 // plain French, the restart, an incompatible plugin, the rollback and the requirements confirmation.
 import React from 'react';

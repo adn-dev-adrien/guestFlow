@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The refund write-path replay of the price gate (specs/pricing-components.md §3 rule 81, decision D9).
+// The refund write-path replay of the price gate (specs/pricing/pricing-components.md §3 rule 81, decision D9).
 //
 //   node scripts/price-gate/buildWriteReplay.mjs --out server/src/tests/fixtures/price-gate/writes.json
 //

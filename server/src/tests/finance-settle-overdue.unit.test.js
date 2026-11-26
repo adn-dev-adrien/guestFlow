@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 38 — each element of « En retard » names the payment flag
+// specs/accounting/finance-dashboard-redesign.md rule 38 — each element of « En retard » names the payment flag
 // « Marquer payé » ticks for it, and nothing else (review of PR #702, major 1: a late platform payout
 // also marked the guest's on-site complement as paid).
 const { freshDb, insert, TODAY } = require('./financeDashboardFixture');

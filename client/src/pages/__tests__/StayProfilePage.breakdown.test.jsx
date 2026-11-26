@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rules 16, 19 and 20 — the breakdown panel: the server's rows in a share
+// specs/accounting/stay-profile.md §3 rules 16, 19 and 20 — the breakdown panel: the server's rows in a share
 // table, the « Découpage » and « Mesure » switches, the caption naming the window and the source, and
 // the empty window.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 31-32 (audit 2026-10-27) — the live quote and the
+// specs/design-system/ui-review-2026-10-19-operations.md rules 31-32 (audit 2026-10-27) — the live quote and the
 // stored row print the same headline, and the summary's cascade is served by the server.
 const test = require('node:test');
 const assert = require('node:assert/strict');

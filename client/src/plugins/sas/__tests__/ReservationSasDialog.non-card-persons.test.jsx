@@ -1,4 +1,4 @@
-// A non-card per-person option sold at check-in — specs/non-card-option-served-persons.md rule 12 and §6.
+// A non-card per-person option sold at check-in — specs/options/non-card-option-served-persons.md rule 12 and §6.
 //
 // One file per subject (CLAUDE.md §9). The stepper announces the line's amount, and the commit carries
 // the people served, never units nor a price.

@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 1-2 — the house's « Domotique » tree is the gate connector's: same key,
+// specs/guest-app/guest-app-home-automation.md rules 1-2 — the house's « Domotique » tree is the gate connector's: same key,
 // same signature (the canonical string pinned with the Sowel plugin), every answer signed, closed without a secret.
 const test = require('node:test');
 const assert = require('node:assert/strict');

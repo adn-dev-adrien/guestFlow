@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-api.md rule 23 and specs/wordpress-plugin.md rule 35 (Adrien's decision D13, 2026-11-05) — what the
+// specs/site/public-api.md rule 23 and specs/site/wordpress-plugin.md rule 35 (Adrien's decision D13, 2026-11-05) — what the
 // public form accepts in a name: letters of any script with their marks, space, hyphen, apostrophes and dot. The form
 // sends no city and no address, so nothing judges them; an intake, the back office and a stored name are never judged.
 const test = require('node:test');
@@ -148,7 +148,7 @@ test('rule 23 — a stored client is never judged: a request by its e-mail neith
   assert.deepEqual({ ...db.prepare('SELECT firstName, lastName FROM clients WHERE id = ?').get(id) }, { firstName: 'Jean_2', lastName: 'SCI 1789' });
 });
 
-test('specs/wordpress-plugin.md rule 35 — the site prints the server\'s sentence under the field: nothing to change in the WordPress form', () => {
+test('specs/site/wordpress-plugin.md rule 35 — the site prints the server\'s sentence under the field: nothing to change in the WordPress form', () => {
   const form = fs.readFileSync(path.join(__dirname, '../../../../../integrations/wordpress/guestflow-booking/blocks/booking/view.js'), 'utf8');
   assert.match(form, /'guest\.firstName': 'firstName', 'guest\.lastName': 'lastName'/);
   assert.match(form, /showFieldError\(key, d\.message \|\| fallback\);/);

@@ -2,7 +2,7 @@ require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Database = require('better-sqlite3');
@@ -10,7 +10,7 @@ const Module = require('module');
 
 /**
  * End-to-end regression guard for PROGRESSIVE-PER-PARTICIPANT options on the PUBLIC API
- * (specs/public-api.md). These options carry `priceType = 'per_participant_progressive'`: the
+ * (specs/site/public-api.md). These options carry `priceType = 'per_participant_progressive'`: the
  * quantity sent by the client is the NUMBER OF PARTICIPANTS, and each successive participant is
  * billed at a (usually degressive) tier price.
  *

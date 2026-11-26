@@ -1,6 +1,6 @@
 /**
  * The payment-link webhook subscribes itself.
- * See specs/settings-one-save-and-automatic-webhook.md §3 rules 7, 8, 9, 10, 11.
+ * See specs/settings/settings-one-save-and-automatic-webhook.md §3 rules 7, 8, 9, 10, 11.
  *
  * The cardinal one is rule 8. Qonto cannot tell us the secret of a subscription it already holds, so
  * a duplicate would deliver events signed with a key we cannot verify — while the first one kept

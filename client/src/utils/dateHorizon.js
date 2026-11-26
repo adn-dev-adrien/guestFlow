@@ -12,7 +12,7 @@ function shiftYears(today, years) {
 
 /**
  * The last day a date may name: today plus MAX_HORIZON_YEARS years, a 29 February landing on the 28th
- * (specs/reservations-backend-mvc.md rule 13). The server judges; this only keeps the screens from
+ * (specs/tech/reservations-backend-mvc.md rule 13). The server judges; this only keeps the screens from
  * sending what it refuses.
  */
 export function horizonEnd(today = localIsoToday()) {

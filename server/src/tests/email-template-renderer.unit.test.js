@@ -1,5 +1,5 @@
 // Pure template renderer — variables + single-level conditionals.
-// See specs/email-automation.md §3 rules 3 + 4.
+// See specs/emails/email-automation.md §3 rules 3 + 4.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -127,9 +127,9 @@ test('whitespace around the variable name is tolerated', () => {
   assert.equal(out.body, 'Hello Jean');
 });
 
-// End-to-end: Solio's J-7 and J-2 bodies (mails 2 and 3 of specs/guest-email-sequence.md §6.1)
+// End-to-end: Solio's J-7 and J-2 bodies (mails 2 and 3 of specs/emails/guest-email-sequence.md §6.1)
 // rendered through the real context builder, with the property facts the sequence reads and the
-// wording productisation_v1 keeps for Solio (specs/plugins-phase-p-productisation.md rule 24).
+// wording productisation_v1 keeps for Solio (specs/plugins/plugins-phase-p-productisation.md rule 24).
 const { buildContext } = require('../utils/emailContextBuilder');
 const { withSolioWording } = require('./solioWordingFixture');
 const SOLIO_TEMPLATES = require('./fixtures/productisation/solio-sequence-templates.json');

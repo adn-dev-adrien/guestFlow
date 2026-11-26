@@ -17,7 +17,7 @@
  * IS a degressivity (15 → 8 is −47 %), and applying the curve on top would bill night 2 at 8 × 0,52
  * = 4,16 € — a halving invisible to whoever reads the recipe. `tariffRecipe.js` rejects a recipe
  * declaring both rather than resolving the ambiguity here.
- * See specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 rules 1-5.
+ * See specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1 rules 1-5.
  */
 
 /**
@@ -27,7 +27,7 @@
  * single price » — the behaviour of every property that has never declared tiers.
  *
  * A tier may also carry `netPrice` — the net pivot the platform grid grosses up per channel
- * (specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 rule 6). It is PRESERVED here, never
+ * (specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1 rule 6). It is PRESERVED here, never
  * consumed: the billing engine reads `price` only, so a net target can never leak into an amount
  * a guest is charged.
  */

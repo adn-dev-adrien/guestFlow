@@ -4,7 +4,7 @@
  * still fits a phone, with a « Copier » button. The full value is the title, the copied text and what screen
  * readers read; only the drawing is shortened.
  *
- * Generic: it knows nothing about banks or reservations (specs/mollie-rolling-reserve-and-incoming-payments.md
+ * Generic: it knows nothing about banks or reservations (specs/payments/mollie-rolling-reserve-and-incoming-payments.md
  * rule 12). Copying shows a toast; a browser that refuses the clipboard shows an error toast.
  *
  * Props:

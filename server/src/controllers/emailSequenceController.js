@@ -1,5 +1,5 @@
 /**
- * Guest email sequence — operator endpoints (specs/guest-email-sequence.md §3.6, §4.3).
+ * Guest email sequence — operator endpoints (specs/emails/guest-email-sequence.md §3.6, §4.3).
  *
  *   GET /api/email-sequence/simulation?from=YYYY-MM-DD&to=YYYY-MM-DD
  *     → { rows, startDate, assumedStartDate, autoMailKeys }
@@ -20,7 +20,7 @@ function buildController({ database, ledger, settingsModel, templatesModel }) {
     }
     const days = (Date.parse(to) - Date.parse(from)) / 86400000;
     if (days < 0 || days > MAX_RANGE_DAYS) return res.status(400).json({ error: 'INVALID_RANGE', maxDays: MAX_RANGE_DAYS });
-    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — both ends inside the date window.
+    // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — both ends inside the date window.
     const outside = dateWindowMessage(from) || dateWindowMessage(to);
     if (outside) return res.status(400).json({ error: 'INVALID_RANGE', message: outside });
     return res.json(simulate({ database, ledger, settingsModel, templatesModel }, { from, to }));

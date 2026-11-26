@@ -1,6 +1,6 @@
 /**
  * Quand peut-on basculer le complément d'arrivée en fin de séjour depuis la fiche ?
- * — specs/defer-arrival-complement-to-checkout.md §3.3 rules 12-15.
+ * — specs/sas/defer-arrival-complement-to-checkout.md §3.3 rules 12-15.
  *
  * La règle tient en une phrase depuis le 2026-08-22 : **c'est l'opérateur qui décide, tout le
  * temps.** Le contrôle ne se verrouille plus au début du séjour et ne disparaît plus une fois le

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 56 (audit R36-PUB-L1) — every refusal of `/public/v1/guest/**` answers in the request's
+// specs/guest-app/guest-app.md rule 56 (audit R36-PUB-L1) — every refusal of `/public/v1/guest/**` answers in the request's
 // language: the `code` never moves, the `message` follows `?lang=` (else the guest's language), as the public API's own
 // envelope does. The auditor's probes (`g5`): an order over the ceiling, a card order without a provider, an empty
 // basket, a quantity over its maximum, an unknown order — in English. Stays dated around today (the core's window).

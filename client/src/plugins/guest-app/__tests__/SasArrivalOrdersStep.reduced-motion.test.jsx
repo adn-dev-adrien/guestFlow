@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 71 and the reduced-motion rule (end review R3-8) — with « reduce motion » asked, the orders list folds without a
+// specs/guest-app/guest-app.md rule 71 and the reduced-motion rule (end review R3-8) — with « reduce motion » asked, the orders list folds without a
 // height animation (its Collapse runs with a 0 ms timeout), like its chevron; otherwise it keeps MUI's own duration.
 import { render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';

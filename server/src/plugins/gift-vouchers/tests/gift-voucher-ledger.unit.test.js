@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 11, 31 — the ledger: append-only, one writer, idempotent, never below 0, never above the issued amount.
+// specs/gift-vouchers/gift-vouchers.md rules 11, 31 — the ledger: append-only, one writer, idempotent, never below 0, never above the issued amount.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

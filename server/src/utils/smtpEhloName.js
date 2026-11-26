@@ -1,5 +1,5 @@
 /**
- * The name an SMTP client greets its server with (specs/admin-account-management.md rule 21): the domain of the address
+ * The name an SMTP client greets its server with (specs/hosting/admin-account-management.md rule 21): the domain of the address
  * the mail is sent From, lower-cased, never nodemailer's default (the machine's hostname, `[127.0.0.1]` on a VM), which
  * receiving filters read in the `Received` header as a sender that does not know its own name. Shared by the instance's
  * transports (utils/emailService) and the console's (control-plane mailer, through utils/gf). Accepts a bare address

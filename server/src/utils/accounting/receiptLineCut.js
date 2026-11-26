@@ -1,5 +1,5 @@
 /**
- * The VAT cut of a receipt on a stay the sale-line readers serve (specs/pricing-components.md §3 rules 51, 61, 62, 63;
+ * The VAT cut of a receipt on a stay the sale-line readers serve (specs/pricing/pricing-components.md §3 rules 51, 61, 62, 63;
  * owner 2026-11-15 « Brancher quand même », read with « éviter de toucher les anciens séjours », utils/saleLinesReaders.js).
  *
  * `cutReceipt(entry, { regime, saleLines })` → the entry with `fraction: 1` and its `buckets` cut by the VAT component:

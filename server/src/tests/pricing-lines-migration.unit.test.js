@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 36, 74, 78, 79 and §5 — the line identity rebuild, the sale columns, the refund
+// specs/pricing/pricing-components.md §3 rules 36, 74, 78, 79 and §5 — the line identity rebuild, the sale columns, the refund
 // columns and tables, the allocations: additions and backfills from stored data, no amount rewritten, a second run changes
 // nothing, and the previous release's writers still work on the migrated tables (self-update rule 31).
 process.env.DB_PATH = ':memory:';

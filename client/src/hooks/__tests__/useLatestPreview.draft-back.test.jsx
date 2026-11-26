@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (reading « a draft that comes back is not asked again », loop t26) — a draft that comes back to the
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (reading « a draft that comes back is not asked again », loop t26) — a draft that comes back to the
 // one on its way keeps that request; back to the latest accepted answer it is current again, not pending, nothing asked; back to a
 // failed draft it is asked afresh (loop t24 UI24-2 still holds).
 import { act, renderHook, waitFor } from '@testing-library/react';

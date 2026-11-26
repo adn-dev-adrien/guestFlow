@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 47-48 — the visual library: thumbnails with name, use, the campaigns that use each and the valid vouchers carrying it; add with
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 47-48 — the visual library: thumbnails with name, use, the campaigns that use each and the valid vouchers carrying it; add with
 // the server's refusal of the image; rename and replace (the vouchers already issued keep their version); delete with the server's refusal.
 import React from 'react';
 import { screen, waitFor, within } from '@testing-library/react';

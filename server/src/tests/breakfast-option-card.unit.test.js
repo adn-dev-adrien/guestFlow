@@ -6,7 +6,7 @@ const { buildModel } = require('../models/breakfastModel');
 const optionCardsModel = require('../models/planningOptionCardsModel');
 const { ensureDefaultBreakfastOption } = require('../utils/breakfastSeed');
 
-// specs/breakfast-option-planning-card.md — the breakfast option gains the per-day occurrence
+// specs/options/breakfast-option-planning-card.md — the breakfast option gains the per-day occurrence
 // selection: its dedicated card is driven by the CHECKED cardOccurrences (not the auto morning
 // window), it never gets a generic card, and the seed flags it once_per_day.
 

@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md §3 rule 57 (D-HC16, 2026-11-06) — over HTTP, a repeated `fiscalYear` answers
+// specs/accounting/finance-dashboard-redesign.md §3 rule 57 (D-HC16, 2026-11-06) — over HTTP, a repeated `fiscalYear` answers
 // 400 { error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' } on the dashboard, its detail tables and the stay
 // profile, the data checks' own answer; one unusable value still reads the current exercise.
 process.env.DB_PATH = ':memory:';

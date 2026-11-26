@@ -1,11 +1,11 @@
-// specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the « Suivi financier → Taxe de
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-12 — the « Suivi financier → Taxe de
 // séjour » page must show, for every stay it lists, the amount the fiche shows AND a base that
 // reproduces it. That second half is what broke on 2026-08-20: the amount was pinned while the base
 // went on being recomputed under a new rule, so a declared line read « 24,73 €/occupant/nuit » next
 // to « 21,00 € » — two numbers that do not answer each other, and cannot be retyped into the
 // commune's form.
 //
-// specs/tourist-tax-matches-the-office-calculation.md rule 10bis — the structural consequence: the
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 10bis — the structural consequence: the
 // page only ever lists stays whose tax has been COLLECTED, and collecting is what freezes it. Every
 // line here is therefore a frozen one; the declaration reports, it no longer re-prices.
 

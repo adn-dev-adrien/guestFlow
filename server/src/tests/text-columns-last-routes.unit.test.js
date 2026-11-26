@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (R23 verification N1, N2, L5) — the routes the first
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (R23 verification N1, N2, L5) — the routes the first
 // baselines never reached: settings, e-mail texts, J-7 hooks, platform review wording refuse a wrong type, the stored value
 // untouched; the fiche's draft client is cleaned like any client; a pasted tab separates words.
 const test = require('node:test');

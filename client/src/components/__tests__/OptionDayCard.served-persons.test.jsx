@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import OptionDayCard from '../OptionDayCard';
 
-// specs/card-option-served-persons.md §3.4 rule 18 — the cook reads the card: it must announce the
+// specs/options/card-option-served-persons.md §3.4 rule 18 — the cook reads the card: it must announce the
 // covers actually sold, not the size of the party.
 
 const ITEM = {

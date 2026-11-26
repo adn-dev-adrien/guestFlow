@@ -1,11 +1,11 @@
 require('./isolatedDb');
-// specs/wordpress-plugin.md rule 28 (UI/UX review 2026-10-18, decision 3) — every refused contact
+// specs/site/wordpress-plugin.md rule 28 (UI/UX review 2026-10-18, decision 3) — every refused contact
 // field carries its own sentence in the visitor's language, so the site prints it under that field
 // instead of one generic line under the button. `field` and `issue` never move: additions only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Module = require('module');
@@ -92,7 +92,7 @@ test('POST /booking-requests: 422 with one message per refused field, in the pag
   ]);
 });
 
-// specs/public-api.md rule 20 (audit 2026-10-28, injection finding 2) — a name or phone of 40 000 characters used to be stored and
+// specs/site/public-api.md rule 20 (audit 2026-10-28, injection finding 2) — a name or phone of 40 000 characters used to be stored and
 // flow into every e-mail, PDF and CSV: refused at the boundary, field by field.
 test('a first name, last name, phone or e-mail past its cap is refused with its own field error', () => {
   const ok = validateGuest({ firstName: 'a'.repeat(100), lastName: 'b'.repeat(100), email: 'a@b.fr', phone: `+33612345678${' '.repeat(28)}` });

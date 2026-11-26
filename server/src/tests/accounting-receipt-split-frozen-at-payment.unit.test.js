@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 99 (stabilisation loop t1, B-4; completes rule 63 as amended by R2-5) — the sale lines a receipt is cut
+// specs/pricing/pricing-components.md §3 rule 99 (stabilisation loop t1, B-4; completes rule 63 as amended by R2-5) — the sale lines a receipt is cut
 // over are frozen per payment day when the money is taken: a paid line removed or offered later never re-cuts a month already declared.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

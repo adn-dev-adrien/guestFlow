@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — « Lorsqu'on déverrouille une fiche il faut autoriser
+// specs/settings/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — « Lorsqu'on déverrouille une fiche il faut autoriser
 // que les modifications possibles qui ne changent pas le prix final. » The admin unlock of a started stay exists to correct
 // the amounts expected from the platforms: a save that moves the final price or the tourist tax is refused 409
 // UNLOCKED_PRICE_CHANGED and writes nothing; every save that keeps both passes. The ledger's solde editor, which reaches

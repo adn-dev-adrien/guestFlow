@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rule 21 — the hourly block of the resource form, drawn
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 21 — the hourly block of the resource form, drawn
 // by the plugin through `resources.fields`.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

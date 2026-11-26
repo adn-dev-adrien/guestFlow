@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 74 — the LIVE writers of `payment_allocations`: a stay paid, taken back, refunded or
+// specs/pricing/pricing-components.md §3 rule 74 — the LIVE writers of `payment_allocations`: a stay paid, taken back, refunded or
 // settled AFTER the boot has its allocations in the same transaction, with no help from the backfill. The proof is the table
 // itself: after each move it equals what the stored columns describe (a rebuild writes nothing) and no stay is left marked.
 process.env.DB_PATH = ':memory:';

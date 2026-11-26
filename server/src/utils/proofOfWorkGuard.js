@@ -1,5 +1,5 @@
 /**
- * The proof of work in front of a public write, one judgment for every form of the site (SDK 2.35.0; specs/public-request-abuse-and-grouping.md rules 3, 4, 5b, 29, 32): the lodging request,
+ * The proof of work in front of a public write, one judgment for every form of the site (SDK 2.35.0; specs/site/public-request-abuse-and-grouping.md rules 3, 4, 5b, 29, 32): the lodging request,
  * the gift voucher calls and the session confirmation. A proof is signed for the visitor's address, solved (not fetched for nothing), spent once — in one memory shared by all of them —
  * and signed at a difficulty that still covers what the address owes now. Only a request that passes is logged.
  *

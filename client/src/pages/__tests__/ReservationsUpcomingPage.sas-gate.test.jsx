@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rule 9 (gap 4) — « À venir » opens the arrival SAS only while the
+// specs/plugins/plugins-phase-2-hosts.md rule 9 (gap 4) — « À venir » opens the arrival SAS only while the
 // `sas` plugin is active: its card buttons ask, and the dialog comes from the `sas.dialog` slot.
 import { vi } from 'vitest';
 import React from 'react';
@@ -52,14 +52,14 @@ beforeEach(() => {
   api.getReservationSas.mockReturnValue(new Promise(() => {}));
 });
 
-test('specs/plugins-phase-2-hosts.md rule 9 — without sas, the « À venir » cards carry no SAS button (gap 4)', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 9 — without sas, the « À venir » cards carry no SAS button (gap 4)', async () => {
   renderPage();
   expect(await screen.findByText(/Dupont/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Accueil' })).not.toBeInTheDocument();
   expect(api.getReservationSas).not.toHaveBeenCalled();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 9 — with sas active, the button opens the dialog contributed to sas.dialog', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 9 — with sas active, the button opens the dialog contributed to sas.dialog', async () => {
   enabled.add('sas');
   renderPage();
   fireEvent.click(await screen.findByRole('button', { name: 'Accueil' }));

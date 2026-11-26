@@ -1,5 +1,5 @@
 /**
- * Finance dashboard radii — specs/finance-dashboard-redesign.md rule 32: cards at the theme's 14 px,
+ * Finance dashboard radii — specs/accounting/finance-dashboard-redesign.md rule 32: cards at the theme's 14 px,
  * inner frames at 10 px. A plain number in sx.borderRadius is multiplied by 14, which gave 49 px
  * tiles and a 63 px banner in 3.7.0.
  */

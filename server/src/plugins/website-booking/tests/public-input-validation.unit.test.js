@@ -71,7 +71,7 @@ test('validateStayInput accepts a valid stay and whitelists fields', () => {
 test('validateStayInput strips EVERY price-influencing field — the public API can never set/adjust/offer a price', () => {
   // A hostile proxy throws the whole pricing arsenal at the boundary. The whitelist must keep
   // ONLY the engine inputs (dates, guests, optionId+quantity). No price, no adjustment, no
-  // "offered", no platform, no resources — at any level (specs/public-api.md §3 rules 5-6).
+  // "offered", no platform, no resources — at any level (specs/site/public-api.md §3 rules 5-6).
   const r = validateStayInput({
     propertyId: 1, startDate: '2026-07-20', endDate: '2026-07-27',
     adults: 2,

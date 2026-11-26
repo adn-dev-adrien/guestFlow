@@ -2,9 +2,9 @@
  * SettingsNotificationsSection — "Notifications de réservation" card.
  *
  * Master switch + recipient address for the booking notification emails
- * (specs/site-booking-notifications.md §6). When ON (default), GuestFlow emails the operator on a
+ * (specs/site/site-booking-notifications.md §6). When ON (default), GuestFlow emails the operator on a
  * new website devis and on a new iCal reservation. The recipient is DERIVED from the sending address
- * unless overridden (specs/settings-rationalization.md rule 12).
+ * unless overridden (specs/settings/settings-rationalization.md rule 12).
  *
  * Persisted in app_settings.notificationsEnabled (0/1) + notificationRecipientEmail.
  * Mirrors the visual shape of the other Settings sections (Card → Stack → h6 → caption).

@@ -1,8 +1,8 @@
 /**
  * DataPageScaffold — standard list/CRUD page: sticky PageActionBar (title + labeled create
  * action), optional filter card, states, and a scroll-contained table with a shared EmptyState
- * (specs/ds-components.md §3.4; states + mobile-cards + barTabs added by
- * specs/ds-sweep-settings.md).
+ * (specs/design-system/ds-components.md §3.4; states + mobile-cards + barTabs added by
+ * specs/design-system/ds-sweep-settings.md).
  *
  * Props:
  *   title:        string       page title (PageActionBar)

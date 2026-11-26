@@ -1,5 +1,5 @@
 /**
- * The three questions of the start assistant's plugin step (specs/plugins-phase-p-productisation.md
+ * The three questions of the start assistant's plugin step (specs/plugins/plugins-phase-p-productisation.md
  * rule 43; UI/UX review 2026-10-18, proposal 13). The owner answers what the business does; the
  * server turns each « oui » into its plugins. The full list stays in Paramètres › Plugins.
  *

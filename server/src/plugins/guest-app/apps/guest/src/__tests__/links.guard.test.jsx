@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 15, 18 — Soliomap opens in the app only on its own origin, a suggestion with a bad
+// specs/guest-app/guest-app.md rules 15, 18 — Soliomap opens in the app only on its own origin, a suggestion with a bad
 // link costs the home nothing, and a booklet's web links open in a new tab without handing over the app.
 import { renderHook } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

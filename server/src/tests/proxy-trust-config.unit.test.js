@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 35 (audit 2026-10-28, public finding F4): forwarded headers are
+// specs/hosting/hosting-h1-fleet-runtime.md rule 35 (audit 2026-10-28, public finding F4): forwarded headers are
 // believed only with TRUST_PROXY_HOPS, and only past the proxy secret when one is set.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/manual-laundry-additions.md §4.1 — per-trip manual linen additions model.
+// specs/linen/manual-laundry-additions.md §4.1 — per-trip manual linen additions model.
 const model = require('../manualAdditionsModel');
 
 const ZEROS = { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 };
@@ -24,7 +24,7 @@ test('get → zeros when no row', () => {
 });
 
 test('set upserts, keeps the sign, rounds floats; get reads back; update replaces (not merges)', () => {
-  // specs/laundry-manual-removals.md §3 rules 1-2 — a negative value is linen the operator washes
+  // specs/linen/laundry-manual-removals.md §3 rules 1-2 — a negative value is linen the operator washes
   // himself, withdrawn from the trip. It is stored as-is; the clamping lives where the trip is known.
   const m = makeDb();
   const stored = m.set('2026-06-09', { singleBeds: 2, doubleBeds: -1, largeTowels: 3.7, bogus: 9 });
@@ -75,7 +75,7 @@ test('set rejects a non-ISO date', () => {
   assert.throws(() => makeDb().set('2026/06/09', { singleBeds: 1 }));
 });
 
-// ---- withdrawals (specs/laundry-manual-removals.md §3 rules 1-2) ----
+// ---- withdrawals (specs/linen/laundry-manual-removals.md §3 rules 1-2) ----
 
 test('a withdrawal-only trip is a real row (not an empty one) and survives a round-trip', () => {
   const m = makeDb();

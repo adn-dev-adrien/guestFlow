@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md rule 25 (UI/UX review 2026-10-18, proposal 19) — the card tells
+// specs/plugins/plugins-phase-0-foundation.md rule 25 (UI/UX review 2026-10-18, proposal 19) — the card tells
 // the real state the server computed (« Actif · à connecter »), its main action opens the plugin's
 // settings place, and « Désactiver » waits in ⋯ behind a confirmation that says what stops.
 import React from 'react';

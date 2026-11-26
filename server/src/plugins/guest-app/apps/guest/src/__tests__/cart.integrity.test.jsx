@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 24, 29, 32, 37quater — the cart only orders what the server has just priced: a quote
+// specs/guest-app/guest-app.md rules 24, 29, 32, 37quater — the cart only orders what the server has just priced: a quote
 // that failed leaves no total to commit; a bath session no longer free is removed on its own and blocks the order
 // until it is, and never reaches the cart from the slots; an article's bound counts what the cart already holds.
 import { screen, waitFor, within } from '@testing-library/react';

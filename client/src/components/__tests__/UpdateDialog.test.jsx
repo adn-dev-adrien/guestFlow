@@ -1,7 +1,7 @@
 /**
  * UpdateDialog — the digest leads, the changelog waits (20c), and the offer covers every
  * version the update crosses, not just the target (rule 20d).
- * specs/self-update-and-releases.md §6.2.
+ * specs/hosting/self-update-and-releases.md §6.2.
  */
 
 import React from 'react';

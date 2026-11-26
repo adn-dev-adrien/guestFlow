@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 14, 23 and decision O-10 — offering (or discounting) a PAID line is refused by default
+// specs/pricing/pricing-components.md §3 rules 14, 23 and decision O-10 — offering (or discounting) a PAID line is refused by default
 // (409 OVERPAID, nothing written); confirmed, it opens an obligation `lineLowered` of the line's excess, the same figure as
 // the fiche save's. The SAS cannot reach a paid line: a paid complement freezes its lines (rule 32).
 process.env.DB_PATH = ':memory:';

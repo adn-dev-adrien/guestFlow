@@ -6,7 +6,7 @@ const planningDaysModel = require('../models/planningDaysModel');
 const { buildController } = require('../controllers/planningController');
 const enforceRoleAccess = require('../middleware/enforceRoleAccess');
 
-// specs/dashboard-planning-scroll.md rules 1–3 — GET /api/planning/today: the home's day lists in one
+// specs/planning/dashboard-planning-scroll.md rules 1–3 — GET /api/planning/today: the home's day lists in one
 // call, the next arrival when nobody arrives, the same roles as the planning.
 
 const DDL = `

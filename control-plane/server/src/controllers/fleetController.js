@@ -1,5 +1,5 @@
 /**
- * The page « Versions » and the operator's host actions (specs/hosting-h1-fleet-runtime.md rules 8,
+ * The page « Versions » and the operator's host actions (specs/hosting/hosting-h1-fleet-runtime.md rules 8,
  * 10, 11, 14): the releases installed on the host and how many instances run each, the newest
  * published one and its installation, a fleet update and its progress, a plugin push, and
  * « Restaurer à une date ». Payloads are ready to render.

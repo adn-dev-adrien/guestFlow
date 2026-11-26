@@ -8,7 +8,7 @@ import {
   frozenUnitPrices,
 } from '../bookingFormHydration';
 
-// specs/devis-extras-parity-and-price-lock.md §3 rule 12 + §4.2.
+// specs/devis/devis-extras-parity-and-price-lock.md §3 rule 12 + §4.2.
 // The devis branch of ReservationPage used to map a strict subset of what the reservation branch
 // mapped, so re-opening a quote lost its scheduled mornings, its booked hours, its Complément routing
 // and its custom-option ids — which the next save then dropped for good. One mapper now serves both.
@@ -31,7 +31,7 @@ describe('hydrateSelectedOptions', () => {
     expect(line.cardOccurrences).toEqual([{ date: '2027-03-09', time: '08:30', checked: true }]);
   });
 
-  // specs/card-option-served-persons.md §3.2 — without this the next save re-bills the whole party.
+  // specs/options/card-option-served-persons.md §3.2 — without this the next save re-bills the whole party.
   test('carries the served-persons count of a card option', () => {
     const [line] = hydrateSelectedOptions(
       [{ optionId: 6, quantity: 3, cardPersons: 2, cardOccurrences: [{ date: '2027-03-09', time: '08:30' }] }],

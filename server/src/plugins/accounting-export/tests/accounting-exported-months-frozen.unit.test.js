@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/accountant-accounting-export.md rules 33 and 35 — a month the accountant may already have
+// specs/accounting/accountant-accounting-export.md rules 33 and 35 — a month the accountant may already have
 // imported keeps its cents. Final review 2026-10-18, N4: the rule 32 split moved one cent on April
 // (Kappa 624,54 / 62,46), July (Sigma 40,34 / 11,23) and September 2026 (Lima 117,28 / 11,72).
 // Second pass (minor 3): a cutoff fixed at 1 October 2026 would still move October, which production

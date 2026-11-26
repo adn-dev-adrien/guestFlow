@@ -1,7 +1,7 @@
 /**
- * The console's login (specs/control-plane-plans-and-access.md rule 31): email and password, then
+ * The console's login (specs/hosting/control-plane-plans-and-access.md rule 31): email and password, then
  * the second factor the operator chose — the authenticator app's code or the code sent by email —
- * or one of their backup codes. The code field is the instance's (specs/hosting-h2-account-security.md
+ * or one of their backup codes. The code field is the instance's (specs/hosting/hosting-h2-account-security.md
  * rules 32–34): six cells, sent at the 6th digit, the refusal under the cells.
  */
 import React, { useRef, useState } from 'react';

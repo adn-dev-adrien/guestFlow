@@ -1,6 +1,6 @@
 /**
  * The mail transport of the account emails — reset links and login codes
- * (specs/hosting-h2-account-security.md rules 5, 6). It is the instance's own SMTP (Réglages ›
+ * (specs/hosting/hosting-h2-account-security.md rules 5, 6). It is the instance's own SMTP (Réglages ›
  * Emails), the one the user invitations already use.
  *
  * `GUESTFLOW_MAIL_OUTBOX=<dir>` (utils/mailOutbox.js) writes each email as a JSON file instead of
@@ -24,7 +24,7 @@ function createAccountMailer({ settingsModel, env = process.env, buildEmailServi
       return url.replace(/\/+$/, '');
     },
 
-    // `html` only for the test of a guest email (specs/guest-email-texts-made-simple.md rule 37); the
+    // `html` only for the test of a guest email (specs/emails/guest-email-texts-made-simple.md rule 37); the
     // account emails themselves stay plain text.
     async send({ to, subject, text, html }) {
       const dir = outboxDir(env);

@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md rule 59 (verification of 2026-11-12) — the banner reads what is there: « rien à déclarer »
+// specs/tourist-tax/tourist-tax-report-v2.md rule 59 (verification of 2026-11-12) — the banner reads what is there: « rien à déclarer »
 // instead of « sur 0,00 € au total », singular counts in the singular, the numbers of the taxed pill in bold.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

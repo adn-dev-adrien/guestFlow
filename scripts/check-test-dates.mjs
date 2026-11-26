@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * A test line added by a PR carries no literal date the calendar will pass (specs/server-test-isolation.md
+ * A test line added by a PR carries no literal date the calendar will pass (specs/tech/server-test-isolation.md
  * rule 7).
  *
  *   node scripts/check-test-dates.mjs --base origin/inte/plugins --known origin/master,origin/inte/plugins --strict
@@ -13,7 +13,7 @@
  * A literal date written in a test today is a time bomb once the calendar passes it: a stay « in the
  * future » becomes a stay in the past, an acompte window closes, a journal month changes year. Audit R7
  * found 19 of them, and the very next PR (#893) brought 4 back. Since 2026-11-02 a past date is one too: every
- * date entered on a write path lies within [today − 5 years, today + 5 years] (specs/reservations-backend-mvc.md
+ * date entered on a write path lies within [today − 5 years, today + 5 years] (specs/tech/reservations-backend-mvc.md
  * rule 13, second reading), so a literal past date a test hands to the code is refused once it is more than
  * five years old — 136 server tests in 43 files would have gone red from 2031 (audit R20-S2). Only the lines a
  * PR ADDS are read, so the existing suites block nobody, and the dates named are those from the window's start
@@ -291,7 +291,7 @@ const countLines = (content) => {
 /**
  * `files` without the added lines whose file already holds the same text (spaces around it aside) on a known
  * branch, as many times as the head file does: those lines were merged and checked there, and an integration
- * or sync PR only carries them over (specs/server-test-isolation.md rule 9). A line the head file holds more
+ * or sync PR only carries them over (specs/tech/server-test-isolation.md rule 9). A line the head file holds more
  * often than every known ref is a new copy, and every added copy of it is read. `known(file)` → the file's
  * contents on the known branches; `content` is the file at the head.
  */
@@ -379,7 +379,7 @@ function main() {
   }
   const hint = 'Build the date from today (todayIso() + addDaysToIsoDate(), or `new Date()` arithmetic), pin the clock '
     + `in that file (vi.setSystemTime, mock.timers), or mark a date nothing compares with today with a « // ${MARKER}: `
-    + '<why> » comment on the line or the line above. specs/server-test-isolation.md rule 7.';
+    + '<why> » comment on the line or the line above. specs/tech/server-test-isolation.md rule 7.';
   console.error(`${strict ? '✗' : '⚠'} ${bombs.length} literal date(s) in added test lines will be passed by the calendar:`);
   for (const b of bombs) console.error(`  ${b.file}:${b.line}  ${b.literal}`);
   console.error(`\n${hint}`);

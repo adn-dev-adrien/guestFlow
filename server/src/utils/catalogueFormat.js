@@ -1,6 +1,6 @@
 /**
  * Display strings shared by the option and resource catalogue views
- * (specs/options-resources-ux.md rules 3, 18). Pure — the client renders what these return.
+ * (specs/options/options-resources-ux.md rules 3, 18). Pure — the client renders what these return.
  */
 
 const { emailAmount } = require('./emailMoney');

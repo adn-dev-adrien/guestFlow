@@ -1,5 +1,5 @@
 /**
- * usePlanningTimeline — the windows of the planning (specs/dashboard-planning-scroll.md rules 11, 12,
+ * usePlanningTimeline — the windows of the planning (specs/planning/dashboard-planning-scroll.md rules 11, 12,
  * 19, 20, 21, 23). The timeline is made of 14-day windows on a fixed grid anchored on the server's
  * today: window k covers `[today + 14k, today + 14k + 13]`. Each window is asked once from
  * `GET /api/planning/days` together with each `planning.days` contribution's `load({ from, to })`;

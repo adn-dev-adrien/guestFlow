@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 30, 35 — through the real chain (support audit, then the
+// specs/plugins/plugin-operator-provisioning.md rules 30, 35 — through the real chain (support audit, then the
 // plugins router): on an operator-managed space a support session gets the byte-identical unknown-route
 // 404 on every lifecycle route and leaves no entry in the support log; on an unmanaged space the audit
 // still refuses uninstalling and turning off with its 403. The Paramètres summary has no plugins line.

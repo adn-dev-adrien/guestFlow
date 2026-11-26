@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 13, 15-21, 23 — buying on the website: the order and what the server judges again, the payment link
+// specs/gift-vouchers/gift-vouchers.md rules 13, 15-21, 23 — buying on the website: the order and what the server judges again, the payment link
 // without a reservation, the voucher issued by the paid link only (and once), the page and the PDF behind the token, the pending
 // orders purged, the receipt mailed once and retried. The core's side of the paid link is `src/tests/gift-voucher-sale-link.unit.test.js`.
 const test = require('node:test');
@@ -287,7 +287,7 @@ test('rules 20, 21: once confirmed, the page shows the voucher — amount, names
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
   const { state, voucher: read } = res.body.data;
-  const { back: _back, ...voucher } = read; // the back of specs/gift-voucher-campaigns.md rule 66 has its own suite
+  const { back: _back, ...voucher } = read; // the back of specs/gift-vouchers/gift-voucher-campaigns.md rule 66 has its own suite
   assert.equal(state, 'active');
   assert.deepEqual(
     { ...voucher, code: undefined },
@@ -442,7 +442,7 @@ test('rule 23: the retry gives up three days after issuance, and never mails a v
   assert.equal(byHand.mailSentAt, null, 'the operator’s « Renvoyer » is the only mail of a voucher sold by hand');
 }));
 
-test('specs/gift-vouchers.md rule 23, specs/gift-voucher-campaigns.md rule 50: an installation with no website address cannot print the QR code — the voucher is flagged, not lost', () => withShop(async ({
+test('specs/gift-vouchers/gift-vouchers.md rule 23, specs/gift-vouchers/gift-voucher-campaigns.md rule 50: an installation with no website address cannot print the QR code — the voucher is flagged, not lost', () => withShop(async ({
   placed, paid, api, sent, server,
 }) => {
   const { orderId } = await placed();

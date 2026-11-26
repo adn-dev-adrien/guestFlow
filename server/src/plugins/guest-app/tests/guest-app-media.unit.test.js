@@ -1,4 +1,4 @@
-// specs/guest-app.md §5, rule 48 — a studio photo: its type and size judged at the boundary, the decoded format
+// specs/guest-app/guest-app.md §5, rule 48 — a studio photo: its type and size judged at the boundary, the decoded format
 // deciding over the declared one, stored as 1600 / 800 / 400 px WebP (never enlarged) under the uploads' guest-app
 // folder, served at `/uploads/<path>`, with its FR / EN alt text.
 const test = require('node:test');

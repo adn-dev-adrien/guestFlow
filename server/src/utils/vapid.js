@@ -1,5 +1,5 @@
 /**
- * VAPID keys for Web Push (specs/pwa-push-notifications.md §3.4 rule 17).
+ * VAPID keys for Web Push (specs/guest-app/pwa-push-notifications.md §3.4 rule 17).
  *
  * The keypair is generated once on first boot and persisted to `server/.env.local`
  * (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`) — same pattern as the session secret. It is git-ignored and
@@ -16,7 +16,7 @@ const { loadLocalEnv, persistVar } = require('./localEnv');
 // Contact required by the Web Push spec for the VAPID `sub` claim. It MUST be a routable URL/mailto:
 // Apple's push gateway rejects the JWT with `403 BadJwtToken` when the subject is a non-routable domain
 // (e.g. a `.local` TLD), which silently kills every iOS push. Resolved in this order
-// (specs/plugins-phase-p-productisation.md rule 18): VAPID_SUBJECT in the environment, the
+// (specs/plugins/plugins-phase-p-productisation.md rule 18): VAPID_SUBJECT in the environment, the
 // `vapidSubject` setting, the company email, the SMTP sender. With none, push stays off.
 function resolveSubject(settings = {}, env = process.env) {
   const clean = (v) => String(v == null ? '' : v).trim();

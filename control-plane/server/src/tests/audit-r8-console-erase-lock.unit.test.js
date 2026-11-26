@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 39 — a reactivation or a cancellation never lands while an
+// specs/hosting/hosting-h1-fleet-runtime.md rule 39 — a reactivation or a cancellation never lands while an
 // erasure is queued or running, and the erasure re-reads the customer inside the lock (audit R8 N1).
 
 const test = require('node:test');

@@ -1,5 +1,5 @@
 /**
- * STEP platformGross — PLATFORM PRICE (specs/pricing-components.md §3 rule 52).
+ * STEP platformGross — PLATFORM PRICE (specs/pricing/pricing-components.md §3 rule 52).
  *
  * The gross a platform pin fixes, the arrival-complement extras and the pre-arrival extras the brut back-solve
  * excludes.
@@ -22,7 +22,7 @@ const step = {
       resourcesTotal,
     } = ctx;
 
-    // specs/platform-payment-entry.md — on a non-direct reservation a set `platformGrossAmount` PINS the
+    // specs/platforms/platform-payment-entry.md — on a non-direct reservation a set `platformGrossAmount` PINS the
     // PLATFORM-PAID portion of the stay (the brut the guest paid the platform). It supersedes
     // `customPrice`/`discountPercent` (the brut is the single price lever for platforms). The accommodation
     // is back-solved so that `accommodation + extra-guest + the NON-complement options/resources = brut`.

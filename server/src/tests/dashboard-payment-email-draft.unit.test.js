@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 25 — without online payment, a row « à demander » keeps
+// specs/plugins/plugins-phase-3a-online-payment.md rule 25 — without online payment, a row « à demander » keeps
 // its « Envoyer la demande »: the request leaves as an email the operator reads first, on a template
 // that reads well without a link; a reminder sent that way counts as asked.
 

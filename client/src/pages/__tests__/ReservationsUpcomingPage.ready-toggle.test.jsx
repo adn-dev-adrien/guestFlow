@@ -1,4 +1,4 @@
-// specs/upcoming-reservations-cards.md rule 8 — the « prêt » box answers at once and only its day is
+// specs/planning/upcoming-reservations-cards.md rule 8 — the « prêt » box answers at once and only its day is
 // asked again; with 500 stays each click used to re-read the whole season (2.4 MB, ~0.7 s) before
 // the box moved (review of PR #700, finding 3).
 import { vi } from 'vitest';

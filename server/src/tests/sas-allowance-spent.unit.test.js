@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 26 and 41 — the arrival SAS spends the stay's free units as the fiche's engine does (class C-E4):
+// specs/pricing/pricing-components.md §3 rules 26 and 41 — the arrival SAS spends the stay's free units as the fiche's engine does (class C-E4):
 // a sale of an article with a grant left is priced net of it, its line stores what it consumed (`allowanceUsed`), and every later save
 // reads that fact — the line is never discounted a second time, and a later sale of the article finds the grant spent.
 process.env.DB_PATH = ':memory:';

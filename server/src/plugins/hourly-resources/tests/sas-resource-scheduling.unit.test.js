@@ -1,5 +1,5 @@
 // Arrival SAS — « Planifier les ressources ».
-// specs/hourly-resource-quantity-and-sas-scheduling.md §3.4.
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.4.
 //
 // The hours are sold on the quote and placed on real slots with the guest at check-in. This covers
 // what the step offers, what it refuses, and what the commit writes.
@@ -194,7 +194,7 @@ test('a resource not sold on the reservation is refused', () => {
 
 // ── What the commit writes ─────────────────────────────────────────────────────────────────────────
 
-// The step's write runs inside the core commit (specs/plugins-phase-3c-hourly-resources.md rule 6).
+// The step's write runs inside the core commit (specs/plugins/plugins-phase-3c-hourly-resources.md rule 6).
 const writeStep = (ctx, blocks) => ctx.reservations.commitArrivalSas(500, {
   pluginWrites: [(db) => createSasStep({ scheduling: () => ctx.scheduling, reservations: {} }).hook
     .write(db, ctx.reservation, { blocks, resourceIds: [ctx.resourceId] })],

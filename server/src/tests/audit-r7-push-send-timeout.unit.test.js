@@ -1,4 +1,4 @@
-// specs/pwa-push-notifications.md rule 14 (audit R7, finding N7) — every push send is bounded, so a push
+// specs/guest-app/pwa-push-notifications.md rule 14 (audit R7, finding N7) — every push send is bounded, so a push
 // endpoint that accepts the connection and never answers cannot hold the caller (payment poll, Qonto
 // webhook, Neat pass, the per-minute runners) past the bound.
 

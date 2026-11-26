@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 48 (audit R22, console N3) — a free trial is granted by a real
+// specs/hosting/control-plane-plans-and-access.md rule 48 (audit R22, console N3) — a free trial is granted by a real
 // boolean only; same spec, rule 50 (N5) — a template key is an own key of the list, never one read through the
 // prototype chain.
 

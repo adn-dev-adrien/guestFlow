@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 4 — review of #847, point 2: the trop-perçu a collected
+// specs/reservations/reservation-save-keeps-pricing.md rule 4 — review of #847, point 2: the trop-perçu a collected
 // complement holds (#22224 +21 €, #22226 +28 €, Lodgify = direct channel) reaches the fiche: the preview
 // announces it, with the postes the refund dialog offers.
 

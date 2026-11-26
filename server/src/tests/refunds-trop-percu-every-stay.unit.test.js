@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 76 and specs/reservation-refunds.md rules 34, 38, 42, 44 — ONE trop-perçu formula for
+// specs/pricing/pricing-components.md §3 rule 76 and specs/payments/reservation-refunds.md rules 34, 38, 42, 44 — ONE trop-perçu formula for
 // every stay: Σ allocations − the stay's total − the free lines of origin `overpayment` given back (owner O-6, O-7 b).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -54,7 +54,7 @@ test('rule 76 — what the end of stay collected for the departure\'s own sales 
   assert.equal(stored(id), 0);
 });
 
-test('specs/reservation-refunds.md rule 38 — a platform stay has none, whatever was collected', () => {
+test('specs/payments/reservation-refunds.md rule 38 — a platform stay has none, whatever was collected', () => {
   const { id } = fiche(NO_ACOMPTE, PLATFORM.reversed);
   db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = ? WHERE id = ?").run(TODAY, id);
   lower(id, 50);

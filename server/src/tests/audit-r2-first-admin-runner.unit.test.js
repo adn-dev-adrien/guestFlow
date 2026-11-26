@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 42 (review of PR 859) — a name starting with `-` reaches the strict script.
+// specs/hosting/control-plane-plans-and-access.md rule 42 (review of PR 859) — a name starting with `-` reaches the strict script.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

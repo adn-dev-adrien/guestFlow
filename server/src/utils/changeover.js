@@ -1,5 +1,5 @@
 /**
- * Changeover-day validation (specs/tariff-recipes/spec.md §3.4 rules 21-24).
+ * Changeover-day validation (specs/pricing/tariff-recipes.md §3.4 rules 21-24).
  *
  * A season (pricing rule) may restrict the ARRIVAL weekday, the DEPARTURE weekday, or both
  * (`changeoverArrival` / `changeoverDeparture`, JS weekday convention 0 = dimanche … 6 = samedi,

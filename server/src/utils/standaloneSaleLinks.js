@@ -1,5 +1,5 @@
 /**
- * The payment link of a standalone sale's reste (the outside-visit spec rules 39-42; specs/pricing-components.md rules 53, 74, 86).
+ * The payment link of a standalone sale's reste (the outside-visit spec rules 39-42; specs/pricing/pricing-components.md rules 53, 74, 86).
  *
  *   linkOf(saleId, { now })                       → `{ available, reason, email, open }`, what the screen shows (rule 39): `reason` is `PROVIDER_NOT_READY`, `NO_EMAIL`, `NOTHING_DUE` or null
  *   draftLinkOf({ remainingCents, email })        → the same payload for a sale not written yet (an outside visit before its first write), `open: null`

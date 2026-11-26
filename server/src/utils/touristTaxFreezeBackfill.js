@@ -1,7 +1,7 @@
 /**
  * Freeze, once, every tourist tax the guest has already paid or the operator has already declared.
  *
- * specs/tourist-tax-matches-the-office-calculation.md rule 13.
+ * specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 13.
  *
  * The spec changes the base (the platform brut derives it again), the divisor (babies stop counting)
  * and the moment the amount stops moving. Applied blindly, it would rewrite stays that are settled

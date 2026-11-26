@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 46 — an information dialog can carry, under its message, the records a refusal
+// specs/payments/payment-link-lifecycle.md rule 46 — an information dialog can carry, under its message, the records a refusal
 // names (`details`, a ConflictList): the DATES_HELD refusal of the devis fiche shows the stays that hold the nights.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

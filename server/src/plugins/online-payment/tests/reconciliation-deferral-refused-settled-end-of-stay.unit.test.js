@@ -1,4 +1,4 @@
-// Audit R28 verification N2, probe (c) (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rule 23. An end of
+// Audit R28 verification N2, probe (c) (2026-11-08) — specs/sas/defer-arrival-complement-to-checkout.md rule 23. An end of
 // stay reconciled on its own credit, then the deferral switched on and the complement marked on the credit's day, read
 // as settled together: the 12 € credit left the done view and the to-do view asked for a merged 32 € « Saisi, rien sur
 // le compte ». The deferral switch is refused while the end of stay is settled, so the credit stays reconciled on it.

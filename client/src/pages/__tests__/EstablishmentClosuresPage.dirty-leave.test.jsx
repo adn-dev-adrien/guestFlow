@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 40, 41 and 49 (reading of 2026-11-01, review of #917) — on a phone « Ouvrir »
+// specs/payments/payment-link-lifecycle.md rules 40, 41 and 49 (reading of 2026-11-01, review of #917) — on a phone « Ouvrir »
 // in the closure dialog opens the stay in place: a closure being typed asks before it is left (« Rester sur la page »
 // keeps it, « Quitter sans enregistrer » opens the stay, « Enregistrer et quitter » saves then opens it); an unchanged
 // dialog leaves at once.

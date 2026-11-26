@@ -1,5 +1,5 @@
 /**
- * The instance's licence (specs/control-plane-plans-and-access.md §3.C, rules 9–16, 29–30).
+ * The instance's licence (specs/hosting/control-plane-plans-and-access.md §3.C, rules 9–16, 29–30).
  *
  * The control plane writes `<dataDir>/licence.jws`, a compact JWS signed with Ed25519, carrying the
  * plan, the allowed plugins, the quotas and the subscription state. The instance only reads it: no
@@ -162,7 +162,7 @@ function createLicenceReader({
     effectiveState,
     isReadOnly: () => READ_ONLY_STATES.has(effectiveState()),
     allowsPlugin,
-    // specs/plugin-operator-provisioning.md rules 15, 23 — what the operator switched on (null when the
+    // specs/plugins/plugin-operator-provisioning.md rules 15, 23 — what the operator switched on (null when the
     // licence says nothing: the stored states stand) and the erase orders it carries. Read from an
     // expired licence too, as `plugins` is.
     activePlugins() {
@@ -214,7 +214,7 @@ function createLicenceReader({
       return { state, endsAt: endDay, daysLeft, planName: name, payUrl: payUrl || null, ...bannerText(state, { endDay, daysLeft, planName: name }) };
     },
     // The slug the licence was issued for, expired or not: how a managed instance knows its own name
-    // when the hosting does not set GUESTFLOW_SLUG (specs/hosting-h2-account-security.md rule 22).
+    // when the hosting does not set GUESTFLOW_SLUG (specs/hosting/hosting-h2-account-security.md rule 22).
     // A forged licence never verifies, so it never names one.
     slug() {
       const lic = current();

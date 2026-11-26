@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 1-9, 11-12 — « Réserver une séance », a session paid online in full: the activity (one is not asked), the duration before the slots, the people, the
+// specs/site/site-outside-resource-booking.md rules 1-9, 11-12 — « Réserver une séance », a session paid online in full: the activity (one is not asked), the duration before the slots, the people, the
 // slots that carry what the whole session costs, the recap the server answers, the contact judged before anything is sent, then the bank with the 15-minute hold. The page computes nothing.
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import {

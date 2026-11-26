@@ -1,5 +1,5 @@
 /**
- * What the fleet and the customer page show of an instance (specs/hosting-h1-fleet-runtime.md rule
+ * What the fleet and the customer page show of an instance (specs/hosting/hosting-h1-fleet-runtime.md rule
  * 15): every value comes ready to render — a label, a severity and a sort key — from the `instances`
  * row the probe keeps up to date.
  */

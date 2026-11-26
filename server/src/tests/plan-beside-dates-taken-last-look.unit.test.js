@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 63, reading of 2026-11-01 (audit R11 database N1, money R11-M1, plugins M-1).
+// specs/payments/payment-link-lifecycle.md rule 63, reading of 2026-11-01 (audit R11 database N1, money R11-M1, plugins M-1).
 // Rule 64 made a link withdrawn for taken dates (`cancelled` / `dates-taken`) owe rule 19's last look. Beside an
 // installment plan the only payment that can arrive is an échéance: no plan is made or resized while such an acompte /
 // solde / séjour link still owes that read, and should its payment land beside a plan anyway, it is never booked on

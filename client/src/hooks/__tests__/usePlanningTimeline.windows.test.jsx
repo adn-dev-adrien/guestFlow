@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rules 19, 21, 27, 28 — at most 8 windows (loaded or loading) with both
+// specs/planning/dashboard-planning-scroll.md rules 19, 21, 27, 28 — at most 8 windows (loaded or loading) with both
 // edges in flight, an in-flight window never evicted, a failed refresh keeping the days it had.
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

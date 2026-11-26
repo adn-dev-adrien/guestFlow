@@ -1,6 +1,6 @@
 // Selective cleanup popup — backend coverage for `listOrphans()` + `cleanupOrphansByIds()` and the
 // matching controller endpoints (`GET /cleanup-orphans/preview`, `POST /cleanup-orphans/delete`).
-// See specs/clients.md §3 rule 8 + §4.3.
+// See specs/clients/clients.md §3 rule 8 + §4.3.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

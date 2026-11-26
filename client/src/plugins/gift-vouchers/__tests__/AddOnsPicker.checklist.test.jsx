@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 4 — the add-ons list is a checklist that stays open after a pick.
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 4 — the add-ons list is a checklist that stays open after a pick.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

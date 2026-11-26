@@ -1,5 +1,5 @@
 /**
- * BookingPaceCard — « Réservations à venir, à date » of the Suivi financier (specs/booking-pace.md):
+ * BookingPaceCard — « Réservations à venir, à date » of the Suivi financier (specs/pricing/booking-pace.md):
  * the summary sentence and its badge, the metric toggle, the 7 / 30 days pickup, the month chart and,
  * on a click, that month's pickup curve. Every figure and sentence comes from `/finance/pace`; the card
  * only formats numbers with their unit. Feature-local.

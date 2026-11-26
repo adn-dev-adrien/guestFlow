@@ -1,6 +1,6 @@
 /**
  * Email templates model — sole DB access for `email_templates`
- * (specs/email-automation.md §4.1).
+ * (specs/emails/email-automation.md §4.1).
  *
  * Exports a default model bound to the production database, and a `buildModel(db)`
  * factory so tests can run against an in-memory schema.
@@ -17,14 +17,14 @@
  */
 
 function buildModel(database) {
-  // Bilingual columns (specs/email-language-fr-en.md) are optional in minimal/legacy schemas. Detect them
+  // Bilingual columns (specs/emails/email-language-fr-en.md) are optional in minimal/legacy schemas. Detect them
   // once so SELECT/INSERT/UPDATE include subjectEn/bodyEn only when present — keeps test DDLs simple.
   const HAS_EN_COLS = (() => {
     try { return database.prepare('PRAGMA table_info(email_templates)').all().some((c) => c.name === 'bodyEn'); }
     catch { return false; }
   })();
   const EN_SELECT = HAS_EN_COLS ? ', subjectEn, bodyEn' : '';
-  // The scheduling anchor (specs/online-payments-qonto.md §3.8 + specs/payment-schedule-and-cancellation.md
+  // The scheduling anchor (specs/payments/online-payments-qonto.md §3.8 + specs/payments/payment-schedule-and-cancellation.md
   // §3.7 rule 41) decides which date a template counts its offset from. It MUST travel with the row:
   // the auto-send cron picks its query from it, and a missing value silently degrades every payment
   // reminder back to an arrival-relative send. Optional in minimal/legacy schemas, like the EN columns.
@@ -132,7 +132,7 @@ function buildModel(database) {
 
   /**
    * The next stay this offset would still reach — its send day (arrival + `offsetDays`) today or
-   * later — for the « Quand ? » example (specs/guest-email-texts-made-simple.md rule 43):
+   * later — for the « Quand ? » example (specs/emails/guest-email-texts-made-simple.md rule 43):
    * `{ startDate, endDate, propertyName }` or null.
    */
   function nextStay(today, offsetDays = 0) {

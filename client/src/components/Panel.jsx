@@ -1,6 +1,6 @@
 /**
  * Panel — the white card of a report, titled by a small uppercase tracked label
- * (specs/report-grammar.md rule 7; the `panelLabel` typography role). Two per row on desktop, one on a
+ * (specs/design-system/report-grammar.md rule 7; the `panelLabel` typography role). Two per row on desktop, one on a
  * phone: the page's grid decides, the panel only fills its cell. Generic: any report block (chart,
  * share table, register).
  *

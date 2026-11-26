@@ -4,9 +4,9 @@ const Database = require('better-sqlite3');
 
 const { ensureBabyBedSupplementOption, SEED_KEY, DEFAULT_PRICE } = require('../utils/babyBedSupplementSeed');
 
-// specs/baby-bed-supplement.md §5 — an idempotent, non-destructive boot seed keyed on `seedKey`,
+// specs/options/baby-bed-supplement.md §5 — an idempotent, non-destructive boot seed keyed on `seedKey`,
 // linked to every property, carrying the engine contract (`autoOptionType = 'baby_bed'` +
-// `autoEnabled = 1`) and the default 0 € per cot (specs/plugins-phase-p-productisation.md rule 15). It never overwrites what the operator changed.
+// `autoEnabled = 1`) and the default 0 € per cot (specs/plugins/plugins-phase-p-productisation.md rule 15). It never overwrites what the operator changed.
 
 const SILENT = { logger: { log() {}, warn() {} } };
 

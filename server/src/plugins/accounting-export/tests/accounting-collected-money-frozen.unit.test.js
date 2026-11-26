@@ -1,5 +1,5 @@
-// specs/accounting-books-the-money-collected.md rules 13-14 (spec review of 2026-10-27, agent 3 F1-F2) —
-// an entry for money already collected never moves (specs/accountant-accounting-export.md rule 33):
+// specs/accounting/accounting-books-the-money-collected.md rules 13-14 (spec review of 2026-10-27, agent 3 F1-F2) —
+// an entry for money already collected never moves (specs/accounting/accountant-accounting-export.md rule 33):
 //   - a tourist tax that rises after the solde was paid is booked with the arrival complement that
 //     collects it, never by rewriting the solde entry;
 //   - an installment books the split frozen when it was collected, whatever the fiche becomes.
@@ -93,7 +93,7 @@ function seedPlan() {
   return db;
 }
 
-// specs/direct-installments.md rule 47 + specs/accounting-books-the-money-collected.md rule 14 — the
+// specs/payments/direct-installments.md rule 47 + specs/accounting/accounting-books-the-money-collected.md rule 14 — the
 // installment keeps the split it was booked with.
 test('rule 14 — an installment of a past month does not move when the fiche is saved later', () => {
   const db = seedPlan();
@@ -110,7 +110,7 @@ test('rule 14 — an installment of a past month does not move when the fiche is
   assert.deepEqual(journal(db), before);
 });
 
-// specs/direct-installments.md rule 47 + specs/accounting-books-the-money-collected.md rule 14 — the
+// specs/payments/direct-installments.md rule 47 + specs/accounting/accounting-books-the-money-collected.md rule 14 — the
 // stored split adds up and keeps the plan's tax share.
 test('rule 14 — the frozen split adds up to the installment and keeps the plan’s tax share', () => {
   const db = seedPlan();

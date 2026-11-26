@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 25 — review #8 (n-2, n-3, n-4, m-5): the screens speak short, impersonal
+// specs/design-system/ds-components.md rule 25 — review #8 (n-2, n-3, n-4, m-5): the screens speak short, impersonal
 // French — no « tu », no « nous », no English label, no internal mechanics, accents where they belong.
 import React from 'react';
 import { vi } from 'vitest';

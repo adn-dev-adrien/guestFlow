@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 59 — a rollback an active dependant's range refuses is disabled on the
+// specs/plugins/plugins-phase-4-registry.md rule 59 — a rollback an active dependant's range refuses is disabled on the
 // card and says why in place of the window label.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

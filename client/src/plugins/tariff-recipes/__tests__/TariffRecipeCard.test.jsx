@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import TariffRecipeCard from '../TariffRecipeCard';
 import api from '../../../api';
 
-// specs/tariff-recipes/spec.md §3.2 rules 7-8 — the card shows the active recipe + applied version,
+// specs/pricing/tariff-recipes.md §3.2 rules 7-8 — the card shows the active recipe + applied version,
 // warns when the file moved on, previews the diff BEFORE writing, and offers a detach when the
 // recipe vanished.
 
@@ -137,7 +137,7 @@ test('a vanished recipe offers a detach', async () => {
   await waitFor(() => expect(onApplied).toHaveBeenCalled());
 });
 
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 + §3.3 — the tiered supplement and the
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1 + §3.3 — the tiered supplement and the
 // recurring events, both stated in the particularities panel.
 
 const TIERED_RECIPE = {

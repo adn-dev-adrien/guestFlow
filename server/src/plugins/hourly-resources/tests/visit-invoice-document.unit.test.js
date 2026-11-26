@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 31 — one invoice per document, once fully paid on the books: every money line (the session's parts at its rate, its
+// specs/sas/outside-booking-sas.md rule 31 — one invoice per document, once fully paid on the books: every money line (the session's parts at its rate, its
 // deductions as one discount, each extra at its own rate), Qonto's total equal to the document's; « Reste à payer : facture après le solde. » before that, no
 // invoice for a caisse interne payment, a refusal never undoing the payment.
 const test = require('node:test');

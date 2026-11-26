@@ -1,5 +1,5 @@
 /**
- * specs/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the sum a guest e-mail
+ * specs/payments/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the sum a guest e-mail
  * states as kept by a cancellation (`{{retainedDepositAmount}}`, `hasRetainedDeposit`), read from the cancellation's own
  * figures, never worked out by the e-mail:
  *   - a cancelled stay: the `keptFromGuest` its cancel entry stored (an older entry: its « Acompte conservé »), less

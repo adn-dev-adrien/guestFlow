@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 42 (UI/UX review 2026-10-18, decision 10) — one language at
+// specs/emails/guest-email-texts-made-simple.md rule 42 (UI/UX review 2026-10-18, decision 10) — one language at
 // a time, and the server counts the texts still « à traduire », on the saved texts and on the draft.
 
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md §3 edge cases — a pass survives what goes wrong on one intake:
+// specs/platforms/gites-de-france-mail-intake.md §3 edge cases — a pass survives what goes wrong on one intake:
 // an intake that throws is recorded as an error and the pass carries on with the next ones; a stay
 // that has already started is refused before any client record is created; the mailbox is logged
 // out even when the INBOX lock is refused.

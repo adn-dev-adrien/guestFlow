@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 30 and specs/wordpress-plugin.md rule 34 — the return page's
+// specs/payments/payment-link-lifecycle.md rule 30 and specs/site/wordpress-plugin.md rule 34 — the return page's
 // `expired` message exists in French and in English, in the catalogue and in the compiled .mo the site
 // loads, and ships in plugin 1.19.0 and every later version. The browser behaviour is pinned by the client suite
 // wordpress-booking-view.payment-expired.
@@ -29,7 +29,7 @@ test('rule 30 — the English translation is in the catalogue and in the compile
 });
 
 test('rule 30 — the plugin that understands `expired` is 1.19.0 or later, the same version everywhere it names it', () => {
-  // Later releases (1.19.1, specs/wordpress-plugin.md rule 36) keep the behaviour: the floor is what this rule pins.
+  // Later releases (1.19.1, specs/site/wordpress-plugin.md rule 36) keep the behaviour: the floor is what this rule pins.
   const php = read('guestflow-booking.php').toString('utf8');
   const readme = read('readme.txt').toString('utf8');
   const header = (php.match(/\* Version:\s+(\d+\.\d+\.\d+)\b/) || [])[1];

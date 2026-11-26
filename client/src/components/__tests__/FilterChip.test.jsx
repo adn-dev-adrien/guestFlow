@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import FilterChip from '../FilterChip';
 
-// specs/reconciliation-assisted-matching.md rule 11 — an active filter, one click (or Échap) to leave it.
+// specs/accounting/reconciliation-assisted-matching.md rule 11 — an active filter, one click (or Échap) to leave it.
 
 test('shows the label and the count', () => {
   render(<FilterChip label="Écarts" count={9} onClear={vi.fn()} />);

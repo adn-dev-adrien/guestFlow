@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rule 16 (audit R22-6a, 2026-11-05) — every path that flips the arrival
+// specs/accounting/accounting-books-the-money-collected.md rule 16 (audit R22-6a, 2026-11-05) — every path that flips the arrival
 // complement to paid stamps what it collected: the mark on the fiche is pinned by booked-complement-entry-frozen, here are
 // the others. A complement already collected keeps its first stamp.
 process.env.DB_PATH = ':memory:';

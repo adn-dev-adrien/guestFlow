@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 44 (audit R34 NEW-4, mutant C8) — the mark form hands the ledger row's
+// specs/payments/mixed-method-payments.md rule 44 (audit R34 NEW-4, mutant C8) — the mark form hands the ledger row's
 // `action.split.whole` to its tender lines: on the acompte a cash line starts on the books and, short of the amount,
 // no reste / geste can be chosen.
 import { screen, fireEvent } from '@testing-library/react';

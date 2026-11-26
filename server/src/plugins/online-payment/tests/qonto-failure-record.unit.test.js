@@ -1,5 +1,5 @@
 // Recording what the last real call to Qonto did, wherever it was made from.
-// See specs/qonto-settings-in-app.md §3 rules 12, 13.
+// See specs/settings/qonto-settings-in-app.md §3 rules 12, 13.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

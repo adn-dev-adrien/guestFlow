@@ -1,5 +1,5 @@
 // Routage moteur des prestations vendues en cours de séjour.
-// See specs/mid-stay-extras-to-end-of-stay-complement.md §3.3.
+// See specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.3.
 //
 // Invariant asserted everywhere below: acompte + solde + complément d'arrivée + complément de fin de
 // séjour === total du séjour. Before this spec an extra sold mid-stay grew the total and no bucket.
@@ -58,7 +58,7 @@ const collected = (q) => Math.round(
   (q.depositAmount + q.balanceAmount + q.complementAmount + q.endOfStayComplementTotal) * 100,
 ) / 100;
 
-// specs/mid-stay-notes.md rule 9
+// specs/sas/mid-stay-notes.md rule 9
 test('direct — un petit-déjeuner vendu en cours de séjour part au complément de fin de séjour', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 1 }],
@@ -95,7 +95,7 @@ test('le complément d\'arrivée NON réglé part quand même en fin de séjour 
   assert.equal(collected(q), 212);
 });
 
-// specs/mid-stay-notes.md rule 12
+// specs/sas/mid-stay-notes.md rule 12
 test('hausse de quantité — seule l\'unité ajoutée bascule', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), depositAmount: 63.6, balanceAmount: 148.4,
@@ -107,7 +107,7 @@ test('hausse de quantité — seule l\'unité ajoutée bascule', () => {
   assert.equal(collected(q), 224);
 });
 
-// specs/mid-stay-notes.md rule 5bis
+// specs/sas/mid-stay-notes.md rule 5bis
 test('séjour non commencé (aucune base) — moteur strictement inchangé', () => {
   const withBaseline = calculateReservationQuote({
     ...DIRECT, db: createDb(), depositPaid: false, balancePaid: false, complementPaid: false,
@@ -124,8 +124,8 @@ test('séjour non commencé (aucune base) — moteur strictement inchangé', () 
   assert.equal(withBaseline.preArrivalAmount, legacy.preArrivalAmount);
 });
 
-// specs/mid-stay-notes.md rule 11
-// specs/mid-stay-notes.md rule 11
+// specs/sas/mid-stay-notes.md rule 11
+// specs/sas/mid-stay-notes.md rule 11
 test('complément de fin de séjour encaissé — la part vendue est gelée sur les lignes stockées', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 2 }],
@@ -148,8 +148,8 @@ test('le complément de fin de séjour du SAS s\'ajoute aux ventes en cours de s
   assert.equal(q.sejourNetTotal, 272, 'le total de la fiche intègre tout le complément de fin de séjour');
 });
 
-// specs/mid-stay-notes.md rule 19
-// specs/mid-stay-notes.md rule 19
+// specs/sas/mid-stay-notes.md rule 19
+// specs/sas/mid-stay-notes.md rule 19
 test('sejourNetTotal — plateforme avec commission : versement net + compléments perçus sur place', () => {
   const q = calculateReservationQuote({
     ...PLATFORM, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 1 }],
@@ -159,7 +159,7 @@ test('sejourNetTotal — plateforme avec commission : versement net + complémen
   assert.equal(q.sejourNetTotal, 192, '180 + 12 vendus sur place');
 });
 
-// ── Notes en séjour (specs/mid-stay-notes.md §3.3) ───────────────────────────
+// ── Notes en séjour (specs/sas/mid-stay-notes.md §3.3) ───────────────────────────
 // L'invariant devient : acompte + solde + complément + RESTE fin de séjour + notes = total du séjour.
 
 const noteOf = (amount, key, label = 'Petit-déjeuner') => ([{
@@ -170,8 +170,8 @@ const collectedWithNotes = (q) => Math.round(
   (q.depositAmount + q.balanceAmount + q.complementAmount + q.endOfStayComplementTotal + q.midStaySettledTotal) * 100,
 ) / 100;
 
-// specs/mid-stay-notes.md rule 16
-// specs/mid-stay-notes.md rule 16
+// specs/sas/mid-stay-notes.md rule 16
+// specs/sas/mid-stay-notes.md rule 16
 test('note réglée — sort du reste à percevoir, jamais des échéances gelées', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 2 }],
@@ -225,7 +225,7 @@ test('aucune note — comportement strictement identique (non-régression)', () 
 // Régression prod (16/08/2026) — une hausse du tarif d'une option à carte de planning ne doit PAS
 // être facturée aux séjours déjà vendus : le moteur re-tarifait la ligne au prix du jour, l'écart
 // dépassait la baseline d'arrivée et ressortait en complément de fin de séjour.
-// See specs/devis-extras-parity-and-price-lock.md §3 rule 13bis.
+// See specs/devis/devis-extras-parity-and-price-lock.md §3 rule 13bis.
 const SOLD_BREAKFASTS = [{ date: '2026-07-10', time: '07:30' }, { date: '2026-07-11', time: '07:30' }];
 const soldBreakfastLine = {
   optionId: 10, quantity: 2, unitPrice: 8, billedUnits: 4, priceType: 'per_person_per_night',

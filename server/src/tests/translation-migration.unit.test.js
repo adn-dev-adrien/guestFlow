@@ -1,5 +1,5 @@
 /**
- * specs/translation-catalogue.md §5 — moving the English out of the tables, once.
+ * specs/site/translation-catalogue.md §5 — moving the English out of the tables, once.
  *
  * `options.titleEn` and `resources.nameEn` hold real work: 32 English titles typed by hand. This
  * migration deletes those columns, so the suite is mostly about the ORDER — copy, then verify, then

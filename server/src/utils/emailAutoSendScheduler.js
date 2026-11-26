@@ -1,7 +1,7 @@
 /**
  * Email auto-send scheduler — owns the 08:00 pass's timer, and owns it conditionally: while no
- * template is in « auto » mode, no timer exists at all (specs/no-automatic-email-without-approval.md
- * §3 rule 2b, specs/settings-rationalization.md rule 17b).
+ * template is in « auto » mode, no timer exists at all (specs/emails/no-automatic-email-without-approval.md
+ * §3 rule 2b, specs/settings/settings-rationalization.md rule 17b).
  *
  * Templates ship « manual », so on a default installation this module registers nothing: no
  * interval, no read, no log line.
@@ -51,7 +51,7 @@ async function runPass(reason = 'cron') {
       emailServiceFactory: createEmailService,
     });
     const { blocked, sentCount, skippedCount, failedCount } = result;
-    // specs/guest-email-sequence.md rule 17 — the sequence rides the same daily pass. Its own
+    // specs/emails/guest-email-sequence.md rule 17 — the sequence rides the same daily pass. Its own
     // per-template guard runs inside; a failure there must not hide the legacy pass's result.
     if (!blocked) {
       try {

@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const reservationsModel = require('../models/reservationsModel');
 const { buildController } = require('../controllers/dashboardController');
 
-// specs/dashboard-ical-new-reservations.md (amended 2026-10-06) — the dashboard card lists every
+// specs/planning/dashboard-ical-new-reservations.md (amended 2026-10-06) — the dashboard card lists every
 // reservation created during the last 24 hours, whatever its origin, fully shaped server-side.
 // These tests pin the rolling window, the origin label (rule 9), the ordering and the envelope.
 

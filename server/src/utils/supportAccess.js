@@ -1,10 +1,10 @@
 /**
  * Support access with consent — the tokens the console signs and the instance verifies
- * (specs/hosting-h2-account-security.md rules 12–17). Shared with the console through `utils/gf.js`,
+ * (specs/hosting/hosting-h2-account-security.md rules 12–17). Shared with the console through `utils/gf.js`,
  * so both sides sign and read exactly the same format.
  *
  * Two tokens, both compact JWS signed with the console's Ed25519 key (the licence key of
- * specs/control-plane-plans-and-access.md rule 30), told apart by `typ`:
+ * specs/hosting/control-plane-plans-and-access.md rule 30), told apart by `typ`:
  *
  * - **the request** (`support-request`), written by the console to `<dataDir>/support-request.jws`
  *   next to the licence: `{ typ, slug, requestId, reason, requestedAt }`. The instance turns it into

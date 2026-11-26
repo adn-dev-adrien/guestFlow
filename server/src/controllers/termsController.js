@@ -1,5 +1,5 @@
 /**
- * CGV administration and fiche block (specs/terms-acceptance-record.md §3.1, §3.5).
+ * CGV administration and fiche block (specs/reservations/terms-acceptance-record.md §3.1, §3.5).
  *
  * Every label the client prints is built here: the page and the fiche only render.
  */
@@ -86,7 +86,7 @@ function buildOverview(deps = {}, activity = termsActivities.LODGING) {
     unknownVariables: draftRender.unknown,
     variables: TERMS_VARIABLES,
     versions: model.listVersionsWithCounts(activity).map(shapeVersionSummary),
-    // specs/plugins-phase-3a-online-payment.md rule 15 — edited here since the CGV link of the emails
+    // specs/plugins/plugins-phase-3a-online-payment.md rule 15 — edited here since the CGV link of the emails
     // is its core reader. The stored value only: an origin set in the environment stays there.
     publicSiteOrigin: String((deps.settingsModel || settingsModel).read().publicSiteOrigin || ''),
   };

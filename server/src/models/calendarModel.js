@@ -1,5 +1,5 @@
 /**
- * Calendar model — the one read both calendars share (specs/calendar-property-parity.md rules 1-3).
+ * Calendar model — the one read both calendars share (specs/planning/calendar-property-parity.md rules 1-3).
  *
  * `listRange` answers « the all-logements calendar » when no logement is given and « the calendar of
  * one logement » when one is: the second is exactly the first restricted to that logement, so the

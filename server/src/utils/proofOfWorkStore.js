@@ -1,5 +1,5 @@
 /**
- * What the proof of work remembers (specs/public-request-abuse-and-grouping.md rules 3, 4, 5b): the challenges already spent, and one line per request that passed the proof, kept 24 h,
+ * What the proof of work remembers (specs/site/public-request-abuse-and-grouping.md rules 3, 4, 5b): the challenges already spent, and one line per request that passed the proof, kept 24 h,
  * which the per-address difficulty and the flood surcharge count. It is the one memory of every public form — the lodging request, the gift voucher calls, the session confirmation —
  * so a solved challenge is spent once across all of them. The tables are created by the website-booking plugin's migration and, for anyone who gets here first, on first use.
  */

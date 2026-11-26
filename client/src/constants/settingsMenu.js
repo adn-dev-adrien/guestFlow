@@ -1,5 +1,5 @@
 /**
- * The « Paramètres » submenu (specs/settings-rationalization.md rules 1-2): same format as the other
+ * The « Paramètres » submenu (specs/settings/settings-rationalization.md rules 1-2): same format as the other
  * sidebar submenus (small MUI icon + text), entries ordered by family, a thin divider between
  * families. `null` marks a divider. The sidebar, the route roles and « is this a settings page? »
  * all read this list, so an entry is declared once.
@@ -51,7 +51,7 @@ const BASE_MENU = [
   { path: '/settings/emails', label: 'Emails & notifications', Icon: AlternateEmailIcon, matches: ['/settings/emails/textes'] },
   null,
   { path: '/settings/utilisateurs', label: 'Utilisateurs', Icon: AdminPanelSettingsIcon },
-  // specs/hosting-h2-account-security.md rule 15 — shown on a managed instance only (constants/roles.js).
+  // specs/hosting/hosting-h2-account-security.md rule 15 — shown on a managed instance only (constants/roles.js).
   { path: '/parametres/acces-support', label: 'Accès du support', Icon: SupportAgentIcon },
   // Rule 26 — next to Plugins, whose settings it mostly holds.
   { path: '/settings/integrations', label: 'Intégrations', Icon: CableIcon },
@@ -59,9 +59,9 @@ const BASE_MENU = [
   { path: '/parametres/plugins', label: 'Plugins', Icon: PowerIcon },
 ];
 
-// Entries of plugin modules (specs/plugins-phase-1-sdk.md rule 13, slot `settings.menu`), each placed
+// Entries of plugin modules (specs/plugins/plugins-phase-1-sdk.md rule 13, slot `settings.menu`), each placed
 // right after the entry its `after` names — or right before the one its `before` names, to open a
-// family (specs/plugins-phase-3a-online-payment.md rule 17).
+// family (specs/plugins/plugins-phase-3a-online-payment.md rule 17).
 function withModuleEntries(menu, modules) {
   const out = [...menu];
   modules.forEach((mod) => ((mod.contributes && mod.contributes['settings.menu']) || []).forEach((entry) => {
@@ -84,7 +84,7 @@ export const SETTINGS_ENTRIES = SETTINGS_MENU.filter(Boolean);
 /**
  * The submenu as one user sees it: the entries `isVisible` accepts, with the dividers that no longer
  * separate two families dropped (a family can empty out when its plugins are inactive —
- * specs/plugins-phase-0-foundation.md rule 16).
+ * specs/plugins/plugins-phase-0-foundation.md rule 16).
  */
 export function visibleSettingsMenu(isVisible, isPluginLive = () => true) {
   const kept = SETTINGS_MENU.filter((entry) => !entry || isVisible(entry.path))
@@ -108,7 +108,7 @@ const SUMMARY_EXTRAS = Object.freeze([
 
 /**
  * The Intégrations page: its search words are those of the plugins it holds, each brought by the
- * plugin's `settings.integrations` contribution (specs/integrations-tab-per-plugin.md rule 8).
+ * plugin's `settings.integrations` contribution (specs/plugins/integrations-tab-per-plugin.md rule 8).
  */
 export const INTEGRATIONS_PATH = '/settings/integrations';
 
@@ -117,7 +117,7 @@ export const INTEGRATIONS_PATH = '/settings/integrations';
  * (« wifi », « iban », « smtp », « 2fa »), written as the row then shows them (« Contient : Wi-Fi »).
  * The core's pages only: a plugin page brings its words on its `settings.menu` entry (`keywords`), and a
  * plugin adds words to a core page through `settings.keywords` — `{ key, path, keywords }`
- * (specs/platform-settings-relay-and-review.md rule 10), so the core names no plugin feature.
+ * (specs/platforms/platform-settings-relay-and-review.md rule 10), so the core names no plugin feature.
  */
 export const SETTINGS_KEYWORDS = Object.freeze({
   '/settings/etablissement': ['IBAN', 'BIC', 'Banque', 'SIRET', 'TVA intracommunautaire', 'Logo', 'Adresse', 'Téléphone', 'Raison sociale', 'Pied de devis', 'Horizon de réservation', 'Réservation en ligne'],

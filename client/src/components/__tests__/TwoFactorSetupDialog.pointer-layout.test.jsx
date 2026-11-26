@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 41, 52 — step 2 is built for the device it runs on,
+// specs/hosting/hosting-h2-account-security.md rules 41, 52 — step 2 is built for the device it runs on,
 // chosen by `(pointer: coarse)`: a phone gets the otpauth:// link and the key to copy with the QR code
 // folded; a computer gets the QR code with the key folded.
 import React from 'react';

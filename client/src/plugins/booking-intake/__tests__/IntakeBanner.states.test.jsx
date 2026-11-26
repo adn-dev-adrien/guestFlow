@@ -1,5 +1,5 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
-// specs/booking-extranet-intake.md rules 17–18 — the banner of the fiche: filled from the extranet, or a
+// specs/platforms/booking-extranet-intake.md rules 17–18 — the banner of the fiche: filled from the extranet, or a
 // proposal on a fiche that was already filled.
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
@@ -16,7 +16,7 @@ import IntakeBanner from '../IntakeBanner';
 
 afterEach(() => vi.clearAllMocks());
 
-test('specs/booking-extranet-intake.md rule 18: applied — says when the fiche was filled, and Masquer hides the banner', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 18: applied — says when the fiche was filled, and Masquer hides the banner', async () => {
   api.getBookingIntakeForReservation.mockResolvedValueOnce({ intake: APPLIED }).mockResolvedValue({ intake: null });
   api.hideBookingIntake.mockResolvedValue({ ok: true });
   render(<IntakeBanner reservationId={22309} />);
@@ -27,13 +27,13 @@ test('specs/booking-extranet-intake.md rule 18: applied — says when the fiche 
   await waitFor(() => expect(screen.queryByText(/Rempli depuis/)).not.toBeInTheDocument());
 });
 
-test('specs/booking-extranet-intake.md rule 18: a guest message still unanswered on Booking is mentioned', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 18: a guest message still unanswered on Booking is mentioned', async () => {
   api.getBookingIntakeForReservation.mockResolvedValue({ intake: { ...APPLIED, guestMessagePending: true } });
   render(<IntakeBanner reservationId={22309} />);
   expect(await screen.findByText('Message client sans réponse sur Booking.')).toBeInTheDocument();
 });
 
-test('specs/booking-extranet-intake.md rule 17: a proposal lists old → new for each difference; Appliquer writes and reloads the fiche', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 17: a proposal lists old → new for each difference; Appliquer writes and reloads the fiche', async () => {
   api.getBookingIntakeForReservation.mockResolvedValue({ intake: PROPOSED });
   api.applyBookingIntake.mockResolvedValue({ status: 'applied' });
   const reload = vi.fn();
@@ -46,7 +46,7 @@ test('specs/booking-extranet-intake.md rule 17: a proposal lists old → new for
   await waitFor(() => expect(reload).toHaveBeenCalled());
 });
 
-test('specs/booking-extranet-intake.md rule 17: Ignorer drops the proposal without touching the fiche', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 17: Ignorer drops the proposal without touching the fiche', async () => {
   api.getBookingIntakeForReservation.mockResolvedValue({ intake: PROPOSED });
   api.ignoreBookingIntake.mockResolvedValue({ ok: true });
   const reload = vi.fn();
@@ -56,7 +56,7 @@ test('specs/booking-extranet-intake.md rule 17: Ignorer drops the proposal witho
   expect(reload).not.toHaveBeenCalled();
 });
 
-test('specs/booking-extranet-intake.md rule 17: a refused Appliquer shows the reason in the banner', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 17: a refused Appliquer shows the reason in the banner', async () => {
   api.getBookingIntakeForReservation.mockResolvedValue({ intake: PROPOSED });
   api.applyBookingIntake.mockRejectedValue(new Error('Capacité dépassée'));
   render(<IntakeBanner reservationId={22309} />);
@@ -64,7 +64,7 @@ test('specs/booking-extranet-intake.md rule 17: a refused Appliquer shows the re
   expect(await screen.findByText('Capacité dépassée')).toBeInTheDocument();
 });
 
-test('specs/booking-extranet-intake.md rule 18: nothing to say, nothing rendered', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 18: nothing to say, nothing rendered', async () => {
   api.getBookingIntakeForReservation.mockResolvedValue({ intake: null });
   const { container } = render(<IntakeBanner reservationId={22309} />);
   await act(() => api.getBookingIntakeForReservation.mock.results.at(-1).value);

@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-27 — « Versements à venir »: every sum still to arrive on the
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 21-27 — « Versements à venir »: every sum still to arrive on the
 // bank, grouped by client, with its state in words. The grouping is pure (`utils/incomingPayments`); the model gathers the
 // core's kinds (instalments, platform payouts) and whatever a live plugin expects. Fictional data only.
 process.env.DB_PATH = ':memory:';

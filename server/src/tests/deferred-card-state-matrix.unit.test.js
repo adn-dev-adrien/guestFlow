@@ -1,5 +1,5 @@
-// Audit R29 (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rules 24, 25, 26 and 27 (the state matrix),
-// specs/reservation-payment-ledger.md rule 69. Every fix of the merged « Complément de fin de séjour » card regressed a
+// Audit R29 (2026-11-08) — specs/sas/defer-arrival-complement-to-checkout.md rules 24, 25, 26 and 27 (the state matrix),
+// specs/payments/reservation-payment-ledger.md rule 69. Every fix of the merged « Complément de fin de séjour » card regressed a
 // neighbouring state, so its whole matrix is written down once, as a table: the deferral marker (0/1) × the arrival
 // complement (0 € / due / paid) × the end of stay (0 € / due / settled apart / settled together / caisse interne). Each
 // state names the card(s) the ledger draws; each gesture (mark, un-mark, caisse switch, the end of stay sent alone) names

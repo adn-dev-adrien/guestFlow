@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { buildYearPlan, missingEventYears, materializeClosures } = require('../seasonPlan');
 
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3.2 — a recurring event whose dates cannot be
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3.2 — a recurring event whose dates cannot be
 // derived (L'Ardéchoise) is declared per year and repaints its nights, overriding everything else.
 
 const BASE_RECIPE = {

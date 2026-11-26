@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 47 (audit R36-EXT-1) — the hourly job joins the PDF to the card
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 47 (audit R36-EXT-1) — the hourly job joins the PDF to the card
 // credit whatever happens to « marquer payée »: a mark Qonto keeps refusing (403, 422, 5xx) no longer stops the
 // attachment, and it is retried for 7 days after the issue only, then left « à payer » in Qonto. A fake issuer: no socket.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 1–4 and 10 — the credits a fiche's linking dialog lists:
+// specs/accounting/reconciliation-assisted-matching.md rules 1–4 and 10 — the credits a fiche's linking dialog lists:
 // available only, plausible first, nothing cut off, searched on the server. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 4 — a write on a stay answers with its version before and
+// specs/reservations/reservation-fiche-concurrency.md rule 4 — a write on a stay answers with its version before and
 // after, so the open fiche can tell its own writes from a foreign one.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 51 — GUESTFLOW_DISABLE_OUTBOUND=1 under NODE_ENV=test skips the
+// specs/hosting/self-update-and-releases.md rule 51 — GUESTFLOW_DISABLE_OUTBOUND=1 under NODE_ENV=test skips the
 // release check, so an E2E server never reads the GitHub releases API; anywhere else the flag is ignored.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -56,7 +56,7 @@ for (const NODE_ENV of ['production', undefined]) {
   });
 }
 
-// specs/e2e-playwright-smoke-suite.md rule 23 — every server an E2E suite starts carries the flag.
+// specs/tech/e2e-playwright-smoke-suite.md rule 23 — every server an E2E suite starts carries the flag.
 const root = path.join(__dirname, '..', '..', '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 42 — the shell's own ways out ask the page first: the top-bar search and
+// specs/design-system/ui-review-2026-10-19-operations.md rule 42 — the shell's own ways out ask the page first: the top-bar search and
 // « Se déconnecter ». « Quitter » after a refused logout really signs out; a signed-in visit to /login never does.
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';

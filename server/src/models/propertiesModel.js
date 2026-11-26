@@ -45,24 +45,24 @@ function toBit(v) {
 }
 
 // Canonical French articles for "votre séjour <article> <name>" in client emails
-// (specs/email-automation.md §3 rule 13). Anything off-list falls back to 'au'.
+// (specs/emails/email-automation.md §3 rule 13). Anything off-list falls back to 'au'.
 // « à » introduces a name that carries its own article (« à La Granja », « à L'Estiva ») —
-// specs/guest-email-sequence.md §5.
+// specs/emails/guest-email-sequence.md §5.
 const VALID_NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
 // A property name is a proper name: trimmed, never re-cased — sentence-casing turned « La Granja »
-// into « La granja » (specs/guest-email-sequence.md §5).
+// into « La granja » (specs/emails/guest-email-sequence.md §5).
 function propertyName(value) {
   return String(value == null ? '' : value).trim();
 }
 
-// specs/guest-email-sequence.md §6.2 — the facts the guest emails read. Each is written only when
+// specs/emails/guest-email-sequence.md §6.2 — the facts the guest emails read. Each is written only when
 // the payload carries it, so an older client form never resets them.
 const EMAIL_FACT_FIELDS = [
   { key: 'emailHook', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'emailHookEn', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'parkingDistanceMeters', coerce: (v) => Math.max(0, Math.round(Number(v) || 0)) },
   { key: 'hasWifi', coerce: toBit },
-  // specs/guest-email-texts-made-simple.md rules 28 and 34.
+  // specs/emails/guest-email-texts-made-simple.md rules 28 and 34.
   { key: 'poolSeasonStart', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'poolSeasonEnd', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'cleaningIncluded', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
@@ -81,15 +81,15 @@ function normalizeNameArticle(value) {
   return VALID_NAME_ARTICLES.includes(v) ? v : 'au';
 }
 
-// specs/tariff-recipes/spec.md §3.6 — the extra-guest supplement is billed per stay (legacy, every
+// specs/pricing/tariff-recipes.md §3.6 — the extra-guest supplement is billed per stay (legacy, every
 // existing property) or per night with the season's discount curve (recipe-driven properties).
 const VALID_EXTRA_GUEST_UNITS = ['per_stay', 'per_night'];
 function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
   return VALID_EXTRA_GUEST_UNITS.includes(value) ? value : fallback;
 }
 
-// specs/payment-schedule-and-cancellation.md §3 — the three delays that drive the payment schedule.
-// The boundary refuses a bad value (specs/settings-input-guards.md rules 9-12); what is written is the
+// specs/payments/payment-schedule-and-cancellation.md §3 — the three delays that drive the payment schedule.
+// The boundary refuses a bad value (specs/settings/settings-input-guards.md rules 9-12); what is written is the
 // value it accepted, parsed the way it was validated. Only an ABSENT field (null / undefined / '') keeps
 // the stored value — or the policy default on creation — so a partial payload never resets a delay.
 // 0 is legitimate ("due the same day").
@@ -174,7 +174,7 @@ function subtractClosuresFromRanges(ranges, closures) {
 }
 
 // A per-range `minNights` is only stored when it OVERRIDES the season default; a value equal to the
-// season-level `minNights` is dropped so the range simply inherits (specs/pricing-min-nights-per-range.md).
+// season-level `minNights` is dropped so the range simply inherits (specs/pricing/pricing-min-nights-per-range.md).
 // A season label typed by the operator is tidied; one declared by a tariff recipe is left alone.
 // `sentenceCase` would lower-case « Nouvel An » to « Nouvel an », and the recipe apply — which
 // compares what it wrote against what it declares — would then diff for ever.
@@ -197,7 +197,7 @@ function stripRangeMinEqualToDefault(ranges, seasonMinNights) {
 
 // Carve a selected period [selStart, selEnd] out of every season's date ranges and (re)attach it to a
 // target season with its own `minNights` — the engine of the "calendar season painting" feature
-// (specs/pricing-min-nights-per-range.md). PURE (no DB) so it is unit-testable.
+// (specs/pricing/pricing-min-nights-per-range.md). PURE (no DB) so it is unit-testable.
 //
 //   rules     : raw pricing_rules rows (id, label, pricePerNight, pricingMode, progressiveTiers,
 //               dateRanges JSON, color, minNights, …)
@@ -301,7 +301,7 @@ function createPropertiesModel(database) {
     try { return new Set(database.prepare('PRAGMA table_info(properties)').all().map((c) => c.name)); }
     catch { return new Set(); }
   })();
-  // specs/guest-email-texts-made-simple.md rule 30 — a name that starts with its own article
+  // specs/emails/guest-email-texts-made-simple.md rule 30 — a name that starts with its own article
   // (« La Bergerie », « Le Fournil », « Les Pins », « L'Oustal ») sets that article, confirmed, whatever
   // the form sent; the property page and the start assistant agree (2026-10-27 spec review).
   function applyOwnArticle(id, name) {
@@ -312,13 +312,13 @@ function createPropertiesModel(database) {
   }
 
   function writeEmailFacts(id, payload = {}) {
-    // specs/settings-input-guards.md rules 23-24 — the pool mode is mapped to the two stored bounds.
+    // specs/settings/settings-input-guards.md rules 23-24 — the pool mode is mapped to the two stored bounds.
     const body = { ...payload, ...resolvePoolSeason(payload) };
     for (const { key, coerce } of EMAIL_FACT_FIELDS) {
       if (!propertyCols.has(key) || !Object.prototype.hasOwnProperty.call(body, key)) continue;
       database.prepare(`UPDATE properties SET ${key} = ? WHERE id = ?`).run(coerce(body[key]), Number(id));
     }
-    // specs/guest-email-texts-made-simple.md rule 6 — an article sent by a form is a confirmed one.
+    // specs/emails/guest-email-texts-made-simple.md rule 6 — an article sent by a form is a confirmed one.
     if (propertyCols.has('nameArticleConfirmed') && sent(body, 'nameArticle')) {
       database.prepare('UPDATE properties SET nameArticleConfirmed = 1 WHERE id = ?').run(Number(id));
     }
@@ -364,12 +364,12 @@ function createPropertiesModel(database) {
       return database.prepare('SELECT * FROM properties ORDER BY name').all();
     },
 
-    // specs/control-plane-plans-and-access.md rule 13 — the rental units the plan quota counts.
+    // specs/hosting/control-plane-plans-and-access.md rule 13 — the rental units the plan quota counts.
     count() {
       return database.prepare('SELECT COUNT(*) AS n FROM properties').get().n;
     },
 
-    // J-7 hooks (specs/settings-rationalization.md rule 17c) — edited from the J-7 template dialog,
+    // J-7 hooks (specs/settings/settings-rationalization.md rule 17c) — edited from the J-7 template dialog,
     // one FR / EN pair per property. Written through writeEmailFacts so no other column moves.
     listEmailHooks() {
       if (!propertyCols.has('emailHook')) return [];
@@ -423,12 +423,12 @@ function createPropertiesModel(database) {
         customColors[key] = row.platformColor;
       });
 
-      // specs/platforms-and-ical-rework.md §3 rule 6 — the GLOBAL `platforms.color` overrides are
+      // specs/platforms/platforms-and-ical-rework.md §3 rule 6 — the GLOBAL `platforms.color` overrides are
       // authoritative for the calendar; overlay them on top of any legacy per-source colour so the
       // new palette wins. Built-in defaults stay in `knownColors` (the client merges both).
       Object.assign(customColors, platformsModel.create(database).colorMap());
 
-      // specs/platform-settings-relay-and-review.md rule 12 — the one name each platform reads as, so a
+      // specs/platforms/platform-settings-relay-and-review.md rule 12 — the one name each platform reads as, so a
       // chip says « Gîtes de France » like the server's own labels, never the stored key.
       const displayNames = {};
       for (const p of platformsModel.create(database).listAll()) {
@@ -436,7 +436,7 @@ function createPropertiesModel(database) {
         if (label) displayNames[p.name] = label;
       }
 
-      // specs/calendar-property-parity.md rule 5 — the text colour each bar carries, so the client
+      // specs/planning/calendar-property-parity.md rule 5 — the text colour each bar carries, so the client
       // never does contrast math.
       const textColors = {};
       for (const [slug, color] of Object.entries({ ...KNOWN_PLATFORM_COLORS, ...customColors })) {
@@ -454,7 +454,7 @@ function createPropertiesModel(database) {
       if (typeof database.ensureDefaultTimedOptionsForProperty === 'function') {
         database.ensureDefaultTimedOptionsForProperty(Number(id));
       }
-      // specs/tariff-recipes/spec.md §3.4 rules 25bis-25ter — the closures applicable to this
+      // specs/pricing/tariff-recipes.md §3.4 rules 25bis-25ter — the closures applicable to this
       // property (its own + the global ones), and, per season, the date ranges MINUS those closures.
       // The stored ranges keep their full span: a closure that moves simply re-reveals the days.
       // Computed here rather than in the client so the page renders without doing date maths.
@@ -495,7 +495,7 @@ function createPropertiesModel(database) {
             : '9999-12-31');
           return first(a).localeCompare(first(b)) || String(a.label || '').localeCompare(String(b.label || ''), 'fr');
         });
-      // specs/tariff-recipes/spec.md §3.9 rule 53bis — what this property's RATE already covers:
+      // specs/pricing/tariff-recipes.md §3.9 rule 53bis — what this property's RATE already covers:
       // the options marked « comprise » by default, and any option whose first N units are included
       // (the direct welcome pack's breakfasts). Surfaced so the tariff page can state the deal in
       // one place instead of leaving it implicit across three screens.
@@ -514,7 +514,7 @@ function createPropertiesModel(database) {
           ORDER BY o.title COLLATE NOCASE
         `).all(Number(id), Number(id), Number(id));
       } catch (_) { property.rateInclusions = []; }
-      // specs/plugins-phase-3b-neat.md rule 21 — while no plugin offers the insurance, the property
+      // specs/plugins/plugins-phase-3b-neat.md rule 21 — while no plugin offers the insurance, the property
       // shows it nowhere, « comprise » included.
       const { dropInsurance } = require('../utils/insuranceOffer');
       property.rateInclusions = dropInsurance(database, property.rateInclusions);
@@ -523,7 +523,7 @@ function createPropertiesModel(database) {
       property.optionIds = dropInsurance(database, database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id))
         .map((r) => r.optionId);
       // Options applicable to this property, each carrying its EFFECTIVE price for THIS property (the
-      // per-property override when set, else the base price — specs/per-property-option-prices.md). The
+      // per-property override when set, else the base price — specs/options/per-property-option-prices.md). The
       // reservation fiche consumes `property.options` so the option unit price it displays matches what
       // the pricing engine computes for this property (previously it fell back to the base price).
       // Defensive: minimal schemas (some unit-test DBs) have no `options` table → degrade to [].
@@ -532,7 +532,7 @@ function createPropertiesModel(database) {
       } catch (_) {
         property.options = [];
       }
-      // Render-ready grouping for the reservation fiche (specs/option-categories.md §3 rules 3-4,
+      // Render-ready grouping for the reservation fiche (specs/options/option-categories.md §3 rules 3-4,
       // 14): ungrouped options first, then the categories in display order. Internal-only options
       // are dropped BEFORE grouping so an all-internal category yields no section at all. The flat
       // `property.options` above stays untouched — the pricing engine and the SAS consume it.
@@ -550,11 +550,11 @@ function createPropertiesModel(database) {
       // `propDetails.resources` to fill its « Ressources » block, but this payload never carried the
       // key — so on a blank « Nouveau devis » the block simply never appeared, and only re-picking the
       // Logement (which hits the availability endpoint) revealed it
-      // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 2 / §3.2 rule 8).
+      // (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §1 defect 2 / §3.2 rule 8).
       // Availability (« déjà réservée », remaining quantity) still comes from the dedicated endpoint
       // once both stay dates are known; this is the catalogue, not the occupancy.
       try {
-        // Without the plugin, nothing sold by the hour (specs/plugins-phase-3c-hourly-resources.md rule 18).
+        // Without the plugin, nothing sold by the hour (specs/plugins/plugins-phase-3c-hourly-resources.md rule 18).
         property.resources = require('../utils/resourceOffer').hideUnoffered(resourcesModel.create(database).list(Number(id)));
       } catch (_) { property.resources = []; } // resources tables absent in minimal test schemas
       return property;
@@ -577,7 +577,7 @@ function createPropertiesModel(database) {
 
     /**
      * Every pricing rule of a property, in the order the pricing engine reads them (first match wins).
-     * READ-ONLY — used by the public availability calendar (specs/booking-drawer-friction.md rule 10).
+     * READ-ONLY — used by the public availability calendar (specs/site/booking-drawer-friction.md rule 10).
      */
     listPricingRules(id) {
       return database
@@ -603,7 +603,7 @@ function createPropertiesModel(database) {
         body.singleBeds ?? 0,
         body.doubleBeds ?? 0,
         body.depositPercent || 30,
-        // specs/payment-schedule-and-cancellation.md §3.1-§3.3 — acompte due N days after BOOKING,
+        // specs/payments/payment-schedule-and-cancellation.md §3.1-§3.3 — acompte due N days after BOOKING,
         // solde 30 days before arrival, cancellation 7 days after the solde deadline.
         depositDueDaysOf(body),
         balanceDaysBeforeOf(body),
@@ -611,7 +611,7 @@ function createPropertiesModel(database) {
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
-        // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
+        // A deposit nobody typed is no deposit (specs/emails/guest-email-texts-made-simple.md rule 28).
         body.defaultCautionAmount ?? 0,
         body.touristTaxPerDayPerPerson ?? 0,
         body.touristTaxMode || 'per_day_per_person',
@@ -629,7 +629,7 @@ function createPropertiesModel(database) {
       `).run(
         propertyId,
         'Tarif annuel',
-        // The start assistant names its price (specs/plugins-phase-p-productisation.md rule 21).
+        // The start assistant names its price (specs/plugins/plugins-phase-p-productisation.md rule 21).
         body.pricePerNight != null && body.pricePerNight !== '' && Number(body.pricePerNight) >= 0 ? Number(body.pricePerNight) : 100,
         'fixed',
         '[]',
@@ -652,7 +652,7 @@ function createPropertiesModel(database) {
 
     async update(id, sentBody = {}, photoFile = null) {
       const existing = database.prepare('SELECT * FROM properties WHERE id = ?').get(id);
-      // specs/settings-input-guards.md rule 61 (audit R25-DB-1 sweep) — a column the save does not send is written as the
+      // specs/settings/settings-input-guards.md rule 61 (audit R25-DB-1 sweep) — a column the save does not send is written as the
       // stored value sent back: an absent `depositEnabled` used to switch the acompte off, an absent name to blank it.
       const body = { ...(existing || {}), ...Object.fromEntries(Object.entries(sentBody).filter(([, value]) => value !== undefined)) };
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
@@ -663,7 +663,7 @@ function createPropertiesModel(database) {
         WHERE id=?
       `).run(
         propertyName(body.name),
-        // specs/guest-email-texts-made-simple.md rule 30 (2026-10-18) — a form that does not send the
+        // specs/emails/guest-email-texts-made-simple.md rule 30 (2026-10-18) — a form that does not send the
         // article keeps the stored one, and does not confirm it.
         normalizeNameArticle(sent(sentBody, 'nameArticle') ? sentBody.nameArticle : existing?.nameArticle),
         photo,
@@ -700,7 +700,7 @@ function createPropertiesModel(database) {
 
       writeEmailFacts(id, sentBody);
       applyOwnArticle(id, sentBody.name);
-      // specs/deposit-blocks-the-dates.md rule 20 — « Solde dû … jours avant » decides which open devis owe one payment:
+      // specs/payments/deposit-blocks-the-dates.md rule 20 — « Solde dû … jours avant » decides which open devis owe one payment:
       // their columns follow at once, and an acompte link they no longer ask for is withdrawn.
       require('./devisModel').buildModel(database).restoreSinglePayments({ propertyId: id });
 
@@ -761,8 +761,8 @@ function createPropertiesModel(database) {
       return { ok: true };
     },
 
-    // « Prix plateformes » grid for the property tarif page (specs/platform-price-from-commission.md,
-    // widened by specs/tariff-recipes/spec.md §3.6 rules 31-34). Returns EVERY channel — the direct
+    // « Prix plateformes » grid for the property tarif page (specs/platforms/platform-price-from-commission.md,
+    // widened by specs/pricing/tariff-recipes.md §3.6 rules 31-34). Returns EVERY channel — the direct
     // row first (its displayed price covers the welcome pack after the Lodgify fee), then the
     // commissioned platforms — with, per tariff season, the whole-euro price to configure on that
     // channel plus the per-night extra-guest price. Net pivots per rule 34bis:
@@ -794,13 +794,13 @@ function createPropertiesModel(database) {
       const directRow = rows.find((p) => p.isDirect)
         || { id: 'direct', name: 'Direct', commissionPercent: 0, isDirect: true };
       // The other OWN channels — the platforms counted as a direct sale — are the Direct row: its
-      // caption names them (specs/plugins-phase-p-productisation.md rule 19), and its commission IS
+      // caption names them (specs/plugins/plugins-phase-p-productisation.md rule 19), and its commission IS
       // their engine fee. Listing them again underneath would ask the operator to configure the same
       // channel twice, with two rates that must never disagree. Hidden from this grid only: the
       // platform row itself still carries reservations and their commissions.
       const directVia = rows.filter((p) => !p.isDirect && isDirectChannel(p.name)).map((p) => formatPlatformName(p.name) || p.name);
       const platforms = [{ ...directRow, directVia }, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))].map((p) => {
-        // specs/tariff-recipe-platform-cleaning-fee.md rules 8–9 — grossed up with the commission read
+        // specs/pricing/tariff-recipe-platform-cleaning-fee.md rules 8–9 — grossed up with the commission read
         // NOW, so editing a platform's commission moves the fee without re-applying the recipe. The
         // direct ménage is a GuestFlow option, never a channel fee.
         const fee = p.isDirect ? null : cleaningFeeByName.get(String(p.name || '').trim().toLowerCase());
@@ -892,7 +892,7 @@ function createPropertiesModel(database) {
         bounds.startDate,
         bounds.endDate,
         minNights || 1,
-        // Recipe columns (specs/tariff-recipes/spec.md §5) — all NULL by default: an untagged season is
+        // Recipe columns (specs/pricing/tariff-recipes.md §5) — all NULL by default: an untagged season is
         // manual, never touched by a recipe apply; NULL net targets keep the platform grid on pricePerNight.
         body.seasonKey ? String(body.seasonKey) : null,
         Number.isFinite(Number(body.seasonRank)) && body.seasonRank != null && body.seasonRank !== '' ? Math.floor(Number(body.seasonRank)) : null,
@@ -910,7 +910,7 @@ function createPropertiesModel(database) {
     updatePricingRule(propertyId, ruleId, body = {}) {
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
       const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
-      // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a range kept as stored is not re-judged.
+      // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a range kept as stored is not re-judged.
       const storedRule = database.prepare('SELECT startDate, endDate, dateRanges FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId);
       const datesError = rangesWindowMessage(normalizedDateRanges, { stored: storedRule ? parseRuleDateRanges(storedRule) : [] });
       if (datesError) return { error: datesError, status: 400 };
@@ -960,7 +960,7 @@ function createPropertiesModel(database) {
       return { data: { ok: true } };
     },
 
-    // specs/tariff-recipes/spec.md §3.2 — the property's active recipe pointer. Written by the recipe
+    // specs/pricing/tariff-recipes.md §3.2 — the property's active recipe pointer. Written by the recipe
     // apply (and cleared by a detach); deliberately NOT part of the generic update() so a property
     // form save can never wipe it.
     setTariffRecipe(propertyId, recipeId, recipeVersion) {
@@ -969,10 +969,10 @@ function createPropertiesModel(database) {
       return { data: { ok: true } };
     },
 
-    // specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 — the welcome-pack cost price is owned
+    // specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1 — the welcome-pack cost price is owned
     // by the RECIPE, not by the property form: it is a margin input for the channel grid, never a
     // guest-facing amount. Written only by the recipe apply, exactly like the recipe pointer.
-    // Recipe-owned, like the welcome pack (specs/tariff-recipe-platform-cleaning-fee.md rules 4, 7).
+    // Recipe-owned, like the welcome pack (specs/pricing/tariff-recipe-platform-cleaning-fee.md rules 4, 7).
     setPlatformCleaningFees(propertyId, fees) {
       database.prepare("UPDATE properties SET platformCleaningFees = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(JSON.stringify(Array.isArray(fees) ? fees : []), Number(propertyId));
@@ -1066,7 +1066,7 @@ function createPropertiesModel(database) {
       return { data: { ok: true, copiedRules: normalizedSourceRules.length, replaceExisting } };
     },
 
-    // Calendar season painting (specs/pricing-min-nights-per-range.md): carve a selected period out of
+    // Calendar season painting (specs/pricing/pricing-min-nights-per-range.md): carve a selected period out of
     // every season and (re)attach it to a target season (existing or new) with its own minimum nights.
     // All the date-range algebra is the pure `computeDateRangeAssignment`; here we validate + persist.
     assignDateRangeToSeason(propertyId, body = {}) {
@@ -1077,7 +1077,7 @@ function createPropertiesModel(database) {
       const target = body.target || {};
       const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-      // specs/reservations-backend-mvc.md rule 26 (audit R42-C-L1) — a logement that does not exist is refused first,
+      // specs/tech/reservations-backend-mvc.md rule 26 (audit R42-C-L1) — a logement that does not exist is refused first,
       // never a foreign-key 500 on the new season's INSERT.
       if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(pid)) return { error: 'Logement non trouvé', status: 404 };
       if (!ISO.test(startDate) || !ISO.test(endDate)) return { error: 'Dates invalides.', status: 400 };
@@ -1145,13 +1145,13 @@ function createPropertiesModel(database) {
     addDocument(propertyId, file, body = {}) {
       if (!file) return { error: 'Fichier requis', status: 400 };
       const dropUpload = () => { if (file.path) { try { require('fs').unlinkSync(file.path); } catch { /* already gone */ } } };
-      // specs/reservations-backend-mvc.md rule 26 (audit R41-DB-L1) — the upload is already on disk: on a logement that
+      // specs/tech/reservations-backend-mvc.md rule 26 (audit R41-DB-L1) — the upload is already on disk: on a logement that
       // does not exist it is removed and refused, never a foreign-key 500 leaving an orphan private file.
       if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) {
         dropUpload();
         return { error: 'Logement non trouvé', status: 404 };
       }
-      // specs/settings-input-guards.md rule 63 (audit R42-DB-L1 / R42-INJ-L2) — the two text fields are judged before the
+      // specs/settings/settings-input-guards.md rule 63 (audit R42-DB-L1 / R42-INJ-L2) — the two text fields are judged before the
       // row is written, the upload removed on a refusal: a repeated or bracketed field was a 500 or a stored « A,b ».
       const fieldRefusal = documentFieldsRefusal(body);
       if (fieldRefusal) {
@@ -1180,7 +1180,7 @@ function createPropertiesModel(database) {
       return database.prepare('SELECT * FROM documents WHERE id = ? AND propertyId = ?').get(docId, propertyId);
     },
 
-    // specs/welcome-pack-auto-options.md §3.1 — the property's welcome pack: the options this
+    // specs/options/welcome-pack-auto-options.md §3.1 — the property's welcome pack: the options this
     // property's rate already covers by the unit (`freeUnits > 0`, written by the tariff recipe).
     // Engine-derived options (`autoEnabled = 1`) are excluded: they are never part of a reservation's
     // manual selection. Defensive like `rateInclusions`: a minimal schema degrades to an empty pack.
@@ -1207,7 +1207,7 @@ function createPropertiesModel(database) {
       }
     },
 
-    // specs/settings-input-guards.md rule 62 — the property and every option of the list exist.
+    // specs/settings/settings-input-guards.md rule 62 — the property and every option of the list exist.
     optionListTargetsExist(propertyId, optionIds = []) {
       if (!positiveId(propertyId) || !database.prepare('SELECT 1 FROM properties WHERE id = ?').get(positiveId(propertyId))) return false;
       const known = database.prepare('SELECT 1 FROM options WHERE id = ?');

@@ -1,4 +1,4 @@
-// Qonto payment-link VAT items builder (specs/payment-links-vat.md). MONEY-CRITICAL: the sum of the
+// Qonto payment-link VAT items builder (specs/payments/payment-links-vat.md). MONEY-CRITICAL: the sum of the
 // per-item Qonto totals MUST equal the charged amount to the cent, using Qonto's real half-up rule
 // (verified in sandbox 2026-07-03). We replicate Qonto's per-line total to assert exactness.
 
@@ -122,7 +122,7 @@ test('htFromTtc floors so the round-trip never exceeds the target', () => {
   }
 });
 
-// --- Component `description` is carried through untouched (specs/qonto-payment-link-reference.md) ---
+// --- Component `description` is carried through untouched (specs/payments/qonto-payment-link-reference.md) ---
 
 test('an item description is forwarded, and it changes neither the HT nor the charged total', () => {
   const plain = buildVatItems({
@@ -140,7 +140,7 @@ test('an item description is forwarded, and it changes neither the HT nor the ch
     vatRatePercent: 10,
   });
   // Description present on the stay line, and amounts identical to the un-labelled basket
-  // (specs/qonto-payment-link-reference.md rule 6 — charged total unchanged by the label).
+  // (specs/payments/qonto-payment-link-reference.md rule 6 — charged total unchanged by the label).
   const stay = labelled.items.find((i) => i.vatRate === 10);
   assert.equal(stay.description, 'Séjour du 10/10/2026 au 12/10/2026 · 2 nuits · réf 2026-09-002');
   assert.equal(labelled.expectedTotalCents, plain.expectedTotalCents);

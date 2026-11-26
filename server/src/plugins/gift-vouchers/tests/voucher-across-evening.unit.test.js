@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 9-10, 14 — a voucher settles what it covers at the band it was sold for, and every hour beyond it is due at the band it falls in: a
+// specs/site/site-outside-resource-booking.md rules 9-10, 14 — a voucher settles what it covers at the band it was sold for, and every hour beyond it is due at the band it falls in: a
 // « 1 h journée » voucher placed at 19:00 for 2 h leaves the 20:00–21:00 hour due at the evening following-hour rate; placed at 20:00 for 1 h it leaves the evening supplement. The slots of
 // « Mon bain » say it per start (`dueCents`, `evening`), the recap and the booking agree, and the visitor who tells his people and his name is heard (rule 4).
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/terms-acceptance-record.md §3.1 — the CGV draft, its publication and what the page shows:
+// specs/reservations/terms-acceptance-record.md §3.1 — the CGV draft, its publication and what the page shows:
 // numbering, immutability of published versions, publication blocked by unknown variables / empty text
 // / nothing new, the stale-facts warning, and the fiche block (rules 21-22).
 const test = require('node:test');

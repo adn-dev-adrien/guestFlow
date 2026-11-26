@@ -1,5 +1,5 @@
 /**
- * One-shot (specs/terms-acceptance-record.md rule 27): the stored `reservation_confirmation` template
+ * One-shot (specs/reservations/terms-acceptance-record.md rule 27): the stored `reservation_confirmation` template
  * gains the paragraph linking to the CGV of the stay. It goes just before the « Une question… » /
  * « Any question… » paragraph when the operator kept it, at the end of the body otherwise. A body
  * that already holds `{{cgvUrl}}` is left alone. Returns the number of fields updated.

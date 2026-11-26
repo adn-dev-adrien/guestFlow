@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/per-property-default-options.md — an option that is a property DEFAULT configured « offered »
+// specs/options/per-property-default-options.md — an option that is a property DEFAULT configured « offered »
 // (`property_option_defaults.offered = 1`) is INCLUDED in the night rate. The engine tags its line
 // `includedInRate` so the fiche summary shows « Comprise » at 0 € instead of « Offert ».
 

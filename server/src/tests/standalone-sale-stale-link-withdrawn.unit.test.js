@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 15, 40, 41 (end review R2-4, R3-2) — any change of a document's reste (a counter payment, a line offered,
+// specs/sas/outside-booking-sas.md rules 15, 40, 41 (end review R2-4, R3-2) — any change of a document's reste (a counter payment, a line offered,
 // removed or added) withdraws its now-stale open link in the same transaction, so it can never be paid; a link paid anyway is booked in full and
 // its surplus becomes a durable obligation row the administrator finds on the document, once per link.
 process.env.DB_PATH = ':memory:';

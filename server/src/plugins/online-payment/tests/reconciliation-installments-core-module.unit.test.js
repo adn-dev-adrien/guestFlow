@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 45 (audit 2026-10-27) — the installments of a plan are read
+// specs/accounting/qonto-bank-reconciliation.md rule 45 (audit 2026-10-27) — the installments of a plan are read
 // through the core's installments model (`sdk.coreModule('installmentsModel')`), never by raw SQL on a
 // core table, and a read failure surfaces instead of turning into an empty plan that expects nothing.
 const test = require('node:test');

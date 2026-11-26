@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/finance-per-property-revenue-chart.md — per-logement chart windows: `yearToDateByProperty`
+// specs/accounting/finance-per-property-revenue-chart.md — per-logement chart windows: `yearToDateByProperty`
 // (Σ total de séjour, Jan 1 → today, filtered by property) plus `revenueByProperty` enriched with
 // `revenueHt`. Both are seeded from the properties table (a logement with no reservation appears at
 // 0 in the payload) and sorted revenue desc, ties broken by name.
@@ -14,7 +14,7 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
-    -- specs/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
+    -- specs/site/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
     requestOrigin TEXT, attributionChannel TEXT, devisStatus TEXT, createdAt TEXT,
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
@@ -73,7 +73,7 @@ test('revenueByProperty: per-logement revenue + HT, zero-revenue logement seeded
   // Gite, direct, no tourist tax: 150 + 400 = 550 TTC → HT = 550 ÷ 1.1 = 500.
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), finalPrice: 550, depositAmount: 150, balanceAmount: 400 });
   const summary = model.getSummary({ from: iso(0), to: iso(10) });
-  // …and the nights sold ride along on the same aggregate (specs/fiscal-year-and-nights-sold.md §3.3):
+  // …and the nights sold ride along on the same aggregate (specs/accounting/fiscal-year-and-nights-sold.md §3.3):
   // the stay runs iso(1) → iso(4) = 3 nights; the logement with no stay stays seeded at 0.
   assert.deepEqual(summary.revenueByProperty, [
     { propertyId: 1, propertyName: 'Gite', revenue: 550, revenueHt: 500, nights: 3 },

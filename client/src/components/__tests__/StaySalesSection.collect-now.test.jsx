@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 32 and 85, PR C mock M3 (docs/rapports/2026-11-13-m3-sas-sur-lignes.html) — the departure sales of the arrival SAS
+// specs/pricing/pricing-components.md §3 rules 32 and 85, PR C mock M3 (docs/rapports/2026-11-13-m3-sas-sur-lignes.html) — the departure sales of the arrival SAS
 // can be collected now, line by line or all at once; the lines already paid fold; a line a reopened SAS appended says so.
 import React from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';

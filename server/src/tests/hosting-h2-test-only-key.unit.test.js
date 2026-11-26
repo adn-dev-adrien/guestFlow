@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 36 — a managed instance refuses the E2E suite's key,
+// specs/hosting/hosting-h2-account-security.md rule 36 — a managed instance refuses the E2E suite's key,
 // whose private half is committed to this public repository.
 
 const test = require('node:test');

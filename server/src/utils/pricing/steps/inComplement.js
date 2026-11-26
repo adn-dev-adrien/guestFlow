@@ -1,5 +1,5 @@
 /**
- * STEP inComplement — SETTLEMENT (specs/pricing-components.md §3 rule 52).
+ * STEP inComplement — SETTLEMENT (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Reads the lines routed to the arrival complement.
  * `apply(ctx)` returns a new context and never mutates the one it receives.

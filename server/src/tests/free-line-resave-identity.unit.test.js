@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t16, VS16-1, 2026-11-17 — the verifier's `probe-resave` made permanent). A
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t16, VS16-1, 2026-11-17 — the verifier's `probe-resave` made permanent). A
 // free line typed on the fiche is saved, the fiche stays open without re-reading its row ids (a PDF, a payment request, a note, a ledger mark),
 // then is saved again. The client's own payload (`customOptionsPayload` with the keys a save stored) sends the line `newLine` the first time
 // only; the second save keeps its row (same lineId, sale date) — and is not refused LINE_PAID once a note settled it — before the arrival,

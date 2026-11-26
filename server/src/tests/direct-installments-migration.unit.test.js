@@ -1,4 +1,4 @@
-// specs/direct-installments.md §5 — the two table rebuilds (payment_links, email_manual_queue) and the
+// specs/payments/direct-installments.md §5 — the two table rebuilds (payment_links, email_manual_queue) and the
 // additive columns keep every existing row one-to-one, and running the migration again changes nothing.
 const test = require('node:test');
 const assert = require('node:assert/strict');

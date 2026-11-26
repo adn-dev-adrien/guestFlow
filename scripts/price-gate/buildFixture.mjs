@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Captures the price-gate fixture (specs/pricing-components.md §3 rules 68 and 71) from a COPY of a real database.
+// Captures the price-gate fixture (specs/pricing/pricing-components.md §3 rules 68 and 71) from a COPY of a real database.
 //
 //   node scripts/price-gate/buildFixture.mjs <copy.db> --out server/src/tests/fixtures/price-gate/
 //

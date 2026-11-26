@@ -1,5 +1,5 @@
 // @ts-check
-// API seed helpers (specs/e2e-playwright-smoke-suite.md §4.3). Each helper wraps a Playwright
+// API seed helpers (specs/tech/e2e-playwright-smoke-suite.md §4.3). Each helper wraps a Playwright
 // `request` context call against the real /api/* surface so the helper exercises the same
 // validation + serialisation path the UI hits. Use this when the spec depends on the API
 // contract being correct end-to-end. For pure UI surfacing of pre-existing state, prefer
@@ -99,7 +99,7 @@ async function createIcalSource({
 /**
  * An hourly-SCHEDULED resource (`showsPlanningCard` + `per_hour`) — the « Bain nordique » shape.
  * Sold by the hour on the fiche, placed on real slots during the arrival SAS
- * (specs/hourly-resource-quantity-and-sas-scheduling.md).
+ * (specs/resources/hourly-resource-quantity-and-sas-scheduling.md).
  */
 async function createHourlyResource({
   name = 'Bain nordique E2E',
@@ -133,7 +133,7 @@ async function createHourlyResource({
 }
 
 // An article sold at the counter to someone with no stay (« Vendable hors séjour »), at the external customer's VAT of its class
-// (specs/outside-booking-sas.md rule 11, owner Q-C11).
+// (specs/sas/outside-booking-sas.md rule 11, owner Q-C11).
 async function createCounterArticle({ title, price = 6.5, vatClass = 'drinks', externalVatRate = 20 } = {}) {
   return withRequest(async (ctx) => {
     const res = await ctx.post('/api/options', {

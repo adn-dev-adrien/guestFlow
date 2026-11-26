@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 46 (audit 2026-10-27) — a payout is matched to the stays of its
+// specs/accounting/qonto-bank-reconciliation.md rule 46 (audit 2026-10-27) — a payout is matched to the stays of its
 // platform whatever the stored spelling of the platform name: the boot de-duplication of platform rows
 // may keep `Gitesdefrance` or `AirBnb`, and an exact-name match then proposed nothing.
 const test = require('node:test');

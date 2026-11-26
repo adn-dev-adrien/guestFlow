@@ -1,5 +1,5 @@
 /**
- * DS phase-2 generics (specs/ds-components.md §7) — LoadingState, EmptyState, ErrorAlert,
+ * DS phase-2 generics (specs/design-system/ds-components.md §7) — LoadingState, EmptyState, ErrorAlert,
  * StatusBadge (soft restyle), PlatformChip, UnsavedChangesDialog, ResponsiveTable, ErrorBoundary.
  */
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.A rules 1–6 — the sentences of the guest emails as data:
+// specs/plugins/plugins-phase-p-productisation.md §3.A rules 1–6 — the sentences of the guest emails as data:
 // neutral defaults, a global save, a property's own text, the refusal of an unknown token, the reset,
 // and the stored templates' variables unchanged.
 

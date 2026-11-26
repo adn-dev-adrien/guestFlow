@@ -1,5 +1,5 @@
 // A platform booking whose tourist tax the platform withheld can be marked paid
-// (specs/platform-tourist-tax-out-of-the-commission.md rule 25).
+// (specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 25).
 //
 // The fiche prices the solde as « brut − taxe retenue », but `buildReservationEngineInput` never
 // selected `platformTouristTaxAmount`, so the contribution capture replayed the booking with the

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 15bis — the one Soliomap event the home suggests. The feed is a trimmed copy of Soliomap's
+// specs/guest-app/guest-app.md rule 15bis — the one Soliomap event the home suggests. The feed is a trimmed copy of Soliomap's
 // real `/api/activities` (2026-11-05): its dates are the snapshot's own, so every clock below is injected and handed
 // only to the picker or to the plugin under test (date-literal-ok on each line that carries one). No network.
 const test = require('node:test');

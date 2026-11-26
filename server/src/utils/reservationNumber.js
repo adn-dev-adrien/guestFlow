@@ -1,5 +1,5 @@
 /**
- * Reservation number generation (specs/reservation-number-and-search.md §3).
+ * Reservation number generation (specs/reservations/reservation-number-and-search.md §3).
  *
  * Human-readable identifier for `kind = 'reservation'` rows, format `AAAAMM###` (year + month + a
  * per-month counter, NO separators) — an INDEPENDENT sequence (it scans `reservationNumber`, never
@@ -26,7 +26,7 @@ function monthPrefix(date) {
 // counter is the all-digit suffix after the 6-digit prefix; operator numbers that do not fit that shape
 // are ignored. Every row that carries a number counts, whatever its kind: a cancelled stay KEEPS its
 // number (kind = 'cancelled') and the unique index covers it, so skipping it handed the same number out
-// again and every creation failed until the month changed (specs/reservation-number-and-search.md
+// again and every creation failed until the month changed (specs/reservations/reservation-number-and-search.md
 // rule 13). The max is numeric, not lexical, so a 1000th stay of the month still follows the 999th.
 function nextNumberForPrefix(db, prefix) {
   const rows = db.prepare(
@@ -103,7 +103,7 @@ function dehyphenateReservationNumbers(db) {
   return info.changes;
 }
 
-// One-shot repair (specs/reservation-number-and-search.md rule 14): a stay left without a number by
+// One-shot repair (specs/reservations/reservation-number-and-search.md rule 14): a stay left without a number by
 // the collision of rule 13 gets one now, and is reported so the operator can check it. Such a row may
 // be a ghost — an insert that went through while the request failed — so it is listed (and its
 // history says so), never deleted: only the operator can tell a ghost from a real stay. Idempotent (only numberless rows are touched).

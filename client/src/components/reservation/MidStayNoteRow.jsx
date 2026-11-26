@@ -1,5 +1,5 @@
 /**
- * Une ligne de l'historique des « notes en séjour » — specs/adjustable-complement-amounts.md §3.4.
+ * Une ligne de l'historique des « notes en séjour » — specs/sas/adjustable-complement-amounts.md §3.4.
  *
  * Deux états : lecture (date — montant — mode, avec ✎ et « Reporter au départ ») et édition en place
  * (montant, date, CB / caisse interne). Extrait de `FinanceSection` parce que la ligne porte son

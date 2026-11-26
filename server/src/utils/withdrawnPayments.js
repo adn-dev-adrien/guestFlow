@@ -1,5 +1,5 @@
 /**
- * A payment received on a link withdrawn by hand, AFTER its withdrawal (specs/payment-link-lifecycle.md rule 56,
+ * A payment received on a link withdrawn by hand, AFTER its withdrawal (specs/payments/payment-link-lifecycle.md rule 56,
  * decided by Adrien 2026-10-31). The poll found it paid (rule 8 alert): the money is not the stay's, and no new
  * payment request of the stay leaves until the operator settles it.
  *

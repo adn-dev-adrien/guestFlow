@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 115 (stabilisation loop t9, D9-4, 2026-11-16) — `refund_obligations.noteCents` is added and backfilled in
+// specs/pricing/pricing-components.md §3 rule 115 (stabilisation loop t9, D9-4, 2026-11-16) — `refund_obligations.noteCents` is added and backfilled in
 // ONE transaction: the settled `lineLowered` rows of a table that predates the column are stamped whole, and a failure in the backfill leaves
 // no column behind, so the next boot runs both again. Before, the ALTER committed alone and a stop before the UPDATE left those rows at 0 for
 // good. A second run changes nothing.

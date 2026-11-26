@@ -1,4 +1,4 @@
-// specs/sas-arrival-total-server-side.md — the arrival preview endpoint and what the commit does with
+// specs/sas/sas-arrival-total-server-side.md — the arrival preview endpoint and what the commit does with
 // the operator's choices: one plan for both, the split decided by the server, the displayed total
 // compared (never used), the reception's view. Real controller, real model, in-memory database.
 

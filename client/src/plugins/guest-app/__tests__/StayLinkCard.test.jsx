@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 1, 9bis (c) — « Lien Mon séjour » on the fiche: the link, its QR, copy, regenerate after
+// specs/guest-app/guest-app.md rules 1, 9bis (c) — « Lien Mon séjour » on the fiche: the link, its QR, copy, regenerate after
 // a confirmation; the server's reason when the link is refused (409), nothing for a new or unknown stay.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

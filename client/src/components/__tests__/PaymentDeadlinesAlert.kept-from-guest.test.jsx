@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 60, reading of 2026-11-10 (audit R45-C-L1) — the dashboard cancel_due
+// specs/payments/payment-schedule-and-cancellation.md rule 60, reading of 2026-11-10 (audit R45-C-L1) — the dashboard cancel_due
 // row said « acompte conservé si annulation » from the books only: on a caisse-interne acompte it said nothing, while
 // the notice tells the guest the acompte is kept. The row now names the sum the notice states when it differs.
 import { vi } from 'vitest';

@@ -1,6 +1,6 @@
 /**
  * Release signing is the only barrier between a published release and the licence key: the console runs
- * each release's own scripts as its own unix user (specs/self-update-and-releases.md rule 40). While
+ * each release's own scripts as its own unix user (specs/hosting/self-update-and-releases.md rule 40). While
  * `GUESTFLOW_RELEASE_PUBLIC_KEY` is unset, whoever can publish a GitHub release owns the fleet — so the
  * console says so at boot and keeps a host alert open (emailed every 24 h) until the key is set.
  */

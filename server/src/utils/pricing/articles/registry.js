@@ -1,5 +1,5 @@
 /**
- * Article-family registry (specs/pricing-components.md §3 rule 47) — strategy + registry: one generic formula per
+ * Article-family registry (specs/pricing/pricing-components.md §3 rule 47) — strategy + registry: one generic formula per
  * pricing family, registered once by id.
  *
  * Contract:

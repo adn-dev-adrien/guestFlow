@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const reservationsModel = require('../models/reservationsModel');
 
-// specs/reservation-option-immutability.md — an existing reservation is frozen against later
+// specs/reservations/reservation-option-immutability.md — an existing reservation is frozen against later
 // changes to the `options` catalog. `reservation_options` snapshots the unit/total price, billed
 // units, priceType and offered flag at creation; the read paths (getPricingSnapshot, the finance
 // and accounting models) read those snapshot columns, never the live option price. So changing an

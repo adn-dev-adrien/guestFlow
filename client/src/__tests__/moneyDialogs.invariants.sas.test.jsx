@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the SAS recaps
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the SAS recaps
 // (`ReservationSasDialog`, arrival and departure: the recap preview, « Plusieurs moyens », the steps back and forth, the commit). The driver
 // and the invariants are in `moneyDialogsHarness.jsx`.
 import React from 'react';

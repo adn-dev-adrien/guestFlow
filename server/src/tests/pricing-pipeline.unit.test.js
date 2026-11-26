@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 43 and 52 — `utils/pricing/pipeline.js`: freely chainable steps over one context.
+// specs/pricing/pricing-components.md §3 rules 43 and 52 — `utils/pricing/pipeline.js`: freely chainable steps over one context.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildPipeline, HALT } = require('../utils/pricing/pipeline');

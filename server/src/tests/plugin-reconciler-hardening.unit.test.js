@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 31–34 — the reconciler's erase orders follow the same
+// specs/plugins/plugin-operator-provisioning.md rules 31–34 — the reconciler's erase orders follow the same
 // settled rule as the other steps, out-of-plan dependants do not hold it back, an older licence never
 // replaces a newer one, and the closing pass leaves an erase failure on record.
 const test = require('node:test');

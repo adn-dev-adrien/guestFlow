@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rules 13 and 17 — the SAS « Portail » step is the SAS's: the keypad
+// specs/plugins/plugins-phase-1-sdk.md rules 13 and 17 — the SAS « Portail » step is the SAS's: the keypad
 // code alone is enough to show it; a key held by the gate-access plugin takes the page through its
 // slot. Plugin arrival steps (the weather alert) come from their module.
 import { screen, waitFor, act } from '@testing-library/react';
@@ -24,7 +24,7 @@ vi.mock('../../../api', () => ({
 }));
 
 beforeEach(() => {
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   vi.clearAllMocks();
   enabled.clear();
@@ -81,7 +81,7 @@ test.skipIf(lacksPlugins(['weather-alerts']))('rule 13: active and alerting, the
   api.getReservationSas.mockResolvedValue(sasPayload(noCaution));
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
-  // The step loads in the background and is counted once its data is in (specs/server-test-isolation.md rule 11).
+  // The step loads in the background and is counted once its data is in (specs/tech/server-test-isolation.md rule 11).
   await waitFor(() => expect(api.getReservationWeatherAlerts).toHaveBeenCalledWith(1));
   expect(await screen.findByText('1 sur 3')).toBeTruthy();
   clickBtn('Commencer');

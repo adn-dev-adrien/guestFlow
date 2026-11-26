@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 4 and §7 (`pricing-compose`) — COMPOSE is `stayQuote` plus `shape()`: the engine's
+// specs/pricing/pricing-components.md §3 rule 4 and §7 (`pricing-compose`) — COMPOSE is `stayQuote` plus `shape()`: the engine's
 // answer stays the quote it was before the refactor, key for key. The price-gate stays (production copy and synthetic refund
 // stays) are quoted through the current engine and compared, whole quote, with the fingerprints captured on the baseline code
 // (`quotes.json`: sorted keys and the SHA-256 of the canonical JSON of each quote); the golden fixture of the VAT regimes

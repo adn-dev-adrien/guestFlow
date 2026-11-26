@@ -1,5 +1,5 @@
 /**
- * CGV persistence (specs/terms-acceptance-record.md §5, per activity since specs/gift-voucher-campaigns.md rule 37): the
+ * CGV persistence (specs/reservations/terms-acceptance-record.md §5, per activity since specs/gift-vouchers/gift-voucher-campaigns.md rule 37): the
  * drafts, the published versions and the acceptances. Versions and acceptances are insert-only — there is no update or delete statement
  * for them here, on purpose: they are what a guest accepted.
  */
@@ -120,7 +120,7 @@ function createTermsModel(database) {
      * Records the acceptance AND, for a reservation, its « Historique » entry (rule 20). Runs inside the
      * booking transaction of publicBookingRequestController, so both land with the devis or not at all.
      * A subject that is not a reservation hands its own history to the owning plugin: `onAccepted(row)`
-     * is called once the row is stored (specs/gift-voucher-campaigns.md rule 37).
+     * is called once the row is stored (specs/gift-vouchers/gift-voucher-campaigns.md rule 37).
      */
     insertAcceptance(row) {
       const activity = row.activity || LODGING;

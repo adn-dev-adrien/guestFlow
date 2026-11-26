@@ -1,5 +1,5 @@
 /**
- * Preloaded by `npm test` on the server and on the console (specs/server-test-isolation.md rule 14): no test
+ * Preloaded by `npm test` on the server and on the console (specs/tech/server-test-isolation.md rule 14): no test
  * reaches a real Qonto host. On 2026-11-05 an auditor's probe did, with a made-up token, because a stored
  * environment outranked its `QONTO_API_BASE`. The resolver and `fetch` refuse the name before any socket opens,
  * and the attempt fails the process at exit, since most callers of Qonto swallow a failure (rule 11 of the webhook).

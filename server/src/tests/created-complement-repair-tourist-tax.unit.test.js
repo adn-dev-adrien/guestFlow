@@ -1,4 +1,4 @@
-// specs/force-item-to-complement.md rules 18-19 (adversarial review of the 2026-10-27 spec-review
+// specs/sas/force-item-to-complement.md rules 18-19 (adversarial review of the 2026-10-27 spec-review
 // fixes) — the boot repair proves the lost complement on a property WITH a tourist tax (finalPrice
 // excludes it), for both tax routings; it never reopens a stay that has ended; and a devis converted
 // to a reservation carries its arrival complement instead of opening a new hole.

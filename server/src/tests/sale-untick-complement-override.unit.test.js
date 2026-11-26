@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 (stabilisation loop t4, S4-2, 2026-11-16) — the check-in box unticked before the hour does not undo the false
+// specs/pricing/pricing-components.md §3 rule 103 (stabilisation loop t4, S4-2, 2026-11-16) — the check-in box unticked before the hour does not undo the false
 // start of a stay whose arrival complement is the operator's own amount (`complementAmountOverride`): the override takes no line back, so the lines
 // the start carved out keep their departure money. Before: the line went back to an arrival complement the override pinned, and 45 € landed in no bucket.
 process.env.DB_PATH = ':memory:';

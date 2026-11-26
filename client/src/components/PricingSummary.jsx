@@ -60,9 +60,9 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
   );
 }
 
-// specs/pricing-components.md rule 108 — an offered paid line whose money was refunded stays offered: sold again, it is a new line.
+// specs/pricing/pricing-components.md rule 108 — an offered paid line whose money was refunded stays offered: sold again, it is a new line.
 const REFUNDED_SUFFIX = ' · remboursée';
-// specs/pricing-components.md rule 101 (reading 2026-11-17, loop t16 UI16-1) — while the fiche is not the server's, every
+// specs/pricing/pricing-components.md rule 101 (reading 2026-11-17, loop t16 UI16-1) — while the fiche is not the server's, every
 // per-line control of the summary reads and takes no click: one flag, read by each control.
 const HeldContext = createContext(false);
 
@@ -87,7 +87,7 @@ function ComplementChip({ active = true, onClick, readOnly = false }) {
         cursor: clickable ? 'pointer' : 'default',
         '& .MuiChip-label': { px: 0.75 },
         '&:hover': clickable ? { opacity: 1, borderColor: 'divider', bgcolor: 'action.hover' } : undefined,
-        // specs/plugins-phase-p-productisation.md rule 39 — 18 px on screen, 44 px under a finger.
+        // specs/plugins/plugins-phase-p-productisation.md rule 39 — 18 px on screen, 44 px under a finger.
         ...(clickable ? touchHitArea : {}),
       }}
     />
@@ -141,18 +141,18 @@ function getLineSplit(line, totalPrice) {
  *   onToggleTouristTaxInComplement(next)
  *   touristTaxInComplementLocked — the server's rule 20 reason is set: the chip reads, it does not toggle
  *   isRefundedLine(kind, line)     true for an offered paid line whose money a refund gave back (the server's `refundedLoweredLines`,
- *                                  specs/pricing-components.md rule 108): it reads « ✓ Offert · remboursée » and cannot be put back
+ *                                  specs/pricing/pricing-components.md rule 108): it reads « ✓ Offert · remboursée » and cannot be put back
  *   mode                           'live' (default) | 'stored' — the quote is then the server's `storedSummary`
- *                                  (specs/reservation-payment-ledger.md rules 50-52): the same sections,
+ *                                  (specs/payments/reservation-payment-ledger.md rules 50-52): the same sections,
  *                                  labels and rows, with every per-line control left out, since a value
  *                                  shown as stored is never edited in place
  *   topNotice                      node rendered above « Prix hébergement » (the platform price alert)
  *   heldReason                     string|null — set while the fiche is not the server's (re-read, save, logement switch):
  *                                  every « Offrir » and « compl. » toggle and « Recalculer la taxe de séjour » is disabled, and
- *                                  the reason reads under the title (specs/pricing-components.md rule 101)
+ *                                  the reason reads under the title (specs/pricing/pricing-components.md rule 101)
  *   ledgerRows                     the stored ledger's rows: a paid acompte, solde or complement whose split payment left a reste
  *                                  reads the server's state (« Perçu en partie »), not « payé »
- *                                  (specs/mixed-method-payments.md rule 16, audit R34-C-L3)
+ *                                  (specs/payments/mixed-method-payments.md rule 16, audit R34-C-L3)
  */
 export default function PricingSummary({
   quote,
@@ -174,12 +174,12 @@ export default function PricingSummary({
   onToggleResourceInComplement,
   onToggleTouristTaxInComplement,
   touristTaxInComplementLocked = false,
-  // specs/mid-stay-extras-on-locked-fiche.md — inside the window the routing is the server's and a
+  // specs/sas/mid-stay-extras-on-locked-fiche.md — inside the window the routing is the server's and a
   // line sold at arrival can be neither offered nor un-offered.
   routingLocked = false,
   isFrozenLine = () => false,
   isRefundedLine = () => false,
-  // specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tourist tax is frozen; show a
+  // specs/tourist-tax/tourist-tax-freeze-past-with-refresh.md — a past reservation's tourist tax is frozen; show a
   // refresh button next to the label to force a live recompute.
   isTouristTaxFrozen = false,
   onRefreshTouristTax,
@@ -235,7 +235,7 @@ export default function PricingSummary({
   // Tiered supplement: the server phrases the rule (« 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit »)
   // because no single unit price describes it (specs/tariff-events-and-extra-guest-tiers §3.1).
   const extraGuestTiersLabel = quote?.extraGuestTiersLabel || null;
-  // specs/platform-extra-guest-complement.md §3.5 rule 16 — on a pinned brut the supplement splits in
+  // specs/platforms/platform-extra-guest-complement.md §3.5 rule 16 — on a pinned brut the supplement splits in
   // two: the part the platform billed (in the brut, never offered) and the guests added since (in the
   // complement, offerable). `platformPaidGuests` is only set when a brut is pinned.
   const platformPaidGuests = quote?.platformPaidGuests ?? null;
@@ -247,11 +247,11 @@ export default function PricingSummary({
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
-  // specs/pricing-components.md §3 rule 15 — one VAT line per rate, ready to render from the server
+  // specs/pricing/pricing-components.md §3 rule 15 — one VAT line per rate, ready to render from the server
   // (`vatByRate: [{ rate, label, base, vat }]`); a « Sans TVA » stay gets none.
   const vatByRate = Array.isArray(quote?.vatByRate) ? quote.vatByRate : [];
   const totalNetPrice = Number(quote?.totalNetPrice || 0);
-  // « Sans TVA » (specs/vat-optional-mode.md rule 12a): the server's mention replaces the VAT lines.
+  // « Sans TVA » (specs/accounting/vat-optional-mode.md rule 12a): the server's mention replaces the VAT lines.
   const vatMention = quote?.vatRegime?.regime === 'not_subject' ? quote.vatRegime.legalMentionText : null;
 
   // The engine resolves who collects the tax (per-platform flag on `ical_sources`, see
@@ -267,7 +267,7 @@ export default function PricingSummary({
     ? Boolean(quote.touristTaxOfferedByPlatform)
     : (isIcalSource || (String(form.platform || '').toLowerCase() !== 'direct'));
   const isTouristTaxCollectedOnArrival = Boolean(quote?.touristTaxCollectedOnArrival);
-  // specs/platform-tourist-tax-out-of-the-commission.md rule 9 — when the operator stated what the
+  // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 9 — when the operator stated what the
   // platform actually withheld, that figure is the one to print and to deduct: it is the platform's,
   // where `touristTaxOriginalTotal` is only our estimate of it. Empty → the estimate, as before.
   const platformTouristTaxWithheld = quote?.platformTouristTaxWithheld == null
@@ -275,11 +275,11 @@ export default function PricingSummary({
   const touristTaxPlatformAmount = platformTouristTaxWithheld ?? touristTaxOriginalTotal;
   const touristTaxDisplayedAmount = isTouristTaxOffered ? touristTaxPlatformAmount : touristTaxTotal;
 
-  // specs/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
+  // specs/sas/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
   // extras line is server-forced to inComplement = 1. The per-line <ComplementChip> here is
   // therefore meaningless (no toggle to expose) and is hidden. The "Offert/Offrir" button
   // stays — a geste commercial works the same on platform and direct reservations.
-  // specs/plugins-phase-p-productisation.md rule 45 — the server says whether the stay is a platform
+  // specs/plugins/plugins-phase-p-productisation.md rule 45 — the server says whether the stay is a platform
   // SALE: a channel « Compté comme vente directe » reads as a direct one.
   const isPlatformReservation = Boolean(quote?.platformSale);
   const unpricedNights = Array.isArray(quote?.unpricedNights) ? quote.unpricedNights : [];
@@ -351,7 +351,7 @@ export default function PricingSummary({
             </Box>
           </Box>
 
-          {/* specs/tariff-recipes/spec.md §3 rule 59 — a night no season covers is priced by default:
+          {/* specs/pricing/tariff-recipes.md §3 rule 59 — a night no season covers is priced by default:
               the fiche says so, the operator decides. */}
           {unpricedNights.length > 0 && (
             <Typography variant="caption" role="alert" sx={{ display: 'block', color: 'warning.main', overflowWrap: 'anywhere' }}>
@@ -400,7 +400,7 @@ export default function PricingSummary({
               ) : (
                 <>
                   {extraGuestInBrutCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
-                  {/* specs/tariff-recipes/spec.md §3.6 — per-night unit: the server sends the
+                  {/* specs/pricing/tariff-recipes.md §3.6 — per-night unit: the server sends the
                       nights count (Σ of the discount ratios is applied to the amount, not shown). */}
                   {extraGuestPerNight ? `/nuit × ${nights} nuit${nights > 1 ? 's' : ''}` : ''}
                 </>
@@ -435,7 +435,7 @@ export default function PricingSummary({
                 const isOffered = isCustom
                   ? Boolean(so.offered)
                   : Boolean(so.offered ?? offeredOptionIds.has(Number(so.optionId)));
-                // specs/per-property-default-options.md — a property-default option configured
+                // specs/options/per-property-default-options.md — a property-default option configured
                 // « offered » is INCLUDED in the night rate. It is labelled « Comprise » rather than
                 // « Offert », but like any offered line it shows its REAL price struck through and
                 // bills 0: the guest must be able to see what the rate already covers, and what it
@@ -462,13 +462,13 @@ export default function PricingSummary({
                 //            them would break conservation against those payment buckets)
                 //   simple → 1 row + faded "+ compl." toggle so the user can route this line.
                 const split = isOffered ? { kind: 'simple', snapshot: total, delta: 0 } : getLineSplit(so, total);
-                // specs/force-extras-complement-on-platform.md §3 rule 1bis: on a platform reservation
+                // specs/sas/force-extras-complement-on-platform.md §3 rule 1bis: on a platform reservation
                 // the operator-added extras keep a clickable Complément chip so a line can be pulled
                 // back out of Complément. Engine-derived auto-options (early/late check) stay forced
                 // and chip-less — their routing is the algorithm's, not the operator's.
                 const hideChipForPlatform = isPlatformReservation && isAuto;
                 // A card option sold without its moments — the website's normal case
-                // (specs/unscheduled-card-option.md rules 6 + 9). Same vocabulary as an unplaced
+                // (specs/options/unscheduled-card-option.md rules 6 + 9). Same vocabulary as an unplaced
                 // hourly resource below: « à planifier » is an ordinary state, not an alarm, but it
                 // has to be visible or nobody knows the breakfast still has no morning. `soldUnits`
                 // appears only while the planning bills something else than what the guest was
@@ -538,7 +538,7 @@ export default function PricingSummary({
                           incluse dans le tarif
                         </Typography>
                       )}
-                      {/* specs/tariff-recipes/spec.md §3.9 rule 52bis — the first N units are covered
+                      {/* specs/pricing/tariff-recipes.md §3.9 rule 52bis — the first N units are covered
                           by the rate: say how many here, what they are worth in the amount column. */}
                       {freeUnits > 0 && (
                         <Typography variant="caption" color="text.secondary" sx={{ width: '100%' }}>
@@ -573,7 +573,7 @@ export default function PricingSummary({
                         </Button>
                       )}
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                        {/* specs/welcome-pack-auto-options.md §6 — what the rate covers reads in the
+                        {/* specs/options/welcome-pack-auto-options.md §6 — what the rate covers reads in the
                             amount column, greyed and smaller, right above the 0,00 € it explains. */}
                         {freeUnits > 0 && freeUnitsAmount > 0 && (
                           <Typography
@@ -640,7 +640,7 @@ export default function PricingSummary({
                 const isOffered = Boolean(sr.offered);
                 const total = Number(sr.totalPrice || 0);
                 const originalTotal = Number(sr.originalTotalPrice ?? total ?? 0);
-                // specs/plugins-phase-3c-hourly-resources.md rule 4 — hours for `per_hour` only.
+                // specs/plugins/plugins-phase-3c-hourly-resources.md rule 4 — hours for `per_hour` only.
                 const isPerHour = (sr.priceType || res?.priceType) === 'per_hour';
                 const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
                 const displayedOriginalTotal = isOffered ? originalTotal : total;
@@ -718,7 +718,7 @@ export default function PricingSummary({
                 );
 
                 // Resources have no engine-derived "auto" variant, so the Complément chip is always
-                // editable — including on platform reservations (specs/force-extras-complement-on-platform.md
+                // editable — including on platform reservations (specs/sas/force-extras-complement-on-platform.md
                 // §3 rule 1bis): the operator can pull a resource back out of Complément.
                 if (split.kind === 'forced') {
                   return <Box key={sr.lineKey || sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: !sr.lineKey })}</Box>;
@@ -744,7 +744,7 @@ export default function PricingSummary({
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
-                    {/* specs/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax the
+                    {/* specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax the
                         guest has paid, or one already declared, is frozen; this button forces a live
                         recompute (then Save persists it). */}
                     {!stored && isTouristTaxFrozen && onRefreshTouristTax && (
@@ -804,7 +804,7 @@ export default function PricingSummary({
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {/* Case 2 (platform collects AND remits to the commune): struck through, beside the
-                      « Plateforme » tag (specs/platform-tourist-tax-out-of-the-commission.md rule 13).
+                      « Plateforme » tag (specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 13).
                       This revises per-platform-tourist-tax-three-way.md, which printed it plain because
                       « it isn't offert » — true, but the strike does not say FREE, it says NOT OURS:
                       the amount enters neither what we collect nor our books. It is here to be read. */}
@@ -829,7 +829,7 @@ export default function PricingSummary({
                   <Typography variant="caption" color="text.secondary">
                     Base: {formatCurrency(touristTaxUnitAmount)} x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
                   </Typography>
-                  {/* specs/tourist-tax-matches-the-office-calculation.md rule 12 — say when the amount
+                  {/* specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 12 — say when the amount
                       was pinned, so the operator knows the caption above describes what was actually
                       charged and not today's tariff. */}
                   {isTouristTaxFrozen && touristTaxFrozenAt && (
@@ -837,7 +837,7 @@ export default function PricingSummary({
                       Figée le {String(touristTaxFrozenAt).slice(0, 10).split('-').reverse().join('/')}
                     </Typography>
                   )}
-                  {/* specs/tourist-tax-included-services-deduction.md rule 13 — the services sold
+                  {/* specs/tourist-tax/tourist-tax-included-services-deduction.md rule 13 — the services sold
                       inside the night rate are not the dry night: their reference value leaves the
                       declared base. */}
                   {touristTaxIncludedDeduction > 0 && (
@@ -848,7 +848,7 @@ export default function PricingSummary({
                 </Box>
               )}
 
-              {/* specs/tourist-tax-matches-the-office-calculation.md rule 16 — a brut that does not
+              {/* specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 16 — a brut that does not
                   cover the extras billed beside it cannot yield an accommodation: the base is floored
                   at 0, and saying so beats declaring a silent zero to the commune. */}
               {touristTaxBrutInconsistent && (
@@ -857,7 +857,7 @@ export default function PricingSummary({
                 </Typography>
               )}
 
-              {/* specs/per-platform-tourist-tax-three-way.md — three cases, three captions:
+              {/* specs/tourist-tax/per-platform-tourist-tax-three-way.md — three cases, three captions:
                   - offered (case 2): the platform collects AND remits to the commune → struck-through, absent from our books.
                   - reversed (case 1): the platform collects then reverses it to us → CHARGED in the balance, we declare it.
                   - on-arrival (case 3): we collect it at check-in → charged in the complement. */}
@@ -876,7 +876,7 @@ export default function PricingSummary({
                   À collecter à l'arrivée (incluse dans le complément)
                 </Typography>
               )}
-              {/* specs/platform-added-guests-tourist-tax.md rule 14 — never offered: a debt to the commune. */}
+              {/* specs/tourist-tax/platform-added-guests-tourist-tax.md rule 14 — never offered: a debt to the commune. */}
               {touristTaxAddedGuestsAmount > 0 && (
                 <ExtraGuestRow
                   label="Complément de taxe de séjour"
@@ -888,7 +888,7 @@ export default function PricingSummary({
             </Box>
           </>
 
-          {/* TVA — « Total HT » then one line per rate with its base (specs/pricing-components.md §3 rule 15);
+          {/* TVA — « Total HT » then one line per rate with its base (specs/pricing/pricing-components.md §3 rule 15);
               no « Total TVA » line. */}
           <Divider />
           {vatMention ? (
@@ -927,7 +927,7 @@ export default function PricingSummary({
             const totalComm = Number(quote?.totalPlatformCommission || 0);
             const netReceived = quote?.platformNetReceivedAmount;
             const hasCommission = totalComm > 0;
-            // specs/ui-review-2026-10-19-operations.md rule 32 — the cascade's figures come shaped by the
+            // specs/design-system/ui-review-2026-10-19-operations.md rule 32 — the cascade's figures come shaped by the
             // server (`quote.summaryCascade`): « Total du séjour » is the headline's gross, the platform's
             // withheld tax and the on-site total are its own deductions. The panel only prints them.
             const cascade = quote?.summaryCascade || {};
@@ -937,15 +937,15 @@ export default function PricingSummary({
             const complement = Number(quote?.complementAmount || 0);
             const endOfStay = Number(quote?.endOfStayComplementTotal || 0);
             const midStayNotes = Number(quote?.midStaySettledTotal || 0);
-            // specs/complement-buckets-by-moment.md §3 rule 1 — the server files each amount under the
+            // specs/sas/complement-buckets-by-moment.md §3 rule 1 — the server files each amount under the
             // moment it is collected; the panel only prints.
             const split = quote?.complementSplit || { arrival: complement, duringStay: midStayNotes, endOfStay };
             const montantSoumis = Number(cascade.commissionBase || 0);
             const versement = netReceived != null ? Number(netReceived) : montantSoumis;
-            // specs/reservation-refunds.md §3.3 rule 17 — money given back to the guest is the last
+            // specs/payments/reservation-refunds.md §3.3 rule 17 — money given back to the guest is the last
             // deduction of the cascade: everything above still shows what was sold and collected.
             const refundsTotal = Number(quote?.refundsTotal || 0);
-            // specs/arrival-payment-detail-and-adjustment.md rule 21 — le client a réglé le paiement
+            // specs/sas/arrival-payment-detail-and-adjustment.md rule 21 — le client a réglé le paiement
             // unique de l'arrivée pour moins (réduction accordée sur l'hébergement) ou pour plus
             // (pourboire) que la somme de ses seaux. Le serveur l'a déjà répercuté sur
             // `sejourNetTotal` ; ici on ne fait qu'imprimer la ligne qui l'explique.
@@ -983,7 +983,7 @@ export default function PricingSummary({
                   </>
                 ) : (
                   <>
-                    {/* specs/complement-buckets-by-moment.md — one line per MOMENT of collection. The
+                    {/* specs/sas/complement-buckets-by-moment.md — one line per MOMENT of collection. The
                         server has already moved an unsettled arrival complement into `endOfStay`, so
                         there is no « deferred » wording to apply here: the amount is simply on the
                         line that says when it is taken. */}
@@ -1026,7 +1026,7 @@ export default function PricingSummary({
           })()}
 
           {/* Acompte — when `depositDisabled` is on (per-reservation opt-out, see
-              specs/disable-deposit-per-reservation.md), the row stays so the operator can
+              specs/payments/disable-deposit-per-reservation.md), the row stays so the operator can
               see the deposit was considered and explicitly removed, but the amount + due
               date + "payé" chip are replaced by a single muted "Désactivé" line so the
               summary stays consistent with FinanceSection. */}
@@ -1040,7 +1040,7 @@ export default function PricingSummary({
                 Désactivé (ajouté au solde)
               </Typography>
             ) : (
-              // specs/platform-per-echeance-commission.md — the stored acompte is the GROSS the guest
+              // specs/platforms/platform-per-echeance-commission.md — the stored acompte is the GROSS the guest
               // pays; the label says so, and the per-échéance commission + net « Versement plateforme »
               // are already broken out in the cascade above. Showing the gross here avoids the confusion
               // of a « payé par le client » figure that had the commission silently subtracted.
@@ -1061,13 +1061,13 @@ export default function PricingSummary({
               already holds the full pre-arrival total, so the sum stays the right number
               (0 + total = total). Defensive against the transient window where the click has
               flipped the flag but the recomputed quote hasn't landed yet. See
-              specs/disable-deposit-per-reservation.md §6. */}
+              specs/payments/disable-deposit-per-reservation.md §6. */}
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">
               {isPlatformReservation ? 'Montant solde payé par le client' : 'Solde'}
             </Typography>
-            {/* specs/platform-per-echeance-commission.md — the stored solde is the GROSS the guest pays;
+            {/* specs/platforms/platform-per-echeance-commission.md — the stored solde is the GROSS the guest pays;
                 the commission + net « Versement plateforme » are in the cascade above. */}
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {formatCurrency(form.depositDisabled

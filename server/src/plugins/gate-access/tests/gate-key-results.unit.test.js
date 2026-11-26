@@ -1,4 +1,4 @@
-// The outcomes Sowel posts back, and the alerts they raise — specs/gate-access-sowel-connector.md
+// The outcomes Sowel posts back, and the alerts they raise — specs/guest-app/gate-access-sowel-connector.md
 // §3.2 and §3.3.
 
 const { listenLocal } = require('../../../tests/listenLocal');
@@ -37,7 +37,7 @@ const failed = (reservationId, error = 'unknown_profile', over = {}) => ({
   error, message: 'The default profile is not granted to this plugin', ...over,
 });
 
-// specs/gate-access-sowel-connector.md §3.2 rule 11
+// specs/guest-app/gate-access-sowel-connector.md §3.2 rule 11
 test('the request is refused without results[], and above 500 entries', async () => {
   const { deps } = setup();
   assert.equal((await receiveResults(deps(), {})).status, 400);
@@ -48,7 +48,7 @@ test('the request is refused without results[], and above 500 entries', async ()
   assert.deepEqual(await receiveResults(deps(), { results: exactly }), { status: 200, body: { stored: 500 } });
 });
 
-// specs/gate-access-sowel-connector.md §3.2 rule 11 — what cannot be filed is skipped, not counted.
+// specs/guest-app/gate-access-sowel-connector.md §3.2 rule 11 — what cannot be filed is skipped, not counted.
 test('entries that cannot be filed are skipped and not counted', async () => {
   const { deps, model } = setup();
   const { body } = await receiveResults(deps(), {
@@ -65,7 +65,7 @@ test('entries that cannot be filed are skipped and not counted', async () => {
   assert.equal(model.all().length, 1);
 });
 
-// specs/gate-access-sowel-connector.md §3.2 rules 9-10 — the latest result wins, the link is opaque.
+// specs/guest-app/gate-access-sowel-connector.md §3.2 rules 9-10 — the latest result wins, the link is opaque.
 test('the latest result replaces the previous one, code and link stored as handed', async () => {
   const { db, deps, model } = setup();
   const stay = addStay(db, { reservationNumber: 'R-2026-041' });
@@ -83,7 +83,7 @@ test('the latest result replaces the previous one, code and link stored as hande
   assert.equal(rows[0].endsAt, '2026-10-04T10:00:00.000Z');
 });
 
-// specs/gate-access-sowel-connector.md §3.2 rule 9 — a result for a deleted stay keeps the window.
+// specs/guest-app/gate-access-sowel-connector.md §3.2 rule 9 — a result for a deleted stay keeps the window.
 test('a result for a stay deleted since keeps the window stored before', async () => {
   const { db, deps, model } = setup();
   const stay = addStay(db);
@@ -96,7 +96,7 @@ test('a result for a stay deleted since keeps the window stored before', async (
   assert.equal(row.code, null);
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 14 — every active admin, nobody else.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 14 — every active admin, nobody else.
 test('a failure pushes every active admin, and nobody else', async () => {
   const { db, deps, push } = setup();
   const stay = addStay(db);
@@ -104,7 +104,7 @@ test('a failure pushes every active admin, and nobody else', async () => {
   assert.deepEqual(push.calls.map((c) => c.userId), [1, 2]);
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 15 + §3.2 rule 12 — the French text, and one push only.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 15 + §3.2 rule 12 — the French text, and one push only.
 test('the push is short and in French, and the same failure an hour later pushes nothing', async () => {
   const { db, deps, push } = setup();
   const stay = addStay(db, { reservationNumber: 'R-2026-041' });
@@ -120,7 +120,7 @@ test('the push is short and in French, and the same failure an hour later pushes
   assert.equal(push.calls.length, before);
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 14 — a different error speaks again.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 14 — a different error speaks again.
 test('a different error on the same reservation pushes again', async () => {
   const { db, deps, push } = setup();
   const stay = addStay(db);
@@ -131,7 +131,7 @@ test('a different error on the same reservation pushes again', async () => {
   assert.match(bodies[1], /ne liste aucun portail/);
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rules 13-14 — a success clears the alert.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rules 13-14 — a success clears the alert.
 test('a success clears the alert, and the failure coming back pushes again', async () => {
   const { db, deps, push, model } = setup();
   const stay = addStay(db);
@@ -147,7 +147,7 @@ test('a success clears the alert, and the failure coming back pushes again', asy
   assert.equal(push.calls.length, before + 2);
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 15 — a revoke, and an unknown code.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 15 — a revoke, and an unknown code.
 test('a failed revoke says so, and an unknown code shows Sowel’s message', async () => {
   const { db, deps, push } = setup();
   const stay = addStay(db, { kind: 'cancelled', reservationNumber: 'R-2026-030', clientId: 2 });
@@ -166,7 +166,7 @@ test('a failed revoke says so, and an unknown code shows Sowel’s message', asy
   assert.equal(errorReason({ error: 'implausible_stay' }), 'séjour de plus de 31 jours refusé par Sowel');
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 13 — the dashboard payload, and ended stays leave it.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 13 — the dashboard payload, and ended stays leave it.
 test('the dashboard lists failures with number, first name and reason, until the stay ends', async () => {
   const { db, deps, model } = setup();
   const stay = addStay(db, { reservationNumber: 'R-2026-041' });
@@ -186,7 +186,7 @@ test('the dashboard lists failures with number, first name and reason, until the
   assert.deepEqual(dashboardAlerts({ model, now: new Date('2026-10-04T10:00:00.000Z') }).failures, []);
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 17 — never read → nothing; > 3 h → once.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 17 — never read → nothing; > 3 h → once.
 test('Sowel late by more than 3 hours pushes the admins once; never read raises nothing', async () => {
   const { deps, push, model } = setup();
   assert.deepEqual(await runStaleReadCheck(deps()), { alerted: false });
@@ -208,7 +208,7 @@ test('Sowel late by more than 3 hours pushes the admins once; never read raises 
   assert.equal(push.calls.length, 2);
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 18 — a read clears it, the next outage pushes again.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 18 — a read clears it, the next outage pushes again.
 test('a read clears the stale warning, and the next outage pushes again', async () => {
   const { deps, push, model } = setup();
   model.recordRead('2026-09-27T10:00:00.000Z');
@@ -223,7 +223,7 @@ test('a read clears the stale warning, and the next outage pushes again', async 
   assert.equal(push.calls.length, 4);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 8 + §3.4 rules 19 + 22b — the real channel, end to end.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 8 + §3.4 rules 19 + 22b — the real channel, end to end.
 test('over HTTP: a signed read stamps lastReadAt, a refused one stamps nothing, results are filed', async () => {
   const { db, model, push } = setup();
   const stay = addStay(db);

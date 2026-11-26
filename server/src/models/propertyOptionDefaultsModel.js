@@ -1,6 +1,6 @@
 /**
  * propertyOptionDefaultsModel — per-property option defaults for new reservations
- * (specs/weekly-bed-linen-tracking.md §3.7, 2026-06-03).
+ * (specs/linen/weekly-bed-linen-tracking.md §3.7, 2026-06-03).
  *
  * The `property_option_defaults` table is decoupled from `property_options` (the existing
  * availability filter): a row here means "auto-add this option on every NEW reservation for
@@ -21,7 +21,7 @@ function buildModel(database) {
   // A default implies the option is APPLICABLE to the property: every options code path (the
   // reservation form's client filter, the pricing engine, the public catalog) keys off
   // `property_options`. Keep them in sync on write so a newly-set default renders + prices on the
-  // reservation page immediately (specs/property-default-option-applicability.md). Guarded for
+  // reservation page immediately (specs/options/property-default-option-applicability.md). Guarded for
   // minimal test schemas that lack the table.
   let ensureApplicableStmt = null;
   try { ensureApplicableStmt = database.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)'); }
@@ -31,7 +31,7 @@ function buildModel(database) {
   // that is displayed, priced at 0 and then silently dropped at save:
   //   - ARCHIVED options: withdrawn from the catalogue, so never sellable again;
   //   - INTERNAL linen options (`displayToClient = 0`, e.g. « Tapis de bain »): skipped by
-  //     `reservationsModel.insertOptions` by construction (specs/laundry-bath-mat.md §3 rule 11).
+  //     `reservationsModel.insertOptions` by construction (specs/linen/laundry-bath-mat.md §3 rule 11).
   //     The laundry counters read `property_option_defaults` directly in SQL, so hiding them here
   //     costs them nothing.
   // Built defensively: a minimal test schema without those columns falls back to the bare list.

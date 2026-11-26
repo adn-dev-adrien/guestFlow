@@ -1,4 +1,4 @@
-// specs/inte-performance.md rules 2–3 — pages load on demand inside the shell; a failed chunk reloads
+// specs/tech/inte-performance.md rules 2–3 — pages load on demand inside the shell; a failed chunk reloads
 // once, then shows « Page indisponible. » with « Recharger ».
 import React, { lazy } from 'react';
 import { vi } from 'vitest';
@@ -67,7 +67,7 @@ test('rule 18: the route that renders clears its own reload flag, so a later rel
   const Clients = lazyPage(() => Promise.resolve({ default: Page }));
   render(<Shell><Clients title="Clients" /></Shell>);
   expect(await screen.findByRole('heading', { name: 'Clients' })).toBeInTheDocument();
-  // The flag is cleared by an effect of the page that rendered (specs/server-test-isolation.md rule 11).
+  // The flag is cleared by an effect of the page that rendered (specs/tech/server-test-isolation.md rule 11).
   await waitFor(() => expect(sessionStorage.getItem('guestflow.chunkReloaded')).toBeNull());
 });
 

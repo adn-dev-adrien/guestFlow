@@ -1,5 +1,5 @@
-// specs/settings-rationalization.md rule 30 — the four settings groups of the sidebar follow the shell's
-// chevron pattern (specs/shell-and-home-day-first.md rule 18): the row is a plain link to the summary,
+// specs/settings/settings-rationalization.md rule 30 — the four settings groups of the sidebar follow the shell's
+// chevron pattern (specs/planning/shell-and-home-day-first.md rule 18): the row is a plain link to the summary,
 // a separate chevron button folds or unfolds the group and carries aria-expanded / aria-controls.
 import React from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';

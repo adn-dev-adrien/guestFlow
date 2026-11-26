@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 41bis, 45 — « Commandes clients »: the orders by delivery time, « À préparer » / « Toutes »,
+// specs/guest-app/guest-app.md rules 41bis, 45 — « Commandes clients »: the orders by delivery time, « À préparer » / « Toutes »,
 // « Marquer livrée » (« Marquer retirée » in pickup mode, the server's words), the push's order outlined.
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';

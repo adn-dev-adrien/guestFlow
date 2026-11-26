@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — laundry skips, additions, an extra trip and a schedule version.
+// specs/plugins/plugin-removal-resilience.md rule 11 — laundry skips, additions, an extra trip and a schedule version.
 module.exports = {
   seed(db) {
     db.prepare("INSERT INTO laundry_trip_skips (tripDate) VALUES ('2030-01-07')").run();

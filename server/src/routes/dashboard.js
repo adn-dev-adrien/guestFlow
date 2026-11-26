@@ -3,7 +3,7 @@
  *
  * Mounted at /api/dashboard. Auth + role gating come from the global pipeline in index.js.
  * Domain links:
- *  - specs/ical-sync-override-locked-dates.md §4.3 (ical-date-drift)
+ *  - specs/platforms/ical-sync-override-locked-dates.md §4.3 (ical-date-drift)
  */
 
 const router = require('express').Router();
@@ -21,26 +21,26 @@ router.get('/ical-cancellation', controller.icalCancellation);
 router.post('/ical-cancellation/:id/approve', controller.approveIcalCancellation);
 router.post('/ical-cancellation/:id/reject', controller.rejectIcalCancellation);
 
-// specs/dashboard-ical-new-reservations.md — read-only card listing the last 24 hours' reservations.
+// specs/planning/dashboard-ical-new-reservations.md — read-only card listing the last 24 hours' reservations.
 router.get('/new-reservations', controller.newReservations);
 
-// specs/reservation-number-and-search.md rule 15 — stays numbered by the boot repair, until checked.
+// specs/reservations/reservation-number-and-search.md rule 15 — stays numbered by the boot repair, until checked.
 router.get('/repaired-reservation-numbers', controller.repairedReservationNumbers);
 router.post('/repaired-reservation-numbers/:id/acknowledge', controller.acknowledgeRepairedReservationNumber);
 
-// specs/payment-link-lifecycle.md rule 43 — the stays whose dates another stay took, until « Vu ».
+// specs/payments/payment-link-lifecycle.md rule 43 — the stays whose dates another stay took, until « Vu ».
 router.get('/dates-taken', controller.datesTaken);
 router.post('/dates-taken/:id/acknowledge', controller.acknowledgeDatesTaken);
 
-// Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4). Admin-only: the reception
+// Échéances de paiement (specs/payments/payment-schedule-and-cancellation.md §3.4). Admin-only: the reception
 // allowlist is deny-by-default, so these three are already out of that role's reach.
 router.get('/payment-deadlines', controller.paymentDeadlines);
 // A duplicate set aside is never snoozed nor reminded; a cancelled stay is not reminded either
-// (specs/calendar-property-parity.md rule 25).
+// (specs/planning/calendar-property-parity.md rule 25).
 router.post('/payment-deadlines/:id/snooze', guardReadOnly(db, { cancelled: false }), controller.snoozePaymentDeadline);
 router.post('/payment-deadlines/:id/remind', guardReadOnly(db, { cancelled: true }), controller.remindPaymentDeadline);
 
-// « À traiter » and the pinned cards of the home (specs/shell-and-home-day-first.md §3.B). Each core
+// « À traiter » and the pinned cards of the home (specs/planning/shell-and-home-day-first.md §3.B). Each core
 // subject is read through the handler of its own card; the plugins add theirs with ctx.attention.
 function coreAttentionSources() {
   const { ADMIN, userHasRole } = require('../constants/roles');
@@ -51,7 +51,7 @@ function coreAttentionSources() {
       key: 'vat-franchise',
       rank: 25,
       handler: require('../controllers/financeController').getVatFranchise,
-      // Outside the franchise the subject does not exist: not even declared (specs/vat-optional-mode.md rule 44).
+      // Outside the franchise the subject does not exist: not even declared (specs/accounting/vat-optional-mode.md rule 44).
       skip: () => !franchiseApplies(vatRegimeModel.inForceBlock(db)),
     },
     { key: 'ical-date-drift', rank: 10, handler: controller.icalDateDrift },
@@ -86,12 +86,12 @@ function coreAttentionSources() {
       key: 'two-factor',
       rank: 50,
       handler: require('../controllers/authController').twoFactorStatus,
-      // A support session never sees the nudge (specs/hosting-h2-account-security.md rule 10).
+      // A support session never sees the nudge (specs/hosting/hosting-h2-account-security.md rule 10).
       skip: (req) => Boolean(req.session && req.session.user && req.session.user.isSupport),
     },
   ];
 }
-// specs/payment-link-lifecycle.md rule 67 — the owed deactivations the home's card lists, one row per link.
+// specs/payments/payment-link-lifecycle.md rule 67 — the owed deactivations the home's card lists, one row per link.
 router.get('/payment-deactivations', require('../controllers/paymentDeactivationsAttentionController').handler(require('../models/paymentLinksModel')));
 const attention = require('../controllers/dashboardAttentionController').buildController({ coreSources: coreAttentionSources });
 router.get('/attention', attention.attention);

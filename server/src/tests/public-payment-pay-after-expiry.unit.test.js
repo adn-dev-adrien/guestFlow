@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 29 — `pay` keeps its contract: a guest who comes back after the
+// specs/payments/payment-link-lifecycle.md rule 29 — `pay` keeps its contract: a guest who comes back after the
 // 36 hours and clicks « Payer » gets a fresh link, after the checks `pay` already makes; the lapsed one
 // is never handed out again.
 

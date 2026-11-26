@@ -1,5 +1,5 @@
 /**
- * Tables of the account security (specs/hosting-h2-account-security.md §5). Additive and idempotent:
+ * Tables of the account security (specs/hosting/hosting-h2-account-security.md §5). Additive and idempotent:
  * run by database.js on every boot, and by the unit tests on an in-memory database.
  *
  * - `password_reset_tokens` — rules 1–5: only the SHA-256 of a link's token is stored.
@@ -129,7 +129,7 @@ function applyAccountSecuritySchema(db) {
     db.prepare("INSERT OR IGNORE INTO user_roles (userId, role) VALUES (?, 'admin')").run(id);
   }
 
-  // specs/self-update-and-releases.md rule 39 (reading of 2026-11-11) — the support account is inert in the database
+  // specs/hosting/self-update-and-releases.md rule 39 (reading of 2026-11-11) — the support account is inert in the database
   // itself, so a release that predates it (v3.21.0 lists it among the users) cannot reactivate it, give it a password
   // or unflag it: such a write is refused here, whoever issues it.
   // Dropped and re-created at every boot, so a later change of its body takes effect.

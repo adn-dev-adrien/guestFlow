@@ -1,5 +1,5 @@
 /**
- * SecondFactorForm — the second step of a login (specs/hosting-h2-account-security.md rules 7-8):
+ * SecondFactorForm — the second step of a login (specs/hosting/hosting-h2-account-security.md rules 7-8):
  * the code (or a backup code), « Se souvenir de cet appareil (30 jours) », and « Renvoyer le code »
  * for the email method. The code is sent at its 6th digit, with no « Valider » button (rule 32).
  * Used by the login page and after a password reset, which never bypasses it.

@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 74 (audit R43-RES-L1) — a cancelled stay whose caution was never received read
+// specs/payments/reservation-payment-ledger.md rule 74 (audit R43-RES-L1) — a cancelled stay whose caution was never received read
 // « Caution reçue 500,00 € · À recevoir à l'arrivée » and « Caution restituée · Après réception », right above the
 // closing « Rien à percevoir »: a cancelled stay has no arrival, so that caution will never be taken. It now reads one
 // « Caution · Sans objet » row, muted, with no action. A caution received (or returned) keeps its rows (rule 59).

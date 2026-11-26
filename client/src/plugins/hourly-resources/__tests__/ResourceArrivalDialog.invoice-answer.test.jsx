@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-4, UI3-5) — at « Payé maintenant » the arrival reads the server's answer for
+// specs/sas/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-4, UI3-5) — at « Payé maintenant » the arrival reads the server's answer for
 // the payment typed: a failed answer shows « Facture non vérifiée pour ce paiement. » with « Réessayer » (the commit waits for it, never silently);
 // « Caisse interne » is the server's `INTERNAL_CASH`, and any other refusal prints the server's reason.
 // Reading 2026-11-16 (loop t4 UI4-3): the payment request carries the draft, so a refusal or failure of the draft itself is shown once.

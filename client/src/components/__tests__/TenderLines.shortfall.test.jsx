@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 15 — under the amount due, TenderLines warns and asks what becomes of the
+// specs/payments/mixed-method-payments.md rule 15 — under the amount due, TenderLines warns and asks what becomes of the
 // amount not received; nothing can be submitted until « Reste à percevoir » or « Geste commercial » is picked.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

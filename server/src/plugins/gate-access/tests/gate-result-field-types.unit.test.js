@@ -1,4 +1,4 @@
-// specs/gate-access-sowel-connector.md §3.2 rules 10-11 — the fields Sowel posts back are typed
+// specs/guest-app/gate-access-sowel-connector.md §3.2 rules 10-11 — the fields Sowel posts back are typed
 // before they are filed: `state` a status word, `code` a short string, `url` an https link (both end
 // up in the guest's e-mails), `error` / `message` strings. An entry that breaks a type is skipped
 // like any entry that cannot be filed, and a batch is filed all or nothing.

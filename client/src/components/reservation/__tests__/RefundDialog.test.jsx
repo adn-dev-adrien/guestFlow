@@ -5,13 +5,13 @@ import RefundDialog from '../RefundDialog';
 import { localIsoToday } from '../../../utils/isoDay';
 import { vi } from 'vitest';
 
-// specs/reservation-refunds.md §6 — la fenêtre « Nouveau remboursement » : sélection des lignes
+// specs/payments/reservation-refunds.md §6 — la fenêtre « Nouveau remboursement » : sélection des lignes
 // facturées, ligne libre, date + moyen, et remontée inline de l'erreur serveur.
 
 const LINES = [
   { key: 'accommodation', label: 'Hébergement', bucket: 'accommodation', quantity: null, unitPrice: null, billedTtc: 380, refundedTtc: 0, refundableTtc: 380, vatRate: 10 },
   { key: 'opt:7', label: 'Petit-déjeuner', bucket: 'options', quantity: 6, unitPrice: 12, billedTtc: 72, refundedTtc: 12, refundableTtc: 60, vatRate: 10 },
-  // specs/reservation-refunds.md §3.5 — la taxe de séjour se rembourse à la nuit.
+  // specs/payments/reservation-refunds.md §3.5 — la taxe de séjour se rembourse à la nuit.
   { key: 'touristTax', label: 'Taxe de séjour', bucket: 'touristTax', quantity: 3, unitPrice: 4.4, unitLabel: 'nuit', billedTtc: 13.2, refundedTtc: 0, refundableTtc: 13.2, vatRate: 0 },
 ];
 

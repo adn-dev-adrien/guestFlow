@@ -1,6 +1,6 @@
 /**
  * PropertyArrivalFacts — « Arrivée » block of the property's Séjour tab
- * (specs/guest-email-texts-made-simple.md rules 1–2): address, map link, how to get in (FR/EN), the
+ * (specs/emails/guest-email-texts-made-simple.md rules 1–2): address, map link, how to get in (FR/EN), the
  * key-box code and the Wi-Fi. The J-2 composes its arrival paragraphs from them. The code and the
  * Wi-Fi password are secrets: shown masked, sent only when typed. Specific to the property page.
  *

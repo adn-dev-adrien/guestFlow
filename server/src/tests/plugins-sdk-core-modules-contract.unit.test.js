@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 35 — what `coreModule(name)` hands a server plugin is part of
+// specs/plugins/plugins-phase-4-registry.md rule 35 — what `coreModule(name)` hands a server plugin is part of
 // the SDK contract: `server/src/plugins/sdk/coreModules.json` lists every exposed module and the names
 // it exports. A core change that removes or renames one fails here (and in check-plugin-versions
 // against the base) unless the SDK major moves.

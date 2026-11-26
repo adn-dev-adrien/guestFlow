@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * « Une règle de spec sans test est une règle non livrée » — specs/spec-rule-coverage.md
+ * « Une règle de spec sans test est une règle non livrée » — specs/tech/spec-rule-coverage.md
  *
  * Répond à la question que personne ne pouvait poser : quelles règles n'ont aucun test ?
  *
@@ -23,6 +23,49 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// Règle 20 — `specs/` range les specs par domaine (`specs/<domain>/<name>.md`) ; ces fichiers-là n'en
+// sont pas : le gabarit, la méthode, la feuille de route et les index de dossier.
+const NOT_A_SPEC = /^(TEMPLATE|README|ROADMAP|INDEX)\b/;
+
+/**
+ * Règle 20 — toutes les specs de `specs/`, sous-dossiers compris : `[fileName, markdown, relPath]`.
+ * `fileName` (le nom seul) reste l'identité d'une spec ; `relPath` est son chemin réel.
+ */
+export function readSpecEntries(dir = path.join(ROOT, 'specs')) {
+  return listFiles(dir, (f) => f.endsWith('.md'))
+    .map((f) => [path.basename(f), fs.readFileSync(f, 'utf8'), path.relative(path.dirname(dir), f).split(path.sep).join('/')])
+    .filter(([f]) => !NOT_A_SPEC.test(f))
+    .sort((a, b) => a[2].localeCompare(b[2]));
+}
+
+/** Règle 20 — un nom porté par deux fichiers de `specs/` : une citation ne saurait pas lequel elle prouve. */
+export function duplicateSpecNames(entries) {
+  const byName = new Map();
+  for (const [f, , rel] of entries) {
+    const name = f.replace(/\.md$/, '').toLowerCase();
+    byName.set(name, [...(byName.get(name) || []), rel]);
+  }
+  return [...byName].filter(([, paths]) => paths.length > 1).map(([name, paths]) => ({ name, paths }));
+}
+
+/**
+ * Règle 21 — les mentions `specs/….md` d'un fichier qui ne désignent aucun fichier réel : chemin d'avant
+ * un rangement, ou spec supprimée. Le nom suffit à la couverture, mais un chemin faux égare le lecteur.
+ *
+ * @param {Set<string>} realPaths  chemins `specs/...md` existants
+ * @returns {string[]} les chemins cités qui n'existent pas
+ */
+export function staleSpecPaths(source, realPaths) {
+  const out = [];
+  for (const m of String(source || '').matchAll(/(?<![\w./-])specs\/(?:[a-z0-9-]+\/)*[a-z0-9-]+\.md/gi)) {
+    if (!realPaths.has(m[0]) && !out.includes(m[0])) out.push(m[0]);
+  }
+  return out;
+}
+
+let SPEC_PATHS = new Map();
+const shown = (name) => SPEC_PATHS.get(name) || `specs/${name}.md`;
 
 // ── Lecture des specs ────────────────────────────────────────────────────────
 
@@ -92,14 +135,15 @@ export function duplicateRuleIds(markdown) {
 /** `[[fileName, markdown]]` → les specs lues par la couverture qui répètent un numéro. */
 export function specsWithDuplicates(entries) {
   return entries
-    .filter(([f, markdown]) => f.endsWith('.md') && !/^(TEMPLATE|README|ROADMAP)/.test(f) && !isSuperseded(markdown))
+    .filter(([f, markdown]) => f.endsWith('.md') && !NOT_A_SPEC.test(f) && !isSuperseded(markdown))
     .map(([f, markdown]) => ({ spec: f.replace(/\.md$/, ''), rules: duplicateRuleIds(markdown) }))
     .filter((s) => s.rules.length > 0);
 }
 
 // ── Lecture des citations dans les tests ─────────────────────────────────────
 
-const SPEC_MENTION = /specs\/([a-z0-9-]+)\.md/gi;
+// `specs/<domain>/<name>.md` : le dossier range, le nom identifie (une spec = un nom unique dans `specs/`).
+const SPEC_MENTION = /specs\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)\.md/gi;
 // « rule 10 », « rules 4-5 », « règle 11bis », « rules 28 + 30b ».
 const CITATION = new RegExp(
   String.raw`(?:rules?|règles?)\s+(${RULE_ID}(?:\s*(?:[-–+,]|et|and)\s*${RULE_ID})*)`,
@@ -137,7 +181,7 @@ const isPlausible = (id) => PLAUSIBLE_RULE.test(id) && Number.parseInt(id, 10) <
 
 // Une citation est rattachée à la spec nommée juste au-dessus d'elle — mais « juste » veut dire dans
 // le même commentaire, pas n'importe où avant. Sans cette borne, un fichier qui mentionne une spec
-// secondaire en passant (« colonnes ajoutées par une migration, cf. specs/migrations-baseline.md »)
+// secondaire en passant (« colonnes ajoutées par une migration, cf. specs/tech/migrations-baseline.md »)
 // voyait toutes ses citations suivantes lui être attribuées, ce qui produisait à la fois une fausse
 // couverture là-bas et des citations orphelines ici. Au-delà, on retombe sur la spec que le fichier
 // annonce en tête — la convention veut qu'un fichier de test ouvre en nommant son sujet.
@@ -307,7 +351,7 @@ export function isInProgress(markdown) {
  */
 export function specsWithStalePending(entries) {
   return entries
-    .filter(([f, markdown]) => f.endsWith('.md') && !/^(TEMPLATE|README|ROADMAP)/.test(f) && !isSuperseded(markdown))
+    .filter(([f, markdown]) => f.endsWith('.md') && !NOT_A_SPEC.test(f) && !isSuperseded(markdown))
     .filter(([, markdown]) => !isInProgress(markdown) && !isUndelivered(markdown))
     .map(([f, markdown]) => ({ spec: f.replace(/\.md$/, ''), rules: parseSpecRules(markdown).filter((r) => r.pending).map((r) => r.id) }))
     .filter((s) => s.rules.length > 0);
@@ -323,7 +367,7 @@ export function specsWithStalePending(entries) {
 export function specsPendingOnTheirOwnPr(entries) {
   const out = [];
   for (const [f, markdown] of entries) {
-    if (!f.endsWith('.md') || /^(TEMPLATE|README|ROADMAP)/.test(f) || isSuperseded(markdown) || !isInProgress(markdown)) continue;
+    if (!f.endsWith('.md') || NOT_A_SPEC.test(f) || isSuperseded(markdown) || !isInProgress(markdown)) continue;
     const own = statusOf(markdown).match(/^\s*in progress\s*[—–-]+\s*PR\s+([A-Z0-9]+)\b/i);
     if (!own) continue;
     const pr = own[1].toUpperCase();
@@ -337,16 +381,35 @@ export function specsPendingOnTheirOwnPr(entries) {
 export function specsFromMarkdown(entries) {
   const out = new Map();
   for (const [f, markdown] of entries) {
-    if (!f.endsWith('.md') || /^(TEMPLATE|README|ROADMAP)/.test(f) || isSuperseded(markdown)) continue;
+    if (!f.endsWith('.md') || NOT_A_SPEC.test(f) || isSuperseded(markdown)) continue;
     out.set(f.replace(/\.md$/, '').toLowerCase(), parseSpecRules(markdown));
   }
   return out;
 }
 
 function readSpecs() {
-  const dir = path.join(ROOT, 'specs');
-  return specsFromMarkdown(fs.readdirSync(dir).filter((f) => f.endsWith('.md'))
-    .map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')]));
+  const entries = readSpecEntries();
+  SPEC_PATHS = new Map(entries.map(([f, , rel]) => [f.replace(/\.md$/, '').toLowerCase(), rel]));
+  return specsFromMarkdown(entries);
+}
+
+// Règle 21 — l'historique (changelog, rapports, résumés datés) garde les chemins de son époque.
+const HISTORY = /^(docs\/|changelog\.d\/|CHANGELOG\.md$)/;
+// Ce script et ses tests citent des specs fictives (`specs/a.md`) : ce sont des données de test.
+const FIXTURES = /(^scripts\/(check-spec-coverage|rewrite-spec-paths)\.mjs$|^specs\/tech\/spec-rule-coverage\.md$|\/spec-rule-coverage[^/]*\.test\.js$|\/rewrite-spec-paths[^/]*\.test\.js$)/;
+
+/** Règle 21 — `[{file, path}]` : chaque chemin `specs/….md` périmé d'un fichier suivi par git, hors historique. */
+function trackedStalePaths() {
+  const real = new Set(readSpecEntries().map(([, , rel]) => rel));
+  for (const f of ['README', 'TEMPLATE', 'ROADMAP']) real.add(`specs/${f}.md`);
+  for (const f of listFiles(path.join(ROOT, 'specs'), (x) => /\/INDEX\.md$/.test(x))) real.add(path.relative(ROOT, f).split(path.sep).join('/'));
+  let out = '';
+  try { out = git(['grep', '-I', '-l', '-E', 'specs/[a-z0-9/-]+\\.md']); } catch { return []; }
+  const stale = [];
+  for (const file of out.split('\n').filter((f) => f && !HISTORY.test(f) && !FIXTURES.test(f))) {
+    for (const p of staleSpecPaths(fs.readFileSync(path.join(ROOT, file), 'utf8'), real)) stale.push({ file, path: p });
+  }
+  return stale;
 }
 
 const knownSpecNames = () => new Set(readSpecs().keys());
@@ -354,13 +417,13 @@ const knownSpecNames = () => new Set(readSpecs().keys());
 function readCitations(knownSpecs) {
   const files = [
     ...listFiles(path.join(ROOT, 'server', 'src', 'tests'), isTestFile),
-    // specs/plugins-phase-1-sdk.md rule 1 — a plugin module carries its tests in its own folder.
+    // specs/plugins/plugins-phase-1-sdk.md rule 1 — a plugin module carries its tests in its own folder.
     ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/tests\/.*\.test\.js$/.test(f)),
-    // specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) carry their own suites.
+    // specs/plugins/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) carry their own suites.
     ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/apps\/[^/]+\/src\/.*__tests__\/.*\.test\.jsx?$/.test(f)),
     ...listFiles(path.join(ROOT, 'client', 'src'), isTestFile),
     ...listFiles(path.join(ROOT, 'e2e'), isTestFile),
-    // specs/control-plane-plans-and-access.md — the control plane is its own app in the same repo.
+    // specs/hosting/control-plane-plans-and-access.md — the control plane is its own app in the same repo.
     ...listFiles(path.join(ROOT, 'control-plane', 'server', 'src', 'tests'), isTestFile),
     ...listFiles(path.join(ROOT, 'control-plane', 'client', 'src'), isTestFile),
   ];
@@ -388,8 +451,11 @@ export function rulesChangedInDiff(diff, specsNow) {
   const modified = [];
   let spec = null;
   for (const line of String(diff || '').split('\n')) {
-    const head = line.match(/^\+\+\+ b\/specs\/([a-z0-9-]+)\.md/i);
-    if (head) { spec = head[1].toLowerCase(); continue; }
+    if (line.startsWith('+++ ')) {
+      const head = line.match(/^\+\+\+ b\/specs\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)\.md/i);
+      spec = head && !NOT_A_SPEC.test(`${head[1]}.md`) ? head[1].toLowerCase() : null;
+      continue;
+    }
     if (!spec) continue;
     const plus = line.startsWith('+') && !line.startsWith('+++') ? line.slice(1) : null;
     const minus = line.startsWith('-') && !line.startsWith('---') ? line.slice(1) : null;
@@ -483,7 +549,7 @@ export function exemptCitations(diff, exempt = new Set()) {
     const head = line.match(/^\+\+\+ b\/(.+)$/);
     if (head) { file = head[1]; continue; }
     if (!file || /^(specs|docs)\//.test(file) || !line.startsWith('+') || line.startsWith('+++')) continue;
-    for (const m of line.matchAll(/specs\/([a-z0-9-]+)\.md/gi)) {
+    for (const m of line.matchAll(SPEC_MENTION)) {
       const spec = m[1].toLowerCase();
       if (exempt.has(spec) && !out.some((o) => o.file === file && o.spec === spec)) out.push({ file, spec });
     }
@@ -502,7 +568,7 @@ export function parseNameStatus(text) {
     const isMove = /^[RC]/.test(code);
     const from = isMove ? parts[1] : (code.startsWith('A') ? null : parts[1]);
     const to = isMove ? parts[2] : parts[1];
-    if (/^specs\/[^/]+\.md$/.test(to)) out.push({ path: to, from });
+    if (/^specs\/(?:[a-z0-9-]+\/)*[^/]+\.md$/.test(to) && !NOT_A_SPEC.test(path.basename(to))) out.push({ path: to, from });
   }
   return out;
 }
@@ -510,7 +576,7 @@ export function parseNameStatus(text) {
 function changedRules(base) {
   const specsNow = readSpecs();
   const mb = git(['merge-base', base, 'HEAD']).trim();
-  const changed = rulesChangedInDiff(git(['diff', '--unified=0', `${mb}..HEAD`, '--', 'specs/']), specsNow);
+  const changed = rulesChangedInDiff(git(['diff', '--unified=0', '-M', `${mb}..HEAD`, '--', 'specs/']), specsNow);
   const touched = [];
   for (const { path: f, from } of parseNameStatus(git(['diff', '--name-status', '-M', `${mb}..HEAD`, '--', 'specs/']))) {
     let now = '';
@@ -531,7 +597,7 @@ function report({ specName }) {
   if (specName) {
     const one = specs.find((s) => s.name === specName.replace(/\.md$/, '').toLowerCase());
     if (!one) { console.error(`Spec inconnue ou sans règles : ${specName}`); process.exit(2); }
-    console.log(`\nspecs/${one.name}.md — ${one.covered}/${one.total} règles couvertes` +
+    console.log(`\n${shown(one.name)} — ${one.covered}/${one.total} règles couvertes` +
       (one.exempt ? ` (${one.exempt} sans test, déclarées)` : ''));
     const real = new Set((readSpecs().get(one.name) || []).map((r) => r.id));
     for (const [rule, files] of [...one.files.entries()].sort()) {
@@ -545,44 +611,57 @@ function report({ specName }) {
     if (stale.length) console.log(`  citations orphelines (numéro absent de la spec) : ${stale.sort().join(', ')}`);
     return 0;
   }
-  const ownPr = specsPendingOnTheirOwnPr(fs.readdirSync(path.join(ROOT, 'specs')).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(ROOT, 'specs', f), 'utf8') : '']));
+  const ownPr = specsPendingOnTheirOwnPr(readSpecEntries());
   let total = 0; let covered = 0; let exempt = 0; let pending = 0;
   for (const s of specs) { total += s.total; covered += s.covered; exempt += s.exempt; pending += s.pending; }
   console.log('');
   for (const s of specs.filter((x) => x.missing.length > 0)) {
-    console.log(`${('specs/' + s.name + '.md').padEnd(62)} ${String(s.covered).padStart(3)}/${String(s.total).padEnd(3)}  manquantes : ${s.missing.join(', ')}`);
+    console.log(`${shown(s.name).padEnd(72)} ${String(s.covered).padStart(3)}/${String(s.total).padEnd(3)}  manquantes : ${s.missing.join(', ')}`);
   }
   const pct = total ? Math.round((covered / total) * 100) : 0;
   for (const s of specs.filter((x) => x.pendingCited.length)) {
-    console.log(`⚠ specs/${s.name}.md : règle(s) citée(s) par un test mais encore « Pending » (${s.pendingCited.join(', ')}) : annoncées en attente, non prouvées.`);
+    console.log(`⚠ ${shown(s.name)} : règle(s) citée(s) par un test mais encore « Pending » (${s.pendingCited.join(', ')}) : annoncées en attente, non prouvées.`);
   }
   console.log(`\nTotal : ${total} règles, ${covered} couvertes (${pct} %), ${exempt} déclarées sans test${pending ? `, ${pending} en attente (Pending)` : ''}.`);
   if (orphans.length) {
     console.log(`\nCitations orphelines (spec ou règle inexistante) : ${orphans.length}`);
-    for (const o of orphans.slice(0, 15)) console.log(`  ${o.file} → specs/${o.spec}.md règle ${o.rule} (${o.why})`);
+    for (const o of orphans.slice(0, 15)) console.log(`  ${o.file} → ${shown(o.spec)} règle ${o.rule} (${o.why})`);
     if (orphans.length > 15) console.log(`  … et ${orphans.length - 15} autres`);
   }
-  for (const d of ownPr) console.error(`✗ specs/${d.spec}.md : règle(s) « Pending — PR ${d.pr} » (${d.rules.join(', ')}) alors que la spec est « In progress — PR ${d.pr} ».`);
+  const stalePaths = trackedStalePaths();
+  if (stalePaths.length) {
+    console.log(`\nChemins de spec périmés (fichier inexistant) : ${stalePaths.length}`);
+    for (const x of stalePaths.slice(0, 15)) console.log(`  ${x.file} → ${x.path}`);
+    if (stalePaths.length > 15) console.log(`  … et ${stalePaths.length - 15} autres`);
+  }
+  for (const d of ownPr) console.error(`✗ ${shown(d.spec)} : règle(s) « Pending — PR ${d.pr} » (${d.rules.join(', ')}) alors que la spec est « In progress — PR ${d.pr} ».`);
   return ownPr.length ? 1 : 0;
 }
 
 function gate(base) {
-  const dir = path.join(ROOT, 'specs');
-  const duplicates = specsWithDuplicates(fs.readdirSync(dir).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(dir, f), 'utf8') : '']));
+  const entries = readSpecEntries();
+  readSpecs();
+  const sameName = duplicateSpecNames(entries);
+  if (sameName.length) {
+    for (const d of sameName) console.error(`✗ deux specs portent le nom « ${d.name} » : ${d.paths.join(', ')}.`);
+    console.error('\n  Le nom d\'une spec est son identité, quel que soit son dossier : renommez la plus récente.');
+    return 1;
+  }
+  const duplicates = specsWithDuplicates(entries);
   if (duplicates.length) {
-    for (const d of duplicates) console.error(`✗ specs/${d.spec}.md : numéro(s) porté(s) par plusieurs règles du §3 : ${d.rules.join(', ')}.`);
+    for (const d of duplicates) console.error(`✗ ${shown(d.spec)} : numéro(s) porté(s) par plusieurs règles du §3 : ${d.rules.join(', ')}.`);
     console.error('\n  Un numéro de règle est une identité : la règle la plus récente prend le prochain numéro libre, et ses citations la suivent.');
     return 1;
   }
-  const stale = specsWithStalePending(fs.readdirSync(dir).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(dir, f), 'utf8') : '']));
+  const stale = specsWithStalePending(entries);
   if (stale.length) {
-    for (const d of stale) console.error(`✗ specs/${d.spec}.md : règle(s) encore « Pending » (${d.rules.join(', ')}) alors que la spec n'est plus « In progress ».`);
+    for (const d of stale) console.error(`✗ ${shown(d.spec)} : règle(s) encore « Pending » (${d.rules.join(', ')}) alors que la spec n'est plus « In progress ».`);
     console.error('\n  « Pending » ne vaut que tant que la spec est « In progress » : citez la règle par un test, ou déclarez-la « Sans test ».');
     return 1;
   }
-  const ownPr = specsPendingOnTheirOwnPr(fs.readdirSync(dir).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(dir, f), 'utf8') : '']));
+  const ownPr = specsPendingOnTheirOwnPr(entries);
   if (ownPr.length) {
-    for (const d of ownPr) console.error(`✗ specs/${d.spec}.md : règle(s) « Pending — PR ${d.pr} » (${d.rules.join(', ')}) alors que la spec est « In progress — PR ${d.pr} » : PR ${d.pr} ne peut pas laisser du travail de PR ${d.pr} en attente.`);
+    for (const d of ownPr) console.error(`✗ ${shown(d.spec)} : règle(s) « Pending — PR ${d.pr} » (${d.rules.join(', ')}) alors que la spec est « In progress — PR ${d.pr} » : PR ${d.pr} ne peut pas laisser du travail de PR ${d.pr} en attente.`);
     console.error('\n  Livrez la règle et retirez sa ligne Pending, ou renvoyez-la à la PR suivante.');
     return 1;
   }
@@ -599,21 +678,28 @@ function gate(base) {
   const orphans = [...new Map(newOrphans(buildCoverage(readSpecs(), readCitations(knownSpecNames())).orphans, changedFiles, citedAtBase)
     .map((o) => [`${o.file}|${o.spec}|${o.rule}`, o])).values()];
   if (orphans.length) {
-    for (const o of orphans) console.error(`✗ ${o.file} cite specs/${o.spec}.md règle ${o.rule} (${o.why}).`);
+    for (const o of orphans) console.error(`✗ ${o.file} cite ${shown(o.spec)} règle ${o.rule} (${o.why}).`);
     console.error('\n  Une citation doit retomber sur une règle : corrigez le numéro, ou nommez la bonne spec sur la ligne.');
     return 1;
   }
-  for (const spec of exempt) console.log(`… specs/${spec}.md : pas encore livrée (Draft / Approved), règles différées (règle 14).`);
+  const stalePaths = trackedStalePaths().filter((x) => changedFiles.has(x.file));
+  if (stalePaths.length) {
+    for (const x of stalePaths) console.error(`✗ ${x.file} cite ${x.path}, qui n'existe pas.`);
+    console.error('\n  Une spec a changé de dossier ou a été supprimée : citez son chemin actuel (voir specs/INDEX.md),');
+    console.error('  ou réécrivez-les : « node scripts/rewrite-spec-paths.mjs <fichiers cités ci-dessus> ».');
+    return 1;
+  }
+  for (const spec of exempt) console.log(`… ${shown(spec)} : pas encore livrée (Draft / Approved), règles différées (règle 14).`);
   if (codeCitations.length) {
     for (const c of codeCitations) {
-      console.error(`✗ ${c.file} cite specs/${c.spec}.md, qui n'est pas encore livrée (Draft / Approved).`);
+      console.error(`✗ ${c.file} cite ${shown(c.spec)}, qui n'est pas encore livrée (Draft / Approved).`);
     }
     console.error('\n  Du code ne part pas contre une spec non livrée : passez-la en « Implemented » dans la même PR');
     console.error('  (toutes ses règles devront alors être citées par un test, ou déclarées « Sans test »).');
     return 1;
   }
   for (const w of verdict.warnings) {
-    console.log(`⚠ specs/${w.spec}.md règle ${w.rule} : reformulée, et toujours citée par aucun test.`);
+    console.log(`⚠ ${shown(w.spec)} règle ${w.rule} : reformulée, et toujours citée par aucun test.`);
   }
   if (verdict.ok) {
     const declared = addedRules.filter((r) => r.exempt).length;
@@ -627,7 +713,7 @@ function gate(base) {
     return 0;
   }
   for (const f of verdict.failures) {
-    console.error(`✗ specs/${f.spec}.md règle ${f.rule} : ajoutée par cette PR, citée par aucun test.`);
+    console.error(`✗ ${shown(f.spec)} règle ${f.rule} : ajoutée par cette PR, citée par aucun test.`);
   }
   console.error('\n  Ajoutez un test qui la nomme (« specs/<spec>.md rule <n> »), ou déclarez-la non');
   console.error('  testable avec une ligne « > **Sans test** — <raison> » sous la règle dans la spec.');

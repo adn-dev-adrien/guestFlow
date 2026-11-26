@@ -1,4 +1,4 @@
-// specs/terms-acceptance-record.md §3.1 rules 2 and 4 — the CGV Markdown renderer: escape-first (no
+// specs/reservations/terms-acceptance-record.md §3.1 rules 2 and 4 — the CGV Markdown renderer: escape-first (no
 // operator HTML ever reaches the site), the supported subset, the variables and the frozen hash.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,5 +1,5 @@
 /**
- * specs/welcome-pack-auto-options.md §3.4 — the form side of the pack: it adds exactly what the
+ * specs/options/welcome-pack-auto-options.md §3.4 — the form side of the pack: it adds exactly what the
  * server grants, takes back exactly what it added, and never touches a line the operator owns.
  */
 

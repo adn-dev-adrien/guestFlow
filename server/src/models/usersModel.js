@@ -22,7 +22,7 @@
  *   - hardDelete: only allowed when the user has never logged in (lastLoginAt IS NULL AND
  *     mustChangePassword = 1) — throws HARD_DELETE_NOT_ELIGIBLE otherwise
  *   - findActiveAdminCount + the guards in the controller protect against last-admin removal
- *   - the « Support GuestFlow » account (specs/hosting-h2-account-security.md rule 21) is told by
+ *   - the « Support GuestFlow » account (specs/hosting/hosting-h2-account-security.md rule 21) is told by
  *     `isSupportAccount`, never by its email, and no method of this model changes it: identity, email,
  *     roles, password, active flag. Every write on it throws SUPPORT_ACCOUNT_LOCKED. It is never
  *     listed and never the target of the admin recovery.
@@ -44,7 +44,7 @@ function buildModel(database) {
   // ----- prepared statements (built once per model instance) -----
   const findByEmailStmt = database.prepare('SELECT * FROM users WHERE email = ?');
   const findByIdStmt = database.prepare('SELECT * FROM users WHERE id = ?');
-  // The « Support GuestFlow » account (specs/hosting-h2-account-security.md rule 14) is never listed.
+  // The « Support GuestFlow » account (specs/hosting/hosting-h2-account-security.md rule 14) is never listed.
   const listStmt = database.prepare(`
     SELECT * FROM users WHERE isSupportAccount = 0
     ORDER BY lastName COLLATE NOCASE, firstName COLLATE NOCASE, email COLLATE NOCASE
@@ -95,14 +95,14 @@ function buildModel(database) {
 
   const tableExists = (name) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 
-  // specs/hosting-h2-account-security.md rule 63 — a link mailed before the address or the password
+  // specs/hosting/hosting-h2-account-security.md rule 63 — a link mailed before the address or the password
   // changed must not work after.
   function voidResetLinks(userId) {
     if (!tableExists('password_reset_tokens')) return;
     database.prepare("UPDATE password_reset_tokens SET usedAt = ? WHERE userId = ? AND usedAt IS NULL").run(new Date().toISOString(), Number(userId));
   }
 
-  // specs/pwa-push-notifications.md rule 13 — devices of an account that is no longer an active admin.
+  // specs/guest-app/pwa-push-notifications.md rule 13 — devices of an account that is no longer an active admin.
   function dropPushDevices(userId) {
     if (!tableExists('push_subscriptions')) return;
     database.prepare('DELETE FROM push_subscriptions WHERE userId = ?').run(Number(userId));
@@ -184,7 +184,7 @@ function buildModel(database) {
     verifyCredentials(email, password) {
       const row = findByEmailStmt.get(normalizeEmail(email));
       // One scrypt run whatever the account: an unknown, inactive or support account answers in the
-      // time of a wrong password (specs/hosting-h2-account-security.md rule 61).
+      // time of a wrong password (specs/hosting/hosting-h2-account-security.md rule 61).
       const passwordOk = verifyPassword(typeof password === 'string' ? password : '', row ? row.passwordHash : DUMMY_PASSWORD_HASH);
       if (!row || !passwordOk || Number(row.isActive) !== 1 || Number(row.isSupportAccount) === 1) return null;
       return toSafeUser(row);
@@ -346,7 +346,7 @@ function buildModel(database) {
     },
 
     // A fingerprint of the stored password hash: it changes with every new password, which is what
-    // revokes a trusted device (specs/hosting-h2-account-security.md rule 7). Never the hash itself.
+    // revokes a trusted device (specs/hosting/hosting-h2-account-security.md rule 7). Never the hash itself.
     credentialStamp(id) {
       const row = findByIdStmt.get(Number(id));
       return row ? require('crypto').createHash('sha256').update(String(row.passwordHash)).digest('hex') : null;
@@ -361,7 +361,7 @@ function buildModel(database) {
       return activeAdminCountStmt.get(ADMIN).n;
     },
 
-    // specs/control-plane-plans-and-access.md rule 13 — the accounts the plan quota counts.
+    // specs/hosting/control-plane-plans-and-access.md rule 13 — the accounts the plan quota counts.
     countActive() {
       return database.prepare('SELECT COUNT(*) AS n FROM users WHERE isActive = 1').get().n;
     },

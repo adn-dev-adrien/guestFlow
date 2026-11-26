@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 50 (audit R25 O1, 2026-11-06) — the 8-hour read stays quiet while the Qonto
+// specs/accounting/qonto-bank-reconciliation.md rule 50 (audit R25 O1, 2026-11-06) — the 8-hour read stays quiet while the Qonto
 // credentials are missing: a stored authorisation alone does not start it, so it records no « Dernier échec » beside the
 // badge's own « Identifiants manquants ». No Qonto call anywhere.
 const test = require('node:test');

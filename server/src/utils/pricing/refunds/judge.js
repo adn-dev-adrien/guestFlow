@@ -67,7 +67,7 @@ function deletionRefusal(refund, refunds, reservation, nettedIds = null) {
 }
 
 /**
- * specs/reservation-refunds.md rule 53 (verification R35b, finding 5) — the latest day a payment of the stay reached the
+ * specs/payments/reservation-refunds.md rule 53 (verification R35b, finding 5) — the latest day a payment of the stay reached the
  * books: a paid acompte, solde, arrival or end-of-stay complement off the caisse interne, a paid installment, a note
  * settled on the books, a settlement with a book tender. `null` when none did. A book refund dated before it is refused:
  * the refund closing the stay's books (mixed-method-payments rules 56, 58) reads the encaissements up to its own date.
@@ -129,7 +129,7 @@ function validateRefundPayload(payload, context) {
   if (today && refundDate > today) {
     return invalid('REFUND_INVALID_DATE', 'La date de remboursement ne peut pas être dans le futur');
   }
-  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — not before today − 5 years.
+  // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — not before today − 5 years.
   const outside = dateWindowMessage(refundDate, today || undefined);
   if (outside) return invalid('REFUND_INVALID_DATE', outside);
 
@@ -369,7 +369,7 @@ function takeBackRefusal({ beforeCents, afterCents, refunds }) {
  * @returns {{status: number, body: object}|null} the refusal, or null
  */
 function untickRefusal(row, changes, refunds, projectedSplit) {
-  // specs/mixed-method-payments.md rules 13, 42 — the split aggregates are read for the state the gesture writes: a
+  // specs/payments/mixed-method-payments.md rules 13, 42 — the split aggregates are read for the state the gesture writes: a
   // payment taken back takes its settlement with it (only ITS settlements: the other split payments of the stay keep
   // their deduction), and an amount that moves is read at its new amount (rule 39).
   const beforeCents = Math.round(comptaCollected({ ...row, refundsBookTtc: 0 }) * 100);

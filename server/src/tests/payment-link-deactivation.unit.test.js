@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 7–9 — no link GuestFlow abandons stays payable: it is
+// specs/plugins/plugins-phase-3a-online-payment.md rules 7–9 — no link GuestFlow abandons stays payable: it is
 // deactivated at its provider; when the provider cannot, the poll retries, and a payment that still
 // lands on it is never recorded on the stay — the admin is told, to refund it.
 

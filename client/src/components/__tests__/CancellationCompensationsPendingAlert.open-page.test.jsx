@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rule 7 — « Ouvrir » (page Indemnités) only for the roles that can open it.
+// specs/planning/mobile-dashboard-exercise-cash.md rule 7 — « Ouvrir » (page Indemnités) only for the roles that can open it.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

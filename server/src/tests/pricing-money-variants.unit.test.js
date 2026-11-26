@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 38 and 89 (Q-C5) — every named variant of money.js reproduces, value for value, the private copy it
+// specs/pricing/pricing-components.md §3 rules 38 and 89 (Q-C5) — every named variant of money.js reproduces, value for value, the private copy it
 // replaces: a fuzz of numbers plus the awkward inputs (blank, null, undefined, NaN, a French string, half cents). `Object.is` is the
 // comparison, so -0 and NaN count as different results.
 const test = require('node:test');

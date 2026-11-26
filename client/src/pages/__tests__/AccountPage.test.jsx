@@ -1,4 +1,4 @@
-// AccountPage — « Mon compte », every role (specs/settings-rationalization.md rule 6): my information
+// AccountPage — « Mon compte », every role (specs/settings/settings-rationalization.md rule 6): my information
 // and my password, split out of the former « Gestion utilisateur » page.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

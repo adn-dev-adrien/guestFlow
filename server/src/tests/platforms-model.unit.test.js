@@ -33,7 +33,7 @@ function freshModel({ seedIcal = [] } = {}) {
   return { model: platformsModel.create(db), db };
 }
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('platforms table is created with Direct row + auto-seeded from iCal sources', () => {
@@ -130,9 +130,9 @@ test('rescan unions ical_sources + reservations.platform (idempotent, returns in
   assert.equal(model.rescan(), 0);
 });
 
-// ── Payout delay (specs/platform-payout-due-date.md §3.1 rules 6-7) ───────────────────────────
+// ── Payout delay (specs/platforms/platform-payout-due-date.md §3.1 rules 6-7) ───────────────────────────
 
-// specs/platform-payout-due-date.md rule 6
+// specs/platforms/platform-payout-due-date.md rule 6
 test('payout delay: set and read back, per platform', () => {
   const { model } = freshModel({ seedIcal: ['Airbnb', 'Booking'] });
   assert.equal(model.getPayoutDueDays('Airbnb'), 10, 'the column default is the intended value');
@@ -142,7 +142,7 @@ test('payout delay: set and read back, per platform', () => {
   assert.equal(model.setPayoutDueDays('Airbnb', 0).payoutDueDays, 0, '0 is a legitimate setting');
 });
 
-// specs/platform-payout-due-date.md rule 7bis
+// specs/platforms/platform-payout-due-date.md rule 7bis
 test('payout delay: matched by SLUG, so an iCal platformKey finds its catalogue row', () => {
   const { model } = freshModel({ seedIcal: ['GitesDeFrance'] });
   model.setPayoutDueDays('GitesDeFrance', 21);
@@ -151,7 +151,7 @@ test('payout delay: matched by SLUG, so an iCal platformKey finds its catalogue 
   assert.equal(model.getPayoutDueDays('GITESDEFRANCE'), 21);
 });
 
-// specs/platform-payout-due-date.md rule 7
+// specs/platforms/platform-payout-due-date.md rule 7
 test('payout delay: own channels and unknown platforms fall back to the default', () => {
   const { model } = freshModel({ seedIcal: ['Airbnb'] });
   assert.equal(model.getPayoutDueDays('direct'), 10);
@@ -164,7 +164,7 @@ test('payout delay: own channels and unknown platforms fall back to the default'
   assert.equal(model.setPayoutDueDays('Lodgify', 5), null);
 });
 
-// specs/platform-payout-due-date.md rule 36
+// specs/platforms/platform-payout-due-date.md rule 36
 test('payout delay: a never-synced platform is upserted on first configuration', () => {
   const { model, db } = freshModel();
   const out = model.setPayoutDueDays('Abritel', 14);

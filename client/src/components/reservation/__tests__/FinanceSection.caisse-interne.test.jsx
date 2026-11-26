@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/cash-complement-and-endofstay-finance.md §3 — the end-of-stay complement and the « Caisse
-// interne » of the complements. Since specs/reservation-payment-ledger.md rule 8 the switch lives in the
+// specs/sas/cash-complement-and-endofstay-finance.md §3 — the end-of-stay complement and the « Caisse
+// interne » of the complements. Since specs/payments/reservation-payment-ledger.md rule 8 the switch lives in the
 // mark form of the complement rows, and only there (never on the acompte or the solde).
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));

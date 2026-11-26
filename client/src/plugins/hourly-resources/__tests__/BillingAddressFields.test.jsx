@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 25-27 — the optional billing address: digits-only postcode, the city
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 25-27 — the optional billing address: digits-only postcode, the city
 // picked from the communes, filled when only one matches.
 import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

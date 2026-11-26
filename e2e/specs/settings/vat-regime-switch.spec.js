@@ -1,5 +1,5 @@
 // @ts-check
-// specs/vat-optional-mode.md §7 — Paramètres › TVA & exercice › « Changer de régime… », against the real
+// specs/accounting/vat-optional-mode.md §7 — Paramètres › TVA & exercice › « Changer de régime… », against the real
 // app: a switch from today (a new reservation prints the mention, an old one keeps « TVA 10 % »), a
 // correction behind its acknowledgement, the way back, and the dialog on a phone.
 import { test, expect } from '@playwright/test';

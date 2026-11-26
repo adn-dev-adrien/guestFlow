@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rules 20–21 — a mail the receiving server did not authenticate is
+// specs/platforms/gites-de-france-mail-intake.md rules 20–21 — a mail the receiving server did not authenticate is
 // never applied on its own; neither is one that would replace the e-mail or phone already on the fiche.
 const test = require('node:test');
 const assert = require('node:assert/strict');

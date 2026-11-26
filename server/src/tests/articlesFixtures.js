@@ -1,4 +1,4 @@
-// Shared fixtures of the article-family suites (specs/pricing-components.md §3 rules 47, 57): catalogue rows, a stay
+// Shared fixtures of the article-family suites (specs/pricing/pricing-components.md §3 rules 47, 57): catalogue rows, a stay
 // context and a one-call pricing helper. Not a test file.
 const { makeArticle } = require('../utils/pricing/articles');
 

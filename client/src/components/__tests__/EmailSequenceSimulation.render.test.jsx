@@ -1,5 +1,5 @@
 /**
- * EmailSequenceSimulation — renders the server's simulation verbatim (specs/guest-email-sequence.md
+ * EmailSequenceSimulation — renders the server's simulation verbatim (specs/emails/guest-email-sequence.md
  * rule 31, §6.2): statuses as badges, reasons as given, the activation banner, the server's counts.
  */
 
@@ -46,7 +46,7 @@ test('lists each email with its status and the server\'s reason', async () => {
   expect(screen.getByText(/1 mail partirait sur la période, sur 3 examinés/)).toBeInTheDocument();
 });
 
-// specs/settings-rationalization.md rule 17b — each sequence mail follows its own template's mode.
+// specs/settings/settings-rationalization.md rule 17b — each sequence mail follows its own template's mode.
 test('says nothing leaves by itself while every sequence template is « Manuel »', async () => {
   api.getEmailSequenceSimulation.mockResolvedValue(RESULT);
   render(<EmailSequenceSimulation tabs={null} />);

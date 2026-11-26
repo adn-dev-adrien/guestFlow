@@ -7,7 +7,7 @@ import { TextField } from '@mui/material';
  * Dropping a link from a web page normally writes its href verbatim (`mailto:…?subject=…`,
  * `tel:+33…`). This wrapper cancels that default, hands the raw payload to `onDropText` and lets the
  * caller decide what to write in the field — in GuestFlow, the string is sent to the server for
- * cleanup (specs/client-contact-smart-input.md). No parsing happens here.
+ * cleanup (specs/clients/client-contact-smart-input.md). No parsing happens here.
  *
  * Props:
  * - `onDropText(raw: string)` — called with the dropped payload (`text/uri-list` first, then

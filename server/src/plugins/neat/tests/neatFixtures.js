@@ -1,6 +1,6 @@
 /**
  * Shared fixtures for the Neat suites (scan / worker / controller) — a non-test module so no suite
- * imports (and therefore re-runs) another suite. specs/neat-cancellation-insurance-subscription.md.
+ * imports (and therefore re-runs) another suite. specs/plugins/neat-cancellation-insurance-subscription.md.
  *
  * The schema is the minimal slice the scan queries + the engine replay
  * (utils/reservationEngineInput.js) touch, in the house partial-DDL style.

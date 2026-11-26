@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rules 5–8 — the « Réservation confirmée » mail, read and checked.
+// specs/platforms/airbnb-mail-intake.md rules 5–8 — the « Réservation confirmée » mail, read and checked.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

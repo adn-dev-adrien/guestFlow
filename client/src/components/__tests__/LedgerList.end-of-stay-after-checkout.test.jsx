@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 68 (D20) — a row whose action the server sends closed (`disabled` + `reason`) draws
+// specs/payments/reservation-payment-ledger.md rule 68 (D20) — a row whose action the server sends closed (`disabled` + `reason`) draws
 // its button disabled with the reason as a caption under it, and a click does nothing. Same rendering at every width.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

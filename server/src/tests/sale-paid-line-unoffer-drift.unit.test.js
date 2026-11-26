@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23, 93, 104 (stabilisation loop t5, S5-2, 2026-11-16) — a stay whose arrival complement the engine no longer
+// specs/pricing/pricing-components.md §3 rules 23, 93, 104 (stabilisation loop t5, S5-2, 2026-11-16) — a stay whose arrival complement the engine no longer
 // reproduces (stored 0, the engine of today asks a gap): a cash-paid line offered is credited to that complement by the engine, the stored one stops
 // at 0 and the 30 € become the refund owed. Un-offered, the line is the note's again: the refund closes and nothing is asked. Before: the way back
 // raised the stored complement by the whole credit, so the guest was asked 30 € at the arrival for a line paid in cash.
@@ -61,7 +61,7 @@ test('S5-2 — pinSaleDelta: a credit withdrawn from a bucket the stay stores be
     'a bucket stored at the engine figure took the credit, the owed refund is the money beyond the total: the bucket gets its credit back');
 });
 
-// specs/pricing-components.md rule 107 a (loop t6 S6-2) — the credit took the WHOLE engine bucket (base 0 = stored 0): the bound reads the engine's figure before the credit.
+// specs/pricing/pricing-components.md rule 107 a (loop t6 S6-2) — the credit took the WHOLE engine bucket (base 0 = stored 0): the bound reads the engine's figure before the credit.
 test('S6-2 — pinSaleDelta: a credit that emptied the engine bucket closes the clamped refund on the way back, not the money beyond the total', () => {
   const stored = { totalPrice: 100, finalPrice: 100, depositAmount: 0, balanceAmount: 100, complementAmount: 0 };
   const base = { ...stored, finalPrice: 35, complementAmount: 0, noteCreditCuts: { complementAmount: 50.5, unabsorbed: 14.5 } };

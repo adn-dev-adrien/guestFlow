@@ -1,4 +1,4 @@
-// specs/manual-price-on-placement-change.md — moving a stay whose price was set by hand: the fiche sends the placement the price was
+// specs/reservations/manual-price-on-placement-change.md — moving a stay whose price was set by hand: the fiche sends the placement the price was
 // decided against (rule 4), opens the server's review (rules 2, 9), applies the chosen price (rule 12), or puts the dates back (rule 13).
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,5 +1,5 @@
-// specs/finance-revpar-year-over-year.md §3 rules 20, 24, 25, 26 and 27;
-// specs/finance-dashboard-redesign.md §3 rules 53, 54 and 55 — review of 2026-11-06 (R3-2, R3-3, R3-4, R3-8, R3-11, R5-05, R5-20, R6-3): the pills
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 20, 24, 25, 26 and 27;
+// specs/accounting/finance-dashboard-redesign.md §3 rules 53, 54 and 55 — review of 2026-11-06 (R3-2, R3-3, R3-4, R3-8, R3-11, R5-05, R5-20, R6-3): the pills
 // name a partial span, the open nights name the occupied ones, the per-night amounts keep their cents
 // under 100 €, the occupancy chart is drawn on 0-100 %, the chart cards keep their own height, « Encaissé »
 // is « Encaissé » (renamed from « Déjà payé »), the « Logements » tile repeats no hero figure, and the definitions state their basis.

@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 9 and 14 — the daily run at 04:00 Paris time
+// specs/hosting/control-plane-plans-and-access.md rules 9 and 14 — the daily run at 04:00 Paris time
 // recomputes every state and re-issues every licence once a day, catching up after downtime.
 
 const test = require('node:test');

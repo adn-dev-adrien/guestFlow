@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 
 import CollapsibleSection from '../CollapsibleSection';
 
-// specs/option-categories.md §3 rules 8-12 — the generic collapsible section.
+// specs/options/option-categories.md §3 rules 8-12 — the generic collapsible section.
 
 const renderSection = (props = {}) => render(
   <CollapsibleSection title="Boissons" {...props}>

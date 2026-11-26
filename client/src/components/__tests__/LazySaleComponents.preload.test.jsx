@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t20 UI20-1) — the sale blocks' code can be started before any of them renders:
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t20 UI20-1) — the sale blocks' code can be started before any of them renders:
 // `preloadSaleComponents()` fetches the four once for the session, and a block whose code is there renders on its first paint, never
 // suspended — so a dialog that waited for `useSaleComponentsReady(open)` shows them with its own content, nothing landing under it later.
 import React from 'react';

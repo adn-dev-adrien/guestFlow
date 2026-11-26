@@ -1,6 +1,6 @@
 /**
  * OriginBadge — the source of a website request on the fiche and the devis list.
- * specs/site-traffic-analytics.md rule 19.
+ * specs/site/site-traffic-analytics.md rule 19.
  */
 
 import React from 'react';

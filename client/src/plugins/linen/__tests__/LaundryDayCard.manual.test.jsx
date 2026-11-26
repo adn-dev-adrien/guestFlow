@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import LaundryDayCard from '../LaundryDayCard';
 
-// specs/manual-laundry-additions.md §6 — the laundry card's manual-addition affordance + caption.
+// specs/linen/manual-laundry-additions.md §6 — the laundry card's manual-addition affordance + caption.
 // The server folds manual additions into `data`; the card only adds the edit pencil + the discreet
 // « dont ajout manuel » caption (driven by the `manualAddition` prop).
 
@@ -47,7 +47,7 @@ test('a card whose only content is a manual addition still renders (server folds
   expect(screen.getByText(/dont ajout manuel/)).toBeInTheDocument();
 });
 
-// ---- withdrawals (specs/laundry-manual-removals.md §3 rule 7) ----
+// ---- withdrawals (specs/linen/laundry-manual-removals.md §3 rule 7) ----
 
 test('a withdrawal reads « dont lavé hors blanchisserie », in positive numbers', () => {
   render(

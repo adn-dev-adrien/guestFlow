@@ -1,5 +1,5 @@
 /**
- * Split payments recorded after the fact (specs/mixed-method-payments.md §3.5-§3.6, §4.3).
+ * Split payments recorded after the fact (specs/payments/mixed-method-payments.md §3.5-§3.6, §4.3).
  *
  *   POST /api/reservations/:id/settlements              { targetKind, targetKey, date, tenders, shortfall? } — rule 17
  *   PUT  /api/reservations/:id/settlements/:settlementId { date, tenders, shortfall? }                       — rules 20-25

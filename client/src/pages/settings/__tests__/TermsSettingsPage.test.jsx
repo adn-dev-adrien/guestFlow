@@ -1,5 +1,5 @@
 /**
- * TermsSettingsPage — writing and publishing the CGV (specs/terms-acceptance-record.md §3.1). Every
+ * TermsSettingsPage — writing and publishing the CGV (specs/reservations/terms-acceptance-record.md §3.1). Every
  * verdict comes from the server overview; the page renders it. The online enforcement is the
  * website-booking plugin's (plugins/website-booking/__tests__/OnlineBookingCard.test.jsx).
  */

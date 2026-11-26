@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rule 33 (authz L4, amends rule 3) — a plugin's role allowlist
+// specs/plugins/plugins-phase-2-hosts.md rule 33 (authz L4, amends rule 3) — a plugin's role allowlist
 // entries and webhook exemptions count while the plugin is live, and the allowlist only on paths the
 // plugin serves itself: an entry aimed at a core route stays inert.
 const test = require('node:test');

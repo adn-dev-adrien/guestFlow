@@ -1,5 +1,5 @@
 /**
- * What the emails controller knows of installments (specs/direct-installments.md rules 19-21): which
+ * What the emails controller knows of installments (specs/payments/direct-installments.md rules 19-21): which
  * installment an `installment_request` entry stands for, the variables of its email, its link.
  *
  * Kept apart so the controller stays a pipeline (render, send, log): every question about the plan is

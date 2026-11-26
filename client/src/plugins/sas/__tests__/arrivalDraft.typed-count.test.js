@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 12 (audit R21-S5) — a non-card per-person sale reaches the server in
+// specs/options/non-card-option-served-persons.md rule 12 (audit R21-S5) — a non-card per-person sale reaches the server in
 // people served. Sent as units, the server would bill the whole party.
 import { expect, test } from 'vitest';
 import buildArrivalDraft from '../arrivalDraft';

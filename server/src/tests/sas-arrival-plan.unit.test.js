@@ -1,4 +1,4 @@
-// specs/sas-arrival-total-server-side.md §3.1, §3.2, §3.5 — the arrival plan: one computation shared by
+// specs/sas/sas-arrival-total-server-side.md §3.1, §3.2, §3.5 — the arrival plan: one computation shared by
 // the preview and the commit. Figures reused from the SAS fixtures (sasFixtures.jsx and the specs they
 // cite): a 5 € pillowcase, an 80 € ménage, a 20 € « Panier gourmand », a 16 × 5 € dinner with 4,80 € of
 // tourist tax, 40 € of added guests, 4 × 8 € breakfasts, 2 × 25 € + 17 € of restauration.
@@ -23,15 +23,15 @@ const DINNER = Number(db.prepare("INSERT INTO options (title, priceType, price) 
 const BREAKFAST = Number(db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Petit déjeuner', 'per_stay', 8)").run().lastInsertRowid);
 const MEAL = Number(db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Le repas des trappeurs', 'per_stay', 25)").run().lastInsertRowid);
 const BOARD = Number(db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Planche S', 'per_stay', 17)").run().lastInsertRowid);
-// What the sale steps may sell (specs/sas-breakfast-and-catering-upsell.md rule 15): this property's « Restauration ».
+// What the sale steps may sell (specs/sas/sas-breakfast-and-catering-upsell.md rule 15): this property's « Restauration ».
 for (const optionId of [BREAKFAST, MEAL, BOARD]) {
   db.prepare("UPDATE options SET category = 'Restauration' WHERE id = ?").run(optionId);
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
 }
-// specs/pricing-components.md rule 90.1 — the complement is the engine's, and the engine prices only the articles a lodging offers: the
+// specs/pricing/pricing-components.md rule 90.1 — the complement is the engine's, and the engine prices only the articles a lodging offers: the
 // ménage, the « Panier gourmand » and the « Repas du soir » are this lodging's (they were stored lines of no article before pass 3h).
 for (const optionId of [CLEANING, PANIER, DINNER]) db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
-// specs/pricing-components.md rule 90.1 — a lodging whose tariff makes the tax and the added guests the engine re-derives (4,80 € = 2 adults × 2 nights × 1,20 €;
+// specs/pricing/pricing-components.md rule 90.1 — a lodging whose tariff makes the tax and the added guests the engine re-derives (4,80 € = 2 adults × 2 nights × 1,20 €;
 // 40 € = 2 added guests × 2 nights × 10 €), on a channel that sold the stay for two.
 db.prepare(`INSERT INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit)
   VALUES (2, 'Gîte taxé', 8, 'per_day_per_person', 1.2, 2, 10, 'per_night')`).run();
@@ -202,7 +202,7 @@ test('rule 24, Q3 (verified on a fixture only) — an adjusted complement stores
   const input = draft(id, { linenItems: [{ itemId: PILLOW, qty: 1 }], cleaningAdded: true });
   const plan = model.planArrivalSas(id, input);
   assert.equal(plan.arrivalComplementTotal, 50);
-  // specs/pricing-components.md rule 90.1 — the engine figure is the stay's own (5 € + 80 €: the stay has no other line); the arithmetic added the run to the adjustment (135 €).
+  // specs/pricing/pricing-components.md rule 90.1 — the engine figure is the stay's own (5 € + 80 €: the stay has no other line); the arithmetic added the run to the adjustment (135 €).
   assert.deepEqual(plan.adjusted, { amount: 50, engineAmount: 85 });
   assert.equal(model.commitArrivalSas(id, input), 50);
   assert.equal(amountOf(id), 50, 'the commit leaves the operator’s adjustment, as the plan announced');

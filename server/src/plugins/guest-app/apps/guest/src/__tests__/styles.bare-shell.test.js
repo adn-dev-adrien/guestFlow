@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 51 (2026-11-12) — from 900 px the shell keeps an 84 px column for the navigation rail. The
+// specs/guest-app/guest-app.md rule 51 (2026-11-12) — from 900 px the shell keeps an 84 px column for the navigation rail. The
 // bare screens (entry, « Ce code n'est pas reconnu », lookup) have no rail: their shell must stay one column, or the
 // whole screen is squeezed into the rail's 84 px (seen on a Mac, Safari and Chromium alike).
 import fs from 'node:fs';

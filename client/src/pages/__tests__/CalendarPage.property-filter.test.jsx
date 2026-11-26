@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 16 — a usable property filter: « Tous | A | B » as a
+// specs/design-system/ui-review-2026-10-19-operations.md rule 16 — a usable property filter: « Tous | A | B » as a
 // segmented control with three logements or fewer, a select past that; « Tous » is the all-logements
 // calendar.
 import React from 'react';

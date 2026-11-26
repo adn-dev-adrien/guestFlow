@@ -1,5 +1,5 @@
 /**
- * Read-only guard for an unpaid instance (specs/control-plane-plans-and-access.md rules 14, 16) —
+ * Read-only guard for an unpaid instance (specs/hosting/control-plane-plans-and-access.md rules 14, 16) —
  * runs on `/api/*` after the auth and role guards.
  *
  * While the licence says `read_only` (or `suspended`/`archived`, or is missing on a managed
@@ -24,7 +24,7 @@ const ALLOWED_WRITES = [
   ['POST', /^\/reservations\/calculate-price$/],
   ['POST', /^\/properties\/\d+\/pricing\/progressive-preview$/],
   ['POST', /^\/terms\/preview$/],
-  // Support and account safety stay in reach of an unpaid customer (specs/hosting-h2-account-security.md).
+  // Support and account safety stay in reach of an unpaid customer (specs/hosting/hosting-h2-account-security.md).
   ['POST', /^\/support-access\/(\d+\/(decide|revoke)|page)$/],
   ['DELETE', /^\/users\/\d+\/two-factor$/],
 ];
@@ -45,7 +45,7 @@ function enforceSubscription({ isReadOnly, isWebhook } = {}) {
     if (READ_METHODS.has(req.method)) return next();
     if (!readOnly()) return next();
     if (isAllowedWrite(req.method, req.path)) return next();
-    // A provider calling back about a payment (specs/plugins-phase-3a-online-payment.md rule 12).
+    // A provider calling back about a payment (specs/plugins/plugins-phase-3a-online-payment.md rule 12).
     if (webhook(req.method, req.path)) return next();
     return res.status(402).json(READ_ONLY_BODY);
   };

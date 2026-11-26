@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 34 — a reservation that does not exist (404) says « introuvable » with a
+// specs/design-system/ui-review-2026-10-19-operations.md rule 34 — a reservation that does not exist (404) says « introuvable » with a
 // way back; a reload that can never succeed is offered only for a failure that may pass (network, 5xx).
 import React from 'react';
 import { vi } from 'vitest';

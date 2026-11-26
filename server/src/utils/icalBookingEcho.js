@@ -1,5 +1,5 @@
 /**
- * Booking.com feed — echo classification (specs/lodgify-decommission.md §3 rules 6-8).
+ * Booking.com feed — echo classification (specs/platforms/lodgify-decommission.md §3 rules 6-8).
  *
  * An incoming Booking event is compared, night by night, with the ranges GuestFlow already holds
  * (other reservations, closures, recent tombstones). The closure guard still drops a closure's own echo

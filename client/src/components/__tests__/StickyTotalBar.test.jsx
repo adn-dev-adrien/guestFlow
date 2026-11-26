@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 11 — the sticky total bar below lg: renders the
+// specs/design-system/ui-review-2026-10-19-operations.md rule 11 — the sticky total bar below lg: renders the
 // server's figure, opens the full detail in a sheet, steps aside while typing on a phone.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 6-8, 17 — every link GuestFlow mints is valid 36 hours from its
+// specs/payments/payment-link-lifecycle.md rules 6-8, 17 — every link GuestFlow mints is valid 36 hours from its
 // creation, whatever the provider answers; past that it lapses (`expired`, reason `validity`, deactivation
 // owed) without a provider call deciding it; and a request only reuses an open link that still has 24 hours.
 

@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rules 15, 18, 19 (audit R22, 2026-11-04) — one reading of a number on a stay's
+// specs/tech/reservations-backend-mvc.md rules 15, 18, 19 (audit R22, 2026-11-04) — one reading of a number on a stay's
 // writes: the party is whole and ≥ 0, a line is not sent twice, the money stops at the usable range, and the
 // preview refuses what the save refuses. Refused, never clamped; a stored value sent back unchanged passes.
 process.env.DB_PATH = ':memory:';

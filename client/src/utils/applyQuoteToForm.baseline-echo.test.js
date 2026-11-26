@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 30 — the clean baseline takes a numeric echo only when the
+// specs/options/non-card-option-served-persons.md rule 30 — the clean baseline takes a numeric echo only when the
 // quote asked for the count the baseline holds, so a number typed meanwhile stays an edit.
 import { expect, test } from 'vitest';
 import { applyQuoteToBaseline } from './applyQuoteToForm';

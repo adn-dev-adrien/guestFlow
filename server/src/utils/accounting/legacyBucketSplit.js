@@ -1,5 +1,5 @@
 /**
- * The legacy read model of the accounting output (specs/pricing-components.md §3 rule 63): how the money a stay stored is
+ * The legacy read model of the accounting output (specs/pricing/pricing-components.md §3 rule 63): how the money a stay stored is
  * turned into the buckets an entry books. A row without per-line truth keeps today's derivation, in this ONE place, and
  * emits the same tagged amounts, so old months export byte-identically. Moved from the accounting-export plugin.
  */
@@ -7,7 +7,7 @@
 const { splitTtc, netFirst } = require('../pricing/vat');
 const { extraLineKey } = require('../midStayExtras');
 
-// specs/accountant-accounting-export.md rules 33 and 35 — the first payment day the rule 32 split applies to when the
+// specs/accounting/accountant-accounting-export.md rules 33 and 35 — the first payment day the rule 32 split applies to when the
 // install recorded none.
 const TTC_SPLIT_FALLBACK = '2026-11-01';
 
@@ -42,17 +42,17 @@ function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc,
     const inBalance = nz(row.touristTaxSoldeContribTtc);
     return round2(Math.min(Math.max(0, total - inDeposit - inBalance), cap));
   }
-  // specs/tourist-tax-on-solde.md — when the tax rides the pre-arrival schedule it is booked
+  // specs/tourist-tax/tourist-tax-on-solde.md — when the tax rides the pre-arrival schedule it is booked
   // ENTIRELY on the SOLDE, never the acompte. We force this regardless of the stored per-bucket
   // contribs: legacy reservations whose acompte flip captured a proportional tax share (before
   // this rule shipped) must still show 0 tax on the deposit and the full tax on the balance.
   // The balance CA is always ≥ the tax (balance = accommodation remainder + tax), so the
   // clamp is only a defensive guard.
-  // specs/platform-added-guests-tourist-tax.md rule 13 — the added guests' share is collected with the
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 13 — the added guests' share is collected with the
   // complement; the solde books what the platform reversed.
   const added = round2(nz(row.touristTaxAddedGuestsAmount));
   if (kind === 'deposit') return 0;
-  // specs/accounting-books-the-money-collected.md rule 13 — once the solde is paid, the tax it
+  // specs/accounting/accounting-books-the-money-collected.md rule 13 — once the solde is paid, the tax it
   // collected is frozen in `touristTaxSoldeContribTtc` (plus the share an older acompte captured,
   // reclassed here). A tax that rises afterwards never rewrites that entry: the growth is collected —
   // and booked — by the arrival complement. A solde paid before contribs existed, or whose contribs no
@@ -75,7 +75,7 @@ function computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComple
   const accommodationSolde   = nz(row.accommodationSoldeContribTtc);
   const accommodationTtcCurrent = perLineData.accommodationTtcCurrent;
 
-  // specs/tourist-tax-on-solde.md — the tax is booked 100 % on the solde. A legacy reservation
+  // specs/tourist-tax/tourist-tax-on-solde.md — the tax is booked 100 % on the solde. A legacy reservation
   // whose acompte flip captured a proportional tax share (`touristTaxAcompteContribTtc > 0`)
   // physically collected that tax with the deposit. To keep both entries bank-matched while the
   // tax line rides entirely on the balance, we reclass that share out of the tax line and into the
@@ -118,7 +118,7 @@ function computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComple
 }
 
 // `remainingMidStay` carries the share of each key sold DURING the stay: that money belongs to the
-// end-of-stay complement entry, never to this one (specs/mid-stay-extras-to-end-of-stay-complement.md).
+// end-of-stay complement entry, never to this one (specs/sas/mid-stay-extras-to-end-of-stay-complement.md).
 // It is CONSUMED as it is deducted, so two custom lines sharing a label (hence a key) split it
 // instead of each deducting the whole amount.
 function sumComplementContribution(lines, remainingMidStay = {}, isCustom = false) {
@@ -183,7 +183,7 @@ function bucketFromTtc(name, ttc, ratePercent) {
 }
 
 // The gross-up of a platform stay: what the guest actually paid against what the schedule stores, and the commission that
-// follows (specs/accounting-encaissement-effective-percent.md). Cut out of the entry builder, body unchanged.
+// follows (specs/accounting/accounting-encaissement-effective-percent.md). Cut out of the entry builder, body unchanged.
 function legacyGrossUp(row, { finalPriceTtc, touristTaxTotal, enteredCommissionTtc, adjustedComplementAuto }) {
   let effectiveGross;
   let commissionTtcTotal;
@@ -199,7 +199,7 @@ function legacyGrossUp(row, { finalPriceTtc, touristTaxTotal, enteredCommissionT
     // commission, e.g. prod #7) keep a ratio > 1 and gross up to the guest-paid total, as before.
     commissionTtcTotal = enteredCommissionTtc;
     effectiveGross = finalPriceTtc;
-    // specs/adjustable-complement-amounts.md §3.6 rule 37 — the gross-up exists to repair two
+    // specs/sas/adjustable-complement-amounts.md §3.6 rule 37 — the gross-up exists to repair two
     // HISTORICAL schedule shapes, not to react to an operator decision. An adjusted complement is a
     // deliberate deviation from the schedule, so the denominator keeps the complement the engine
     // produced: without this, lowering a complement would re-inflate its own entry AND the acompte
@@ -207,7 +207,7 @@ function legacyGrossUp(row, { finalPriceTtc, touristTaxTotal, enteredCommissionT
     const scheduledComplement = adjustedComplementAuto != null
       ? adjustedComplementAuto
       : (Number(row.complementAmount) || 0);
-    // specs/accounting-books-the-money-collected.md rules 1-2 — the end-of-stay complement is scheduled
+    // specs/accounting/accounting-books-the-money-collected.md rules 1-2 — the end-of-stay complement is scheduled
     // money too. Leaving it out made the denominator short by whatever was sold mid-stay, so every entry
     // of such a stay was grossed up by that amount (Marchand #22275: +29,42 € of CA, +25,47 € on the
     // client's debit) and cash-settled complements leaked back into the books through the same ratio.
@@ -235,13 +235,13 @@ function legacyGrossUp(row, { finalPriceTtc, touristTaxTotal, enteredCommissionT
   return { effectiveGross, commissionTtcTotal, grossRatio };
 }
 
-// specs/accountant-accounting-export.md rules 33 and 35 — the first payment day the rule 32 split applies
+// specs/accounting/accountant-accounting-export.md rules 33 and 35 — the first payment day the rule 32 split applies
 // to: the first day of the month after this version was installed (`ttcSplitFrom`, stored by the
 // plugin's migration). The months before were exported with HT and VAT prorated separately;
 // re-exporting them must give the accountant the same cents.
 // The HT and VAT an encaissement credits on one bucket, before the residue its last credit absorbs. Also read by
 // accountingModel: a cancellation netted of earlier refunds mirrors what the paid solde booked
-// (specs/payment-schedule-and-cancellation.md rule 55).
+// (specs/payments/payment-schedule-and-cancellation.md rule 55).
 function bookedBucketSplit(entry, bucket, splitFrom = TTC_SPLIT_FALLBACK) {
   const fraction = entry.fraction;
   const rate = Number(bucket.ratePercent) || 0;

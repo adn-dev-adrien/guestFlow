@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 40, 41bis — Réglages › Service: the week's ranges (at most three a day), the exception
+// specs/guest-app/guest-app.md rules 40, 41bis — Réglages › Service: the week's ranges (at most three a day), the exception
 // dates, the hours of one lodging, and « À retirer » that needs its pickup place.
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';

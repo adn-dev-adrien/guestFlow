@@ -46,12 +46,12 @@ const api = {
   cancelErase: (id) => request('POST', `/api/customers/${id}/cancel-erase`, {}),
   eraseNow: (id, confirmSlug) => request('POST', `/api/customers/${id}/erase`, { confirmSlug }),
   licenceUrl: (id) => `/api/customers/${id}/licence`,
-  // specs/hosting-h1-fleet-runtime.md rules 24, 29.
+  // specs/hosting/hosting-h1-fleet-runtime.md rules 24, 29.
   resendInvitation: (id) => request('POST', `/api/customers/${id}/invitation`, {}),
   resetAccess: (id) => request('POST', `/api/customers/${id}/reset-access`, {}),
   restartProcess: (id) => request('POST', `/api/customers/${id}/restart-process`, {}),
-  // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
-  // specs/plugin-operator-provisioning.md rules 10–14, 22 — the customer's modules.
+  // specs/hosting/hosting-h2-account-security.md rules 12-14 — support access with consent.
+  // specs/plugins/plugin-operator-provisioning.md rules 10–14, 22 — the customer's modules.
   customerModules: (id) => request('GET', `/api/customers/${id}/modules`),
   toggleModule: (id, pluginId, on, flags = {}) => request('POST', `/api/customers/${id}/modules/${pluginId}`, { on, ...flags }),
   eraseModule: (id, pluginId, action, confirmSlug) => request('POST', `/api/customers/${id}/modules/${pluginId}/erase`, { action, confirmSlug }),
@@ -73,7 +73,7 @@ const api = {
   saveTemplate: (key, body) => request('PUT', `/api/templates/${key}`, body),
   previewTemplate: (key, body) => request('POST', `/api/templates/${key}/preview`, body),
 
-  // specs/hosting-h1-fleet-runtime.md — the page « Versions » and the restore of a customer.
+  // specs/hosting/hosting-h1-fleet-runtime.md — the page « Versions » and the restore of a customer.
   versions: () => request('GET', '/api/fleet/versions'),
   checkVersions: () => request('POST', '/api/fleet/versions/check', {}),
   installRelease: (version) => request('POST', '/api/fleet/releases/install', { version }),
@@ -87,7 +87,7 @@ const api = {
   catalogueImpact: (draft) => request('POST', '/api/catalogue/impact', draft),
   saveCatalogue: (body) => request('PUT', '/api/catalogue', body),
 
-  // specs/plugins-phase-4-registry.md rule 8 — the plugin registry.
+  // specs/plugins/plugins-phase-4-registry.md rule 8 — the plugin registry.
   registry: () => request('GET', '/api/registry'),
   withdrawPackage: (id, version) => request('POST', `/api/registry/packages/${encodeURIComponent(id)}/${encodeURIComponent(version)}/withdraw`, {}),
   async uploadPackage(file) {

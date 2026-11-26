@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 5 — one notice says why there is no comparison; no text, no notice.
+ * specs/design-system/report-grammar.md §3 rule 5 — one notice says why there is no comparison; no text, no notice.
  */
 import React from 'react';
 import { render, screen } from '@testing-library/react';

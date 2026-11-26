@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 
 import PageActionBar from '../PageActionBar';
 
-// specs/reservation-page-action-bar.md + the « bandeau » centre slot: PageActionBar can render a
+// specs/reservations/reservation-page-action-bar.md + the « bandeau » centre slot: PageActionBar can render a
 // centered node (e.g. the reservation's client name + number) between the title and the actions.
 
 function renderBar(props = {}) {

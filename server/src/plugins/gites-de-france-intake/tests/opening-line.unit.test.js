@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 29 (audit R2, finding N4) — the mail must open with the centrale's
+// specs/platforms/gites-de-france-mail-intake.md rule 29 (audit R2, finding N4) — the mail must open with the centrale's
 // sentence; a relayed free text carrying a « nouvelle réservation » block is not an intake.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -4,8 +4,8 @@ import { vi } from 'vitest';
 
 import SettingsVatSection from '../SettingsVatSection';
 
-// specs/single-vat-rate.md — one stay VAT rate. The commission and cancellation-indemnity rates
-// moved to Plan comptable (specs/settings-rationalization.md rule 14).
+// specs/accounting/single-vat-rate.md — one stay VAT rate. The commission and cancellation-indemnity rates
+// moved to Plan comptable (specs/settings/settings-rationalization.md rule 14).
 
 test('renders the stay VAT rate only', () => {
   render(<SettingsVatSection values={{ rate: 5.5 }} onChange={vi.fn()} />);

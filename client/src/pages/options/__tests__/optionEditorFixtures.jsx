@@ -1,4 +1,4 @@
-// Shared by the OptionEditorPanel suites (specs/options-resources-ux.md). `vi.mock` stays in each file.
+// Shared by the OptionEditorPanel suites (specs/options/options-resources-ux.md). `vi.mock` stays in each file.
 import React from 'react';
 import { render } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

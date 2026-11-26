@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-19, loop t25 UI25-1) — a draft that cannot be asked (`enabled` false: an
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-19, loop t25 UI25-1) — a draft that cannot be asked (`enabled` false: an
 // amount emptied or unreadable; never a field that decides no amount, loop t26 UI26-1) holds no answer of its own: `useLatestPreview` gives `data` null unless the latest
 // answer is for the draft on screen, failed or not, so no screen draws an older draft's figures as current. Every screen that previews
 // through the hook (enumerated from the code below) is either a member — its draft stays on screen while it cannot be asked, and it shows

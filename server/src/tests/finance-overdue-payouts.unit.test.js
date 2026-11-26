@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 34 — « En retard » covers every own-channel stay
+// specs/accounting/finance-dashboard-redesign.md rule 34 — « En retard » covers every own-channel stay
 // (`isDirectChannel`, never `platform === 'direct'`) and the platforms' payouts that are late
 // (mega review #5, B2: « Aucun paiement en retard » while a Lodgify-as-direct solde and two platform
 // payouts were overdue).

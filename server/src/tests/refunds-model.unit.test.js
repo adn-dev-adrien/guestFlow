@@ -1,4 +1,4 @@
-// Remboursements — persistence + orchestration (specs/reservation-refunds.md §3.1, §3.3, §4.3).
+// Remboursements — persistence + orchestration (specs/payments/reservation-refunds.md §3.1, §3.3, §4.3).
 // The model against the real schema (header + lines in one transaction, cascades, the two total
 // readings), then the controller against stub deps (caps enforced, register refreshed).
 
@@ -36,7 +36,7 @@ const BREAKFASTS = {
   lines: [{ lineKey: 'opt:7', label: 'Petit-déjeuner', bucket: 'options', quantity: 2, unitPrice: 12, amountTtc: 24, vatRate: 10 }],
 };
 
-// specs/reservation-refunds.md rule 2
+// specs/payments/reservation-refunds.md rule 2
 test('create persists the header and its lines, and listByReservation reads them back', () => {
   const { model } = freshDb();
   const id = model.create(1, BREAKFASTS);
@@ -54,7 +54,7 @@ test('create persists the header and its lines, and listByReservation reads them
   );
 });
 
-// specs/reservation-refunds.md rule 1
+// specs/payments/reservation-refunds.md rule 1
 test('the sale is never touched by a refund', () => {
   const { db, model } = freshDb();
   const before = db.prepare('SELECT * FROM reservations WHERE id = 1').get();
@@ -205,7 +205,7 @@ test('the module exports real (req, res) handlers — the factory must not shado
   }
 });
 
-// specs/reservation-refunds.md rule 6 — un remboursement est IMMUABLE : il n'existe aucun verbe de
+// specs/payments/reservation-refunds.md rule 6 — un remboursement est IMMUABLE : il n'existe aucun verbe de
 // modification, et une correction est une suppression suivie d'une recréation. Le registre garde
 // ainsi la trace de ce qui a été fait plutôt qu'un montant réécrit sur place, comme les écritures
 // comptables auxquelles il correspond.
@@ -230,7 +230,7 @@ test('rule 6 — corriger un remboursement, c’est le supprimer et le refaire',
   assert.equal(redone.body.refundableLines.find((l) => l.key === 'opt:7').refundedTtc, 12);
 });
 
-// specs/reservation-refunds.md rule 15 — le verrou du passé ne s'applique PAS au registre : on
+// specs/payments/reservation-refunds.md rule 15 — le verrou du passé ne s'applique PAS au registre : on
 // rembourse presque toujours après coup, et souvent bien après la fin du séjour.
 test('rule 15 — une réservation passée reste remboursable', () => {
   const { controller } = stubbedController({

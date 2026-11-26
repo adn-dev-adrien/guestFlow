@@ -3,12 +3,12 @@
  *
  * Groups « Vacances scolaires » and « Fermetures » under one menu entry. The tabs are handed to the
  * active child, which passes them to its `PageActionBar`: centred in the bar on sm+, second row of
- * the same sticky block on xs (specs/ds-tabs.md rule 2). Only the active tab is mounted; standalone
+ * the same sticky block on xs (specs/design-system/ds-tabs.md rule 2). Only the active tab is mounted; standalone
  * routes (/school-holidays, /establishment-closures) are unaffected.
  *
  * « Fermetures » is core; the tabs before it come from plugin modules (slot `closures.tabs`,
- * specs/plugins-phase-1-sdk.md rule 13) — the school holidays. Without one, a single tab is no tab
- * (specs/plugins-phase-0-foundation.md rule 16).
+ * specs/plugins/plugins-phase-1-sdk.md rule 13) — the school holidays. Without one, a single tab is no tab
+ * (specs/plugins/plugins-phase-0-foundation.md rule 16).
  */
 
 import React, { useState } from 'react';

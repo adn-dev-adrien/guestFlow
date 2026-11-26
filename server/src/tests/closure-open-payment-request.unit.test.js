@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 40 and 41 — a closure is refused over a reservation, and over an open
+// specs/payments/payment-link-lifecycle.md rules 40 and 41 — a closure is refused over a reservation, and over an open
 // payment request (a devis or fiche with an open link on its nights), with the stays listed for the dialog; the
 // `conflicts` endpoint answers the same checks before Save.
 const test = require('node:test');

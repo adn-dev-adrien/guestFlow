@@ -1,6 +1,6 @@
 /**
  * Welcome pack — reconciling the server's lines into the reservation form
- * (specs/welcome-pack-auto-options.md §3.4).
+ * (specs/options/welcome-pack-auto-options.md §3.4).
  *
  * The server decides WHAT the pack is and whether it applies; this module only puts its lines into
  * `form.selectedOptions` and takes them back out. The whole thing hinges on one bit: a line the pack

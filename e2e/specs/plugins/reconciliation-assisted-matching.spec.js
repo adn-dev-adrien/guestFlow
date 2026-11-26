@@ -1,5 +1,5 @@
 // @ts-check
-// specs/reconciliation-assisted-matching.md rules 1–8 and 11–13 — « Rattacher des virements » on the fiche
+// specs/accounting/reconciliation-assisted-matching.md rules 1–8 and 11–13 — « Rattacher des virements » on the fiche
 // (plausible credits first, the search, two credits ticked at once, one gesture, the fiche marked received),
 // then the page's counters as filters and « Tout confirmer ». One file, serial: the specs share the seeded
 // bank connection, which is removed afterwards so the other specs see Qonto as not connected.

@@ -1,4 +1,4 @@
-// Shared fixtures of the « Réserver une séance » suites (specs/site-outside-resource-booking.md): the real scripts of the WordPress plugin, run in jsdom against a fake proxy that answers
+// Shared fixtures of the « Réserver une séance » suites (specs/site/site-outside-resource-booking.md): the real scripts of the WordPress plugin, run in jsdom against a fake proxy that answers
 // what GuestFlow answers. Not a test file. A suite keeps its own `vi.mock`-free setup: the block talks to `GF.api`, which `loadBlock` replaces.
 import fs from 'node:fs';
 import path from 'node:path';

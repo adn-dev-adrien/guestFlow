@@ -1,7 +1,7 @@
 /**
  * OneTimeCodeField — the field of a one-time code: a 6-digit code from an authenticator app or an
  * email, or a backup code (« k7m2p-x9q4r ») when `allowBackup` is set
- * (specs/hosting-h2-account-security.md rules 7, 32–34). Generic: the instance's login, « Mon compte »
+ * (specs/hosting/hosting-h2-account-security.md rules 7, 32–34). Generic: the instance's login, « Mon compte »
  * and the console's operator login use it.
  *
  * ONE native input (`autocomplete="one-time-code"`, `inputmode="numeric"`), transparent, laid over six

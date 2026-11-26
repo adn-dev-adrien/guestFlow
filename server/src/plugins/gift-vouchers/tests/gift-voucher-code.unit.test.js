@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 30, 32, 34 — the voucher code: alphabet, length, the check character, normalisation, the
+// specs/gift-vouchers/gift-vouchers.md rules 30, 32, 34 — the voucher code: alphabet, length, the check character, normalisation, the
 // HMAC key, the encrypted copy, and no code in clear in any row.
 const test = require('node:test');
 const assert = require('node:assert/strict');

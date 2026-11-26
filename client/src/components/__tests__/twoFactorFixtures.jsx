@@ -1,4 +1,4 @@
-// Shared fixtures of the « Validation en deux étapes » suites (specs/hosting-h2-account-security.md
+// Shared fixtures of the « Validation en deux étapes » suites (specs/hosting/hosting-h2-account-security.md
 // rules 38-53). Not a test file: each suite imports it and declares its own `vi.mock('../../api')`.
 import { vi } from 'vitest';
 

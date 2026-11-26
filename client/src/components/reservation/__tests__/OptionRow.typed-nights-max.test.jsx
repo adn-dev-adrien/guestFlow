@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 34 — the nights field of a per-night option stops at 366;
+// specs/options/non-card-option-served-persons.md rule 34 — the nights field of a per-night option stops at 366;
 // a stored count above it is shown as it is, and can only come down.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

@@ -2,7 +2,7 @@
 /**
  * NewReservationsAlert — dashboard card listing every reservation created during the last 24 hours.
  * Renders nothing when empty; each row links to the reservation page; refetches every
- * 5 minutes. See specs/dashboard-ical-new-reservations.md (amended 2026-10-06).
+ * 5 minutes. See specs/planning/dashboard-ical-new-reservations.md (amended 2026-10-06).
  */
 
 import React from 'react';
@@ -20,7 +20,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import NewReservationsAlert from '../NewReservationsAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'new-reservations', severity: 'info', count: 2, title: 'Nouvelles réservations', detail: 'Sur les dernières 24 h' };
 
 beforeEach(() => {
@@ -63,7 +63,7 @@ test('renders the card with the count + a row per reservation', async () => {
   expect(screen.getByText(/Marie Durand/)).toBeInTheDocument();
 });
 
-test('each row is a link to its fiche, back to the home (specs/mobile-dashboard-exercise-cash.md rule 6)', async () => {
+test('each row is a link to its fiche, back to the home (specs/planning/mobile-dashboard-exercise-cash.md rule 6)', async () => {
   api.getNewReservations.mockResolvedValue({ alerts: [row()] });
   render(<NewReservationsAlert attention={ATTENTION} />);
   const link = await screen.findByRole('link', { name: 'Ouvrir la fiche de Jean Dupont' });

@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing');
 
-// Manual deposit override (specs/editable-deposit-amount.md).
+// Manual deposit override (specs/payments/editable-deposit-amount.md).
 // When `depositAmountOverride` is a number, the engine must:
 //   - freeze the deposit at that value (clamped to [0, preArrival])
 //   - let balanceAmount absorb the rest of the pre-arrival total

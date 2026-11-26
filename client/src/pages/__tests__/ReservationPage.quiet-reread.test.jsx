@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 101 (readings 2026-11-16, loop t3 UI3-1..UI3-3) — the quiet re-read after a write of
+// specs/pricing/pricing-components.md rule 101 (readings 2026-11-16, loop t3 UI3-1..UI3-3) — the quiet re-read after a write of
 // « Ventes du séjour »: every field is inert while it is in flight, MUI selects included (a div the fieldset does not disable);
 // the summary keeps the last quote until the new one lands; a failed re-read keeps the page, read-only, with « Réessayer ».
 // Reading 2026-11-16 (loop t4 UI4-2): read-only after a failed re-read covers the mini-planning days too.

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 74 (commit « stay-level allocation backfill ») — a paid bucket the stay holds no
+// specs/pricing/pricing-components.md §3 rule 74 (commit « stay-level allocation backfill ») — a paid bucket the stay holds no
 // per-line truth for gets its stay-level rows through the legacy tax routing, so Σ allocations of a paid bucket is the bucket
 // on every stay of the price-gate fixture. Pure cases first (`legacyAllocations` with `stayLevel`), then the whole fixture.
 process.env.DB_PATH = ':memory:';

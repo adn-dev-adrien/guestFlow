@@ -1,4 +1,4 @@
-// specs/pricing-min-nights-per-range.md §6 rule 10 (2026-10-27 audit) — at 1280 the bar title read
+// specs/pricing/pricing-min-nights-per-range.md §6 rule 10 (2026-10-27 audit) — at 1280 the bar title read
 // « Gestion tarifaire - La Granja — gîte… » (cut, two kinds of dash) and the seasons table overflowed
 // its card by 36 px, clipping « Supprimer ». The name is now a caption beside the title, the amounts
 // align right, and the table's floor fits the 1280 content column.
@@ -33,7 +33,7 @@ import api from '../../api';
 import DialogProvider from '../../components/DialogProvider';
 import PropertyPricingSeasonsPage from '../PropertyPricingSeasonsPage';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 const TODAY = new Date('2026-08-12T10:00:00Z');

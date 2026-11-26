@@ -1,5 +1,5 @@
 /**
- * LazyPage — loads a page's code on demand, inside the shell (specs/inte-performance.md rules 2–3).
+ * LazyPage — loads a page's code on demand, inside the shell (specs/tech/inte-performance.md rules 2–3).
  *
  *   const ClientsPage = lazyPage(() => import('./pages/ClientsPage'));   // a core route element
  *   <LazyPage><PluginComponent /></LazyPage>                              // a plugin route (already React.lazy)
@@ -11,7 +11,7 @@
  *
  * Props of `LazyPage`: children (the lazy element, a core page or a plugin's). `lazyPage(loader)`
  * returns a component taking the page's own props, with `.preload()` to start its import early
- * (specs/inte-performance.md rule 10).
+ * (specs/tech/inte-performance.md rule 10).
  */
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import LoadingState from './LoadingState';

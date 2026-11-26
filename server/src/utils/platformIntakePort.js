@@ -1,6 +1,6 @@
 /**
  * Platform booking intake — the shape of the future `reservations.fromPlatform` port and the adapter that carries today's
- * SDK `reservations.update` for an intake patch through it (specs/pricing-components.md §3 rule 71, PR A).
+ * SDK `reservations.update` for an intake patch through it (specs/pricing/pricing-components.md §3 rule 71, PR A).
  *
  * Contract:
  *   toPlatformIntake(patch, { platform })  a patch of the fields the three intake plugins set (Booking, Airbnb, Gîtes de France),

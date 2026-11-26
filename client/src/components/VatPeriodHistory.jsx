@@ -1,5 +1,5 @@
 /**
- * VatPeriodHistory — the dated history of the VAT regime (specs/vat-optional-mode.md §6.1): one line per
+ * VatPeriodHistory — the dated history of the VAT regime (specs/accounting/vat-optional-mode.md §6.1): one line per
  * period, newest first, with the server's sentence, its tags (En vigueur / Prévu / Correction), its
  * author and date, and « Annuler ce changement » on an unused latest period. Specific to the VAT card:
  * a dated list of periods with a scope exists nowhere else.

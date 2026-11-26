@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-4, 2026-11-16) — a line the fiche's own save writes is stamped where the engine
+// specs/pricing/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-4, 2026-11-16) — a line the fiche's own save writes is stamped where the engine
 // put its money: beyond a settled plan (the arrival complement takes the excess) it reads « À payer à l’arrivée » and the arrival SAS lists it; above
 // the baseline of a started stay it reads « À payer au départ ». Stays booked 20 days ahead (`saleRound1Fixtures`, check-in 15:00).
 process.env.DB_PATH = ':memory:';

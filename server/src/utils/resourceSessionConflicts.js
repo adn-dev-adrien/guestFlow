@@ -1,9 +1,9 @@
 /**
  * Sessions of a stay that use a resource more times at once than it exists.
  *
- * - Within the stay (specs/plugins-phase-3c-hourly-resources.md rule 30): two baths placed on the same
+ * - Within the stay (specs/plugins/plugins-phase-3c-hourly-resources.md rule 30): two baths placed on the same
  *   hour of a stay whose resource has a quantity of 1 are a double booking.
- * - Against everything else using the resource (specs/hourly-resource-quantity-and-sas-scheduling.md
+ * - Against everything else using the resource (specs/resources/hourly-resource-quantity-and-sas-scheduling.md
  *   rule 28, « and vice versa »): an external booking or another stay's session on that slot counts
  *   too, turnover-aware, as it already does when an external booking is created over a session.
  *

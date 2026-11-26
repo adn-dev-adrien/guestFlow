@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 14 (audit R23) — under the npm test preload no client reaches a real Qonto host:
+// specs/tech/server-test-isolation.md rule 14 (audit R23) — under the npm test preload no client reaches a real Qonto host:
 // the dial is refused before any socket opens and the file fails, even when the code under test swallows the error.
 // The child processes run a script that never gets past the guard; a broken guard is caught by the first test.
 const test = require('node:test');

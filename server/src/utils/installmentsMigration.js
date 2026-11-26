@@ -1,5 +1,5 @@
 /**
- * Schema changes of the installment plan (specs/direct-installments.md §5). Idempotent: a database that
+ * Schema changes of the installment plan (specs/payments/direct-installments.md §5). Idempotent: a database that
  * already carries the new shape is left as it is, and the rebuilt tables keep every row one-to-one.
  *
  * SQLite cannot alter a CHECK or a primary key, so two tables are rebuilt (create new, copy, swap) inside
@@ -96,7 +96,7 @@ function migrateInstallmentsSchema(db) {
     if (tableSql(db, 'payment_links')) {
       db.exec('CREATE INDEX IF NOT EXISTS idx_payment_links_installment ON payment_links(installmentId)');
     }
-    // specs/direct-installments.md rule 47 — the accounting split frozen when the installment is collected.
+    // specs/payments/direct-installments.md rule 47 — the accounting split frozen when the installment is collected.
     if (tableSql(db, 'reservation_installments') && !columnsOf(db, 'reservation_installments').includes('paidSplit')) {
       db.exec('ALTER TABLE reservation_installments ADD COLUMN paidSplit TEXT');
     }

@@ -1,4 +1,4 @@
-// specs/public-online-payment.md rule 17 (audit R24 public finding 1) — before any link, `pay` judges the devis's own
+// specs/site/public-online-payment.md rule 17 (audit R24 public finding 1) — before any link, `pay` judges the devis's own
 // arrival and departure times against the neighbouring stays as the back office does: a neighbour booked since the
 // request on the arrival or the departure day, with the times now clashing, is 409 STAY_TIMES_UNAVAILABLE in the
 // visitor's language, and the provider is never called. It used to be paid in full, then converted with a conflict.

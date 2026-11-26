@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 75 and owner decision O-6 (loop t2 B2-5) — only a refund opened on the trop-perçu lowers it, so only that refund settles
+// specs/pricing/pricing-components.md rule 75 and owner decision O-6 (loop t2 B2-5) — only a refund opened on the trop-perçu lowers it, so only that refund settles
 // the `lineLowered` rows. A refund made on a line (the lowered one or another) leaves the trop-perçu where it was, and the register says the same: the row
 // stays open, at the trop-perçu.
 process.env.DB_PATH = ':memory:';

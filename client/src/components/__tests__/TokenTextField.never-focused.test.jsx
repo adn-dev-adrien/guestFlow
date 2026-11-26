@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 46 — « + Variable » on a field that never had a caret
+// specs/emails/guest-email-texts-made-simple.md rule 46 — « + Variable » on a field that never had a caret
 // appends the variable at the end, one space before it when the text does not end in one; once the
 // field has had a caret, the variable lands at the caret.
 import React, { useState } from 'react';

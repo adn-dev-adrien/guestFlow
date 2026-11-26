@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 38 — an archived customer is never served again by a step
+// specs/hosting/hosting-h1-fleet-runtime.md rule 38 — an archived customer is never served again by a step
 // retry, a rename, a restore or a second deprovision (audit R7 F2, F3, F3b; review of PR #892 R1, H2,
 // R2).
 

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 22 and 29 — SETTLEMENT alone: the lines routed to the arrival complement
+// specs/pricing/pricing-components.md §3 rules 22 and 29 — SETTLEMENT alone: the lines routed to the arrival complement
 // (`inComplement`), the mid-stay split with the notes already collected netted out, the live itemisation of the arrival
 // complement, the three amounts filed by the moment they are collected, and the deferral reading of a stored row. The old
 // modules re-export the same functions. No DB, plain objects.

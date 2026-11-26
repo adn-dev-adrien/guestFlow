@@ -1,4 +1,4 @@
-// Audit R5 (2026-10-30), specs/ui-review-2026-10-19-operations.md rule 39 — « Actualiser » reads the bank slowly; changing tab meanwhile must not let the
+// Audit R5 (2026-10-30), specs/design-system/ui-review-2026-10-19-operations.md rule 39 — « Actualiser » reads the bank slowly; changing tab meanwhile must not let the
 // late answer of the tab left take over the tab shown.
 import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';

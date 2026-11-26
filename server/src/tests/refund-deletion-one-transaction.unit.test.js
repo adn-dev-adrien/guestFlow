@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 119 and specs/reservation-refunds.md rule 6 (stabilisation loop t9, D9-3, 2026-11-16) — deleting a refund
+// specs/pricing/pricing-components.md §3 rule 119 and specs/payments/reservation-refunds.md rule 6 (stabilisation loop t9, D9-3, 2026-11-16) — deleting a refund
 // on the trop-perçu, reopening the `lineLowered` rows it settled and writing the rule-119 credit are ONE transaction. A failure on the way
 // (injected in the reopen) leaves the refund, its settled rows and their `noteCents` as they were. Before, the refund row was already gone
 // while the obligation stayed settled by it: note money read as refunded by a refund that no longer existed.

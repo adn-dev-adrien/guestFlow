@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-19, loop t26 UI26-1) — a field that decides no amount (an e-mail, a name, a
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-19, loop t26 UI26-1) — a field that decides no amount (an e-mail, a name, a
 // reason, « Enregistrer comme client ») never disables a money preview nor makes it refuse: typed key by key, it leaves the figures, the
 // payment and the typed tender lines on screen. Every screen that previews through the hook (enumerated from the code below) has its row:
 // the fields typed on it, or why none of its fields reaches the preview. A screen added to that list fails here until it has its row.

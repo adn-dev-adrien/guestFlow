@@ -1,6 +1,6 @@
-// specs/guest-app.md rules 23, 25 — which items a lodging's shop shows, and their free / included state, on the
+// specs/guest-app/guest-app.md rules 23, 25 — which items a lodging's shop shows, and their free / included state, on the
 // catalogue the pricing engine reads.
-// specs/plugins-phase-1-sdk.md rule 44 — `publicCatalogProjection`, `midStayExtrasWindow` and the `pricing` names the shop reads.
+// specs/plugins/plugins-phase-1-sdk.md rule 44 — `publicCatalogProjection`, `midStayExtrasWindow` and the `pricing` names the shop reads.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -237,7 +237,7 @@ test('rule 25: a 0 € item is limited per stay to its maxQuantity, across the o
   assert.equal(find(soldFor(db, stay), 'option', 2).includedLeft, null, 'a paid item has no allowance');
 });
 
-// specs/guest-app.md rule 11bis (2026-11-12) — the bath tile's prerequisite counts a « Tous les logements » bath too.
+// specs/guest-app/guest-app.md rule 11bis (2026-11-12) — the bath tile's prerequisite counts a « Tous les logements » bath too.
 test('rule 11bis: a sold hourly resource for « Tous les logements » counts in every lodging', () => {
   const db = freshDb();
   addResource(db, { id: 6, name: 'Bain nordique', lodgings: [] });

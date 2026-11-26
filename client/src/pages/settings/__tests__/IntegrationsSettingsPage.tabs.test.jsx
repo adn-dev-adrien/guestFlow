@@ -1,4 +1,4 @@
-// specs/integrations-tab-per-plugin.md rules 1–7 and 9–12 — Paramètres › Intégrations draws one tab
+// specs/plugins/integrations-tab-per-plugin.md rules 1–7 and 9–12 — Paramètres › Intégrations draws one tab
 // per plugin from the `settings.integrations` contributions, names the open tab in the URL, keeps a
 // draft across a switch and saves every dirty tab, stopping on the first refusal.
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';

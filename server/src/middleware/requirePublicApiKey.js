@@ -3,8 +3,8 @@ const { failT } = require('../controllers/public/publicHttp');
 
 /**
  * Public API authentication — server-to-server callers, each with its own shared secret. Distinct
- * from the admin session auth (requireAuth.js). See specs/public-api.md §3 rule 2 and
- * specs/roostview-api-key.md.
+ * from the admin session auth (requireAuth.js). See specs/site/public-api.md §3 rule 2 and
+ * specs/plugins/roostview-api-key.md.
  *
  * Two keys, read from the environment (provisioned/auto-generated at boot in index.js via localEnv):
  *   - `PUBLIC_API_KEY`    → the WordPress proxy: the whole `/public/v1` tree.

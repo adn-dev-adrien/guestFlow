@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 25 — a new hosted instance starts with what the console
+// specs/hosting/hosting-h1-fleet-runtime.md rule 25 — a new hosted instance starts with what the console
 // knows: its public address and the console's plugin registry (with the key its index is signed
 // with) in its environment, rewritten at every sync so a rename moves the address; and its
 // establishment seeded from the customer's record at the creation step.

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2 section 4) — the reconciliation's writes from a
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2 section 4) — the reconciliation's writes from a
 // valid proposal, one field wrong at a time: its refusal, never a throw (the routes' wrap would answer 500).
 const test = require('node:test');
 const assert = require('node:assert/strict');

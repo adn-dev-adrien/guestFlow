@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md — the instance side of the hosting: rule 9 (a managed instance
+// specs/hosting/hosting-h1-fleet-runtime.md — the instance side of the hosting: rule 9 (a managed instance
 // never updates itself), rules 18–20 (the platform's sender, its headers, an own SMTP that wins, the
 // daily quota) and H-D4 (the files an instance owns live outside a shared release). A self-hosted
 // install — no GUESTFLOW_MANAGED — must see no difference at all.

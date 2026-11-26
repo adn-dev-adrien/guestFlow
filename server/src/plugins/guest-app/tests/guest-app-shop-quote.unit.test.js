@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 23, 24, 25, 27, 27bis, 29, 30, 32, 37, 41 — `POST /public/v1/guest/orders/quote` and the
+// specs/guest-app/guest-app.md rules 23, 24, 25, 27, 27bis, 29, 30, 32, 37, 41 — `POST /public/v1/guest/orders/quote` and the
 // re-checks of `POST /orders` through the real routes: the quote is the fiche's own engine and writes nothing, the
 // sessions of one order are judged against each other and the planning, the breakfast's mornings and hour, the
 // delivery time of the staff-prepared items, and the input refused before anything reads it.

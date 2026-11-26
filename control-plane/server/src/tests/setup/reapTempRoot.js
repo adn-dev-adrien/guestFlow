@@ -1,5 +1,5 @@
 /**
- * specs/server-test-isolation.md rule 20 — the reaper of a control-plane test file's temp root (see fileTempRoot.js).
+ * specs/tech/server-test-isolation.md rule 20 — the reaper of a control-plane test file's temp root (see fileTempRoot.js).
  * `reap(root)` kills every live instance whose `instance.pid` (the `local` process driver's pid file) lies in the root,
  * then removes the root. Run as a script, it waits for its parent's IPC channel to close, then reaps.
  */

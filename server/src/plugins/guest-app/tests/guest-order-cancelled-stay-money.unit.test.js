@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 72, 88, 108, 109, 110 (loop t1 B-2, AG-4, AG-5, AG-6) — the money of a guest order on a cancelled stay is owed once: the cancellation
+// specs/guest-app/guest-app.md rules 72, 88, 108, 109, 110 (loop t1 B-2, AG-4, AG-5, AG-6) — the money of a guest order on a cancelled stay is owed once: the cancellation
 // opens no register row (rule 110 b, the refund dialog is its home) and leaves the gap row of a sale below its payment alone; a payment landing on an order cancelled with its stay is a conflict — never sold, even on a
 // stay restored since — shown « Payée · à rembourser ».
 const fx = require('./guestOrderFixtures');

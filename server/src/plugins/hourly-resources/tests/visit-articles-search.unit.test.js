@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 11 (C38) — « Autre article »: the mini SAS searches the articles sellable with no stay, for the administrator and the reception alike,
+// specs/sas/outside-booking-sas.md rule 11 (C38) — « Autre article »: the mini SAS searches the articles sellable with no stay, for the administrator and the reception alike,
 // each with its label and unit price from the Articles head; an article that needs a stay is never listed; a stay-bound booking has no mini SAS.
 const test = require('node:test');
 const assert = require('node:assert/strict');

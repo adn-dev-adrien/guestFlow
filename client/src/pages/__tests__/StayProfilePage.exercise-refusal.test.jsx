@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rule 31 — a refused exercise (`UNKNOWN_EXERCISE`, D-HC16) keeps the page alive and
+// specs/accounting/stay-profile.md §3 rule 31 — a refused exercise (`UNKNOWN_EXERCISE`, D-HC16) keeps the page alive and
 // offers « Exercice en cours », which asks again without the exercise; another refusal does not offer it.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

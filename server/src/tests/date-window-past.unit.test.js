@@ -1,9 +1,9 @@
-// specs/reservations-backend-mvc.md rule 13, second reading (Adrien's decision of 2026-11-02) — the date window
+// specs/tech/reservations-backend-mvc.md rule 13, second reading (Adrien's decision of 2026-11-02) — the date window
 // is [today − 5 years, today + 5 years], the Europe/Paris day, and the backend enforces it on every date an
 // operator enters: « Date trop ancienne : 5 ans au plus. » on the past side. Each path below accepts
 // today − 5 years and refuses the day before, accepts today + 5 years and refuses the day after, writes
 // nothing when it refuses, and never re-judges a date the row already stores.
-// Also cites specs/establishment-closures.md rule 18 and specs/finance-dashboard-redesign.md rule 51 (their
+// Also cites specs/pricing/establishment-closures.md rule 18 and specs/accounting/finance-dashboard-redesign.md rule 51 (their
 // past readings of 2026-11-02).
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');
@@ -189,7 +189,7 @@ test('rule 13: a payment mark, an arrival payment and an installment payment dat
   assert.equal(String(f.rowOf(id).depositPaidDate).slice(0, 10), S);
 });
 
-test('specs/mid-stay-notes.md + rule 13: re-dating a settled note before the window is refused, its stored date kept', () => {
+test('specs/sas/mid-stay-notes.md + rule 13: re-dating a settled note before the window is refused, its stored date kept', () => {
   const id = f.createStay({ startDate: f.inDays(640), endDate: f.inDays(643) });
   const notes = [{ id: 1, paidDate: before, total: 10, items: [] }];
   f.db.prepare('UPDATE reservations SET midStaySettledNotes = ? WHERE id = ?').run(JSON.stringify(notes), id);
@@ -203,7 +203,7 @@ test('specs/mid-stay-notes.md + rule 13: re-dating a settled note before the win
   assert.notEqual(redate(before).statusCode, 400);
 });
 
-test('specs/direct-installments.md rule 11 + rule 13: an installment due date is a real day, not past the horizon', () => {
+test('specs/payments/direct-installments.md rule 11 + rule 13: an installment due date is a real day, not past the horizon', () => {
   const plan = [{ id: 1, number: 1, dueDate: TODAY }, { id: 2, number: 2, dueDate: addDaysToIsoDate(H, -10) }];
   const validate = (dueDate) => installmentPlan.validateDate({ installments: plan, index: 1, dueDate, today: TODAY, startDate: addDaysToIsoDate(H, 30) });
   assert.equal(validate(H), null);
@@ -345,7 +345,7 @@ test('rule 13: PUT /devis keeps a stored validUntil set before the window', () =
 });
 
 // Review of PR #938, F5 — a payment mark sent back with the date it already stores is not re-judged by the window:
-// it meets « already perceived » instead (specs/reservation-payment-ledger.md rule 38).
+// it meets « already perceived » instead (specs/payments/reservation-payment-ledger.md rule 38).
 test('reservation-payment-ledger rule 9 + rule 13: a paid date the row already stores is not re-judged by the window', () => {
   const id = f.createStay({ startDate: f.inDays(660), endDate: f.inDays(663) });
   f.db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run(before, id);

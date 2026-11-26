@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 5, 6, 17, 27, 44 — the price of a composed voucher comes from the pricing engine only, for the outside customer: the band's
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 5, 6, 17, 27, 44 — the price of a composed voucher comes from the pricing engine only, for the outside customer: the band's
 // external rate, the resource's following-hours rate (extra time continues the ranks of the included minutes), each option at its catalogue price, the
 // outside VAT of each line's class. Nothing is stored by the campaign, nothing is written by a price, a campaign the engine cannot price is not offered.
 process.env.DB_PATH = ':memory:';

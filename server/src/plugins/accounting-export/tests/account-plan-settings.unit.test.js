@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.F rules 27–29 — the account plan as settings of the
+// specs/plugins/plugins-phase-p-productisation.md §3.F rules 27–29 — the account plan as settings of the
 // export: today's numbers by default, validated, the CSV byte-identical with the defaults, and every
 // line on the plan's numbers once changed.
 

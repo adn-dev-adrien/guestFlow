@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 49 (stabilisation loop t1, B-1 accounting part; completes rules 25, 30, 44) and specs/pricing-components.md rules 63,
+// specs/sas/outside-booking-sas.md rule 49 (stabilisation loop t1, B-1 accounting part; completes rules 25, 30, 44) and specs/pricing/pricing-components.md rules 63,
 // 74 — « Marquer remboursé » on a document's `lineLowered` row writes the money given back as refund allocations, and the journal books the document's
 // avoir on that day: the revenue and the VAT of the refunded line leave the books, the caisse interne stays off them, nothing is owed or refunded twice.
 process.env.DB_PATH = ':memory:';

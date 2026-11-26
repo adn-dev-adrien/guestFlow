@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 9 — the licence the console issues: its fields, its
+// specs/hosting/control-plane-plans-and-access.md rule 9 — the licence the console issues: its fields, its
 // signature verified by the instance's own reader (rule 30), its atomic delivery to the instance's
 // data directory, and the download when that directory does not exist yet.
 

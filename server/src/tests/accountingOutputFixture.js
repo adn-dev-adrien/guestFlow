@@ -1,4 +1,4 @@
-// Shared fixture: the accounting output of a database as the replay of specs/pricing-components.md §3 rules 63-65 hashes it — every
+// Shared fixture: the accounting output of a database as the replay of specs/pricing/pricing-components.md §3 rules 63-65 hashes it — every
 // month CSV (latin-1 bytes as the route writes them), sales JSON and platforms preview of 2025-2028, and the synthesis windows.
 // Its callers skip without the accounting-export plugin (`skipWithout`).
 const crypto = require('crypto');

@@ -1,6 +1,6 @@
 /**
  * « Textes des emails » — the single page, the file and the translator
- * (specs/guest-email-texts-made-simple.md rules 9–12, 16–20).
+ * (specs/emails/guest-email-texts-made-simple.md rules 9–12, 16–20).
  *
  *   GET  /api/email-texts?propertyId=        { sections, properties, propertyId, canTranslate }
  *   PUT  /api/email-texts                    { changes: { [key]: { fr?, en? } } } → 200 | 422 { key, field, message }
@@ -50,7 +50,7 @@ function buildController({ database, translator = textTranslator }) {
   function save(req, res) {
     const raw = (req.body && req.body.changes) || {};
     const entries = Object.entries(raw);
-    // specs/hosting-h2-account-security.md rule 68 — a null reads as not sent, any other wrong type is refused.
+    // specs/hosting/hosting-h2-account-security.md rule 68 — a null reads as not sent, any other wrong type is refused.
     for (const [key, v] of entries) {
       const field = ['fr', 'en'].find((lang) => v && !isOptionalText(v[lang]));
       if (field) return res.status(422).json({ key, field, message: 'Texte attendu.' });

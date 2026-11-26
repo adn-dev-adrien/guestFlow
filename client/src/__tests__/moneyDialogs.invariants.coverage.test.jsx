@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26) — the generative harness covers every money dialog, read from the code: every file that
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26) — the generative harness covers every money dialog, read from the code: every file that
 // previews money through the shared hook (or one built on it), draws tender lines or commits a report of them, or renders a sale block.
 // A file added to that set fails here until a family of `moneyDialogs.invariants.*.test.jsx` drives it.
 import fs from 'fs';

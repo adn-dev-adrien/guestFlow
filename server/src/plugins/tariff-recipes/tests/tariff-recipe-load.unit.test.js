@@ -6,7 +6,7 @@ const path = require('path');
 
 const { createRecipeStore, validateRecipe } = require('../store');
 
-// specs/tariff-recipes/spec.md §3.5 rules 26-27 — two sources (bundled then local, local overrides
+// specs/pricing/tariff-recipes.md §3.5 rules 26-27 — two sources (bundled then local, local overrides
 // by id), per-file failure isolation, a missing data directory is not an error.
 
 const MINIMAL = {

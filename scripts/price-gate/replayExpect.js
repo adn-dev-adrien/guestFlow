@@ -1,5 +1,5 @@
 /**
- * The `--expect` file of `scripts/pricing-replay.mjs` (specs/pricing-components.md §3 rule 81).
+ * The `--expect` file of `scripts/pricing-replay.mjs` (specs/pricing/pricing-components.md §3 rule 81).
  *
  * The file is a JSON array `[{ "key": "<artefact key>", "reason": "<why it moves>", "rule": "<rule or decision>" }]`.
  * `classifyReplay(before, after, expect)` splits the replay's differences into the expected ones (their key is

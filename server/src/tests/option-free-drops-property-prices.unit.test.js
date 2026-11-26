@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 35 (audit R26-DB-1, 2026-11-06) — through the real application: an option saved as « free »
+// specs/options/options-resources-ux.md rule 35 (audit R26-DB-1, 2026-11-06) — through the real application: an option saved as « free »
 // (or per-participant progressive) holds no per-logement price, whether the body sends `propertyPrices` or not, so the quote
 // stops billing the old one at once. A row holding free units keeps the tariff
 // recipes' free-units refusal (422), nothing written.

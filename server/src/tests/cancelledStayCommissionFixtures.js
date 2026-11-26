@@ -1,5 +1,5 @@
-// Shared fixtures of the cancelled-stay commission suites (specs/payment-schedule-and-cancellation.md rule 55 and
-// specs/reservation-refunds.md rule 48, readings of 2026-11-02): a direct stay collected through a payment provider,
+// Shared fixtures of the cancelled-stay commission suites (specs/payments/payment-schedule-and-cancellation.md rule 55 and
+// specs/payments/reservation-refunds.md rule 48, readings of 2026-11-02): a direct stay collected through a payment provider,
 // cancelled, its register and the net balance of every account the export books.
 const fs = require('node:fs');
 const path = require('node:path');

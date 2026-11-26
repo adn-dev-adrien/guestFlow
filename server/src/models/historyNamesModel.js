@@ -4,7 +4,7 @@
  * `reservation_history` stores raw ids (option, resource, property, client); the read side resolves
  * them to names so the diff reads « Logement : Le Nid → La Grange » instead of « Logement : 3 → 5 ».
  * Kept apart from reservationsModel / devisModel because both need the exact same four maps.
- * See specs/reservation-history-granular-diff.md §4.1.
+ * See specs/reservations/reservation-history-granular-diff.md §4.1.
  */
 
 function buildHistoryNameContext(database) {

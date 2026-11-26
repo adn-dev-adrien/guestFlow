@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 39 — a plugin contribution that throws, or whose lazy chunk
+// specs/plugins/plugins-phase-4-registry.md rule 39 — a plugin contribution that throws, or whose lazy chunk
 // is gone after an update, never takes the page down: it renders nothing (and is logged), or a
 // small « Recharger » prompt for a stale bundle. The other contributions keep rendering.
 import React, { lazy } from 'react';

@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 7, 39, 40 and reception-role-checkin-only rule 17 (end review R3-1, R3-2, R3-16) — withdrawing or e-mailing
+// specs/sas/outside-booking-sas.md rules 7, 39, 40 and reception-role-checkin-only rule 17 (end review R3-1, R3-2, R3-16) — withdrawing or e-mailing
 // the visit's link is a write: the reception inside the day window only, nobody on a no-show visit. The counter collecting the whole reste withdraws
 // the open link (nothing left to pay twice).
 const test = require('node:test');

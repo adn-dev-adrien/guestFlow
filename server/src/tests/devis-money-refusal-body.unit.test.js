@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 19 (reading of 2026-11-05, audit R23-7) — a devis's money refusal answers what
+// specs/tech/reservations-backend-mvc.md rule 19 (reading of 2026-11-05, audit R23-7) — a devis's money refusal answers what
 // the stay's answers: French text and its code, never the raw code as the error.
 const test = require('node:test');
 const assert = require('node:assert/strict');

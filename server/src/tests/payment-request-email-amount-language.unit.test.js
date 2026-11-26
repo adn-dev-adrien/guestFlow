@@ -1,4 +1,4 @@
-// specs/email-language-fr-en.md rule 11 (adversarial review of the 2026-10-27 fixes) — the payment
+// specs/emails/email-language-fr-en.md rule 11 (adversarial review of the 2026-10-27 fixes) — the payment
 // request e-mail wrote {{paymentAmount}} with the French invoice formatter (« 1234,56 € », always
 // « ,00 ») over the context builder's own amount, so an English guest read « 1234,56 € » and a French
 // one « 1240,00 € » beside « 300 € ». The amount the link charges now travels as euros and is written

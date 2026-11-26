@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md — the subscription state machine: rule 14 (states and
+// specs/hosting/control-plane-plans-and-access.md — the subscription state machine: rule 14 (states and
 // their day boundaries, with the 7-day monthly / 30-day yearly `due` window), rule 15 (a renewal
 // extends from the end, or from today once the end is past) and rule 19 (« Remettre en actif »
 // until a date).

@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 48 (verification R36b L3) — the sign guard binds only on lines of a
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 48 (verification R36b L3) — the sign guard binds only on lines of a
 // few cents, where the quarter-euro sweep of invoice-issuer-folded-signs never reaches: every non-discount line stays at
 // 1 cent HT or more, the folded fallback's « Arrondi de TVA » line is positive, the discount stays at −1 cent or less, and
 // the total Qonto computes is the total charged (a charged total the positive lines cannot reach is refused, null). Kills the reviewer's mutants M18 (sign filter removed), M20 (folded

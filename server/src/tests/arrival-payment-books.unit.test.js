@@ -1,4 +1,4 @@
-// specs/arrival-payment-detail-and-adjustment.md §3.3-§3.4 — what a réduction accordée (or a
+// specs/sas/arrival-payment-detail-and-adjustment.md §3.3-§3.4 — what a réduction accordée (or a
 // pourboire) on the single arrival payment does to the money.
 //
 // The design under test: the réduction is modelled on the REFUND, not on the price. No bucket amount
@@ -45,7 +45,7 @@ function createDb() {
     CREATE TABLE property_resource_prices (propertyId INTEGER, resourceId INTEGER, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId));
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
     CREATE TABLE reservations (
-      -- specs/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
+      -- specs/site/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
       requestOrigin TEXT, attributionChannel TEXT, devisStatus TEXT, createdAt TEXT,
       id INTEGER PRIMARY KEY, propertyId INTEGER, clientId INTEGER, kind TEXT DEFAULT 'reservation',
       startDate TEXT, endDate TEXT, checkInTime TEXT DEFAULT '15:00', checkOutTime TEXT DEFAULT '10:00',
@@ -126,7 +126,7 @@ test('no adjustment: the books are exactly what the buckets say', () => {
   assert.equal(s.totalCollected, 500);
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 20
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 20
 test('a réduction accordée lowers BOTH the total du séjour and the encaissé', () => {
   // 500 € annoncés, 450 € remis : l'opérateur a gagné 450 €, et c'est ce que la banque montre.
   const s = summaryOf(insertPayment(freshDb(), { arrivalPaymentReduction: 50 }));
@@ -134,14 +134,14 @@ test('a réduction accordée lowers BOTH the total du séjour and the encaissé'
   assert.equal(s.totalCollected, 450);
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 21
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 21
 test('a pourboire raises both', () => {
   const s = summaryOf(insertPayment(freshDb(), { arrivalPaymentTip: 20 }));
   assert.equal(s.revenueTotal, 520);
   assert.equal(s.totalCollected, 520);
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 19
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 19
 test('the invariant holds: encaissé + reste à payer = total du séjour', () => {
   // Le séjour est soldé, donc reste = 0 : les deux figures doivent rester égales APRÈS la réduction.
   // C'est tout l'intérêt de ne toucher aucun seau — `remainingToPay` n'a rien à apprendre.
@@ -149,7 +149,7 @@ test('the invariant holds: encaissé + reste à payer = total du séjour', () =>
   assert.equal(round2(s.totalCollected + 0), s.revenueTotal);
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 27
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 27
 test('a caisse-interne group is off the books WHOLE — réduction included', () => {
   // Ses seaux ne comptent déjà pour rien ; soustraire la réduction rendrait l'encaissé négatif sur de
   // l'argent qui n'est jamais entré dans les livres.
@@ -166,7 +166,7 @@ test('a caisse-interne group is off the books WHOLE — réduction included', ()
 
 // ── The journal ──────────────────────────────────────────────────────────────
 
-// specs/arrival-payment-detail-and-adjustment.md rule 24
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 24
 test('the réduction is its own balanced entry, debited on 70900000', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), { arrivalPaymentReduction: 50 }));
   const discount = entries.find((e) => e.kind === 'discount');
@@ -190,7 +190,7 @@ test('the sale entries keep their GROSS credits — the rebate is a line, not a 
   assert.equal(card.balanced, true);
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 25
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 25
 test('the pourboire is its own entry, hors TVA, on the produit divers', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), { arrivalPaymentTip: 20 }));
   const tip = entries.find((e) => e.kind === 'tip');
@@ -204,7 +204,7 @@ test('the pourboire is its own entry, hors TVA, on the produit divers', { skip: 
   assert.equal(card.lines.filter((l) => l.compte.startsWith('44571')).length, 0, 'un don n’est pas taxable');
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 26
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 26
 test('both are stamped with the payment group, so the Comptabilité shows ONE card', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), { arrivalPaymentReduction: 50 }));
   const ids = new Set(entries.map((e) => e.paymentGroup?.id));
@@ -234,7 +234,7 @@ test('an adjustment whose group is dated in another month does not leak into thi
 
 // ── L'ajustement ne touche NI les seaux NI le prix (règles 18, 22) ────────────
 
-// specs/arrival-payment-detail-and-adjustment.md rule 18 — aucun montant de seau, aucun prix ne
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 18 — aucun montant de seau, aucun prix ne
 // bouge : c'est ce qui distingue cette réduction d'un re-calcul, et ce qui la rend applicable à un
 // échéancier déjà gelé.
 test('une réduction ne réécrit aucun montant : les seaux et le prix sont intacts', () => {
@@ -244,7 +244,7 @@ test('une réduction ne réécrit aucun montant : les seaux et le prix sont inta
   assert.deepEqual(r, { balanceAmount: 400, complementAmount: 100, finalPrice: 500, totalPrice: 500 });
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 22 — le total est ce que le client a remis :
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 22 — le total est ce que le client a remis :
 // Σ seaux − réduction + pourboire.
 test('le total remis est la somme des seaux, moins la réduction, plus le pourboire', () => {
   const bucketsTotal = 500;
@@ -254,7 +254,7 @@ test('le total remis est la somme des seaux, moins la réduction, plus le pourbo
   }
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 28 — l'export du comptable gagne les deux
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 28 — l'export du comptable gagne les deux
 // écritures. C'est le changement de forme qu'il faut lui annoncer : le vérifier ici, c'est vérifier
 // ce qui atterrit réellement dans son fichier.
 test('le CSV du comptable porte la remise et le pourboire', { skip: skipWithout(['accounting-export']) }, async () => {

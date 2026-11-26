@@ -1,4 +1,4 @@
-// specs/guest-app.md §6.4 — every bottom sheet (and the centred dialog it becomes from 900 px) has a visible
+// specs/guest-app/guest-app.md §6.4 — every bottom sheet (and the centred dialog it becomes from 900 px) has a visible
 // « Fermer » button with an accessible name; focus stays in the sheet.
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

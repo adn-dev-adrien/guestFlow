@@ -29,7 +29,7 @@ const DDL = `
   );
 `;
 
-// specs/resource-supplements-total-server-side.md rule 2 — the total is `priceBooking(draft).total`.
+// specs/resources/resource-supplements-total-server-side.md rule 2 — the total is `priceBooking(draft).total`.
 function priced(model, resourceId, { startTime, endTime, propertyId, bookingId }) {
   return model.priceBooking({ resourceId, date: `${FAR_YEAR}-06-01`, startTime, endTime, propertyId, bookingId }).total;
 }
@@ -74,7 +74,7 @@ test('priceBooking total: per_stay returns the flat price, free returns 0', () =
   assert.equal(priced(free.model, free.resourceId, { startTime: '10:00', endTime: '12:00' }), 0);
 });
 
-// specs/resource-hourly-scheduling.md §3.5 — time-banded grid + external/guest rate selection.
+// specs/resources/resource-hourly-scheduling.md §3.5 — time-banded grid + external/guest rate selection.
 test('priceBooking total: hourly-scheduled uses the banded grid; external vs guest rate', () => {
   const { model, db, resourceId } = freshModel({
     priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,

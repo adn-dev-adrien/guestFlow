@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { formFromResource, toResourcePayload, validateResourceForm } from '../resourceForm';
 
-// specs/site-outside-resource-booking.md rule 25 — « Personnes par séance au plus » on a resource shown on the planning (NULL = no limit set: the site allows 20).
+// specs/site/site-outside-resource-booking.md rule 25 — « Personnes par séance au plus » on a resource shown on the planning (NULL = no limit set: the site allows 20).
 const banded = {
   name: 'Bain nordique', quantity: 1, price: 30, priceType: 'per_hour', isComplex: true, showsPlanningCard: true, propertyIds: [], propertyPricing: {},
   slotDuration: 60, minimumUsageMinutes: 60, openTime: '10:00', closeTime: '22:00', openDays: [1, 2, 3],

@@ -1,4 +1,4 @@
-// specs/spec-rule-coverage.md rule 17 (audit R23-S1, 2026-11-05) — a rule number used twice in a spec's §3 is refused: a test
+// specs/tech/spec-rule-coverage.md rule 17 (audit R23-S1, 2026-11-05) — a rule number used twice in a spec's §3 is refused: a test
 // citing it covers both, and a rule added under a taken number passed the gate with no test of its own.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// Fiscal-year arithmetic — pure helpers, no DB, no clock (specs/fiscal-year-and-nights-sold.md §3.1).
+// Fiscal-year arithmetic — pure helpers, no DB, no clock (specs/accounting/fiscal-year-and-nights-sold.md §3.1).
 //
 // The operator declares a CLOSING MONTH (1..12). The exercise ends on the last day of that month and
 // starts on the first day of the following one: closing September → 1 Oct … 30 Sep of the next year.

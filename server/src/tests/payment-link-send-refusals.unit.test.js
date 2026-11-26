@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 26 (review of #897) — a request e-mail always carries a valid link:
+// specs/payments/payment-link-lifecycle.md rule 26 (review of #897) — a request e-mail always carries a valid link:
 // without one the request is refused, not mailed with « en ligne : » and an empty end; and a send that
 // cannot leave (no address, no SMTP) is refused before a link is minted for it.
 

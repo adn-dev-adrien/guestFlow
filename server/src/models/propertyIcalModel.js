@@ -38,7 +38,7 @@ const notificationService = require('../utils/notificationService');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const { fetchPublic, readCapped, MAX_FEED_BYTES, FeedFetchError } = require('../utils/safeFeedFetch');
 const { removeOrphanIcalPlaceholders, removeOrphanIcalImportClients } = require('../utils/icalPlaceholderClientsMigration');
-// Establishment closures (2026-06-06, narrowed 2026-10-27 — specs/lodgify-decommission.md §3 rule 17):
+// Establishment closures (2026-06-06, narrowed 2026-10-27 — specs/platforms/lodgify-decommission.md §3 rule 17):
 // the iCal sync inserts without `validateAvailability`, so it checks the closures itself. A new event
 // entirely inside a closure is the closure's own echo and is skipped (counted in the sync result); a
 // partial overlap or a known stay moved onto a closure is imported and flagged in conflict.
@@ -46,7 +46,7 @@ const establishmentClosuresModel = require('./establishmentClosuresModel');
 const { hasLineId } = require('../utils/lineRowTarget');
 const { markReadsSaleLines } = require('../utils/saleLinesReaders');
 
-// specs/ical-import-hardening.md rule 4 — a platform that accepts the connection and never answers
+// specs/platforms/ical-import-hardening.md rule 4 — a platform that accepts the connection and never answers
 // used to hold the sync for Node's 5-minute default, and every source queued behind it.
 const FETCH_TIMEOUT_MS = 20000;
 
@@ -54,7 +54,7 @@ const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, p
   collectsTouristTax, touristTaxRemittedByPlatform, disabled,
   lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount, createdAt, updatedAt`;
 
-// specs/per-platform-tourist-tax-three-way.md §3 rule 1 — derive the two stored booleans
+// specs/tourist-tax/per-platform-tourist-tax-three-way.md §3 rule 1 — derive the two stored booleans
 // (collectsTouristTax + touristTaxRemittedByPlatform) from the single 3-way `touristTaxCollection`
 // the client sends ('platform' | 'platform_reversed' | 'owner'). Falls back to the legacy
 // `collectsTouristTax` boolean (+ optional remittedByPlatform) when the 3-way value is absent, then to
@@ -97,7 +97,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
   // production DB; tests build a fresh property-ical model on `:memory:`, and they need
   // matching companion models).
   const syncsInFlight = new Map();
-  // specs/ical-sync-mapping-resilience.md rule 8 — per source: when the fetch behind the last observation
+  // specs/platforms/ical-sync-mapping-resilience.md rule 8 — per source: when the fetch behind the last observation
   // we consumed started, and when the last empty answer we counted finished.
   const lastObservedStart = new Map();
   const lastEmptyCompletedAt = new Map();
@@ -109,7 +109,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
   // bound to the prod DB; `.create(database)` returns a fresh instance bound to ours.
   const closuresModel = establishmentClosuresModel.create(database);
 
-  // specs/ical-import-hardening.md rule 1 — a stay whose summary names nobody gets a placeholder client of
+  // specs/platforms/ical-import-hardening.md rule 1 — a stay whose summary names nobody gets a placeholder client of
   // its own. One shared placeholder per feed (« Closed Not available » behind every Booking stay) meant
   // that writing a guest onto one fiche wrote it onto all of them.
   function getOrCreateIcalClient(guestName, platformLabel) {
@@ -146,7 +146,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
     const platformKeyInput = String(body.platformKey ?? existing?.platformKey ?? '').trim();
     const platformLabelInput = String(body.platformLabel ?? existing?.platformLabel ?? '').trim();
     const normalizedPlatformKey = normalizePlatformKey(platformKeyInput || platformLabelInput);
-    // specs/normalize-platform-names.md §3.2 — `platformLabel` lands in `ical_sources.platformLabel`
+    // specs/platforms/normalize-platform-names.md §3.2 — `platformLabel` lands in `ical_sources.platformLabel`
     // and is propagated to `platforms.name` via the upsert hook below + `reservations.platform`
     // on every iCal-imported booking. Normalize to UpperCamelCase here so the entire chain sees
     // the canonical form (and the case-different duplicates that surfaced on the 2026-06-04
@@ -165,7 +165,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
     // carry it) unless the body sends another.
     const platformKey = !existing && platformLabel ? normalizePlatformKey(platformLabel) : normalizedPlatformKey;
 
-    // specs/platforms-and-ical-rework.md §3 rule 7 — the URL iCal is now OPTIONAL: empty ⇒ no sync
+    // specs/platforms/platforms-and-ical-rework.md §3 rule 7 — the URL iCal is now OPTIONAL: empty ⇒ no sync
     // (the operator enters that platform's bookings manually). Only validate the format when present.
     if (url && !/^https?:\/\//i.test(url)) return { error: 'URL iCal invalide (http(s) requis).' };
     if (!normalizedPlatformKey) return { error: 'La plateforme est requise.' };
@@ -183,7 +183,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       ? (existing ? Number(existing.disabled) || 0 : 0)
       : (body.disabled === true || body.disabled === 1 ? 1 : 0);
 
-    // specs/lodgify-decommission.md §3 rule 16 — the feed calls every stay « CLOSED - Not available ».
+    // specs/platforms/lodgify-decommission.md §3 rule 16 — the feed calls every stay « CLOSED - Not available ».
     // Kept on an edit that does not send it; a new source starts from the platform's spelling.
     const feedMarksStaysClosed = body.feedMarksStaysClosed === undefined
       ? (existing && existing.feedMarksStaysClosed !== undefined && existing.feedMarksStaysClosed !== null
@@ -234,7 +234,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       if (!property) return { error: 'Logement non trouvé', status: 404 };
       const input = resolveSourceInput(body);
       if (input.error) return { ...input, status: 400 };
-      // Configure-on-demand (specs/platforms-and-ical-rework.md §3 rule 3): one row per
+      // Configure-on-demand (specs/platforms/platforms-and-ical-rework.md §3 rule 3): one row per
       // (property, platform). If this property already has a source for the platform, UPDATE it
       // instead of inserting a duplicate — so toggling tax then setting a URL both land on one row.
       // Matched by slug on the key or the label, like `listForProperty`: `gites-de-france` and
@@ -296,7 +296,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
     },
 
     // The canonical anti-overbooking sync engine — moved verbatim. Do not change the algorithm.
-    // specs/ical-import-hardening.md rules 4-5 — the feed's text, or an error the source line can show.
+    // specs/platforms/ical-import-hardening.md rules 4-5 — the feed's text, or an error the source line can show.
     // Bounded in time, and refused unless the document is complete: a cut-off feed would read every
     // event it lost as a cancellation.
     async fetchFeed(source) {
@@ -381,14 +381,14 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         if (isSuperseded()) return { ...staleResult(), skipped: 'source changed' };
         if (isStale()) return staleResult();
         lastObservedStart.set(source.id, observation.startedAt);
-        // specs/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night
+        // specs/platforms/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night
         // « CLOSED - Not available », real reservations included: keep them, the cover check flags the overlaps.
         // Rule 16 — which feed does so is the source's own setting, not the slug `booking`: under
         // `booking-com` every stay used to be dropped, then cancelled by the empty-feed sweep.
         const isBookingFeed = sourceMarksStaysClosed(source);
         const events = parseIcsEvents(icsText, { keepUnavailable: isBookingFeed });
 
-        // Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rules 3-4). A feed that
+        // Empty-feed guard (specs/platforms/ical-sync-mapping-resilience.md §3 rules 3-4). A feed that
         // suddenly parses to 0 events while this source still holds mappings would wipe the whole
         // UID→reservation memory in one sweep (2026-07-21 GdF incident: one degenerate 200 →
         // 11 duplicates on the next sync). Only trust the emptiness from the 2nd consecutive
@@ -428,7 +428,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           ORDER BY iie.lastSeenAt DESC
           LIMIT 1
         `);
-        // specs/ical-summary-fallback-cross-uid.md — step 3.5 in the matching cascade.
+        // specs/platforms/ical-summary-fallback-cross-uid.md — step 3.5 in the matching cascade.
         // When the platform re-issues a NEW UID alongside a date change (Abracadaroom
         // does this on every reschedule), every prior fallback fails (they all key on
         // the NEW dates) but the SUMMARY stays stable. We return every candidate so the
@@ -459,11 +459,11 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         `);
         // startDate/endDate are needed so the locked date-drift detector
         // (isLockedDateDrift / icalDateDriftModel) can compare the persisted dates against the
-        // ones proposed by the source feed — see specs/ical-sync-override-locked-dates.md §3.
-        // A minimal test schema without `kind` has no stay set aside (specs/calendar-property-parity.md rule 22).
+        // ones proposed by the source feed — see specs/platforms/ical-sync-override-locked-dates.md §3.
+        // A minimal test schema without `kind` has no stay set aside (specs/planning/calendar-property-parity.md rule 22).
         const hasKind = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'kind');
         const getReservationById = database.prepare(`SELECT id, ${hasKind ? 'kind' : "'reservation' AS kind"}, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?`);
-        // Step ①bis (specs/ical-sync-mapping-resilience.md §3 rule 1) — the reservation row itself
+        // Step ①bis (specs/platforms/ical-sync-mapping-resilience.md §3 rule 1) — the reservation row itself
         // stores the feed UID. If the mapping table lost its memory (2026-07-21 incident: one
         // degenerate empty fetch swept every mapping), this lookup re-claims the reservation
         // directly and the mapping is rebuilt, instead of falling through to the summary
@@ -506,7 +506,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             notes, cautionAmount, icalOriginalSummary
           ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, ?, 0, 'ical', ?, ?, ?, 0, ?, ?, ?)
         `);
-        // specs/platform-payout-due-date.md §3.1 rule 9 — the platform's payout deadline, known the
+        // specs/platforms/platform-payout-due-date.md §3.1 rule 9 — the platform's payout deadline, known the
         // moment the booking lands: `endDate + payoutDueDays`. Written even though the imported row
         // carries `balanceAmount = 0` (the amount arrives later, when the operator enters the
         // platform's figures) — the deadline is a fact about the booking, not about the amount.
@@ -522,7 +522,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           } catch (_) { return DEFAULT_PAYOUT_DUE_DAYS; }
         })();
         const payoutDueDateFor = (endDate) => addDaysToIsoDate(endDate, payoutDueDays);
-        // specs/normalize-platform-names.md §3.2 rule 8bis — the value that lands in
+        // specs/platforms/normalize-platform-names.md §3.2 rule 8bis — the value that lands in
         // `reservations.platform` is the CANONICAL platform name, never the slug. Writing
         // `source.platformKey` here (as this sync used to) stored `abracadaroom` /
         // `gites-de-france` next to the `Abracadaroom` / `GitesDeFrance` of manually-created
@@ -533,8 +533,8 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           || source.platformKey;
         // Apply the property's default options to a freshly-created iCal reservation so a bed-linen
         // (or any) default option appears immediately on the booking, marked `offered` per the
-        // property setting (specs/bed-config-in-linen-card.md §10 follow-up). Paid defaults are PRICED
-        // through the authoritative engine at import (specs/import-price-default-options.md) so an
+        // property setting (specs/linen/bed-config-in-linen-card.md §10 follow-up). Paid defaults are PRICED
+        // through the authoritative engine at import (specs/options/import-price-default-options.md) so an
         // « obligatoire par défaut mais payante » option shows its real amount immediately instead of 0;
         // free (offered=1) defaults stay 0. The reservation ROW itself stays unpriced — an iCal booking
         // carries no stay price (the platform handles payment); only the option LINES get amounts.
@@ -546,7 +546,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         // the date-drift flow (shouldSkipIcalReservationUpdate) — so there is no operator work to clobber.
         let repriceReservationDefaultOptions = () => {};
         try {
-          // Internal LINEN options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option)
+          // Internal LINEN options (specs/linen/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option)
           // are NOT materialised onto the booking — they're counted via the laundry/stock
           // property-default fallback and never shown client-side. Scoped to linen: a non-linen
           // internal option still materialises (so it keeps its planning card). Guarded so a schema
@@ -645,7 +645,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           WHERE id = ?
         `);
 
-        // specs/lodgify-decommission.md §3 rules 1-4 — a channel's native feed takes over the stays
+        // specs/platforms/lodgify-decommission.md §3 rules 1-4 — a channel's native feed takes over the stays
         // that another source (the Lodgify relay) imported for it. Guarded: a minimal test schema
         // without `kind` or `ical_superseded_events` simply has no takeover step.
         let takeover = null;
@@ -673,7 +673,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           };
         } catch { takeover = null; }
 
-        // specs/lodgify-decommission.md §3 rules 6-8 — what GuestFlow already holds on this property,
+        // specs/platforms/lodgify-decommission.md §3 rules 6-8 — what GuestFlow already holds on this property,
         // against which a Booking event is judged a conflict: stays from any other origin, closures, and
         // the ranges that left the export less than 72 h ago.
         let bookingCover = null;
@@ -692,7 +692,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           ];
         }
 
-        // specs/ical-import-hardening.md rule 3 — an overbooking that already happened on a platform is
+        // specs/platforms/ical-import-hardening.md rule 3 — an overbooking that already happened on a platform is
         // flagged whatever the feed: the stays GuestFlow holds from any other origin, against which a
         // new or moved stay is checked. Outside Booking an overlap never skips the event (there is no
         // echo to recognise), it only stamps `bookingConflictAt`. Guarded: a minimal test schema without
@@ -713,7 +713,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             isFlagged = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND ifnull(bookingConflictAt, '') != ''");
           }
         } catch { otherStays = null; }
-        // specs/lodgify-decommission.md §3 rule 17 — a closure is a taken range too: a stay that lands on
+        // specs/platforms/lodgify-decommission.md §3 rule 17 — a closure is a taken range too: a stay that lands on
         // one, new or moved, is flagged like an overlap with another stay.
         const propertyClosures = database.prepare(`
           SELECT startDate, endDate FROM establishment_closures WHERE propertyId IS NULL OR propertyId = ?
@@ -735,10 +735,10 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         // Rule 6 — events whose UID the feed repeats, shown on the source line.
         const repeatedUidCount = events.filter((event) => event.repeatedUid).length;
         // IDs of GENUINELY-new reservations created in THIS sync run — drives the per-reservation
-        // email notification post-commit (specs/site-booking-notifications.md §3 rule 7). Not a
+        // email notification post-commit (specs/site/site-booking-notifications.md §3 rule 7). Not a
         // "created today" query, so a re-sync of already-known rows never re-notifies.
         const createdReservationIds = [];
-        // specs/payment-link-lifecycle.md rule 32 — stays known before this run whose dates the feed moved.
+        // specs/payments/payment-link-lifecycle.md rule 32 — stays known before this run whose dates the feed moved.
         const redatedReservationIds = [];
 
         const syncTx = database.transaction((eventList) => {
@@ -753,7 +753,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
 
           // Auto-resolve any pending cancellation alerts whose UID is back in the feed —
           // the platform un-cancelled the booking, so the alert is moot
-          // (specs/ical-cancellation-approval.md §3 rule 4).
+          // (specs/platforms/ical-cancellation-approval.md §3 rule 4).
           cancellationModel.resolveOnReappearance(
             eventList.map((event) => ({ sourceId: source.id, eventUid: event.uid })),
           );
@@ -768,7 +768,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
 
             const eventHash = buildEventHash(event);
             const summaryNormalized = normalizeIcalSummary(event.summary);
-            // specs/ical-summary-fallback-cross-uid.md rule 7 — a summary that names nobody (« Reserved »,
+            // specs/platforms/ical-summary-fallback-cross-uid.md rule 7 — a summary that names nobody (« Reserved »,
             // « BOOKED ») is shared by every stay of the feed: it identifies none of them.
             const summaryNamesNobody = parseGuestName(event.summary, event.description).isFallback;
             let mapping = getMapping.get(source.id, event.uid);
@@ -813,7 +813,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             }
 
             // Step 3.5 — re-claim a moved booking when the platform re-issued its UID
-            // (specs/ical-summary-fallback-cross-uid.md §3 rules 1-3). Every prior fallback
+            // (specs/platforms/ical-summary-fallback-cross-uid.md §3 rules 1-3). Every prior fallback
             // keyed on the NEW dates; this one keys on the stable summary. Two guards make
             // the heuristic safe:
             //   (a) we only consider candidates whose UID is NOT in the current feed —
@@ -827,7 +827,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             //       manual arbitration.
             // Not on a Booking feed: every Booking event shares the summary « CLOSED - Not available »,
             // so a cancelled stay A and a new stay B arriving in the same sync would hand A's fiche to B
-            // (specs/lodgify-decommission.md §3 rule 4bis — the exact-dates re-claim covers Booking).
+            // (specs/platforms/lodgify-decommission.md §3 rule 4bis — the exact-dates re-claim covers Booking).
             // Rule 7 — nor on any nameless summary: the same hand-over happened on Airbnb's « Reserved »
             // and Gîtes de France's « BOOKED ». The moved stay then goes through the cancellation approval
             // and the new one is created, which loses nothing.
@@ -841,7 +841,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
               }
             }
 
-            // Takeover (specs/lodgify-decommission.md §3 rules 1-3) — the same stay, same platform, same
+            // Takeover (specs/platforms/lodgify-decommission.md §3 rules 1-3) — the same stay, same platform, same
             // exact dates, imported by another source: this feed becomes its owner. Runs before the
             // Booking echo filter, which would otherwise mistake it for an echo. The stay is left
             // untouched (a native feed carries less than the relay did: no name, no guest count).
@@ -883,7 +883,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             // same guest name, different source + UID). Map it to the existing reservation from the other
             // source instead of creating a duplicate. previousUid stays this event's uid so the other
             // source's mapping is NOT removed — both sources then reference the one reservation.
-            // specs/ical-import-hardening.md rule 15 — only on a summary that names someone: two platforms'
+            // specs/platforms/ical-import-hardening.md rule 15 — only on a summary that names someone: two platforms'
             // « Reserved » on the same dates are two stays sold twice, created and flagged in conflict.
             if (!mapping && summaryNormalized && !summaryNamesNobody) {
               const crossSource = getCrossSourceMapping.get(source.propertyId, source.id, event.startDate, event.endDate, summaryNormalized);
@@ -898,7 +898,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             // booking as an import. The note is reserved for the operator's own free text.
             const notes = '';
 
-            // Closure guard (specs/lodgify-decommission.md §3 rule 17). A NEW event whose every night is
+            // Closure guard (specs/platforms/lodgify-decommission.md §3 rule 17). A NEW event whose every night is
             // inside an operator-declared closure is the closure coming back from the channel: skipped, no
             // mapping, no alert. A new event only partly inside, or a known stay moved onto a closure, is a
             // real booking: it follows the normal path and is flagged in conflict (a locked stay raises its
@@ -961,7 +961,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             }
 
             const mappedReservation = getReservationById.get(mapping.reservationId);
-            // specs/calendar-property-parity.md rule 22 — a stay set aside as a duplicate is never
+            // specs/planning/calendar-property-parity.md rule 22 — a stay set aside as a duplicate is never
             // updated, re-imported nor resurrected: its UID is known and unchanged.
             if (mappedReservation && mappedReservation.kind === 'superseded') {
               upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
@@ -1013,7 +1013,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             }
             if (previousUid && previousUid !== event.uid) {
               deleteMapping.run(source.id, previousUid);
-              // specs/lodgify-decommission.md §3 rule 15 — the stay is back under a new UID: the alert its
+              // specs/platforms/lodgify-decommission.md §3 rule 15 — the stay is back under a new UID: the alert its
               // old UID raised must not be left to delete it.
               cancellationModel.resolveForReservation(mapping.reservationId, source.id);
             }
@@ -1027,7 +1027,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             if (shouldSkipIcalReservationUpdate(mappedReservation)) {
               // Locked: the reservation is NOT touched. If the source proposed new dates we
               // record a pending drift so the user can approve / reject from the Dashboard
-              // (specs/ical-sync-override-locked-dates.md §3 rules 1-3). Other locked diffs
+              // (specs/platforms/ical-sync-override-locked-dates.md §3 rules 1-3). Other locked diffs
               // (summary / adults only) are skipped silently as before.
               if (isLockedDateDrift(mappedReservation, event)) {
                 driftModel.recordPending({
@@ -1060,7 +1060,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
               mapping.reservationId,
             );
             // Keep the (pristine) reservation's option amounts in sync with the new stay — a per_night
-            // default must follow the changed number of nights (specs/import-price-default-options.md §3).
+            // default must follow the changed number of nights (specs/options/import-price-default-options.md §3).
             // Locked reservations never reach here, so no operator customisation is overwritten.
             repriceReservationDefaultOptions(mapping.reservationId, source.propertyId, {
               startDate: event.startDate,
@@ -1088,7 +1088,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             updatedCount += 1;
           }
 
-          // Soft cancellation flow (specs/ical-cancellation-approval.md §3 rule 1):
+          // Soft cancellation flow (specs/platforms/ical-cancellation-approval.md §3 rule 1):
           // when a reservation's UID is no longer in this feed, drop this source's mapping
           // but DO NOT delete the reservation. If no OTHER source still references it,
           // record a pending cancellation alert for the Dashboard so the user explicitly
@@ -1116,7 +1116,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
                 // carve-out). Only present/future stays falling out of the feed are real
                 // cancellations the operator must approve.
                 const isPastStay = reservation.endDate && String(reservation.endDate) < todayIso;
-                // specs/ical-cancellation-approval.md rule 13 — a stay already cancelled in GuestFlow has
+                // specs/platforms/ical-cancellation-approval.md rule 13 — a stay already cancelled in GuestFlow has
                 // nothing left to approve, and approving would delete the row with its credit note.
                 const alreadyCancelled = (reservation.kind || 'reservation') !== 'reservation';
                 if (!isPastStay && !alreadyCancelled) {
@@ -1131,7 +1131,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             }
           });
 
-          // specs/payment-link-lifecycle.md rules 10, 32 — a platform stay holds its nights: the unpaid devis and
+          // specs/payments/payment-link-lifecycle.md rules 10, 32 — a platform stay holds its nights: the unpaid devis and
           // reservations it now covers lose their payment links, in this transaction; their deactivation follows
           // the commit.
           [...createdReservationIds, ...redatedReservationIds].forEach((id) => withdrawForStay(database, id));
@@ -1166,7 +1166,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
 
     // Sync + persist the source status row (DRYs the formerly triplicated UPDATE block:
     // the /sync route, /sync-all route, and scheduledTasks.performAutoSync all use this).
-    // specs/ical-sync-mapping-resilience.md rule 7 — one run per source at a time: a caller arriving while
+    // specs/platforms/ical-sync-mapping-resilience.md rule 7 — one run per source at a time: a caller arriving while
     // the source is syncing joins that run, so one degenerate answer is never counted as two observations.
     syncSourceAndRecord(source, options = {}) {
       const running = syncsInFlight.get(source.id);
@@ -1179,7 +1179,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
     },
 
     async runSourceSync(source, { prefetched = null } = {}) {
-      // specs/platforms-and-ical-rework.md §3 rule 7 / edge case — a platform with no URL iCal is
+      // specs/platforms/platforms-and-ical-rework.md §3 rule 7 / edge case — a platform with no URL iCal is
       // manual-entry only: never fetch, never touch its sync status. Central guard so every caller
       // (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) skips it identically.
       if (!String(source.url || '').trim()) {
@@ -1192,7 +1192,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       try {
         const result = await model.syncSource(source, { prefetched });
         if (result.skipped) return result;
-        // specs/platforms-and-ical-rework.md §6 — persist the per-category counts (JSON) for the
+        // specs/platforms/platforms-and-ical-rework.md §6 — persist the per-category counts (JSON) for the
         // visual "État" cell, alongside the legacy free-text message (kept as a hover fallback).
         const syncCounts = JSON.stringify({
           created: result.createdCount,
@@ -1216,11 +1216,11 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           WHERE id = ?
         `).run(
           // `removedCount` now counts soft-cancellation alerts raised on the Dashboard,
-          // not deletions (specs/ical-cancellation-approval.md §3 rule 8).
+          // not deletions (specs/platforms/ical-cancellation-approval.md §3 rule 8).
           // `skippedClosureCount` (2026-06-06) — events dropped because they fell on a
           // declared establishment closure. Surfaced for operator visibility in
           // `ical_sources.lastSyncMessage`.
-          // specs/lodgify-decommission.md §3 rule 13 — takeovers and conflicts only
+          // specs/platforms/lodgify-decommission.md §3 rule 13 — takeovers and conflicts only
           // appear when non-zero, like the closure count.
           `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}${result.repeatedUidCount > 0 ? `, ${result.repeatedUidCount} au même identifiant` : ''}, ${result.unchangedCount} inchangé(s)`,
           syncCounts,
@@ -1228,9 +1228,9 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           source.id,
         );
         // Best-effort, post-commit, per-reservation notification for genuinely-new iCal imports
-        // (specs/site-booking-notifications.md §3 rule 7). Fire-and-forget so a slow/unconfigured
+        // (specs/site/site-booking-notifications.md §3 rule 7). Fire-and-forget so a slow/unconfigured
         // SMTP never delays or breaks the sync; the service swallows its own errors.
-        // A Booking stay created in conflict gets the conflict alert instead (specs/lodgify-decommission.md
+        // A Booking stay created in conflict gets the conflict alert instead (specs/platforms/lodgify-decommission.md
         // §3 rule 8) — one notification per stay, the one that asks for action.
         const conflictIds = new Set(result.conflictReservationIds || []);
         for (const reservationId of result.createdReservationIds || []) {
@@ -1245,7 +1245,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         }
         // Bookings changed → announced here so every caller (syncOne, syncAllForProperty,
         // scheduledTasks.performAutoSync) gives the plugins the same low-latency signal (Google
-        // reconciles — specs/plugins-phase-1-sdk.md rule 9). Fire-and-forget.
+        // reconciles — specs/plugins/plugins-phase-1-sdk.md rule 9). Fire-and-forget.
         if (result.createdCount + result.updatedCount + result.removedCount + (result.takenOverCount || 0) > 0) {
           emitPluginEvent('ical.imported', {
             created: result.createdCount,
@@ -1274,7 +1274,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       if (!String(source.url || '').trim()) {
         return { error: 'Aucune URL iCal configurée pour cette plateforme.', status: 400 };
       }
-      // specs/ical-import-hardening.md rule 2 — an inactive source is stopped: the hourly pass and
+      // specs/platforms/ical-import-hardening.md rule 2 — an inactive source is stopped: the hourly pass and
       // « Synchroniser tout » already skip it, and the row's button must not bring back the stays the
       // operator deleted after stopping it (2026-10-16, Lodgify).
       if (Number(source.isActive) === 0) {
@@ -1294,7 +1294,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       }
     },
 
-    // specs/ical-import-hardening.md rule 4 — every feed is fetched at once, then applied one after the
+    // specs/platforms/ical-import-hardening.md rule 4 — every feed is fetched at once, then applied one after the
     // other in id order, as before: a slow platform costs one timeout, not one per source behind it,
     // and the takeover / cross-source matching keeps seeing the sources in the same order.
     async syncMany(sources) {

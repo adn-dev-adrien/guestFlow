@@ -1,11 +1,11 @@
 /**
  * StickyTotalsBar — several labelled totals pinned to the bottom of the screen while a long list scrolls under
- * them (specs/tourist-tax-report-v2.md rules 17-23). Generic: the tourist-tax report today; the accounting
+ * them (specs/tourist-tax/tourist-tax-report-v2.md rules 17-23). Generic: the tourist-tax report today; the accounting
  * synthesis and the payment register can reuse it. Renders the figures it is given, already formatted — never
  * computes one.
  *
  * A translucent, frosted surface (solid under `prefers-reduced-transparency`). Every figure has the same size
- * (specs/tourist-tax-report-v2.md rule 39, D-HC17): `main` is emphasised by colour only (and a divider before it),
+ * (specs/tourist-tax/tourist-tax-report-v2.md rule 39, D-HC17): `main` is emphasised by colour only (and a divider before it),
  * never by size. Each label sits in a block exactly two lines high, aligned to its bottom and clamped to two lines
  * (the full label in its `title`, rule 45), so the figures of a row share one baseline whatever their labels; the
  * caption goes under the figure. From `sm` up every figure shows: on one line when they fit, else on two or more

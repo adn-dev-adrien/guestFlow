@@ -1,5 +1,5 @@
 /**
- * The core's payment mark, callable without a request (specs/qonto-bank-reconciliation.md rule 34).
+ * The core's payment mark, callable without a request (specs/accounting/qonto-bank-reconciliation.md rule 34).
  *
  * « Marquer perçu » of the fiche is `PATCH /reservations/:id/payment`; a plugin that records a payment
  * the operator confirmed must go through the very same code — every guard, the contribution capture, the
@@ -28,7 +28,7 @@ function applyPaymentMark({ reservationId, body, user }) {
     status(code) { status = code; return res; },
     json(value) { payload = value; return res; },
   };
-  // specs/direct-installments.md rule 38 — an installment is marked through its own handler, same guards.
+  // specs/payments/direct-installments.md rule 38 — an installment is marked through its own handler, same guards.
   if (body && body.installmentId != null) {
     require('../controllers/installmentsController').markPaid({
       params: { id: String(reservationId), installmentId: String(body.installmentId) },
@@ -42,7 +42,7 @@ function applyPaymentMark({ reservationId, body, user }) {
 }
 
 /**
- * specs/reservation-refunds.md rule 52 — whether taking back these marks (`flags`) or this much of a plan (`installmentCents`)
+ * specs/payments/reservation-refunds.md rule 52 — whether taking back these marks (`flags`) or this much of a plan (`installmentCents`)
  * would leave book refunds above what stays collected: the refusal, or null. For a caller that takes a mark back without the PATCH.
  */
 function takeBackRefusal(reservationId, { flags = [], installmentCents = 0 } = {}) {
@@ -52,7 +52,7 @@ function takeBackRefusal(reservationId, { flags = [], installmentCents = 0 } = {
   if (installmentCents > 0) changes.installmentsPaidAmount = (Math.round(Number(row.installmentsPaidAmount || 0) * 100) - installmentCents) / 100;
   const { untickRefusal } = require('./refundUntickGuard');
   return untickRefusal(row, changes, require('../models/refundsModel').listByReservation(Number(reservationId)))
-    // specs/mixed-method-payments.md rule 43 — nor a split payment matched at the bank.
+    // specs/payments/mixed-method-payments.md rule 43 — nor a split payment matched at the bank.
     || require('./paymentSettlementService').takeBackReconciledRefusal(row, changes);
 }
 

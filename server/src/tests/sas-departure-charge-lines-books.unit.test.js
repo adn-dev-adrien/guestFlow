@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 90.2 — the books never see a departure charge twice: on the golden database, every stay given
+// specs/pricing/pricing-components.md §3 rule 90.2 — the books never see a departure charge twice: on the golden database, every stay given
 // the same departure charges leaves the same accounting output (each month's CSV bytes, sales JSON, platforms preview, synthesis)
 // whether its charges are only in the stored end-of-stay detail (every stay before rule 90.2) or also its departure lines.
 //

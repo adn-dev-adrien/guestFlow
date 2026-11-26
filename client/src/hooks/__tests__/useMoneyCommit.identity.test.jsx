@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26 verifier) — the commit gate judges each preview by the draft its answer was for: an
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26 verifier) — the commit gate judges each preview by the draft its answer was for: an
 // answer of another draft never stands for the draft on screen, whatever `fresh` says.
 import { isCurrentAnswer } from '../useMoneyCommit';
 import useMoneyCommit from '../useMoneyCommit';

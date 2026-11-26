@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 20, 44-46 (class E1, D2) — the clock feeds the engine. The extras baseline COMPOSE reads
+// specs/pricing/pricing-components.md §3 rules 20, 44-46 (class E1, D2) — the clock feeds the engine. The extras baseline COMPOSE reads
 // (`arrivalExtrasBaseline`, through `resolveArrivalExtrasBaseline`) exists exactly when the stay clock says the stay has started
 // (or a complement is collected). Rule 102 (loop t2, 2026-11-16): an arrival validated on its day — the mark or the committed arrival
 // SAS — starts the stay before its hour, for the baseline as for the fiche lock: one moment.
@@ -42,7 +42,7 @@ test('the baseline follows the clock: started and not marked → due; not starte
 
 test('on the arrival day the check-in time decides, or the arrival validated before it (rule 102, loop t2 N-3)', () => {
   // The gesture's moment is fixed (`withNow`): the stay clock judges in Paris whatever the process zone or the runner's hour
-  // (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 and 18:00 at +01:00 stay on their side of 16:00 in
+  // (specs/tech/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 and 18:00 at +01:00 stay on their side of 16:00 in
   // winter and in summer time.
   const stay = { startDate: '2099-10-10', endDate: '2099-10-12', checkInTime: '16:00' };
   const morning = new Date('2099-10-10T10:00:00+01:00');

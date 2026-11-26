@@ -96,7 +96,7 @@ const resCount = (db) => db.prepare('SELECT COUNT(*) c FROM reservations').get()
 const origFetch = global.fetch;
 test.afterEach(() => { global.fetch = origFetch; });
 
-// specs/reservation-fiche-concurrency.md rule 6 (audit R2 B) — a sync that writes nothing must not
+// specs/reservations/reservation-fiche-concurrency.md rule 6 (audit R2 B) — a sync that writes nothing must not
 // move `updatedAt`, otherwise every open fiche is refused as stale after each 5-minute pass.
 test('an identical re-sync leaves updatedAt untouched, locked or not', async () => {
   const { db, model, source } = freshModel();

@@ -1,6 +1,6 @@
 /**
  * The confirmation email fired by a confirmed online payment, gated by the confirmation template's
- * own mode (specs/no-automatic-email-without-approval.md §3 rule 4, specs/settings-rationalization.md
+ * own mode (specs/emails/no-automatic-email-without-approval.md §3 rule 4, specs/settings/settings-rationalization.md
  * rule 17b).
  *
  * A paid link is not an operator action: nobody read that email before it left. With the template in
@@ -59,7 +59,7 @@ function fixture({ autoSendEnabled, template = CONFIRMATION } = {}) {
     templatesModel: { findByStableKey: (k) => (stored && stored.stableKey === k ? stored : undefined) },
     logModel: { insert: (row) => { logged.push(row); return { id: logged.length }; } },
     settingsModel: {
-      // The sequence is active since before the booking (specs/guest-email-sequence.md rule 16).
+      // The sequence is active since before the booking (specs/emails/guest-email-sequence.md rule 16).
       read: () => ({ companyName: 'Solio', guestSequenceStartDate: '2026-06-01' }),
       decryptedSmtpSettings: () => ({ host: 'smtp', fromEmail: 'f@x' }),
     },

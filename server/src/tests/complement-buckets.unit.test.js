@@ -1,5 +1,5 @@
 /**
- * specs/complement-buckets-by-moment.md — a complement is filed under the moment it is collected,
+ * specs/sas/complement-buckets-by-moment.md — a complement is filed under the moment it is collected,
  * and that moment is the operator's « Percevoir en fin de séjour » marker, never an inference from
  * the calendar (§3 rule 4, revised 2026-08-22).
  * Every case also checks rule 6: the split never changes a total.

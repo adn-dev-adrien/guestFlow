@@ -1,5 +1,5 @@
 /**
- * The application restarts itself after a plugin update (specs/plugins-phase-4-registry.md rule 13).
+ * The application restarts itself after a plugin update (specs/plugins/plugins-phase-4-registry.md rule 13).
  *
  * A plugin's server code cannot be unloaded from a running Node process, so an update ends with a
  * graceful shutdown and the supervisor starts the process again: PM2 in production (it sets `pm_id`, and

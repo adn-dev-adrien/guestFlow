@@ -1,5 +1,5 @@
 /**
- * ResourcesPage — the « Ressources » tab of Options & ressources (specs/options-resources-ux.md
+ * ResourcesPage — the « Ressources » tab of Options & ressources (specs/options/options-resources-ux.md
  * rules 18-22): one card per resource, shaped by the server (`/resources/catalogue-view`, with the
  * lines a plugin adds), opened in a side panel. Deleting stays in the card's « ⋯ » menu with the
  * existing impact confirmation.
@@ -112,7 +112,7 @@ export default function ResourcesPage({ barTabs }) {
   const handleDelete = async (item) => {
     let impact = null;
     try { impact = await api.getResourceDeleteImpact(item.id); } catch { impact = null; }
-    // specs/resource-booking-pricing-and-invoicing.md rule 34 — a paid or invoiced session is a sale: refused up front.
+    // specs/resources/resource-booking-pricing-and-invoicing.md rule 34 — a paid or invoiced session is a sale: refused up front.
     if (impact && impact.saleBlocker) {
       showError(impact.saleBlocker);
       return;

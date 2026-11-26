@@ -1,5 +1,5 @@
 /**
- * AdvancedDetails — a folded « Avancé » block (specs/plugins-phase-p-productisation.md rule 41): the
+ * AdvancedDetails — a folded « Avancé » block (specs/plugins/plugins-phase-p-productisation.md rule 41): the
  * technical names a setting cannot do without (a protocol, a portal menu, a header) stay out of the
  * main text and open on demand. Closed at first.
  *

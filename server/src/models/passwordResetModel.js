@@ -1,5 +1,5 @@
 /**
- * Password reset links (specs/hosting-h2-account-security.md rules 2, 4): only the SHA-256 of a
+ * Password reset links (specs/hosting/hosting-h2-account-security.md rules 2, 4): only the SHA-256 of a
  * token is stored; a link works once, until its expiry; a new link voids the older ones. Also ends
  * every session of a user once their password was reset (rule 4).
  *

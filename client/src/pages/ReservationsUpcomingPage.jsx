@@ -58,7 +58,7 @@ const UpcomingDay = React.memo(function UpcomingDay({ day, onToggleReady, onOpen
 
 /**
  * « Réservations à venir » (dashboard → carte Réservations). Refactor 2026-06-17
- * (specs/upcoming-reservations-cards.md): the Planning arrival cards (ReservationCard) grouped by day,
+ * (specs/planning/upcoming-reservations-cards.md): the Planning arrival cards (ReservationCard) grouped by day,
  * over ALL future reservations. Render-only: ONE call returns the days already grouped, labelled and
  * counted, each reservation fully detailed (rule 6). Actions: open the fiche, run the arrival SAS,
  * open the client, toggle « prêt » — the box answers at once, then the server recounts that one day
@@ -71,7 +71,7 @@ export default function ReservationsUpcomingPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [sas, setSas] = useState(null);
-  // specs/plugins-phase-2-hosts.md rule 9 (gap 4) — the arrival SAS opens only while its plugin is active.
+  // specs/plugins/plugins-phase-2-hosts.md rule 9 (gap 4) — the arrival SAS opens only while its plugin is active.
   const sasOn = usePlugin(SAS);
 
   const loadUpcoming = useCallback(async () => {

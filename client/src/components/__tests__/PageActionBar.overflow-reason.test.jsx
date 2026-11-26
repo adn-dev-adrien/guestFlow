@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 46, reading of 2026-11-01 (review of #915: show before refusing) — an action
+// specs/payments/payment-link-lifecycle.md rule 46, reading of 2026-11-01 (review of #915: show before refusing) — an action
 // whose tooltip carries the reason it is disabled names itself by `label`: on a phone the overflow menu prints the
 // action's name with the reason beneath, since no tooltip is reachable there.
 import React from 'react';

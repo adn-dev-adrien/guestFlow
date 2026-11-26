@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 26, 41 — a line records the free units it consumed (`allowanceUsed`); removing the line gives them
+// specs/pricing/pricing-components.md §3 rules 26, 41 — a line records the free units it consumed (`allowanceUsed`); removing the line gives them
 // back to the pool for a future sale, and a standing line is never re-priced by it (D5).
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

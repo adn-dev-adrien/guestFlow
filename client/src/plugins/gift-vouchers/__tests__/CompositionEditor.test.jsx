@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 4, 46 — the composition editor: « Ajouter un élément » opens a searchable picker over the server's catalogue, grouped, the elements
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 4, 46 — the composition editor: « Ajouter un élément » opens a searchable picker over the server's catalogue, grouped, the elements
 // that cannot be sold greyed with the server's reason; an hourly resource offers its tariff modes (rate, hours, degressivity) from the server, then its included minutes;
 // options carry a quantity; one hourly resource only; the server's refusal of a value is shown on its field.
 import React, { useState } from 'react';

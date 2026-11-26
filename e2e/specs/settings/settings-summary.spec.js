@@ -1,5 +1,5 @@
 // @ts-check
-// settings/settings-summary — specs/settings-rationalization.md rules 24–27 (UI/UX review 2026-10-18,
+// settings/settings-summary — specs/settings/settings-rationalization.md rules 24–27 (UI/UX review 2026-10-18,
 // proposal 20, decision 12). `/settings` is the summary: four groups with the server's state lines,
 // a search that understands wifi / iban / smtp / 2fa, and a sidebar whose groups unfold.
 import { test, expect } from '@playwright/test';

@@ -1,6 +1,6 @@
 /**
  * ConflictList — a refusal or a warning that names records, each with a link to open it
- * (specs/payment-link-lifecycle.md rules 40, 41, 49: the closure dialog). Any 409 that names stays can use it.
+ * (specs/payments/payment-link-lifecycle.md rules 40, 41, 49: the closure dialog). Any 409 that names stays can use it.
  *
  * Props:
  *   severity:    'error' | 'warning'                 the tone of the whole block (default 'warning')

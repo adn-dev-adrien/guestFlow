@@ -1,4 +1,4 @@
-// specs/direct-installments.md rules 15-17 — one payment link per installment, at its exact amount; a paid
+// specs/payments/direct-installments.md rules 15-17 — one payment link per installment, at its exact amount; a paid
 // link marks its installment; a link that bills an old amount is retired AND deactivated at the provider.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,5 +1,5 @@
 // @ts-check
-// specs/reservation-payment-ledger.md — the payments ledger of the fiche, end to end: set the solde
+// specs/payments/reservation-payment-ledger.md — the payments ledger of the fiche, end to end: set the solde
 // (rule 17), a refusal shown in place (rule 16), mark the acompte with a future date (refused, rule 9)
 // then today (rule 8), undo with a confirmation naming the date (rule 14), the caution in order
 // (rule 12), and a platform payout received with its transfer (rule 26).
@@ -117,7 +117,7 @@ test('the ledger does not scroll sideways on a phone', async ({ page }) => {
 });
 
 // Review of #727 (B1) — a payout received on a PAST, locked platform stay: the transfer rides the mark,
-// the fiche is never saved whole, nothing is re-priced (specs/reservation-payment-ledger.md rule 34).
+// the fiche is never saved whole, nothing is re-priced (specs/payments/reservation-payment-ledger.md rule 34).
 test('past platform stay: « Marquer reçu » records the transfer without saving the fiche', async ({ page }) => {
   const property = await createProperty({ name: 'E2E ledger past platform villa' });
   const client = await createClient({ firstName: 'Iris', lastName: 'Passé' });
@@ -140,7 +140,7 @@ test('past platform stay: « Marquer reçu » records the transfer without savin
   expect(after.platformPayoutAmount).toBe(250);
   expect([after.balanceAmount, after.finalPrice]).toEqual([before.balanceAmount, before.finalPrice]);
   expect(puts).toEqual([]);
-  // specs/platform-statement-after-payout.md rules 1, 3 — the received payout of a locked fiche still opens its
+  // specs/platforms/platform-statement-after-payout.md rules 1, 3 — the received payout of a locked fiche still opens its
   // statement, with the transfer it stands for; nothing is written until « Valider ».
   await payout.getByRole('button', { name: /Modifier le montant/ }).click();
   await expect(payout.getByLabel(/^Virement reçu le .* \(€\)$/)).toHaveValue('250,00');

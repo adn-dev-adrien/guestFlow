@@ -1,4 +1,4 @@
-// specs/wordpress-plugin-self-update.md rules 9-10 (2026-10-27 audit, WordPress plugin 1.17.1) — the
+// specs/site/wordpress-plugin-self-update.md rules 9-10 (2026-10-27 audit, WordPress plugin 1.17.1) — the
 // archive WordPress installs is the one the release published: its file name carries the manifest's
 // version, newer than the installed one, and its SHA-256 is the one the release's SHA256SUMS lists.
 // The plugin has no PHP harness, so the rules are read from the source and its two patterns are run

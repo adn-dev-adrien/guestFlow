@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 44, reading of 2026-11-05 (R24-C1) — a wrong current password on « Changer le mot de passe »
+// specs/design-system/ui-review-2026-10-19-operations.md rule 44, reading of 2026-11-05 (R24-C1) — a wrong current password on « Changer le mot de passe »
 // is a refusal of the form, not a lost session: the app stays signed in; a session really gone still signs out.
 import { vi } from 'vitest';
 import api from '../api';

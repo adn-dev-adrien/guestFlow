@@ -7,7 +7,7 @@ description: Draft a GuestFlow gift voucher campaign as a recipe (campaign.json 
 
 A campaign is **data**. You write a recipe; GuestFlow judges it on import. Read
 `docs/gift-voucher-campaign-recipe.md` for the format. For any doubt about behaviour, read
-`specs/gift-voucher-campaigns.md` (rules 2–10 for campaigns, 43–45 for prices).
+`specs/gift-vouchers/gift-voucher-campaigns.md` (rules 2–10 for campaigns, 43–45 for prices).
 
 ## Steps
 

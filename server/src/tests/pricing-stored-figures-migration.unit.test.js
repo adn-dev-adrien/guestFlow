@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 8 and §5; specs/self-update-and-releases.md rule 31 — the stored extra guests and tax: two
+// specs/pricing/pricing-components.md §3 rule 8 and §5; specs/hosting/self-update-and-releases.md rule 31 — the stored extra guests and tax: two
 // nullable columns added once, a backfill that writes for each live stay what a sale on it computes today (nothing else of the row,
 // so no figure moves), runs once, writes the same records when forced again, leaves a stay whose sale is refused to the units, and
 // the previous release's save on the migrated table leaves records the next sale no longer reads.

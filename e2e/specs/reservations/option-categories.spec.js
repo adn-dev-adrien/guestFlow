@@ -1,11 +1,11 @@
 // @ts-check
-// specs/option-categories.md §7 — the collapsible option categories, rendered by the real app
+// specs/options/option-categories.md §7 — the collapsible option categories, rendered by the real app
 // against the real API.
 //
 // Unit tests can't prove this: the sections depend on the server's `optionGroups` payload, and the
 // rule that matters (an enabled option stays visible while its category is collapsed) is only
 // meaningful across a save + reload. The « Boissons » and « Restauration » catalogue is seeded here:
-// the core no longer ships one (specs/plugins-phase-p-productisation.md rule 12).
+// the core no longer ships one (specs/plugins/plugins-phase-p-productisation.md rule 12).
 import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
@@ -148,7 +148,7 @@ test('a category with nothing enabled and nothing pinned shows no article card a
 });
 
 test('« Petit déjeuner » stays visible under Restauration without being selected', async ({ page }) => {
-  // specs/option-categories.md §3 rule 9bis: the breakfast option is pinned, so a service offered
+  // specs/options/option-categories.md §3 rule 9bis: the breakfast option is pinned, so a service offered
   // on every stay never hides behind a fold.
   await openFiche(page, { withBreakfast: true });
 

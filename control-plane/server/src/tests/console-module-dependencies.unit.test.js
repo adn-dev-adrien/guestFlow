@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rules 17–19 — the console reads the space's graph: « Nécessite » and
+// specs/plugins/plugin-dependencies.md rules 17–19 — the console reads the space's graph: « Nécessite » and
 // « Utilisé par » under each module, switches that take the linked modules along (one journal line per
 // module, one licence), and a plan or option that allows a plugin without its requirement is refused.
 const test = require('node:test');

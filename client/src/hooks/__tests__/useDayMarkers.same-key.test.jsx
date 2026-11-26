@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 13 — `calendar.dayMarkers`: two plugins contributing the same `key`
+// specs/plugins/plugins-phase-1-sdk.md rule 13 — `calendar.dayMarkers`: two plugins contributing the same `key`
 // both draw their dots; neither overwrites the other.
 import { renderHook, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

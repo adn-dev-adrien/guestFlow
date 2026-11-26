@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rule 12 — a reservation of the `clientGrossAmount` era
+// specs/accounting/accounting-books-the-money-collected.md rule 12 — a reservation of the `clientGrossAmount` era
 // (Gîtes de France #13: 706 € solde net, 907,20 € paid by the guest, no entered commission) captures
 // per-line contribs from its stored NET solde the day its balance is ticked. Used as-is, they left the
 // 201,20 € of commission out of the credits and the export pushed it onto the last credit, the VAT line:
@@ -14,7 +14,7 @@ const { entryToRows } = require('../accountingExport');
 const { todayIso } = require('../../../utils/localDate');
 const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 const monthOf = (iso) => ({ month: Number(iso.slice(5, 7)), year: Number(iso.slice(0, 4)) });
 

@@ -1,7 +1,7 @@
 /**
- * Payment poll + webhook core (specs/online-payments-qonto.md §3.3 / §3.4,
- * specs/public-online-payment.md §3/§3bis), provider-neutral since
- * specs/plugins-phase-3a-online-payment.md rules 2, 4, 8.
+ * Payment poll + webhook core (specs/payments/online-payments-qonto.md §3.3 / §3.4,
+ * specs/site/public-online-payment.md §3/§3bis), provider-neutral since
+ * specs/plugins/plugins-phase-3a-online-payment.md rules 2, 4, 8.
  *
  * `processPaidLink` is the single idempotent effect of a PAID link — shared by the cron/on-demand
  * **poll** (`runPaymentPoll`) and the provider's **webhook**. Every dependency is injected so it's
@@ -18,7 +18,7 @@
  *   - notifyConflict?   : (reservationId) => notify the admin of an over-booked paid booking (best-effort)
  *   - notifyPaidAfterCancel? : (link, { settledOn }?) => tell the admin a cancelled link was paid (best-effort,
  *                              rule 8; `settledOn` = the bucket was settled another way before, rule 24;
- *                              `orphan` = the stay row is gone, specs/payment-link-lifecycle.md rule 3)
+ *                              `orphan` = the stay row is gone, specs/payments/payment-link-lifecycle.md rule 3)
  *   - notifyDeactivationStuck? : (link, { providerLabel }) => a lapsed link still active after 24 h (rule 20)
  *   - notifyPaymentInFlight?   : (link) => a payment in flight 24 h after a `dates-taken` withdrawal (rule 64)
  *
@@ -59,7 +59,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return require('./standaloneSaleLinks').settlePaidLink({ link, paidDate, paidAt });
   }
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(link.reservationId);
-  // specs/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket,
+  // specs/guest-app/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket,
   // whatever became of the stay: a cancelled or deleted stay is the owner's to refuse (its order flagged, the money
   // « à rembourser »). A stay gone keeps the admin's orphan alert.
   if (link.type === 'complement') {
@@ -78,7 +78,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   if (convertedRow && convertedRow.kind === 'cancelled') return { effect: 'reservation-cancelled' };
 
 
-  // specs/direct-installments.md rule 15 — a paid link of an installment marks that installment paid.
+  // specs/payments/direct-installments.md rule 15 — a paid link of an installment marks that installment paid.
   if (link.type === 'installment') {
     const { recordInstallmentPayment } = require('./installmentPayment');
     const { emit } = require('../plugins/sdk/eventBus');
@@ -117,7 +117,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
       return { effect: 'double-payment', reservationId, conflict: false };
     }
     const conflict = flagConflictIfAny({ database, checkConflict, reservationId });
-    // specs/payment-link-lifecycle.md rule 55 (audit R10-1) — defence in depth: a devis that reached closed nights
+    // specs/payments/payment-link-lifecycle.md rule 55 (audit R10-1) — defence in depth: a devis that reached closed nights
     // anyway is booked, but its guest is never confirmed there.
     const closed = closedNightsOf(database, reservationId);
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
@@ -126,7 +126,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     // An already converted devis is compared with the stay it became, which the fiche may have re-priced.
     const priced = effect === 'already-converted' && convertedRow && convertedRow.kind === 'reservation' ? convertedRow : row;
     const hasSplit = priced.depositAmount != null && priced.balanceAmount != null;
-    // SDK 2.33.0 (specs/gift-vouchers.md rule 38) — a quote that holds prepaid money was charged what the mode asks LESS that money.
+    // SDK 2.33.0 (specs/gift-vouchers/gift-vouchers.md rule 38) — a quote that holds prepaid money was charged what the mode asks LESS that money.
     const prepaidReduction = hasSplit && effect === 'converted' ? prepaidReductionOf(link, priced) : 0;
     const expectedCents = hasSplit ? linkAmountCents(link.type, priced) - prepaidReduction : null;
     const settlePrepaid = () => settlePrepaidOf({ database, link, stayId: reservationId, paidDate });
@@ -168,7 +168,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   }
 
   // balance / full on an existing reservation → the stay is fully paid pre-arrival. A full link charged
-  // the acompte too when there is one (specs/deposit-blocks-the-dates.md rule 18): both buckets.
+  // the acompte too when there is one (specs/payments/deposit-blocks-the-dates.md rule 18): both buckets.
   if (link.type === 'balance' || isFull) {
     const coversDeposit = isFull && Number(row.depositAmount || 0) > 0;
     recordPayment({ reservationId: link.reservationId, bucket: coversDeposit ? 'full' : 'balance', paidDate });
@@ -393,7 +393,7 @@ function flagConflictIfAny({ database, checkConflict, reservationId }) {
   return conflict;
 }
 
-// specs/reservation-payment-ledger.md rule 47 — an OPEN link paid for an amount the reservation no
+// specs/payments/reservation-payment-ledger.md rule 47 — an OPEN link paid for an amount the reservation no
 // longer asks for. The HTTP save retires such a link (rule 29), but a stay re-priced through
 // `performUpdate` (plugins, SAS, arrival payment) keeps it open; ticking the bucket would then record
 // the new amount as received. The money is booked at the link's amount instead, exactly as for a
@@ -425,7 +425,7 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 // conflict notification (both best-effort). Idempotent. Returns the per-link result object.
 // `emitPluginEvent` is injectable like every other dep; by default the webhook, the on-demand poll
 // and the cron all announce a freshly converted reservation to the plugins (Google pushes it at
-// once — specs/plugins-phase-1-sdk.md rule 9).
+// once — specs/plugins/plugins-phase-1-sdk.md rule 9).
 // `retiredReason` books a withdrawn link instead (cancelled → paid, only while it still carries that reason).
 // `quietOnConflict`: a booking that lands in date conflict sends the guest no confirmation.
 async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit, retiredReason = null, quietOnConflict = false }) {
@@ -493,7 +493,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }
-  // specs/payment-link-lifecycle.md rule 3 — the stay row is gone: the money stays on the link, nothing is
+  // specs/payments/payment-link-lifecycle.md rule 3 — the stay row is gone: the money stays on the link, nothing is
   // booked or confirmed, the admin refunds it.
   if (effect.effect === 'no-reservation') {
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, orphanAlert(p, paidAt)); } catch { /* best effort */ } }
@@ -517,9 +517,9 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
 }
 
-// specs/plugins-phase-3a-online-payment.md rule 8 — the links GuestFlow abandoned but could not
+// specs/plugins/plugins-phase-3a-online-payment.md rule 8 — the links GuestFlow abandoned but could not
 // deactivate. A paid one is never recorded on the stay (it was cancelled or replaced) — except a link
-// retired for an amount change, booked at its amount (specs/reservation-payment-ledger.md rule 31): the admin is told,
+// retired for an amount change, booked at its amount (specs/payments/reservation-payment-ledger.md rule 31): the admin is told,
 // the payment's id stays on the row for the refund. Returns the per-link results, and whether a rate
 // limit stopped the retries.
 // A run for the same scope (all links, or one `only`) is shared; runs of different scopes are chained, never
@@ -548,7 +548,7 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
     }
     try {
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'cancel-link' });
-      // specs/payment-link-lifecycle.md rule 3 — checked before every reason's branch: with no stay row
+      // specs/payments/payment-link-lifecycle.md rule 3 — checked before every reason's branch: with no stay row
       // there is nothing to settle, book or convert, whatever the link was withdrawn for.
       const orphan = stayIsMissing(database, link);
       // A link of an outside sale withdrawn then paid anyway is booked on its document, in full (outside-visit rule 41).
@@ -572,7 +572,7 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
         results.push(await book({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent, link, pay }));
         continue;
       }
-      // specs/payment-link-lifecycle.md rule 42 — a link withdrawn by hand while the provider could not be read,
+      // specs/payments/payment-link-lifecycle.md rule 42 — a link withdrawn by hand while the provider could not be read,
       // paid before that withdrawal, is the guest's money for the stay: booked as the connected path books it.
       // Re-review of #902 (R1): nights closed since the withdrawal (rule 55) or taken by another stay are booked
       // like rule 33's — the money recorded, no guest confirmation, the admin told to move or refund.
@@ -580,7 +580,7 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
         results.push(await bookWithdrawnPaid({ database, devisModel, paymentLinksModel, link, pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
         continue;
       }
-      // specs/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
+      // specs/payments/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
       // deactivation: the money is the stay's, recorded on the fiche in date conflict, without a confirmation.
       if (pay.paid && link.cancelReason === LINK_REASONS.DATES_TAKEN) {
         results.push(await bookDatesTakenPaid({ database, devisModel, paymentLinksModel, link, pay, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
@@ -613,7 +613,7 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
   return { results, stoppedBy: null };
 }
 
-// specs/payment-link-lifecycle.md rule 64 (review of #912, M1) — the guest of a link withdrawn for taken dates is told
+// specs/payments/payment-link-lifecycle.md rule 64 (review of #912, M1) — the guest of a link withdrawn for taken dates is told
 // « rien ne vous a été prélevé » (rule 43). The read before the deactivation cannot say it, nor can a deactivation found
 // already done without any read: that link owes rule 19's last look, and the notice waits for its answer.
 function owePaymentReadAfterDeactivation({ paymentLinksModel, link, now }) {
@@ -621,7 +621,7 @@ function owePaymentReadAfterDeactivation({ paymentLinksModel, link, now }) {
   paymentLinksModel.setLastLook(link.id, require('./paymentLinkLifecycle').lastLookAfter(now));
 }
 
-// specs/payment-link-lifecycle.md rules 42 and 56 — a link withdrawn by hand booked as the stay's money (`cancelled →
+// specs/payments/payment-link-lifecycle.md rules 42 and 56 — a link withdrawn by hand booked as the stay's money (`cancelled →
 // paid`): by the poll when paid before its withdrawal, or by the operator's « Enregistrer sur le séjour ». Nights
 // closed since (rule 55) or taken by another stay get no guest confirmation and the « déplacer ou rembourser » alert.
 async function bookWithdrawnPaid({ database, link, pay, sendConfirmation, notifyPaidAfterCancel, ...effect }) {
@@ -664,7 +664,7 @@ async function bookDatesTakenPaid({ database, link, pay, notifyPaidAfterCancel, 
   return { ...outcome, datesTaken: true, conflict };
 }
 
-// specs/payment-link-lifecycle.md rule 63, reading of 2026-11-01 (audit R11 N1 / M1) — beside an installment plan the
+// specs/payments/payment-link-lifecycle.md rule 63, reading of 2026-11-01 (audit R11 N1 / M1) — beside an installment plan the
 // only payment that can arrive is an échéance. An acompte / solde / séjour payment found on a link withdrawn for taken
 // dates is never booked on the buckets: it stays on the link (`paidAt`, payment id), a payment to settle (rule 56) that
 // the plan's ledger offers to refund only (`INSTALLMENT_PLAN_IN_PLACE`); the admin is told once.
@@ -694,7 +694,7 @@ function paidBeforeWithdrawal(link, pay) {
 const linkResult = (link, extra) => ({ id: link.id, reservationId: link.reservationId, type: link.type, ...extra });
 const errorText = (err) => String((err && err.message) || err);
 
-// specs/payment-link-lifecycle.md rule 18 — a LAPSED link is deactivated first and its payment read after,
+// specs/payments/payment-link-lifecycle.md rule 18 — a LAPSED link is deactivated first and its payment read after,
 // so no payment can start after the read: paid → booked like any payment of the stay (rule 14); not paid →
 // the deactivation is done and one last look is due in an hour (rule 19). A refused deactivation (other than
 // a rate limit) still reads the payment: a provider refuses to deactivate a link already paid, and that
@@ -793,7 +793,7 @@ async function alertStuckDeactivations({ paymentLinksModel, pending, now, notify
 }
 
 /**
- * specs/payment-link-lifecycle.md rule 16 — the lifecycle pass: the links whose time is up leave `open` in
+ * specs/payments/payment-link-lifecycle.md rule 16 — the lifecycle pass: the links whose time is up leave `open` in
  * the database (no provider call), then the provider is asked only about the links that owe something —
  * a deactivation (rule 18, with the existing retries of plugins-phase-3a rule 8) or a last look (rule 19).
  * Run at the start of every poll pass and by the plugin's `payment-link-lifecycle` job. A rate limit stops
@@ -812,7 +812,7 @@ async function runLinkLifecycle({ database, paymentLinksModel, provider, now = n
   return { moved, results: [...movedResults, ...pending.results, ...looks.results], stoppedBy: looks.stoppedBy };
 }
 
-// specs/plugins-phase-3a-online-payment.md rule 24 — a link retired by rule 23 and found paid. Most of
+// specs/plugins/plugins-phase-3a-online-payment.md rule 24 — a link retired by rule 23 and found paid. Most of
 // the time it is the very payment the operator saw arrive and ticked by hand before the webhook did:
 // the link becomes `paid` and the bucket goes through the idempotent recorder (already paid → nothing).
 // Only a bucket recorded paid on an EARLIER day than this payment points to a second payment: then the
@@ -859,7 +859,7 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
 }
 
-// specs/reservation-payment-ledger.md rule 31 (§9 Q3) — a link the fiche retired because its amount
+// specs/payments/reservation-payment-ledger.md rule 31 (§9 Q3) — a link the fiche retired because its amount
 // changed, paid anyway. The money is real: it lands on the fiche at the link's amount (the acompte
 // becomes that amount and the solde absorbs the rest; the solde is recorded at it; the complement is
 // recorded and its ledger row warns). The link becomes `paid` and the admin is told, as for every paid
@@ -918,7 +918,7 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: unbooked ? 'paid-after-cancel' : 'paid', ...booked };
 }
 
-// specs/direct-installments.md rule 17 — the same for an installment: the link retired for an amount change
+// specs/payments/direct-installments.md rule 17 — the same for an installment: the link retired for an amount change
 // was paid at its old amount. The money is real, so the installment takes that amount (pinned) and the
 // others rebalance; an installment paid meanwhile another way makes it a double payment (nothing recorded,
 // the payment id stays on the row for the refund).
@@ -937,13 +937,13 @@ async function bookInstallmentPaidAfterAmountChange({ paymentLinksModel, notifyP
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: booked.flipped ? 'paid' : 'paid-after-cancel', effect };
 }
 
-// One pass (specs/payment-polling-fair-use.md): the lifecycle pass first (specs/payment-link-lifecycle.md
+// One pass (specs/payments/payment-polling-fair-use.md): the lifecycle pass first (specs/payments/payment-link-lifecycle.md
 // rule 16: links whose time is up leave `open` without a provider call, then the owed deactivations and
 // last looks), then check only the open links the decaying cadence says are due (`force` = a human asked,
 // every open link). A rate limit that survives the client's back-off stops the pass: the links not yet
 // examined wait for the next tick instead of being requested into a `429`.
 async function runPaymentPoll({ database, paymentLinksModel, provider, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, recordPayment, force = false, now = new Date() }) {
-  // specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket was settled another way
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket was settled another way
   // leaves the polling list and joins the owed deactivations retried just below.
   const settled = typeof paymentLinksModel.retireSettled === 'function' ? paymentLinksModel.retireSettled() : [];
   const lifecycle = await runLinkLifecycle({ database, paymentLinksModel, provider, now, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, recordPayment });

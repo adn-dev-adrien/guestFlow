@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 48 (audit R20-P1) and specs/reservations-backend-mvc.md rule 13 — the
+// specs/accounting/qonto-bank-reconciliation.md rule 48 (audit R20-P1) and specs/tech/reservations-backend-mvc.md rule 13 — the
 // reconciliation start date is an entered date: a real day from today − 5 years to today + 5 years, judged on the
 // generic settings PUT; the stored value is not re-judged.
 const test = require('node:test');

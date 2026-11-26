@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Simulate the guest email sequence against any GuestFlow database — nothing is sent, nothing is
- * written (specs/guest-email-sequence.md rules 31-32).
+ * written (specs/emails/guest-email-sequence.md rules 31-32).
  *
  *   SIMULATION_DB_PATH=/path/to/copy.db node scripts/simulate-guest-email-sequence.mjs --from 2026-09-01 --to 2027-01-31
  *   … [--start 2026-10-01]   the day automatic sending would be turned on (default: the stored one, else today)

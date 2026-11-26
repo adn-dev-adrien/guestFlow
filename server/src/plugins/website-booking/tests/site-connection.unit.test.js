@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rules 30-31 — GuestFlow hands the admin what the WordPress plugin is
+// specs/plugins/plugins-phase-2-hosts.md rules 30-31 — GuestFlow hands the admin what the WordPress plugin is
 // given (its address, the public API key) and rotates the key on demand. Rule 24's key is otherwise
 // untouched: the boot never rotates it.
 

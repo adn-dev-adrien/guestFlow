@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 (« a new free line whose label exists gets « (2) »; its discount, its payment and its removal stay its
+// specs/pricing/pricing-components.md §3 rule 94 (« a new free line whose label exists gets « (2) »; its discount, its payment and its removal stay its
 // own ») — invariant harness of the stabilisation loop t16 (sale `pb.js`, made permanent by the sale fixer, 2026-11-17). Every path that writes
 // free lines × every label variant:
 //   I1 a booking never holds two free rows of one key (`extraLineKey`: trimmed, lower-cased, inner spaces collapsed);

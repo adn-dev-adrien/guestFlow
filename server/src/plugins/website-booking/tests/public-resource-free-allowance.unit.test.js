@@ -1,5 +1,5 @@
 /**
- * specs/wp-booking-widget-redesign.md §3 — what a stay gets for free on an hourly resource must be
+ * specs/site/wp-booking-widget-redesign.md §3 — what a stay gets for free on an hourly resource must be
  * SAID, not merely applied. The engine already bills the nordic bath's first hour at 0 €; these
  * cases pin the wording the public payload carries so the site never has to derive it.
  */

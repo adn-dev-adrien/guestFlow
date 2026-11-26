@@ -1,5 +1,5 @@
 // HTTP shaping + authoritative validation of the compensation endpoints
-// (specs/cancellation-compensation.md §3.5, §4.3). The model is faked: only the boundary is
+// (specs/payments/cancellation-compensation.md §3.5, §4.3). The model is faked: only the boundary is
 // under test — what the server accepts, what it refuses, and with which code.
 
 const test = require('node:test');

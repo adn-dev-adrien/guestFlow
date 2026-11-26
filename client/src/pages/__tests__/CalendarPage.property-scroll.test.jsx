@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 14-15 — the logement calendar has no month arrows (« Aujourd'hui »
+// specs/planning/calendar-property-parity.md rules 14-15 — the logement calendar has no month arrows (« Aujourd'hui »
 // is the only navigation), and switching logement empties the cache but opens on the month that was in view.
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';

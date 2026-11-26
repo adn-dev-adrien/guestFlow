@@ -6,7 +6,7 @@ const PDFDocument = require('pdfkit');
 const { generateDevisPdf, __test } = require('../utils/devisPdf');
 const { resolveRowGeometry } = __test;
 
-// specs/devis-pdf-row-layout.md — a pricing-table row is as tall as what it prints. PDFKit encodes
+// specs/devis/devis-pdf-row-layout.md — a pricing-table row is as tall as what it prints. PDFKit encodes
 // text as glyph indexes, so the rendered bytes can't be inspected: the geometry is proven here, on
 // the pure resolver the renderer feeds its measured heights to.
 

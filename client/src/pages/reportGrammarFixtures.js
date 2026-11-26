@@ -1,4 +1,4 @@
-// Fixture data of the report grammar (specs/report-grammar.md): the dev-only preview page and the
+// Fixture data of the report grammar (specs/design-system/report-grammar.md): the dev-only preview page and the
 // component tests read the same figures. Fake numbers, shaped like the server payloads lots 1–5 send —
 // every total, share and delta is written here as the server would send it, never computed.
 

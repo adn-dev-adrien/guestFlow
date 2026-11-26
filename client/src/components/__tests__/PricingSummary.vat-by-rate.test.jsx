@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/pricing-components.md §3 rule 15 (decision D12, mock M1) — the fiche's finance card prints « Total HT » then one VAT line
+// specs/pricing/pricing-components.md §3 rule 15 (decision D12, mock M1) — the fiche's finance card prints « Total HT » then one VAT line
 // per rate with its base, straight from the server's `vatByRate`; no « Total TVA » line and no sum in React. A « Sans TVA »
 // stay prints the legal mention and no rate line.
 

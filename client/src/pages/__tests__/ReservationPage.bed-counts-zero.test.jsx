@@ -1,4 +1,4 @@
-// specs/bed-config-in-linen-card.md rule 13 — an explicit bed count of 0 is a value, not an empty field: opening a fiche
+// specs/linen/bed-config-in-linen-card.md rule 13 — an explicit bed count of 0 is a value, not an empty field: opening a fiche
 // and saving it sends 0 back (it used to become null through `|| ''`).
 import React from 'react';
 import { vi } from 'vitest';
@@ -53,7 +53,7 @@ function open(fiche) {
   );
 }
 
-// Enregistrer is disabled on a clean fiche (specs/reservation-save-keeps-pricing.md rule 7): touch a note first,
+// Enregistrer is disabled on a clean fiche (specs/reservations/reservation-save-keeps-pricing.md rule 7): touch a note first,
 // as a user would, as soon as the field is there.
 async function makeDirty() {
   fireEvent.change(await screen.findByLabelText(/^Notes/i), { target: { value: 'Arrivée tardive' } });

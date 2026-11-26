@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 45 — the backup codes must be saved before the parent's
+// specs/hosting/hosting-h2-account-security.md rule 45 — the backup codes must be saved before the parent's
 // « Terminé »: copying, downloading or ticking the box each report "saved".
 import React, { useState } from 'react';
 import { vi } from 'vitest';

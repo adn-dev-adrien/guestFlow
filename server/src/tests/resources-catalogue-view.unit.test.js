@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rules 18, 19, 21 — each resource ready to render, the lines a live plugin
+// specs/options/options-resources-ux.md rules 18, 19, 21 — each resource ready to render, the lines a live plugin
 // adds, and the authoritative validation of a resource write.
 const test = require('node:test');
 const assert = require('node:assert/strict');

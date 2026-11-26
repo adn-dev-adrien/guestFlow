@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — a school holiday and the sync state.
+// specs/plugins/plugin-removal-resilience.md rule 11 — a school holiday and the sync state.
 module.exports = {
   seed(db) {
     db.prepare(`INSERT INTO school_holidays (label, zoneA_start, zoneA_end, zoneB_start, zoneB_end, zoneC_start, zoneC_end)

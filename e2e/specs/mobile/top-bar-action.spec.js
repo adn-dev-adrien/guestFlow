@@ -1,5 +1,5 @@
 // @ts-check
-// specs/shell-and-home-day-first.md rule 23 (review of PR #728, B1, M1, M2) — on a phone a page bar
+// specs/planning/shell-and-home-day-first.md rule 23 (review of PR #728, B1, M1, M2) — on a phone a page bar
 // left with one ICON action gives it to the top bar, and only while the title stays whole; text
 // buttons, selects and the folded « ⋯ » stay in the page; opening the search does not move the page;
 // a calendar on one logement shows « Aujourd'hui » once.

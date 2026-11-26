@@ -6,7 +6,7 @@
  * `Gitedefrance` both → `Gitedefrance`). Applied at every write site that lands a value in
  * `ical_sources.platformLabel`, `reservations.platform`, or `platforms.name`.
  *
- * Algorithm (spec: specs/normalize-platform-names.md §3.1):
+ * Algorithm (spec: specs/platforms/normalize-platform-names.md §3.1):
  *   1. `null` / `undefined` → `null` (= "no platform on this write, leave the column alone").
  *   2. The `direct` enum value (case-insensitive) is preserved as lowercase `'direct'` — strict
  *      equality checks against `'direct'` in the codebase (accountingExport, accountingModel,
@@ -50,9 +50,9 @@ function formatPlatformName(input) {
  * A booking is « direct » in the commercial sense when the guest relationship is the operator's own,
  * with no OTA in between: `direct` (created by hand in GuestFlow), plus every platform the operator
  * marked « Compté comme vente directe » — the booking engine of the operator's own website, whose fee
- * is not a marketplace commission (specs/plugins-phase-p-productisation.md rule 19).
+ * is not a marketplace commission (specs/plugins/plugins-phase-p-productisation.md rule 19).
  *
- * Used by the welcome pack (specs/tariff-recipes/spec.md §3.9 rule 53) and every read that tells a
+ * Used by the welcome pack (specs/pricing/tariff-recipes.md §3.9 rule 53) and every read that tells a
  * direct booking from a platform one. Never compare a platform to `'direct'` by hand.
  */
 let directChannels = new Set(['direct']);
@@ -63,7 +63,7 @@ function isDirectChannel(platform) {
   return directChannels.has(channelKey(platform));
 }
 
-/** `direct` always, plus the platforms named here (specs/plugins-phase-p-productisation.md rule 19). */
+/** `direct` always, plus the platforms named here (specs/plugins/plugins-phase-p-productisation.md rule 19). */
 function setDirectChannels(names = []) {
   directChannels = new Set(['direct', ...names.map(channelKey)]);
 }
@@ -95,7 +95,7 @@ function registerDirectChannelSql(database) {
  * Some platforms forbid asking their guests for any checkout chore (dishes, trash, « leave it as you
  * found it ») and billing an undone one: Airbnb does. The operator ticks « Sans corvées de départ » on
  * such a platform (`platforms.forbidsGuestChores`); the SAS and the guest e-mails then read this set
- * instead of a platform name (specs/airbnb-no-checkout-chores.md rule 8).
+ * instead of a platform name (specs/platforms/airbnb-no-checkout-chores.md rule 8).
  */
 let choreFreeChannels = new Set();
 
@@ -128,7 +128,7 @@ function refreshChoreFreeChannels(database) {
  * Some platforms hand out a relay address instead of the guest's own: nothing sent there after the
  * stay reaches anyone who asked for it. The operator ticks « Adresse e-mail relais » on such a platform
  * (`platforms.relaysGuestEmail`) and the guest e-mail sequence reads this set instead of a platform
- * name (specs/platform-settings-relay-and-review.md rules 1-2).
+ * name (specs/platforms/platform-settings-relay-and-review.md rules 1-2).
  */
 let relayChannels = new Set();
 
@@ -142,7 +142,7 @@ function setRelayChannels(names = []) {
 
 /**
  * Where a platform's guests leave a review — `platformReviewWhere(platform, lang)`, as the J+1 e-mail
- * words it (`platforms.reviewWhereFr` / `reviewWhereEn`, specs/platform-settings-relay-and-review.md
+ * words it (`platforms.reviewWhereFr` / `reviewWhereEn`, specs/platforms/platform-settings-relay-and-review.md
  * rules 3-4). '' when the operator wrote nothing; an empty English answers the French.
  */
 let reviewWhere = new Map();

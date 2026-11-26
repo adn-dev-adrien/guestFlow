@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R23 N5, N6) — money a cancelled stay collected stays on a
+// specs/payments/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R23 N5, N6) — money a cancelled stay collected stays on a
 // line of its register: the options and resources shares of paid installments beyond the lines still naming them, and a paid
 // end-of-stay complement. Given back whole, every account nets to 0. Replays of the auditor's a12, a1 and a2 probes.
 // A future stay holding a paid end of stay is a row stored before D20 (reservation-payment-ledger rule 68): written as stored.

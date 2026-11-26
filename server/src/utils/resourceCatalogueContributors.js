@@ -1,5 +1,5 @@
 /**
- * The resource-card contributors of the live plugins (specs/options-resources-ux.md rule 19), in the
+ * The resource-card contributors of the live plugins (specs/options/options-resources-ux.md rule 19), in the
  * order the plugins are registered. A plugin that is not live adds nothing.
  */
 

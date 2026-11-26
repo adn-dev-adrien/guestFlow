@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const reservationsModel = require('../models/reservationsModel');
 
-// specs/force-extras-complement-on-platform.md §3 + §7.1.
+// specs/sas/force-extras-complement-on-platform.md §3 + §7.1.
 // The write-time contract changed (update 2026-06-20): the pricing engine is the single authority for
 // `inComplement` — it applies the platform default for unflagged lines AND honours an explicit
 // operator override. The model therefore persists the engine-resolved flag VERBATIM and never

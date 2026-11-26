@@ -1,5 +1,5 @@
 // Base de référence + synchronisation du complément de fin de séjour (couche modèle).
-// See specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rules 3-4 + §3.4 rule 11 + §3.5.
+// See specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.1 rules 3-4 + §3.4 rule 11 + §3.5.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,7 +9,7 @@ const { create: createReservationsModel } = require('../models/reservationsModel
 const { MID_STAY_SOURCE } = require('../utils/midStayExtras');
 const { withNow } = require('../utils/localDate');
 
-// `checkedIn` — specs/arrival-moment-is-the-check-in.md : c'est l'arrivée constatée (check-in ou
+// `checkedIn` — specs/sas/arrival-moment-is-the-check-in.md : c'est l'arrivée constatée (check-in ou
 // SAS d'arrivée), et non la date du calendrier, qui ouvre la fenêtre « vendu en cours de séjour ».
 // date-literal-ok: fixture rows written by raw SQL; the cases that ask the clock pin their moment (withNow)
 function makeDb({ startDate = '2026-07-10', endDate = '2026-07-15', checkedIn = true } = {}) {
@@ -91,10 +91,10 @@ test('capture — client pas encore arrivé → aucune base (comportement inchan
   assert.equal(baselineOf(db), null);
 });
 
-// specs/arrival-moment-is-the-check-in.md rule 1 — le bug remonté par Adrien : le jour de l'arrivée,
+// specs/sas/arrival-moment-is-the-check-in.md rule 1 — le bug remonté par Adrien : le jour de l'arrivée,
 // avant tout check-in, une option ajoutée à la main partait au complément de fin de séjour.
 // Le moment du geste est fixé (`withNow`) : l'horloge du séjour juge à Paris, quel que soit le fuseau du processus ou l'heure
-// du runner (specs/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 et 18:00, en +01:00, restent du bon côté
+// du runner (specs/tech/server-test-isolation.md rule 6, reading of 2026-11-19). 10:00 et 18:00, en +01:00, restent du bon côté
 // de 16:00 en heure d'hiver comme d'été.
 test('capture — jour d\'arrivée atteint mais heure du check-in pas passée → toujours aucune base', () => {
   const db = makeDb({ startDate: '2099-08-01', endDate: '2099-08-04', checkedIn: false });
@@ -192,7 +192,7 @@ test('base absente (résa antérieure à la spec) — le SAS ne crée pas de bas
   assert.equal(baselineOf(db), null, 'la capture reste paresseuse : à la prochaine sauvegarde de fiche');
 });
 
-// ── Notes en séjour (specs/mid-stay-notes.md §3.1-§3.2 + §3.5) ───────────────
+// ── Notes en séjour (specs/sas/mid-stay-notes.md §3.1-§3.2 + §3.5) ───────────────
 
 const notesOf = (db) => JSON.parse(db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = 1').get().midStaySettledNotes || '[]');
 const midLines = (db) => JSON.parse(eosOf(db).detail || '[]').filter((l) => l.source === MID_STAY_SOURCE);

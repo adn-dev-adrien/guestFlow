@@ -1,6 +1,6 @@
 // A viewport width for useMediaQuery under jsdom, which has no matchMedia: answers the min-width /
 // max-width queries MUI builds from its breakpoints. Shared by the suites of
-// specs/ui-review-2026-10-19-operations.md; call `resetViewport()` in afterEach.
+// specs/design-system/ui-review-2026-10-19-operations.md; call `resetViewport()` in afterEach.
 export function setViewport(width) {
   window.matchMedia = (query) => {
     const min = /min-width:\s*([\d.]+)px/.exec(query);

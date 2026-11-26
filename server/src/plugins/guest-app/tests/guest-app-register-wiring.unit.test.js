@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 58 and 59 (audit R36 A36-2, R36-P2) — what `register` hands the core: a stored guest host
+// specs/guest-app/guest-app.md rules 58 and 59 (audit R36 A36-2, R36-P2) — what `register` hands the core: a stored guest host
 // equal to GuestFlow's own address is ignored (the web app claims nothing, the setup still asks for an address), and
 // « Effacer aussi ses données » names the booklet pages and photos it drops, then deletes the photo files, so they are
 // served no more. The plugin registered on a recording context; its database is an in-memory one.

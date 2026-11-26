@@ -1,5 +1,5 @@
 /**
- * Locked snapshots and « offert » of an article line (specs/pricing-components.md §3 rules 13, 14, 47) — the helpers
+ * Locked snapshots and « offert » of an article line (specs/pricing/pricing-components.md §3 rules 13, 14, 47) — the helpers
  * the engine has always used to keep a sold line at what it was sold for, moved unchanged. The head applies them; no
  * family does.
  *
@@ -10,7 +10,7 @@ const { normalizeBilledUnits } = require('../allowances');
 
 /**
  * The units a line was SOLD at, read from its own snapshot — `null` when the line is new
- * (specs/unscheduled-card-option.md rule 3).
+ * (specs/options/unscheduled-card-option.md rule 3).
  *
  * A card option sold by the website carries its portions here and nowhere else: its moments are not
  * placed yet, so there is nothing to recompute them from. Anchoring the unscheduled price on this
@@ -90,7 +90,7 @@ function mergeLineWithLockedSnapshot({
  * without its unit price — fall back to `fallbackUnitPrice` (the current catalog/effective unit
  * price the caller already resolved). This makes un-offering re-price from the catalog instead of
  * staying at 0, matching the spec's "offered toggle is lossless" contract
- * (specs/pricing-engine-thin-client.md §14). A genuinely free line (no stored unit AND no catalog
+ * (specs/pricing/pricing-engine-thin-client.md §14). A genuinely free line (no stored unit AND no catalog
  * price) is still left at 0.
  */
 function reconstructLockedRealTotal(lockedLine, fallbackUnitPrice = 0) {
@@ -114,7 +114,7 @@ function reconstructLockedRealTotal(lockedLine, fallbackUnitPrice = 0) {
  * snapshot for that line — a fresh quote, or a line added today.
  *
  * The stored `unitPrice` is preferred over `totalPrice / billedUnits`: the total is NET of the free
- * units included in the rate (specs/tariff-recipes/spec.md §3.9 rule 52bis) while `billedUnits` is
+ * units included in the rate (specs/pricing/tariff-recipes.md §3.9 rule 52bis) while `billedUnits` is
  * gross, so the division would deflate the price of an option covered by a welcome pack.
  */
 function lockedUnitPriceOr(lockedLine, currentUnitPrice) {
@@ -130,7 +130,7 @@ function lockedUnitPriceOr(lockedLine, currentUnitPrice) {
 }
 
 /**
- * specs/tariff-recipes/spec.md §3.9 rules 52bis and 56 — a sold line stores its
+ * specs/pricing/tariff-recipes.md §3.9 rules 52bis and 56 — a sold line stores its
  * total NET of the free units the rate includes, while `billedUnits` is gross. Merging that net total
  * as if it covered every unit derived a deflated unit price, and the free units were then deducted a
  * second time: « Jus 6 € ×3, 1 offert » went 12 → 8 → 5,34 → 3,56 over three saves. The free units are

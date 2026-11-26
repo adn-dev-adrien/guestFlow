@@ -1,6 +1,6 @@
 # Real-host check of the hosting
 
-A throwaway reconstruction of the production host (specs/hosting-h1-fleet-runtime.md, runbook in
+A throwaway reconstruction of the production host (specs/hosting/hosting-h1-fleet-runtime.md, runbook in
 `../README.md`), to prove what unit tests cannot: systemd sandboxing, Caddy, Litestream 0.3.13 and
 rclone against an S3 endpoint, and the isolation between instances.
 

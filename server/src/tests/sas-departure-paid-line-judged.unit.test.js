@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 107 d and specs/sas-offer-complement-lines.md §4 (stabilisation loop t7, UI7-2 / UI7-3, 2026-11-16) —
+// specs/pricing/pricing-components.md §3 rule 107 d and specs/sas/sas-offer-complement-lines.md §4 (stabilisation loop t7, UI7-2 / UI7-3, 2026-11-16) —
 // the DEPARTURE half of the SAS paid-line judgment, and both commits through the HTTP layer. A recalled arrival complement holds a line sold on
 // the fiche (unpaid) beside a line ordered in the app and paid by card: the check-out offering both answers 409 OVERPAID, writes nothing, and
 // names the paid line by the recap's key (`overpaymentKeys`, so « Garder » on the SAS puts exactly that line back to billed); confirmed with

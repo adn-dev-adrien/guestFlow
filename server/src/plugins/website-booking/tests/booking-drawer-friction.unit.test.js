@@ -7,7 +7,7 @@ const { calculateReservationQuote } = require('../../../utils/pricing').__test;
 const { computeArrivalWindows, addDays } = require('../publicArrivalWindows');
 const { toPublicAvailability, toPublicQuote, perPersonPerNight } = require('../publicProjections');
 
-// specs/booking-drawer-friction.md — rules 8 (price per person), 10 (arrival windows) and 13 (night
+// specs/site/booking-drawer-friction.md — rules 8 (price per person), 10 (arrival windows) and 13 (night
 // prices). The windows must agree with the quote's own minimum-stay rule night for night: a departure
 // the calendar offers is never refused, one it hatches is always refused.
 
@@ -86,7 +86,7 @@ test('effectiveMinNightsForDate: range override, season default, unpriced night'
   assert.equal(effectiveMinNightsForDate(rules, '2026-10-25'), null);
 });
 
-test('specs/booking-drawer-friction.md rule 10 — arrival windows: a uniform 2-night minimum gives arrival + 2', () => {
+test('specs/site/booking-drawer-friction.md rule 10 — arrival windows: a uniform 2-night minimum gives arrival + 2', () => {
   const w = windows(seasonedDb(), '2026-11-20', '2026-11-22');
   assert.deepEqual(w, [
     { date: '2026-11-20', minNights: 2, earliestDeparture: '2026-11-22' },

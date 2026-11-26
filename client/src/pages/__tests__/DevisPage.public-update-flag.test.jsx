@@ -1,5 +1,5 @@
 /**
- * DevisPage — « Message du client après envoi » (specs/public-request-abuse-and-grouping.md
+ * DevisPage — « Message du client après envoi » (specs/site/public-request-abuse-and-grouping.md
  * rules 14, 21): a website quote the guest wrote about again after the operator sent it says so in
  * the list.
  */
@@ -40,7 +40,7 @@ vi.mock('../../components/DialogProvider', () => ({
 import api from '../../api';
 import DevisPage from '../DevisPage';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 const DEVIS = {

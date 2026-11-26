@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 29 — a month column of the pace chart is a finger-sized target.
+// specs/design-system/ds-components.md rule 29 — a month column of the pace chart is a finger-sized target.
 import React from 'react';
 import { render } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

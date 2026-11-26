@@ -1,4 +1,4 @@
-// specs/plugins-phase-3b-neat.md rules 14, 18 — what an erasure cannot undo elsewhere is said apart,
+// specs/plugins/plugins-phase-3b-neat.md rules 14, 18 — what an erasure cannot undo elsewhere is said apart,
 // before the choice; the erasure stays possible (decision P12: warn, then erase).
 import React from 'react';
 import { render, screen } from '@testing-library/react';

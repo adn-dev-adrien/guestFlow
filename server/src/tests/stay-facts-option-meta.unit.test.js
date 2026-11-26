@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md §3.5 rules 20 and 23 — on the production schema, the option metadata
+// specs/emails/guest-email-sequence.md §3.5 rules 20 and 23 — on the production schema, the option metadata
 // reaches the classifier: a booked juice is confirmed in the J-2 and no longer proposed in the J-7.
 
 const test = require('node:test');
@@ -27,7 +27,7 @@ test('the option metadata loads on the production schema', () => {
   assert.equal(facts.optionMeta[21].seedKey, 'drink_jus_pomme_1l');
 });
 
-// Since specs/plugins-phase-p-productisation.md, a catering option reaches the emails through its
+// Since specs/plugins/plugins-phase-p-productisation.md, a catering option reaches the emails through its
 // mention (rules 7–8).
 test('a booked catering option is booked, hence not proposed again', () => {
   const { facts, lines } = stayWithJuiceBooked();

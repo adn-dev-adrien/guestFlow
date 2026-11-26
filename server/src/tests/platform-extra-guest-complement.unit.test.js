@@ -1,4 +1,4 @@
-// Guests added after a platform booking — specs/platform-extra-guest-complement.md.
+// Guests added after a platform booking — specs/platforms/platform-extra-guest-complement.md.
 // No supplement before the brut; once it is entered, the guests above what the platform billed are
 // collected on arrival, shown in the SAS and offerable.
 
@@ -11,7 +11,7 @@ const { splitExtraGuestCount } = require('../utils/pricing');
 const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
 const { create: createReservationsModel, __test: { arrivalComplementDetailFromReservation } } = require('../models/reservationsModel');
 
-// Lodgify counts as a direct sale on Solio (specs/plugins-phase-p-productisation.md): a fresh process
+// Lodgify counts as a direct sale on Solio (specs/plugins/plugins-phase-p-productisation.md): a fresh process
 // starts with no direct channel configured.
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 113 a and specs/pricing-components.md rule 23 (stabilisation loop t6, A6-2, 2026-11-16) — a note paid online (an app
+// specs/guest-app/guest-app.md rule 113 a and specs/pricing/pricing-components.md rule 23 (stabilisation loop t6, A6-2, 2026-11-16) — a note paid online (an app
 // or shop card order) is never adjusted either: « Modifier la note » refuses a new amount or « Caisse interne » (409 NOTE_PAID_ONLINE), only
 // its date moves, and the fiche serves the lock so « Modifier » is not drawn. Before: lowering the 12 € card note to 6 € put 6 € back in the
 // departure remainder (the guest asked again for money paid online), and « Caisse interne » took 12 € received by card off the books.

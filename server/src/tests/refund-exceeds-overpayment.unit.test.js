@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 42 — a refund of the trop-perçu cannot exceed what is still over-collected,
+// specs/payments/reservation-refunds.md rule 42 — a refund of the trop-perçu cannot exceed what is still over-collected,
 // so a double click or a stale tab cannot give the same money back twice.
 const test = require('node:test');
 const assert = require('node:assert/strict');

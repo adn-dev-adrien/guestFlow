@@ -1,4 +1,4 @@
-// A line a plugin billed, re-opened while that plugin is off — specs/plugins-phase-3c-hourly-resources.md
+// A line a plugin billed, re-opened while that plugin is off — specs/plugins/plugins-phase-3c-hourly-resources.md
 // rules 8, 28 (decision P10): the server keeps it as stored, so the recap shows it as it is, in the total,
 // without « Offrir », and the commit never sends it back.
 //
@@ -48,7 +48,7 @@ test('rule 8: the supplement billed before stays in the recap, fixed, and is not
 
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
-  // specs/sas-arrival-total-server-side.md rule 7 — a plugin's row is never kept by the dialog.
+  // specs/sas/sas-arrival-total-server-side.md rule 7 — a plugin's row is never kept by the dialog.
   expect(api.commitArrivalSas.mock.calls[0][1].keptLines).toEqual([]);
 });
 

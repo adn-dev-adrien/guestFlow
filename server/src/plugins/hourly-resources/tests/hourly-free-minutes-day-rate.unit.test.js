@@ -1,4 +1,4 @@
-// specs/hourly-resource-quantity-and-sas-scheduling.md rule 37 — the free minutes are worth the DAY rate: an offered hour placed in the evening owes the evening supplement,
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md rule 37 — the free minutes are worth the DAY rate: an offered hour placed in the evening owes the evening supplement,
 // as the arrival SAS already bills it. `priceSessions` values the allowance at the day rate and names the supplement; the fiche's line leaves that supplement to its own
 // charge; a sold line is never re-priced by it.
 const test = require('node:test');

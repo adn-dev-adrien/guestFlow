@@ -1,10 +1,10 @@
 /**
- * The public projections of a catalogue item (specs/public-api.md §3 rule 5): an option or a resource as
+ * The public projections of a catalogue item (specs/site/public-api.md §3 rule 5): an option or a resource as
  * a guest-facing surface shows it, with its effective per-property price and its server-made labels.
  * Core, so that every surface selling the catalogue reads one projection: the website-booking plugin
- * (which re-exports them) and the guest app (specs/guest-app.md rule 24), neither depending on the other.
+ * (which re-exports them) and the guest app (specs/guest-app/guest-app.md rule 24), neither depending on the other.
  *
- * Language (specs/site-english-version.md §3 rules 3-9). Every projection takes a `lang`, defaults
+ * Language (specs/site/site-english-version.md §3 rules 3-9). Every projection takes a `lang`, defaults
  * to French, and resolves its own labels through `publicLabels` — so a consumer that never sends a
  * language receives byte-identical payloads to before this existed.
  */
@@ -47,9 +47,9 @@ function resolveTitle(rawLang, title, titleEn) {
 
 // Human-readable price-basis + quantity labels for the site — computed SERVER-SIDE from priceType +
 // showsPlanningCard so it is the single source of truth: adding an option needs NO website change, the
-// plugin just renders these strings (specs/public-planning-options.md). A planning-card option is
+// plugin just renders these strings (specs/site/public-planning-options.md). A planning-card option is
 // billed by the visitor's quantity on the site, so its labels differ from the back-office occurrence
-// model: a PER-PERSON one counts PORTIONS — breakfasts, covers (specs/site-meal-portions.md rule 6) —
+// model: a PER-PERSON one counts PORTIONS — breakfasts, covers (specs/site/site-meal-portions.md rule 6) —
 // and the others still count séances.
 function optionPriceLabels(priceType, showsPlanningCard, option = null, lang = 'fr') {
   const pt = String(priceType || '');
@@ -67,7 +67,7 @@ function optionPriceLabels(priceType, showsPlanningCard, option = null, lang = '
 
 /**
  * `translate` is the translation catalogue for the language being served
- * (specs/translation-catalogue.md rules 14-16). Optional on purpose: without it the projection falls
+ * (specs/site/translation-catalogue.md rules 14-16). Optional on purpose: without it the projection falls
  * back to the row's own `titleEn`, which is what every caller did before the catalogue existed and
  * what the models still attach.
  */
@@ -92,17 +92,17 @@ function toPublicOption(row, lang = 'fr', translate = null) {
     priceType: row.priceType,
     price: Number(row.price || 0),
     // Planning-card option: booked as a time slot. On the site it's billed by quantity and « à
-    // planifier avec l'hôte » (specs/public-planning-options.md).
+    // planifier avec l'hôte » (specs/site/public-planning-options.md).
     showsPlanningCard: Boolean(row.showsPlanningCard),
     // Backend-owned display labels (source of truth) — the site renders them as-is.
     priceUnitLabel: labels.priceUnitLabel,
     quantityLabel: labels.quantityLabel,
-    // Grouping label (specs/option-categories.md §3 rule 15). '' = ungrouped = rendered in the
+    // Grouping label (specs/options/option-categories.md §3 rule 15). '' = ungrouped = rendered in the
     // widget's flat list; a non-empty label folds it into a collapsible section.
     category: String(row.category || '').trim(),
     // Pinned outside its category's collapse even when the visitor hasn't picked it (rule 9bis).
     alwaysVisible: Number(row.alwaysVisible || 0) === 1,
-    // THE cancellation insurance (specs/cancellation-insurance.md §3.2 rule 11). The site keys on
+    // THE cancellation insurance (specs/payments/cancellation-insurance.md §3.2 rule 11). The site keys on
     // this flag — never on a title — and renders it in its own block, not in the supplements list.
     isCancellationInsurance: Number(row.isCancellationInsurance || 0) === 1,
   };
@@ -114,7 +114,7 @@ function toPublicOption(row, lang = 'fr', translate = null) {
 }
 
 // Display labels for resources, mirroring optionPriceLabels: the site renders these strings as-is,
-// so adding a resource needs NO website change (specs/wp-booking-widget-redesign.md).
+// so adding a resource needs NO website change (specs/site/wp-booking-widget-redesign.md).
 function resourcePriceLabels(priceType, lang = 'fr') {
   const L = labelsFor(lang);
   const pt = String(priceType || '');
@@ -183,7 +183,7 @@ function toPublicResource(row, lang = 'fr', translate = null) {
     // Hourly resources (bain nordique) are allocated by the host on the planning: the site shows the
     // « À planifier avec l'hôte » note for these, and ONLY these (spec §3.10).
     showsSchedulingNote: String(row.priceType || '') === 'per_hour',
-    // The cot, named by a flag rather than by its title (specs/translation-catalogue.md rule 22).
+    // The cot, named by a flag rather than by its title (specs/site/translation-catalogue.md rule 22).
     // The funnel drives it from the babies stepper instead of listing it with the supplements, and
     // it used to recognise it by matching « Lit bébé » on this very payload — which stopped matching
     // the day the payload started saying « Baby bed ». Decided on the stored row, so the answer is

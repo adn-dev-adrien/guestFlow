@@ -1,5 +1,5 @@
 /**
- * The environment the `npm test` preload clears (specs/server-test-isolation.md rule 12, reading of
+ * The environment the `npm test` preload clears (specs/tech/server-test-isolation.md rule 12, reading of
  * 2026-11-01): every `GUESTFLOW_*` variable but the runner's `GUESTFLOW_TEST_*` knobs, by prefix, and every
  * other variable the app reads, by name, so a developer shell carrying production settings
  * (`PUBLIC_SITE_ORIGIN`, a rate-limit knob, QONTO_*) runs the suite as CI does.

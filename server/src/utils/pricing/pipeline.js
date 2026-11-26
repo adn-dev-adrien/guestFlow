@@ -1,5 +1,5 @@
 /**
- * PIPELINE — freely chainable steps over one quote context (specs/pricing-components.md §3 rule 52).
+ * PIPELINE — freely chainable steps over one quote context (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Contract: a step is a plain object `{ id, requires: [keys], provides: [keys], apply(ctx) → ctx }`. `apply` returns a
  * new context and never mutates the one it receives (the context is frozen between steps). `buildPipeline(steps,

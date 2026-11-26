@@ -1,5 +1,5 @@
 // @ts-check
-// specs/per-property-default-options.md rule 11 — an option offered by default on one logement must
+// specs/options/per-property-default-options.md rule 11 — an option offered by default on one logement must
 // not stay free after the fiche switches to a logement where it is billed.
 //
 // Reported on a devis: « Nouveau devis » opened on L'Estiva (Ménage offered by default), the operator

@@ -4,7 +4,7 @@
  * 'direct' for own-channel bookings. NULL / '' / whitespace-only is normalised to
  * 'direct' here so the rest of the codebase can trust the column.
  *
- * Spec: specs/bed-config-in-linen-card.md §10 hotfix follow-up #4 (2026-06-05).
+ * Spec: specs/linen/bed-config-in-linen-card.md §10 hotfix follow-up #4 (2026-06-05).
  *
  * Pairs with the controller-level coercion in `reservationsController` — that one catches
  * any future write that tries to persist an empty value (e.g. an iCal import path, a

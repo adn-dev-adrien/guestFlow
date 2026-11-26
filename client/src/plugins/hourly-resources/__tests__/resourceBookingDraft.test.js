@@ -1,4 +1,4 @@
-// specs/resource-supplements-total-server-side.md rule 9 — the draft holds the price-relevant state only.
+// specs/resources/resource-supplements-total-server-side.md rule 9 — the draft holds the price-relevant state only.
 import { describe, it, expect } from 'vitest';
 import resourceBookingDraft from '../resourceBookingDraft';
 
@@ -7,7 +7,7 @@ const STATE = {
 };
 
 describe('resourceBookingDraft', () => {
-  // specs/resource-booking-pricing-and-invoicing.md rule 7 — the offered minutes are price-relevant: they travel in the draft.
+  // specs/resources/resource-booking-pricing-and-invoicing.md rule 7 — the offered minutes are price-relevant: they travel in the draft.
   it('rule 7 — carries the offered minutes as a number', () => {
     expect(resourceBookingDraft({ ...STATE, offeredMinutes: '30' }).offeredMinutes).toBe(30);
   });

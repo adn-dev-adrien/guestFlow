@@ -1,6 +1,6 @@
 /**
- * Server twin of client/src/utils/arithmetic.js (specs/reservation-price-arithmetic.md), so an amount
- * typed in a ledger row editor (specs/reservation-payment-ledger.md rule 21) is read by the server
+ * Server twin of client/src/utils/arithmetic.js (specs/reservations/reservation-price-arithmetic.md), so an amount
+ * typed in a ledger row editor (specs/payments/reservation-payment-ledger.md rule 21) is read by the server
  * exactly as the field shows it: « 12,5 », « 12.5 », « 100+20 », « 1 197,00 € ». No eval: tokenize,
  * shunting-yard, RPN. Returns the number, or null when unreadable.
  */

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 90.1 — the arrival SAS's complement is the engine's, and its plan is the commit played inside a
+// specs/pricing/pricing-components.md §3 rule 90.1 — the arrival SAS's complement is the engine's, and its plan is the commit played inside a
 // transaction rolled back: one computation by construction. Prod copy 2026-11-11: the stored complement equals the engine's on 62 stays of 62.
 
 process.env.DB_PATH = ':memory:';

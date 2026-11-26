@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 26, 40 — the browser « Retour » of a dirty fiche, with a real
+// specs/design-system/ui-review-2026-10-19-operations.md rules 26, 40 — the browser « Retour » of a dirty fiche, with a real
 // BrowserRouter: the router's popstate listener runs before any component's, so the fiche holds the slot of the
 // interceptor installed before the router mounts. Rule 41 — a reload or a closed tab warns on a dirty fiche.
 import React from 'react';

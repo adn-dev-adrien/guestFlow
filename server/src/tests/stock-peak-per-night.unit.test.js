@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 21 (audit R23-4) — the cots and the per-stay resources held on a range are the
+// specs/tech/reservations-backend-mvc.md rule 21 (audit R23-4) — the cots and the per-stay resources held on a range are the
 // peak of one night, not the sum of every stay touching the range: two stays that never meet hold their stock in turn.
 // One function, read by the two cot counts and the two resource counts.
 const test = require('node:test');

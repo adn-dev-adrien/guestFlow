@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rule 8 — one judgment of the proof of work for every public form: the voucher calls use the SDK's guard, so a challenge spent on one form is spent on all
+// specs/site/site-outside-resource-booking.md rule 8 — one judgment of the proof of work for every public form: the voucher calls use the SDK's guard, so a challenge spent on one form is spent on all
 // of them (the lodging request, the session confirmation), and a challenge issued below what the address owes now is refused `tooEasy`.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

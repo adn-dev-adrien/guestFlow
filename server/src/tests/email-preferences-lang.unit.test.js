@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md rule 37 (audit R42-PUB-L1, 2026-11-10) — the unsubscribe page declares the language it
+// specs/emails/guest-email-sequence.md rule 37 (audit R42-PUB-L1, 2026-11-10) — the unsubscribe page declares the language it
 // speaks: `<html lang="en">` around the English copy, `fr` around the French one and on the neutral unknown-token page.
 // It always declared `fr`, so a screen reader or a translation offer read the English text as French.
 const test = require('node:test');

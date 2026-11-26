@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 24 (audit R35-RES-L1). The promise a converted stay keeps (rule 22) is the
+// specs/payments/deposit-blocks-the-dates.md rule 24 (audit R35-RES-L1). The promise a converted stay keeps (rule 22) is the
 // promise of a DIRECT devis: an OTA devis never had an acompte to lose and promised the solde on rule 7's stay-relative
 // date. A stay converted from an OTA devis and then switched to a direct channel used to take the OTA devis's stored
 // acompte 0 as a direct promise: its solde jumped to the devis's validity date, months before an identical direct stay.

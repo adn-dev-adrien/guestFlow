@@ -1,4 +1,4 @@
-// specs/email-history-rolling-window.md rule 10 (2026-10-27 spec review) — at phone width the history
+// specs/emails/email-history-rolling-window.md rule 10 (2026-10-27 spec review) — at phone width the history
 // is a list of cards carrying the e-mail, the recipient and the status, not a clipped 6-column table.
 import React from 'react';
 import { vi } from 'vitest';

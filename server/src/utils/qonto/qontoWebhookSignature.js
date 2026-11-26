@@ -1,6 +1,6 @@
 /**
- * Qonto's webhook signature (specs/public-online-payment.md §3bis), shared by GuestFlow's webhook and
- * the control plane's (specs/control-plane-plans-and-access.md rule 32).
+ * Qonto's webhook signature (specs/site/public-online-payment.md §3bis), shared by GuestFlow's webhook and
+ * the control plane's (specs/hosting/control-plane-plans-and-access.md rule 32).
  *
  * Header **`X-Qonto-Signature`** = `t={unix_timestamp},v1={hex_hmac}`; the signed payload is
  * `{timestamp}.{raw_body}`, HMAC-SHA256 with the webhook secret; a delivery older than 5 minutes is
@@ -30,7 +30,7 @@ function parseSignatureHeader(header) {
   return { t: out.t, v1: out.v1 };
 }
 
-// Verify Qonto's signed-payload scheme (specs/public-online-payment.md §3bis). `nowSeconds` is
+// Verify Qonto's signed-payload scheme (specs/site/public-online-payment.md §3bis). `nowSeconds` is
 // injectable for tests.
 function verifySignature(rawBody, header, secret, nowSeconds = Math.floor(Date.now() / 1000)) {
   if (!secret || !header || !rawBody || !rawBody.length) return false;

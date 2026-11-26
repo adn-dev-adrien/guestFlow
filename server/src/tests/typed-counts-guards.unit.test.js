@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 19, 21, 22 and 24 (audit R21-S5) — where the guard answers beyond the
+// specs/options/non-card-option-served-persons.md rules 19, 21, 22 and 24 (audit R21-S5) — where the guard answers beyond the
 // fiche's update: the devis, the creation, the live quote and the locked past stay; and the replay of a stored stay,
 // which must keep a frozen night count.
 

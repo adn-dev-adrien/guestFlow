@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 37 (e) and specs/reservation-refunds.md rule 48, reading of 2026-11-02 (review of
+// specs/accounting/vat-optional-mode.md rule 37 (e) and specs/payments/reservation-refunds.md rule 48, reading of 2026-11-02 (review of
 // #925). The indemnity of a cancelled stay counts at face value — no VAT, no tourist tax taken out. A refund given
 // back from it (bucket `indemnity`) must lower the turnover at that same face value; it used to go through the
 // stay's HT ratio like the refund of a sale, so the turnover kept part of an indemnity the guest got back.

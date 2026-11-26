@@ -1,11 +1,11 @@
 // Test runner setup — auto-loaded by Vitest before each test file
-// (specs/cra-to-vite-migration.md §3.2). Extends Vitest's `expect` with the
+// Extends Vitest's `expect` with the
 // `@testing-library/jest-dom` DOM matchers (`toBeInTheDocument`, `toBeDisabled`, …) —
 // the same auto-load CRA's `react-scripts test` used to do under the hood.
 import '@testing-library/jest-dom';
 import { configure } from '@testing-library/react';
 
-// specs/server-test-isolation.md rule 17 — `findBy*` / `waitFor` wait up to 5 s (1 s by default), well inside the 30 s
+// specs/tech/server-test-isolation.md rule 17 — `findBy*` / `waitFor` wait up to 5 s (1 s by default), well inside the 30 s
 // test budget of vitest.config.js: a loaded runner answers late, never wrongly. An explicit `{ timeout }` still wins.
 configure({ asyncUtilTimeout: 5000 });
 

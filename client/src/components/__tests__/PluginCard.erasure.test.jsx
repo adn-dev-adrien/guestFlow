@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rules 4 and 21-22 — uninstalling a plugin module can erase its data;
+// specs/plugins/plugins-phase-1-sdk.md rules 4 and 21-22 — uninstalling a plugin module can erase its data;
 // the other plugins always keep theirs; a module that failed to start says so.
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';

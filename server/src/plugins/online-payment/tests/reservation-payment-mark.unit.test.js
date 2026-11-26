@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 34 — the core mark, callable without a request, answers as
+// specs/accounting/qonto-bank-reconciliation.md rule 34 — the core mark, callable without a request, answers as
 // `PATCH /reservations/:id/payment` does: same guards, same writes.
 const test = require('node:test');
 const assert = require('node:assert/strict');

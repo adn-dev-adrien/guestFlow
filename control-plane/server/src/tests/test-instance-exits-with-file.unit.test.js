@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 20 (audit R39-S1, 2026-11-10) — rule 18 for the control-plane suite: an instance a
+// specs/tech/server-test-isolation.md rule 20 (audit R39-S1, 2026-11-10) — rule 18 for the control-plane suite: an instance a
 // test file starts through the `local` process driver (detached, like a systemd unit) never outlives that file, and
 // neither does the file's temp tree. The file is cut off (SIGKILL, as `--test-timeout`, the exit watchdog or a kill end
 // it) or exits without its cleanup: the instance stops within seconds and the file's temp root is gone.

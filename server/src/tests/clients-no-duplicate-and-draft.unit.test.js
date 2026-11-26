@@ -1,4 +1,4 @@
-// specs/clients.md rules 12-13 — review 2026-10-18, F6: « Créer un nouveau client » wrote the client at
+// specs/clients/clients.md rules 12-13 — review 2026-10-18, F6: « Créer un nouveau client » wrote the client at
 // once (three abandoned fiches left three « Revueinte Camille ») and POST /api/clients took an email
 // that already existed. A known email or phone is now refused with the existing client, and a client
 // typed on a new fiche is written with the stay, in the same transaction.
@@ -60,7 +60,7 @@ test('rule 12 — GET /clients/duplicate answers the client the record would dup
   assert.deepEqual(miss.body, { client: null });
 });
 
-/** `YYYY-MM-DD`, `days` after today (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const stay = (over = {}) => ({

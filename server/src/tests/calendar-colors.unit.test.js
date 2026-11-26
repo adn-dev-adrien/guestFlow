@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 5-7 — the server picks the readable text colour of a bar, the
+// specs/planning/calendar-property-parity.md rules 5-7 — the server picks the readable text colour of a bar, the
 // built-in palette reaches 4.5:1 on every platform, and a custom colour the calendar cannot print legibly
 // is refused (the previous colour stays).
 process.env.DB_PATH = ':memory:';

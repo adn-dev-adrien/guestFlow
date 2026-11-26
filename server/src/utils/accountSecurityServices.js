@@ -1,6 +1,6 @@
 /**
  * The account-security controllers bound to the production database and environment
- * (specs/hosting-h2-account-security.md §4.1). One instance each, shared by the auth routes, the
+ * (specs/hosting/hosting-h2-account-security.md §4.1). One instance each, shared by the auth routes, the
  * users routes, the support routes and the support guard, so the in-memory rate limits are counted
  * once.
  */
@@ -44,7 +44,7 @@ const passwordReset = createPasswordResetController({
   passwordGuard,
 });
 
-// specs/hosting-h2-account-security.md rule 22 — the instance's slug: the hosting's GUESTFLOW_SLUG
+// specs/hosting/hosting-h2-account-security.md rule 22 — the instance's slug: the hosting's GUESTFLOW_SLUG
 // when set, else the one the verified licence was issued for.
 const instanceSlug = () => process.env.GUESTFLOW_SLUG || require('./licence').default.slug();
 

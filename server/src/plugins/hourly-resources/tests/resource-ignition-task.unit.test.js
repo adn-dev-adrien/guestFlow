@@ -1,4 +1,4 @@
-// specs/resource-ignition-task.md — a resource that takes hours to warm up (le bain nordique) needs a
+// specs/resources/resource-ignition-task.md — a resource that takes hours to warm up (le bain nordique) needs a
 // « Démarrer » task on the planning of the day it must be lit. Issue #13: a morning session has to be
 // started the night before; an afternoon one is lit the same morning and needs no reminder.
 

@@ -1,6 +1,6 @@
 /**
  * Users controller — admin-only account management for the `/comptes` page
- * (specs/admin-account-management.md).
+ * (specs/hosting/admin-account-management.md).
  *
  * Factory `buildController({ usersModel, settingsModel, emailService, emailTemplates,
  * passwordGenerator })` so tests can inject fakes; a default instance is bound to the production
@@ -37,7 +37,7 @@ function isValidEmail(value) {
   return isValidEmailAddress(value);
 }
 
-// specs/hosting-h2-account-security.md rule 68 — company and notes are text, null or left out.
+// specs/hosting/hosting-h2-account-security.md rule 68 — company and notes are text, null or left out.
 function notTextRefusal(body) {
   const field = ['companyName', 'notes'].find((key) => !isOptionalText(body[key]));
   return field ? { error: 'INVALID_FIELD', field } : null;
@@ -80,7 +80,7 @@ function buildController({
   }
 
   // The first role of `roles` the account does not already hold whose plugin is not live
-  // (specs/plugins-phase-0-foundation.md rule 29). A role already held stays: the plugin cannot have
+  // (specs/plugins/plugins-phase-0-foundation.md rule 29). A role already held stays: the plugin cannot have
   // been switched off under it (rule 8).
   function roleWithoutPlugin(roles, held = []) {
     const role = roles.find((r) => ROLE_PLUGINS[r] && !held.includes(r) && !isPluginLive(ROLE_PLUGINS[r]));
@@ -118,7 +118,7 @@ function buildController({
   return {
     // GET /api/users — admin only (the route group is admin-gated by enforceRoleAccess).
     // Each account says whether its second step is on, so the admin can turn it off
-    // (specs/hosting-h2-account-security.md rule 9). The support account is never listed.
+    // (specs/hosting/hosting-h2-account-security.md rule 9). The support account is never listed.
     list(req, res) {
       const withTwoFactor = new Set(twoFactor ? twoFactor.enabledUserIds() : []);
       return res.json({ users: usersModel.list().map((u) => ({ ...u, twoFactorEnabled: withTwoFactor.has(u.id) })) });
@@ -153,7 +153,7 @@ function buildController({
     //     and we validate the format here; an unchanged email skips the validation altogether
     //     so existing callers that don't touch it (or send the same string) keep working. A changed
     //     one needs `currentPassword` (+ `code` with a second step) and is told to the old address
-    //     (specs/hosting-h2-account-security.md rule 59).
+    //     (specs/hosting/hosting-h2-account-security.md rule 59).
     //   - roles must never be self-modifiable — a user could otherwise grant themselves admin.
     // Validation mirrors `create` (firstName + lastName required). Returns the refreshed safe user
     // so the caller can update its local auth state immediately.
@@ -204,7 +204,7 @@ function buildController({
         if (err && err.code === 'EMAIL_ALREADY_EXISTS') {
           return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', field: 'email' });
         }
-        // specs/hosting-h2-account-security.md rule 21 — the support account is never edited.
+        // specs/hosting/hosting-h2-account-security.md rule 21 — the support account is never edited.
         if (err && err.code === 'SUPPORT_ACCOUNT_LOCKED') {
           return res.status(403).json({ error: 'SUPPORT_FORBIDDEN', message: 'Action réservée au compte du client.' });
         }
@@ -382,7 +382,7 @@ function buildController({
       const target = usersModel.findById(id);
       if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // A reset reactivates the account, so a disabled one counts against the plan's quota
-      // (specs/control-plane-plans-and-access.md rule 13).
+      // (specs/hosting/control-plane-plans-and-access.md rule 13).
       if (!target.isActive) {
         const refusal = planQuota('users', () => usersModel.countActive());
         if (refusal) return res.status(402).json(refusal);

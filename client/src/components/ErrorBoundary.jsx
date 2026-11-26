@@ -1,5 +1,5 @@
 /**
- * ErrorBoundary — app-level render-crash guard (specs/ds-components.md §3.4). A component throw
+ * ErrorBoundary — app-level render-crash guard (specs/design-system/ds-components.md §3.4). A component throw
  * used to blank the whole page; it now shows a recoverable EmptyState. Remounts on every route
  * change (key = pathname in the RouteErrorBoundary wrapper), so navigating away self-resets.
  *

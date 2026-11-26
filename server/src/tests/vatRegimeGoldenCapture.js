@@ -1,5 +1,5 @@
 /**
- * What a VAT-registered install must keep answering byte for byte (specs/vat-optional-mode.md rule 23).
+ * What a VAT-registered install must keep answering byte for byte (specs/accounting/vat-optional-mode.md rule 23).
  * Not a test file: the golden test runs it on the fixture, `scripts/vat-regime-golden-prod.mjs` on a
  * copy of a real database.
  *
@@ -16,13 +16,13 @@ const { optionalPlugin } = require('../plugins/sdk/testing');
 // Timestamps SQLite stamps with the real clock say nothing about a VAT reader. `vatRegime`,
 // `vatPeriodId` and `showHt` are what the regime ADDED to the payloads (rule 23 compares what already existed; the
 // new keys have their own suites). The four reservation columns merged from inte/plugins (platform penalty,
-// supersession) are additive too and carry no VAT, and so are the three of specs/platform-added-guests-tourist-tax.md.
-// What the quote-shaped stored summary added (specs/reservation-payment-ledger.md rules 50-51): lines, nights, the
+// supersession) are additive too and carry no VAT, and so are the three of specs/tourist-tax/platform-added-guests-tourist-tax.md.
+// What the quote-shaped stored summary added (specs/payments/reservation-payment-ledger.md rules 50-51): lines, nights, the
 // tourist-tax case and the cascade. Rule 23 compares the money figures that already existed.
 const STORED_SUMMARY_ADDED = ['nights', 'nightlyBreakdown', 'optionLines', 'resourceLines', 'discountAmount', 'vatPercentageAccommodation',
   'touristTaxInComplement', 'touristTaxOfferedByPlatform', 'touristTaxCollectedOnArrival', 'touristTaxReversedByPlatform', 'platformSale',
   'midStaySettledTotal', 'midStayRemainingTotal', 'complementSplit', 'refundsTotal', 'summaryCascade',
-  // specs/pricing-components.md §3 rule 15 — the VAT per rate the fiche prints; the totals it adds up are in the compared keys.
+  // specs/pricing/pricing-components.md §3 rule 15 — the VAT per rate the fiche prints; the totals it adds up are in the compared keys.
   'vatByRate'];
 
 function withoutStoredLines(summary) {
@@ -37,9 +37,9 @@ const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 
   'platformPaidAdults', 'platformPaidOccupants', 'touristTaxAddedGuestsAmount', 'touristTaxAddedGuestsAdults',
   'touristTaxAddedGuestsDeclaredAt', 'touristTaxDeclaredWithAddedAmount',
   'complementPaidSplit', 'removedLineContribs', 'availableTtc', 'sharedBucketTtc',
-  // Additive, no VAT, and `declarable` reads today (specs/tourist-tax-declared-checkbox.md rule 8).
+  // Additive, no VAT, and `declarable` reads today (specs/tourist-tax/tourist-tax-declared-checkbox.md rule 8).
   'declarable', 'touristTaxInComplementLockedReason',
-  // The columns of PR B of the pricing refonte (specs/pricing-components.md §5) that a payload spreading a whole row now
+  // The columns of PR B of the pricing refonte (specs/pricing/pricing-components.md §5) that a payload spreading a whole row now
   // carries: they hold no VAT and no figure of today. Only names no existing payload uses.
   'discountTarget', 'discountAmountCents', 'cancellationKeptCents', 'cancellationIndemnityCents', 'lineId', 'collectAt', 'collectAtDefault', 'soldAt',
   'settlementRef', 'discountCents', 'allowanceUsed', 'orderRef', 'articleRef', 'fulfilmentRef',
@@ -213,7 +213,7 @@ async function capture(db, { years = [2025, 2026, 2027, 2028] } = {}) {
         await cancel({ params: { id: r.id }, body: {}, user: { id: 1 } }, res);
         const refunds = db.prepare('SELECT id FROM reservation_refunds WHERE reservationId = ? ORDER BY id').all(r.id)
           .map((h) => require('../models/refundsModel').getById(h.id));
-        // `refundId` (specs/pricing-components.md rule 78) is the column PR B adds to the row; `refunds` below already says which avoir it mirrors.
+        // `refundId` (specs/pricing/pricing-components.md rule 78) is the column PR B adds to the row; `refunds` below already says which avoir it mirrors.
         const comps = db.prepare('SELECT * FROM cancellation_compensations WHERE reservationId = ? ORDER BY id').all(r.id)
           .map(({ refundId, ...row }) => row); // eslint-disable-line no-unused-vars
         return { status: res.statusCode, body: res.body, refunds, comps };

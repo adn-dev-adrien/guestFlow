@@ -1,4 +1,4 @@
-// Tourist-tax « Déclarée » marker (specs/tourist-tax-declared-checkbox.md).
+// Tourist-tax « Déclarée » marker (specs/tourist-tax/tourist-tax-declared-checkbox.md).
 // setTouristTaxDeclared stamps / clears reservations.touristTaxDeclaredAt, and getTouristTaxExtraction
 // exposes it per reservation so the extraction page can reflect what's already been declared.
 

@@ -18,7 +18,7 @@ const buildController = (deps) => buildPlanningController({
 });
 
 // Controller-level tests with fake models. Pin the shape of the payload + the validation rules
-// (specs/weekly-bed-linen-tracking.md §4.3, specs/linen-laundry-days.md §4.3).
+// (specs/linen/weekly-bed-linen-tracking.md §4.3, specs/linen/linen-laundry-days.md §4.3).
 
 // Every window holds one single sheet: enough for the server to draw a card on each laundry day.
 const SOME_LINEN = () => ({ singleBeds: 1, doubleBeds: 0, babyBeds: 0 });
@@ -49,7 +49,7 @@ function makeFake({
       return bathMatFn(start, end);
     },
   };
-  // specs/laundry-counts-explicit-option-only.md §3.2 — omitted by default so the legacy tests
+  // specs/linen/laundry-counts-explicit-option-only.md §3.2 — omitted by default so the legacy tests
   // exercise the controller's "older model without the method" guard.
   if (incompleteFn) {
     laundryModel.incompleteBedConfigForWindow = (start, end) => {
@@ -59,7 +59,7 @@ function makeFake({
   }
   // Default to no skips so the legacy tests stay byte-identical in payload shape.
   const laundryTripSkipsModel = { listAll: () => [...skippedDates] };
-  // specs/laundry-extra-trip.md — extra trips on a free date. Empty by default; stubbed so the
+  // specs/linen/laundry-extra-trip.md — extra trips on a free date. Empty by default; stubbed so the
   // controller never falls back to the model bound to the real dev DB.
   const laundryExtraTripsModel = { listAll: () => [...extraTrips] };
   // Used by the implicit-`to`-from-horizon path. Tests that pass an explicit `to` query
@@ -71,7 +71,7 @@ function makeFake({
 }
 
 // The cards of the Planning for a window, listed as `laundryDays` (date + card) the way the former summary
-// endpoint listed them: only the dates the server decides to draw (specs/linen-laundry-days.md rule 13).
+// endpoint listed them: only the dates the server decides to draw (specs/linen/linen-laundry-days.md rule 13).
 function callDays(c, query, res) {
   c.laundryDays({ query }, res);
   if (res.statusCode === 200) res.body = { laundryDays: Object.entries(res.body.days).map(([date, card]) => ({ date, ...card })) };
@@ -112,7 +112,7 @@ test('laundryDays: per laundry day, dropOff queries (L-7, L] and pickUp queries 
 });
 
 test('laundryDays: manual additions fold into this trip dropOff + the next trip pickUp', () => {
-  // specs/manual-laundry-additions.md §3 rules 2-3. Manual addition of 3 single beds on 2026-06-09.
+  // specs/linen/manual-laundry-additions.md §3 rules 2-3. Manual addition of 3 single beds on 2026-06-09.
   const fake = makeFake({ laundryWeekday: 2 });
   const laundryManualAdditionsModel = {
     listAll: () => ({}),
@@ -219,7 +219,7 @@ test('laundryDays: a laundry day with nothing on either side is not drawn (the s
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
-// specs/skip-laundry-trip.md §3.1 rule 6 + §3.3 rule 9 — the controller must see the skip
+// specs/linen/skip-laundry-trip.md §3.1 rule 6 + §3.3 rule 9 — the controller must see the skip
 // set so the À apporter / À récupérer counts on the next non-skipped card absorb the
 // deferred batch. Before these tests pinned the contract, the inventory line was already
 // skip-aware (via linenInventoryModel.simulate) but the drop-off / pick-up windows still
@@ -324,7 +324,7 @@ test('laundryDays: when the entire 4-week lookback is skipped, falls back to L-7
   assert.deepEqual(bedCalls[0], { start: '2026-06-09', end: '2026-06-16' });
 });
 
-// specs/linen-laundry-days.md rule 13 — both bounds are required: the horizon default of the former summary
+// specs/linen/linen-laundry-days.md rule 13 — both bounds are required: the horizon default of the former summary
 // endpoint is gone (the host always asks for the window it shows, past or future).
 
 test('laundryDays: `to` omitted → 400 INVALID_DATE_RANGE, no horizon fallback', () => {
@@ -349,9 +349,9 @@ test('laundryDays: `from` malformed → still 400 even when `to` is omitted', ()
   assert.equal(res.statusCode, 400);
 });
 
-// --- specs/laundry-counts-explicit-option-only.md §3.2 — incompleteness list on the drop-off ---
+// --- specs/linen/laundry-counts-explicit-option-only.md §3.2 — incompleteness list on the drop-off ---
 
-// specs/laundry-counts-explicit-option-only.md rule 8 — drop-off side only, `{ id, clientName, propertyName, endDate }`.
+// specs/linen/laundry-counts-explicit-option-only.md rule 8 — drop-off side only, `{ id, clientName, propertyName, endDate }`.
 test('laundryDays: the drop-off carries the stays that declare linen with no quantity yet', () => {
   const stay = { id: 22212, clientName: 'Jean Dupont', propertyName: 'Aventura lodge', endDate: '2026-06-01' };
   const { settingsModel, laundryModel, laundryTripSkipsModel, laundryExtraTripsModel, linenInventoryModel, calls } = makeFake({
@@ -370,7 +370,7 @@ test('laundryDays: the drop-off carries the stays that declare linen with no qua
   assert.deepEqual(incompleteCalls, [{ start: '2026-05-26', end: '2026-06-02' }]);
 });
 
-// specs/laundry-counts-explicit-option-only.md rule 10 — the warning is informational: the counts stay
+// specs/linen/laundry-counts-explicit-option-only.md rule 10 — the warning is informational: the counts stay
 // exactly what the window says.
 test('laundryDays: a flagged stay leaves the drop-off counts untouched', () => {
   const stay = { id: 22212, clientName: 'Jean Dupont', propertyName: 'Aventura lodge', endDate: '2026-06-01' };
@@ -414,7 +414,7 @@ test('laundryDays: a model without incompleteBedConfigForWindow degrades to an e
 });
 
 test('laundryDays: a manual withdrawal leaves the trip, and a block never goes negative', () => {
-  // specs/laundry-manual-removals.md §3 rule 3 — « je lave moi-même » 2 draps simples on 2026-06-09.
+  // specs/linen/laundry-manual-removals.md §3 rule 3 — « je lave moi-même » 2 draps simples on 2026-06-09.
   // The reservations of that window bring 3 → the trip carries 1. A withdrawal bigger than the trip
   // floors the block at 0: one cannot deposit a negative pile.
   const fake = makeFake({
@@ -447,7 +447,7 @@ test('laundryDays: a manual withdrawal leaves the trip, and a block never goes n
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
-// specs/laundry-extra-trip.md §3.2 rule 10 — extra trips are listed among the regular days.
+// specs/linen/laundry-extra-trip.md §3.2 rule 10 — extra trips are listed among the regular days.
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
 test('laundryDays: every card carries kind, and an extra trip in range is drawn with its record + leftAtLaundry', () => {

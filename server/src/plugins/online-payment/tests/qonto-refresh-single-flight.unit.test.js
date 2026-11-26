@@ -1,4 +1,4 @@
-// specs/qonto-settings-in-app.md rule 18 (audit R22, E22-3) — the poll, the webhook, a public payment and the operator
+// specs/settings/qonto-settings-in-app.md rule 18 (audit R22, E22-3) — the poll, the webhook, a public payment and the operator
 // all reach an expired token at once. One refresh per refresh token: the others wait for it and share its answer.
 // Loopback fake only, whose refresh tokens are single-use as the worst case of the real provider.
 const test = require('node:test');

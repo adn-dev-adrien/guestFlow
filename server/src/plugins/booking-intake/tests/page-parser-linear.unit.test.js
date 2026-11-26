@@ -1,5 +1,5 @@
 // Audit 2026-10-28 (injection finding 3) — the amount scan of a « Sous-total » / « Taxe de séjour » line
-// is linear: an 80 KB line of digits used to cost ~15 s. specs/booking-extranet-intake.md rule 8.
+// is linear: an 80 KB line of digits used to cost ~15 s. specs/platforms/booking-extranet-intake.md rule 8.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

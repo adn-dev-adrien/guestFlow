@@ -1,4 +1,4 @@
-// specs/clients-upcoming-past-directory.md rules 11-21 (amendment of 2026-10-28) — the three views of the
+// specs/clients/clients-upcoming-past-directory.md rules 11-21 (amendment of 2026-10-28) — the three views of the
 // Clients page, their groups, the stay and label of each row, the search across views, the sort.
 
 const test = require('node:test');

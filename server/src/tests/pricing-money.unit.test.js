@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 38 and 6 — the shared money helpers: `roundMoney` is the engine's own
+// specs/pricing/pricing-components.md §3 rules 38 and 6 — the shared money helpers: `roundMoney` is the engine's own
 // (same function, same results as before the move), `toCents` / `fromCents` convert, `allocateCents` is the
 // largest-remainder split whose shares always sum to the total.
 const test = require('node:test');

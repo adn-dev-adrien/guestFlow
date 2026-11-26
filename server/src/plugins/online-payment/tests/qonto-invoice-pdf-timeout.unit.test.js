@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 42 (R35-EXT-4, R35-INJ-L1) — the invoice PDF's signed URL is read
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 42 (R35-EXT-4, R35-INJ-L1) — the invoice PDF's signed URL is read
 // within the Qonto client's timeout, and only over https. Stubbed fetch, no socket.
 const test = require('node:test');
 const assert = require('node:assert/strict');

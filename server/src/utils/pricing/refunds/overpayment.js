@@ -1,6 +1,6 @@
 /**
  * Trop-perçu — the money a guest paid beyond what the stay costs, net of what was given back for it
- * (specs/reservation-refunds.md rule 34; specs/pricing-components.md §3 rules 72, 74 and 76).
+ * (specs/payments/reservation-refunds.md rule 34; specs/pricing/pricing-components.md §3 rules 72, 74 and 76).
  *
  * ONE formula for every stay: Σ payment allocations − the stay's line totals − the free lines of origin `overpayment`
  * already refunded (owner O-6, O-7 b). A legacy stay reads allocations backfilled from what it stored; a paid bucket lowered
@@ -15,7 +15,7 @@ const { isDirectChannel } = require('../../platformNameFormat');
 
 const { roundMoney, roundMoneyOrZero: round2 } = require('../money');
 
-// specs/mixed-method-payments.md rule 47 (audit R34-M-H1) — a bucket paid with several methods counts what it RECEIVED.
+// specs/payments/mixed-method-payments.md rule 47 (audit R34-M-H1) — a bucket paid with several methods counts what it RECEIVED.
 const receivedOf = (received, bucket) => (received && received[bucket] != null ? Number(received[bucket]) : null);
 
 /**
@@ -44,7 +44,7 @@ function overpayment(ctx, { basis = 'stored' } = {}) {
   return { cents: Math.max(0, unclampedCents), unclampedCents };
 }
 
-// The postes a refund line is booked on (specs/reservation-refunds.md §3.5), in display order.
+// The postes a refund line is booked on (specs/payments/reservation-refunds.md §3.5), in display order.
 const POSTES = [
   { bucket: 'accommodation', label: 'Hébergement' },
   { bucket: 'options', label: 'Prestations complémentaires' },
@@ -66,7 +66,7 @@ function currentByPoste(quote = {}) {
 }
 
 /**
- * The trop-perçu split by poste (specs/reservation-refunds.md rule 35): a refund that gives back tourist
+ * The trop-perçu split by poste (specs/payments/reservation-refunds.md rule 35): a refund that gives back tourist
  * tax must be booked on the tax, not on the accommodation, or the books lower the turnover and keep a
  * tax nobody owes any more.
  *
@@ -220,7 +220,7 @@ function postesLeftOf(collected, currentCents) {
 }
 
 /**
- * specs/pricing-components.md rule 112 (loop t7 B7-3) — the part of a trop-perçu that cash notes took, when it is only a part: that money
+ * specs/pricing/pricing-components.md rule 112 (loop t7 B7-3) — the part of a trop-perçu that cash notes took, when it is only a part: that money
  * goes back « caisse interne » (rule 106 b) and the rest by the means it came by, so the avoir covers only money the books hold. The cash
  * part is carved out of the poste split, the prestations first (where note money lives), then the tax and the accommodation.
  *

@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 51 (D15, Adrien, 2026-11-05; audit R23 N9) — a live stay refuses a refund on a line above what
+// specs/payments/reservation-refunds.md rule 51 (D15, Adrien, 2026-11-05; audit R23 N9) — a live stay refuses a refund on a line above what
 // that line collected. The total stays judged first (rule 50), free lines on the total only, the caisse interne not at all,
 // stored refunds and the cancelled register unchanged. The figure ships as `availableTtc`: the dialog does no math.
 process.env.DB_PATH = ':memory:';

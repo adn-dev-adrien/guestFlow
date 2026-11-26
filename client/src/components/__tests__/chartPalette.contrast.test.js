@@ -1,5 +1,5 @@
 /**
- * Chart palette — specs/finance-dashboard-redesign.md rule 45 (UI/UX review 2026-10-18, proposal 9):
+ * Chart palette — specs/accounting/finance-dashboard-redesign.md rule 45 (UI/UX review 2026-10-18, proposal 9):
  * every chart colour is a theme token, and the ones that carry information hold their contrast on
  * white — 3:1 for a mark (WCAG 1.4.11), 4.5:1 for a tick or a written value (1.4.3).
  */

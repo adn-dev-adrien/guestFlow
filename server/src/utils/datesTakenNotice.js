@@ -1,5 +1,5 @@
 /**
- * The guest whose payment request lost its dates to another stay is told, once (specs/payment-link-lifecycle.md
+ * The guest whose payment request lost its dates to another stay is told, once (specs/payments/payment-link-lifecycle.md
  * rules 43-45, 47, 64-66).
  *
  * The notice answers a WITHDRAWAL, never a state (review of #912, B1). A link withdrawn `dates-taken` records the stay

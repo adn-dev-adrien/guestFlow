@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 28 (UI/UX review 2026-10-18, decision 14) — the operator
+// specs/settings/settings-rationalization.md rule 28 (UI/UX review 2026-10-18, decision 14) — the operator
 // types the address and the password: the server found from the address is said under the password,
 // with the provider's own hint; not found, the card says so and opens « Réglages avancés » on the
 // server field; a saved host always wins; the test button says what it waits for.

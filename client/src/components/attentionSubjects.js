@@ -1,4 +1,4 @@
-// The core subjects of the home's attention (specs/shell-and-home-day-first.md rule 6), by the key
+// The core subjects of the home's attention (specs/planning/shell-and-home-day-first.md rule 6), by the key
 // the server gives them. Plugin subjects come from their `dashboard.alerts(.urgent)` contributions.
 import PaymentDeadlinesAlert from './PaymentDeadlinesAlert';
 import IcalDateDriftAlert from './IcalDateDriftAlert';

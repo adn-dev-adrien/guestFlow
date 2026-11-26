@@ -1,4 +1,4 @@
-// specs/manual-price-on-placement-change.md — the review a manual price gets when its booking moves: the pure builder (rules 1, 3,
+// specs/reservations/manual-price-on-placement-change.md — the review a manual price gets when its booking moves: the pure builder (rules 1, 3,
 // 5, 7, 9, 10) and the live quote that prices the reference placement itself (rules 1-4, 11).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

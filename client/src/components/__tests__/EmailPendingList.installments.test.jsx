@@ -1,4 +1,4 @@
-// specs/direct-installments.md rule 19 — the « à valider » list holds one entry per installment of the same
+// specs/payments/direct-installments.md rule 19 — the « à valider » list holds one entry per installment of the same
 // reservation and template, each named by its number and handed to the actions with its own key.
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

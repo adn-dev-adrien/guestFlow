@@ -1,5 +1,5 @@
 /**
- * specs/reconciliation-assisted-matching.md rule 22 — the « Échéances » card draws the `bank` line a plugin
+ * specs/accounting/reconciliation-assisted-matching.md rule 22 — the « Échéances » card draws the `bank` line a plugin
  * decorated a row with (a transfer found + « Confirmer », or « Rien sur le compte »), and nothing when the
  * row carries none.
  */

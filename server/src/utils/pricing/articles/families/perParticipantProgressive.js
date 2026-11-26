@@ -1,6 +1,6 @@
 /**
  * Article family `perParticipantProgressive` — a unit price that changes with the participant's rank: the second
- * participant pays the tier of rank 2 (specs/pricing-components.md §3 rule 47).
+ * participant pays the tier of rank 2 (specs/pricing/pricing-components.md §3 rule 47).
  *
  * Contract: `{ id, configSchema, validate, price, describe }`. `config.progressiveTiers` is the stored tier list
  * (JSON text or array); `price` returns the computed total of `quantity` participants in `components`, the average unit

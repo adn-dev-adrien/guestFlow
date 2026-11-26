@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §6 (audit R27-C1) — the « Liste / Par nuit » toggle sits in the bar from `md` only; below
+// specs/tourist-tax/tourist-tax-report-v2.md §6 (audit R27-C1) — the « Liste / Par nuit » toggle sits in the bar from `md` only; below
 // `md` it is the in-page copy under the pickers, so between 600 and 899 px it is drawn once, not twice.
 import { vi } from 'vitest';
 import { screen } from '@testing-library/react';

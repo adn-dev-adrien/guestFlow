@@ -1,5 +1,5 @@
 /**
- * What the reconciliation did with the operator's choice (specs/plugin-operator-provisioning.md §5):
+ * What the reconciliation did with the operator's choice (specs/plugins/plugin-operator-provisioning.md §5):
  * one row per plugin and one licence stamp. Sole DB access for `plugin_provisioning` and
  * `plugin_provisioning_meta`.
  *

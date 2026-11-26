@@ -1,5 +1,5 @@
 /**
- * specs/gift-voucher-campaigns.md rule 63 — the offer switcher heading an open campaign replaces the
+ * specs/gift-vouchers/gift-voucher-campaigns.md rule 63 — the offer switcher heading an open campaign replaces the
  * « Choisir une autre offre » link. Static checks on the plugin sources: the block cannot run here.
  */
 

@@ -1,39 +1,39 @@
-// specs/vat-optional-mode.md rule 23 — a VAT-registered install sees no difference. Every artefact a
+// specs/accounting/vat-optional-mode.md rule 23 — a VAT-registered install sees no difference. Every artefact a
 // VAT reader feeds (quotes, fiche payloads, devis PDF, payment-link baskets, accounting journal, finance
 // payloads, tourist-tax page, cancellation) on the Solio-shaped fixture, byte for byte as captured on
 // the code before the regime existed — except the `quote/*` family, regenerated on 2026-10-28 when the replay of
-// a stored stay became the fiche's own (specs/reservation-save-keeps-pricing.md rule 3), and on 2026-11-01 for `fiche/*` (each
-// refundable line gained `requalifiedTtc`, specs/reservation-refunds.md rule 46, nothing else moved) and `cancel/106` (its unfrozen
-// installments are reversed per installment and bucket, specs/direct-installments.md rule 46 reading of 2026-11-01), and on
-// 2026-11-02 for `fiche/109` (a cancelled stay that collected nothing offers no refundable line, specs/reservation-refunds.md rule 48)
-// and for `fiche/101`, `cancel/101`, `cancel/106` (each refund carries `afterCancellation`, specs/reservation-refunds.md rule 6
+// a stored stay became the fiche's own (specs/reservations/reservation-save-keeps-pricing.md rule 3), and on 2026-11-01 for `fiche/*` (each
+// refundable line gained `requalifiedTtc`, specs/payments/reservation-refunds.md rule 46, nothing else moved) and `cancel/106` (its unfrozen
+// installments are reversed per installment and bucket, specs/payments/direct-installments.md rule 46 reading of 2026-11-01), and on
+// 2026-11-02 for `fiche/109` (a cancelled stay that collected nothing offers no refundable line, specs/payments/reservation-refunds.md rule 48)
+// and for `fiche/101`, `cancel/101`, `cancel/106` (each refund carries `afterCancellation`, specs/payments/reservation-refunds.md rule 6
 // reading of 2026-11-02, nothing else moved), and on 2026-11-03 for six `quote/*` (a non-card line carries
-// `cardPersons`, `cardNights` and `servedPersons`, specs/non-card-option-served-persons.md rules 2 and 18, nothing else moved), and later that day for the
+// `cardPersons`, `cardNights` and `servedPersons`, specs/options/non-card-option-served-persons.md rules 2 and 18, nothing else moved), and later that day for the
 // same six `quote/*` (each line carries `displayCount`, the same spec's rule 29, nothing else moved), and on 2026-11-05 for
-// `tourist-tax/2027-07` (stay 106's plan enters at its stay month, D14, specs/tourist-tax-declaration-month-stay-end.md rule 7, nothing else moved), and later that day for the four
+// `tourist-tax/2027-07` (stay 106's plan enters at its stay month, D14, specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 7, nothing else moved), and later that day for the four
 // `finance/dashboard/*` (the payload gains `hero.revPar`, `hero.openNights`, `hero.occupiedNights`, `occupancyAll` and `comparison`,
-// specs/finance-revpar-year-over-year.md rule 14, every existing field checked unchanged before the capture was rewritten).
+// specs/accounting/finance-revpar-year-over-year.md rule 14, every existing field checked unchanged before the capture was rewritten).
 // On 2026-11-06 for `finance/dashboard/2025..2028` and `finance/detail/2027|2028/properties`: revenue per night and RevPAR on the
-// revenue of the nights and « Déjà payé »'s source (specs/finance-dashboard-redesign.md rules 53-54), and the 2028 notice naming its
-// date (specs/finance-revpar-year-over-year.md rule 23), nothing else moved.
+// revenue of the nights and « Déjà payé »'s source (specs/accounting/finance-dashboard-redesign.md rules 53-54), and the 2028 notice naming its
+// date (specs/accounting/finance-revpar-year-over-year.md rule 23), nothing else moved.
 // On 2026-11-06 (round 2) for `finance/dashboard/2025` and `2026`: the exercise served is added to `fiscalYears` when the data does
-// not reach it (specs/finance-dashboard-redesign.md rule 57), nothing else moved.
+// not reach it (specs/accounting/finance-dashboard-redesign.md rule 57), nothing else moved.
 // On 2026-11-06 for `finance/operational` and `finance/detail/*` (each operational row carries `settleAllFields`, D20,
-// specs/reservation-payment-ledger.md rule 68, nothing else moved).
+// specs/payments/reservation-payment-ledger.md rule 68, nothing else moved).
 // On 2026-11-09 for `finance/summary/*`, `finance/detail/*/toCollect|late` and `finance/operational`: each stay row carries the
-// four split aggregates of specs/mixed-method-payments.md §5 (all 0 here), nothing else moved (checked field by field).
+// four split aggregates of specs/payments/mixed-method-payments.md §5 (all 0 here), nothing else moved (checked field by field).
 // On 2026-11-12 for the 13 captures that carry a stay row: the row gains `cautionWaived: 0` (arrival-departure-sas.md rule 31, additive,
 // nothing else moved: checked key by key).
 // On 2026-11-13 for `pdf/201` and `pdf/202`: the devis gains its « Récapitulatif TVA » table (pricing-components.md rule 15,
 // D12, approved by Adrien), no amount moved.
 // On 2026-11-15 for the 13 captures that carry a stay row: the row gains `readsSaleLines: 0` (pricing-components.md rules 31, 61, 63, 91,
 // owner reading of 2026-11-15, approved by Adrien), additive, no amount moved: checked key by key.
-// On 2026-11-16 for `finance/dashboard/2025..2028`: `tiles.incoming`, the « Versements à venir » tile (specs/mollie-rolling-reserve-and-incoming-payments.md
+// On 2026-11-16 for `finance/dashboard/2025..2028`: `tiles.incoming`, the « Versements à venir » tile (specs/payments/mollie-rolling-reserve-and-incoming-payments.md
 // rule 21), nothing else moved (checked: the payload minus that key is the previous capture).
 // On 2026-11-17, merging #1067 into pricing-components C: re-captured on the branch, checked key by key — only those four
 // `finance/dashboard/*` moved against the branch's capture, by `data.tiles.incoming` alone, equal to master's value.
 // On 2026-11-23 for `finance/dashboard/*` and `finance/detail/*/collected|toCollect` (12 captures): « Reste à encaisser » counts the window's stays and
-// lists dated payments by month, `cashProjection` is added, `collected` gains its month `groups` (specs/mobile-dashboard-exercise-cash.md
+// lists dated payments by month, `cashProjection` is added, `collected` gains its month `groups` (specs/planning/mobile-dashboard-exercise-cash.md
 // rules 10-18; checked: every other key of those payloads, and every other capture, is unchanged).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
@@ -79,7 +79,7 @@ test('rule 23: the capture is deterministic', { skip: skipWithout(['accounting-e
   for (const key of Object.keys(a)) assert.equal(a[key], b[key], key);
 });
 
-// specs/vat-optional-mode.md rule 44 — the franchise follow-up is invisible to a VAT-registered install.
+// specs/accounting/vat-optional-mode.md rule 44 — the franchise follow-up is invisible to a VAT-registered install.
 test('rule 44: the settings payload only adds an absent follow-up to the VAT block', async () => {
   const { getSettings } = require('../controllers/settingsController');
   const res = { body: null, json(b) { this.body = b; return this; } };

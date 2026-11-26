@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 18 + specs/reservations-backend-mvc.md rule 13, second reading (review of PR
+// specs/pricing/establishment-closures.md rule 18 + specs/tech/reservations-backend-mvc.md rule 13, second reading (review of PR
 // #938, F8) — the closure dialog judges the window from the server's day (`GET /api/today`), not the device's.
 import React from 'react';
 import { vi } from 'vitest';

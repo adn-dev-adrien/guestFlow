@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 25, 29 — the fiche of a cancelled stay is shown, not edited, yet a refund
+// specs/planning/calendar-property-parity.md rules 25, 29 — the fiche of a cancelled stay is shown, not edited, yet a refund
 // stays possible on it (a duplicate set aside takes none): « + Nouveau remboursement » is enabled outside the disabled
 // fieldset and opens its dialog; the fieldset carries no opacity.
 import React from 'react';

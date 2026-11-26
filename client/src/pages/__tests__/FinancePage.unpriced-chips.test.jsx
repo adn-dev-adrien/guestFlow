@@ -1,5 +1,5 @@
 /**
- * FinancePage — specs/finance-dashboard-redesign.md rule 39: in « Sans montant », a 0 € stay shows
+ * FinancePage — specs/accounting/finance-dashboard-redesign.md rule 39: in « Sans montant », a 0 € stay shows
  * « Montant à saisir » instead of payment chips, and the total counts the insight's nights (review of
  * PR #702, minors 4 and 5).
  */

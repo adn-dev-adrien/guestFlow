@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 24 — review #8, m-7: at 900 px the bar showed « P. » and a clipped
+// specs/design-system/ds-components.md rule 24 — review #8, m-7: at 900 px the bar showed « P. » and a clipped
 // « Nouvell / réservati » button. Below lg (1200 px) the bar also carries the week controls, so the
 // button becomes its « + » icon with the label as tooltip; from lg up it keeps its text.
 import React from 'react';

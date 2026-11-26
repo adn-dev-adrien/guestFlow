@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rule 32 (adversarial review of the 2026-10-27 spec-review
+// specs/site/public-request-abuse-and-grouping.md rule 32 (adversarial review of the 2026-10-27 spec-review
 // fixes) — since rule 29 a challenge was judged only at its signed difficulty, so a bot could fetch
 // five challenges at the base 12 bits and spend them all. At verification the challenge must now cover
 // the address's own sends of the hour (excluding the current one) and the flood surcharge with a

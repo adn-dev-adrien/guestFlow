@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 18 (audit 2026-10-27) — a mail waiting for its gîte to be
+// specs/platforms/gites-de-france-mail-intake.md rule 18 (audit 2026-10-27) — a mail waiting for its gîte to be
 // mapped is `pending` with the server's reason; the dashboard line says that reason, not « aucune
 // fiche sur ces dates ».
 import React from 'react';

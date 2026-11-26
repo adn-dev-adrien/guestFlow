@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 11 — a plugin version from the console's registry is pushed,
+// specs/hosting/hosting-h1-fleet-runtime.md rule 11 — a plugin version from the console's registry is pushed,
 // per plugin, to the instances that have it, one at a time: the instance's own script switches the
 // package while it is stopped and snapshotted, the health check asks that the plugin loaded at that
 // version, and a failure puts the snapshot's database back and `current` with it.

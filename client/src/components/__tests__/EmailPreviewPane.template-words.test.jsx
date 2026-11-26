@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 45 — the template's own words open « Modèle complet »,
+// specs/emails/guest-email-texts-made-simple.md rule 45 — the template's own words open « Modèle complet »,
 // as a button reachable from the keyboard like every tagged sentence.
 import React from 'react';
 import { vi } from 'vitest';

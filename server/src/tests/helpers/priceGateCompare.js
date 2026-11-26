@@ -1,5 +1,5 @@
 /**
- * Exact comparison of two price-gate figure sets (specs/pricing-components.md §3 rule 68).
+ * Exact comparison of two price-gate figure sets (specs/pricing/pricing-components.md §3 rule 68).
  *
  * `compareFigures(expected, actual, allowlist)` takes `{ [reservationId]: figures }` twice (see
  * `scripts/price-gate/figuresOf.js`) and returns EVERY difference as `{ reservationId, field, expected, actual }`:

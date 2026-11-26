@@ -1,4 +1,4 @@
-// specs/dashboard-collection-alert.md §3 + §7 — the dashboard alert must fire ONLY on money to
+// specs/planning/dashboard-collection-alert.md §3 + §7 — the dashboard alert must fire ONLY on money to
 // collect at the door. The historical bug this pins: a platform booking (no acompte, solde
 // transferred after the stay) was red every single day, and a reservation whose complement was
 // already collected stayed red because computePaymentStatus ignores the complement buckets.

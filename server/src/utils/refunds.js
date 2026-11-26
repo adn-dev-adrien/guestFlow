@@ -1,5 +1,5 @@
 /**
- * Remboursements — specs/reservation-refunds.md.
+ * Remboursements — specs/payments/reservation-refunds.md.
  *
  * A refund is an « avoir »: money returned to the guest AFTER the sale, with its own date, WITHOUT
  * touching the sale. The sale keeps its price, its échéances and its paid flags; the refund lives in

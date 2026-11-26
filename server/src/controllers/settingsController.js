@@ -10,7 +10,7 @@
  *  - Logo file lifecycle (the file itself; multer writes/owns the bytes).
  *
  * Google Calendar moved to its own controller/endpoints with the OAuth rework
- * (specs/google-calendar-oauth-rework.md) — no `googleCalendar` group here anymore.
+ * (specs/settings/google-calendar-oauth-rework.md) — no `googleCalendar` group here anymore.
  */
 
 const path = require('path');
@@ -33,7 +33,7 @@ const { createEmailService } = require('../utils/emailService');
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { createSmtpDetector, detectionMessage } = require('../utils/smtpPresets');
 
-// specs/settings-rationalization.md rule 28 — DNS from the server; replaced by a stub in the suites.
+// specs/settings/settings-rationalization.md rule 28 — DNS from the server; replaced by a stub in the suites.
 let smtpDetector = createSmtpDetector();
 
 // Maps wrapped payload paths to DB column names + validators.
@@ -47,21 +47,21 @@ const COMPANY_FIELDS = [
   { input: 'iban', column: 'companyIban', validator: validation.validateIban },
   { input: 'bic', column: 'companyBic', validator: validation.validateBic },
   { input: 'bankName', column: 'companyBankName' },
-  // Domain gate/access code shown on the arrival SAS (specs/arrival-departure-sas.md §3.5).
+  // Domain gate/access code shown on the arrival SAS (specs/sas/arrival-departure-sas.md §3.5).
   { input: 'portalCode', column: 'portalCode' },
 ];
 
 const QUOTE_FIELDS = [
   { input: 'footerText', column: 'quoteFooterText' },
-  // English-language footer for the bilingual devis PDF (specs/devis-english-language.md §3 rule 11).
+  // English-language footer for the bilingual devis PDF (specs/devis/devis-english-language.md §3 rule 11).
   { input: 'footerTextEn', column: 'quoteFooterTextEn' },
   { input: 'validityDays', column: 'quoteValidityDays', validator: validation.validateQuoteValidityDays },
 ];
 
-// VAT (specs/single-vat-rate.md §4.1, specs/vat-optional-mode.md rules 3 and 9). The rate and the legal
+// VAT (specs/accounting/single-vat-rate.md §4.1, specs/accounting/vat-optional-mode.md rules 3 and 9). The rate and the legal
 // mention edit the period in force, never a settings column. The commission and cancellation-indemnity
 // rates are edited on Plan comptable, next to the accounts that use them
-// (specs/settings-rationalization.md rule 14).
+// (specs/settings/settings-rationalization.md rule 14).
 function readVatGroup(vat, errors) {
   const change = {};
   if (!vat) return change;
@@ -98,13 +98,13 @@ const VAT_REFUSALS = Object.freeze({
   legalMention: { field: 'legalMention', message: 'Assujetti à la TVA : pas de mention légale.' },
 });
 
-// SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask
+// SMTP group (specs/hosting/admin-account-management.md). `password` is handled separately (3-way mask
 // semantics). `username`, `fromEmail` and `fromName` are overrides: '' means « derived from
-// Établissement » (specs/settings-rationalization.md rule 12). `publicUrl` is shown on the Système
+// Établissement » (specs/settings/settings-rationalization.md rule 12). `publicUrl` is shown on the Système
 // page but stays in this group of the API.
 const SMTP_FIELDS = [
   { input: 'host', column: 'smtpHost' },
-  // No `port` entry on purpose: it follows `secure` (specs/settings-rationalization.md rule 11).
+  // No `port` entry on purpose: it follows `secure` (specs/settings/settings-rationalization.md rule 11).
   { input: 'secure', column: 'smtpSecure' },
   { input: 'username', column: 'smtpUsername' },
   { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
@@ -112,7 +112,7 @@ const SMTP_FIELDS = [
   { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
 ];
 
-// Booking-notifications group (specs/site-booking-notifications.md §4.3). `enabled` is a Switch
+// Booking-notifications group (specs/site/site-booking-notifications.md §4.3). `enabled` is a Switch
 // (BOOL int); `recipientEmail` is optional (validateEmail accepts empty → falls back to the SMTP
 // sender at send time). The email link reuses the SMTP group's `publicUrl`.
 const NOTIFICATIONS_FIELDS = [
@@ -121,20 +121,20 @@ const NOTIFICATIONS_FIELDS = [
   { input: 'recipientEmail', column: 'notificationRecipientEmail', validator: validation.validateEmail },
 ];
 
-// Guest email sequence copy (specs/guest-email-sequence.md §6.2). Whether an email leaves on its own
-// is decided per template (specs/settings-rationalization.md rule 17b), not here.
+// Guest email sequence copy (specs/emails/guest-email-sequence.md §6.2). Whether an email leaves on its own
+// is decided per template (specs/settings/settings-rationalization.md rule 17b), not here.
 const EMAILS_FIELDS = [
   { input: 'googleReviewUrl', column: 'googleReviewUrl', validator: validation.validatePublicUrl },
 ];
-// The pool season moved to the property that has the pool (specs/guest-email-texts-made-simple.md rule 34).
+// The pool season moved to the property that has the pool (specs/emails/guest-email-texts-made-simple.md rule 34).
 
 // Accounting group — the closing month driving every annual window of the Suivi financier
-// (specs/fiscal-year-and-nights-sold.md §4.1).
+// (specs/accounting/fiscal-year-and-nights-sold.md §4.1).
 const ACCOUNTING_FIELDS = [
   { input: 'fiscalYearEndMonth', column: 'fiscalYearEndMonth', validator: validation.validateFiscalYearEndMonth },
 ];
 
-// Booking group — how far ahead the public may book a lodging (specs/gift-voucher-campaigns.md rule 51).
+// Booking group — how far ahead the public may book a lodging (specs/gift-vouchers/gift-voucher-campaigns.md rule 51).
 const BOOKING_FIELDS = [
   { input: 'horizonMonths', column: 'bookingHorizonMonths', validator: validation.validateBookingHorizonMonths },
 ];
@@ -144,11 +144,11 @@ const BOOKING_FIELDS = [
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
 
 // Everything else in the groups is text: a wrong type is refused, it used to land as « [object Object] »
-// (specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05).
+// (specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05).
 const NOT_TEXT_COLUMNS = new Set([...BOOLEAN_INT_COLUMNS, 'quoteValidityDays', 'fiscalYearEndMonth', 'bookingHorizonMonths']);
 
 // Columns whose value ends up VERBATIM inside an email header — `From: "<name>" <address>` and
-// `To: <address>` (specs/admin-account-management.md §3.4 rule 16b). `validateHeaderSafeText`
+// `To: <address>` (specs/hosting/admin-account-management.md §3.4 rule 16b). `validateHeaderSafeText`
 // rejects an interior control character above; the trim here removes the surrounding whitespace it
 // deliberately tolerates, so a value pasted with a trailing newline can never reach the header.
 const TRIMMED_TEXT_COLUMNS = new Set([
@@ -157,7 +157,7 @@ const TRIMMED_TEXT_COLUMNS = new Set([
 ]);
 
 /**
- * Social links (specs/settings-input-guards.md rules 35-43). The list is validated per entry and
+ * Social links (specs/settings/settings-input-guards.md rules 35-43). The list is validated per entry and
  * `instagramUrl` is kept equal to its Instagram entry for a rollback; an older client sending only
  * `instagramUrl` replaces that entry and keeps the others.
  */
@@ -195,7 +195,7 @@ function getSettings(req, res) {
 /**
  * Rule 28 — the server, not the operator, fills an empty sending server, and only on the save that
  * brings a password (the operator's own server, never the platform's —
- * specs/hosting-h1-fleet-runtime.md rules 18–19): the provider found from the sending address gives
+ * specs/hosting/hosting-h1-fleet-runtime.md rules 18–19): the provider found from the sending address gives
  * the host and the security. A host saved, typed or explicitly emptied (`host` in the payload) is
  * the operator's choice and always wins; a provider not found leaves the host empty, to be typed.
  */
@@ -272,7 +272,7 @@ async function updateSettings(req, res) {
     else payload.bookingHorizonMonths = Math.trunc(Number(months));
   }
 
-  // Revenue goals (specs/finance-dashboard-redesign.md rule 27): one error per exercise, keyed
+  // Revenue goals (specs/accounting/finance-dashboard-redesign.md rule 27): one error per exercise, keyed
   // `revenueGoals.<key>` so the form can put each message under its own field. The submitted
   // exercises are merged into the stored ones — an exercise left out keeps its goal.
   if (accounting && Object.prototype.hasOwnProperty.call(accounting, 'revenueGoals')) {
@@ -348,7 +348,7 @@ async function updateSettings(req, res) {
   require('../models/vatRegimeSwitchModel').deactivateAfterCommit(retiredLinks);
 
   const row = settingsModel.read();
-  // The push subject follows the company and sender addresses (specs/plugins-phase-p-productisation.md rule 18).
+  // The push subject follows the company and sender addresses (specs/plugins/plugins-phase-p-productisation.md rule 18).
   if (company || smtp) require('../utils/vapid').ensureVapid(row);
   return res.json({ ...shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)), vatNotRepriced: notRepriced });
 }
@@ -356,7 +356,7 @@ async function updateSettings(req, res) {
 // Every extension a logo was ever stored under: WEBP and GIF were accepted before 2026-11-05.
 const LOGO_EXTENSIONS = [...ALLOWED.image.ext, '.webp', '.gif'];
 
-// specs/settings.md rule 8 — judged on its first bytes and a whole decode before anything is written; what is stored is
+// specs/settings/settings.md rule 8 — judged on its first bytes and a whole decode before anything is written; what is stored is
 // what the image library wrote again, named after the format its bytes hold (a JPEG named .png is a JPEG); once stored,
 // the company-logo files of the other extensions go, so no former logo stays public.
 async function uploadLogo(req, res) {

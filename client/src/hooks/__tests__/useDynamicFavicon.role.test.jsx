@@ -1,4 +1,4 @@
-// specs/reception-role-checkin-only.md rule 14 (2026-10-27 spec review) — GET /api/settings is
+// specs/sas/reception-role-checkin-only.md rule 14 (2026-10-27 spec review) — GET /api/settings is
 // admin-only, so the favicon hook does not ask for it on behalf of another role: a reception account
 // logged a 403 on every page, the arrival SAS included.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 48 (audit R34-DB-L1) — a release that knew nothing of settlements (a rollback) can
+// specs/payments/mixed-method-payments.md rule 48 (audit R34-DB-L1) — a release that knew nothing of settlements (a rollback) can
 // take a split payment back by writing its paid flag alone; once the release is installed again, every boot re-checks
 // the settlements of every stay (`syncAll`) before the server answers: the orphan is dropped, the aggregates refreshed.
 process.env.DB_PATH = ':memory:';
@@ -32,7 +32,7 @@ function splitSolde() {
   return id;
 }
 
-test('specs/mixed-method-payments.md rule 48 — the solde taken back by an older release: the next boot drops its settlement', () => {
+test('specs/payments/mixed-method-payments.md rule 48 — the solde taken back by an older release: the next boot drops its settlement', () => {
   const id = splitSolde();
   const kept = splitSolde();
   // What the older release's « Annuler l'encaissement » writes: the flags alone.
@@ -50,7 +50,7 @@ test('specs/mixed-method-payments.md rule 48 — the solde taken back by an olde
   assert.equal(settlementsModel.syncAll(), 0);
 });
 
-test('specs/mixed-method-payments.md rule 48 — the server runs it at every boot, before it answers', () => {
+test('specs/payments/mixed-method-payments.md rule 48 — the server runs it at every boot, before it answers', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
   const call = source.indexOf('.syncAll()');
   assert.ok(call > 0, 'index.js runs the settlements sync');

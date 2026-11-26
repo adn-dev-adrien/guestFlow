@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 111 b, reading of rule 110 b (owner 2026-11-16, loop t2 AG2-2) — a card order paid before its stay was cancelled reads
+// specs/guest-app/guest-app.md rule 111 b, reading of rule 110 b (owner 2026-11-16, loop t2 AG2-2) — a card order paid before its stay was cancelled reads
 // « Payée · à rembourser » in the staff list until the cancellation's refund dialog has given its lines back, then « Remboursée ». A part
 // given back leaves it « à rembourser ». Two orders of the same article are two lines with keys of their own (pricing-components rule 85; guest-app rule 112 b, loop t3
 // A3-2): giving one back never reads the other « Remboursée ».

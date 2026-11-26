@@ -1,5 +1,5 @@
 /**
- * The franchise-threshold follow-up (specs/vat-optional-mode.md rules 35-44): the pure rules.
+ * The franchise-threshold follow-up (specs/accounting/vat-optional-mode.md rules 35-44): the pure rules.
  *
  * Under « franchise en base » (art. 293 B) the operator types the threshold itself; GuestFlow compares
  * it with the turnover collected during the calendar year and the one still expected before 31

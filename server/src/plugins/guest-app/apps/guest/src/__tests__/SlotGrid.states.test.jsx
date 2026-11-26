@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 28-31, §6.4 SlotGrid — only bookable slots are drawn, the evening rate says so, several
+// specs/guest-app/guest-app.md rules 28-31, §6.4 SlotGrid — only bookable slots are drawn, the evening rate says so, several
 // slots can be picked.
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';

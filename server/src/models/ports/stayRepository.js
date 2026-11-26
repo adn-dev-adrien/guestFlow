@@ -1,5 +1,5 @@
 /**
- * StayRepository — the stored stay as the pricing loader reads it (specs/pricing-components.md §3 rule 48).
+ * StayRepository — the stored stay as the pricing loader reads it (specs/pricing/pricing-components.md §3 rule 48).
  *
  * Contract (plain functions over today's queries; `create(db)` binds them to a database):
  *   stayRow(id)                the `reservations` row, undefined when absent
@@ -41,7 +41,7 @@ function stayRow(db, id) {
 }
 
 function optionRows(db, id) {
-  // `cardOccurrences` + `cardPersons` ride with the rest (specs/unscheduled-card-option.md rule 10).
+  // `cardOccurrences` + `cardPersons` ride with the rest (specs/options/unscheduled-card-option.md rule 10).
   // Without them every planning-card line vanished from this replay — scheduled or not — because the
   // engine rebuilds such a line from its moments. Measured on production before the fix: 635 € of
   // option lines missing across 13 bookings, and a tourist-tax declaration 9,74 € above what the
@@ -69,7 +69,7 @@ function customOptionRows(db, id) {
 }
 
 function resourceRows(db, id) {
-  // specs/plugins-phase-3c-hourly-resources.md rule 5 — the sessions ride along, so a replay keeps the
+  // specs/plugins/plugins-phase-3c-hourly-resources.md rule 5 — the sessions ride along, so a replay keeps the
   // hours placed (`scheduledHours`); the amount is the locked snapshot's either way.
   const hasSessions = db.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions');
   const resourceRows = db.prepare(`

@@ -1,4 +1,4 @@
-// Spec: specs/cumulative-month-calendar.md rule 11 (2026-10-27 spec review, F11) — on a phone both edges
+// Spec: specs/planning/cumulative-month-calendar.md rule 11 (2026-10-27 spec review, F11) — on a phone both edges
 // are near at load, so a month is added above AND below in the same commit. The view was moved by the
 // scroller's whole growth, appended months included, and the current month's first stay ended under the
 // sticky month label. The month that was first must keep its place on screen.

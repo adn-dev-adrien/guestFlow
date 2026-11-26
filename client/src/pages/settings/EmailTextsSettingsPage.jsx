@@ -1,6 +1,6 @@
 /**
  * EmailTextsSettingsPage — Paramètres › « Textes des emails », the single page where the guest emails
- * are written (specs/guest-email-texts-made-simple.md §3.B–3.F, §6).
+ * are written (specs/emails/guest-email-texts-made-simple.md §3.B–3.F, §6).
  *
  *   - « À compléter » on top: what the server found missing (rules 6–7);
  *   - one section per email in send order, each with only its own sentences (rule 9), variables shown

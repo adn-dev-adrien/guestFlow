@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 17, 21 (fixed 2026-11-24) — a voucher for a session reads as one: its price lines name the band, never the
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 17, 21 (fixed 2026-11-24) — a voucher for a session reads as one: its price lines name the band, never the
 // placeholder hours of a dateless quote; the page after the payment draws what the voucher holds, not its amount; and the WordPress block never
 // tells a bath buyer « un montant au choix… en une ou plusieurs fois ».
 process.env.DB_PATH = ':memory:';

@@ -1,5 +1,5 @@
-// Audit R28 verification V1 (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rules 8 and 22,
-// specs/reservation-payment-ledger.md rule 69. The merged « Complément de fin de séjour » card settles both buckets with
+// Audit R28 verification V1 (2026-11-08) — specs/sas/defer-arrival-complement-to-checkout.md rules 8 and 22,
+// specs/payments/reservation-payment-ledger.md rule 69. The merged « Complément de fin de séjour » card settles both buckets with
 // one collection (same date, same caisse flag). That state is still ONE collection: the card stays merged and paid with
 // both amounts, so its « Annuler », its caisse switch and the preview the guards read carry both buckets. Kept as they
 // were: stay 22281 (0 € arrival part), an arrival part due over an end of stay settled on its own, and an arrival part

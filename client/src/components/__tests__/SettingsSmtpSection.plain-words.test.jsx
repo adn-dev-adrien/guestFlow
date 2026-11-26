@@ -1,6 +1,6 @@
-// specs/plugins-phase-p-productisation.md rule 41 — the sending server is described in plain words; the
+// specs/plugins/plugins-phase-p-productisation.md rule 41 — the sending server is described in plain words; the
 // protocol names (STARTTLS, TLS) stay folded under « Réglages avancés », closed at first — with the
-// server field and the login since specs/settings-rationalization.md rule 28.
+// server field and the login since specs/settings/settings-rationalization.md rule 28.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

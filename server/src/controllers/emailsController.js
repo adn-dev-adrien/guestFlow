@@ -1,6 +1,6 @@
 /**
  * Emails controller — orchestrates the preview / send / pending / acknowledge / history
- * flows (specs/email-automation.md §4.1 + §4.3).
+ * flows (specs/emails/email-automation.md §4.1 + §4.3).
  *
  * Renders templates against the live reservation context, ships them via the existing
  * `emailService.send` SMTP path, and logs every attempt in `email_log`. Same SMTP
@@ -27,7 +27,7 @@ const {
 } = require('../utils/emailTemplateLanguage');
 
 // A stored failure reason as the history shows it: the known codes, else the transport's text read
-// through sendFailureMessage (specs/email-automation.md rule 15).
+// through sendFailureMessage (specs/emails/email-automation.md rule 15).
 const FAILURE_CODES = {
   CLIENT_NO_EMAIL: 'Pas d’adresse email.',
   DATES_UNAVAILABLE: 'Relance refusée : dates prises par une autre réservation.',
@@ -60,7 +60,7 @@ const { displayNameOf } = require('../utils/emailTimeline');
 const { validityOf, lapsesAtArrival } = require('../utils/paymentLinkLifecycle');
 const { formatMomentLong } = require('../utils/dateFr');
 
-// specs/payment-link-lifecycle.md rules 26, 35 — the templates whose link is resolved when they are sent
+// specs/payments/payment-link-lifecycle.md rules 26, 35 — the templates whose link is resolved when they are sent
 // (an open link reused while it has 24 h left, else a fresh one): the requests and the acompte reminder.
 // `balance_reminder` never carries a link (rule 27).
 const SEND_TIME_LINKS = Object.freeze({ deposit_request: 'deposit', balance_request: 'balance', full_request: 'full', deposit_reminder: 'deposit' });
@@ -75,7 +75,7 @@ const PLACEHOLDER_LEFT = { error: 'PAYMENT_LINK_PLACEHOLDER', message: "Lien de 
 const REMINDER_ON_TAKEN_DATES = Object.freeze({ httpStatus: 409, error: 'DATES_UNAVAILABLE', message: 'Dates déjà prises par une autre réservation : relance non envoyée.' });
 const DEPOSIT_REMINDER = 'deposit_reminder';
 
-// specs/direct-installments.md rules 19-21 — the request of one installment: it carries the plan in its
+// specs/payments/direct-installments.md rules 19-21 — the request of one installment: it carries the plan in its
 // variables and its own link, and is sent once per installment (the occurrence key).
 const INSTALLMENT_STABLE_KEY = 'installment_request';
 
@@ -86,7 +86,7 @@ const INSTALLMENT_STABLE_KEY = 'installment_request';
 // `paymentRequests` (utils/paymentRequests.js), the same for the stay's own links:
 //   available() → a payment provider can mint links;  ensureLink(reservationId, type) → { url, expiresAt }.
 function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, installmentRequests = null, paymentRequests = null, testMailer = null, datesTakenNotice = null, now = () => new Date() }) {
-  // specs/guest-email-sequence.md rules 12-13bis — the ledger key a sequence email is sent under
+  // specs/emails/guest-email-sequence.md rules 12-13bis — the ledger key a sequence email is sent under
   // from this controller. Null for every other template (payment emails keep their own rules).
   // A season email sent by hand counts for the season that just passed or is coming.
   function sequencePlanFor(template, graph) {
@@ -103,7 +103,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return { stableKey, dedupKey: seasonDedupKey(stableKey, clientId, seasonKey), reservationId, clientId, seasonKey, sendDate };
   }
 
-  // specs/guest-email-texts-made-simple.md rule 44 — the history and the pending list name a template
+  // specs/emails/guest-email-texts-made-simple.md rule 44 — the history and the pending list name a template
   // the way every other page does (« Merci et avis », not « Séquence — J+1 merci et avis »).
   function withDisplayNames(rows) {
     const names = new Map(templatesModel.list().map((t) => [Number(t.id), displayNameOf(t)]));
@@ -132,7 +132,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return normaliseLang(lang || graph.client?.emailLanguage || graph.reservation.emailLanguage);
   }
 
-  // specs/payment-link-lifecycle.md rules 8, 26 — a stored open link is shown only when the send would reuse
+  // specs/payments/payment-link-lifecycle.md rules 8, 26 — a stored open link is shown only when the send would reuse
   // it: 24 h left at least, and not lapsing at the arrival (rule 51). A link with no known end is never reused,
   // so never shown.
   function reusableLink(link) {
@@ -172,7 +172,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return text.includes(LINK_AT_SEND) || text.includes('{{paymentLink}}') || stayLinks.some((l) => l.url && text.includes(l.url));
   }
 
-  // specs/payment-link-lifecycle.md rules 55-57 — a request or reminder that carries a link is refused, before any
+  // specs/payments/payment-link-lifecycle.md rules 55-57 — a request or reminder that carries a link is refused, before any
   // mint, on a platform stay, on closed nights, or while a payment received on a withdrawn link waits. Rule 60 —
   // the preview reads the same answer, so the dialog says it before « Envoyer ».
   // Rule 35 — the acompte reminder is also refused on nights another stay took (after rules 55-57).
@@ -208,7 +208,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const graph = loadReservationGraph(database, reservationId);
     if (!graph) return { error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.', status: 404 };
 
-    // Language resolution (specs/email-client-language-and-fiche-polish.md §3 rule 2): explicit override
+    // Language resolution (specs/emails/email-client-language-and-fiche-polish.md §3 rule 2): explicit override
     // wins, else the CLIENT's language, else the reservation's (transitional fallback), else French.
     const useLang = guestLangOf(graph, lang);
 
@@ -238,7 +238,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       pluginContext: pluginEmailContext(reservationId),
     });
 
-    // specs/plugin-removal-resilience.md rule 6 — a stored open link is re-offered only while a payment
+    // specs/plugins/plugin-removal-resilience.md rule 6 — a stored open link is re-offered only while a payment
     // provider is live: nobody polls or reconciles it otherwise. The send hands the link it resolved.
     const providerLive = Boolean(paymentProviders.declared());
     const linkType = SEND_TIME_LINKS[template.stableKey];
@@ -265,7 +265,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       body:    overrides.body    != null ? String(overrides.body)    : side.body,
     };
     const { subject, body, missingVariables } = renderTemplate(useTemplate, context);
-    // The HTML part the guest receives beside the text (specs/guest-email-texts-made-simple.md rule 37).
+    // The HTML part the guest receives beside the text (specs/emails/guest-email-texts-made-simple.md rule 37).
     const { html } = guestEmailMessage({ subject, text: body, settings, lang: useLang });
 
     return {
@@ -280,7 +280,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       html,
       missingVariables,
       lang: useLang,
-      // specs/email-language-fr-en.md rule 9 — shown, never sent.
+      // specs/emails/email-language-fr-en.md rule 9 — shown, never sent.
       englishMissing: englishMissing(template, useLang),
       refusal: refusal ? { error: refusal.error, message: refusal.message } : null,
       occurrenceKey: installmentRef ? installmentRef.occurrenceKey : '',
@@ -295,7 +295,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   // Persist an operator-typed recipient onto a client that had no email on file
-  // (specs/email-automation.md §3 rule 10). Never overwrites an existing address.
+  // (specs/emails/email-automation.md §3 rule 10). Never overwrites an existing address.
   function persistClientEmailIfEmpty(clientId, email) {
     if (!clientId || !isValidEmail(email)) return;
     database
@@ -332,7 +332,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // A duplicate set aside is never written to; a cancelled stay still receives its cancellation mails.
     if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const wanted = templatesModel.findById(templateId);
-    // specs/email-language-fr-en.md rule 9 — a template without its English version never leaves for an
+    // specs/emails/email-language-fr-en.md rule 9 — a template without its English version never leaves for an
     // English-speaking guest, operator text or not; checked before any payment link is minted.
     const wantedGraph = wanted ? loadReservationGraph(database, reservationId) : null;
     if (wantedGraph && englishMissing(wanted, guestLangOf(wantedGraph, lang))) {
@@ -365,7 +365,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     }
 
     // An installment request goes out with its own link, minted (or reused) at its exact amount; a request
-    // or the acompte reminder with the stay's link, resolved now (specs/payment-link-lifecycle.md rules 26, 35).
+    // or the acompte reminder with the stay's link, resolved now (specs/payments/payment-link-lifecycle.md rules 26, 35).
     // The links of the stay are read before: the send may retire the one the preview showed.
     const stayLinks = (isInstallment || linkType) && paymentLinksModel && typeof paymentLinksModel.listForStay === 'function'
       ? paymentLinksModel.listForStay(Number(reservationId))
@@ -459,7 +459,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       });
       if (plan) ledger.markSent(plan.dedupKey, { recipientEmail: recipient, emailLogId: row.id });
       if (result.installmentId) installmentRequests.markRequested(result.installmentId);
-      // A manually-queued pair leaves the queue once sent (specs/manual-email-from-template.md §3 rule 7).
+      // A manually-queued pair leaves the queue once sent (specs/emails/manual-email-from-template.md §3 rule 7).
       if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId), sentKey);
       return res.json({ ok: true, emailLogId: row.id, sentAt: row.sentAt });
     } catch (err) {
@@ -485,18 +485,18 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
   function pending(req, res) {
     const simulated = req.query && req.query.today;
-    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a simulated day is a real day in the window.
+    // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a simulated day is a real day in the window.
     const refusal = simulated ? entryDateMessage(String(simulated)) : null;
     if (refusal) return res.status(400).json({ error: refusal, field: 'today' });
     const today = simulated || localTodayIso();
     const lookbackDays = Number((req.query && req.query.lookbackDays) || 7);
     // Only the « manual » templates are proposed: an « auto » one leaves on its own
-    // (specs/settings-rationalization.md rule 17b).
+    // (specs/settings/settings-rationalization.md rule 17b).
     // An installment request needs a payment provider to mint its link: without one it is not proposed.
     const dateDriven = logModel.listPending({ today, lookbackDays })
       .filter((row) => !row.occurrenceKey || (installmentRequests && installmentRequests.available()));
     // Manually-queued pairs are shown unconditionally (they bypass the sent/ack filter — that is
-    // what allows a deliberate resend, specs/manual-email-from-template.md §3 rule 6). Merge +
+    // what allows a deliberate resend, specs/emails/manual-email-from-template.md §3 rule 6). Merge +
     // dedup by (templateId, reservationId): the manual flag wins so the UI can badge the row.
     const manual = (manualQueueModel ? manualQueueModel.listEnriched() : [])
       .filter((row) => !row.occurrenceKey || (installmentRequests && installmentRequests.available()));
@@ -570,7 +570,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   // Mark a pending email as sent OUTSIDE GuestFlow (e.g. via the platform's messaging)
-  // — specs/mark-email-sent-manually.md. Logs status='sent', channel='manual'; no SMTP, no
+  // — specs/emails/mark-email-sent-manually.md. Logs status='sent', channel='manual'; no SMTP, no
   // recipient required. Mirrors acknowledge's idempotency + queue-dequeue.
   function markSent(req, res) {
     const { templateId, reservationId } = req.params || {};
@@ -640,20 +640,20 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       templateId:    templateId    != null ? Number(templateId)    : undefined,
       status,
     });
-    // specs/email-history-rolling-window.md rule 8 — the time as the operator lives it (Europe/Paris);
-    // specs/email-automation.md rule 15 — a failure in French, not the transport's own words.
+    // specs/emails/email-history-rolling-window.md rule 8 — the time as the operator lives it (Europe/Paris);
+    // specs/emails/email-automation.md rule 15 — a failure in French, not the transport's own words.
     const rows = withDisplayNames(result.rows || []).map((row) => ({
       ...row,
       sentAtLabel: parisDateTimeLabel(row.sentAt),
       errorLabel: row.status === 'failed' ? failureLabel(row.errorMessage) : '',
-      // specs/payment-link-lifecycle.md rule 44 — the one e-mail that left without validation says so.
+      // specs/payments/payment-link-lifecycle.md rule 44 — the one e-mail that left without validation says so.
       ...(row.status === 'sent' && String(row.occurrenceKey || '').startsWith('dates-taken:') ? { statusLabel: 'Envoyé automatiquement (dates prises)' } : {}),
     }));
     return res.json({ ...result, rows });
   }
 
   // Compact reservation list for the "Créer un email" picker
-  // (specs/manual-email-from-template.md §3 rule 2 + §4.3). All `kind='reservation'` rows,
+  // (specs/emails/manual-email-from-template.md §3 rule 2 + §4.3). All `kind='reservation'` rows,
   // most recent first, optionally filtered server-side by client / property name.
   function eligibleReservations(req, res) {
     const q = String((req.query && req.query.q) || '').trim();
@@ -685,7 +685,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   // Queue a (template, reservation) pair into "Emails à envoyer"
-  // (specs/manual-email-from-template.md §3 rules 4-6 + §4.3).
+  // (specs/emails/manual-email-from-template.md §3 rules 4-6 + §4.3).
   function queue(req, res) {
     const { templateId, reservationId, force } = req.body || {};
     if (!templateId || !reservationId) {
@@ -718,7 +718,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return res.json({ ok: true, queued: true });
   }
 
-  // ---------- Draft preview and test send (specs/guest-email-texts-made-simple.md rules 13–15) ----------
+  // ---------- Draft preview and test send (specs/emails/guest-email-texts-made-simple.md rules 13–15) ----------
 
   const draftPreview = buildDraftPreview({ database, templatesModel, buildPreview });
 

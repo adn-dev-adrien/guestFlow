@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rules 17-21 — comparison with last year, month by month: a month
+// specs/accounting/finance-dashboard-redesign.md rules 17-21 — comparison with last year, month by month: a month
 // is comparable once the same month a year earlier is covered; a window compares its comparable part.
 const { coverageMonth, isComparableMonth, comparableRange, change, shiftYear } = require('../utils/yearOverYear');
 

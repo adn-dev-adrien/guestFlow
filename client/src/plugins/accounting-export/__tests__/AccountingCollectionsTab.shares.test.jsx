@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 31 and 32 — « Encaissements »: by means and by type, the server's counts,
+// specs/accounting/accounting-synthesis.md §3 rules 31 and 32 — « Encaissements »: by means and by type, the server's counts,
 // amounts, totals and one-decimal shares; the amount per week with its running totals, named by the granularity.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
@@ -26,7 +26,7 @@ test('rule 31 — means and types with the server\'s figures, shares to one deci
 test('rule 32 — the series is named by its granularity; last year only when sent', async () => {
   const { unmount } = renderTab(synthesisPayload());
   expect(screen.getByText('Encaissements hebdomadaires et cumul')).toBeInTheDocument();
-  // The SDK hands the charts out lazily (specs/report-grammar.md rule 20): wait for them.
+  // The SDK hands the charts out lazily (specs/design-system/report-grammar.md rule 20): wait for them.
   expect(await screen.findByText('Encaissé de la semaine', {}, { timeout: 10000 })).toBeInTheDocument();
   expect(screen.getByText('Cumul N-1')).toBeInTheDocument();
   unmount();

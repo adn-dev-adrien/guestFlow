@@ -1,4 +1,4 @@
-// Audit R5 (2026-10-30), specs/booking-pace.md rule 16 — the card never formats a payload in another measure's
+// Audit R5 (2026-10-30), specs/pricing/booking-pace.md rule 16 — the card never formats a payload in another measure's
 // unit, and an answer for a measure already left is dropped.
 import React from 'react';
 import { vi } from 'vitest';

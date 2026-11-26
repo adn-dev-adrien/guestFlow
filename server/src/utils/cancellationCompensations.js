@@ -1,5 +1,5 @@
 /**
- * Pure validators for cancellation compensations (specs/cancellation-compensation.md §3.5).
+ * Pure validators for cancellation compensations (specs/payments/cancellation-compensation.md §3.5).
  *
  * Shared by the two write surfaces so a compensation created from the Dashboard approval and one
  * created by hand from Comptabilité obey the exact same rules:
@@ -40,7 +40,7 @@ function parseOptionalDate(value) {
 
 /**
  * The first refusal among `fields` of `value` (each a parsed date or null) outside the date window
- * (specs/reservations-backend-mvc.md rule 13, reading of 2026-11-02) — the French message as `error` —
+ * (specs/tech/reservations-backend-mvc.md rule 13, reading of 2026-11-02) — the French message as `error` —
  * or null. A date equal to the `stored` row's is never re-judged.
  */
 function windowRefusal(value, fields, { stored = null, today } = {}) {

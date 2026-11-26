@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rules 14, 22 — the hourly resources' timed cards on the
+// specs/plugins/plugins-phase-3c-hourly-resources.md rules 14, 22 — the hourly resources' timed cards on the
 // planning, and what they count on the day.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -44,7 +44,7 @@ test('a booking outside a stay shows its slot and payment, with nothing to tick'
   expect(screen.getByText('Payé')).toBeInTheDocument();
 });
 
-// specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, until he has.
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, until he has.
 test('rule 28 — an unpaid booking outside a stay offers « Arrivée » and says it is to collect', () => {
   render(<MemoryRouter><PlanningResourceCard entry={{ key: 'rb-5', time: '18:00', kind: 'booking', item: {
     id: 5, resourceName: 'Bain nordique', date: localIsoDate(), startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: false, external: true, arrived: false, cardState: { state: 'toCollect', label: 'À encaisser', remainingCents: 12000 },
@@ -79,7 +79,7 @@ test('the cards of a window are keyed by day, each with its time', async () => {
   expect(days['2026-10-11'].map((e) => [e.kind, e.time])).toEqual([['booking', '18:00']]);
 });
 
-// specs/resource-booking-pricing-and-invoicing.md rule 28 (R35-C-L4) — « on its day only », judged by the server (loop t2 UI2-7): a row whose `actions.arrive` is false
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 28 (R35-C-L4) — « on its day only », judged by the server (loop t2 UI2-7): a row whose `actions.arrive` is false
 // offers no « Arrivée », even dated today on the browser's clock.
 test('rule 28 — a booking the server does not offer the arrival for shows no « Arrivée »', () => {
   render(<MemoryRouter><PlanningResourceCard entry={{ key: 'rb-7', time: '18:00', kind: 'booking', item: {
@@ -89,7 +89,7 @@ test('rule 28 — a booking the server does not offer the arrival for shows no �
   expect(screen.queryByRole('button', { name: 'Arrivée' })).toBeNull();
 });
 
-// specs/outside-booking-sas.md rules 6, 22 (C38) — the chip is the server's `cardState`, never derived from a payment.
+// specs/sas/outside-booking-sas.md rules 6, 22 (C38) — the chip is the server's `cardState`, never derived from a payment.
 test('rule 22 — a visit closed with a reste reads « Reste 13,00 € » with no total beside it; « Absent » offers no « Arrivée »', () => {
   const booking = (cardState, more = {}) => ({
     id: 8, resourceName: 'Bain nordique', date: localIsoDate(), startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: false, external: true, arrived: false, totalPrice: 83, cardState, ...more,

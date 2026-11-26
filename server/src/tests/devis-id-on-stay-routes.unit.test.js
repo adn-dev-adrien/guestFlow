@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 25 (audit R30-RES-L1) — a devis id on a stay write answers what
+// specs/tech/reservations-backend-mvc.md rule 25 (audit R30-RES-L1) — a devis id on a stay write answers what
 // GET /reservations/:id answers, 404 « Réservation non trouvée », and nothing is written: an open draft is
 // never marked paid nor re-saved through the stay pipeline, a converted quote keeps its frozen figures.
 process.env.DB_PATH = ':memory:';

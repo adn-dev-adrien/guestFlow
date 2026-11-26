@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 16 — the task runs a pass at boot and then every minute, and a
+// specs/plugins/plugin-operator-provisioning.md rule 16 — the task runs a pass at boot and then every minute, and a
 // failing pass never stops the next one.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -39,7 +39,7 @@ test('rule 16: a pass that throws is logged and the next one still runs', async 
   assert.match(errors[0], /disk full/);
 });
 
-// specs/plugin-removal-resilience.md rule 17 — the live set is recorded at boot and re-read after every pass.
+// specs/plugins/plugin-removal-resilience.md rule 17 — the live set is recorded at boot and re-read after every pass.
 test('rule 17: the boot records the live set, and each pass re-reads it after the reconcile', async () => {
   const order = [];
   const timers = [];

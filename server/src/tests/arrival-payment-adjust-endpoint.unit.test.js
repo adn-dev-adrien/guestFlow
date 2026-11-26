@@ -1,4 +1,4 @@
-// specs/arrival-payment-detail-and-adjustment.md §3.2 — le point d'entrée qui enregistre « ce que le
+// specs/sas/arrival-payment-detail-and-adjustment.md §3.2 — le point d'entrée qui enregistre « ce que le
 // client a vraiment remis ».
 //
 // Deux règles que seul le contrôleur porte : l'ajustement reste possible APRÈS l'encaissement — c'est
@@ -93,7 +93,7 @@ function adjust(total, opts = {}) {
   return { captures, res };
 }
 
-// specs/arrival-payment-detail-and-adjustment.md rule 14 — ajustable APRÈS coup, sur un séjour dont
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 14 — ajustable APRÈS coup, sur un séjour dont
 // toutes les échéances sont déjà encaissées. C'est le cas d'usage principal, pas une tolérance.
 test('un paiement déjà encaissé reste ajustable', () => {
   const { captures, res } = adjust(450);
@@ -119,7 +119,7 @@ test('sans paiement unique, il n’y a rien à ajuster', () => {
   assert.equal(res.body.error, 'ADJUST_NO_GROUP');
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 17 — tracé dans l'historique : c'est de
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 17 — tracé dans l'historique : c'est de
 // l'argent, ça doit se relire des mois plus tard.
 test('l’ajustement écrit une ligne d’historique qui dit le geste', () => {
   const { captures } = adjust(450);

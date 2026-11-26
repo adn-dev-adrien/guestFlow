@@ -1,5 +1,5 @@
 /**
- * The cancellation insurance is offered only while a live plugin prices it (specs/plugins-phase-3b-neat.md
+ * The cancellation insurance is offered only while a live plugin prices it (specs/plugins/plugins-phase-3b-neat.md
  * rules 5, 21, 22 — decision P13). Without one:
  *   - the option lists hide it;
  *   - nothing new gets it: a payload that adds it is refused;

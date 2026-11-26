@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 39, 54 — « Annuler le bon »: within 14 days of the payment a withdrawal, after them only a goodwill cancellation forced with a reason;
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 39, 54 — « Annuler le bon »: within 14 days of the payment a withdrawal, after them only a goodwill cancellation forced with a reason;
 // the holds go back, the voucher is cancelled, a refund line is opened for the paid amount (none for a voucher given away) and reaches the books as an avoir dated the
 // cancellation day; the operator marks it settled once the transfer is made; every step is in the voucher's history with the operator's name.
 const test = require('node:test');

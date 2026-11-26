@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 8, 9, 10, 11 and 12 — TrendChart: legend items are toggle buttons
+ * specs/design-system/report-grammar.md §3 rules 8, 9, 10, 11 and 12 — TrendChart: legend items are toggle buttons
  * (crossed out when off, an empty-state line when every series is off), the « ⋯ » menu switches to an
  * accessible table of the same data and copies it as CSV, and the tooltip lists the visible series at
  * the hovered category. Recharts draws nothing in jsdom: the tooltip is tested as a named export.

@@ -1,5 +1,5 @@
 /**
- * specs/translation-catalogue.md rules 1, 4, 6 — GuestFlow collects its own entries.
+ * specs/site/translation-catalogue.md rules 1, 4, 6 — GuestFlow collects its own entries.
  *
  * The two behaviours worth guarding are the ones that decide whether a translation survives: renaming
  * an option in French must keep it (the key is the provenance), and archiving an option must keep it

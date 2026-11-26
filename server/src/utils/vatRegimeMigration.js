@@ -1,5 +1,5 @@
 /**
- * The VAT regime schema (specs/vat-optional-mode.md rule 22, §5). Idempotent, run on every boot.
+ * The VAT regime schema (specs/accounting/vat-optional-mode.md rule 22, §5). Idempotent, run on every boot.
  *
  * `vat_periods` is the append-only history of the regime; period 1 is today's behaviour, seeded from
  * `app_settings.vatRate`. Every reservation points at the period it was sold under: the trigger assigns

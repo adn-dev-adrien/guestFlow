@@ -6,7 +6,7 @@ const { createTariffRecipeModel } = require('../model');
 const { validateRecipe } = require('../store');
 const { runTariffRecipeHorizonPass } = require('../horizon');
 
-// specs/tariff-recipes/spec.md §3.2 rule 12 — the horizon pass extends only when a year is missing,
+// specs/pricing/tariff-recipes.md §3.2 rule 12 — the horizon pass extends only when a year is missing,
 // journals exactly one pending alert per generated year, and is idempotent on a second run.
 
 function createDb() {

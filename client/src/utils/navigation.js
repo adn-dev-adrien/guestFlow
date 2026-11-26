@@ -18,7 +18,7 @@ export function getFromParam(searchSource) {
   return isInAppPath(raw) ? raw : '';
 }
 
-// Where a page opened directly goes back to: the planning (specs/ui-review-2026-10-19-operations.md
+// Where a page opened directly goes back to: the planning (specs/design-system/ui-review-2026-10-19-operations.md
 // rule 22).
 export const DEFAULT_BACK_PATH = '/planning';
 

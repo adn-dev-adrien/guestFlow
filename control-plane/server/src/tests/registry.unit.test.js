@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 6–8 — the plugin registry the console serves: upload
+// specs/plugins/plugins-phase-4-registry.md rules 6–8 — the plugin registry the console serves: upload
 // validation, refusal of a duplicate, the signed index the instance verifies, withdrawal, and the
 // public routes over HTTP.
 

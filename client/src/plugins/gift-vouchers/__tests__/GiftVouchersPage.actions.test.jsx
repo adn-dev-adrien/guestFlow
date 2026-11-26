@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 25-28 — the detail's actions: reveal the masked code, resend, extend, cancel (disabled once
+// specs/gift-vouchers/gift-vouchers.md rules 25-28 — the detail's actions: reveal the masked code, resend, extend, cancel (disabled once
 // redeemed), adjust with a reason. « Nouveau bon » is a page of its own (NewVoucherPage.test.jsx); the cancellation flow is GiftVouchersPage.cancel.test.jsx.
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';

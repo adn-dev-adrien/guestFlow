@@ -1,5 +1,5 @@
 /**
- * The control plane's own SQLite database (specs/control-plane-plans-and-access.md §5). Idempotent:
+ * The control plane's own SQLite database (specs/hosting/control-plane-plans-and-access.md §5). Idempotent:
  * every table is created if missing, and the catalogue is seeded once with the plans the owner
  * decided on 2026-09-29 (rule 3). C2b adds the Qonto settings, the email templates and the customer
  * emails, and the billing columns of `customers` and `invoices`. C3 adds the directory and the old
@@ -235,7 +235,7 @@ CREATE TABLE IF NOT EXISTS payment_failures (
 `;
 
 // Columns added after a table first shipped (C2b): added when missing, so a console database created
-// by C2a carries on (specs/control-plane-plans-and-access.md §5).
+// by C2a carries on (specs/hosting/control-plane-plans-and-access.md §5).
 const ADDED_COLUMNS = {
   customers: {
     billingStreet: "TEXT NOT NULL DEFAULT ''",
@@ -244,7 +244,7 @@ const ADDED_COLUMNS = {
     billingCountry: "TEXT NOT NULL DEFAULT 'FR'",
     vatNumber: "TEXT NOT NULL DEFAULT ''",
     qontoClientId: 'TEXT',
-    // specs/plugin-operator-provisioning.md rule 25: set once the operator's module choice has been
+    // specs/plugins/plugin-operator-provisioning.md rule 25: set once the operator's module choice has been
     // seeded from what the space runs; until then the customer's licence carries no `activePlugins`.
     pluginsSeededAt: 'TEXT',
   },
@@ -262,7 +262,7 @@ const ADDED_COLUMNS = {
     attempt: 'INTEGER NOT NULL DEFAULT 0',
   },
   customer_erase_orders: {
-    // specs/plugin-operator-provisioning.md rule 38: 1 for the removal of a module that holds no data (worded « désinstallation »).
+    // specs/plugins/plugin-operator-provisioning.md rule 38: 1 for the removal of a module that holds no data (worded « désinstallation »).
     removal: 'INTEGER NOT NULL DEFAULT 0',
   },
   operators: {
@@ -327,7 +327,7 @@ function seedTemplates(db) {
   for (const t of DEFAULT_TEMPLATES) insert.run(t.key, t.subject, t.body);
 }
 
-// --- Hosting H1 (specs/hosting-h1-fleet-runtime.md §5) ------------------------------------------
+// --- Hosting H1 (specs/hosting/hosting-h1-fleet-runtime.md §5) ------------------------------------------
 // Kept in its own block, apart from the C-phase schema above: the instances the console runs, the
 // fleet updates, the weekly restore checks, the platform's email counters, the 301 redirects of the
 // renamed addresses (rule 5) and the host alerts.

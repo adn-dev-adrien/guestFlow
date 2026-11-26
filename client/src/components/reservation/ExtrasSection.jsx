@@ -29,7 +29,7 @@ export default function ExtrasSection() {
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setResourceEnabled, setResourceQuantity, setResourceSessions,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
-    // specs/mid-stay-extras-on-locked-fiche.md — the server-decided window and the floor of each line
+    // specs/sas/mid-stay-extras-on-locked-fiche.md — the server-decided window and the floor of each line
     // sold at arrival; absent (older context) → the card behaves as before.
     extrasWindowOpen, arrivalLines: rawArrivalLines, frozenCustomOptionIds, paidCustomOptionIds,
     setResourceInComplement,
@@ -37,7 +37,7 @@ export default function ExtrasSection() {
     isDevisMode, isPlatformSale,
   } = useReservationForm();
   // The server lists only what is offered; a resource the stay carries but the catalogue hides comes
-  // back from `frozenResources`, read-only (specs/plugins-phase-3c-hourly-resources.md rule 18).
+  // back from `frozenResources`, read-only (specs/plugins/plugins-phase-3c-hourly-resources.md rule 18).
   const offerableResources = displayableResources;
   // What plugins draw under a resource line (rule 21): the sessions of a resource sold by the hour.
   const resourceLineSlots = useSlot('reservation.resourceLine');
@@ -47,7 +47,7 @@ export default function ExtrasSection() {
   // Rule 8 — a mid-stay sale goes to the end-of-stay complement whatever its routing: the switch would
   // do nothing, so it is frozen while the window is open.
   const routingLocked = extrasLocked || Boolean(extrasWindowOpen);
-  // specs/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
+  // specs/sas/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). A muted caption explains the default. Only engine-derived auto-options keep
   // their toggle hidden — their routing is the algorithm's, not the operator's (rule 5).
@@ -55,12 +55,12 @@ export default function ExtrasSection() {
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
   // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
-  // split whatever the platform (specs/devis-extras-parity-and-price-lock.md §3 rule 17).
+  // split whatever the platform (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 17).
   const complementChecked = (value) => (value == null ? (isPlatformReservation && !isDevisMode) : Boolean(value));
-  // Internal-only options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
+  // Internal-only options (specs/linen/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
   // never shown as selectable extras on the fiche — they're managed globally and counted in the
   // laundry/stock only. `displayToClient` absent → visible (back-compat).
-  // specs/baby-bed-supplement.md §6 — the cot supplement is engine-derived and read-only, so the only
+  // specs/options/baby-bed-supplement.md §6 — the cot supplement is engine-derived and read-only, so the only
   // honest reason to show its row is that the engine actually billed it. Keying on the quote rather
   // than on the « Lits bébé » counter keeps the row and the récapitulatif in lockstep in every case
   // the SERVER decides alone: no cot, a logement that doesn't charge for cots, and above all a
@@ -72,7 +72,7 @@ export default function ExtrasSection() {
   const visiblePropertyOptions = (propertyOptions || [])
     .filter((o) => Number(o.displayToClient == null ? 1 : o.displayToClient) !== 0)
     .filter((o) => !isDormantBabyBedOption(o));
-  // Server-computed grouping (specs/option-categories.md §3 rule 4). Falls back to the flat list
+  // Server-computed grouping (specs/options/option-categories.md §3 rule 4). Falls back to the flat list
   // when the payload predates the feature, so an older cached property detail still renders.
   const ungroupedOptions = (propertyOptionGroups?.ungrouped || visiblePropertyOptions)
     .filter((o) => !isDormantBabyBedOption(o));
@@ -80,8 +80,8 @@ export default function ExtrasSection() {
     .map((group) => ({ ...group, options: (group.options || []).filter((o) => !isDormantBabyBedOption(o)) }))
     .filter((group) => group.options.length > 0);
   // "Enabled" here mirrors OptionRow's own rule: an explicit quantity, a bed-linen option forced on
-  // by a property default (specs/bed-config-in-linen-card.md §3 rule 4.bis), or a service included in
-  // the rate (specs/tourist-tax-included-services-deduction.md rule 4).
+  // by a property default (specs/linen/bed-config-in-linen-card.md §3 rule 4.bis), or a service included in
+  // the rate (specs/tourist-tax/tourist-tax-included-services-deduction.md rule 4).
   const isOptionEnabled = (opt) => {
     const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
     return Boolean(selected && Number(selected.quantity) > 0)
@@ -89,7 +89,7 @@ export default function ExtrasSection() {
       || Boolean(lockedIncludedOptionIds?.has(opt.id));
   };
   // Rendered outside the collapse: what's selected, plus the options flagged `alwaysVisible`
-  // (specs/option-categories.md §3 rule 9bis) — that's how « Petit déjeuner » keeps showing on every
+  // (specs/options/option-categories.md §3 rule 9bis) — that's how « Petit déjeuner » keeps showing on every
   // fiche now that it lives under « Restauration ». Mirrors `isPinnedOption` server-side.
   const isOptionPinned = (opt) => Boolean(opt.alwaysVisible) || isOptionEnabled(opt);
 
@@ -109,7 +109,7 @@ export default function ExtrasSection() {
               <Stack spacing={1.25}>
                 {ungroupedOptions.map((opt) => <OptionRow key={opt.id} opt={opt} />)}
               </Stack>
-              {/* Categories (specs/option-categories.md §3 rules 7-11): collapsed sections after the
+              {/* Categories (specs/options/option-categories.md §3 rules 7-11): collapsed sections after the
                   flat list. The enabled/remaining split is the only client-side derivation here —
                   it reads the operator's CURRENT, unsaved selection, which by definition can't come
                   from the server. Membership and order do come from the server (`optionGroups`). */}
@@ -172,7 +172,7 @@ export default function ExtrasSection() {
                             </Typography>
                           )}
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
-                            {/* ArithmeticTextField (specs/reservation-price-arithmetic.md): text input
+                            {/* ArithmeticTextField (specs/reservations/reservation-price-arithmetic.md): text input
                                 that accepts the French comma (« 12,5 ») and commits on Enter/blur. A
                                 type="number" here turned « 12, » into an empty value → amount 0 → the
                                 live recompute dropped the line entirely (bug 2026-07-20). */}
@@ -187,7 +187,7 @@ export default function ExtrasSection() {
                             {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                 Small Switch + Tooltip pattern — see comment on the regular-option block
                                 above. On platform reservations it defaults ON but stays editable
-                                (specs/force-extras-complement-on-platform.md §3 rule 1bis). */}
+                                (specs/sas/force-extras-complement-on-platform.md §3 rule 1bis). */}
                             <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
                               <FormControlLabel
                                 sx={{ m: 0 }}
@@ -226,7 +226,7 @@ export default function ExtrasSection() {
                   {offerableResources.map(resource => {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                     const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                    // specs/plugins-phase-3c-hourly-resources.md rule 4 — hours for `per_hour` only.
+                    // specs/plugins/plugins-phase-3c-hourly-resources.md rule 4 — hours for `per_hour` only.
                     const isPerHour = resource.priceType === 'per_hour';
                     const isHourlyScheduled = Boolean(resource.showsPlanningCard) && isPerHour;
                     const readOnly = Boolean(resource.readOnly);
@@ -303,7 +303,7 @@ export default function ExtrasSection() {
                                   during the arrival SAS. The field used to be hidden behind a spacer,
                                   which left the Switch as the only control and the line worth nothing
                                   until a session was typed in
-                                  (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 4). */}
+                                  (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 4). */}
                               <QuantityField
                                 size="small"
                                 label={isPerHour ? 'Heures' : 'Qté'}
@@ -324,7 +324,7 @@ export default function ExtrasSection() {
                                 {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                     Small Switch + Tooltip pattern, mirrors the option block above. On
                                     platform reservations it defaults ON but stays editable
-                                    (specs/force-extras-complement-on-platform.md §3 rule 1bis). */}
+                                    (specs/sas/force-extras-complement-on-platform.md §3 rule 1bis). */}
                                 <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
                                   <FormControlLabel
                                     sx={{ m: 0 }}

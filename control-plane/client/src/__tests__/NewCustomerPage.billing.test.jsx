@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 7 — the new customer's billing identity: the address
+// specs/hosting/control-plane-plans-and-access.md rule 7 — the new customer's billing identity: the address
 // Qonto needs, the postcode checked by the server as it is typed, sent with the form.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

@@ -1,5 +1,5 @@
 // Cron pass — iterates enabled auto templates × matching reservations.
-// See specs/email-automation.md §3 rule 7. Rule 2 (send modes): only `auto` templates are sent by the
+// See specs/emails/email-automation.md §3 rule 7. Rule 2 (send modes): only `auto` templates are sent by the
 // pass; rule 12 (EMAIL_NOT_CONFIGURED): a send that cannot leave logs `failed` with that marker.
 
 const test = require('node:test');
@@ -193,7 +193,7 @@ test('runner: EMAIL_NOT_CONFIGURED bubbles through with the right errorMessage m
   assert.equal(row.errorMessage, 'EMAIL_NOT_CONFIGURED');
 });
 // ---------------------------------------------------------------------------------------------
-// No « auto » template — specs/settings-rationalization.md rule 17b (the template's own mode is the
+// No « auto » template — specs/settings/settings-rationalization.md rule 17b (the template's own mode is the
 // only switch). The pass must not merely refrain from sending: it must not render, not connect, not
 // log. What it leaves behind is what the operator will find in « Emails à envoyer ».
 // ---------------------------------------------------------------------------------------------

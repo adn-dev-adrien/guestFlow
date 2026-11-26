@@ -1,4 +1,4 @@
-// specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
+// specs/platforms/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
 // deadline it was stored with.
 //
 // The bug this pins, measured on réservation 22219 (Booking, 17–19 July 2026) on 2026-09-25: the
@@ -20,7 +20,7 @@ const { buildAuditSnapshotFromPayload } = require('../utils/reservationAudit');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function withMocks(modules, fn) {

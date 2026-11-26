@@ -1,6 +1,6 @@
 /**
  * An instance's environment file, `<envs>/<slug>` (mode 600) — the whole of its configuration
- * (specs/hosting-h1-fleet-runtime.md rules 1, 18; H-D4). systemd reads it as an `EnvironmentFile`,
+ * (specs/hosting/hosting-h1-fleet-runtime.md rules 1, 18; H-D4). systemd reads it as an `EnvironmentFile`,
  * the local process driver as the child's environment. It lives in the console's own `envs/`
  * directory (0700), never in the instance's directory: PID 1 reads it as root, so the instance must
  * not be able to replace it (review 2026-10-17, M2).
@@ -32,7 +32,7 @@ function parseEnv(text) {
 
 // systemd's EnvironmentFile and our parser both read KEY="value" with \" and \\ escaped.
 function serializeEnv(vars) {
-  const lines = ['# Written by the GuestFlow console (specs/hosting-h1-fleet-runtime.md) — edits are overwritten.'];
+  const lines = ['# Written by the GuestFlow console (specs/hosting/hosting-h1-fleet-runtime.md) — edits are overwritten.'];
   for (const [k, v] of Object.entries(vars)) {
     if (v === undefined || v === null) continue;
     lines.push(`${k}="${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
@@ -71,7 +71,7 @@ function secretsOf(env) {
  * The variables of one instance. `inst` = { slug, dir, port, version }; `releasesDir` the shared
  * releases; `extra` the drivers' own variables (proxy: trust and TLS; mail: the platform sender).
  * `publicUrl` is the instance's own address and `registryUrl` the console's plugin registry
- * (specs/hosting-h1-fleet-runtime.md rule 25): both follow the console's records, so a rename moves
+ * (specs/hosting/hosting-h1-fleet-runtime.md rule 25): both follow the console's records, so a rename moves
  * the address and every instance reads the registry the console publishes, with nothing typed.
  */
 function buildEnv({ inst, releasesDir, secrets, licencePublicKey, registryPublicKey = licencePublicKey, publicUrl = null, registryUrl = null, extra = {} }) {
@@ -90,7 +90,7 @@ function buildEnv({ inst, releasesDir, secrets, licencePublicKey, registryPublic
     GUESTFLOW_LICENCE_PUBLIC_KEY: licencePublicKey || undefined,
     GUESTFLOW_PUBLIC_URL: publicUrl || undefined,
     // The registry's index is signed with its own key when CP_REGISTRY_PRIVATE_KEY is set, else with the
-    // licence key (specs/plugins-phase-4-registry.md P23, rule 42 of the plugin registry audit).
+    // licence key (specs/plugins/plugins-phase-4-registry.md P23, rule 42 of the plugin registry audit).
     GUESTFLOW_REGISTRY_URL: registryUrl && registryPublicKey ? registryUrl : undefined,
     GUESTFLOW_REGISTRY_PUBLIC_KEY: registryUrl && registryPublicKey ? registryPublicKey : undefined,
     TZ: 'Europe/Paris',

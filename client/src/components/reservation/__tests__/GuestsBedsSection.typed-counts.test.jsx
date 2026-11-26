@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 21 — the operator is told at once, where the party changes.
+// specs/options/non-card-option-served-persons.md rule 21 — the operator is told at once, where the party changes.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';

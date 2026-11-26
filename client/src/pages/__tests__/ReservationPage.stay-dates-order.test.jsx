@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 12 (audit R18-1) — the fiche and the devis refuse a departure on or before
+// specs/tech/reservations-backend-mvc.md rule 12 (audit R18-1) — the fiche and the devis refuse a departure on or before
 // the arrival: the dates show the error as it is typed, and « Enregistrer » refuses with the server's message before
 // any request. A refusal of the server itself (400 INVALID_STAY_DATES) is shown as it comes.
 import React from 'react';
@@ -39,7 +39,7 @@ import api from '../../api';
 import ReservationPage from '../ReservationPage';
 import { addIsoDays, localIsoToday } from '../../utils/isoDay';
 
-// A month ahead: inside the date horizon (specs/reservations-backend-mvc.md rule 13), never past.
+// A month ahead: inside the date horizon (specs/tech/reservations-backend-mvc.md rule 13), never past.
 const ARRIVAL = addIsoDays(localIsoToday(), 30);
 
 const ORDER = "La date de départ doit suivre la date d'arrivée.";

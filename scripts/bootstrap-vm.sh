@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # One-shot migration of a GuestFlow host to the self-updatable layout
-# (specs/self-update-and-releases.md §4.6).
+# (specs/hosting/self-update-and-releases.md §4.6).
 #
 # Run it ONCE on the production machine, as the user that owns ~/guestflow and the PM2 daemon —
 # never as root. It is idempotent: re-running it on an already-migrated host changes nothing.
@@ -131,7 +131,7 @@ if [ -f "$ROOT/ecosystem.config.js" ]; then
   fi
 else
   cat > "$ROOT/ecosystem.config.js" <<ECOSYSTEM
-// GuestFlow — définition du process PM2 (specs/self-update-and-releases.md §4.6).
+// GuestFlow — définition du process PM2 (specs/hosting/self-update-and-releases.md §4.6).
 //
 // Écrit une seule fois par scripts/bootstrap-vm.sh, puis maintenu à la main sur l'hôte.
 // Le moteur de mise à jour ne le modifie jamais : il se contente de faire pointer le lien

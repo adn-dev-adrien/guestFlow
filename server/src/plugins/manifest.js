@@ -1,5 +1,5 @@
 /**
- * The plugin manifest (specs/plugins-phase-4-registry.md rule 2) — the single description of a
+ * The plugin manifest (specs/plugins/plugins-phase-4-registry.md rule 2) — the single description of a
  * plugin: `id`, `name`, `version`, `description`, `icon`, `surfaces`, `requires` ([{ id, range }]),
  * `guestflow` (core range), `sdk` (SDK range), and `changelog` ({ version: [lines] }, rule 24).
  *

@@ -1,5 +1,5 @@
 /**
- * Planning days model (specs/dashboard-planning-scroll.md rules 1, 2, 8): the stays that start or end
+ * Planning days model (specs/planning/dashboard-planning-scroll.md rules 1, 2, 8): the stays that start or end
  * in a window, and the first day after a date on which a stay starts. Devis and cancelled stays are
  * not arrivals nor departures; a stay without its client or property row is not shown anywhere else
  * either. Order: day, then the hour (an unset hour last), then id.

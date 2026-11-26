@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 13 — every type-specific setting of the former dialog is still
+// specs/options/options-resources-ux.md rule 13 — every type-specific setting of the former dialog is still
 // reachable from the panel: breakfast time and notice, planning card, bed linen, towels, bath mats,
 // insurance note, « Visible du client », category and « Toujours visible ». Replaces the former
 // OptionsPage.percent / .category suites (ported, not dropped).

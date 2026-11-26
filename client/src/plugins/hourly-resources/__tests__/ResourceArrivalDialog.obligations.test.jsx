@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 41 (end-review verification V-4) — the visit's open obligations (a link paid after the reste moved) are shown to the
+// specs/sas/outside-booking-sas.md rule 41 (end-review verification V-4) — the visit's open obligations (a link paid after the reste moved) are shown to the
 // administrator with the server's words and « Marquer remboursé », confirmed, closed on the document, then the visit is read again; the part of the
 // refund no row holds stays the « {x} à rembourser » alert. The reception's payload carries neither.
 import React from 'react';

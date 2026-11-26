@@ -1,4 +1,4 @@
-// specs/email-automation.md rule 21 — « Renvoyer » on a second row opens on that row's template,
+// specs/emails/email-automation.md rule 21 — « Renvoyer » on a second row opens on that row's template,
 // not on the one of the row resent before.
 import React from 'react';
 import { vi } from 'vitest';

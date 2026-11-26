@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 73 (audit R42-M-L1, 2026-11-10) — a cancellation writes a plan's unpaid
+// specs/payments/reservation-payment-ledger.md rule 73 (audit R42-M-L1, 2026-11-10) — a cancellation writes a plan's unpaid
 // installments off (« Solde abandonné ») and the cancelled fiche draws no plan row: `remainingToPay`, the one « reste dû »
 // of the application, no longer counts them. The fiche used to close on « Reste à percevoir 3 089,60 € » under rows that
 // all said nothing was owed. A live plan still counts them; a cancelled stay without a plan keeps its rows' reading.

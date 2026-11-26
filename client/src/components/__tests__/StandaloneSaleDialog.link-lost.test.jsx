@@ -1,5 +1,5 @@
 /**
- * StandaloneSaleDialog — specs/pricing-components.md rule 53 (UI-8): when the quote stops offering the link after « Envoyer un lien » was chosen (provider no longer ready),
+ * StandaloneSaleDialog — specs/pricing/pricing-components.md rule 53 (UI-8): when the quote stops offering the link after « Envoyer un lien » was chosen (provider no longer ready),
  * the sale falls back to « Encaisser maintenant »: the tender lines drawn are the ones sent, never a sale saved with nothing collected and no link.
  */
 import React from 'react';

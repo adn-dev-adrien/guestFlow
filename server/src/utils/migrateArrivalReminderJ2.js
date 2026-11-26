@@ -1,6 +1,6 @@
 /**
  * One-shot migration: force-sync the existing `arrival_reminder_1d` template row to the current
- * registry definition (specs/email-automation.md / specs/j1-arrival-reminder-email.md).
+ * registry definition (specs/emails/email-automation.md / specs/emails/j1-arrival-reminder-email.md).
  *
  * The template seed is insert-only (it never overwrites an existing row), so the J-1 → J-2 rework
  * (new copy: stay date instead of « demain », GPS line, nordic-bath block, cleaning-by-name fix)
@@ -8,7 +8,7 @@
  * personalised — so we force the name / subject / body / dayOffset from the registry. We deliberately
  * KEEP `sendMode` and `enabled` (the operator's auto-vs-manual + on/off choice). Idempotent.
  *
- * specs/j2-email-coffee-and-sas-complement.md — also force `subjectEn`/`bodyEn` (the generic EN backfill
+ * specs/emails/j2-email-coffee-and-sas-complement.md — also force `subjectEn`/`bodyEn` (the generic EN backfill
  * only fills EMPTY columns, so registry copy changes — e.g. the new coffee/capsule line — never reach an
  * already-populated EN row). Same overwrite intent as the FR side, for this one template.
  */

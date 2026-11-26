@@ -58,7 +58,7 @@ function seed() {
   const insert = db.prepare(`INSERT INTO properties (name, maxGuests, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit,
     touristTaxMode, touristTaxPerDayPerPerson, defaultCheckIn, defaultCheckOut) VALUES (?, ?, ?, ?, ?, ?, ?, '16:00', '10:00')`);
   // The shipped recipes declare Airbnb's cleaning fee; an apply refuses a platform GuestFlow does not
-  // know (specs/tariff-recipe-platform-cleaning-fee.md rule 6).
+  // know (specs/pricing/tariff-recipe-platform-cleaning-fee.md rule 6).
   db.prepare("INSERT OR IGNORE INTO platforms (name, commissionPercent) VALUES ('Airbnb', 15.5)").run();
   const gite = Number(insert.run('La Granja', 14, 10, 29, 'per_night', 'per_day_per_person', 1.2).lastInsertRowid);
   const tente = Number(insert.run('L’Estiva', 4, 2, 15, 'per_night', 'per_day_per_person', 0.8).lastInsertRowid);

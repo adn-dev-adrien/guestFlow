@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 26 — the « recette » mode: with GUESTFLOW_MAIL_OUTBOX set
+// specs/emails/guest-email-texts-made-simple.md rule 26 — the « recette » mode: with GUESTFLOW_MAIL_OUTBOX set
 // outside production, every email the instance would send (guest emails included) is written to the
 // outbox and never reaches an SMTP server; production ignores the variable; an unconfigured SMTP is
 // still refused, so the recette answers as the real instance would.

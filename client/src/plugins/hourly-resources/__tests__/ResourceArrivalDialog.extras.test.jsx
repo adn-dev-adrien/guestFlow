@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 11, 12, 35 — « Proposés à l'arrivée » in the mini SAS: a suggestion is added with one tap, the stepper stays inside its bounds, the server's refusal of a
+// specs/sas/outside-booking-sas.md rules 11, 12, 35 — « Proposés à l'arrivée » in the mini SAS: a suggestion is added with one tap, the stepper stays inside its bounds, the server's refusal of a
 // quantity is shown under its line and blocks « Valider l'arrivée », « Autre article » searches the articles sellable with no stay, a draft line is removed freely.
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';

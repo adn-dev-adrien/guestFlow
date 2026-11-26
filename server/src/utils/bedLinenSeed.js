@@ -1,5 +1,5 @@
 /**
- * Default "Linge de lit" option seeder (specs/weekly-bed-linen-tracking.md).
+ * Default "Linge de lit" option seeder (specs/linen/weekly-bed-linen-tracking.md).
  *
  * Idempotent + non-destructive boot-time seed. Runs on every server start; only inserts when
  * both invariants hold:
@@ -75,7 +75,7 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
       logger.log(`[seed:bed-linen] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
-    // Canonical singular title (specs/j1-linen-default-message.md §3 rule 7): normalise the
+    // Canonical singular title (specs/emails/j1-linen-default-message.md §3 rule 7): normalise the
     // bed-linen option titled "Linge de lits" (plural) to "Linge de lit" on every server. Scoped
     // to the typed row, idempotent (no-op once already singular).
     const renamed = database.prepare(`

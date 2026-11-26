@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rules 20 (start-edge skeleton out of the layout) and 31 (the browser's own
+// specs/planning/dashboard-planning-scroll.md rules 20 (start-edge skeleton out of the layout) and 31 (the browser's own
 // scroll anchoring is off on the timeline: the hook is the only mechanism that compensates a shift).
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';

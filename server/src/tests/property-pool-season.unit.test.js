@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 34 — the pool season belongs to the property that has
+// specs/emails/guest-email-texts-made-simple.md rule 34 — the pool season belongs to the property that has
 // the pool, set on its Séjour tab, not in the instance's email settings. The upgrade copies the season
 // once onto every property, so no email of an existing instance moves.
 

@@ -1,7 +1,7 @@
 # Abritel / Vrbo switch-over — session handover
 
 **Written 2026-10-16, ~07:40.** State of the world measured, not remembered. Hand this file to a
-fresh session together with [`specs/lodgify-decommission.md`](../../specs/lodgify-decommission.md),
+fresh session together with [`specs/platforms/lodgify-decommission.md`](../../specs/platforms/lodgify-decommission.md),
 which stays the source of truth for *why*. This document only says **where we are** and **what is
 left**, and it corrects three things the spec and the session memory currently get wrong.
 
@@ -286,7 +286,7 @@ for the short fields and more for « Mon logement » (1 778 characters observed)
 Every other source is active. Production `<operator>@<prod-host>`, public host
 `https://guestflow.adn-dev.fr`.
 
-**Files** — [`specs/lodgify-decommission.md`](../../specs/lodgify-decommission.md) (rules §3, runbook
+**Files** — [`specs/platforms/lodgify-decommission.md`](../../specs/platforms/lodgify-decommission.md) (rules §3, runbook
 §10, journal §11, open questions §9),
 [`.claude/skills/platform-tariff-rollout/references/platforms.md`](../../.claude/skills/platform-tariff-rollout/references/platforms.md)
 (the durable field manual: where a commercial fact lives, and pitfalls 1–32).

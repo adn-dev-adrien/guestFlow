@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 35 (the refusal on taken dates), 43 and 65 — the acompte reminder of a stay
+// specs/payments/payment-link-lifecycle.md rules 35 (the refusal on taken dates), 43 and 65 — the acompte reminder of a stay
 // whose nights another stay took is never proposed in « Emails à envoyer », and the operator's send is refused
 // (409 DATES_UNAVAILABLE, traced once as a `failed` row that never hides the reminder once the nights are free again),
 // before any link is minted; the refusal asks for the guest notice, which leaves once at most. Made-up stays; nothing

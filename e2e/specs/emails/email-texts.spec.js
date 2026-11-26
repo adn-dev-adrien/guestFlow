@@ -1,5 +1,5 @@
 // @ts-check
-// specs/guest-email-texts-made-simple.md §7 E2E — fill a property's arrival facts and see them in the
+// specs/emails/guest-email-texts-made-simple.md §7 E2E — fill a property's arrival facts and see them in the
 // « Accès et arrivée » preview, export the texts then re-import them (one changed row, one refused
 // row), run a test send that lands in the dev mail catcher with its HTML part (rule 37), and open a
 // text from a sentence of the preview (rule 45).

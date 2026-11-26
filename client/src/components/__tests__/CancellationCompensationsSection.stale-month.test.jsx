@@ -1,5 +1,5 @@
 /**
- * specs/cancellation-compensation.md rule 31 — a slow answer for a month already left never replaces
+ * specs/payments/cancellation-compensation.md rule 31 — a slow answer for a month already left never replaces
  * the month on screen (audit R4: August's 53,10 € read 0,00 € once September's late answer landed).
  */
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 66 — the pure part of the no-duplicate-formulas guards: what a hit is, how hits are
+// specs/pricing/pricing-components.md §3 rule 66 — the pure part of the no-duplicate-formulas guards: what a hit is, how hits are
 // counted and how they are judged against an allow-list. It reads no file, so the guards can be proved on synthetic
 // sources (planted copies) as well as run on the real tree.
 //

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const Module = require('module');
 
 /**
- * Public catalog ordering (specs/public-api.md): options and resources are returned CHEAPEST FIRST
+ * Public catalog ordering (specs/site/public-api.md): options and resources are returned CHEAPEST FIRST
  * so a public consumer (the WordPress booking widget) renders them sorted by price without doing any
  * client-side ordering. Real projections; the models and the existence check are stubbed.
  */
@@ -52,13 +52,13 @@ test('listOptions returns options sorted by price ascending', () => {
   const res = fakeRes();
   controller.listOptions({ params: { id: '1' } }, res);
   assert.equal(res.statusCode, 200);
-  // Uncategorised options land in `ungrouped` (specs/option-categories.md §4.4) — price order intact.
+  // Uncategorised options land in `ungrouped` (specs/options/option-categories.md §4.4) — price order intact.
   assert.deepEqual(res.body.data.ungrouped.map((o) => o.price), [6, 30, 65, 80]);
   assert.deepEqual(res.body.data.groups, []);
 });
 
 test('listOptions excludes options that are OFFERED defaults for the property (included, not selectable)', () => {
-  // specs/property-default-option-applicability.md rule 4: an offered default is part of the price,
+  // specs/options/property-default-option-applicability.md rule 4: an offered default is part of the price,
   // so the public booking form must not offer it as a choice.
   const controller = buildController({
     options: [

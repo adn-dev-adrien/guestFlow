@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t15, S15-1, 2026-11-17) — an admin-unlocked fiche is previewed as its save
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t15, S15-1, 2026-11-17) — an admin-unlocked fiche is previewed as its save
 // prices it: once « Déverrouiller cette fiche » is clicked, every live quote carries `unlockPast: true`, the flag the save sends, so the server
 // skips the locked fiche's routing on both. Before, the live quote never sent it and kept the stored routing the save dropped.
 import React from 'react';

@@ -1,5 +1,5 @@
 /**
- * FinanceDataChecksCard — « À vérifier » at the bottom of the Suivi financier (specs/finance-data-checks.md
+ * FinanceDataChecksCard — « À vérifier » at the bottom of the Suivi financier (specs/accounting/finance-data-checks.md
  * rules 12-17): reads `/finance/data-checks` for the page's exercise and logement and hands the checks to
  * the generic DataChecksPanel. A stay links to its fiche (back to this page), a month to the tourist-tax
  * page on that month. A refusal stays inside the card, with a retry: the page around it is untouched.
@@ -28,7 +28,7 @@ export default function FinanceDataChecksCard({ fiscalYear, propertyId, refreshK
   const location = useLocation();
   const from = `${location.pathname}${location.search}`;
   const [state, setState] = useState({ data: null, error: null, refused: false });
-  // specs/finance-data-checks.md rule 23 — after a refusal of the exercise, the current one is read (no `fiscalYear`).
+  // specs/accounting/finance-data-checks.md rule 23 — after a refusal of the exercise, the current one is read (no `fiscalYear`).
   const [currentExercise, setCurrentExercise] = useState(false);
   useEffect(() => { setCurrentExercise(false); }, [fiscalYear, propertyId]);
   const begin = useLatestRequest();
@@ -48,7 +48,7 @@ export default function FinanceDataChecksCard({ fiscalYear, propertyId, refreshK
 
   const itemHref = (item) => {
     if (item.reservationId != null) return withFrom(`/reservations/${item.reservationId}`, from);
-    // specs/tourist-tax-report-v2.md rule 31 (review R4-6) — the logement the item was counted on goes with it.
+    // specs/tourist-tax/tourist-tax-report-v2.md rule 31 (review R4-6) — the logement the item was counted on goes with it.
     if (item.month) {
       const logement = propertyId ? `&propertyId=${encodeURIComponent(propertyId)}` : '';
       return withFrom(`/finance/tourist-tax?month=${encodeURIComponent(item.month)}${logement}`, from);

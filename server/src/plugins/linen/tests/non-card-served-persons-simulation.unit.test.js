@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 6 (audit R21-S5) — the stock projection counts the people typed on a
+// specs/options/non-card-option-served-persons.md rule 6 (audit R21-S5) — the stock projection counts the people typed on a
 // bath-linen option: the reduce over the option's rows, and the model reading the column it needs.
 
 const test = require('node:test');

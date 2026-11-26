@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md rule 33 (removed 2026-09-28) — the stored templates lose their
+// specs/emails/guest-email-sequence.md rule 33 (removed 2026-09-28) — the stored templates lose their
 // `{{lostItemsParagraph}}` line and `reservations.lostItems` is dropped, both idempotently.
 const test = require('node:test');
 const assert = require('node:assert/strict');

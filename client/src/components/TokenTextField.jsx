@@ -1,6 +1,6 @@
 /**
  * TokenTextField — a French/English text with its variables
- * (specs/plugins-phase-p-productisation.md §6, specs/guest-email-texts-made-simple.md rules 10, 27, 37, 38, 46).
+ * (specs/plugins/plugins-phase-p-productisation.md §6, specs/emails/guest-email-texts-made-simple.md rules 10, 27, 37, 38, 46).
  * Generic: any text the server fills with `{{token}}` and `{{#if flag}}…{{/if}}`.
  *
  * The field shows each variable by its French label (« ⟦Prénom du voyageur⟧ ») and hands the raw

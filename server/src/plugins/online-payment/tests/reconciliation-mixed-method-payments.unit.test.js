@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 28 — the bank expects of a split payment only its card, cheque and transfer
+// specs/payments/mixed-method-payments.md rule 28 — the bank expects of a split payment only its card, cheque and transfer
 // lines, one receipt per settlement; the bucket it paid is not expected a second time.
 const test = require('node:test');
 const assert = require('node:assert/strict');

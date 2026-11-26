@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import TariffRecipesPage from '../TariffRecipesPage';
 import api from '../../../api';
 
-// specs/tariff-recipes/spec.md §3.5 items 26-28 — the read-only browser distinguishes bundled,
+// specs/pricing/tariff-recipes.md §3.5 items 26-28 — the read-only browser distinguishes bundled,
 // local-override and invalid recipes, and lists the properties using each.
 
 vi.mock('../../../api', () => ({
@@ -14,7 +14,7 @@ vi.mock('../../../api', () => ({
   default: {
     getTariffRecipes: vi.fn(),
     getTariffRecipe: vi.fn(),
-    // specs/tariff-change-journal.md §6 — la page porte aussi le journal des changements
+    // specs/pricing/tariff-change-journal.md §6 — la page porte aussi le journal des changements
     getTariffChangeJournal: vi.fn(),
     addTariffChangeEvent: vi.fn(),
     deleteTariffChangeEvent: vi.fn(),
@@ -86,7 +86,7 @@ test('no recipe at all → empty state', async () => {
   await waitFor(() => expect(screen.getByText('Aucune recette tarifaire.')).toBeInTheDocument());
 });
 
-// ── Journal des changements tarifaires (specs/tariff-change-journal.md §6) ─────────────────────
+// ── Journal des changements tarifaires (specs/pricing/tariff-change-journal.md §6) ─────────────────────
 
 test('le journal affiche la date d’effet et signale une date déduite', async () => {
   api.getTariffRecipes.mockResolvedValue({ recipes: [], invalid: [] });

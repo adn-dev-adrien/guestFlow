@@ -1,5 +1,5 @@
 /**
- * ExternalSaleFields — the catalogue's « Vendable hors séjour » block (owner Q-C11; specs/outside-booking-sas.md rule 11): the switch, the VAT class, the external customer's rate of the whole class
+ * ExternalSaleFields — the catalogue's « Vendable hors séjour » block (owner Q-C11; specs/sas/outside-booking-sas.md rule 11): the switch, the VAT class, the external customer's rate of the whole class
  * (shown from the server's list, retyped only on purpose), and the server's refusals under their field. The rate of a class changes with the class chosen.
  */
 import React from 'react';

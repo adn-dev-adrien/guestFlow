@@ -1,4 +1,4 @@
-// specs/ical-cancellation-approval.md rule 16 (audit R2 E) — the booking-pace ledger row is written
+// specs/platforms/ical-cancellation-approval.md rule 16 (audit R2 E) — the booking-pace ledger row is written
 // only when the stay is really deleted: a kept (cancelled) stay is already counted as a cancelled row.
 const test = require('node:test');
 const assert = require('node:assert/strict');

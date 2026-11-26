@@ -1,4 +1,4 @@
-// specs/mollie-settlement-receipts.md rules 10-11 — the statement of a Mollie credit on its reconciliation line: a chip
+// specs/accounting/mollie-settlement-receipts.md rules 10-11 — the statement of a Mollie credit on its reconciliation line: a chip
 // per state, « Voir le relevé » (the PDF, in a new tab, built on the fly whatever the state), « Réessayer » when it can be tried again.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

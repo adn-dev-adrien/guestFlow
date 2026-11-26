@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 65 (class E4b) — an hourly booking cuts its VAT like every other reader that moved onto the VAT
+// specs/pricing/pricing-components.md §3 rule 65 (class E4b) — an hourly booking cuts its VAT like every other reader that moved onto the VAT
 // component: the VAT is the rounded share of the TTC, the net what is left. At 2.1, 5.5, 8.5 and 10 % the figures are the former
 // net-first ones; at 20 % a tie amount moves its net by one cent, the total never changes.
 process.env.DB_PATH = ':memory:';

@@ -1,9 +1,9 @@
 /**
  * SelectableTile — a KPI tile that opens its detail: label, figure, caption, a colour dot, and a
- * pressed state with a pointer toward the panel it opened (specs/finance-dashboard-redesign.md
+ * pressed state with a pointer toward the panel it opened (specs/accounting/finance-dashboard-redesign.md
  * rule 13). Generic: any « figure → its table » dashboard.
  *
- * Report anatomy (specs/report-grammar.md rules 2–4), all optional: a « i » definition beside the
+ * Report anatomy (specs/design-system/report-grammar.md rules 2–4), all optional: a « i » definition beside the
  * label, the caption as the secondary line (« TTC : 20 295 € »), and a year-over-year pill. Without
  * `onClick` the tile is a static figure (a `<div>`, not a button) — the KPI row of a report.
  *
@@ -49,7 +49,7 @@ function Body({ label, value, caption, valueColor, comparison, labelEnd }) {
   );
 }
 
-// The pointer from the open tile toward the panel it opened (specs/finance-dashboard-redesign.md rule 13).
+// The pointer from the open tile toward the panel it opened (specs/accounting/finance-dashboard-redesign.md rule 13).
 const OPEN_POINTER = {
   content: '""', position: 'absolute', left: '50%', bottom: -9, width: 14, height: 14,
   bgcolor: 'background.paper', borderRight: '1.5px solid', borderBottom: '1.5px solid', borderColor: 'primary.main',
@@ -108,7 +108,7 @@ export default function SelectableTile({ label, value, caption, dotColor, valueC
         sx={{
           ...STATIC_SX,
           // A <button> centres its content vertically whatever its display: a column from the top keeps
-          // the labels of a row aligned whether a tile has a pill or not (specs/report-grammar.md rule 18).
+          // the labels of a row aligned whether a tile has a pill or not (specs/design-system/report-grammar.md rule 18).
           display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start',
           border: '1.5px solid', borderColor: selected ? 'primary.main' : 'transparent',
           transition: 'border-color .15s, transform .1s',

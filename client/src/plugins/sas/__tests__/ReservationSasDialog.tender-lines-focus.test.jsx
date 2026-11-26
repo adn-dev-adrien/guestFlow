@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 UI25-2) — the SAS « Plusieurs moyens » block puts the focus in its
+// specs/payments/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 UI25-2) — the SAS « Plusieurs moyens » block puts the focus in its
 // first amount only when the operator opens it. When it comes back on its own — the next answer after a failed recompute, the departure's
 // due back from 0 — the focus stays on the control the operator just used (« ✓ Offert » / « Offrir »), never moved into « Montant Espèces ».
 import { screen, fireEvent, waitFor } from '@testing-library/react';

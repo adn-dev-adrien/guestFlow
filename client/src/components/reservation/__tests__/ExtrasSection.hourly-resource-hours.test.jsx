@@ -6,10 +6,10 @@ import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import { makeMockContext } from './mockReservationForm';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
-// specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 4 — an hourly-SCHEDULED resource
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 4 — an hourly-SCHEDULED resource
 // (« Bain nordique ») is sold by the hour on the fiche and placed on real slots later, during the
 // arrival SAS. Its « Heures » field used to be replaced by an empty spacer, leaving the Switch as the
 // only control — and since the engine then dropped a session-less line, enabling the resource added
@@ -58,7 +58,7 @@ test('changing the hours commits the new quantity on blur', () => {
 });
 
 // The editor is the hourly-resources plugin's, drawn through `reservation.resourceLine`
-// (specs/plugins-phase-3c-hourly-resources.md rule 21) — loaded lazily.
+// (specs/plugins/plugins-phase-3c-hourly-resources.md rule 21) — loaded lazily.
 test('the session editor is still offered below the hours', async () => {
   renderWith();
   expect(await screen.findByText('Séances')).toBeInTheDocument();

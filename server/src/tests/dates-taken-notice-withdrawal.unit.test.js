@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 43, 44 and 64 (review of #912) — the guest notice answers ONE withdrawal: the
+// specs/payments/payment-link-lifecycle.md rules 43, 44 and 64 (review of #912) — the guest notice answers ONE withdrawal: the
 // stay that took the nights then, read unpaid after the deactivation (rule 19's last look), judged once. Freed nights
 // booked again by another stay, a link that lapsed, a devis moved to other dates, a devis already told then converted,
 // a payment still in flight, a deactivation found done without a read, a platform stay, a stay taken by its own

@@ -1,4 +1,4 @@
-// specs/option-categories.md §3 rules 1-3, 9 — pure grouping/ordering of the option catalogue.
+// specs/options/option-categories.md §3 rules 1-3, 9 — pure grouping/ordering of the option catalogue.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -66,7 +66,7 @@ test('whitespace-only and padded labels normalise into the same group', () => {
 });
 
 test('enabled options are split out of the remainder — the pinned/folded rule', () => {
-  // specs/option-categories.md §3 rule 9: the pinned slice renders outside the collapse, so a
+  // specs/options/option-categories.md §3 rule 9: the pinned slice renders outside the collapse, so a
   // collapsed section can never hide a charge.
   const { groups } = groupOptionsByCategory([
     opt(1, 'Champagne', 'Boissons'),
@@ -136,7 +136,7 @@ test('listCategories returns the distinct labels in display order', () => {
   assert.deepEqual(listCategories([]), []);
 });
 
-// specs/cancellation-insurance.md §3.4 rule 28 — the insurance is read after the stay's own
+// specs/payments/cancellation-insurance.md §3.4 rule 28 — the insurance is read after the stay's own
 // conditions, so it leaves the alphabet and sits right after « Départ tardif ».
 
 const lateCheckout = (id, category = '') => ({ id, title: 'Départ tardif', category, autoOptionType: 'late_check_out' });

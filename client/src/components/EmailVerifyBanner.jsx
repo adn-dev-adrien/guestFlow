@@ -1,6 +1,6 @@
 /**
  * EmailVerifyBanner — persistent warning shown across every page after the operator changes their
- * login email (specs/admin-account-management.md follow-up #7, 2026-06-02).
+ * login email (specs/hosting/admin-account-management.md follow-up #7, 2026-06-02).
  *
  * Without it, a typo when changing the admin email = total prod lockout on the next logout. The
  * banner stays visible until the operator has successfully logged in once with the new address.

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 8 — once a lock has expired the count starts again:
+// specs/hosting/hosting-h2-account-security.md rule 8 — once a lock has expired the count starts again:
 // a single typo after it is a plain « Code incorrect », not a new 15-minute lock.
 const test = require('node:test');
 const assert = require('node:assert/strict');

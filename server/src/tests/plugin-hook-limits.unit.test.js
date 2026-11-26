@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 48 — (a) the hooks a restart owes run requirements first, not in id
+// specs/plugins/plugins-phase-4-registry.md rule 48 — (a) the hooks a restart owes run requirements first, not in id
 // order; (b) an onInstall / onActivate hook that never settles is given up on after a bounded time, logged,
 // so it cannot hold the plugin-operation lock for ever.
 const test = require('node:test');

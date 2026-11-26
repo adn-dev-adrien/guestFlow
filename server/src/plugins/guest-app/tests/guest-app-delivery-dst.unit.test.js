@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 41, reading of 2026-11-10 (audit R36-S2) — the delivery times are real instants: on the night
+// specs/guest-app/guest-app.md rule 41, reading of 2026-11-10 (audit R36-S2) — the delivery times are real instants: on the night
 // the clocks go back, the first time offered is the lead away (it was 90 to 105 minutes), and on the night they go
 // forward no wall time that does not exist is offered or labelled (« 2 h » named 03:00, so « 2 h 30 » came after
 // « 3 h » and the orders sorted wrong). The nights are the next two changes of the Paris clock, computed from today.

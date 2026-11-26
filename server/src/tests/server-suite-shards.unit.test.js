@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 19 (audit R37-S1) — the PR server suite runs in two shards, each under the
+// specs/tech/server-test-isolation.md rule 19 (audit R37-S1) — the PR server suite runs in two shards, each under the
 // 15-minute cap: one process per file run one after another took 13.8 min, and 802b17ac was cancelled at the cap.
 // A shard is the package's own `npm test` with `--test-shard=N/M` set after `--test`; the shards together run every
 // file once, and none twice. Never a test hidden: the split is by file, the reporters and caps unchanged.

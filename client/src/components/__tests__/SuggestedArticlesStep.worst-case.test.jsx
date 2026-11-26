@@ -1,5 +1,5 @@
 /**
- * SuggestedArticlesStep — the worst realistic data (specs/outside-booking-sas.md rule 35, break-ui pass of C38): a 120-character label with an unbreakable word, an emoji-first label,
+ * SuggestedArticlesStep — the worst realistic data (specs/sas/outside-booking-sas.md rule 35, break-ui pass of C38): a 120-character label with an unbreakable word, an emoji-first label,
  * a quantity of 99, a quantity of exactly 1, no suggestion at all, a thousand-line search answer. Nothing is cut, nothing crashes, the controls stay reachable.
  */
 import React from 'react';

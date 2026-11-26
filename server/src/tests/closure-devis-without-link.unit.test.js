@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 49 — a closure over a devis that holds no open link warns
+// specs/payments/payment-link-lifecycle.md rule 49 — a closure over a devis that holds no open link warns
 // (« Devis en cours sur ces dates. », one « Ouvrir » per devis) and saves: there is nothing to withdraw.
 const test = require('node:test');
 const assert = require('node:assert/strict');

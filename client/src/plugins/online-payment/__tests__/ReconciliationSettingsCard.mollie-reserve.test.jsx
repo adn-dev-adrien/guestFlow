@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 2-3 — the reserve settings (rate, hold, since): loaded
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 2-3 — the reserve settings (rate, hold, since): loaded
 // from the server, saved with the card, the server's refusal shown on the field with the stored values kept, and the
 // note that a change applies to later payments.
 import React from 'react';

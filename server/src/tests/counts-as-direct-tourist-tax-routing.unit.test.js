@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 45 (review of PR #803) — the tourist-tax mode is the
+// specs/plugins/plugins-phase-p-productisation.md rule 45 (review of PR #803) — the tourist-tax mode is the
 // platform's own setting: on a channel counted as direct in mode « owner » the engine collects the tax
 // on arrival, exactly as the accounting export and the arrival SAS recap read it (any named channel
 // whose platform does not charge the guest).

@@ -10,7 +10,7 @@ const path = require('path');
 const { normalizeProgressiveTiers } = require('../utils/pricing');
 const { validateRecipe } = optionalPlugin(() => require('../plugins/tariff-recipes/store'));
 
-// specs/tariff-recipes/spec.md §3.6 rules 36-37 — the degressivity of the source document's §6,
+// specs/pricing/tariff-recipes.md §3.6 rules 36-37 — the degressivity of the source document's §6,
 // reproduced exactly, and the commercial promise that must hold at every stay length: a further
 // night is never dearer than the one before it. This is the test that catches a future
 // well-meaning tier edit breaking either.

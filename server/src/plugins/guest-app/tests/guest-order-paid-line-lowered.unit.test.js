@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 85 and specs/pricing-components.md rules 23, 75 (review defect D7, M6 / M7) — the line of a card-paid order is the provider's money: the operator
+// specs/guest-app/guest-app.md rule 85 and specs/pricing/pricing-components.md rules 23, 75 (review defect D7, M6 / M7) — the line of a card-paid order is the provider's money: the operator
 // can offer it only through the fiche's confirmation, and the excess it leaves is a refund obligation (`lineLowered`), never a silent credit.
 const fx = require('./guestOrderFixtures');
 

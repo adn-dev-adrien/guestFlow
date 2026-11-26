@@ -1,5 +1,5 @@
 /**
- * UnsavedChangesDialog — the one unsaved-changes prompt (specs/ds-components.md §3.1).
+ * UnsavedChangesDialog — the one unsaved-changes prompt (specs/design-system/ds-components.md §3.1).
  * Merges the two divergent implementations (PropertyDetail / ReservationPage): canonical wording
  * « Modifications non enregistrées », verb « Enregistrer », stay-button FIRST (design-system.md).
  *

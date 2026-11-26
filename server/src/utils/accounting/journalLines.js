@@ -1,5 +1,5 @@
 /**
- * The neutral role lines of a journal entry (specs/pricing-components.md §3 rule 63).
+ * The neutral role lines of a journal entry (specs/pricing/pricing-components.md §3 rule 63).
  *
  * `entryLines(entry, splitFrom)` answers what an entry books, with no account number and no CSV column:
  *   { role, side: 'debit' | 'credit', amountCents, vatRate?, vatCents?, account? }
@@ -232,7 +232,7 @@ function create({ accountPlan }) {
     ];
   }
 
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the Mollie journal: a paid link debits the clearing account
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the Mollie journal: a paid link debits the clearing account
   // (what Mollie owes) and credits the client; a reconciled credit debits the bank, a settlement's costs the fee account, both
   // crediting the clearing account. Two lines of one amount, on the accounts the entry carries (`mollieAccounts`).
   function mollieLines(entry) {

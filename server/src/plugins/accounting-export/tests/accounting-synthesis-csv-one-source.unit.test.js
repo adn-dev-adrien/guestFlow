@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 3, 5 and 6 — one source: the synthesis reads the very rows the CSV export
+// specs/accounting/accounting-synthesis.md §3 rules 3, 5 and 6 — one source: the synthesis reads the very rows the CSV export
 // writes, and the export, refactored to carry each row's role beside it, writes the same bytes as before. The
 // expected file below was produced by the export as it stood before the refactor (inte/plugins 5437951d), on these
 // entries, with the default plan and with a renamed one. The clock is pinned: the dates are inputs of pure functions.

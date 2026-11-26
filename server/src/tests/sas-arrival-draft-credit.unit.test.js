@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 104 e (stabilisation loop t6, unverified note of the ui-process review, 2026-11-16) — the arrival recap of a
+// specs/pricing/pricing-components.md §3 rule 104 e (stabilisation loop t6, unverified note of the ui-process review, 2026-11-16) — the arrival recap of a
 // DRAFT lists the stored rule-104 credit only for the part that explains why the draft's complement is below its listed lines: a draft that offers
 // the basket the credit sat on asks 0 € and lists no « Déjà réglé −10 € », so the lines always sum to the complement asked.
 process.env.DB_PATH = ':memory:';

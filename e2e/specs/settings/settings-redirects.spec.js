@@ -1,5 +1,5 @@
 // @ts-check
-// settings/settings-redirects — specs/settings-rationalization.md rules 1-8. The old settings URLs
+// settings/settings-redirects — specs/settings/settings-rationalization.md rules 1-8. The old settings URLs
 // land on their new page, and the « Paramètres » submenu lists the pages by group (rule 26: the
 // group of the open page unfolds; `/settings` is the summary since rule 24, settings-summary.spec.js).
 import { test, expect } from '@playwright/test';

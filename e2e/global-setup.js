@@ -1,5 +1,5 @@
 // @ts-check
-// Playwright globalSetup — runs once before the suite (specs/e2e-playwright-smoke-suite.md §3.1
+// Playwright globalSetup — runs once before the suite (specs/tech/e2e-playwright-smoke-suite.md §3.1
 // rules 5-8). Five phases:
 //
 //   1. Wipe the ephemeral SQLite DB at DB_PATH so every run starts from a clean schema.
@@ -20,7 +20,7 @@ const { CLIENT_URL, SERVER_PORT } = require('./clientUrl');
 const E2E_DB_PATH = process.env.GUESTFLOW_E2E_DB_PATH || '/tmp/guestflow-e2e.db';
 const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'e2e@guestflow.test';
 const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-secret-1234';
-// « Accueil » account for the reception specs (specs/reception-sas-today-only.md §7). They opt into
+// « Accueil » account for the reception specs (specs/sas/reception-sas-today-only.md §7). They opt into
 // this session with their own `test.use({ storageState })` — the default stays the admin.
 const E2E_RECEPTION_EMAIL = process.env.E2E_RECEPTION_EMAIL || 'e2e-reception@guestflow.test';
 const E2E_RECEPTION_PASSWORD = process.env.E2E_RECEPTION_PASSWORD || 'e2e-reception-1234';
@@ -91,7 +91,7 @@ module.exports = async () => {
 
   // (6) Same round-trip for the « Accueil » account → e2e/.auth/reception.json. Only the reception
   // specs opt into it; every other spec keeps the admin session. The bare-install suite has no such
-  // account (specs/plugins-phase-0-foundation.md rule 28).
+  // account (specs/plugins/plugins-phase-0-foundation.md rule 28).
   if (process.env.E2E_SEED_PLUGINS === 'none') return;
   const receptionCtx = await request.newContext({ baseURL: FRONTEND_URL });
   const receptionLogin = await receptionCtx.post('/api/auth/login', {

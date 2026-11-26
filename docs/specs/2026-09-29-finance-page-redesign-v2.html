@@ -197,7 +197,7 @@ svg text{font-family:var(--sans)}
 <div class="wrap">
 
 <h1>Suivi financier : la refonte, version 3</h1>
-<p class="meta">Spec <code>specs/finance-dashboard-redesign.md</code> · statut <b>Approved</b> · 29/09/2026 · base : direction A « Banque » · chiffres <b>fictifs</b> (établissement de démonstration, 4 logements), calculés pour de vrai sur ~500 séjours générés · rien n'est encore construit</p>
+<p class="meta">Spec <code>specs/accounting/finance-dashboard-redesign.md</code> · statut <b>Approved</b> · 29/09/2026 · base : direction A « Banque » · chiffres <b>fictifs</b> (établissement de démonstration, 4 logements), calculés pour de vrai sur ~500 séjours générés · rien n'est encore construit</p>
 
 <div class="note">
 <b>Version 3 :</b> le bandeau vert revient en tête avec la courbe intégrée, les vignettes d'occupation n'affichent plus que leur logement au survol, les tuiles ne répètent plus les chiffres du bandeau, et aucune tuile n'est ouverte à l'arrivée.<br><br><b>Ce qui avait changé depuis la version 1 :</b>
@@ -673,7 +673,7 @@ function render() {
   const pi = app.querySelector('#projIn'); if (pi) pi.onchange = () => { S.projDate = pi.value || TODAY; render(); };
   app.querySelectorAll('[data-hide]').forEach((b) => { b.onclick = () => { S.hidden[b.dataset.hide] = !S.hidden[b.dataset.hide]; render(); }; });
   const cum = app.querySelector('#cumCard'); bindTip(cum, '.hit', (el) => { const p = R.cumul[el.dataset.i]; return `<b>au ${fmtD(p.day)}</b><br>${p.cur == null ? '—' : eur(p.cur)} cette année${p.n1 != null ? `<br>${eur(p.n1)} l'an dernier` : ''}`; });
-  // specs/finance-dashboard-redesign.md rule 22 — one line per year: « Juillet 2026 : 11 938 € ».
+  // specs/accounting/finance-dashboard-redesign.md rule 22 — one line per year: « Juillet 2026 : 11 938 € ».
   bindTip(app.querySelector('#mCard'), '.hit', (el) => { const m = R.months[el.dataset.i]; const t = m.past + m.upcoming; const name = MN[+m.ym.slice(5, 7) - 1].replace(/^./, (c) => c.toUpperCase()); return `<b>${name} ${m.ym.slice(0, 4)} : ${eur(t)}</b>${m.upcoming ? ` (dont ${eur(m.upcoming)} à venir)` : ''}${m.n1 != null ? `<br>${name} ${m.ym.slice(0, 4) - 1} : ${eur(m.n1)}` : ''}`; });
   const oc = app.querySelector('#oCard');
   // A vignette's tooltip speaks of its own logement only.

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 90.2 — a departure charge line is outside the stay's sale, so every statement of the server that
+// specs/pricing/pricing-components.md §3 rule 90.2 — a departure charge line is outside the stay's sale, so every statement of the server that
 // reads `reservation_custom_options` either leaves the departure lines out (`notDepartureCharge`) or reads only rows a departure line
 // can never be (the arrival SAS's rows, rows routed to the arrival complement, one row named by its key or id). A new reader that does
 // neither fails here: it would count a departure charge a second time, beside the end-of-stay detail that already bills it.

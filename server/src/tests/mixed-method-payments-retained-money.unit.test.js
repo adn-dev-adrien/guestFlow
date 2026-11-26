@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 44, 46 (audit R34-M-M1 / R34-S1) — the acompte and the installments are the
+// specs/payments/mixed-method-payments.md rules 44, 46 (audit R34-M-M1 / R34-S1) — the acompte and the installments are the
 // money a cancellation keeps and requalifies (payment-schedule-and-cancellation rule 55, D8): paid with several methods,
 // they go on the books whole or in the caisse whole, for their whole amount. And a solde paid partly in the caisse
 // interne gives its caisse share back in the caisse interne once the stay is cancelled.
@@ -51,7 +51,7 @@ const payDeposit = (stay, tenders, shortfall) => mark(stay.id, {
   depositPaid: true, depositPaidDate: TODAY, expectedAmountCents: stay.due, tenders, ...(shortfall ? { shortfall } : {}),
 });
 
-test('specs/mixed-method-payments.md rule 44 — an acompte split between the caisse interne and the books: refused, nothing written', () => {
+test('specs/payments/mixed-method-payments.md rule 44 — an acompte split between the caisse interne and the books: refused, nothing written', () => {
   const stay = acompteStay();
   const res = payDeposit(stay, [cashIn(5000), transfer(stay.due - 5000)]);
   assert.equal(res.statusCode, 400, JSON.stringify(res.body));
@@ -61,7 +61,7 @@ test('specs/mixed-method-payments.md rule 44 — an acompte split between the ca
   assert.equal(settlementsModel.listFor(stay.id).length, 0);
 });
 
-test('specs/mixed-method-payments.md rule 44 — an acompte with a reste or a geste commercial: refused', () => {
+test('specs/payments/mixed-method-payments.md rule 44 — an acompte with a reste or a geste commercial: refused', () => {
   for (const kind of ['due', 'waived']) {
     const stay = acompteStay();
     const res = payDeposit(stay, [card(stay.due - 7400)], { kind });
@@ -71,7 +71,7 @@ test('specs/mixed-method-payments.md rule 44 — an acompte with a reste or a ge
   }
 });
 
-test('specs/mixed-method-payments.md rule 44 — an acompte on the books whole (CB + virement), then cancelled: the books net to the indemnity', BOOKS, async () => {
+test('specs/payments/mixed-method-payments.md rule 44 — an acompte on the books whole (CB + virement), then cancelled: the books net to the indemnity', BOOKS, async () => {
   const before = netByAccount();
   const stay = acompteStay();
   assert.equal(payDeposit(stay, [card(5000), transfer(stay.due - 5000)]).statusCode, 200);
@@ -83,7 +83,7 @@ test('specs/mixed-method-payments.md rule 44 — an acompte on the books whole (
   assert.equal(moved('75880000'), -stay.due / 100, JSON.stringify(after));
 });
 
-test('specs/mixed-method-payments.md rule 44 — an acompte in the caisse whole: stored as « Caisse interne », never requalified (D8)', BOOKS, async () => {
+test('specs/payments/mixed-method-payments.md rule 44 — an acompte in the caisse whole: stored as « Caisse interne », never requalified (D8)', BOOKS, async () => {
   const before = netByAccount();
   const stay = acompteStay();
   assert.equal(payDeposit(stay, [cashIn(stay.due)]).statusCode, 200);
@@ -92,7 +92,7 @@ test('specs/mixed-method-payments.md rule 44 — an acompte in the caisse whole:
   assert.deepEqual(netByAccount(), before);
 });
 
-test('specs/mixed-method-payments.md rule 44 — the single arrival payment carrying the acompte: the same refusal', () => {
+test('specs/payments/mixed-method-payments.md rule 44 — the single arrival payment carrying the acompte: the same refusal', () => {
   const stay = acompteStay();
   const r = rowOf(stay.id);
   const due = cents(r.depositAmount) + cents(r.balanceAmount);
@@ -102,7 +102,7 @@ test('specs/mixed-method-payments.md rule 44 — the single arrival payment carr
   assert.equal(rowOf(stay.id).depositPaid, 0);
 });
 
-test('specs/mixed-method-payments.md rule 44 — a correction cannot bring the caisse interne into a split acompte', () => {
+test('specs/payments/mixed-method-payments.md rule 44 — a correction cannot bring the caisse interne into a split acompte', () => {
   const stay = acompteStay();
   assert.equal(payDeposit(stay, [card(5000), transfer(stay.due - 5000)]).statusCode, 200);
   const [s] = settlementsModel.listFor(stay.id);
@@ -111,7 +111,7 @@ test('specs/mixed-method-payments.md rule 44 — a correction cannot bring the c
   assert.equal(res.body.error, 'Acompte : tout en compta ou tout en caisse interne.');
 });
 
-test('specs/mixed-method-payments.md rule 44 — an installment: no caisse interne, no reste, no geste', () => {
+test('specs/payments/mixed-method-payments.md rule 44 — an installment: no caisse interne, no reste, no geste', () => {
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, finalPrice)
     VALUES (?, 1, date(?, '+700 day'), date(?, '+702 day'), 'direct', 2, 600)`).run(NO_ACOMPTE, TODAY, TODAY).lastInsertRowid);
   const [first] = installmentsModel.replacePlan(id, [
@@ -128,7 +128,7 @@ test('specs/mixed-method-payments.md rule 44 — an installment: no caisse inter
   assert.equal(pay1({ tenders: [{ method: 'cash', amountCents: 10000, internal: false }, card(20000)] }).statusCode, 200);
 });
 
-test('specs/mixed-method-payments.md rule 46 — a solde paid partly in the caisse interne, the stay cancelled: its caisse share goes back in the caisse', async () => {
+test('specs/payments/mixed-method-payments.md rule 46 — a solde paid partly in the caisse interne, the stay cancelled: its caisse share goes back in the caisse', async () => {
   const stay = acompteStay();
   pay(stay.id, D);
   const solde = cents(rowOf(stay.id).balanceAmount);
@@ -146,7 +146,7 @@ test('specs/mixed-method-payments.md rule 46 — a solde paid partly in the cais
   assert.equal(back.statusCode, 201, JSON.stringify(back.body));
 });
 
-test('specs/mixed-method-payments.md rule 44 — the ledger tells the form: the acompte row is paid whole, the solde row is not', () => {
+test('specs/payments/mixed-method-payments.md rule 44 — the ledger tells the form: the acompte row is paid whole, the solde row is not', () => {
   const { ficheView } = require('./moneyLedgerFixture');
   const stay = acompteStay();
   const rows = ficheView(stay.id).ledger.rows;

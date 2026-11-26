@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { buildController } = require('../controllers/upcomingReservationsController');
 const { toArrivalCard, CARD_FIELDS } = require('../utils/upcomingArrivals');
 
-// specs/inte-performance.md rule 12 — « Réservations à venir » answers what its cards render, not the
+// specs/tech/inte-performance.md rule 12 — « Réservations à venir » answers what its cards render, not the
 // whole fiche (about 60 columns and 3 joined lists per stay). A field the card does not read must not
 // come back; a field it reads must not be lost.
 

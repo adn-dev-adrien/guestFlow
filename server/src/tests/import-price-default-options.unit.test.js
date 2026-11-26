@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const propertyIcalModel = require('../models/propertyIcalModel');
 const { globalFetch } = require('./icalFetchFixture');
 
-// specs/import-price-default-options.md — an iCal/Lodgify import must materialise a PAID default
+// specs/options/import-price-default-options.md — an iCal/Lodgify import must materialise a PAID default
 // option (property_option_defaults.offered = 0) at its REAL amount, not 0 (which used to force the
 // operator to open + save the reservation just to price it). Free defaults (offered = 1) stay 0.
 // The reservation ROW stays intentionally unpriced (finalPrice = 0) — only the option lines get amounts.

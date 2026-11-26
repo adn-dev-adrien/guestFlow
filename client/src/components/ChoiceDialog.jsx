@@ -1,6 +1,6 @@
 /**
  * ChoiceDialog — a modal « pick one of N consequences »: an explanation on top, then one radio card per outcome, each with its figure
- * (specs/manual-price-on-placement-change.md §6). Built on `FormDialog`: fullScreen under `sm`, stacked 44 px actions, no transition
+ * (specs/reservations/manual-price-on-placement-change.md §6). Built on `FormDialog`: fullScreen under `sm`, stacked 44 px actions, no transition
  * under `prefers-reduced-motion`. Escape and a click outside call `onCancel`, like the cancel button: the dialog never ends on an
  * outcome nobody chose.
  *

@@ -1,4 +1,4 @@
-// specs/breakfast-offer-price-server-side.md rules 5, 11, 13 — the arrival preview answers the breakfast
+// specs/options/breakfast-offer-price-server-side.md rules 5, 11, 13 — the arrival preview answers the breakfast
 // quantity (moments, covers, units, unit price, amount) as the commit will bill it. Real controller,
 // real model, in-memory database.
 

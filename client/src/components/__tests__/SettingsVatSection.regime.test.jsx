@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md §6.1 — the « TVA » card of Paramètres › TVA & exercice: the badge of the
+// specs/accounting/vat-optional-mode.md §6.1 — the « TVA » card of Paramètres › TVA & exercice: the badge of the
 // regime in force, the rate under VAT or the legal mention without, the dated history with its tags, and
 // « Annuler ce changement » only where the server says a period is deletable.
 import React from 'react';

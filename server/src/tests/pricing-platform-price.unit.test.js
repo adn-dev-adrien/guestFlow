@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 17, 50 and 70 — PLATFORM PRICE alone: the gross pin (accommodation = gross − extra
+// specs/pricing/pricing-components.md §3 rules 17, 50 and 70 — PLATFORM PRICE alone: the gross pin (accommodation = gross − extra
 // guests in the gross − lines inside the platform price − withheld / reversed tax, floored at 0, to the cent), the
 // display gross-up `grossFromNet` shared with the engine, the settings schema, and the pin against the engine's quote.
 const test = require('node:test');

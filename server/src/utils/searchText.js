@@ -1,5 +1,5 @@
 /**
- * The text a picker searches in (specs/resource-booking-client-picker.md rule 7): every part joined,
+ * The text a picker searches in (specs/resources/resource-booking-client-picker.md rule 7): every part joined,
  * lower-cased, accents stripped, spaces collapsed. The client applies the same folding to what is typed
  * and checks that each typed word is included, so « dupont jéan » finds « Jean Dupont ».
  */

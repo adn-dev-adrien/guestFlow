@@ -1,4 +1,4 @@
-// specs/security-auth-encryption.md rule 3 — a session waiting for the second step belongs to its user
+// specs/hosting/security-auth-encryption.md rule 3 — a session waiting for the second step belongs to its user
 // too: revoking that user's sessions (deactivation, password reset, role change) ends it, and a user
 // deactivated between the password and the code is refused at the code. A session store that fails to
 // regenerate the id leaves the login refused, with no user in the session.

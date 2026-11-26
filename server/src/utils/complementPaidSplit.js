@@ -1,6 +1,6 @@
 /**
  * The accounting split of the arrival complement, frozen the moment it is collected
- * (specs/accounting-books-the-money-collected.md rule 16, audit R22-6a, 2026-11-05).
+ * (specs/accounting/accounting-books-the-money-collected.md rule 16, audit R22-6a, 2026-11-05).
  *
  * A complement's entry was derived live from the lines and the tax, so any later save rewrote it, possibly in a month
  * the accountant already imported: the tax that rose ate its revenue, a party change sent it from the accommodation to
@@ -11,7 +11,7 @@
  *
  * They add up to the complement. `lines` names what each line collected. What rises afterwards is
  * claimed at the end of stay (mid-stay-extras rule 20). NULL on a complement collected before the column, or adjusted by
- * the operator (his stored allocation decides, specs/adjustable-complement-amounts.md §3.6): those read as they did.
+ * the operator (his stored allocation decides, specs/sas/adjustable-complement-amounts.md §3.6): those read as they did.
  */
 
 const { buildPerLineData } = require('./storedMoneySplit');

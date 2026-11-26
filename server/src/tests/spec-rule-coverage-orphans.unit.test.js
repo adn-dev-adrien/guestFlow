@@ -1,4 +1,4 @@
-// specs/spec-rule-coverage.md rule 16 — `--changed` refuses the orphan citations a PR brings and leaves the ones
+// specs/tech/spec-rule-coverage.md rule 16 — `--changed` refuses the orphan citations a PR brings and leaves the ones
 // already there to the report.
 const test = require('node:test');
 const assert = require('node:assert/strict');

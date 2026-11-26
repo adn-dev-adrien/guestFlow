@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 23 — review #8, m-8: on a phone the journal table (~470 px) sat in a
+// specs/design-system/ds-components.md rule 23 — review #8, m-8: on a phone the journal table (~470 px) sat in a
 // card that clips, and the Débit / Crédit amounts were cut (« 13… ») with no way to scroll. On xs each
 // line is a stacked row with its amount in full on the right.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 18, 26 — a payment split over several methods is booked settlement by
+// specs/payments/mixed-method-payments.md rules 18, 26 — a payment split over several methods is booked settlement by
 // settlement, at each one's date, for its share on the books (gross of its réduction), and its geste
 // commercial as a rabais. The day's cleaning: 122 € = 50 € cash in the caisse + 72 € card.
 process.env.DB_PATH = ':memory:';

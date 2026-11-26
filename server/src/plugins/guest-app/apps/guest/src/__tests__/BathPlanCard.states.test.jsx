@@ -1,4 +1,4 @@
-// specs/guest-app-bath-home-scheduling.md rules 4-6, 21, Q1, Q2 — the home's bath card: its three states from `/me`, its place (under the
+// specs/guest-app/guest-app-bath-home-scheduling.md rules 4-6, 21, Q1, Q2 — the home's bath card: its three states from `/me`, its place (under the
 // stay card while hours are to schedule, after the tiles otherwise), its buttons stacked, and where each one leads.
 import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

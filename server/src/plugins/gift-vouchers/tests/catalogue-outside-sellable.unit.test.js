@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 65 (completes rules 4 and 64; specs/pricing-components.md rule 124) — the catalogue says what the engine sells outside a stay: a per-person,
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 65 (completes rules 4 and 64; specs/pricing/pricing-components.md rule 124) — the catalogue says what the engine sells outside a stay: a per-person,
 // per-night, percentage or progressive option with no planning card is greyed with the engine's reason; with a planning card it is counted in units and stays sellable. A campaign that
 // already carries one is reported (`withdrawn`), never repaired: nothing is removed from it and its save stays refused until the operator removes the option.
 process.env.DB_PATH = ':memory:';

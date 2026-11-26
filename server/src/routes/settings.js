@@ -5,7 +5,7 @@ const logoUpload = require('../middleware/multerLogoUpload');
 
 router.get('/', settingsController.getSettings);
 
-// specs/settings-rationalization.md rule 25 — the one-line state of each page, for the summary.
+// specs/settings/settings-rationalization.md rule 25 — the one-line state of each page, for the summary.
 const summary = require('../controllers/settingsSummaryController').createSettingsSummaryController({
   db: require('../database'),
   settings: () => require('../models/settingsModel').read(),
@@ -18,18 +18,18 @@ const summary = require('../controllers/settingsSummaryController').createSettin
 });
 router.get('/summary', summary.get);
 
-// specs/vat-optional-mode.md §4.3 — the VAT regime and its switch.
+// specs/accounting/vat-optional-mode.md §4.3 — the VAT regime and its switch.
 const vatRegime = require('../controllers/vatRegimeController');
 router.get('/vat-regime', vatRegime.getState);
 router.post('/vat-regime/preview', vatRegime.preview);
 router.post('/vat-regime/switch', vatRegime.makeSwitch);
 router.delete('/vat-regime/periods/:id', vatRegime.remove);
-// Async since the sending server can be looked up (specs/settings-rationalization.md rule 28).
+// Async since the sending server can be looked up (specs/settings/settings-rationalization.md rule 28).
 const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 
 router.put('/', handle(settingsController.updateSettings));
 
-// specs/settings.md rule 8 — the format and size refusals are ours; any other failure answers a fixed message,
+// specs/settings/settings.md rule 8 — the format and size refusals are ours; any other failure answers a fixed message,
 // never a library's or the disk's text.
 function logoUploadRefusal(err) {
   if (err.code === 'LOGO_FORMAT') return logoUpload.LOGO_FORMAT_REFUSAL;

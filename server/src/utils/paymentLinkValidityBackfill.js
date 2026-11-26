@@ -1,5 +1,5 @@
 /**
- * One-shot validity of the links already open at the upgrade (specs/payment-link-lifecycle.md rule 34).
+ * One-shot validity of the links already open at the upgrade (specs/payments/payment-link-lifecycle.md rule 34).
  *
  * Before this version a link never expired (Qonto answers its zero-time sentinel `0001-01-01…`). Each
  * open link gets `expiresAt = max(createdAt + 36 h, installedAt + 36 h)`, `installedAt` being this run:

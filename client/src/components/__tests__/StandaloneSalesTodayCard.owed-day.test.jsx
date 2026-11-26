@@ -1,5 +1,5 @@
 /**
- * StandaloneSalesTodayCard — the « À rembourser » block's place and words (specs/outside-booking-sas.md rules 41 (amended V-4), 48; round-1 finding UI-18): the owing
+ * StandaloneSalesTodayCard — the « À rembourser » block's place and words (specs/sas/outside-booking-sas.md rules 41 (amended V-4), 48; round-1 finding UI-18): the owing
  * sales of any day sit ABOVE the day's list, under the server's `owedTitle`, and each row names its sale's day with the server's `soldDayLabel`.
  */
 import React from 'react';

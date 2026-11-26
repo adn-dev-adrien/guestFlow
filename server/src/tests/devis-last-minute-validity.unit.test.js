@@ -1,4 +1,4 @@
-// specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 6 reading R30-RES-M1 (2026-11-08) — a quote for a stay
+// specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 6 reading R30-RES-M1 (2026-11-08) — a quote for a stay
 // starting within two days used to be « born expired »: its `startDate − 2` cap fell before the issue day,
 // the PDF told the guest to pay before the day the quote was made, and « Prolonger » re-issued it expired
 // again. `validUntil` is floored at the issue day: such a quote stands, and is due, on the day it is issued.

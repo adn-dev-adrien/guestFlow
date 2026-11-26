@@ -2,8 +2,8 @@ import React from 'react';
 import { Stack, Typography } from '@mui/material';
 
 /**
- * SasKeypadCode — the property's gate keypad code, large and dictable (specs/arrival-departure-sas.md
- * §3.5; specs/plugins-phase-1-sdk.md rule 17). A SAS fact: shown by the « Portail » step on its own,
+ * SasKeypadCode — the property's gate keypad code, large and dictable (specs/sas/arrival-departure-sas.md
+ * §3.5; specs/plugins/plugins-phase-1-sdk.md rule 17). A SAS fact: shown by the « Portail » step on its own,
  * or under the Sowel key when the gate-access plugin has one for the stay.
  *
  * Props:

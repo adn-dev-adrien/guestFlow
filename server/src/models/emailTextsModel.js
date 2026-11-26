@@ -1,6 +1,6 @@
 /**
  * Every editable sentence of the guest emails behind one key space
- * (specs/guest-email-texts-made-simple.md rules 9, 11, 16–19).
+ * (specs/emails/guest-email-texts-made-simple.md rules 9, 11, 16–19).
  *
  * The page, the preview draft, the CSV file and the translator all speak of a text by its key:
  *
@@ -39,7 +39,7 @@ const MENTION_SECTION = { local: 'Produits locaux', extras: 'À prévoir', kids:
 const str = (v) => (v == null ? '' : String(v));
 
 /**
- * « 3 à traduire » (specs/guest-email-texts-made-simple.md rule 42): the texts an email places whose
+ * « 3 à traduire » (specs/emails/guest-email-texts-made-simple.md rule 42): the texts an email places whose
  * French is written and whose English is empty.
  */
 const needsEnglish = (item) => item.used !== false && str(item.fr).trim() !== '' && str(item.en).trim() === '';

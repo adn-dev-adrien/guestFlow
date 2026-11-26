@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md §3.4-§3.6 — a split payment recorded through the fiche's endpoints, on a real
+// specs/payments/mixed-method-payments.md §3.4-§3.6 — a split payment recorded through the fiche's endpoints, on a real
 // (in-memory) database: the mark and its settlement, the caisse-interne flag (rule 11), the undo that takes the
 // settlement with it (rule 13), the reste à percevoir and its collection (rules 16-17), the geste commercial
 // (rule 18), the correction (rules 20-25) and what the finance figures read (rule 27).

@@ -1,5 +1,5 @@
 /**
- * specs/site-english-version.md §3 rules 1, 8, 12 — the `lang` parameter on the public envelope.
+ * specs/site/site-english-version.md §3 rules 1, 8, 12 — the `lang` parameter on the public envelope.
  *
  * Two promises are under test. A language token must never cost a booking: no value of `lang` may
  * produce an error, and a request that sends none must get byte-identical bytes to before this

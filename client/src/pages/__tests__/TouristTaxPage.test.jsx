@@ -1,11 +1,11 @@
 import { vi } from 'vitest';
 /**
- * TouristTaxPage — specs/tourist-tax-declared-checkbox.md §7 (client):
+ * TouristTaxPage — specs/tourist-tax/tourist-tax-declared-checkbox.md §7 (client):
  *  - « Dates réservation » shows the reservation's stay dates (arrival → departure), NOT the last night
  *    (non-regression: a 1-night stay 20/06 → 21/06 must render « 20/06/2026 au 21/06/2026 »);
  *  - the « Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCHes without navigating.
  * The page is pure render (all figures shaped server-side), so the fixture mirrors the report payload
- * (specs/tourist-tax-report-v2.md §4.3).
+ * (specs/tourist-tax/tourist-tax-report-v2.md §4.3).
  */
 
 import React from 'react';
@@ -79,7 +79,7 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
   expect(undeclared).not.toBeChecked();
   expect(declared).toBeChecked();
 
-  // The page reads the month again after a tick (specs/platform-added-guests-tourist-tax.md rule 24).
+  // The page reads the month again after a tick (specs/tourist-tax/platform-added-guests-tourist-tax.md rule 24).
   api.getTouristTaxReport.mockResolvedValue(reportOf(ROWS.map((r) => (r.reservationId === 7 ? { ...r, touristTaxDeclaredAt: new Date().toISOString() } : r))));
   fireEvent.click(undeclared);
   await waitFor(() => expect(api.setTouristTaxDeclared).toHaveBeenCalledWith(7, true, { addedGuests: false }));
@@ -87,9 +87,9 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
   await waitFor(() => expect(screen.getByLabelText('Déclarée — Jean Dupont')).toBeChecked());
 });
 
-// specs/reservation-refunds.md §3.5 — les chiffres affichés sont NETS des nuits dont la taxe a été
+// specs/payments/reservation-refunds.md §3.5 — les chiffres affichés sont NETS des nuits dont la taxe a été
 // rendue ; la mention dit ce qui a été retiré, sinon l'écart avec la fiche serait inexplicable.
-// specs/reservation-refunds.md rule 32 — la ligne DIT pourquoi son net est plus bas : sans cette
+// specs/payments/reservation-refunds.md rule 32 — la ligne DIT pourquoi son net est plus bas : sans cette
 // annotation, l'opérateur qui compare sa déclaration au mois précédent verrait un chiffre inexpliqué.
 test('une nuit dont la taxe est remboursée est annotée sur la ligne', async () => {
   api.getTouristTaxReport.mockResolvedValue(reportOf([{
@@ -110,7 +110,7 @@ test('sans remboursement de taxe, aucune mention ne s’affiche', async () => {
   expect(screen.queryByText(/remboursée/)).not.toBeInTheDocument();
 });
 
-// specs/tourist-tax-included-services-deduction.md rule 15 — the declaration reports the assiette the
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rule 15 — the declaration reports the assiette the
 // commune's percentage form asks for, straight from the fiche. A per-day-per-person property has no
 // price in its tax at all, so the cell reads « — » rather than a misleading 0,00 €.
 test('« Nuit HT / occupant » renders the percentage-mode base, and « — » without one', async () => {

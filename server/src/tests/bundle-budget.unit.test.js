@@ -10,7 +10,7 @@ const { pathToFileURL } = require('node:url');
 const SCRIPT_PATH = path.join(__dirname, '..', '..', '..', 'scripts', 'check-bundle-budget.mjs');
 const SCRIPT = pathToFileURL(SCRIPT_PATH).href;
 
-// specs/inte-performance.md rule 4 — the initial JavaScript has a budget; a page behind a dynamic
+// specs/tech/inte-performance.md rule 4 — the initial JavaScript has a budget; a page behind a dynamic
 // import is not part of it.
 
 const MANIFEST = {

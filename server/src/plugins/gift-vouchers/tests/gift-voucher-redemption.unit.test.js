@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 36-42 and the edge cases of §3.G — a voucher on a booking, on the real core database: the hold a
+// specs/gift-vouchers/gift-vouchers.md rules 36-42 and the edge cases of §3.G — a voucher on a booking, on the real core database: the hold a
 // quote takes, what the public payment then asks, the quote becoming a stay with the voucher as money received, the fiche's
 // payment and its undo, the re-credit of a cancelled stay, an expired voucher refunded, and the books that count it once.
 const test = require('node:test');

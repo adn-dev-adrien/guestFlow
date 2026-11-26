@@ -1,5 +1,5 @@
 // @ts-check
-// specs/ui-review-2026-10-19-operations.md rules 40-43 — every way out of a dirty page asks first, at 1280 and at
+// specs/design-system/ui-review-2026-10-19-operations.md rules 40-43 — every way out of a dirty page asks first, at 1280 and at
 // 390 touch: the browser « Retour » (fiche, logement), a reload, the top-bar search, the « Retour » arrow of a
 // settings page, the CGV draft, « Se déconnecter ». An unknown logement says so.
 import { test, expect } from '@playwright/test';

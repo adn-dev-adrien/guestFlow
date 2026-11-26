@@ -1,4 +1,4 @@
-// specs/normalize-platform-names.md addendum 2026-10-27, item 22 — saving a calendar must not respell its
+// specs/platforms/normalize-platform-names.md addendum 2026-10-27, item 22 — saving a calendar must not respell its
 // platform. A sentence-case pass before `formatPlatformName` turned `GitesDeFrance` into `Gitesdefrance`
 // and `AirbnbTente` into `Airbnbtente`: a second catalogue row with no commission, every import tagged
 // with it, and the GdF intake reading 0 % instead of 10 %. The boot de-duplication now groups spellings

@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 47 — the finance badges and insight icons read their soft
+// specs/accounting/finance-dashboard-redesign.md rule 47 — the finance badges and insight icons read their soft
 // background and their text from the theme: `<semantic>.soft` under `<semantic>.text` (≥ 4.5:1),
 // never a hex of their own, never `main` on a pale background.
 import React from 'react';

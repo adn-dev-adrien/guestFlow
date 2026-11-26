@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md rule 25 — a plugin card tells its real state: an active plugin
+// specs/plugins/plugins-phase-0-foundation.md rule 25 — a plugin card tells its real state: an active plugin
 // that lacks something reads « Actif · <what> » and offers « Configurer » at its settings place; the
 // others offer « Réglages » where they have one; the Plugins page counts those to configure.
 // The plugin says what it lacks through `ctx.setupStatus` (SDK 1.5.0).
@@ -88,7 +88,7 @@ test('rule 25: the status counts the active plugins to configure', () => {
 });
 
 test('rule 25: ctx.setupStatus is an SDK 1.5.0 entry point and takes a function only', () => {
-  // Still there in SDK 2 (specs/sas-arrival-total-server-side.md rule 14 removed `recapLines` only).
+  // Still there in SDK 2 (specs/sas/sas-arrival-total-server-side.md rule 14 removed `recapLines` only).
   assert.equal(satisfies(SDK_VERSION, '>=1.5.0'), true);
   const ctx = createContext('setup-probe', { settingsModel: () => ({}) });
   assert.throws(() => ctx.setupStatus('nope'), /setupStatus needs a function/);

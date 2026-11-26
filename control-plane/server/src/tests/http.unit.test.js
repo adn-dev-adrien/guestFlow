@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 31 over HTTP — the console answers nothing but the
+// specs/hosting/control-plane-plans-and-access.md rule 31 over HTTP — the console answers nothing but the
 // login until the second factor is done — and the wiring of the console routes (rules 7, 8, 20).
 
 const test = require('node:test');

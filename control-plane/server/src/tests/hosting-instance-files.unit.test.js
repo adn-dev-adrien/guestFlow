@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 21 — the console never follows what an instance planted in
+// specs/hosting/hosting-h1-fleet-runtime.md rule 21 — the console never follows what an instance planted in
 // its own directory (a symlinked database, a symlinked data/, a link at the licence's temporary
 // name), leaves every database it creates or replaces writable by the instance's group, ships
 // releases group-readable and never group-writable, and keeps the env files out of the instance's

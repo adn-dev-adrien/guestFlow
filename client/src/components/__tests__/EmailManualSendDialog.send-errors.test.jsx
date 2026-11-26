@@ -1,6 +1,6 @@
-// specs/email-automation.md rule 15 — a failed send says what happened in French, next to the
+// specs/emails/email-automation.md rule 15 — a failed send says what happened in French, next to the
 // buttons: never a bare code (« EMAIL_SEND_FAILED ») nor the transport's own words. The « déjà
-// envoyé » date is the server's Paris time (specs/email-history-rolling-window.md rule 8).
+// envoyé » date is the server's Paris time (specs/emails/email-history-rolling-window.md rule 8).
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -46,7 +46,7 @@ test('rule 15: the template list reads the server\'s « Quand »', async () => {
   expect(await screen.findByText('Séquence — J-2 (J-2)')).toBeInTheDocument();
 });
 
-test('specs/email-history-rolling-window.md rule 8: « déjà envoyé » shows the server\'s Paris time', async () => {
+test('specs/emails/email-history-rolling-window.md rule 8: « déjà envoyé » shows the server\'s Paris time', async () => {
   api.sendEmail.mockRejectedValue(Object.assign(new Error('ALREADY_SENT'), { error: 'ALREADY_SENT', sentAt: '2026-10-18 00:11:00', sentAtLabel: '18/10/2026 02:11' }));
   render(<EmailManualSendDialog open reservationId={5} defaultTemplateId={20} onClose={() => {}} />);
   await screen.findByDisplayValue('À samedi');

@@ -1,6 +1,6 @@
 /**
  * SegmentedSelect — one choice among a few, shown as a segmented control while the options fit, as a
- * select past that (specs/ui-review-2026-10-19-operations.md rule 16). Full width on a phone either
+ * select past that (specs/design-system/ui-review-2026-10-19-operations.md rule 16). Full width on a phone either
  * way: a select squeezed into a corner reads « L… ». On a phone a long segment label wraps (rule 25).
  *
  * Props:

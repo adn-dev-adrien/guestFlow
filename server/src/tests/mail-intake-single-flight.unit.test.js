@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 31(c), specs/airbnb-mail-intake.md rule 31(c) (re-review of PR #865) —
+// specs/platforms/gites-de-france-mail-intake.md rule 31(c), specs/platforms/airbnb-mail-intake.md rule 31(c) (re-review of PR #865) —
 // the job tick and « Lire maintenant » share one pass although each call builds its own service: a single IMAP
 // read, and the second caller reports what the first one did.
 const test = require('node:test');

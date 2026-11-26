@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 48 — the studio reads GuestFlow live: every property in GuestFlow's order with its own name,
+// specs/guest-app/guest-app.md rule 48 — the studio reads GuestFlow live: every property in GuestFlow's order with its own name,
 // a new one listed at once and greyed « Hors application », a renamed one renamed, nothing named by the plugin; the app
 // settings read and written in one place; « Synchroniser » re-reads the Soliomap feed, the only thing cached.
 const test = require('node:test');

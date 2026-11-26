@@ -1,6 +1,6 @@
-// specs/shell-and-home-day-first.md rules 1–3, 11, 19 — the home shows the day first: pinned subjects,
+// specs/planning/shell-and-home-day-first.md rules 1–3, 11, 19 — the home shows the day first: pinned subjects,
 // departures, arrivals, then « À traiter »; no KPI tile; counts re-read after a write. (Rule 19, the
-// date cluster, is superseded by specs/dashboard-planning-scroll.md rule 6.)
+// date cluster, is superseded by specs/planning/dashboard-planning-scroll.md rule 6.)
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

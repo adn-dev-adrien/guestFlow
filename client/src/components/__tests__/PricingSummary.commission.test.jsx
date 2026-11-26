@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/platform-offered-tax-passthrough-and-cascade.md — the bottom of the summary is a running
+// specs/tourist-tax/platform-offered-tax-passthrough-and-cascade.md — the bottom of the summary is a running
 // cascade: « Total du séjour » (gross = hébergement + toutes options/ressources + taxe) → deduct the
 // tax the platform remits to the commune (offered) + the on-site compléments → « Montant soumis à
 // commission » → − commission → « Versement plateforme » → + compléments → « Total perçu sur le
@@ -51,7 +51,7 @@ test('full cascade: offered tax + complement + commission', () => {
   expect(screen.getByText('Taxe de séjour (plateforme)')).toBeInTheDocument();
   expect(screen.getByText('− 9,60 €')).toBeInTheDocument();           // tax → commune
   // Deducted as one « perçu sur place » block, added back per complement (arrival / end-of-stay)
-  // — specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15.
+  // — specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15.
   expect(screen.getByText('Compléments (perçus sur place)')).toBeInTheDocument();
   expect(screen.getByText('− 15,00 €')).toBeInTheDocument();
   expect(screen.getByText("Complément d'arrivée (perçu sur place)")).toBeInTheDocument();
@@ -84,7 +84,7 @@ test('offered tax, no complement → « − Taxe de séjour (plateforme) » then
   expect(screen.queryByText('Compléments (perçus sur place)')).toBeNull(); // no complement
 });
 
-// specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — le complément de fin de séjour
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — le complément de fin de séjour
 // (ménage/linge du SAS + prestations vendues en cours de séjour) est perçu sur place comme celui
 // d'arrivée : il se déduit du montant soumis à commission et revient dans le total perçu.
 test('complément de fin de séjour : sa propre ligne, déduite puis rajoutée au total perçu', () => {
@@ -140,7 +140,7 @@ test('non-offered platform → NO « Taxe de séjour (plateforme) » deduction l
   expect(screen.queryByText('− 12,00 €')).toBeNull();
 });
 
-// specs/platform-per-echeance-commission.md — the Acompte / Solde lines show the GROSS the guest pays
+// specs/platforms/platform-per-echeance-commission.md — the Acompte / Solde lines show the GROSS the guest pays
 // (the stored amount), under the labels « Montant acompte/solde payé par le client ». The commission +
 // net « Versement plateforme » live in the cascade above. Resolved 2026-07-16 (India Sigma): a
 // « payé par le client » figure must NOT have the commission silently subtracted.
@@ -208,7 +208,7 @@ test('direct reservation → a single « Total du séjour », no platform cascad
   expect(screen.queryByText('Total perçu sur le séjour')).toBeNull();
 });
 
-// specs/mid-stay-notes.md §3.5 rule 19 — les encaissements en séjour se déduisent du montant soumis
+// specs/sas/mid-stay-notes.md §3.5 rule 19 — les encaissements en séjour se déduisent du montant soumis
 // à commission comme les compléments, et reviennent sur leur propre ligne dans le total perçu.
 test('complément durant le séjour : ligne dédiée dans la cascade', () => {
   renderSummary({

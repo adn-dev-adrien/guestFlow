@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rule 22 and specs/gift-voucher-campaigns.md rules 21, 22 — the voucher as an A6 card, two pages with a bleed: a QR code to the redemption page
+// specs/gift-vouchers/gift-vouchers.md rule 22 and specs/gift-vouchers/gift-voucher-campaigns.md rules 21, 22 — the voucher as an A6 card, two pages with a bleed: a QR code to the redemption page
 // carrying the code in the URL fragment; every long text wrapped inside its box. The layout rules of both printed cards are judged in gift-voucher-mail-pdf.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -8,7 +8,7 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from './mockReservationForm';
 
-// specs/reservation-refunds.md rule 34 — le trop-perçu calculé par le serveur : alerte sur la fiche
+// specs/payments/reservation-refunds.md rule 34 — le trop-perçu calculé par le serveur : alerte sur la fiche
 // avec « Rembourser », et la fenêtre de remboursement pré-remplie sur ce montant.
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
@@ -36,7 +36,7 @@ test('sans trop-perçu, aucune alerte', () => {
 });
 
 test('un trop-perçu s’affiche avec son montant et « Rembourser » ouvre la fenêtre sur ce montant', async () => {
-  // specs/reservation-payment-ledger.md rule 2 — the trop-perçu is a ledger row, shaped by the server.
+  // specs/payments/reservation-payment-ledger.md rule 2 — the trop-perçu is a ledger row, shaped by the server.
   const ctx = renderFinance({ refundOverpaymentTtc: 133.2, ledger: { rows: [{ key: 'overpayment', label: 'Trop-perçu', amount: 133.2, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
     action: { kind: 'refund', label: 'Rembourser' }, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
     detail: { lines: [] } }], closing: null } });

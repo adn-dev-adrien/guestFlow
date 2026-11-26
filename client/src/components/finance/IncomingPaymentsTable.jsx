@@ -1,6 +1,6 @@
 /**
  * IncomingPaymentsTable — the detail of the « Versements à venir » tile of the Suivi financier
- * (specs/mollie-rolling-reserve-and-incoming-payments.md rules 22-27): what the bank is still to receive, one
+ * (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 22-27): what the bank is still to receive, one
  * bordered block per client, one line per sum — date, nature (drawn icon + words + detail), amount, state.
  *
  * Feature-specific (one page, one payload). It renders `GET /api/finance/incoming` as it comes: the grouping, the

@@ -1,7 +1,7 @@
 require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Module = require('module');
@@ -9,7 +9,7 @@ const Module = require('module');
 const { publicGuestCap, checkGuestCapacity } = require('../../../utils/capacity');
 const { toPublicQuote, toPublicProperty, toPublicPropertyDetail } = require('../publicProjections');
 
-// specs/site-extra-guest-line.md — the site shows the extra-guest supplement as its own line, and the
+// specs/site/site-extra-guest-line.md — the site shows the extra-guest supplement as its own line, and the
 // public path never accepts an uncapped party.
 
 // ── publicGuestCap (rule 6) ────────────────────────────────────────────────────────────────────────
@@ -27,15 +27,15 @@ test('publicGuestCap: nothing configured falls back to 2, never to "no cap"', ()
   assert.equal(publicGuestCap({}), 2);
 });
 
-// specs/site-extra-guest-line.md rule 8 — the back-office keeps « maxGuests = 0 → guard off »: only the
+// specs/site/site-extra-guest-line.md rule 8 — the back-office keeps « maxGuests = 0 → guard off »: only the
 // public path falls back to a cap.
-test('specs/site-extra-guest-line.md rule 8: checkGuestCapacity still tolerates an unconfigured cap', () => {
+test('specs/site/site-extra-guest-line.md rule 8: checkGuestCapacity still tolerates an unconfigured cap', () => {
   assert.equal(checkGuestCapacity({ maxGuests: 0, maxBabies: 0 }, { adults: 9 }), null);
 });
 
 // ── toPublicProperty (rule 7) ──────────────────────────────────────────────────────────────────────
 
-test('specs/site-extra-guest-line.md rule 7: toPublicProperty advertises the effective cap, never 0 (maxAdults alias included)', () => {
+test('specs/site/site-extra-guest-line.md rule 7: toPublicProperty advertises the effective cap, never 0 (maxAdults alias included)', () => {
   const p = toPublicProperty({ id: 1, name: 'La Granja', maxGuests: 0, basePriceIncludedGuests: 2 });
   assert.equal(p.maxGuests, 2);
   assert.equal(p.maxAdults, 2);
@@ -60,7 +60,7 @@ function engineQuote(over = {}) {
   };
 }
 
-test('specs/site-extra-guest-line.md rule 1: a billed supplement yields an extraGuests row and keeps extraGuestSurcharge', () => {
+test('specs/site/site-extra-guest-line.md rule 1: a billed supplement yields an extraGuests row and keeps extraGuestSurcharge', () => {
   const q = toPublicQuote(engineQuote({
     extraGuestSurcharge: 25, extraGuestSurchargeOriginal: 25, extraGuestSurchargeOffered: false, extraGuestCount: 1,
   }), { available: true });
@@ -68,7 +68,7 @@ test('specs/site-extra-guest-line.md rule 1: a billed supplement yields an extra
   assert.equal(q.extraGuestSurcharge, 25);
 });
 
-test('specs/site-extra-guest-line.md rule 2: an offered supplement is flagged and bills 0', () => {
+test('specs/site/site-extra-guest-line.md rule 2: an offered supplement is flagged and bills 0', () => {
   const q = toPublicQuote(engineQuote({
     extraGuestSurcharge: 0, extraGuestSurchargeOriginal: 25, extraGuestSurchargeOffered: true, extraGuestCount: 1,
   }), { available: true });

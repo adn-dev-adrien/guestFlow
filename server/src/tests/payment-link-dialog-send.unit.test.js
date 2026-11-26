@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 26, as read at the review of #897 — the e-mail dialog posts the RENDERED preview as `overrides`. The send puts the link it resolved in place of the
+// specs/payments/payment-link-lifecycle.md rule 26, as read at the review of #897 — the e-mail dialog posts the RENDERED preview as `overrides`. The send puts the link it resolved in place of the
 // preview's placeholder or of any older link of the stay, with that link's own end; a placeholder never
 // reaches a guest, and a text that lost its link is refused before anything is minted.
 

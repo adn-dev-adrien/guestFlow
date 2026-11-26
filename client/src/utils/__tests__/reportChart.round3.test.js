@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 38, 39 and 40 — verification round 2 (V3-8, V3-4, V3-7): the axis
+ * specs/design-system/report-grammar.md §3 rules 38, 39 and 40 — verification round 2 (V3-8, V3-4, V3-7): the axis
  * hugs a negative minimum as it hugs the maximum, an end name that fits a narrow chart is never cut on
  * a wider one, and the hero's months are evenly spaced.
  */

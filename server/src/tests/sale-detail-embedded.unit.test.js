@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 31 (PR C, C23) — the fiche payload embeds the saleDetail read model: opening the reservation needs no
+// specs/pricing/pricing-components.md §3 rule 31 (PR C, C23) — the fiche payload embeds the saleDetail read model: opening the reservation needs no
 // second request, and the embedded payload is the one `GET …/sale-detail` serves.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

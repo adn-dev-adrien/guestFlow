@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 10 — the headline figure of a quote, what the fiche's
+// specs/design-system/ui-review-2026-10-19-operations.md rule 10 — the headline figure of a quote, what the fiche's
 // sticky total bar prints below 1200 px (decision 6 of the UI/UX review).
 const test = require('node:test');
 const assert = require('node:assert/strict');

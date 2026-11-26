@@ -1,4 +1,4 @@
-// specs/caution-live-from-property.md rule 9 (spec review 2026-10-27) — the save never writes the
+// specs/payments/caution-live-from-property.md rule 9 (spec review 2026-10-27) — the save never writes the
 // caution amount: the fiche shows the live property amount, and echoing it back made a phantom history
 // row and locked every started stay once the property's default had moved.
 process.env.DB_PATH = ':memory:';

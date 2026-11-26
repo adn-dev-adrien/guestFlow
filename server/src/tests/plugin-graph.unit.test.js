@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rules 1–5 and 7 — the pure graph shared by the controller, the
+// specs/plugins/plugin-dependencies.md rules 1–5 and 7 — the pure graph shared by the controller, the
 // reconciler, the loader and the console: edge statuses and their French labels, dependants, the
 // ordered closures, the cycles.
 const test = require('node:test');

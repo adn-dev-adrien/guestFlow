@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 24, 27, 30 (review 2026-10-28) — the platform payout row of the
+// specs/accounting/reconciliation-assisted-matching.md rules 24, 27, 30 (review 2026-10-28) — the platform payout row of the
 // ledger carries « Déclarer une pénalité » and its penalty lines with a delete, even when the amounts are frozen
 // (a past locked fiche), and refuses while the fiche has unsaved edits.
 import { screen, waitFor, within, fireEvent } from '@testing-library/react';

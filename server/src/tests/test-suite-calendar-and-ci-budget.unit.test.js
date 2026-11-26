@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rules 6, 7, 8 and 9, and specs/self-update-and-releases.md rule 52 (audit R8,
+// specs/tech/server-test-isolation.md rules 6, 7, 8 and 9, and specs/hosting/self-update-and-releases.md rule 52 (audit R8,
 // 2026-10-30) — no test goes red with the calendar, a PR adding a literal date to a test is told so (but not
 // for a line already merged on a long-lived branch), and the unit suites fit their CI time budget. Rule 7,
 // reading of 2026-11-03 (audit R20-S2): a past date within the five-year window is named too, and a clock the
@@ -23,7 +23,7 @@ const suitesOf = (fixture) => fs.readdirSync(path.join(ROOT, TESTS))
 const SAVE_FIXTURE_SUITES = suitesOf('reservationSaveFixture');
 const LEDGER_FIXTURE_SUITES = suitesOf('ledgerFixture');
 
-// specs/server-test-isolation.md rule 7, reading of 2026-11-03 (audit R20-S2): the suites whose dates the five-year
+// specs/tech/server-test-isolation.md rule 7, reading of 2026-11-03 (audit R20-S2): the suites whose dates the five-year
 // window would have dropped by 2031 (136 server tests), now hung on today, and the reconciliation fixture's family.
 const R20_SWEEP = [
   'scripts/check-test-dates.mjs',
@@ -120,7 +120,7 @@ test('rule 6: the suites the audits found, and every suite of the reservation-sa
     `${TESTS}/ledgerFixture.js`,
     ...LEDGER_FIXTURE_SUITES,
     ...R20_SWEEP,
-  // specs/plugin-removal-resilience.md rule 19 (audit R21-S2): a removed plugin takes its tests with it, and the date
+  // specs/plugins/plugin-removal-resilience.md rule 19 (audit R21-S2): a removed plugin takes its tests with it, and the date
   // check stays complete for whatever the tree ships.
   ])].filter((f) => fs.existsSync(path.join(ROOT, f))).map((f) => asAdded(f, read(f)));
   assert.deepEqual(findDateBombs({ files, today: localToday() }), []);
@@ -462,7 +462,7 @@ test('rule 8: the PR client suite runs in three shards, the build and the bundle
   assert.match(budget, /^[^\n]*\n\s+if: matrix\.shard == 1\n/);
 });
 
-test('specs/self-update-and-releases.md rule 52: the release runs the server suite and three client shards side by side, and packages after all of them', () => {
+test('specs/hosting/self-update-and-releases.md rule 52: the release runs the server suite and three client shards side by side, and packages after all of them', () => {
   const workflow = read('.github/workflows/release.yml');
   assert.doesNotMatch(workflow, /\n {2}tests:\n/);
   const server = jobBlock(workflow, 'server-tests');

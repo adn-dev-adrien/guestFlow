@@ -1,5 +1,5 @@
 /**
- * The blocks live plugins add to the fiche payload (specs/plugins-phase-3b-neat.md rule 12), declared
+ * The blocks live plugins add to the fiche payload (specs/plugins/plugins-phase-3b-neat.md rule 12), declared
  * with `ctx.reservationBlock(key, build)`. A block that throws is `null` and a log line: a plugin never
  * fails the fiche.
  */

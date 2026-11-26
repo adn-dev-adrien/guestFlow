@@ -1,4 +1,4 @@
-// The connector's authentication — specs/gate-access-sowel-connector.md §3.4, rules 19-21.
+// The connector's authentication — specs/guest-app/gate-access-sowel-connector.md §3.4, rules 19-21.
 //
 // The signature vectors are PINNED on both sides: the other half lives in the Sowel `guestflow`
 // plugin, and changing the order of a field here while the other keeps its own would make every
@@ -46,7 +46,7 @@ function signedHeaders({ method = 'GET', url = '/public/v1/gate/keys', body = ''
   };
 }
 
-// specs/gate-access-sowel-connector.md §3.4 rule 19
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 19
 test('a properly signed call passes', () => {
   const { passed } = call({ headers: signedHeaders() });
   assert.equal(passed, true);
@@ -63,7 +63,7 @@ test('the canonical string is method, path WITH query, timestamp, body digest', 
   ]);
 });
 
-// specs/gate-access-sowel-connector.md §3.4 rule 21
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 21
 test('with no signing secret configured, everything is refused — we fail closed', () => {
   const { passed, answers } = call({
     headers: signedHeaders(),
@@ -89,7 +89,7 @@ test('a signature made with another secret is refused', () => {
   assert.equal(passed, false);
 });
 
-// specs/gate-access-sowel-connector.md §3.4 rule 21 — ± 2 minutes
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 21 — ± 2 minutes
 test('a captured call cannot be replayed tomorrow', () => {
   const headers = signedHeaders();
   assert.equal(call({ headers }).passed, true);
@@ -133,7 +133,7 @@ test('a missing or unreadable timestamp is refused', () => {
   }
 });
 
-// specs/gate-access-sowel-connector.md §3.4 rule 20
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 20
 test('the WordPress proxy key does not open this door', () => {
   // PUBLIC_API_KEY and GATE_API_KEY are two distinct secrets, and that is the point: the site's
   // key has no business reading who sleeps here tonight.

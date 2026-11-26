@@ -1,5 +1,5 @@
 /**
- * specs/gift-voucher-campaigns.md rule 37 — the core terms become one document per activity. The CGV tables
+ * specs/gift-vouchers/gift-voucher-campaigns.md rule 37 — the core terms become one document per activity. The CGV tables
  * written before it hold a single document: a one-row draft (`CHECK id = 1`), versions numbered 1..n
  * (`version UNIQUE`) and acceptances that all belong to a reservation. Rebuilt here, every row is kept
  * under the `lodging` activity with its id, so the acceptances still point at the version they accepted.

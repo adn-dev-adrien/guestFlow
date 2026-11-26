@@ -1,4 +1,4 @@
-// specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (audit R23 N4) — D9 makes an end-of-stay
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (audit R23 N4) — D9 makes an end-of-stay
 // complement exist before arrival. Once it is paid, a future stay refuses what would raise the stay, as a started stay does:
 // nothing could claim it any more. A lowering or an unchanged save still passes.
 // Reading of 2026-11-06 (D20, reservation-payment-ledger rule 68): no path collects the end of stay before the check-out, so a
@@ -92,7 +92,7 @@ test('a rise of the tax alone: refused, the price has not moved', async () => {
 });
 
 // D21 (Adrien, 2026-11-06) replaces N4's « unlock of a started stay unchanged »: the unlocked fiche keeps its final price
-// (specs/settings-rationalization.md rule 35), so the growth line 308 of the audit registry feared is refused there too.
+// (specs/settings/settings-rationalization.md rule 35), so the growth line 308 of the audit registry feared is refused there too.
 test('D21: an admin unlock of a started stay refuses the growth, the stay does not move', async () => {
   const stay = await paidEndOfStay();
   db.prepare("UPDATE reservations SET startDate = date('now', '-1 day'), endDate = date('now', '+1 day') WHERE id = ?").run(stay.id);

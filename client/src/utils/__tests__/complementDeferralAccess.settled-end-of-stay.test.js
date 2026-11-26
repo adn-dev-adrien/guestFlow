@@ -1,6 +1,6 @@
 import { complementDeferralAccess } from '../complementDeferralAccess';
 
-// specs/defer-arrival-complement-to-checkout.md rule 23 (audit R28 verification N2) — the deferral is never switched on
+// specs/sas/defer-arrival-complement-to-checkout.md rule 23 (audit R28 verification N2) — the deferral is never switched on
 // over an end-of-stay complement already collected: the control stays visible, closed, with its reason. Already on, it can
 // still be switched off.
 

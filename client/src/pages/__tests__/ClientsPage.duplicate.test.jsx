@@ -1,4 +1,4 @@
-// specs/clients.md rule 12 — a new client with the email of an existing one: the server answers 409
+// specs/clients/clients.md rule 12 — a new client with the email of an existing one: the server answers 409
 // CLIENT_EXISTS, the page asks, and creates a second one only on « Créer quand même ».
 import React from 'react';
 import { vi } from 'vitest';

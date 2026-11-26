@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rules 28-29 — the commission and payout fields of Paramètres › Plateformes.
+// specs/settings/settings-input-guards.md rules 28-29 — the commission and payout fields of Paramètres › Plateformes.
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

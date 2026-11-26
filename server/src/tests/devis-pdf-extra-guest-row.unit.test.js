@@ -7,7 +7,7 @@ const { labels } = require('../utils/devisPdfLabels');
 // The devis PDF's line items are nights + options + resources; the extra-guest supplement used to
 // live in the GRAND TOTAL only, so any devis with extra guests printed a sub-total that did not
 // match its own lines (69 € of unexplained gap on a 5-guest 2-night Lodge stay). This pins the row
-// that closes the gap — specs/tariff-events-and-extra-guest-tiers/spec.md §6.
+// that closes the gap — specs/pricing/tariff-events-and-extra-guest-tiers.md §6.
 
 test('a live quote with a supplement yields a billed row, without the tier phrase', () => {
   const row = resolveExtraGuestPdfRow({

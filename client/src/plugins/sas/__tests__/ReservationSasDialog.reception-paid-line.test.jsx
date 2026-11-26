@@ -1,4 +1,4 @@
-// specs/reception-role-checkin-only.md rule 18 (loop t7 A7-1) — the 409 OVERPAID a reception account meets at the SAS carries no amount:
+// specs/sas/reception-role-checkin-only.md rule 18 (loop t7 A7-1) — the 409 OVERPAID a reception account meets at the SAS carries no amount:
 // the dialog shows the refusal and offers no « Offrir · X à rembourser » confirmation, so nothing can be forced.
 import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

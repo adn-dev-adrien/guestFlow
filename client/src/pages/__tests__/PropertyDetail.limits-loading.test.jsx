@@ -1,5 +1,5 @@
 // Rule 50 — the paiement tab shows a loading state, or an error with a retry, while the limits load.
-// specs/settings-input-guards.md rule 8 — the payment tab waits for the server's limits: a loading state
+// specs/settings/settings-input-guards.md rule 8 — the payment tab waits for the server's limits: a loading state
 // while they come, an error with a retry when they do not (never a blank tab).
 
 import React from 'react';
@@ -24,7 +24,7 @@ vi.mock('../../api', () => ({
   default: {
     getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
     getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(),
-    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
+    // The « Arrivée » block is part of the page (specs/emails/guest-email-texts-made-simple.md rule 35).
     getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
     savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),

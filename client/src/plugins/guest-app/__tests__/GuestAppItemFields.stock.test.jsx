@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 37bis-37quater — the Stock group of the editor's « Application clients » section, the only
+// specs/guest-app/guest-app.md rules 37bis-37quater — the Stock group of the editor's « Application clients » section, the only
 // place the stock is edited: follow it, the count typed at a restock (with the last restock line and what unpaid
 // orders hold), the alert threshold, « En rupture », a count below zero shown « −2 ».
 import { act, fireEvent, screen } from '@testing-library/react';

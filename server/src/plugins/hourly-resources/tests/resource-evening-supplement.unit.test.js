@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { eveningSupplement, priceRange } = require('../hourlyPricing');
 
-// specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 22 — the hours are SOLD at the day
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 22 — the hours are SOLD at the day
 // rate on the devis. Placing one in the evening band during the arrival SAS owes the difference,
 // which lands in the arrival complement instead of re-playing the quote.
 // Bain nordique: 30 €/h in the day, 50 €/h from 20:00, 60-min slots.
@@ -73,7 +73,7 @@ test('malformed or empty input yields 0, never NaN', () => {
   assert.equal(eveningSupplement([{}], BAIN), 0);
 });
 
-// specs/resource-supplements-total-server-side.md §1.2 finding 5 — the supplement the step shows is the
+// specs/resources/resource-supplements-total-server-side.md §1.2 finding 5 — the supplement the step shows is the
 // one the recap bills: what the sold line already bills for the evening is credited.
 test('free-slots answers the credited supplement and the hours left to place', () => {
   const { seed } = require('./hourlySchedulingFixture');

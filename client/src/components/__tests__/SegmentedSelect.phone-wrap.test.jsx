@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 25 — on a phone a long segment label wraps on two lines
+// specs/design-system/ui-review-2026-10-19-operations.md rule 25 — on a phone a long segment label wraps on two lines
 // instead of ending in an ellipsis; from sm the segments keep one line.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

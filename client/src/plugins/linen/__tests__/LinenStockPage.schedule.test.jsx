@@ -1,4 +1,4 @@
-// specs/linen-laundry-days.md §3.4 rules 21-22 — the Linge page saves the stock and the laundry
+// specs/linen/linen-laundry-days.md §3.4 rules 21-22 — the Linge page saves the stock and the laundry
 // schedule, Cancel restores both, a refusal of the server keeps the draft and says why.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-test('specs/linen-laundry-days.md §3.4 rule 19: the page loads the schedule next to the stock, nothing to save yet', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: the page loads the schedule next to the stock, nothing to save yet', async () => {
   setup();
   await loaded();
   expect(api.getLaundrySchedule).toHaveBeenCalled();
@@ -60,7 +60,7 @@ test('specs/linen-laundry-days.md §3.4 rule 19: the page loads the schedule nex
   expect(screen.queryByText(/À partir de demain/)).not.toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 21: a schedule change alone saves the schedule, not the stock, and says it starts tomorrow', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 21: a schedule change alone saves the schedule, not the stock, and says it starts tomorrow', async () => {
   const pending = { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 1, cycle: [], longestWaitDays: 5 };
   setup();
   await loaded();
@@ -76,7 +76,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: a schedule change alone saves t
   expect(save()).toBeDisabled();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 21: stock and schedule changed together are both saved', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 21: stock and schedule changed together are both saved', async () => {
   setup();
   const doubles = await screen.findByLabelText('Doubles');
   await loaded();
@@ -89,7 +89,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: stock and schedule changed toge
   await waitFor(() => expect(api.saveLaundrySchedule).toHaveBeenCalledWith({ weekdays: [2], turnaroundDays: 2 }));
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 21: Cancel restores the stock and the schedule', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 21: Cancel restores the stock and the schedule', async () => {
   setup();
   const doubles = await screen.findByLabelText('Doubles');
   await loaded();
@@ -104,7 +104,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: Cancel restores the stock and t
   expect(save()).toBeDisabled();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 20: an invalid turnaround disables Save', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 20: an invalid turnaround disables Save', async () => {
   setup();
   await loaded();
   fireEvent.change(screen.getByLabelText('Délai en jours'), { target: { value: '15' } });
@@ -113,7 +113,7 @@ test('specs/linen-laundry-days.md §3.4 rule 20: an invalid turnaround disables 
   expect(cancel()).toBeEnabled();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 21: a refusal of the server keeps the draft and shows its message under the field', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 21: a refusal of the server keeps the draft and shows its message under the field', async () => {
   setup();
   await loaded();
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));
@@ -128,7 +128,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: a refusal of the server keeps t
   expect(screen.queryByText('Entre 1 et 14 jours.')).not.toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 21: a failure without a field is a toast and keeps the draft', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 21: a failure without a field is a toast and keeps the draft', async () => {
   setup();
   await loaded();
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
@@ -138,7 +138,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: a failure without a field is a 
   expect(screen.getByRole('button', { name: 'Jeudi' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 22: a pending version is what the page shows, with what is in force today', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 22: a pending version is what the page shows, with what is in force today', async () => {
   setup({ pending: { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 2, cycle: [], longestWaitDays: 5 } });
   expect(await screen.findByText('À partir de demain, jeu. 29 oct. · Jusqu’à demain : mardi · 1 jour')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Jeudi' })).toHaveAttribute('aria-pressed', 'true');
@@ -146,7 +146,7 @@ test('specs/linen-laundry-days.md §3.4 rule 22: a pending version is what the p
   expect(save()).toBeDisabled();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 22: going back to the version in force and saving sends it, so the server deletes the pending one', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 22: going back to the version in force and saving sends it, so the server deletes the pending one', async () => {
   setup({ pending: { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 2, cycle: [], longestWaitDays: 5 } });
   await screen.findByText('À partir de demain, jeu. 29 oct. · Jusqu’à demain : mardi · 1 jour');
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
@@ -157,7 +157,7 @@ test('specs/linen-laundry-days.md §3.4 rule 22: going back to the version in fo
   await waitFor(() => expect(screen.queryByText(/À partir de demain/)).not.toBeInTheDocument());
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 22: with a pending version, going back to the version in force says the change of tomorrow is cancelled', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 22: with a pending version, going back to the version in force says the change of tomorrow is cancelled', async () => {
   setup({ pending: { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 2, cycle: [], longestWaitDays: 5 } });
   await screen.findByText(/Jusqu’à demain : mardi/);
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
@@ -165,7 +165,7 @@ test('specs/linen-laundry-days.md §3.4 rule 22: with a pending version, going b
   expect(screen.getByText('Changement de demain annulé.')).toBeInTheDocument();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 21: « 02 » typed over « 2 » is not a change — Save stays off, no phantom dirty state', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 21: « 02 » typed over « 2 » is not a change — Save stays off, no phantom dirty state', async () => {
   setup();
   await loaded();
   const input = screen.getByLabelText('Délai en jours');
@@ -178,7 +178,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: « 02 » typed over « 2 » is 
   await waitFor(() => expect(api.saveLaundrySchedule).toHaveBeenCalledWith({ weekdays: [2], turnaroundDays: 2 }));
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: while the schedule loads, the real frame is drawn (disabled) with placeholder lines, then replaced in place', async () => {
+test('specs/linen/linen-laundry-days.md §3.4 rule 19: while the schedule loads, the real frame is drawn (disabled) with placeholder lines, then replaced in place', async () => {
   let release;
   api.getPluginSettings.mockResolvedValue(STOCK);
   api.getLaundrySchedule.mockReturnValue(new Promise((resolve) => { release = resolve; }));

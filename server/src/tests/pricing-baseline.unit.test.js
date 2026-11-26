@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-recipes/plan.md step 1 — the regression net for the whole tariff-recipes work.
+// specs/pricing/tariff-recipes.md (former plan step 1) — the regression net for the whole tariff-recipes work.
 // These totals are recorded against the PRE-CHANGE engine and must stay green through every
 // subsequent step: they prove that a property using the legacy configuration (per-stay extra
 // guest, no recipe, no net target, no changeover) prices byte-identically before and after.

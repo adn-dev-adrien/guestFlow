@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 13, 31, 32, 33 — « Annuler » restores the opening state
+// specs/options/non-card-option-served-persons.md rules 13, 31, 32, 33 — « Annuler » restores the opening state
 // whole, each row keeps its arrival floor and the fiche's ceiling, and « En fin de séjour » waits for an
 // actual addition.
 import React from 'react';

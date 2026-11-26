@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 35, reading of 2026-11-13 (Adrien): on an unlocked fiche, offering a line lowers
+// specs/settings/settings-rationalization.md rule 35, reading of 2026-11-13 (Adrien): on an unlocked fiche, offering a line lowers
 // the final price by exactly what that line billed — the engine recalculates, the save is accepted. Any other move of the
 // price stays refused (D21).
 process.env.DB_PATH = ':memory:';

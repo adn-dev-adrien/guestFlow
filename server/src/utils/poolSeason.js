@@ -1,5 +1,5 @@
 /**
- * Pool season of a property (specs/settings-input-guards.md rules 22-26): off, all year, or a season.
+ * Pool season of a property (specs/settings/settings-input-guards.md rules 22-26): off, all year, or a season.
  * « All year » is stored as 01-01 → 12-31 in the two existing columns.
  */
 

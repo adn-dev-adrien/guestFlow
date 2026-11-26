@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 1, 4, 9, 21 and the edge case « stay cancelled mid-cart » — a stay link opened without
+// specs/guest-app/guest-app.md rules 1, 4, 9, 21 and the edge case « stay cancelled mid-cart » — a stay link opened without
 // network is kept and « Réessayer » opens it; a session re-exchanged mid-use is read again (`/me`, `/lodging`), a
 // stay that came back as a visitor or did not come back at all clears the cart and empties the offline data.
 import { screen, waitFor } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket the stay settled another way
+// specs/plugins/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket the stay settled another way
 // (transfer, cash, platform) is abandoned like a stale one: it leaves the open links, is deactivated at
 // the provider after a last « was it paid? » check, and the poll stops asking about it (mega review #5,
 // M2: links 6 and 7 still open and polled on stays paid in July and August).

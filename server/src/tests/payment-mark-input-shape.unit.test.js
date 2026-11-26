@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 66 (audit R20-M1, 2026-11-03) — what `PATCH /reservations/:id/payment`
+// specs/payments/reservation-payment-ledger.md rule 66 (audit R20-M1, 2026-11-03) — what `PATCH /reservations/:id/payment`
 // stores is what it validated. A paid date is a `YYYY-MM-DD` string, stored as the day it was judged on (never
 // the raw text sent with it); a date that rides an unticked mark is never written; a payment flag is
 // `true` / `false` / `1` / `0`, anything else refused with nothing written. Covers the four shapes of the audit:

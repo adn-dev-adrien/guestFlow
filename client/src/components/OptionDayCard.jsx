@@ -1,10 +1,10 @@
 /**
- * OptionDayCard — option-driven planning cards for a given day (specs/option-planning-card.md §3.3 + §6).
+ * OptionDayCard — option-driven planning cards for a given day (specs/options/option-planning-card.md §3.3 + §6).
  *
  * Renders ONE card per selected occurrence, in the arrival/departure layout (a « fait » circle, the
  * option title with the time in a pill, the property, then a person line). Themable so the breakfast
  * option reuses the EXACT same look while keeping its amber background + breakfast extras
- * (specs/breakfast-option-planning-card.md + sas-breakfast-milk-and-food.md): the morning
+ * (specs/options/breakfast-option-planning-card.md + sas-breakfast-milk-and-food.md): the morning
  * headcount + café/thé/chocolat/lait + viennoiseries/céréales + note.
  *
  * Returns `null` when `data` is missing or carries no items.
@@ -54,13 +54,13 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   const teens = Number(item.teens || 0);
   const babies = Number(item.babies || 0);
   const hasFamily = adults + children + teens + babies > 0;
-  // specs/card-option-served-persons.md §3.4 rule 18 — how many covers were actually sold. Absent
+  // specs/options/card-option-served-persons.md §3.4 rule 18 — how many covers were actually sold. Absent
   // (`null`) = the whole party, and the card reads exactly as it always did.
   const servedPersons = Number(item.servedPersons) > 0 ? Math.floor(Number(item.servedPersons)) : null;
   const chipSx = { height: 22, fontSize: 12 };
   const stop = (e) => e.stopPropagation();
   // The full item rides along as 2nd argument so breakfast-themed callers can open the
-  // preparation popup (specs/planning-breakfast-prep-popup.md); fiche callers ignore it.
+  // preparation popup (specs/planning/planning-breakfast-prep-popup.md); fiche callers ignore it.
   const openFiche = clickable ? () => onItemClick(item.reservationId, item) : undefined;
   const drinks = [
     { key: 'coffee', icon: <LocalCafeIcon sx={{ fontSize: 16 }} />, label: 'Café', n: Number(item.coffee) || 0 },

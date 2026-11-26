@@ -1,6 +1,6 @@
 /**
  * BoundedNumberField — a number input for a bound the server enforces
- * (specs/settings-input-guards.md rules 1-7). It holds a local draft and tells the parent only when
+ * (specs/settings/settings-input-guards.md rules 1-7). It holds a local draft and tells the parent only when
  * the operator leaves the field or presses Enter — never per keystroke.
  *
  * - A minus sign never reaches the field when `limits.min >= 0` (removed as typed or pasted, the caret

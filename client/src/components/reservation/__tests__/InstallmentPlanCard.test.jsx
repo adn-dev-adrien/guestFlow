@@ -1,4 +1,4 @@
-// specs/direct-installments.md §6 — the « Échéancier » card: it renders the server's payload, follows rapid
+// specs/payments/direct-installments.md §6 — the « Échéancier » card: it renders the server's payload, follows rapid
 // clicks on the count stepper with one request, shows the server's refusals under the field they name, and
 // computes nothing itself.
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -423,7 +423,7 @@ test('rule 52 — the server value is in the field in the same render as the ans
   expect(api.putInstallments.mock.calls).toEqual([[7, { amounts: [{ id: 41, amount: '500' }] }], [7, { amounts: [{ id: 41, amount: '600' }] }]]);
 });
 
-test('specs/mixed-method-payments.md rule 44 (mutant C7) — « Plusieurs moyens » on an installment: no caisse interne, the amount whole', async () => {
+test('specs/payments/mixed-method-payments.md rule 44 (mutant C7) — « Plusieurs moyens » on an installment: no caisse interne, the amount whole', async () => {
   const user = userEvent.setup();
   render(<Harness initial={planOf()} />);
   await user.click(within(rowOf(1)).getByRole('button', { name: 'Marquer payée' }));

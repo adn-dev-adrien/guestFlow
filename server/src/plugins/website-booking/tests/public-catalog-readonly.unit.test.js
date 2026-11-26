@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('module');
 
-// specs/public-api.md §3 rule 1 & 3: the public API is READ-ONLY except POST /booking-requests.
+// specs/site/public-api.md §3 rule 1 & 3: the public API is READ-ONLY except POST /booking-requests.
 // A GET must never mutate server state. The property-detail read previously went through
 // propertiesModel.getByIdWithDetails, which SEEDS default timed options (a write) as a side
 // effect. This locks the read path to the side-effect-free getByIdPublicReadOnly so a public

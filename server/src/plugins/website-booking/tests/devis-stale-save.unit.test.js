@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 11 (audit R4-1) — the devis editor sends the `updatedAt` it
+// specs/reservations/reservation-fiche-concurrency.md rule 11 (audit R4-1) — the devis editor sends the `updatedAt` it
 // loaded; a save built on an older version is refused (409 STALE_FICHE) instead of erasing the guest's
 // new website message and clearing the « modifiée après envoi » flag.
 require('./isolatedDb');

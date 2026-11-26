@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 36 — a write reaches the console only from its own
+// specs/hosting/control-plane-plans-and-access.md rule 36 — a write reaches the console only from its own
 // pages: a cross-site or same-site-but-other-host Origin is refused before the session is read; the
 // Qonto webhook and requests without Origin/Referer are exempt.
 
