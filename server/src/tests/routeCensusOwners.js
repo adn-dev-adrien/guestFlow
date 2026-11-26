@@ -36,6 +36,7 @@ const PLUGIN_ROUTES = {
     'POST /api/gdf-intake/test-mailbox',
   ],
   'guest-app': [
+    'DELETE /api/guest-app/places/:id',
     'DELETE /api/guest-app/studio/blocks/:id',
     'DELETE /api/guest-app/studio/pages/:id',
     'DELETE /api/guest-app/studio/pages/:id/placements/:propertyId',
@@ -43,6 +44,7 @@ const PLUGIN_ROUTES = {
     'POST /api/guest-app/lodgings/:propertyId/regenerate-qr',
     'POST /api/guest-app/orders/:id/amend',
     'POST /api/guest-app/orders/:id/delivered',
+    'POST /api/guest-app/places',
     'POST /api/guest-app/reservations/:id/stay-link/regenerate',
     'POST /api/guest-app/studio/lodgings/:propertyId/pages',
     'POST /api/guest-app/studio/lodgings/:propertyId/publish',
@@ -61,6 +63,7 @@ const PLUGIN_ROUTES = {
     'PUT /api/guest-app/items/:kind/:id',
     'PUT /api/guest-app/lodgings/:propertyId',
     'PUT /api/guest-app/lodgings/:propertyId/home',
+    'PUT /api/guest-app/places/:id',
     'PUT /api/guest-app/service-hours',
     'PUT /api/guest-app/studio/blocks/:id',
     'PUT /api/guest-app/studio/lodgings/:propertyId/booklet',
