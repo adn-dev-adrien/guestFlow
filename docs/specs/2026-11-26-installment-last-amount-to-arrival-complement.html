@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Échéancier : dernière échéance saisissable, le reste à l'arrivée</title>
+<style>
+:root{--primary:#2F5D46;--primary-dark:#214131;--primary-soft:#E3ECE6;--paper:#F8F5EF;--white:#fff;--ink:#27251F;--muted:#6E6A5E;--warn:#8F6A1D;--warn-soft:#F6EDD7;--err:#A8433A;--err-soft:#F6E3E0;--info:#31556E;--info-soft:#E2EAF0;--divider:rgba(60,54,36,.12);--shadow:0 3px 16px rgba(60,54,36,.09);--serif:"Source Serif 4",Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+main{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+h1{font:600 2rem/1.15 var(--serif);margin:0 0 6px}
+h2{font:600 1.3rem/1.2 var(--serif);margin:40px 0 10px}
+h2.sub{font:600 1.05rem/1.2 var(--serif);margin:0 0 6px}
+.lead{color:var(--muted);margin:0 0 20px}
+.card{background:var(--white);border-radius:14px;box-shadow:var(--shadow);padding:16px 20px;margin:12px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+ul{margin:6px 0;padding-left:20px}li{margin:4px 0}
+.small{font-size:.82rem;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.stage{background:#EDE8DE;border-radius:18px;padding:20px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.tbtn{border:1px solid var(--divider);background:var(--white);border-radius:10px;font:500 .85rem var(--sans);padding:0 12px;min-height:44px;cursor:pointer;color:var(--ink)}
+.tbtn:hover{border-color:var(--primary)}
+.panel{background:var(--white);border-radius:12px;box-shadow:0 10px 34px rgba(60,54,36,.14);overflow:hidden}
+.ph{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;border-bottom:1px solid var(--divider)}
+.plabel{font:600 .74rem var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.irow{display:grid;grid-template-columns:28px 1fr 130px auto;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid var(--divider)}
+.irow:first-of-type{border-top:0}
+.irow .n{color:var(--muted);font-weight:600}
+.field{display:grid;gap:2px}
+.field input{font:15px var(--sans);font-variant-numeric:tabular-nums;text-align:right;padding:8px 10px;border:1px solid rgba(60,54,36,.3);border-radius:8px;width:100%;min-height:44px}
+.field input:focus-visible{outline:2px solid var(--primary);outline-offset:1px;border-color:var(--primary)}
+.field input[aria-invalid=true]{border-color:var(--err);background:var(--err-soft)}
+.ferr{color:var(--err);font-size:.75rem;line-height:1.3}
+.chip{display:inline-flex;align-items:center;border-radius:999px;font:600 .72rem var(--sans);padding:3px 9px;white-space:nowrap}
+.chip.upcoming{background:var(--info-soft);color:var(--info)}
+.chip.pin{background:var(--primary-soft);color:var(--primary);margin-left:6px}
+.linkbtn{border:0;background:none;color:var(--primary);font:600 .82rem var(--sans);min-height:44px;cursor:pointer;padding:0 4px;text-align:left}
+.linkbtn:focus-visible,.tbtn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.foot{padding:12px 16px;border-top:1px solid var(--divider);display:grid;gap:4px}
+.line{display:flex;justify-content:space-between;gap:12px}
+.rest{background:var(--warn-soft);color:var(--warn);font-weight:600;border-radius:10px;padding:8px 12px;margin-top:4px}
+.over{background:var(--err-soft);color:var(--err);border-radius:10px;padding:8px 12px;margin-top:4px;font-size:.88rem}
+.sas .sec{padding:12px 16px;border-top:1px solid var(--divider)}
+.sas .sec:first-of-type{border-top:0}
+.det{margin:6px 0 0;padding-left:12px;border-left:2px solid var(--divider);display:grid;gap:3px;color:var(--muted);font-size:.9rem}
+.total{font-weight:700;font-size:1.05rem}
+.pay{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.pay span{border:1px solid var(--divider);border-radius:10px;padding:0 12px;min-height:44px;display:inline-flex;align-items:center;font-size:.85rem}
+.pay span.main{background:var(--primary);color:#fff;border-color:var(--primary)}
+.flash{animation:flash .5s ease-out}
+@keyframes flash{from{background:var(--primary-soft)}to{background:transparent}}
+@media(prefers-reduced-motion:reduce){.flash{animation:none}}
+@media(max-width:600px){.irow{grid-template-columns:24px 1fr;grid-template-areas:"n d" "n a" "n s"}.irow .n{grid-area:n}.irow .d{grid-area:d}.irow .field{grid-area:a}.irow .s{grid-area:s}}
+fieldset{border:0;margin:0 0 16px;padding:0}
+legend{font-weight:600;margin-bottom:6px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;cursor:pointer;min-height:44px}
+.opt:hover{background:var(--paper)}
+.opt input{margin-top:4px;width:18px;height:18px;accent-color:var(--primary)}
+.opt small{display:block;color:var(--muted)}
+pre{background:var(--paper);border-radius:10px;padding:12px;white-space:pre-wrap;font:13px/1.5 ui-monospace,Menlo,monospace;margin:8px 0}
+.copy{background:var(--primary);color:#fff;border:0;border-radius:10px;font:600 .9rem var(--sans);padding:0 18px;min-height:44px;cursor:pointer}
+.copy:hover{background:var(--primary-dark)}
+</style>
+</head>
+<body>
+<main>
+<h1>Échéancier : la dernière échéance se saisit aussi, le reste se règle à l'arrivée</h1>
+<p class="lead">Spec <code>specs/payments/direct-installments.md</code>, règles 53 à 60 · 26/11/2026 · en attente de validation</p>
+
+<div class="grid2">
+<div class="card"><h2 class="sub">Constat</h2>
+<ul>
+<li>Sur la fiche, on peut saisir le montant de chaque échéance <b>sauf la dernière</b> : elle prend toujours ce qui reste (règle 9a).</li>
+<li>Impossible donc de dire « 3 × 300 € et le reste à l'arrivée » : la dernière échéance gonfle d'elle-même.</li>
+<li>Dès qu'un paiement est saisi (acompte perçu), « Créer un échéancier » est bloqué (règle 2).</li>
+<li>Aujourd'hui, un écart entre le séjour et l'échéancier ne passe au complément d'arrivée <b>qu'une fois toutes les échéances payées</b>.</li></ul></div>
+<div class="card"><h2 class="sub">Ce qu'on propose</h2>
+<ul>
+<li>La dernière échéance non payée devient saisissable. Une fois saisie, l'échéancier est <b>fermé</b> : plus rien ne s'ajuste dedans.</li>
+<li>Ce qui manque va <b>tout de suite</b> au complément d'arrivée, sous une ligne dédiée, visible sur la fiche, dans le SAS et dans les mails d'arrivée (une seule source : le détail du complément).</li>
+<li>« Ajuster automatiquement » sur la dernière ligne rouvre l'échéancier.</li>
+<li>L'échéancier se crée <b>même si un acompte est déjà perçu</b> : l'acompte reste tel quel, l'échéancier découpe ce qui reste avant l'arrivée (règle 60).</li></ul>
+<h2 class="sub" style="margin-top:12px">Ce qu'on ne fait pas</h2>
+<ul><li>Pas de complément de fin de séjour, pas de caution touchés. La taxe de séjour reste sur les échéances.</li><li>Pas de changement pour les plateformes (l'échéancier reste réservé aux directes).</li></ul>
+<p class="small" style="margin:8px 0 0">Risque : moyen, c'est de l'argent. On réutilise l'écart que le moteur calcule déjà (<code>autoGap</code>), on change seulement le moment où il s'affiche. Tests serveur sur le calcul, la répartition comptable et le SAS.</p></div>
+</div>
+
+<h2>Essayez : la fiche</h2>
+<p class="small">Séjour direct, montant avant arrivée 1 200 € ; l'échéancier découpe <b class="num" id="tLabel"></b>, en 3 échéances. Tapez un montant (euros entiers) puis quittez le champ. Essayez 300 sur chaque échéance, puis 600 sur la dernière.</p>
+<div class="stage">
+<div class="toolbar">
+ <button class="tbtn" id="rise">Ajouter une option (+80 €)</button>
+ <button class="tbtn" id="drop">Retirer une option (−150 €)</button>
+ <button class="tbtn" id="reset">Réinitialiser</button>
+ <label class="tbtn" style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="depChk" style="width:18px;height:18px;accent-color:var(--primary)"> Acompte de 360 € déjà perçu</label>
+</div>
+<div class="grid2">
+ <div class="panel" aria-label="Échéancier">
+  <div class="ph"><span class="plabel">Échéancier</span><span class="small">3 échéances</span></div>
+  <div id="rows"></div>
+  <div class="foot" id="foot"></div>
+ </div>
+ <div class="panel sas" aria-label="SAS d'arrivée">
+  <div class="ph"><span class="plabel">SAS d'arrivée · à régler</span><span class="small">jour J</span></div>
+  <div id="sas"></div>
+ </div>
+</div>
+</div>
+<p class="small">Mobile (≤ 600 px) : chaque échéance passe sur trois lignes (date, montant, statut), champs et boutons ≥ 44 px, aucun défilement horizontal.</p>
+
+<h2>Arbitrages</h2>
+<p class="small">Chaque choix pilote la maquette ci-dessus. Recommandé en premier.</p>
+<div class="card" id="qs"></div>
+<div class="card">
+ <h2 class="sub">Résumé des choix</h2>
+ <pre id="summary"></pre>
+ <button class="copy" id="copyBtn">Copier</button> <span class="small" id="copied" role="status"></span>
+</div>
+</main>
+<script>
+const Q=[
+ {id:'label',t:'Libellé de la ligne dans le complément d’arrivée',o:[
+  ['Reste de l’échéancier','Dit d’où vient l’argent ; le client a vu l’échéancier dans ses mails.'],
+  ['Solde à l’arrivée','Plus parlant pour un client, mais « solde » désigne déjà autre chose dans l’appli.'],
+  ['Hébergement — reste à régler','Neutre, mais ne dit pas que c’est la suite de l’échéancier.']]},
+ {id:'rise',t:'Hausse de prix sur un échéancier fermé',o:[
+  ['Au complément d’arrivée','Les échéances saisies restent celles annoncées au client.'],
+  ['Répartie sur les échéances non payées','Rouvre l’échéancier : la dernière échéance absorbe la hausse.']]},
+ {id:'over',t:'Montant saisi qui dépasse le séjour',o:[
+  ['Refusé, champ en rouge','Un échéancier ne peut pas demander plus que le séjour.'],
+  ['Accepté, trop-perçu signalé','Comme une baisse de prix après paiement (règle 8).']]},
+ {id:'sas',t:'Affichage dans le SAS d’arrivée',o:[
+  ['Deux blocs : échéances dues + complément','Chaque argent garde son nom ; le complément montre la ligne du reste.'],
+  ['Un seul total « À régler à l’arrivée »','Plus court, mais on ne voit plus ce qui relève de l’échéancier.']]}
+];
+Q.push({id:'dep',t:'Échéancier sur une résa dont l’acompte est déjà perçu',o:[
+  ['L’échéancier découpe ce qui reste, l’acompte reste à part','L’acompte garde sa ligne, sa date et son écriture comptable ; rien de déjà exporté ne bouge.'],
+  ['L’acompte devient l’échéance 1, déjà payée','Une seule liste, mais l’acompte change de nature en compta (risque sur un mois exporté).']]});
+const choice={label:0,rise:0,over:0,sas:0,dep:0};
+let dep=0;
+const START=1200;
+let T, inst;
+const eur=c=>(c/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const dates=['26/11/2026','28/12/2026','29/01/2027'];
+function init(){T=START*100-dep;inst=[0,1,2].map(i=>({n:i+1,c:0,pin:false,err:'',raw:null}));spread();}
+function spread(){
+ const fl=inst.filter(i=>!i.pin);
+ const P=inst.filter(i=>i.pin).reduce((s,i)=>s+i.c,0);
+ if(!fl.length)return;
+ let rest=T-P;const k=fl.length;
+ const each=Math.round(rest/k/100)*100;
+ fl.forEach((i,j)=>{i.c=j<k-1?each:rest-each*(k-1)});
+}
+const closed=()=>inst.every(i=>i.pin);
+const sum=()=>inst.reduce((s,i)=>s+i.c,0);
+function typeAmount(idx,v){
+ const it=inst[idx];it.err='';
+ const s=String(v).trim().replace(/\s/g,'');
+ if(!/^\d+$/.test(s)||Number(s)<1){it.err='Montant en euros entiers, supérieur à 0.';it.raw=v;return}
+ const cents=Number(s)*100;
+ const others=inst.filter(i=>i!==it&&!i.pin);
+ const pinned=inst.filter(i=>i!==it&&i.pin).reduce((a,i)=>a+i.c,0);
+ if(others.length){
+  if(T-pinned-cents<100*others.length){it.err=`Laisse moins de 1 € à l’échéance ${others[others.length-1].n}.`;it.raw=v;return}
+ }else if(pinned+cents>T&&choice.over===0){
+  const max=(T-pinned)/100;
+  it.err=`Échéance ${it.n} : dépasse le séjour de ${eur(pinned+cents-T)} (${max.toLocaleString('fr-FR')} € au plus).`;it.raw=v;return}
+ it.c=cents;it.pin=true;it.raw=null;spread();
+}
+function priceChange(d){
+ T+=d*100;
+ if(closed()){
+  if(d>0&&choice.rise===1){inst[2].pin=false;spread();}
+  else if(sum()>T&&choice.over===0){inst[2].pin=false;spread();
+   if(inst[2].c<100){inst.forEach(i=>i.pin=false);spread();}}
+ }else{
+  const P=inst.filter(i=>i.pin).reduce((s,i)=>s+i.c,0);
+  if(T-P<100*inst.filter(i=>!i.pin).length)inst.forEach(i=>i.pin=false);
+  spread();
+ }
+ render(true);
+}
+const lbl=()=>Q[0].o[choice.label][0];
+function render(flash){
+ document.getElementById('tLabel').textContent=eur(T);
+ const rows=document.getElementById('rows');
+ rows.innerHTML=(dep?`<div class="irow"><span class="n">—</span><span class="d">Acompte</span><span class="num" style="text-align:right">${eur(dep)}</span><span class="s"><span class="chip pin">Payé le 02/11</span></span></div>`:'')+inst.map((i,idx)=>`<div class="irow"><span class="n">${i.n}</span>
+  <span class="d num">${dates[idx]}</span>
+  <div class="field"><input inputmode="numeric" aria-label="Montant de l’échéance ${i.n}" data-i="${idx}" value="${i.raw!==null?i.raw:(i.c%100===0?i.c/100:(i.c/100).toFixed(2).replace('.',','))}" aria-invalid="${!!i.err}" aria-describedby="e${idx}">
+  <span class="ferr" id="e${idx}" role="alert">${i.err}</span></div>
+  <span class="s"><span class="chip upcoming">À venir</span>${i.pin?'<span class="chip pin">fixé</span>':''}${idx===2&&closed()?'<br><button class="linkbtn" data-reopen>Ajuster automatiquement</button>':''}</span></div>`).join('');
+ const rest=T-sum();
+ let f=`<div class="line"><span>Total de l’échéancier</span><span class="num">${eur(sum())}</span></div>`;
+ if(closed()&&rest>0)f+=`<div class="line rest ${flash?'flash':''}"><span>Reste à régler à l’arrivée</span><span class="num">${eur(rest)}</span></div>`;
+ if(rest<0)f+=`<div class="over">Échéancier au-dessus du séjour : ${eur(-rest)}</div>`;
+ if(!closed())f+=`<div class="small">La dernière échéance non fixée s’ajuste au séjour.</div>`;
+ document.getElementById('foot').innerHTML=f;
+ rows.querySelectorAll('input').forEach(el=>{
+  el.addEventListener('blur',()=>{typeAmount(+el.dataset.i,el.value);render(true)});
+  el.addEventListener('keydown',e=>{if(e.key==='Enter')el.blur()});
+ });
+ const r=rows.querySelector('[data-reopen]');if(r)r.onclick=()=>{inst[2].pin=false;inst[2].err='';spread();render(true)};
+ // SAS
+ const due=sum(), comp=closed()&&rest>0?rest:0;
+ let s='';
+ if(choice.sas===0){
+  s+=`<div class="sec"><div class="line"><b>Séjour — échéances non payées</b><span class="num">${eur(due)}</span></div><div class="det">${inst.map(i=>`<span class="line"><span>Échéance ${i.n}/3</span><span class="num">${eur(i.c)}</span></span>`).join('')}</div></div>`;
+  s+=`<div class="sec"><div class="line"><b>Complément d’arrivée</b><span class="num">${eur(comp)}</span></div>${comp?`<div class="det"><span class="line"><span>${lbl()}</span><span class="num">${eur(comp)}</span></span></div>`:'<div class="det"><span>Rien à percevoir.</span></div>'}</div>`;
+ }else{
+  s+=`<div class="sec"><div class="line"><b>À régler à l’arrivée</b><span class="num">${eur(due+comp)}</span></div></div>`;
+ }
+ s+=`<div class="sec"><div class="line total"><span>Total à encaisser</span><span class="num">${eur(due+comp)}</span></div><div class="pay"><span class="main">CB / Chèque</span><span>Espèces</span><span>Pas maintenant</span></div><p class="small" style="margin:8px 0 0">Si les échéances ont été payées avant l’arrivée, seul le complément reste ici.</p></div>`;
+ document.getElementById('sas').innerHTML=s;
+}
+function renderQs(){
+ document.getElementById('qs').innerHTML=Q.map(q=>`<fieldset><legend>${q.t}</legend>${q.o.map((o,k)=>`<label class="opt"><input type="radio" name="${q.id}" value="${k}" ${choice[q.id]===k?'checked':''}><span>${o[0]}${k===0?' <b>(recommandé)</b>':''}<small>${o[1]}</small></span></label>`).join('')}</fieldset>`).join('');
+ document.querySelectorAll('#qs input').forEach(el=>el.onchange=()=>{choice[el.name]=+el.value;summary();render(false)});
+ summary();
+}
+function summary(){
+ document.getElementById('summary').textContent='Échéancier — dernière échéance saisissable (règles 53–60)\n'+Q.map(q=>`- ${q.t} : ${q.o[choice[q.id]][0]}`).join('\n');
+}
+document.getElementById('copyBtn').onclick=async()=>{
+ const txt=document.getElementById('summary').textContent;
+ try{await navigator.clipboard.writeText(txt)}catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove()}
+ document.getElementById('copied').textContent='Copié.';setTimeout(()=>document.getElementById('copied').textContent='',2000);
+};
+document.getElementById('rise').onclick=()=>priceChange(80);
+document.getElementById('drop').onclick=()=>priceChange(-150);
+document.getElementById('depChk').onchange=e=>{dep=e.target.checked?36000:0;init();render(true)};
+document.getElementById('reset').onclick=()=>{init();render(false)};
+init();renderQs();render(false);
+</script>
+</body>
+</html>

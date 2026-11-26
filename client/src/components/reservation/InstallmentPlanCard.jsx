@@ -19,7 +19,9 @@
  * Props:
  *   reservationId:  number
  *   plan:           the `installmentPlan` payload ({ eligible, canCreate, reason, countLocked, frozen, total,
- *                   paid, remaining, gap, minCount, maxCount, count, canRequest, arrivalDate, installments[] })
+ *                   paid, remaining, gap, minCount, maxCount, count, canRequest, arrivalDate, closed, arrivalRest,
+ *                   deposit, installments[] }) — `closed` (rule 53): no installment adjusts, `arrivalRest` what the
+ *                   arrival complement carries then (rule 54), `deposit` the acompte collected before the plan (rule 60)
  *   today:          `YYYY-MM-DD` — the day the mark form proposes
  *   disabled:       the fiche is dirty: nothing here may be changed until it is saved
  *   onPlanChange:   (plan) → void — the server's answer, to keep
@@ -67,7 +69,24 @@ function rowLayout({ hasActions, hasError }) {
 const amountText = (amount) => (Number.isInteger(Number(amount)) ? String(amount) : formatAmountInput(amount));
 const sameCents = (a, b) => Math.round(Number(a) * 100) === Math.round(Number(b) * 100);
 
-function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy, locked, canRequest, onDate, onAmount, onSend, onCopy, onPay }) {
+// Rule 60 — the acompte collected before the plan: a paid row, read-only, which the plan neither moves nor counts.
+function DepositRow({ deposit }) {
+  return (
+    <Box
+      data-testid="installment-deposit"
+      sx={{
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '4px 12px', p: 1.25,
+        border: '1px solid', borderColor: 'success.light', borderRadius: 2, bgcolor: 'success.soft', [WIDE]: { p: 1.5 },
+      }}
+    >
+      <Typography sx={{ fontWeight: 600, color: 'text.secondary' }}>{t.DEPOSIT_NAME}</Typography>
+      <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ml: 'auto' }}>{formatCurrency(deposit.amount)}</Typography>
+      <StatusBadge status="success" label={t.DEPOSIT_PAID(deposit.paidDate ? displayDate(deposit.paidDate) : '—')} />
+    </Box>
+  );
+}
+
+function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy, locked, canRequest, onDate, onAmount, onSend, onCopy, onPay, onRelease }) {
   const paid = installment.status === 'paid';
   const [dateDraft, setDateDraft] = useState(installment.dueDate);
   const [amountDraft, setAmountDraft] = useState(amountText(installment.amount));
@@ -167,6 +186,11 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
         )}
         {installment.amountEdited && (
           <Typography variant="caption" color="info.text" sx={{ display: 'block' }}>{t.PINNED_MARK}</Typography>
+        )}
+        {installment.canRelease && (
+          <Button size="small" disabled={busy || locked} onClick={() => onRelease(installment)} sx={{ minHeight: 44, px: 0, textTransform: 'none', textDecoration: 'underline' }}>
+            {t.ACTION_RELEASE}
+          </Button>
         )}
         {installment.added > 0 && (
           <Typography variant="caption" color="warning.text" sx={{ display: 'block' }}>{t.ADDED_MARK(formatCurrency(installment.added))}</Typography>
@@ -327,6 +351,17 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
     } finally { setBusy(false); }
   };
 
+  // Rule 57 — the last unpaid installment takes the shortfall back.
+  const onRelease = async (installment) => {
+    setBusy(true);
+    try {
+      accept(await api.putInstallments(reservationId, { installmentId: installment.id, releaseAmount: true }));
+      clearError(installment.id, 'amount');
+    } catch (error) {
+      setError(installment.id, 'amount', { message: error.message, value: null });
+    } finally { setBusy(false); }
+  };
+
   const onSend = async (installment) => {
     setBusy(true);
     try {
@@ -433,6 +468,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
       )}
 
       <Stack spacing={1}>
+        {plan.deposit && <DepositRow deposit={plan.deposit} />}
         {plan.installments.map((installment) => (
           <React.Fragment key={installment.id}>
             <InstallmentRow
@@ -448,6 +484,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
               onSend={onSend}
               onCopy={onCopy}
               onPay={(i) => setMarkingId(i.id)}
+              onRelease={onRelease}
             />
             {marking && marking.id === installment.id && (
               <PaymentMarkForm
@@ -471,10 +508,15 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
       )}
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '4px 20px', borderTop: '1px solid', borderColor: 'divider', mt: 1.5, pt: 1.5, color: 'text.secondary' }}>
-        <Typography variant="body2">{t.FOOTER_TOTAL} <strong>{formatCurrency(plan.total)}</strong></Typography>
+        <Typography variant="body2">{plan.deposit ? t.FOOTER_TOTAL_PLAN : t.FOOTER_TOTAL} <strong>{formatCurrency(plan.total)}</strong></Typography>
         <Typography variant="body2">{t.FOOTER_PAID} <strong>{formatCurrency(plan.paid)}</strong></Typography>
         <Typography variant="body2">{t.FOOTER_REMAINING} <strong>{formatCurrency(plan.remaining)}</strong></Typography>
       </Box>
+      {plan.arrivalRest > 0 && (
+        <Typography variant="body2" sx={{ mt: 0.5, textAlign: 'right', fontWeight: 600 }}>
+          {t.FOOTER_ARRIVAL_REST} <strong>{formatCurrency(plan.arrivalRest)}</strong>
+        </Typography>
+      )}
     </Box>
   );
 }

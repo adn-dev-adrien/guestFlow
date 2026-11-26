@@ -39,7 +39,7 @@ function syncAfterTotalChange(db, reservationId, { targetCents, startDate }) {
     clampDates(model, rows, startDate);
     const current = model.listFor(reservationId);
     result = rebalance({ installments: current, targetCents });
-    model.applyAmounts(reservationId, result.amounts, { clearPins: result.clearPins, added: result.added });
+    model.applyAmounts(reservationId, result.amounts, { clearPins: result.clearPins, unpin: result.unpin, added: result.added });
     model.setTarget(reservationId, targetCents);
   }).immediate();
   return { gapCents: result.gapCents, frozen: result.frozen, added: result.added };
@@ -52,8 +52,25 @@ function rebalanceStored(db, reservationId) {
   if (rows.length === 0) return null;
   const stay = db.prepare('SELECT installmentsTarget FROM reservations WHERE id = ?').get(Number(reservationId));
   const result = rebalance({ installments: rows, targetCents: Math.round(Number(stay.installmentsTarget || 0) * 100) });
-  model.applyAmounts(reservationId, result.amounts, { clearPins: result.clearPins, added: result.added });
+  model.applyAmounts(reservationId, result.amounts, { clearPins: result.clearPins, unpin: result.unpin, added: result.added });
   return result;
 }
 
-module.exports = { syncAfterTotalChange, rebalanceStored };
+/**
+ * Rule 54 — the stored arrival complement follows the plan's shortfall after a write that did not go through the fiche's
+ * save: the engine's figure is stored unless the complement is collected or the operator set its amount. Never blocks the
+ * write that called it: a stay the engine cannot quote keeps its stored complement.
+ */
+function restampComplementFromEngine(db, reservationId) {
+  try {
+    const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId));
+    if (!row) return;
+    if (Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1) return;
+    if (row.complementAmountOverride != null && row.complementAmountOverride !== '') return;
+    const quote = require('./storedReservationQuote').quoteStoredReservation(db, row);
+    if (!quote || quote.error || typeof quote.complementAmount !== 'number') return;
+    db.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(quote.complementAmount, Number(reservationId));
+  } catch { /* the stored complement stays; the next save of the fiche restates it */ }
+}
+
+module.exports = { syncAfterTotalChange, rebalanceStored, restampComplementFromEngine };
