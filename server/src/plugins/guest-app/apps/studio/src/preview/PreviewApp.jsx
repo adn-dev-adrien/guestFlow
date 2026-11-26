@@ -29,7 +29,7 @@ import defaultHero from '@guest-public/img/hero-domaine.jpg';
 export const MESSAGE_SOURCE = 'guestflow-studio';
 
 const TILE_ICON = {
-  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
+  gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soliomap: 'soliomap', places: 'places', booklet: 'booklet', contacts: 'contacts', home: 'smartHome',
 };
 const noop = () => {};
 

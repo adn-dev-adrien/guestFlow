@@ -21,6 +21,7 @@ import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import ThermostatOutlinedIcon from '@mui/icons-material/ThermostatOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LodgingSwitcher from './LodgingSwitcher';
@@ -37,6 +38,7 @@ const LODGING_SCREENS = [
 ];
 const SHARED_SCREENS = [
   { path: '/reglages/service', label: 'Service', icon: <ScheduleIcon fontSize="small" /> },
+  { path: '/reglages/pratique', label: 'Pratique', icon: <StorefrontOutlinedIcon fontSize="small" /> },
   { path: '/reglages/application', label: 'Application', icon: <SettingsOutlinedIcon fontSize="small" /> },
   { path: '/reglages/photos', label: 'Photos', icon: <PhotoLibraryOutlinedIcon fontSize="small" /> },
 ];

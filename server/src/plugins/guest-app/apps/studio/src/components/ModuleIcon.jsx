@@ -6,11 +6,12 @@ import HotTubOutlinedIcon from '@mui/icons-material/HotTubOutlined';
 import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined';
 import ThermostatOutlinedIcon from '@mui/icons-material/ThermostatOutlined';
 
 const ICONS = {
-  gate: FenceIcon, wifi: WifiIcon, shop: ShoppingBagOutlinedIcon, bath: HotTubOutlinedIcon, soliomap: PlaceOutlinedIcon,
+  gate: FenceIcon, wifi: WifiIcon, shop: ShoppingBagOutlinedIcon, bath: HotTubOutlinedIcon, soliomap: PlaceOutlinedIcon, places: StorefrontOutlinedIcon,
   booklet: MenuBookOutlinedIcon, orders: ReceiptLongOutlinedIcon, contacts: PhoneOutlinedIcon, home: ThermostatOutlinedIcon,
 };
 
