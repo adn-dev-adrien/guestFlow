@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.23.0
+Stable tag: 1.24.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,12 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.24.0 =
+* Réserver une séance : la phrase sur les 15 minutes sous le bouton disparaît (le créneau reste gardé 15 minutes pendant le paiement) ; tant qu'aucun horaire n'est choisi, le récapitulatif dit « Choisissez un horaire », en rouge après un appui sur le bouton sans horaire.
+* Dès qu'un code de bon est accepté, le récapitulatif liste tout ce que le bon comprend (séance, temps offert, chaque option avec sa quantité) à « 0 € · inclus dans le bon », avant même le choix d'un horaire, puis de la même façon sur l'horaire choisi.
+* Le prénom et le nom du bénéficiaire du bon préremplissent les coordonnées (jamais l'e-mail, le téléphone ni le nombre de personnes), sans écraser ce que le visiteur a saisi ; « Retirer » le bon vide ce que le bon avait rempli.
+* Achat d'un bon : « Pour » devient « Prénom » et « Nom » du bénéficiaire, tous deux obligatoires ; le bon imprimé n'affiche que le prénom.
 
 = 1.23.0 =
 * Nouveau bloc « GuestFlow — Réserver une séance » (et le shortcode `[guestflow_session_booking]`) : le visiteur choisit une activité vendable hors séjour, sa durée, le nombre de personnes, une date puis un créneau — chaque créneau affiche ce que coûte la séance entière, chaque heure à la tranche où elle tombe —, ajoute des options, saisit ses coordonnées et paie en ligne en totalité ; le créneau est gardé 15 minutes. Un récapitulatif suit le défilement sur grand écran, une barre collée en bas sur téléphone. Au retour de la banque, la page affiche « Séance réservée » avec le détail.

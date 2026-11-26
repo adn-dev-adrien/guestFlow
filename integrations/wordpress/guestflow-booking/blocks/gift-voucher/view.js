@@ -296,12 +296,15 @@
     }
 
     var recipientInput = GF.el('input', { type: 'text', maxlength: NAME_MAX, autocomplete: 'off' });
+    var recipientLastInput = GF.el('input', { type: 'text', maxlength: NAME_MAX, autocomplete: 'off' });
     var senderInput = GF.el('input', { type: 'text', maxlength: NAME_MAX, autocomplete: 'off' });
     var messageInput = GF.el('textarea', { maxlength: MESSAGE_MAX, rows: 3 });
     var counter = GF.el('p', { class: 'gf-gv-hint gf-gv-counter', id: GF.uid('gf-gv-count') }, '0 / ' + MESSAGE_MAX);
     var emailInput = GF.el('input', { type: 'email', inputmode: 'email', autocomplete: 'email' });
 
-    var recipientField = field('recipient', GF.t('gvRecipient'), true, recipientInput);
+    var recipientField = GF.el('div', { class: 'gf-gv-names' },
+      field('recipient', GF.t('gvFirstName'), false, recipientInput),
+      field('recipientLast', GF.t('gvLastName'), false, recipientLastInput));
     var senderField = field('sender', GF.t('gvSender'), true, senderInput);
     var messageField = field('message', GF.t('gvWord'), true, messageInput, null, [counter]);
     var emailField = field('email', GF.t('gvEmail'), false, emailInput);
@@ -464,6 +467,8 @@
 
     amountInput.addEventListener('input', function () { touched = true; });
     [amountInput, recipientInput, senderInput, messageInput].forEach(function (n) { n.addEventListener('input', sync); });
+    recipientInput.addEventListener('input', function () { setError('recipient', ''); });
+    recipientLastInput.addEventListener('input', function () { setError('recipientLast', ''); });
     emailInput.addEventListener('input', function () { setError('email', ''); });
     termsInput.addEventListener('change', function () { setError('terms', ''); });
     sync();
@@ -475,6 +480,8 @@
       var a = isResource ? { cents: priced ? priced.totalCents : null } : parseAmount();
       touched = true;
       if (!isResource && a.error) { setError('amount', a.error); amountHint.hidden = true; first = first || amountInput; }
+      if (!recipientInput.value.trim()) { setError('recipient', GF.t('gvFirstEmpty')); first = first || recipientInput; }
+      if (!recipientLastInput.value.trim()) { setError('recipientLast', GF.t('gvLastEmpty')); first = first || recipientLastInput; }
       var mail = emailInput.value.trim();
       if (!EMAIL_RE.test(mail)) {
         setError('email', mail ? GF.t('emailInvalid') : GF.t('gvEmailEmpty'));
@@ -505,6 +512,8 @@
       var text = (err && typeof err.message === 'string' && err.message) || GF.errorMessage(res);
       if (code === 'VOUCHER_AMOUNT_OUT_OF_BOUNDS') { setError('amount', text); amountInput.focus(); return; }
       if (code === 'PAYMENT_LINK_EXPIRED') { pending = null; showAlert(text); return; }
+      if (code === 'RECIPIENT_FIRST_NAME_REQUIRED') { setError('recipient', text); recipientInput.focus(); return; }
+      if (code === 'RECIPIENT_LAST_NAME_REQUIRED') { setError('recipientLast', text); recipientLastInput.focus(); return; }
       if (code === 'EMAIL_INVALID') { setError('email', text); emailInput.focus(); return; }
       if (code === 'TERMS_REQUIRED' || code === 'TERMS_NOT_ACCEPTED' || code === 'TERMS_OUTDATED') { setError('terms', text); termsInput.focus(); return; }
       showAlert(res.status === 429 ? (text || GF.t('gvTooMany')) : text);
@@ -557,7 +566,8 @@
       if (cents == null) return;
       var body = isResource ? composeRequest() : { amountCents: cents };
       if (!isResource && campaign && campaign.slug) body.slug = campaign.slug;
-      body.recipientName = recipientInput.value.trim();
+      body.recipientFirstName = recipientInput.value.trim();
+      body.recipientLastName = recipientLastInput.value.trim();
       body.senderName = senderInput.value.trim();
       body.message = messageInput.value.trim();
       body.email = emailInput.value.trim();

@@ -143,12 +143,15 @@ test('rule 16: a card address opens its campaign directly, with no chooser, and 
   fireEvent.click(add);
   await waitFor(() => expect(lastPrice(calls).addOns).toEqual([{ articleRef: 'option:7', qty: 1 }]));
   await waitFor(() => expect(flat(document.querySelector('.gf-gv-recap').textContent)).toContain('116,77 €'));
+  const [first, last] = document.querySelectorAll('.gf-gv-names input');
+  fireEvent.change(first, { target: { value: 'Marie' } });
+  fireEvent.change(last, { target: { value: 'Durand' } });
   fireEvent.change(document.querySelector('input[type="email"]'), { target: { value: 'paul@example.test' } });
   fireEvent.click(document.querySelector('.gf-cgv-accept input'));
   fireEvent.click(document.querySelector('.gf-gv-pay'));
   await waitFor(() => expect(orders).toHaveLength(1));
   expect(orders[0]).toMatchObject({
-    slug: 'bain-jour', extraMinutes: 0, addOns: [{ articleRef: 'option:7', qty: 1 }], email: 'paul@example.test', termsVersionId: 9, language: 'fr',
+    slug: 'bain-jour', extraMinutes: 0, addOns: [{ articleRef: 'option:7', qty: 1 }], recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'paul@example.test', termsVersionId: 9, language: 'fr',
   });
   expect(orders[0].amountCents).toBeUndefined();
   await waitFor(() => expect(window.GFBooking.voucherGo).toHaveBeenCalledWith('https://pay.example/12'));

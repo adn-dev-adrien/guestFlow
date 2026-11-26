@@ -17,42 +17,43 @@ async function withAdmin(fn, over) {
   }
 }
 
+const NAMES = { recipientFirstName: 'Marie', recipientLastName: 'Durand' };
 const url = (id, action = '') => `/api/gift-vouchers/${id}${action}`;
 
 test('rule 24: a voucher sold by hand is issued at once — amount, names, message, how it was paid, today’s date', () => withAdmin(async ({ server }) => {
   const created = await server.call('POST', '/api/gift-vouchers', {
-    amountCents: 15000, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', paymentMethod: 'cheque',
+    amountCents: 15000, recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', paymentMethod: 'cheque',
   });
   assert.equal(created.status, 201);
   const v = created.body;
   assert.deepEqual([v.number, v.state, v.amountCents, v.balanceCents, v.expiresOn, v.source, v.paymentMethod], ['BC-2026-0001', 'active', 15000, 15000, '2028-05-15', 'manual', 'cheque']); // date-literal-ok: the suite runs on its own clock, never the real today
-  assert.deepEqual([v.recipientName, v.senderName, v.message, v.buyerEmail], ['Marie', 'Paul', 'Joyeux anniversaire', 'paul@example.test']);
+  assert.deepEqual([v.recipientFirstName, v.senderName, v.message, v.buyerEmail], ['Marie', 'Paul', 'Joyeux anniversaire', 'paul@example.test']);
   assert.deepEqual(v.movements.map((m) => [m.kind, m.label, m.amountCents, m.date, m.actorName]), [['issue', 'Émission', 15000, '2026-11-15', 'Adrien Test']]); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(Object.keys(v.movements[0]).sort().join(), 'actorName,amountCents,date,id,kind,label,note,reservationId');
 }));
 
 test('rule 24: the date of a sale outside the site sets the expiry; a date in the future is refused', () => withAdmin(async ({ server }) => {
-  const past = await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-01-31' }); // date-literal-ok: the suite runs on its own clock, never the real today
+  const past = await server.call('POST', '/api/gift-vouchers', { ...NAMES, amountCents: 5000, paymentMethod: 'cash', date: '2026-01-31' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(past.status, 201);
   assert.equal(past.body.expiresOn, '2027-07-31'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(past.body.issuedAt.slice(0, 10), '2026-01-31'); // date-literal-ok: the suite runs on its own clock, never the real today
-  const future = await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-11-16' }); // date-literal-ok: the suite runs on its own clock, never the real today
+  const future = await server.call('POST', '/api/gift-vouchers', { ...NAMES, amountCents: 5000, paymentMethod: 'cash', date: '2026-11-16' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.deepEqual([future.status, future.body.code], [400, 'DATE_IN_FUTURE']);
-  assert.equal((await server.call('POST', '/api/gift-vouchers', { amountCents: 5000, paymentMethod: 'cash', date: '2026-02-30' })).body.code, 'DATE_INVALID');
+  assert.equal((await server.call('POST', '/api/gift-vouchers', { ...NAMES, amountCents: 5000, paymentMethod: 'cash', date: '2026-02-30' })).body.code, 'DATE_INVALID');
 }));
 
 test('rule 24: the way it was paid is one of the core payment methods, read from the core', () => withAdmin(async ({ server }) => {
   const core = fx.sdk.coreModule('paymentTenders').METHODS.map((m) => m.value);
   assert.deepEqual(fx.METHODS.map((m) => m.value), core);
   assert.deepEqual(fx.METHODS, fx.sdk.coreModule('paymentTenders').METHODS.map(({ value, label }) => ({ value, label })));
-  for (const method of core) assert.equal((await server.call('POST', '/api/gift-vouchers', { amountCents: 2000, paymentMethod: method })).status, 201, method);
+  for (const method of core) assert.equal((await server.call('POST', '/api/gift-vouchers', { ...NAMES, amountCents: 2000, paymentMethod: method })).status, 201, method);
   for (const method of ['bitcoin', '', null, undefined, ['card'], { a: 1 }]) {
-    assert.equal((await server.call('POST', '/api/gift-vouchers', { amountCents: 2000, paymentMethod: method })).body.code, 'PAYMENT_METHOD_INVALID', JSON.stringify(method));
+    assert.equal((await server.call('POST', '/api/gift-vouchers', { ...NAMES, amountCents: 2000, paymentMethod: method })).body.code, 'PAYMENT_METHOD_INVALID', JSON.stringify(method));
   }
 }));
 
 test('rule 6: amounts out of bounds or not whole cents are refused, each with its own code', () => withAdmin(async ({ server }) => {
-  const refused = async (amountCents) => (await server.call('POST', '/api/gift-vouchers', { amountCents, paymentMethod: 'cash' })).body.code;
+  const refused = async (amountCents) => (await server.call('POST', '/api/gift-vouchers', { ...NAMES, amountCents, paymentMethod: 'cash' })).body.code;
   assert.equal(await refused(1999), 'VOUCHER_AMOUNT_OUT_OF_BOUNDS');
   assert.equal(await refused(200001), 'VOUCHER_AMOUNT_OUT_OF_BOUNDS');
   for (const bad of ['2000', 20.5, null, undefined, [2000], { v: 1 }, 'abc']) assert.equal(await refused(bad), 'AMOUNT_INVALID', JSON.stringify(bad));
@@ -61,18 +62,18 @@ test('rule 6: amounts out of bounds or not whole cents are refused, each with it
 test('rule 13: the shapes are checked — a non-object body, a list or an object where text is expected, texts too long, a bad e-mail → 400', () => withAdmin(async ({ server }) => {
   const post = (body) => server.call('POST', '/api/gift-vouchers', body);
   assert.equal((await post([])).body.code, 'BODY_INVALID');
-  const base = { amountCents: 5000, paymentMethod: 'cash' };
-  for (const field of ['recipientName', 'senderName', 'message', 'email']) {
+  const base = { ...NAMES, amountCents: 5000, paymentMethod: 'cash' };
+  for (const field of ['recipientFirstName', 'recipientLastName', 'senderName', 'message', 'email']) {
     for (const bad of [['a'], { a: 1 }, 12, true]) {
       const res = await post({ ...base, [field]: bad });
       assert.equal(res.status, 400, `${field} ${JSON.stringify(bad)}`);
     }
   }
-  assert.equal((await post({ ...base, recipientName: 'W'.repeat(41) })).status, 400);
+  assert.equal((await post({ ...base, recipientFirstName: 'W'.repeat(41) })).status, 400);
   assert.equal((await post({ ...base, senderName: 'W'.repeat(41) })).status, 400);
   assert.equal((await post({ ...base, message: 'x'.repeat(201) })).status, 400);
   assert.equal((await post({ ...base, email: 'not-an-email' })).body.code, 'EMAIL_INVALID');
-  assert.equal((await post({ ...base, recipientName: 'W'.repeat(40), message: 'x'.repeat(200) })).status, 201, 'the limits themselves pass');
+  assert.equal((await post({ ...base, recipientFirstName: 'W'.repeat(40), recipientLastName: 'W'.repeat(40), message: 'x'.repeat(200) })).status, 201, 'the limits themselves pass');
   assert.equal((await server.call('GET', '/api/gift-vouchers/abc')).status, 404);
   assert.equal((await server.call('POST', '/api/gift-vouchers/1/adjust', [])).body.code, 'BODY_INVALID');
   assert.equal((await server.call('POST', '/api/gift-vouchers/999/adjust', {})).body.code, 'VOUCHER_NOT_FOUND');
@@ -80,7 +81,7 @@ test('rule 13: the shapes are checked — a non-object body, a list or an object
 
 test('rule 24: the list — searchable by number, e-mail or name, filtered by state, with the total outstanding balance', () => withAdmin(async ({ server, api }) => {
   const a = await fx.issueManual(server, { amountCents: 10000, senderName: 'Jean Dupont', email: 'jean@example.test' });
-  const b = await fx.issueManual(server, { amountCents: 20000, recipientName: 'Zoé' });
+  const b = await fx.issueManual(server, { amountCents: 20000, recipientFirstName: 'Zoé', recipientLastName: 'Petit' });
   const c = await fx.issueManual(server, { amountCents: 5000 });
   api.movements.append({
     voucherId: c.id, kind: 'redeem', amountCents: -5000, actor: 'system', idempotencyKey: 'x',

@@ -26,6 +26,8 @@ const REFUSALS = Object.freeze({
   AMOUNT_INVALID: [400, 'Montant invalide : un nombre entier de centimes.'],
   VOUCHER_AMOUNT_OUT_OF_BOUNDS: [400, 'Montant hors des bornes.'],
   EMAIL_INVALID: [400, 'Adresse e-mail invalide.'],
+  RECIPIENT_FIRST_NAME_REQUIRED: [400, 'Le prénom du destinataire est demandé.'],
+  RECIPIENT_LAST_NAME_REQUIRED: [400, 'Le nom du destinataire est demandé.'],
   OUTCOME_INVALID: [400, 'Issue invalide : payé, offert ou envoyer un lien.'],
   PAYMENT_METHOD_INVALID: [400, 'Moyen de paiement inconnu.'],
   DATE_INVALID: [400, 'Date invalide.'],
@@ -50,9 +52,10 @@ const REFUSALS = Object.freeze({
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 class Refusal extends Error {
-  constructor(refusalCode) {
+  constructor(refusalCode, field = null) {
     super(refusalCode);
     this.code = refusalCode;
+    this.field = field;
   }
 }
 
@@ -73,7 +76,7 @@ function buildAdminController({
   function answer(res, error) {
     const refusal = REFUSALS[error && error.code];
     if (!refusal) throw error;
-    return res.status(refusal[0]).json({ error: refusal[1], code: error.code });
+    return res.status(refusal[0]).json({ error: refusal[1], code: error.code, ...(error.field ? { field: error.field } : {}) });
   }
 
   /** A refusal of the shared sale service: the operator's own sentence for a code this side words, else the service's. */
@@ -120,7 +123,9 @@ function buildAdminController({
     cancelledAt: v.cancelledAt,
     buyerEmail: v.email,
     senderName: v.senderName,
-    recipientName: v.recipientName,
+    recipientFirstName: v.recipientFirstName,
+    recipientLastName: v.recipientLastName,
+    recipientLabel: [v.recipientFirstName, v.recipientLastName].filter(Boolean).join(' '),
     source: v.source,
     paymentMethod: v.paymentMethod,
     mailSentAt: v.mailSentAt,
@@ -214,7 +219,7 @@ function buildAdminController({
       .filter(({ row, v }) => (!state || row.state === state)
         && (!kind || row.kind === kind)
         && (campaignId === null || row.campaignId === campaignId)
-        && (!q || [v.number, v.email, v.senderName, v.recipientName].some((field) => String(field || '').toLowerCase().includes(q))))
+        && (!q || [v.number, v.email, v.senderName, v.recipientFirstName, v.recipientLastName, row.recipientLabel].some((field) => String(field || '').toLowerCase().includes(q))))
       .map(({ row }) => row);
     return res.json({
       items, outstandingCents, paymentMethods: paymentMethods(), campaigns: campaigns.list().map((c) => ({ id: c.id, name: c.name, kind: c.kind })),
@@ -250,7 +255,7 @@ function buildAdminController({
     const outcome = body.outcome === undefined ? 'paid' : body.outcome;
     if (!OUTCOMES.includes(outcome)) throw new Refusal('OUTCOME_INVALID');
     const parties = offerService.partiesOf(body, { emailRequired: outcome === 'link' });
-    if (!parties.ok) throw new Refusal(parties.code);
+    if (!parties.ok) throw new Refusal(parties.code, parties.field);
     const actor = actorOf(req);
     if (outcome === 'link') {
       const created = offerService.createOrder({

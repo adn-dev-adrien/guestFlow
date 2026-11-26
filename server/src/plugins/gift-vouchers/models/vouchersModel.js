@@ -9,7 +9,7 @@ const MONEY = rules.MONEY_KINDS.map((k) => `'${k}'`).join(', ');
 const SEQUENCE_DIGITS = 4;
 
 const SELECT = `
-  SELECT v.*, o.recipientName, o.senderName, o.message, o.email, o.language, o.source, o.paymentMethod, o.createdBy,
+  SELECT v.*, o.recipientName, o.recipientFirstName, o.recipientLastName, o.senderName, o.message, o.email, o.language, o.source, o.paymentMethod, o.createdBy,
     COALESCE((SELECT SUM(m.amountCents) FROM gift_voucher_movements m WHERE m.voucherId = v.id AND m.kind IN (${MONEY})), 0) AS balanceCents
   FROM gift_vouchers v JOIN gift_voucher_orders o ON o.id = v.orderId
 `;
