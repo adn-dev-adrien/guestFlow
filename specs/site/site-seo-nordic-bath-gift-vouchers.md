@@ -6,7 +6,7 @@
 | **Branch** | `feature/site-seo-nordic-bath-gift-vouchers` (spec, guestFlow) · `feature/seo-nordic-bath-gift-vouchers` (code, solio-site) |
 | **Created** | 2026-11-26 |
 | **Author** | Adrien |
-| **Related PR** | guestFlow #1117 (spec) · solio-site #6 (code) |
+| **Related PR** | guestFlow #1117 (spec) · solio-site #6 (code) · solio-site #8 (copy without a duration nor add-ons, 2026-11-26) |
 | **Decision page** | `solio-site/rapports/2026-11-26-seo-bain-bons/index.html` |
 
 ---
@@ -81,11 +81,20 @@ land on states plainly what is offered, when, for how many and at what price.
    « Pour qui » (rule 10), the FAQ (rules 11-13). All of it is server-rendered HTML.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 8. « L'essentiel » is a list: wood-fired bath, water around `bain_temperature` °C (`gf_seo_domaine()`);
-   private, up to `maxPeople`; daytime band `from`–`to` at the day price per hour; evening band
-   `from`–`to` at the evening price per hour; extra hour price; Satillieu, distance to Annonay
-   (`gf_seo_distances()`). Bands and prices come from the bath campaigns of `/gift-vouchers/offer`
-   (`band`, `totalCents`, `extraTime.prices[0]`), falling back to `/sessions/resources.fromCents` for
-   the « from » price. The tub's material is **not** stated (Adrien, 2026-11-26).
+   private, up to `maxPeople`; daytime band `from`–`to`; evening band `from`–`to`; Satillieu, distance
+   to Annonay (`gf_seo_distances()`). Bands come from the bath campaigns of `/gift-vouchers/offer`
+   (`band`). **No price and no duration** here (amended 2026-11-26, rule 8a). The tub's material is
+   **not** stated (Adrien, 2026-11-26).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
+8a. **The site never counts the bath time and never sells an add-on** (Adrien, 2026-11-26): the
+   guest chooses how long they stay, so no evocative text, title or description says « une heure »
+   (« un moment » instead), and no drink, platter or towel is pushed. The hourly prices (day, evening,
+   each extra hour) appear **only in the FAQ** answer « Combien coûte une séance ? » (rule 11) and in
+   the Valentine FAQ (rule 23), still read from GuestFlow (rule 5); the home band (`[solio_seance]`)
+   reads « Sans séjourner · {maxPeople} personnes au plus », without a price. Out of this rule: the
+   booking engine itself (it is the tool where the duration is chosen), the JSON-LD offers (rules 15,
+   18), `llms.txt` (rule 24) and the lodging pages, whose « une heure offerte à chaque séjour » is the
+   guests' real offer (Adrien, 2026-11-26).
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 9. « Le jour, le soir »: two short evocative paragraphs, no practical modality
    (memory `site-texte-evocateur-sans-pratique`). FR: « L'eau fume, la vallée s'ouvre jusqu'aux
@@ -98,17 +107,18 @@ land on states plainly what is offered, when, for how many and at what price.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 11. FAQ, new key `bain-seance` in `gf_seo_faq()` (the existing `bain-nordique` key stays for
     `/le-domaine/`), questions in this order: what a nordic bath is (also called « bain norvégien »
-    or hot tub, wood-fired, no material named); is a stay needed (no; guests get one hour free per
-    stay); price (per hour for the whole bath, not per person; extra hour); how many people;
+    or hot tub, wood-fired, no material named); is a stay needed (no, for the time the guest chooses;
+    guests get one hour free per stay); price (per hour for the whole bath, not per person; extra
+    hour — the only place the bath prices are shown, rule 8a); how many people;
     nordic bath vs spa or jacuzzi; winter, rain, snow (all year; a session may be moved if the
     weather makes it dangerous); children (not advised under 12, minors under their parents'
     responsibility — bath CGV); pregnancy or treatment (« Une eau à 38 °C est déconseillée pendant la
     grossesse et en cas de problème cardiaque sans l'avis d'un médecin. »); what to bring (rule 12);
-    drinks (rule 13); how long from Annonay, Tournon, Saint-Étienne, Lyon, Valence (rule 14); can it
-    be offered (link to the voucher page).
+    how long from Annonay, Tournon, Saint-Étienne, Lyon, Valence (rule 14); can it be offered (« en
+    journée ou sous les étoiles », no duration, link to the voucher page).
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 12. « Que faut-il apporter ? » answers: a swimsuit; a shelter to change near the bath (confirmed by
-    Adrien). « Serviettes en option » is added **only if** a bath add-on whose label contains
+    Adrien). **Amended 2026-11-26 (rule 8a): towels are no longer mentioned.** Previously « Serviettes en option » was added **only if** a bath add-on whose label contains
     « serviette » / « towel » is returned by GuestFlow. Created on 2026-11-26: option 35 « Location de
     serviette », 8 € per unit (renamed from « Serviette de bain » so it does not read as a towel for
     sale, Adrien, 2026-11-26) (the price of the lodgings' « Linge de toilette », Adrien's choice), sold
@@ -117,7 +127,8 @@ land on states plainly what is offered, when, for how many and at what price.
     refuses per-person options outside a stay. It shows on the site once added to the bath voucher
     campaigns (« Options proposées ») and, for direct bookings, to the bath's suggested articles.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
-13. « Peut-on boire un verre ? » lists the add-on families GuestFlow returns for the bath campaigns
+13. **Removed 2026-11-26 (rule 8a)** — the question and the add-on reader behind it are gone. It was:
+    « Peut-on boire un verre ? » lists the add-on families GuestFlow returns for the bath campaigns
     (drinks, platters) without prices; omitted when there are none. On 2026-11-26 a direct session
     booking offers no add-on yet: that choice is being developed separately and ships in the same
     release, so the answer is kept as written (Adrien, 2026-11-26).
@@ -140,10 +151,15 @@ land on states plainly what is offered, when, for how many and at what price.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 17. Below the voucher block: a line of occasions (Noël, Saint-Valentin, Anniversaire, Fête des mères,
     Entre amies, Pour dire merci), each with its one-line evocative text from the decision page, all
-    present in the HTML; then « Les bons »: one line per campaign on sale (title, band, price), the
-    stay voucher as a range `minAmountCents`–`maxAmountCents`, the validity `validityMonths`, « reçu par
-    e-mail avec la carte à imprimer »; then a FAQ, key `bons-cadeaux`: when it arrives, validity, how it
-    is used, what can be added.
+    present in the HTML; then a FAQ, key `bons-cadeaux`: when it arrives, validity, how it is used.
+    **Amended 2026-11-26**: the « Les bons » list (one line per campaign with band and price, the stay
+    range, the validity) is **removed everywhere**, the Valentine page included — Adrien found it
+    useless, the voucher block already says what it sells; the FAQ question « what can be added » is
+    removed (rule 8a).
+> **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
+17a. The occasion texts never count the time and never name an add-on (rule 8a): « un moment d'eau
+    chaude face à la vallée » (Noël), « À deux, le soir, quand les étoiles arrivent. » (Saint-Valentin,
+    the bottle on ice is gone), « Un moment rien qu'à elle. Ou à deux, avec vous. » (Fête des mères).
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 18. JSON-LD: one `Product` per campaign on sale with an `Offer` (price, EUR, `availability` InStock);
     the stay voucher with an `AggregateOffer` (`lowPrice`/`highPrice`); `FAQPage` from `bons-cadeaux`.
@@ -153,11 +169,11 @@ land on states plainly what is offered, when, for how many and at what price.
 
 19. New `gf_seo_pages()` entries (French), descriptions with their figures injected from GuestFlow
     (rule 5):
-    - `bain-nordique` — « Bain nordique privatif à l'heure en Ardèche verte | Solio » / « Un bain
+    - `bain-nordique` — « Bain nordique privatif en Ardèche verte | Solio » / « Un bain
       nordique au feu de bois, rien que pour vous, face à la vallée. Jusqu'à {maxPeople} personnes, de
-      {jour.from} à {soir.to}, dès {prix jour} l'heure, à 15 km d'Annonay. »
+      {jour.from} à {soir.to}, à 15 km d'Annonay. » (no price, rule 8a)
     - `offrir-un-bon-cadeau` — « Bon cadeau bain nordique en Ardèche : Noël, Saint-Valentin » /
-      « Offrez une heure de bain nordique, le jour ou sous les étoiles, ou un séjour au Domaine Solio.
+      « Offrez un moment au bain nordique, le jour ou sous les étoiles, ou un séjour au Domaine Solio.
       Reçu par e-mail avec la carte à imprimer, valable {validityMonths} mois. »
     - `saint-valentin-en-ardeche` — rule 23.
     English pages get the same through their `_gf_seo_title` / `_gf_seo_description` meta (the table is
@@ -169,7 +185,8 @@ land on states plainly what is offered, when, for how many and at what price.
     one link to `/bain-nordique/`; nothing else on the page changes.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 21. Home description: « 13 ha rien que pour vous à Satillieu : gîte 3 étoiles pour 10, tente safari,
-    bain nordique à l'heure face à la vallée, ânes et chèvres. Bons cadeaux. » Title: « Domaine Solio,
+    bain nordique privatif face à la vallée, ânes et chèvres. Bons cadeaux. » (« à l'heure » dropped
+    2026-11-26, rule 8a) Title: « Domaine Solio,
     Satillieu : gîte pour 10 et tente safari, Ardèche ».
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 22. The voucher page title follows the calendar, computed from the date in PHP (Europe/Paris) — no
@@ -189,7 +206,9 @@ land on states plainly what is offered, when, for how many and at what price.
     two, the evening voucher, a stay voucher to use later (L'Estiva is closed in February — the page
     never suggests a February stay at L'Estiva). Links to `/bain-nordique/` and
     `/offrir-un-bon-cadeau/`. FAQ key `saint-valentin` (evening band and price read live, voucher
-    arrives by e-mail, validity). No English twin (out of scope).
+    arrives by e-mail, validity). No English twin (out of scope). Amended 2026-11-26 (rules 8a, 17):
+    tagline « À deux dans l'eau chaude, sous les étoiles. », the paragraph opens on « Le temps file sans
+    qu'on le compte. » (bottle and platter gone), no voucher list.
 > **Sans test** — le code vit dans le dépôt privé `adn-dev-adrien/solio-site` ; la règle y est tenue par `tests/seo-nordic-bath-gift-vouchers.test.js`, et mesurée en ligne, §10.
 
 ### 3.G AI readability
@@ -284,10 +303,11 @@ Decision page with interactive mock-ups: `solio-site/rapports/2026-11-26-seo-bai
   background), the two moments side by side from 760 px and stacked below, three tiles (auto-fit,
   min 190 px), the FAQ as native `<details>` (text in the source even when folded).
 - Voucher page: occasions as a wrapping row of short lines (all visible, no toggle in production),
-  « Les bons » list, FAQ.
+  FAQ (the « Les bons » list was removed on 2026-11-26).
 - Mobile (≤600 px): every block single column, padding reduced, no horizontal scroll, touch targets of
   the FAQ summaries ≥ 44 px.
-- Copy: evocative above the fold, practical only in « L'essentiel » and the FAQ.
+- Copy: evocative above the fold, practical only in « L'essentiel » and the FAQ; prices only in the FAQ,
+  never « une heure », never an add-on (rule 8a).
 
 ## 7. Test plan
 
@@ -295,7 +315,9 @@ Decision page with interactive mock-ups: `solio-site/rapports/2026-11-26-seo-bai
   shortcodes registered; no literal price/hour/head count in the new code; every new label in both
   halves of `gf-i18n.php`; FAQ keys present in FR and EN; travel-time question exists and no
   `display:none` / `hidden` / `visibility` / off-screen class wraps any SEO block; `Service`, `Product`,
-  `FAQPage` builders read the offer reader; seasonal title switch dates; `llms.txt` stale slugs gone.
+  `FAQPage` builders read the offer reader; seasonal title switch dates; `llms.txt` stale slugs gone;
+  no price in « L'essentiel » nor in the home band, no voucher list, no « heure » / add-on in the
+  evocative labels, no drinks / add-ons FAQ (rules 8a, 17, 17a). 73 tests in the site suite.
 - `php -l` on every touched mu-plugin (in `wp_app`, before deployment).
 - Online, after deployment (rule 4): words readable without JS on the 2 + 2 + 1 pages; `<title>` and
   description; JSON-LD parses and holds the expected types; Rich Results Test on `/bain-nordique/` and
@@ -327,4 +349,5 @@ Decision page with interactive mock-ups: `solio-site/rapports/2026-11-26-seo-bai
 - [x] page content and new page (683, 689, 682, 688, 317 and 51 meta; Valentine's Day page id 722; backups `/tmp/bak-page-*-20261126-115243.txt`)
 - [x] online measurement (rule 4): readable words without JS — bath 25 → 528, bath EN 22 → 512, vouchers EN 48 → 287, Valentine 229; titles, descriptions and JSON-LD as specified; no raw shortcode; other pages unchanged (staged render diff before deployment); mobile 390 px without horizontal scroll; sitemap resubmitted to Search Console
 - [ ] Google Business Profile (rule 26) — posts and texts ready in `solio-site/rapports/2026-11-26-seo-bain-bons/fiche-google.md`, to publish with Adrien logged in
+- [ ] copy without a duration nor add-ons, voucher list removed (solio-site #8): merge, then `sh rapports/2026-11-26-bain-sans-heure-deploy/deploy.sh` (pages 682, 688, 722 and home meta 51; replacements checked once each against the live DB on 2026-11-26)
 - [ ] towel option 35 added to the two bath voucher campaigns (Adrien, campaign editor) and its English label « Towel hire » in the translation CSV
