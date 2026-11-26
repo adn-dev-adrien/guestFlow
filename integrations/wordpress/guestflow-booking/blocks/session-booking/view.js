@@ -205,6 +205,18 @@
     var codeInput = GF.el('input', {
       type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: '24', 'aria-label': GF.t('sbCode'), placeholder: 'XXXX-XXXX-XXXX-XXXX',
     });
+    // §3.I rule 38: Safari AutoFill puts the cursor in this field by itself after load; a focus no guest gesture preceded in the first 3 s is undone.
+    var guestActed = false;
+    var GESTURES = ['pointerdown', 'touchstart', 'keydown'];
+    // A scroll touch elsewhere must not disarm the guard: only a press on the field or its button, or a key (Tab), counts.
+    function noteGesture(e) { if (e.type === 'keydown' || e.target === codeInput || e.target === applyBtn) guestActed = true; }
+    function giveFocusBack() { if (!guestActed) codeInput.blur(); }
+    GESTURES.forEach(function (n) { document.addEventListener(n, noteGesture, { capture: true, passive: true }); });
+    codeInput.addEventListener('focus', giveFocusBack);
+    setTimeout(function () {
+      GESTURES.forEach(function (n) { document.removeEventListener(n, noteGesture, true); });
+      codeInput.removeEventListener('focus', giveFocusBack);
+    }, 3000);
     var applyBtn = GF.el('button', { type: 'button', class: 'gf-btn gf-btn-line' }, GF.t('sbApply'));
     var codeRow = GF.el('div', { class: 'gf-sb-code' }, codeInput, applyBtn);
     var codeMsg = GF.el('div', { class: 'gf-sb-msg', 'aria-live': 'polite' });

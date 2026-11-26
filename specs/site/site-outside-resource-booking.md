@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (§3.G and §3.H implemented 2026-11-26) |
+| **Status** | Implemented (§3.G and §3.H implemented 2026-11-26; §3.I implemented 2026-11-26) |
 | **Branch** | `feature/outside-resource-booking-site` |
 | **Created** | 2026-11-25 |
 | **Author** | Adrien |
@@ -234,6 +234,25 @@ its order (↑ ↓) is the site's order; the tab is renamed « Options proposée
     bon ». The fold itself (`GF.voucherExtrasFold`, campaigns rule 64) is unchanged. A session booked with a voucher keeps its
     campaign's add-ons (rule 14, unchanged).
 
+### 3.I The code field never takes the focus on its own (amendment 2026-11-26)
+
+Adrien, 2026-11-26: on Safari (iPhone and Mac), opening the bath page puts the cursor in « Code bon cadeau » — on the phone the
+keyboard can come up before the guest has chosen anything. No script of the page calls `focus()` at load (traced in Safari: the
+block rebuilt with a trap on `HTMLElement.prototype.focus`, `load` / `pageshow` / `DOMContentLoaded` replayed — nothing); the focus
+lands about 0.5 s after `load` on the real origin only, never on a local copy nor in Playwright's WebKit, so it is Safari's own
+AutoFill heuristics (the field looks like a one-time code). The field stays where it is, at the top of the form, open: it is what
+lets a voucher fill the form (§3.G).
+
+38. **A focus the guest did not ask for is given back.** For 3 s after the block is built, a `focus` on the code field that no guest
+    gesture preceded is undone with `blur()`. A gesture is a `pointerdown` or `touchstart` on the field or its « Appliquer »
+    button, or a `keydown` anywhere in the document (capture phase), since the block was built — so a tap or click in the field,
+    or Tab from the previous element, focuses it as before, while a touch elsewhere (scrolling the page) does not disarm the guard.
+    After those 3 s the field is left alone. The page's own `focus()` after « Appliquer » on an empty or malformed code (rule 15)
+    follows a press on the button and is unaffected. A malformed code read from `#bon=` (§3.G) shows its message without taking
+    the focus. No visible
+    change otherwise; nothing on desktop browsers that do not steal the focus.
+
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -293,6 +312,7 @@ Reused: `ExternalSaleFields`, existing fiche components. No new generic componen
 | `blocks/gift-voucher-use/*` | T | Alias rendering the session tunnel (rule 18); its own `view.js` is removed, the alias runs the session block's script |
 | `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19), from the runtime's `sessionPageUrl`; « Prénom » / « Nom » of the recipient, both required, the card preview naming the first name only (rule 32) |
 | `assets/voucher-parts.js` | T | `voucherExtrasFold` takes a `title` and a `foot`; §3.H rule 37: and a `maxKey` for the limit text |
+| `blocks/session-booking/view.js` | T | §3.I rule 38: a focus of the code field without a guest gesture in the first 3 s is undone; connector 1.26.1 |
 | `blocks/session-booking/view.js` / `includes/class-gf-blocks.php` / `languages/*en_GB.{po,mo}` | T | §3.H rule 37: passes `maxKey: 'sbAddMax'`; new string « %s au maximum par séance » (EN « %s at most per session »); connector 1.26.0 |
 | `includes/class-gf-blocks.php` / `class-gf-settings.php` | T | The block, its French strings, `sessionPageUrl`; the page holding either block is « the use page »; connector 1.24.0 (`sbHold` and `sbIncludedShort` removed, `sbIncludedIn`, `gvFirstName`, `gvLastName` added) |
 | `assets/style.css` | T | No rotation on `.gf-gv-front` (rule 20); session tunnel styles on the existing tokens |
@@ -374,6 +394,8 @@ on the session block in that order; reorder; a per-person article greyed; phone 
 (its resource lists now hold sellable articles, its settings payload carries `shownOn`, `unitCents` and `reason`). Client: `ArticleChecklistPicker.test.jsx` (4), `SettingsSuggestedArticlesSection.site-list.test.jsx` (4),
 `wordpress-session-booking.add-ons.test.js` (2); `SettingsSuggestedArticlesSection.test.jsx` kept in step with the new rows and picker.
 
+**§3.I (rule 38)** — client: `wordpress-session-booking.focus-guard.test.js` (6 tests): a focus with no gesture in the first 3 s is undone; a focus after a `pointerdown` on the field / a `keydown` stays; a focus after a touch elsewhere is undone; a focus after 3 s stays; the empty-code `focus()` after « Appliquer » stays. Manual: Safari on iPhone and Mac, open `/bain-nordique/` → no cursor in the field; tap it → keyboard; Tab to it → focused.
+
 **§3.H deviations, written down:**
 - The shared function is the factory `createAddOnPricing({ engine, priceTypeOf })` of the core module `addOnPricing` (SDK 2.36.0), not two bare functions: the engine is the caller's (the standalone sale quote). `priceTypeOf` defaults to the catalogue's own row of the reference; gift-vouchers passes its catalogue view's.
 - `maxQty` of a site add-on stays the length of its price table (as before the move), bounded by `min(entry.max, 10)`.
@@ -422,6 +444,7 @@ existing one, nothing migrated · its ↑ ↓ order is the site's · the tab is 
 - [x] WordPress: session block, alias, purchase link, straight card, proxy, redirect
 - [x] Tests, CHANGELOG fragments, plugin/connector versions
 - [x] §3.G (2026-11-26): recap before a slot, voucher lines at 0 €, names prefilled, recipient in two fields — connector 1.24.0, gift-vouchers 1.7.0
+- [x] §3.I (2026-11-26): the code field never takes the focus on its own — connector 1.26.1
 - [x] §3.H (2026-11-26): one list for arrival and site, « Options proposées », checklist picker, shared add-on pricing, « par séance » — connector 1.26.0, SDK 2.36.0, hourly-resources 1.12.0, gift-vouchers 1.9.0
 
 Deviations from the first draft, all written above: the notification links open `/passages/<id>` and `/bons-cadeaux?bon=<id>` (the pages that exist);
