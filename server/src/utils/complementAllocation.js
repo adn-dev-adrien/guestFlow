@@ -31,6 +31,8 @@ const POSTE_BY_KIND = {
   // specs/platforms/platform-extra-guest-complement.md rule 10 — a supplement on the nights: stay revenue.
   extraGuests: 'accommodation',
   remainder: 'accommodation',
+  // specs/payments/direct-installments.md rules 58-59 — what a closed installment plan leaves to the arrival is stay money, booked like the auto-gap.
+  installmentRest: 'accommodation',
 };
 
 /**

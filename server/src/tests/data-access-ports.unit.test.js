@@ -119,7 +119,7 @@ test('rule 48 — PaymentLedger: no plan, no split, refunds read from the stay\'
     INSERT INTO reservation_refunds (reservationId, method, totalTtc) VALUES (1, 'virement', 20), (1, 'especes', 5);
   `);
   const ledger = paymentLedger.create(db);
-  assert.deepEqual(ledger.installments(1), { count: 2, scheduled: 150, paid: 100, allPaid: false });
+  assert.deepEqual(ledger.installments(1), { count: 2, scheduled: 150, paid: 100, allPaid: false, closed: false });
   assert.equal(ledger.installments(2), null);
   assert.equal(ledger.splitReceived(1), null);
   assert.equal(typeof ledger.refunds(1).book, 'number');

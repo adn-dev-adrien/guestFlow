@@ -9,7 +9,7 @@
 
 const { buildModel } = require('../models/installmentsModel');
 const { buildModel: buildLinksModel } = require('../models/paymentLinksModel');
-const { rebalanceStored } = require('./installmentSync');
+const { rebalanceStored, restampComplementFromEngine } = require('./installmentSync');
 const { todayIso } = require('./localDate');
 const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
 
@@ -31,7 +31,11 @@ function recordInstallmentPayment({ db, emit }, { installmentId, paidDate, metho
     const differs = amountCents != null && Number(amountCents) !== Number(row.amountCents);
     if (differs) model.updateRow(installmentId, { amountCents: Number(amountCents), amountEdited: 1 });
     flipped = model.markPaid(installmentId, { paidDate: paidDate || todayIso(), method }).flipped;
-    if (flipped && differs) rebalanceStored(db, row.reservationId);
+    if (flipped && differs) {
+      rebalanceStored(db, row.reservationId);
+      // Rule 54 — every other unpaid installment pinned: nothing moved, the plan reads closed and its shortfall is the complement's.
+      restampComplementFromEngine(db, row.reservationId);
+    }
     // Rule 47 — the books read this split, never a live one: a later save cannot move the entry.
     if (flipped) model.setPaidSplit(installmentId, computeInstallmentPaidSplit(db, installmentId));
   }).immediate();
