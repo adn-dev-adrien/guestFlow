@@ -3166,6 +3166,17 @@ function paymentMarkRefusal(row, body, today) {
       return { status: 409, body: { error: `${ALREADY_LABELS[field]} Relire la fiche.`, code: 'ALREADY_PAID', field } };
     }
   }
+  // Rule 38 — the caisse-interne flag marks a complement too: sent on one already perceived with another day, it would
+  // re-date it (moving its accounting entry to another month), so it meets the same refusal as the flag itself.
+  // Sent with the day it already stores (or none) it is the move to the caisse interne, which stays allowed.
+  for (const [flagField, dateField] of PAID_DATE_FIELDS) {
+    const cashField = PAID_CASH_FIELDS[flagField];
+    if (!cashField || !(body[cashField] === true || body[cashField] === 1) || Number(alreadyOf[flagField] || 0) !== 1) continue;
+    if (body[dateField] !== undefined && body[dateField] !== null && body[dateField] !== ''
+      && String(body[dateField]).slice(0, 10) !== String(row[dateField] || '').slice(0, 10)) {
+      return { status: 409, body: { error: `${ALREADY_LABELS[flagField]} Relire la fiche.`, code: 'ALREADY_PAID', field: cashField } };
+    }
+  }
   // Rule 68 (D20) — the end-of-stay complement is collected after the check-out, by every path that marks it.
   {
     const refusal = endOfStayMarkRefusal(row, body, today);

@@ -28,6 +28,8 @@
 // D12, approved by Adrien), no amount moved.
 // On 2026-11-15 for the 13 captures that carry a stay row: the row gains `readsSaleLines: 0` (pricing-components.md rules 31, 61, 63, 91,
 // owner reading of 2026-11-15, approved by Adrien), additive, no amount moved: checked key by key.
+// On 2026-11-26 for `finance/summary/*`: the summary loses `totalPending` and `totalPendingHt` (computed, read by no client;
+// the figure lives on in the operational tab only), nothing else moved: checked key by key.
 // On 2026-11-16 for `finance/dashboard/2025..2028`: `tiles.incoming`, the « Versements à venir » tile (specs/payments/mollie-rolling-reserve-and-incoming-payments.md
 // rule 21), nothing else moved (checked: the payload minus that key is the previous capture).
 // On 2026-11-17, merging #1067 into pricing-components C: re-captured on the branch, checked key by key — only those four

@@ -216,11 +216,10 @@ test('getSummary: totalCollected = accounting total (paid, EXCLUDING caisse inte
   assert.equal(summary.totalCollected, 150); // deposit paid; balance unpaid; caisse-interne complement excluded from compta
 });
 
-// ── « En attente de règlement » (specs/accounting/finance-pending-global-remaining.md) ─────────────────
-// GLOBAL (period ignored) + RESTANT DÛ (Σ remainingToPay), so the card always equals the
-// operational « Paiements en attente » chip and never double-counts « Encaissé ».
+// ── « Paiements en attente » (specs/accounting/finance-pending-global-remaining.md rule 8) ─────────────────
+// GLOBAL (period ignored) + RESTANT DÛ (Σ remainingToPay): never double-counts « Encaissé ».
 
-test('getSummary: totalPending = Σ restant dû of PAST + non-settled only', () => {
+test('getOperational: pending remainingToPay = Σ restant dû of PAST + non-settled only', () => {
   const { db, model } = freshModel();
   // Past + fully unpaid → counts its full remaining (= stay total here, nothing paid).
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-5), endDate: iso(-2), depositAmount: 100, depositPaid: 0, balanceAmount: 200, balancePaid: 0 });
@@ -228,25 +227,23 @@ test('getSummary: totalPending = Σ restant dû of PAST + non-settled only', () 
   insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(5), depositAmount: 100, balanceAmount: 200 });
   // Past + fully settled → NOT pending.
   insertRes(db, { id: 3, clientId: 1, propertyId: 1, startDate: iso(-6), endDate: iso(-3), depositAmount: 100, depositPaid: 1, balanceAmount: 50, balancePaid: 1 });
-  const summary = model.getSummary({ from: iso(-10), to: iso(10) });
-  assert.equal(summary.totalPending, 300);
+  assert.equal(model.getOperational().pending.totals.remainingToPay, 300);
 });
 
-test('getSummary: totalPending counts the RESTANT DÛ, not the whole stay, on a partially-paid past reservation', () => {
+test('getOperational: pending counts the RESTANT DÛ, not the whole stay, on a partially-paid past reservation', () => {
   const { db, model } = freshModel();
   // Past, deposit 100 PAID, balance 200 unpaid → pending = 200 only; the 100 sits in « Encaissé ».
   // finalPrice set (no tourist tax) so the HT ratio applies: HT = amount ÷ 1.1.
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-5), endDate: iso(-2), finalPrice: 300, depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 0 });
   const summary = model.getSummary({ from: iso(-10), to: iso(10) });
-  assert.equal(summary.totalPending, 200);
+  const pending = model.getOperational().pending.totals.remainingToPay;
+  assert.equal(pending, 200);
   assert.equal(summary.totalCollected, 100);
   // No double counting: collected + pending reconstruct the stay total.
-  assert.equal(summary.totalPending + summary.totalCollected, 300);
-  // HT follows the remaining amount (vat 10, no tourist tax → 200 / 1.1 = 181.82).
-  assert.equal(summary.totalPendingHt, 181.82);
+  assert.equal(pending + summary.totalCollected, 300);
 });
 
-test('getSummary: totalPending is net of the UNPAID échéance commission (platform reservation)', () => {
+test('getOperational: pending is net of the UNPAID échéance commission (platform reservation)', () => {
   const { db, model } = freshModel();
   // Past platform resa: acompte 100 paid (comm 10), solde 300 unpaid (comm 30) → pending = 270.
   insertRes(db, {
@@ -255,38 +252,35 @@ test('getSummary: totalPending is net of the UNPAID échéance commission (platf
     platformCommissionAmount: 30, acompteCommissionAmount: 10,
   });
   const summary = model.getSummary({ from: iso(-10), to: iso(10) });
-  assert.equal(summary.totalPending, 270);   // 300 − 30 solde commission
+  assert.equal(model.getOperational().pending.totals.remainingToPay, 270);   // 300 − 30 solde commission
   assert.equal(summary.totalCollected, 90);  // 100 − 10 acompte commission
 });
 
-test('getSummary: totalPending IGNORES the selected period — a finished unpaid stay before « from » still counts', () => {
+test('getOperational: pending IGNORES the selected period — a finished unpaid stay before « from » still counts', () => {
   const { db, model } = freshModel();
   // The prod Victor shape (2026-07-17): stay ended before the displayed month, unpaid.
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-40), endDate: iso(-35), balanceAmount: 668, balancePaid: 0 });
   // Period = a window that EXCLUDES the reservation entirely.
   const summary = model.getSummary({ from: iso(-10), to: iso(10) });
-  assert.equal(summary.totalPending, 668, 'pending is global, not period-bound');
+  assert.equal(model.getOperational().pending.totals.remainingToPay, 668, 'pending is global, not period-bound');
   assert.equal(summary.revenueTotal, 0, 'revenue stays period-bound');
 });
 
-test('invariant: getSummary().totalPending === getOperational().pending.totals.remainingToPay', () => {
+test('getOperational: pending lists every finished unpaid stay, period-free', () => {
   const { db, model } = freshModel();
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-40), endDate: iso(-35), balanceAmount: 668, balancePaid: 0 });
   insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(-5), endDate: iso(-2), depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 0 });
   insertRes(db, { id: 3, clientId: 1, propertyId: 1, startDate: iso(2), endDate: iso(5), balanceAmount: 999 }); // future → neither
-  const summary = model.getSummary({ from: iso(0), to: iso(10) });
   const operational = model.getOperational();
-  assert.equal(summary.totalPending, operational.pending.totals.remainingToPay);
-  assert.equal(summary.totalPending, 868); // 668 + 200
+  assert.equal(operational.pending.totals.remainingToPay, 868); // 668 + 200
   // The operational tab lists BOTH finished unpaid stays, period-free (pinned by the spec).
   assert.deepEqual(operational.pending.reservations.map((r) => r.id).sort(), [1, 2]);
 });
 
-test('getSummary: a caisse-interne complement makes a past reservation settled → not pending', () => {
+test('getOperational: a caisse-interne complement makes a past reservation settled → not pending', () => {
   const { db, model } = freshModel();
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-5), endDate: iso(-2), depositAmount: 100, depositPaid: 1, balanceAmount: 0, complementAmount: 40, complementPaid: 1, complementPaidCash: 1 });
-  const summary = model.getSummary({ from: iso(-10), to: iso(10) });
-  assert.equal(summary.totalPending, 0);
+  assert.equal(model.getOperational().pending.totals.remainingToPay, 0);
 });
 
 test('getSummary: revenueByProperty sums total-de-séjour per property, sorted desc', () => {

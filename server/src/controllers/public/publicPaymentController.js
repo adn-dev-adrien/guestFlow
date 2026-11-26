@@ -278,7 +278,7 @@ async function readLapsedLink(devisRow) {
   try {
     paymentLinksModel.touchPolled(latest.id);
     const pay = await provider.getPayment(latest.providerLinkId, { origin: 'public-payment' });
-    if (pay.paid) await processPaidLink({ ...buildPaymentEffectDeps(), link: latest, paidPayment: pay });
+    if (pay.paid) await processPaidLink({ ...buildPaymentEffectDeps(), link: latest, paidPayment: pay, provider });
   } catch (e) { /* best-effort — the lifecycle pass reads it too */ }
   return paymentLinksModel.findById(latest.id);
 }
@@ -316,7 +316,7 @@ async function status(req, res) {
       paymentLinksModel.touchPolled(link.id);
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'public-payment' });
       if (pay.paid) {
-        await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay });
+        await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay, provider });
         const reloaded = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id);
         if (reloaded && reloaded.convertedReservationId) return asConfirmed(reloaded.convertedReservationId);
         return ok(res, { status: 'paid' });

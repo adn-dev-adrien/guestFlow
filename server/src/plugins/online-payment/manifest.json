@@ -204,6 +204,9 @@
     "1.9.3": [
       "Accueil : les lignes des écarts de règlement et de la retenue Mollie ouvrent la fiche du séjour (le retour ramène à l’accueil) (SDK 2.34.0)."
     ],
+    "1.9.4": [
+      "Un lien payé désactive aussitôt chez Qonto les autres liens du même règlement, au lieu d’attendre le passage suivant (SDK 2.34.0)."
+    ],
     "1.10.0": [
       "Un paiement en ligne reçu sur un séjour (acompte, solde, paiement total, échéance) prévient l’exploitant : notification « Paiements en ligne reçus » (réglable dans les notifications push), e-mail et ligne « Paiements reçus » sur l’accueil.",
       "Le solde payé en ligne envoie au voyageur un e-mail « Solde reçu ».",

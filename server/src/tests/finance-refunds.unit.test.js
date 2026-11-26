@@ -75,10 +75,8 @@ test('rule 19 — les espèces sont de l’argent comptable, comme le virement',
 test('rule 16 — le statut de règlement ignore les remboursements : la résa reste soldée', () => {
   const { model, refunds } = freshDb();
   refunds.create(1, refund());
-  const summary = model.getSummary(PERIOD);
-  assert.equal(summary.totalPending, 0, 'aucun reste à payer ne doit apparaître');
-
   const operational = model.getOperational();
+  assert.equal(operational.pending.totals.remainingToPay, 0, 'aucun reste à payer ne doit apparaître');
   assert.equal(operational.pending.reservations.length, 0);
   assert.equal(operational.overdue.count, 0);
 });

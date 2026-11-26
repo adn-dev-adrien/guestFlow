@@ -574,11 +574,17 @@ installment:
   response older than the last request, so a late reply never moves the count back. The stepper's
   DOM is never rebuilt between clicks (found on the mock, 2026-10-27).
 - A typed amount shows a small « fixé » mark; the other unpaid amounts follow at once (server
-  response). A refused amount turns the field red with the reason (« Laisse moins de 1 € à
+  response). The marks (« fixé », « Ajuster automatiquement », « +X € ajoutés ») never move the amount
+  off the date's line: they have their own grid area, left of the amount on a wide card and a
+  full-width line under date + amount on a narrow one (2026-11-26); the read-only amount of the
+  last unpaid row keeps the field's 40 px height. The narrow amount field is 104 px (120 px wide)
+  so a 390 px screen shows the full date without horizontal overflow. A refused amount turns the field red with the reason (« Laisse moins de 1 € à
   l'échéance 3 »).
 
-- Action: « Envoyer la demande » (unpaid, online payment active, covered plan excluded), « Copier le lien »
-  once sent, and a visible « Marquer payée » button on every unpaid row.
+- Actions are 44 px icon buttons, the words in a tooltip on hover and in the aria-label
+  (2026-11-26, the text buttons were too large for the row): « Envoyer la demande » (paper plane;
+  unpaid, online payment active, covered plan excluded), « Copier le lien » (copy icon) once sent,
+  and « Marquer payée » (check mark, filled primary) on every unpaid row.
 - Invalid date: the field turns red, the message names the rule (« Après l'échéance 1 et avant
   l'arrivée du 14/06/2027 »), the previous value is kept server-side.
 - Frozen plan with a rise: the changed rows show the added part (« +40,00 € ajoutés ») until the next
@@ -637,6 +643,9 @@ Checked 2026-10-27 in the browser (dev server on an E2E-seeded database, 1280, 1
 - [ ] « Envoyer la demande » on installment 1 → email in the log with a working sandbox link — **not run**: no Qonto sandbox connected here; link, mail, log and queue are covered by unit tests with a fake provider
 - [ ] Next day of a due date: entry in « à valider » — covered by `listPending` tests, not waited for a real day
 - [x] Mobile 390 px: rows as cards, no horizontal scroll
+- [x] 2026-11-26 — typed amount at 2400 px (wide card) and 390 px (narrow card): date and amount
+  (field or read-only text) centred on the same line, « fixé » and « Ajuster automatiquement » beside / under the amount, the badge inside the card at 390 px;
+  « Marquer payée » tooltip on hover (dev server, Playwright)
 - [x] Regression: a direct fiche without plan still shows acompte / solde (ledger tests); a platform fiche shows no card (`eligible: false`)
 - [x] `npm run test:e2e` green — 148 passed, 1 skipped (run on ports 3100 / 4100: another session holds 4000)
 
