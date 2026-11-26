@@ -217,6 +217,12 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'get_voucher_pdf'],
         ]);
+        // Rule 66 — the front frozen on the voucher (what the PDF prints), for the card shown after payment.
+        register_rest_route(self::NS, '/gift-vouchers/orders/(?P<id>\d+)/front', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_voucher_front'],
+        ]);
         register_rest_route(self::NS, '/gift-vouchers/orders/(?P<id>\d+)', [
             'methods'             => 'GET',
             'permission_callback' => $public,
@@ -505,6 +511,25 @@ final class GF_Rest_Proxy
         return $response;
     }
 
+    /** The voucher's frozen front (rule 66): a JPEG by order id and token, never kept; anything else is a 404 and the card draws a plain front. */
+    public function get_voucher_front(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request['id'];
+        $token = (string) $request->get_param('token');
+        if (!$this->is_token($token)) {
+            return $this->voucher_not_found();
+        }
+        $res = GF_Api_Client::instance()->get_raw("/gift-vouchers/orders/{$id}/front", ['token' => $token]);
+        if (($res['type'] ?? '') !== 'image/jpeg') {
+            return $this->voucher_not_found();
+        }
+        $response = new WP_REST_Response($res['body'], 200);
+        $response->header('Content-Type', 'image/jpeg');
+        $response->header('Cache-Control', 'private, no-store');
+        $response->header('X-Content-Type-Options', 'nosniff');
+        return $response;
+    }
+
     /**
      * A campaign's front for the purchase page (rule 62): the bytes and GuestFlow's cache header as they come — a year
      * at the version on sale, never kept for an older one. Only digits reach the version parameter.
@@ -556,7 +581,7 @@ final class GF_Rest_Proxy
         $headers = $result->get_headers();
         $route = (string) $request->get_route();
         $type = $headers['Content-Type'] ?? '';
-        $binary = ($type === 'application/pdf' && strpos($route, '/' . self::NS . '/gift-vouchers/orders/') === 0)
+        $binary = (($type === 'application/pdf' || $type === 'image/jpeg') && strpos($route, '/' . self::NS . '/gift-vouchers/orders/') === 0)
             || ($type === 'image/jpeg' && strpos($route, '/' . self::NS . '/gift-vouchers/campaigns/') === 0)
             || ($type === 'image/png' && $route === '/' . self::NS . '/gift-vouchers/logo');
         if ($result->get_status() === 200 && is_string($result->get_data()) && $binary) {

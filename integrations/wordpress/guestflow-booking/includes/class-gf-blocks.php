@@ -77,10 +77,14 @@ final class GF_Blocks
                 $this->asset_ver("blocks/{$name}/editor.js"),
                 true
             );
+            $deps = $name === 'booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : (strpos($name, 'gift-voucher') === 0 || $view === 'session-booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-voucher-parts', 'gf-pow'] : ['gf-runtime']);
+            if ($name === 'gift-voucher') {
+                $deps[] = 'gf-voucher-card'; // only the purchase block draws the card
+            }
             wp_register_script(
                 "guestflow-{$name}-view",
                 GF_BOOKING_URL . "blocks/{$view}/view.js",
-                $name === 'booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-pow'] : (strpos($name, 'gift-voucher') === 0 || $view === 'session-booking' ? ['gf-runtime', 'gf-voucher-code', 'gf-voucher-parts', 'gf-voucher-card', 'gf-pow'] : ['gf-runtime']),
+                $deps,
                 $this->asset_ver("blocks/{$view}/view.js"),
                 true
             );

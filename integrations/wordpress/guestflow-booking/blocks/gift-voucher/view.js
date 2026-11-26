@@ -380,9 +380,12 @@
     }
 
     // On a narrow block (a phone) the card is above the form, out of sight while typing: it does not turn by itself there, a link under « Un mot » does.
+    // Measured as the stylesheet's container query measures it: the block's content box, without its padding and border.
     function wide() {
       var host = root.closest('[data-gf-gift-voucher]') || root;
-      return host.offsetWidth >= WIDE_BLOCK;
+      var style = window.getComputedStyle ? window.getComputedStyle(host) : {};
+      var inner = host.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+      return inner >= WIDE_BLOCK;
     }
     function turnToBack() { if (card && back && wide()) card.turn(true); }
     if (switchNode) root.appendChild(switchNode);
@@ -428,19 +431,19 @@
       if (message) alertBox.removeAttribute('hidden'); else alertBox.setAttribute('hidden', 'hidden');
     }
 
-    var euros = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
-
-    // Rule 66 — the lines under « Votre bon comprend »: GuestFlow's own, to which the page adds only what the buyer chose (the amount, the extra time, the options).
+    // Rule 66 — the lines under « Votre bon comprend » are GuestFlow's own: the campaign's, then the line it wrote for the extra time and the quantity of each option chosen. The page
+    // only picks among them; for a lodging voucher it puts the amount typed into the template.
     function cardLines(cents) {
       var b = campaign.back;
       if (!isResource) {
-        return [String(b.lineTemplate || '').split('{amount}').join(cents != null ? euros.format(cents / 100) : '… €')];
+        return [String(b.lineTemplate || '').replace('{amount}', function () { return cents != null ? GF.cardEuros(cents) : '… €'; })];
       }
       var lines = (b.lines || []).slice();
-      if (extraMinutes > 0) lines.push(back.texts.extraTime.split('{duration}').join(GF.voucherDuration(extraMinutes)));
+      if (extraMinutes > 0 && b.extraTime && b.extraTime[extraMinutes]) lines.push(b.extraTime[extraMinutes]);
       (campaign.addOns || []).forEach(function (a) {
         var qty = addOnQty[a.articleRef] || 0;
-        if (qty > 0) lines.push((qty > 1 ? qty + ' × ' : '') + a.label);
+        var line = qty > 0 && b.addOns && b.addOns[a.articleRef] ? b.addOns[a.articleRef][qty] : null;
+        if (line) lines.push(line);
       });
       return lines;
     }
@@ -593,9 +596,11 @@
       else if (state === 'exhausted') notes.push(GF.el('div', { class: 'gf-inline-warn', role: 'status' }, GF.t('gvExhausted')));
       else if (state === 'cancelled') notes.push(GF.el('div', { class: 'gf-inline-warn', role: 'status' }, GF.t('gvCancelled')));
       else if (v.balanceCents != null && v.balanceCents < v.amountCents) notes.push(GF.el('div', { class: 'gf-inline-info', role: 'status' }, GF.t('gvBalance', GF.euro(v.balanceCents / 100))));
+      var frontUrl = GF.restUrl + '/gift-vouchers/orders/' + orderId + '/front?token=' + encodeURIComponent(token);
       var pdfUrl = GF.restUrl + '/gift-vouchers/orders/' + orderId + '/pdf?token=' + encodeURIComponent(token) + '&lang=' + encodeURIComponent(GF.lang || 'fr');
       var print = GF.el('button', { type: 'button', class: 'gf-btn gf-btn-alt' }, GF.t('gvPrint'));
       print.addEventListener('click', function () {
+        if (card) { card.print(); return; }
         document.body.classList.add('gf-gv-printing');
         window.addEventListener('afterprint', function done() {
           document.body.classList.remove('gf-gv-printing');
@@ -611,12 +616,12 @@
         GF.el('p', {}, GF.t('gvLinkStays')));
       var lead = GF.el('div', { class: 'gf-gv-lead' });
       var voucherBack = v.back || null;
+      var card = null;
       // Rule 66 — the card the PDF holds: its back first, with the real code and the real QR code; the offer carries what is common to every back (layout, words, logo).
-      var card = voucherBack && shared ? GF.voucherCard({
+      card = voucherBack && shared ? GF.voucherCard({
         title: v.title || '',
-        front: voucherBack.visual && voucherBack.slug ? function () {
-          return front({ slug: voucherBack.slug, title: v.title, visual: voucherBack.visual }, 'gf-card-front-img', false, null);
-        } : null,
+        // The front frozen on the voucher, the one the PDF prints; none → the plain front.
+        front: voucherBack.front ? function () { return GF.el('img', { src: frontUrl, alt: '', decoding: 'async' }); } : null,
         back: shared,
         preview: false,
         print: true,

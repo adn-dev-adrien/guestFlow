@@ -55,7 +55,6 @@ const BACK_TEXTS = Object.freeze({
   scan: 'Scannez pour réserver votre cadeau ou suivez ce lien :',
   includes: 'Votre bon comprend :',
   bullet: '•',
-  extraTime: 'Temps supplémentaire : {duration}',
   recipient: 'Pour {name}',
   sender: 'de la part de {name}',
   codeLabel: 'Votre code',

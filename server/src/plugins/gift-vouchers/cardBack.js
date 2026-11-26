@@ -5,7 +5,8 @@
  * adds what the buyer types.
  *
  *   offer()                    → the part shared by every campaign, with the QR code of the site's home page — `null` when the company has no website
- *   campaign(view, campaign)   → what one campaign adds: its lines (a lodging campaign: a template holding the amount) and the validity of a purchase made today
+ *   campaign(view, campaign)   → what one campaign adds: its lines, the line each extra time and each quantity of an option adds (written here, never by the page), and the validity of a
+ *                                purchase made today; a lodging campaign sends a template holding the amount instead
  *   voucher(voucher, code)     → the back of an issued voucher: its lines, validity, link and the QR code of its real redemption link
  *   logo()                     → the logo as a PNG with the hash of its bytes, or `null`
  */
@@ -13,7 +14,9 @@
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const rules = require('./voucherRules');
-const { contentLines, LODGING_LINE } = require('./contentsText');
+const {
+  contentLines, LODGING_LINE, extraTimeLine, countOf,
+} = require('./contentsText');
 const {
   BACK_LAYOUT, BACK_TEXTS, redeemUrl, shortLink,
 } = require('./voucherPdf');
@@ -72,7 +75,11 @@ function createCardBack({
     const validUntil = rules.formatFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
     if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil };
     const base = baseContents(stored);
-    return { lines: base.ok ? contentLines({ contents: JSON.stringify(base.contents) }) : [], validUntil };
+    const addOns = Object.fromEntries((view.addOns || []).map((a) => [a.articleRef, Object.fromEntries((a.prices || []).map((p) => [p.qty, countOf(p.qty, a.label)]))]));
+    const extraTime = Object.fromEntries(((view.extraTime && view.extraTime.prices) || []).map((p) => [p.minutes, extraTimeLine(p.minutes)]));
+    return {
+      lines: base.ok ? contentLines({ contents: JSON.stringify(base.contents) }) : [], extraTime, addOns, validUntil,
+    };
   }
 
   async function voucher(issued, plainCode) {

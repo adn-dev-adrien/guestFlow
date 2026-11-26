@@ -11,12 +11,12 @@
  *     front,                 () → img node | null   called once per drawing of the front (the card, the zoom, the print sheet)
  *     back,                  the offer's `back` ({ layout, texts, logoUrl, companyName, identity, website, link, previewQrSvg }) | null
  *     preview,               true before payment: the « Aperçu » pill and the grey code
- *     print,                 true to add the print sheet (both faces side by side at 105 × 148 mm), shown by the print rules of style.css
+ *     print,                 true to allow print(): both faces side by side at 105 × 148 mm, laid on <body> only while the page is printed
  *     startOnBack,           true to open on the back (the page after payment)
  *   }) → null (nothing to draw) | {
  *     node,                  the card, its « Recto / Verso » control and « Agrandir »
  *     set({ recipient, sender, message, lines, validUntil, code, qrSvg, link }),   what the back says now
- *     turn(toBack),          isBack(),          reveal()
+ *     turn(toBack),          isBack(),          reveal(),          print()
  *   }
  */
 (function () {
@@ -27,7 +27,15 @@
 
   function kebab(key) { return key.replace(/[A-Z]/g, function (c) { return '-' + c.toLowerCase(); }); }
 
-  function fill(template, key, value) { return String(template || '').split('{' + key + '}').join(value); }
+  // The first `{key}` only, as GuestFlow's own filling does; the value is taken literally.
+  function fill(template, key, value) { return String(template || '').replace('{' + key + '}', function () { return value; }); }
+
+  // An amount written the way the PDF writes it (« 1 234,50 € », plain spaces): the same function as GuestFlow's `formatEuros`, a test holds the two together.
+  GF.cardEuros = function (cents) {
+    var abs = Math.abs(cents);
+    var whole = String(Math.floor(abs / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return (cents < 0 ? '-' : '') + whole + ',' + String(abs % 100).padStart(2, '0') + ' €';
+  };
 
   // The QR code is an SVG that GuestFlow draws; the page refuses anything that is not a plain SVG before it writes it as markup.
   function plainSvg(svg) {
@@ -64,7 +72,10 @@
       if (/Mm$/.test(key) && typeof layout[key] === 'number') root.style.setProperty('--m-' + kebab(key.replace(/Mm$/, '')), String(layout[key]));
     });
     ['pt', 'lines'].forEach(function (group) {
-      Object.keys(layout[group] || {}).forEach(function (key) { root.style.setProperty('--' + (group === 'pt' ? 'p' : 'l') + '-' + kebab(key), String(layout[group][key])); });
+      Object.keys(layout[group] || {}).forEach(function (key) {
+        if (group === 'lines' && key === 'items') return; // the number of lines listed is cut in the script, not by the stylesheet
+        root.style.setProperty('--' + (group === 'pt' ? 'p' : 'l') + '-' + kebab(key), String(layout[group][key]));
+      });
     });
     root.style.setProperty('--lh-sans', String((layout.lineHeight || {}).sans || 1.326));
     root.style.setProperty('--lh-serif', String((layout.lineHeight || {}).serif || 1.371));
@@ -274,7 +285,13 @@
     }
     function zoomKeys(e) {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeZoom(); return; }
-      if (e.key === 'Tab' && zoomed) { e.preventDefault(); zoomed.close.focus(); }
+      if (e.key === 'Tab' && zoomed) {
+        // The dialog holds two stops, the card (it turns) and « Fermer »: Tab and Shift+Tab cycle between them.
+        e.preventDefault();
+        var order = [zoomed.view.flip, zoomed.close];
+        var at = order.indexOf(document.activeElement);
+        order[(at + (e.shiftKey ? order.length - 1 : 1) + (at < 0 ? 1 : 0)) % order.length].focus();
+      }
     }
     function openZoom() {
       if (zoomed || !back) return;
@@ -307,16 +324,29 @@
       close.focus();
     }
 
-    // The print sheet: both faces side by side at their real size; hidden on screen, shown by the print rules while the page is being printed.
-    if (o.print && back) {
-      var sheet = div('gf-card-sheet gf-gv-printzone');
+    // The print sheet: both faces side by side at their real size, laid directly on <body> (a sticky card would anchor it) and the page size set for the print only.
+    function print() {
+      if (!back) return;
+      var sheet = div('gf-card-sheet');
+      var pageSize = document.createElement('style');
+      pageSize.textContent = '@page { size: 210mm 148mm; margin: 0; }';
       var sFront = buildFront();
       var sBack = buildBack();
       sFront.classList.add('is-sheet');
       sBack.classList.add('is-sheet');
       sheet.appendChild(sFront);
       sheet.appendChild(sBack);
-      node.appendChild(sheet);
+      document.head.appendChild(pageSize);
+      document.body.appendChild(sheet);
+      document.body.classList.add('gf-gv-printing-sheet');
+      function done() {
+        window.removeEventListener('afterprint', done);
+        document.body.classList.remove('gf-gv-printing-sheet');
+        [sheet, pageSize].forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+        drawings.splice(drawings.indexOf(sBack.gfDrawing), 1);
+      }
+      window.addEventListener('afterprint', done);
+      window.print();
     }
 
     var api = {
@@ -331,6 +361,7 @@
         paint();
       },
       isBack: function () { return onBack; },
+      print: function () { if (o.print) print(); },
       // Brings the card back into view (a phone: it sits above the form), without animation under reduced motion.
       reveal: function () {
         if (!node.scrollIntoView) return;

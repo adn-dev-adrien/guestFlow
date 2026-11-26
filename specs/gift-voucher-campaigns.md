@@ -814,12 +814,20 @@ Rules are identities: a rule is never renumbered, new rules are appended
       (`GET /orders/:id`) carries the voucher's back the same way, with the code and a QR code that encodes
       the redemption link of rule 22 (`redeemUrl`, code in the fragment) — exactly what the PDF prints; no
       « Aperçu » pill. The card shows its back first. « Télécharger le PDF » stays; « Imprimer » prints the two
-      faces side by side at their real size (105 × 148 mm each).
+      faces side by side at their real size (105 × 148 mm each): a sheet is laid on `<body>` for the print only, with the page set to 210 × 148 mm and the rest of the page left
+      out (one page, no blank one). The card's front there is the voucher's **frozen** front — what the PDF prints — served by `GET /orders/:id/front?token=` (the 720 px web
+      picture of rule 62, private, never kept); a voucher with none, or whose file is gone, answers 404 and the card draws the plain front with the company name, as the PDF does.
     - **Implementation notes (2026-11-26):** the page after payment reads the shared part of the back (layout, words, logo,
       company) from `/offer` and the voucher's own part from the order status; with no back to draw it still shows the
-      code in a plain box. The extra-time and add-on lines chosen on the page are appended after the campaign's lines
-      (`texts.extraTime`, the option's label and quantity), in the PDF's order. The company read (logo included) is kept
-      60 s server-side. Gift-vouchers plugin 1.7.0, WordPress plugin 1.24.0.
+      code in a plain box. **The page composes no line of the back**: each campaign's `back` carries the line of every extra
+      time (`extraTime: { <minutes>: 'Temps supplémentaire : 1 h' }`) and of every quantity of every option
+      (`addOns: { <articleRef>: { <qty>: '2 × Boisson' } }`), written by `contentsText`, and the page picks among them; for a lodging
+      voucher it puts the amount typed into `lineTemplate` with a copy of `formatEuros` (plain spaces, two decimals: « 1 000,00 € »),
+      held to the server's by a test. « Valable jusqu'au » is the PDF's own string (`texts.validUntil` filled with `rules.formatFrDate`).
+      The wide / narrow switch (auto-turn) measures the block's content box, as the stylesheet's container query does. In the zoom,
+      Tab and Shift+Tab cycle between the card and « Fermer ». A test holds the layout and the stylesheet together: every custom
+      property the page derives from `layout` is read by `style.css` and every one `style.css` reads is produced. The company read
+      (logo included) is kept 60 s server-side. Gift-vouchers plugin 1.7.0, WordPress plugin 1.24.0.
     - **Motion:** the turn is a 3D rotation of 0.6 s (`cubic-bezier(.2, .8, .2, 1)`), interruptible (a CSS
       transition); under `prefers-reduced-motion` it is a cross-fade with no rotation.
     - **A logo** is served at `/public/v1/gift-vouchers/logo?v=<hash>` (PNG, the PDF's own `logoOf`, cached
@@ -901,7 +909,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 | `includes/class-gf-redirects.php` | C | Permanent paths (rule 9) |
 | `includes/class-gf-rest-proxy.php` | T | New routes; `PLUGIN_INACTIVE` → empty render (rule 40) |
 | `includes/class-gf-rest-proxy.php` | T | `/gift-vouchers/campaigns/<slug>/visual`: the front's bytes and cache header as they come (rule 62) |
-| `assets/voucher-card.js` (new), `assets/fonts/` (new, Latin subsets + OFL), `blocks/gift-voucher/view.js`, `assets/style.css`, `includes/class-gf-blocks.php`, `includes/class-gf-rest-proxy.php`, `languages/*en_GB.{po,mo}`, plugin 1.24.0 | C/T | The card that turns, front and back, before and after payment; the grey ticket removed; `/gift-vouchers/logo` proxied (rule 66) |
+| `assets/voucher-card.js` (new), `assets/fonts/` (new, Latin subsets + OFL), `blocks/gift-voucher/view.js`, `assets/style.css`, `includes/class-gf-blocks.php`, `includes/class-gf-rest-proxy.php`, `languages/*en_GB.{po,mo}`, plugin 1.24.0 | C/T | The card that turns, front and back, before and after payment; the grey ticket removed; `/gift-vouchers/logo` and `/gift-vouchers/orders/:id/front` proxied (rule 66) |
 
 ### 4.4 API contract
 
@@ -910,7 +918,8 @@ Public (existing key guard, proof of work on writes):
 | Method | Path | Body / query | Answer |
 |---|---|---|---|
 | GET | `/public/v1/gift-vouchers/offer` | — | `{ campaigns: [{ slug, kind, title, contents, addOns:[{ articleRef, label, maxQty, unitLabel, linear, prices:[{ qty, cents }] }], extraTime:{ maxMinutes, stepMinutes, prices:[{ minutes, cents }] }, band:{ from, to } }] }` (prices: rule 64) |
-| — | (rule 66, added to the two answers above and below) | — | `/offer` gains `back: { layout, texts, logoUrl, companyName, identity, website, link, previewQrSvg }` and, on each campaign, `back: { lines \| lineTemplate, validUntil }`; `GET /orders/:id` gains `voucher.back: { lines, validUntil, link, qrSvg, slug, visual }` with the real redemption QR (`slug`/`visual`: the campaign's front, `null` when it is off sale); `layout` also carries the PDF's `lineHeight` (pdfkit's line pitch, ems). No `back` anywhere when the company has no website |
+| — | (rule 66, added to the two answers above and below) | — | `/offer` gains `back: { layout, texts, logoUrl, companyName, identity, website, link, previewQrSvg }` and, on each campaign, `back: { lines \| lineTemplate, validUntil }`; `GET /orders/:id` gains `voucher.back: { lines, validUntil, link, qrSvg, front }` with the real redemption QR (`front`: the voucher has a frozen front, to read at `/orders/:id/front`); each campaign's `back` also carries `extraTime` and `addOns` (the line of each step); `layout` also carries the PDF's `lineHeight` (pdfkit's line pitch, ems). No `back` anywhere when the company has no website |
+| GET | `/public/v1/gift-vouchers/orders/:id/front?token=` | — | The voucher's frozen front as the 720 px web JPEG (`private, no-store`), 404 when none (rule 66) |
 | GET | `/public/v1/gift-vouchers/logo?v=<hash>` | — | The company logo as PNG (immutable), 404 when none (rule 66) |
 | POST | `/public/v1/gift-vouchers/offer/price` | `{ slug, extraMinutes, addOns:[{ articleRef, qty }] }` | `{ lines, totalCents, extrasCents, vat:[{ rate, cents }] }` (`extrasCents`: rule 64) |
 | POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId` | as today |
@@ -1023,8 +1032,8 @@ One file per subject:
   every card through `open(`, `aria-current`, back link and `gvOtherOffer` gone, `gvYourGift` in PHP / `.po` / `.mo`,
   reduced-motion rule, focus handed to the new current card, cards wrapping on a wide block (rule 63).
 - `catalogue-outside-sellable` (gift-vouchers, rule 65): per-person / progressive options greyed with the engine's reason, sellable with a planning card; `withdrawn` on the campaign read and list, nothing removed, the save refused until the option is taken off. Updated: `gift-voucher-catalogue-view` (per-person and progressive no longer sellable), `gift-voucher-add-ons-priced` (the campaign carrying a per-person add-on is now inserted past the rules, as a campaign saved before).
-- `gift-voucher-site-card-back` (gift-vouchers, rule 66): `/offer` carries `back` with the PDF's own `BACK_LAYOUT` and texts, the campaign's lines equal `contentLines` of a voucher issued from it, the lodging template, `validUntil` from `rules.expiryFor` on today's Paris date, the preview QR encoding the website home; the order status carries the real redemption QR (code in the fragment); `/logo` answers the PNG, 404 without a logo.
-- `wordpress-gift-voucher-card-back` (client Vitest, rule 66): no grey ticket; the card turns on typing in Pour / De la part de / Un mot on a wide block, not on a narrow one (« Voir le verso du bon » instead); the back shows the typed texts, the server's lines, the grey code and the « Aperçu » pill; after payment the real code and no pill; « Agrandir » opens a dialog closed by Escape.
+- `gift-voucher-site-card-back` (gift-vouchers, rule 66): `/offer` carries `back` with the PDF's own `BACK_LAYOUT` and texts, the campaign's lines equal `contentLines` of a voucher issued from it, the lodging template, `validUntil` from `rules.expiryFor` on today's Paris date, the preview QR encoding the website home; the order status carries the real redemption QR (code in the fragment); `/logo` answers the PNG, 404 without a logo; the line of each extra time and option quantity equals the voucher's own; `/orders/:id/front` serves the frozen front by token (404 for a wrong token or none).
+- `wordpress-gift-voucher-card-back` (client Vitest, rule 66): no grey ticket; the card turns on typing in Pour / De la part de / Un mot on a wide block, not on a narrow one (« Voir le verso du bon » instead); the back shows the typed texts, the server's lines, the grey code and the « Aperçu » pill; after payment the real code, the frozen front and no pill; « Agrandir » opens a dialog closed by Escape, Tab cycling between the card and « Fermer »; « Imprimer » lays and removes a sheet of both faces on `<body>`; the switch is measured on the content box (near 600 px); the amount format equals `formatEuros`; layout and stylesheet properties match both ways.
 - `gift-voucher-campaign-wordpress`: blocks render nothing with the plugin off; redirects; field
   hidden in the booking engine.
 

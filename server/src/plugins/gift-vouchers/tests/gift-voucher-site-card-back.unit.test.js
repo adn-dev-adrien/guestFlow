@@ -17,7 +17,12 @@ const campaignRules = require('../campaignRules');
 const rules = require('../voucherRules');
 const { BACK_LAYOUT, BACK_TEXTS, redeemUrl } = require('../voucherPdf');
 const { contentLines } = require('../contentsText');
+const fs = require('node:fs');
+const path = require('node:path');
 const sdk = require('../../sdk');
+const { picture } = require('./visualFixtures');
+const { filesDir } = require('./visualFilesFixture');
+const { durationText } = require('../offerService');
 
 const ORIGIN = 'https://site.example.test';
 const ids = fx.seedCatalogue();
@@ -26,6 +31,12 @@ const shop = fx.openShop({ company: async () => company });
 const { api, clock } = shop;
 const bath = api.campaigns.find(api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids), fx.rulesContext(api)).value));
 const lodging = api.campaigns.firstLodging();
+
+// The shared fixture's front is a stub too short to decode: the frozen front of a bath voucher is a real, tall picture.
+test.before(async () => {
+  const { path: name } = api.visuals.find(bath.voucherVisualId).current;
+  fs.writeFileSync(path.join(filesDir(), name), await picture(1240, 1748));
+});
 
 // The company is read once a minute: a suite that changes it moves its clock past that.
 const companyChanged = () => { clock.at = new Date(clock.at.getTime() + 5 * 60 * 1000); };
@@ -155,8 +166,48 @@ test('rule 66 — the line pitch the page uses is the one pdfkit sets for the PD
   assert.equal(pitch(F.serif), BACK_LAYOUT.lineHeight.serif);
 });
 
-test('rule 66 — the status also names the campaign and its front, so the page after payment can turn the card to it', () => withServer(async (site) => {
-  const { voucher } = await buy(site, bath.slug);
-  assert.equal(voucher.back.slug, bath.slug);
-  assert.equal(voucher.back.visual.versionId, api.visuals.find(bath.voucherVisualId).current.id);
+test('rule 66 — the extra time and each quantity of an option come with their line, written by GuestFlow in the PDF\'s words', () => withServer(async (site) => {
+  const view = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
+  view.extraTime.prices.forEach((p) => assert.equal(view.back.extraTime[p.minutes], `Temps supplémentaire : ${durationText(p.minutes)}`));
+  const drink = view.addOns[0];
+  drink.prices.forEach((p) => assert.equal(view.back.addOns[drink.articleRef][p.qty], p.qty > 1 ? `${p.qty} × ${drink.label}` : drink.label));
+  // The same lines a voucher bought with them prints.
+  const bought = (await buy(site, bath.slug, { extraMinutes: 60, addOns: [{ articleRef: drink.articleRef, qty: 2 }] })).voucher;
+  assert.deepEqual(bought.contentLines.slice(-2), [view.back.extraTime[60], view.back.addOns[drink.articleRef][2]]);
+}));
+
+test('rule 66 — « Valable jusqu\'au » is the PDF\'s own string: its template filled with the same date format', () => withServer(async (site) => {
+  const view = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
+  const { back } = await offerOf(site);
+  assert.equal(back.texts.validUntil.replace('{date}', view.back.validUntil), `Valable jusqu’au ${rules.formatFrDate(rules.expiryFor(rules.parisDate(clock.at), 12))}`);
+}));
+
+test('rule 66 — the status says whether the voucher has a frozen front; the front is served by order id and token, as the 720 px web picture, never kept', () => withServer(async (site, raw) => {
+  const ip = '10.0.6.200';
+  const placed = await site('POST', '/orders', {
+    slug: bath.slug, email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...sale.solvedProof({ ip }),
+  }, ip);
+  const { orderId, token } = placed.body.data;
+  const { amountCents } = api.orders.find(orderId);
+  api.orderPaid({ ref: String(orderId), linkId: 900, amountCents });
+  const { voucher } = (await site('GET', `/orders/${orderId}?token=${token}`)).body.data;
+  assert.equal(voucher.back.front, true);
+  assert.equal(voucher.back.slug, undefined);
+  const res = await raw(`/orders/${orderId}/front?token=${token}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/jpeg');
+  assert.equal(res.headers.get('cache-control'), 'private, no-store');
+  assert.deepEqual([(await sharp(res.buffer).metadata()).width], [720]);
+  assert.equal((await raw(`/orders/${orderId}/front?token=wrong`)).status, 404);
+}));
+
+test('rule 66 — a voucher with no frozen front says so and answers 404, for the card to draw the plain front', () => withServer(async (site, raw) => {
+  const { voucher } = await buy(site, lodging.slug, { amountCents: 15000 });
+  assert.equal(voucher.back.front, false);
+  const placed = await site('POST', '/orders', {
+    slug: lodging.slug, amountCents: 3000, email: 'a@example.test', language: 'fr', termsVersionId: 4, ...sale.solvedProof({ ip: '10.0.6.201' }),
+  }, '10.0.6.201');
+  const { orderId, token } = placed.body.data;
+  api.orderPaid({ ref: String(orderId), linkId: 901, amountCents: api.orders.find(orderId).amountCents });
+  assert.equal((await raw(`/orders/${orderId}/front?token=${token}`)).status, 404);
 }));

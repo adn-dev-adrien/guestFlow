@@ -458,7 +458,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-uselink { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; margin-top: 1rem; padding: .75rem .9rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: var(--gfb-surface); }
 .gf-gv-uselink a { min-height: 44px; display: inline-flex; align-items: center; color: var(--gfb-fill); font-weight: 600; text-underline-offset: 3px; }
 /* The printed card's own colours (the PDF's), declared once: the back keeps them whatever the site's accent is. The zoom lives in <body>, outside the block. */
-:where(.gf-block, .gf-card-zoom) { --gfc-ink: #1f2a24; --gfc-muted: #5c665f; --gfc-line: #c9cfc9; --gfc-wait: #a9b0aa; --gfc-plain: #f4f1ea; --gfc-veil: rgba(20, 20, 18, .72); --gfc-chip: rgba(39, 37, 31, .6); --gfc-lift: rgba(0, 0, 0, .14); }
+:where(.gf-block, .gf-card-zoom, .gf-card-sheet) { --gfc-ink: #1f2a24; --gfc-muted: #5c665f; --gfc-line: #c9cfc9; --gfc-wait: #a9b0aa; --gfc-plain: #f4f1ea; --gfc-veil: rgba(20, 20, 18, .72); --gfc-chip: rgba(39, 37, 31, .6); --gfc-lift: rgba(0, 0, 0, .14); }
 /* ── Rule 66 — the voucher card that turns: its front (rule 62) and its back, drawn in millimetres as GuestFlow's PDF draws it ──────────────
    Fonts: the PDF's own faces, Latin subsets (assets/fonts, SIL OFL). The back's sizes are CSS custom properties set from the layout GuestFlow sends
    (--m-* millimetres, --p-* points, --l-* lines), so the page holds no dimension of its own. */
@@ -554,15 +554,16 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-v-legal .gf-v-t { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%) rotate(90deg); white-space: nowrap; font-size: calc(var(--p-legal) * var(--pt)); color: var(--gfc-muted); }
 .gf-v-pill { position: absolute; z-index: 1; top: calc(3 * var(--mm)); right: calc(3 * var(--mm)); padding: calc(1 * var(--mm)) calc(1.6 * var(--mm)); border-radius: 99px; background: var(--gfc-chip); color: #fff; font: 600 calc(6.5 * var(--pt))/1 "GF Card Sans", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
 
-/* Printing the voucher page prints the voucher, nothing else: both faces side by side, 105 × 148 mm each. */
-@page gf-voucher { size: 210mm 148mm; margin: 0; }
+/* Printing the voucher page prints the voucher, nothing else. The card's print() lays a sheet on <body> (both faces side by side, 105 × 148 mm each) and sets the page to
+   210 × 148 mm for that print only; everything else on the page is left out, so no blank page follows. Without a card the box holding the code is printed by hiding the rest. */
 @media print {
   body.gf-gv-printing * { visibility: hidden; }
   body.gf-gv-printing .gf-gv-printzone, body.gf-gv-printing .gf-gv-printzone * { visibility: visible; }
   body.gf-gv-printing .gf-gv-printzone { position: absolute; left: 0; top: 0; width: 100%; }
-  body.gf-gv-printing .gf-card-sheet { page: gf-voucher; display: flex; width: 210mm; }
-  body.gf-gv-printing .gf-card-face.is-sheet { position: relative; inset: auto; flex: none; width: 105mm; height: 148mm; border-radius: 0; box-shadow: none; transform: none; opacity: 1; backface-visibility: visible; -webkit-backface-visibility: visible; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body.gf-gv-printing .gf-card-flip, body.gf-gv-printing .gf-card-bar { display: none; }
+  body.gf-gv-printing-sheet > :not(.gf-card-sheet) { display: none !important; }
+  body.gf-gv-printing-sheet { margin: 0; }
+  body.gf-gv-printing-sheet .gf-card-sheet { display: flex; position: static; width: 210mm; height: 148mm; margin: 0; padding: 0; }
+  .gf-card-sheet .gf-card-face.is-sheet { position: relative; inset: auto; flex: none; width: 105mm; height: 148mm; border-radius: 0; box-shadow: none; transform: none; opacity: 1; backface-visibility: visible; -webkit-backface-visibility: visible; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 /* Rule 63 — the offer switcher heading an open campaign (specs/gift-voucher-offer-switcher.html). */
 .gf-gv-switch { margin: 0 0 1.4rem; }

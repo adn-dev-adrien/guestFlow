@@ -32,6 +32,7 @@ function buildPublicRouter({
   router.post('/orders', offer.create);
   router.post('/orders/:id/pay', payStart, offer.pay);
   router.get('/orders/:id/pdf', status, offer.pdf);
+  router.get('/orders/:id/front', status, offer.front);
   router.get('/orders/:id', status, offer.status);
   return router;
 }

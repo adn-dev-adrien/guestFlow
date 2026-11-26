@@ -244,18 +244,18 @@ function buildPublicOrdersController({
     return respond.ok(res, { paymentUrl: started.url });
   });
 
-  /**
- * Rule 20 — the order's state and, once the bank confirmed, the voucher. Reading it asks the bank again while it is pending; a link that
- * lapsed unpaid (rule 16, one hour) answers `link-expired`, and a payment confirmed after that still issues the voucher (rule 45).
- */
   /** Rule 66 — the back of an issued voucher, with its real QR code; nothing when the company has no website to link to. */
   async function backOf(voucher, plain) {
     const back = await cardBack.voucher({ ...voucher, code: plain }, plain);
     if (!back) return {};
-    const stored = voucher.campaignId && campaigns ? campaigns.find(voucher.campaignId) : null;
-    return { back: { ...back, slug: stored ? stored.slug : null, visual: siteVisual && stored ? siteVisual.describe(stored) : null } };
+    const frozen = rules.parseJson(voucher.visualVersions, null);
+    return { back: { ...back, front: Boolean(frozen && frozen.voucher) } };
   }
 
+  /**
+   * Rule 20 — the order's state and, once the bank confirmed, the voucher. Reading it asks the bank again while it is pending; a link that
+   * lapsed unpaid (rule 16, one hour) answers `link-expired`, and a payment confirmed after that still issues the voucher (rule 45).
+   */
   const status = guarded(async (req, res) => {
     let order = orderOf(req, req.query.token);
     let linkStatus = null;
@@ -290,6 +290,26 @@ function buildPublicOrdersController({
     });
   });
 
+  /**
+   * Rule 66 — the front frozen on the voucher when it was issued (what the PDF prints), as the web picture of rule 62; by order id and token like the PDF, never kept. 404 when the voucher
+   * has none or its file is gone: the card then draws the plain front, as the PDF does.
+   */
+  const front = guarded(async (req, res) => {
+    const order = orderOf(req, req.query.token);
+    const voucher = vouchers.findByOrderId(order.id);
+    const frozen = voucher ? rules.parseJson(voucher.visualVersions, null) : null;
+    const bytes = frozen && frozen.voucher ? documents.frontOf(frozen.voucher) : null;
+    let picture = null;
+    try {
+      picture = bytes && siteVisual ? await siteVisual.webPicture(bytes) : null;
+    } catch {
+      picture = null;
+    }
+    if (!picture) throw new Refusal('VISUAL_NOT_FOUND', 'Visuel introuvable.');
+    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, no-store' });
+    return res.send(picture);
+  });
+
   const pdf = guarded(async (req, res) => {
     const order = orderOf(req, req.query.token);
     const voucher = vouchers.findByOrderId(order.id);
@@ -307,7 +327,7 @@ function buildPublicOrdersController({
   });
 
   return {
-    read, price, link, visual, logo, create, pay, status, pdf,
+    read, price, link, visual, logo, create, pay, status, front, pdf,
   };
 }
 
