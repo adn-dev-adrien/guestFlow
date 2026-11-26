@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon séjour — carte « Pratique » (commerces et déchets) — résumé de spec</title>
+<style>
+:root{
+  --paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--ink-soft:#5C6153;--sapin:#2E3B2A;--lichen:#5A6B48;--ocre:#B87B2A;--ocre-ink:#8A5816;
+  --action:#9A6318;--on-action:#fff;--line:#DCD4C2;--chip:#EDE5D4;--ctl:#857D6B;--ok:#2F6A43;--ok-soft:#E6EFE7;--warn:#6F5112;--warn-soft:#F6EDD7;
+  --bad:#A8433A;--bad-soft:#F7E8E5;--float:0 12px 32px rgba(22,28,22,.22);--map:#EAE4D3;--road:#FFFFFF;--water:#BFD3D6;--village:#DED5BF;
+  --display:Georgia,'Times New Roman',serif;--body:'Helvetica Neue',Helvetica,Arial,sans-serif;--ease:cubic-bezier(.22,1,.36,1);--sheet:cubic-bezier(.32,.72,0,1)
+}
+.night{
+  --paper:#161C16;--card:#1F261E;--ink:#EFE8D6;--ink-soft:#A9AE9C;--sapin:#EFE8D6;--lichen:#9DB087;--ocre:#E8C286;--ocre-ink:#E8C286;
+  --action:#E8C286;--on-action:#161C16;--line:#2E362C;--chip:#273026;--ctl:#727C6C;--ok:#8FCB9F;--ok-soft:#1E3324;--warn:#E8C286;--warn-soft:#3A2F17;
+  --bad:#F0A39B;--bad-soft:#3A1F1C;--float:0 12px 32px rgba(0,0,0,.55);--map:#222A21;--road:#3A4437;--water:#2B4045;--village:#2D352B
+}
+*{box-sizing:border-box}
+body{margin:0;background:#ECE6D8;color:#22271F;font:15px/1.5 var(--body)}
+.doc{max-width:1180px;margin:0 auto;padding:32px 20px 80px}
+.doc h1{font:400 34px/1.15 var(--display);margin:0 0 6px}
+.doc h2{font:400 24px/1.2 var(--display);margin:44px 0 12px}
+.eb{font:700 11.5px/1.2 var(--body);text-transform:uppercase;letter-spacing:.32em;color:#8A5816;margin:0 0 8px}
+.lede{color:#5C6153;max-width:760px;margin:0}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:20px}
+.box{background:#FDFAF3;border:1px solid #DCD4C2;border-radius:4px;padding:14px 16px}
+.box h3{margin:0 0 6px;font:700 12px/1.2 var(--body);text-transform:uppercase;letter-spacing:.14em;color:#5A6B48}
+.box p,.box ul{margin:0;font-size:14px;color:#3a3f35}
+.box ul{padding-left:18px}
+.stage{display:grid;grid-template-columns:400px 1fr;gap:28px;align-items:start}
+@media (max-width:900px){.stage{grid-template-columns:1fr}}
+.side{display:grid;gap:14px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ctl label{display:inline-flex;gap:6px;align-items:center;font-size:14px;background:#FDFAF3;border:1px solid #DCD4C2;border-radius:999px;padding:6px 12px;cursor:pointer}
+.ctl select{font:inherit;padding:4px 6px;border-radius:2px;border:1px solid #857D6B;background:#fff}
+.note{font-size:13px;color:#5C6153}
+
+/* Phone */
+.phone{width:390px;max-width:100%;height:780px;border-radius:38px;background:#111;padding:12px;box-shadow:0 30px 60px rgba(0,0,0,.25);position:relative}
+.app{width:100%;height:100%;border-radius:28px;overflow:hidden;background:var(--paper);color:var(--ink);position:relative;display:flex;flex-direction:column;font:15px/1.45 var(--body)}
+.bar{display:flex;align-items:center;gap:6px;padding:14px 12px 10px;background:var(--card);border-bottom:1px solid var(--line);min-height:56px}
+.bar h2{font:400 20px/1.1 var(--display);margin:0;flex:1;color:var(--ink)}
+.ib{width:44px;height:44px;border:0;background:none;color:var(--ink);display:grid;place-items:center;border-radius:50%;cursor:pointer}
+.ib:focus-visible,.chip:focus-visible,.btn:focus-visible,.tile:focus-visible,.row:focus-visible,.seg button:focus-visible{outline:2px solid var(--ocre);outline-offset:2px}
+.ib svg{width:22px;height:22px}
+.scroll{flex:1;overflow:auto;position:relative}
+.hero{height:170px;background:linear-gradient(to top,rgba(10,14,10,.78),rgba(10,14,10,.12)),linear-gradient(135deg,#55704a,#2E3B2A 60%,#B87B2A);color:#fff;padding:18px;display:flex;flex-direction:column;justify-content:flex-end}
+.hero .eb{color:#E8C286}
+.hero b{font:400 26px/1.1 var(--display)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:16px}
+.tile{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:4px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font:600 13px/1.2 var(--body);color:var(--ink);cursor:pointer;text-align:center;padding:6px;transition:transform .14s var(--ease)}
+.tile:active{transform:scale(.97)}
+.tile svg{width:27px;height:27px;color:var(--lichen)}
+.tile.new{border-color:var(--ocre);box-shadow:0 0 0 3px rgba(184,123,42,.18)}
+.tile.dim{opacity:.45;cursor:default}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:10px 12px 8px;scrollbar-width:none;background:var(--card);border-bottom:1px solid var(--line)}
+.chips::-webkit-scrollbar{display:none}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 13px;border-radius:999px;border:1px solid var(--ctl);background:var(--card);color:var(--ink);font:600 13.5px var(--body);white-space:nowrap;flex:none;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.chip i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.chip small{font-weight:500;opacity:.75}
+.seg{display:flex;margin:8px 12px 0;border:1px solid var(--ctl);border-radius:2px;overflow:hidden}
+.seg button{flex:1;min-height:36px;border:0;background:var(--card);color:var(--ink);font:600 13.5px var(--body);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.mapwrap{position:absolute;inset:0;background:var(--map);touch-action:none;overflow:hidden}
+.mapwrap svg.map{width:100%;height:100%;display:block;cursor:grab}
+.mapwrap svg.map:active{cursor:grabbing}
+.mapctl{position:absolute;right:10px;top:10px;display:grid;gap:6px;z-index:3}
+.mapctl button{width:44px;height:44px;border-radius:4px;border:1px solid var(--line);background:var(--card);color:var(--ink);display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.mapctl svg{width:20px;height:20px}
+.attrib{position:absolute;left:6px;bottom:4px;font-size:10px;color:var(--ink-soft);background:color-mix(in srgb,var(--card) 80%,transparent);padding:1px 5px;border-radius:2px;z-index:2}
+.mk{cursor:pointer}
+.mk circle.b{stroke:#fff;stroke-width:2}
+.night .mk circle.b{stroke:#161C16}
+.mk.sel circle.b{stroke:var(--ocre);stroke-width:3.5}
+.mk text{font:700 12px var(--body);fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.lbl{font:600 11px var(--body);fill:var(--ink-soft);text-anchor:middle;pointer-events:none;letter-spacing:.04em}
+.home-mk text{font:700 9px var(--body)}
+.list{padding:6px 0 20px}
+.list h4{margin:14px 16px 4px;font:700 11.5px/1.2 var(--body);text-transform:uppercase;letter-spacing:.2em;color:var(--ocre-ink)}
+.row{display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;color:var(--ink);font:inherit}
+.row .dot{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff}
+.row .dot svg{width:18px;height:18px}
+.row b{display:block;font-size:15px}
+.row span{font-size:13px;color:var(--ink-soft)}
+.row .st{margin-left:auto;text-align:right;font-size:12.5px;white-space:nowrap}
+.open{color:var(--ok)} .closed{color:var(--bad)} .unk{color:var(--ink-soft)}
+.empty{padding:40px 24px;text-align:center;color:var(--ink-soft)}
+.empty b{display:block;color:var(--ink);font:400 19px var(--display);margin-bottom:6px}
+.banner{margin:10px 12px 0;padding:10px 12px;border-radius:4px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;display:flex;gap:8px;align-items:flex-start}
+.banner svg{width:18px;height:18px;flex:none;margin-top:1px}
+.scrim{position:absolute;inset:0;background:rgba(10,14,10,.32);z-index:10;opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:11;background:var(--card);border-radius:16px 16px 0 0;padding:8px 20px 26px;box-shadow:var(--float);transform:translateY(105%);transition:transform .32s var(--sheet);max-height:74%;overflow:auto}
+.sheet.on{transform:none}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.sheet h3{font:400 23px/1.15 var(--display);margin:2px 0 4px}
+.sheet .meta{font-size:13.5px;color:var(--ink-soft);margin:0 0 10px}
+.badge{display:inline-flex;align-items:center;gap:6px;font:700 11px var(--body);text-transform:uppercase;letter-spacing:.12em;color:var(--ocre-ink)}
+.badge i{width:9px;height:9px;border-radius:50%}
+.status{font-size:14.5px;margin:0 0 10px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.tag{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--chip);color:var(--ink)}
+.hours{width:100%;border-collapse:collapse;font-size:13.5px;margin:0 0 12px}
+.hours td{padding:3px 0;border-bottom:1px dashed var(--line)}
+.hours td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.hours tr.today td{font-weight:700}
+.sheet p.txt{margin:0 0 12px;color:var(--ink-soft);font-size:14px}
+.acts{display:flex;gap:8px}
+.btn{flex:1;min-height:46px;border-radius:2px;border:1px solid var(--action);background:var(--action);color:var(--on-action);font:700 14.5px var(--body);display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--ctl)}
+.btn svg{width:18px;height:18px}
+.chooser{display:grid;gap:8px;margin-top:4px}
+.chooser a{display:flex;align-items:center;gap:12px;min-height:50px;padding:0 14px;border:1px solid var(--line);border-radius:4px;color:var(--ink);text-decoration:none;font-weight:600}
+.chooser a small{margin-left:auto;color:var(--ink-soft);font-weight:400}
+.chooser .ico{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;font:700 13px var(--body)}
+.toast{position:absolute;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--sapin);color:var(--paper);padding:10px 16px;border-radius:999px;font-size:13.5px;opacity:0;transition:.25s;z-index:20;white-space:nowrap;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.page{padding:18px}
+.page h3{font:400 24px/1.15 var(--display);margin:0 0 10px}
+.page p{margin:0 0 12px;color:var(--ink-soft)}
+.callout{border-left:3px solid var(--ocre);background:var(--card);padding:10px 12px;margin:0 0 14px;font-size:14px}
+.tabbar{display:flex;border-top:1px solid var(--line);background:var(--card)}
+.tabbar button{flex:1;min-height:56px;border:0;background:none;color:var(--ink-soft);font:600 11px var(--body);display:grid;place-items:center;gap:2px;cursor:pointer;padding:6px 0}
+.tabbar button[aria-current="page"]{color:var(--ocre-ink)}
+.tabbar svg{width:22px;height:22px}
+.me{fill:#2a78d6;stroke:#fff;stroke-width:3}
+.me-halo{fill:rgba(42,120,214,.18)}
+
+/* Studio */
+.studio{background:#fff;border:1px solid #DCD4C2;border-radius:6px;overflow:hidden}
+.studio header{background:#2E3B2A;color:#F5F0E6;padding:10px 14px;font:600 14px var(--body);display:flex;justify-content:space-between;align-items:center}
+.studio .in{padding:14px;display:grid;gap:12px}
+.f{display:grid;gap:4px}
+.f label{font:600 13px var(--body)}
+.f input,.f select{font:inherit;min-height:40px;padding:6px 10px;border:1px solid #857D6B;border-radius:2px;background:#fff;color:#22271F}
+.f input[aria-invalid="true"],.f select[aria-invalid="true"]{border-color:#A8433A;background:#FBF1EF}
+.f .help{font-size:12.5px;color:#5C6153}
+.f .err{font-size:13px;color:#A8433A;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.checks label{font:500 13px var(--body);border:1px solid #DCD4C2;border-radius:999px;padding:5px 10px;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.sbtn{min-height:40px;padding:0 16px;border-radius:2px;border:1px solid #9A6318;background:#9A6318;color:#fff;font:700 14px var(--body);cursor:pointer}
+.ok-msg{font-size:13.5px;color:#2F6A43;font-weight:600}
+.counts{width:100%;border-collapse:collapse;font-size:13.5px}
+.counts td{padding:6px 4px;border-bottom:1px solid #EDE5D4}
+.counts td:nth-child(2){text-align:right;font-variant-numeric:tabular-nums}
+.counts .hid{color:#A8433A;font-size:12.5px}
+
+/* Questions */
+.q{background:#FDFAF3;border:1px solid #DCD4C2;border-radius:4px;padding:16px 18px;margin-bottom:12px}
+.q h3{margin:0 0 4px;font:700 15px var(--body)}
+.q p{margin:0 0 10px;font-size:13.5px;color:#5C6153}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid transparent;border-radius:4px;cursor:pointer}
+.opt:hover{background:#F5F0E6}
+.opt input{margin-top:4px}
+.opt b{font-size:14.5px}
+.opt span{display:block;font-size:13px;color:#5C6153}
+.opt:has(input:checked){border-color:#B87B2A;background:#FBF4E6}
+.rec{font:700 10.5px var(--body);color:#2F6A43;text-transform:uppercase;letter-spacing:.1em;margin-left:6px}
+.copy{display:grid;gap:8px}
+.copy textarea{width:100%;min-height:200px;font:13px/1.5 ui-monospace,Menlo,monospace;padding:12px;border:1px solid #DCD4C2;border-radius:4px;background:#fff}
+table.data{width:100%;border-collapse:collapse;font-size:13.5px;background:#FDFAF3;border:1px solid #DCD4C2}
+table.data th,table.data td{padding:7px 10px;border-bottom:1px solid #EDE5D4;text-align:left;vertical-align:top}
+table.data th{font:700 11.5px var(--body);text-transform:uppercase;letter-spacing:.1em;color:#5A6B48}
+.flag{color:#A8433A;font-weight:600}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="eb">GuestFlow · Mon séjour · spec à valider · 26/11/2026</p>
+  <h1>Une carte « Pratique » : où acheter son pain, où jeter ses poubelles</h1>
+  <p class="lede">Spec de référence : <code>specs/guest-app/guest-app-local-amenities.md</code>. Cette page la résume et sert à trancher les points ouverts : la maquette réagit à chaque choix.</p>
+
+  <h2 class="sr">Résumé</h2>
+  <div class="grid4">
+    <div class="box"><h3>Constat</h3><p>Les clients demandent où sont la boulangerie, la pharmacie et les conteneurs. Soliomap ne recense que des <em>activités</em> : ses 8 catégories sont fermées et vont avec un temps de trajet et un tarif, ce qui n'a pas de sens pour une boulangerie. Le livret n'a que des blocs « Lieu » isolés, sans carte ni filtre.</p></div>
+    <div class="box"><h3>Ce qu'on propose</h3><ul><li>Une page <b>Pratique</b> dans l'appli : carte, filtres par catégorie, fiche du lieu, « Itinéraire » vers le GPS du téléphone.</li><li>Une tuile d'accueil (module activable par logement) et un bouton depuis la page de livret « Le domaine ».</li><li>Les lieux sont saisis dans le Studio, en commun pour tout le domaine.</li></ul></div>
+    <div class="box"><h3>Ce qu'on ne fait pas</h3><ul><li>Pas de calcul d'itinéraire dans l'appli : c'est le GPS du téléphone qui guide.</li><li>Pas d'import automatique depuis OSM : on s'en sert une fois pour amorcer la liste, puis tu la vérifies.</li><li>Rien ne change dans Soliomap.</li></ul></div>
+    <div class="box"><h3>Risques</h3><ul><li><b>Données périmées</b> : un commerce ferme, des horaires changent. D'où la date « vérifié le » de chaque lieu.</li><li><b>Réseau faible</b> : le fond de carte se charge en ligne. Hors connexion, la liste reste lisible.</li><li>Nouvelle dépendance : Leaflet (environ 40 ko gzip), déjà utilisée par Soliomap.</li></ul></div>
+  </div>
+
+  <h2>Essayer</h2>
+  <div class="stage">
+    <div>
+      <div class="phone"><div class="app" id="app">
+        <div class="bar" id="bar"></div>
+        <div class="scroll" id="screen"></div>
+        <nav class="tabbar" id="tabbar"></nav>
+        <div class="scrim" id="scrim"></div>
+        <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div>
+        <div class="toast" id="toast" role="status"></div>
+      </div></div>
+    </div>
+    <div class="side">
+      <div class="box">
+        <h3>Conditions de l'essai</h3>
+        <div class="ctl">
+          <label><input type="checkbox" id="offline"> Hors connexion</label>
+          <label><input type="checkbox" id="night"> Nuit</label>
+          <label>Heure simulée
+            <select id="clock">
+              <option value="2:9:30">mardi 9 h 30</option>
+              <option value="2:14:15">mardi 14 h 15</option>
+              <option value="1:8:00">lundi 8 h</option>
+              <option value="0:15:00">dimanche 15 h</option>
+              <option value="6:19:30">samedi 19 h 30</option>
+            </select>
+          </label>
+        </div>
+        <p class="note" style="margin-top:10px">À tester : la tuile <b>Pratique</b> sur l'accueil, les filtres (plusieurs à la fois), un regroupement « 6 » dans Satillieu (on zoome en le touchant), une fiche puis « Itinéraire ». Le bouton « Livret » mène à la page <i>Le domaine</i> et à son lien vers les points de collecte. Hors connexion, la carte cède la place à la liste.</p>
+        <p class="note">Fond de carte <b>dessiné à la main</b> pour que la page s'ouvre sans réseau. L'appli affiche les tuiles OpenStreetMap. Les positions des lieux, elles, sont réelles (OSM, à vérifier).</p>
+      </div>
+
+      <div class="studio">
+        <header><span>Studio · Pratique · Ajouter un lieu</span><span style="opacity:.7;font-weight:400">commun à tout le domaine</span></header>
+        <form class="in" id="studioForm" novalidate>
+          <div class="f"><label for="sName">Nom</label><input id="sName" placeholder="Boulangerie du village" autocomplete="off"><span class="err" id="eName" hidden></span></div>
+          <div class="two">
+            <div class="f"><label for="sCat">Catégorie</label><select id="sCat"></select></div>
+            <div class="f"><label for="sCommune">Commune</label><select id="sCommune"><option>Satillieu</option><option>Saint-Romain-d'Ay</option><option>Saint-Alban-d'Ay</option><option>Autre</option></select></div>
+          </div>
+          <div class="f"><label for="sPos">Position</label><input id="sPos" placeholder="45.1502, 4.6151  ou  lien Google Maps" autocomplete="off"><span class="help">Collez des coordonnées ou un lien Google Maps (« Partager » depuis l'appli). On ne saisit pas d'adresse : le serveur ne géocode pas.</span><span class="err" id="ePos" hidden></span></div>
+          <div class="f" id="fAccepts" hidden><label>Ce qu'on peut y déposer</label><div class="checks" id="sAccepts"></div><span class="err" id="eAcc" hidden></span></div>
+          <div class="f"><label for="sPhone">Téléphone <span style="font-weight:400;color:#5C6153">(facultatif)</span></label><input id="sPhone" placeholder="04 75 …" inputmode="tel"><span class="err" id="ePhone" hidden></span></div>
+          <div style="display:flex;gap:10px;align-items:center"><button class="sbtn" type="submit">Ajouter</button><span class="ok-msg" id="sOk" role="status"></span></div>
+          <p class="note" style="margin:0">Essayez : un nom vide, « 48.85, 2.35 » (Paris), un texte quelconque, un lien comme <code>https://www.google.com/maps/place/@45.1499,4.6149,17z</code>, une catégorie Déchets sans rien cocher.</p>
+          <table class="counts" id="counts"></table>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <h2>Arbitrages</h2>
+  <p class="lede" style="margin-bottom:14px">Chaque choix modifie la maquette. Le premier choix de chaque question est ma recommandation.</p>
+  <div id="questions"></div>
+  <div class="copy">
+    <textarea id="summary" readonly aria-label="Résumé des choix"></textarea>
+    <div><button class="sbtn" id="copyBtn" type="button">Copier</button> <span class="ok-msg" id="copyOk" role="status"></span></div>
+  </div>
+
+  <h2>Données de départ (OpenStreetMap, 26/11) — à vérifier</h2>
+  <p class="lede" style="margin-bottom:12px">Extraites une fois pour amorcer le Studio. OSM est incomplet ici : la saisie finale, c'est toi.</p>
+  <table class="data" id="dataTable"></table>
+  <h3 class="sr">Trous constatés</h3>
+  <div class="grid4">
+    <div class="box"><h3>Trous constatés</h3><ul>
+      <li class="flag">Aucun tabac-presse recensé à Satillieu, Saint-Romain-d'Ay ou Saint-Alban-d'Ay.</li>
+      <li>OSM liste à Satillieu un Casino, un Spar et deux « L'Ardéchoise » : il est probable qu'ils ne soient pas tous ouverts.</li>
+      <li>Points de collecte : seulement 3 dans la zone, sans le détail exact des bacs. La liste officielle d'Annonay Rhône Agglo serait plus fiable.</li>
+      <li>Horaires connus pour 2 lieux seulement.</li>
+    </ul></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const DOMAIN={lat:45.16369,lng:4.63184};
+const LNG0=4.565,LAT0=45.198,KX=78.6,KY=111.2;
+const proj=(lat,lng)=>({x:(lng-LNG0)*KX,y:(LAT0-lat)*KY});
+const FULL={x:0,y:0,w:(4.678-LNG0)*KX,h:(LAT0-45.136)*KY};
+
+const G={
+  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  bread:'<path d="M4 15c0-5 4-9 8-9s8 4 8 9v3H4z"/><path d="M9 9l2 4M13 8l2 4"/>',
+  cross:'<path d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/>',
+  meat:'<path d="M15 4c3 0 5 2 5 5 0 5-6 11-11 11-3 0-5-2-5-5 0-6 6-11 11-11z"/><circle cx="15" cy="9" r="1.6"/>',
+  paper:'<path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+  basket:'<path d="M3 10h18l-2 10H5z"/><path d="M8 10l4-6 4 6"/>',
+  recycle:'<path d="M7 19H4l3-5M17 19h3l-3-5M12 4l-2 3h4z"/><path d="M7 14l5-7 5 7"/>',
+  bin:'<path d="M5 8h14l-1 12H6z"/><path d="M4 8h16M9 5h6"/>',
+  depot:'<path d="M3 20V9l9-5 9 5v11"/><path d="M8 20v-6h8v6"/>'
+};
+const svg=(p,s)=>`<svg viewBox="0 0 24 24" width="${s||20}" height="${s||20}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I={
+  back:'<path d="M15 18l-6-6 6-6"/>',home:'<path d="M3 11l9-7 9 7v9H3z"/>',book:'<path d="M4 4h7a3 3 0 013 3v13a2 2 0 00-2-2H4zM20 4h-7a3 3 0 00-3 3v13a2 2 0 012-2h8z"/>',
+  pin:'<path d="M12 21s-7-6.2-7-12a7 7 0 0114 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  gate:'<path d="M4 20V8M20 20V8M4 10h16M4 15h16M9 10v10M15 10v10"/>',wifi:'<path d="M2 8.5a15 15 0 0120 0M5.5 12a10 10 0 0113 0M9 15.5a5 5 0 016 0"/><circle cx="12" cy="19" r="1"/>',
+  shop:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 016 0"/>',bath:'<path d="M4 12h16v3a5 5 0 01-5 5H9a5 5 0 01-5-5z"/><path d="M7 12V6a2 2 0 014 0"/>',
+  map:'<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',
+  target:'<circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',locate:'<path d="M3 11l18-8-8 18-2-8z"/>',
+  phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2"/>',nav:'<path d="M3 11l18-8-8 18-2-8z"/>',
+  off:'<path d="M2 2l20 20M8.5 16.5a5 5 0 017 0M5 13a10 10 0 015.2-2.8M2 9.5a15 15 0 014.6-2.8M17.6 12.6A10 10 0 0119 13M22 9.5a15 15 0 00-9.6-4"/>',
+  close:'<path d="M6 6l12 12M18 6L6 18"/>',list:'<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'
+};
+
+const CATS={
+  dechets:{fr:'Déchets',color:'#4E6B3A',glyph:G.trash},
+  boulangerie:{fr:'Boulangeries',one:'Boulangerie',color:'#B0691A',glyph:G.bread},
+  pharmacie:{fr:'Pharmacie',one:'Pharmacie',color:'#1F7A6A',glyph:G.cross},
+  boucherie:{fr:'Boucheries',one:'Boucherie',color:'#A8433A',glyph:G.meat},
+  tabac:{fr:'Tabac-presse',one:'Tabac-presse',color:'#5B4BA7',glyph:G.paper},
+  epicerie:{fr:'Épiceries',one:'Épicerie',color:'#2A6BB8',glyph:G.basket}
+};
+const WASTE_SPLIT={
+  om:{fr:'Ordures ménagères',color:'#4E6B3A',glyph:G.bin,test:p=>p.accepts&&p.accepts.includes('om')},
+  tri:{fr:'Tri et verre',color:'#3F7F55',glyph:G.recycle,test:p=>p.accepts&&p.accepts.some(a=>['emballages','verre','papier'].includes(a))},
+  decheterie:{fr:'Déchèterie',color:'#6B5A3A',glyph:G.depot,test:p=>p.kind==='decheterie'}
+};
+const ACCEPT_LABEL={om:'Ordures ménagères',emballages:'Emballages',verre:'Verre',papier:'Papier',textile:'Textile',vegetaux:'Végétaux',encombrants:'Encombrants'};
+const DAYS=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+const DSHORT=['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+
+// hours: index 0=dim … 6=sam ; each = list of [open, close] in minutes
+const h=(a,b)=>{const m=s=>{const[x,y]=s.split(':').map(Number);return x*60+y};return [m(a),m(b)]};
+let PLACES=[
+  {id:'roux',cat:'boulangerie',name:'Maison Roux',commune:'Satillieu',lat:45.15123,lng:4.6163,src:'OSM'},
+  {id:'central',cat:'boulangerie',name:'Le Central',commune:'Satillieu',lat:45.15062,lng:4.61463,src:'OSM'},
+  {id:'fournil',cat:'boulangerie',name:'Le Fournil de Saint-Romain',commune:"Saint-Romain-d'Ay",lat:45.16454,lng:4.66184,src:'OSM',note:'Avenue de Praperrier.'},
+  {id:'alban-pain',cat:'boulangerie',name:"Boulangerie de Saint-Alban",commune:"Saint-Alban-d'Ay",lat:45.18909,lng:4.63927,src:'OSM (sans nom)',
+    hours:[[h('07:00','12:30')],[],[h('07:00','13:00'),h('15:00','18:30')],[h('07:00','12:30')],[h('07:00','13:00'),h('15:00','18:30')],[h('07:00','13:00'),h('15:00','18:30')],[h('07:00','13:00'),h('15:00','18:30')]]},
+  {id:'foucart',cat:'pharmacie',name:'Pharmacie Foucart',commune:'Satillieu',lat:45.15109,lng:4.61628,src:'OSM',note:'Pharmacie de garde : composer le 3237.'},
+  {id:'crouzet',cat:'boucherie',name:'Boucherie Crouzet',commune:'Satillieu',lat:45.15138,lng:4.61563,src:'OSM'},
+  {id:'spar',cat:'epicerie',name:'Spar',commune:'Satillieu',lat:45.15042,lng:4.61476,src:'OSM',
+    hours:[[h('06:30','12:00')],[h('06:30','13:00'),h('14:00','18:30')],[h('06:30','13:00'),h('14:00','18:30')],[h('06:30','13:00')],[],[h('06:30','13:00'),h('14:00','18:30')],[h('06:30','13:00'),h('14:00','18:30')]]},
+  {id:'jardin',cat:'epicerie',name:'Le Jardin Ardéchois',commune:'Satillieu',lat:45.15015,lng:4.61401,src:'OSM'},
+  {id:'pav-sat',cat:'dechets',kind:'pav',name:'Point de collecte — route de Lalouvesc',commune:'Satillieu',lat:45.14275,lng:4.60112,accepts:['om','emballages','verre','papier'],src:'OSM'},
+  {id:'pav-sat-o',cat:'dechets',kind:'pav',name:'Point de collecte — ouest du village',commune:'Satillieu',lat:45.15729,lng:4.57867,accepts:['om','verre','papier'],src:'OSM'},
+  {id:'pav-est',cat:'dechets',kind:'pav',name:'Point de collecte — D578',commune:'à vérifier',lat:45.1513,lng:4.64239,accepts:['om','emballages','verre','papier','vegetaux'],src:'OSM'},
+  {id:'decheterie',cat:'dechets',kind:'decheterie',name:"Déchèterie de Saint-Alban-d'Ay",commune:"Saint-Alban-d'Ay",lat:45.16896,lng:4.63529,accepts:['encombrants','vegetaux','verre','papier','textile'],src:'OSM',note:'Gratuite pour les particuliers. Horaires à compléter.'}
+];
+
+const state={screen:'home',filters:new Set(),view:'map',vb:{...FULL},selected:null,chooser:false,me:false,flash:null,
+  answers:{name:'pratique',gps:'chooser',waste:'one',hours:'structured',view:'map',distance:'crow',me:'yes',extra:[]}};
+
+const $=s=>document.querySelector(s);
+const app=$('#app');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const NAMES={pratique:{fr:'Pratique'},autour:{fr:'Au village'},commerces:{fr:'Commerces & déchets'}};
+const title=()=>NAMES[state.answers.name].fr;
+
+function km(a,b){const R=6371,r=x=>x*Math.PI/180;const dLa=r(b.lat-a.lat),dLo=r(b.lng-a.lng);const q=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(q))}
+function distLabel(p){
+  const d=km(DOMAIN,p);
+  if(state.answers.distance==='none')return '';
+  if(state.answers.distance==='drive'){const m=Math.max(2,Math.round(d*1.45/0.8+1));return `${m} min en voiture`}
+  return d<1?`${Math.round(d*1000/50)*50} m du domaine`:`${d.toFixed(1).replace('.',',')} km du domaine`;
+}
+function now(){const[d,hh,mm]=$('#clock').value.split(':').map(Number);return{d,m:hh*60+mm}}
+const fmt=m=>{const H=Math.floor(m/60),M=m%60;return M?`${H} h ${String(M).padStart(2,'0')}`:`${H} h`};
+function status(p){
+  if(state.answers.hours==='none')return null;
+  if(!p.hours)return{cls:'unk',txt:state.answers.hours==='text'?'Horaires : voir la fiche':'Horaires non renseignés'};
+  if(state.answers.hours==='text')return{cls:'unk',txt:'Horaires indicatifs'};
+  const{d,m}=now();
+  const today=p.hours[d]||[];
+  for(const[o,c]of today){if(m>=o&&m<c)return{cls:'open',txt:`Ouvert · ferme à ${fmt(c)}`}}
+  const later=today.find(([o])=>o>m);
+  if(later)return{cls:'closed',txt:`Fermé · ouvre à ${fmt(later[0])}`};
+  for(let k=1;k<=7;k++){const dd=(d+k)%7;const r=p.hours[dd]||[];if(r.length)return{cls:'closed',txt:`Fermé · ouvre ${k===1?'demain':DSHORT[dd]} à ${fmt(r[0][0])}`}}
+  return{cls:'closed',txt:'Fermé'};
+}
+
+function groups(){
+  if(state.answers.waste==='split'){
+    const g=[];
+    for(const[k,w]of Object.entries(WASTE_SPLIT))g.push({key:k,label:w.fr,color:w.color,glyph:w.glyph,test:w.test});
+    for(const[k,c]of Object.entries(CATS))if(k!=='dechets')g.push({key:k,label:c.fr,color:c.color,glyph:c.glyph,test:p=>p.cat===k});
+    return g;
+  }
+  return Object.entries(CATS).map(([k,c])=>({key:k,label:c.fr,color:c.color,glyph:c.glyph,test:p=>p.cat===k}));
+}
+const visibleGroups=()=>groups().filter(g=>PLACES.some(g.test));
+function look(p){
+  if(state.answers.waste==='split'&&p.cat==='dechets'){const k=p.kind==='decheterie'?'decheterie':(p.accepts.includes('om')?'om':'tri');const w=WASTE_SPLIT[k];return{color:w.color,glyph:w.glyph,label:w.fr}}
+  const c=CATS[p.cat];return{color:c.color,glyph:c.glyph,label:c.one||c.fr};
+}
+function shown(){
+  if(!state.filters.size)return PLACES;
+  const gs=groups().filter(g=>state.filters.has(g.key));
+  return PLACES.filter(p=>gs.some(g=>g.test(p)));
+}
+
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2200)}
+
+/* ---------- screens ---------- */
+function renderBar(){
+  const bar=$('#bar');
+  if(state.screen==='home'){bar.innerHTML=`<h2 style="padding-left:6px">Mon séjour</h2>`;return}
+  const t=state.screen==='booklet'?'Le domaine':title();
+  bar.innerHTML=`<button class="ib" aria-label="Retour" data-go="home">${svg(I.back)}</button><h2>${esc(t)}</h2>`;
+}
+function renderTabs(){
+  const tabs=[['home','Accueil',I.home],['booklet','Livret',I.book],['places',title(),I.map]];
+  $('#tabbar').innerHTML=tabs.map(([k,l,i])=>`<button data-go="${k}" ${state.screen===k?'aria-current="page"':''}>${svg(i)}<span>${esc(l)}</span></button>`).join('');
+}
+function renderHome(){
+  const tiles=[['Portail',I.gate],['Wifi',I.wifi],['Boutique',I.shop],['Bain nordique',I.bath],['Activités',I.pin],[title(),I.map,'places'],['Livret',I.book,'booklet']];
+  return `<div class="hero"><p class="eb">La Granja · Jour 2 sur 4</p><b>Bonjour Marie</b></div>
+  <div class="tiles">${tiles.map(([l,i,go])=>`<button class="tile ${go==='places'?'new':''} ${go?'':'dim'}" ${go?`data-go="${go}"`:'aria-disabled="true"'}>${svg(i,27)}<span>${esc(l)}</span></button>`).join('')}</div>
+  <p class="note" style="padding:0 18px;color:var(--ink-soft)">Tuile entourée : le nouveau module, placé par défaut après « Activités ». Les autres tuiles sont inactives dans la maquette.</p>`;
+}
+function renderBooklet(){
+  return `<div class="page"><h3>Le domaine</h3>
+  <p>Merci de respecter le calme du domaine après 22 h. Les animaux sont les bienvenus en laisse.</p>
+  <div class="callout"><b>Tri des déchets</b><br>Il n'y a pas de ramassage au domaine. Les ordures ménagères, les emballages et le verre vont aux points de collecte du village.</div>
+  <button class="btn" data-go="places" data-preset="dechets">${svg(I.map)} Voir les points de collecte</button>
+  <p class="note" style="margin-top:12px">Bloc « Bouton » existant, avec une cible nouvelle : <code>{ kind:'places', category:'dechets' }</code>. La page s'ouvre avec le filtre déjà posé.</p></div>`;
+}
+function renderPlaces(){
+  const off=$('#offline').checked;
+  const gs=visibleGroups();
+  const counts=Object.fromEntries(gs.map(g=>[g.key,PLACES.filter(g.test).length]));
+  let html=`<div style="position:sticky;top:0;z-index:4"><div class="chips" role="toolbar" aria-label="Filtrer par catégorie">
+    <button class="chip" data-f="*" aria-pressed="${!state.filters.size}">Tout</button>
+    ${gs.map(g=>`<button class="chip" data-f="${g.key}" aria-pressed="${state.filters.has(g.key)}"><i style="background:${g.color}"></i>${esc(g.label)} <small>${counts[g.key]}</small></button>`).join('')}
+  </div>`;
+  if(!off)html+=`<div class="seg" role="group" aria-label="Affichage"><button data-v="map" aria-pressed="${state.view==='map'}">Carte</button><button data-v="list" aria-pressed="${state.view==='list'}">Liste</button></div>`;
+  html+=`</div>`;
+  if(off)html+=`<div class="banner">${svg(I.off)}<span>Pas de connexion : la carte ne peut pas se charger. La liste et les itinéraires restent disponibles, le GPS du téléphone fonctionne sans réseau s'il a ses cartes.</span></div>`;
+  const list=shown();
+  if(!list.length)return html+`<div class="empty"><b>Rien dans ce filtre</b>Aucun lieu ne correspond. <br><br><button class="btn ghost" data-f="*" style="max-width:200px;margin:0 auto">Tout afficher</button></div>`;
+  if(off||state.view==='list')return html+renderList(list);
+  return html+`<div id="mapHost" style="position:relative;height:calc(100% - 100px);min-height:470px"></div>`;
+}
+function renderList(list){
+  const byG=new Map();
+  for(const p of list){const l=look(p).label;if(!byG.has(l))byG.set(l,[]);byG.get(l).push(p)}
+  let out='<div class="list">';
+  for(const[l,ps]of byG){
+    out+=`<h4>${esc(l)}</h4>`;
+    ps.sort((a,b)=>km(DOMAIN,a)-km(DOMAIN,b));
+    for(const p of ps){const lk=look(p),st=status(p);const d=distLabel(p);
+      out+=`<button class="row" data-p="${p.id}"><span class="dot" style="background:${lk.color}">${svg(lk.glyph,18)}</span><span><b>${esc(p.name)}</b><span>${esc(p.commune)}${d?' · '+esc(d):''}</span></span>${st?`<span class="st ${st.cls}">${esc(st.txt.split(' · ')[0])}</span>`:''}</button>`}
+  }
+  return out+'</div>';
+}
+
+/* ---------- map ---------- */
+let mapEl=null;
+function drawMap(){
+  const host=$('#mapHost');if(!host)return;
+  const W=host.clientWidth||366,H=host.clientHeight||470;
+  const{x,y,w,h:hh}=fitBox(state.vb,W,H);
+  const s=w/W; // km per px
+  const P=(lat,lng)=>proj(lat,lng);
+  const road=(pts,wd)=>`<polyline points="${pts.map(([la,ln])=>{const q=P(la,ln);return q.x+','+q.y}).join(' ')}" fill="none" stroke="var(--road)" stroke-width="${wd*s}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const blob=(la,ln,r)=>{const q=P(la,ln);return `<circle cx="${q.x}" cy="${q.y}" r="${r}" fill="var(--village)"/>`};
+  const label=(la,ln,t,dy)=>{const q=P(la,ln);return `<text class="lbl" x="${q.x}" y="${q.y+(dy||0)*s}" style="font-size:${11*s}px">${t}</text>`};
+  let g=`<rect x="-5" y="-5" width="30" height="30" fill="var(--map)"/>`;
+  g+=`<path d="M${P(45.163,4.565).x},${P(45.163,4.565).y} C ${P(45.152,4.59).x},${P(45.152,4.59).y} ${P(45.148,4.61).x},${P(45.148,4.61).y} ${P(45.1505,4.62).x},${P(45.1505,4.62).y} S ${P(45.155,4.65).x},${P(45.155,4.65).y} ${P(45.14,4.678).x},${P(45.14,4.678).y}" fill="none" stroke="var(--water)" stroke-width="${5*s}"/>`;
+  g+=blob(45.1506,4.6152,.42)+blob(45.1642,4.6620,.32)+blob(45.1892,4.6392,.32);
+  g+=road([[45.157,4.565],[45.1535,4.595],[45.1506,4.6152],[45.156,4.623],[45.16369,4.63184],[45.1625,4.648],[45.1642,4.662],[45.168,4.678]],5);
+  g+=road([[45.16369,4.63184],[45.1697,4.6352],[45.178,4.636],[45.1892,4.6392],[45.196,4.645]],4);
+  g+=road([[45.1506,4.6152],[45.142,4.601],[45.136,4.598]],4);
+  g+=road([[45.1506,4.6152],[45.148,4.64],[45.1513,4.6424]],3);
+  g+=label(45.1506,4.6152,'SATILLIEU',-26)+label(45.1642,4.6620,"ST-ROMAIN-D'AY",-22)+label(45.1892,4.6392,"ST-ALBAN-D'AY",-22);
+  const dq=P(DOMAIN.lat,DOMAIN.lng);
+  g+=`<g class="home-mk"><rect x="${dq.x-13*s}" y="${dq.y-13*s}" width="${26*s}" height="${26*s}" rx="${4*s}" fill="var(--sapin)" stroke="var(--card)" stroke-width="${2*s}"/><path transform="translate(${dq.x-8*s},${dq.y-8*s}) scale(${16*s/24})" d="M3 11l9-7 9 7v9H3z" fill="none" stroke="var(--paper)" stroke-width="2.4"/><text class="lbl" x="${dq.x}" y="${dq.y+26*s}" style="font-size:${10.5*s}px;fill:var(--ink)">Domaine Solio</text></g>`;
+  if(state.me){const m=P(45.1509,4.6158);g+=`<circle class="me-halo" cx="${m.x}" cy="${m.y}" r="${22*s}"/><circle class="me" cx="${m.x}" cy="${m.y}" r="${7*s}" stroke-width="${3*s}"/>`}
+  // clusters
+  const pts=shown().map(p=>({p,q:P(p.lat,p.lng)}));
+  const R=13,thr=28*s;const used=new Set();const clusters=[];
+  const maxZoom=state.vb.w<=0.5;
+  if(maxZoom){const placed=[];for(const o of pts){let k=0;for(const q of placed)if(Math.hypot(q.q.x-o.q.x,q.q.y-o.q.y)<thr)k++;
+      if(k){const a=k*2.1;o.q={x:o.q.x+Math.cos(a)*thr*.9,y:o.q.y+Math.sin(a)*thr*.9}}placed.push(o)}}
+  for(let i=0;i<pts.length;i++){if(used.has(i))continue;const c=[pts[i]];used.add(i);if(maxZoom){clusters.push(c);continue}
+    for(let j=i+1;j<pts.length;j++){if(used.has(j))continue;if(Math.hypot(pts[i].q.x-pts[j].q.x,pts[i].q.y-pts[j].q.y)<thr){c.push(pts[j]);used.add(j)}}
+    clusters.push(c)}
+  for(const c of clusters){
+    if(c.length===1){const{p,q}=c[0];const lk=look(p);const sel=state.selected===p.id;const r=(sel?16:R)*s;
+      g+=`<g class="mk ${sel?'sel':''}" data-p="${p.id}" role="button" tabindex="0" aria-label="${esc(p.name)}, ${esc(lk.label)}"><circle class="b" cx="${q.x}" cy="${q.y}" r="${r}" fill="${lk.color}" style="stroke-width:${(sel?3.5:2)*s}"/><g transform="translate(${q.x-r*.62},${q.y-r*.62}) scale(${r*1.24/24})" stroke="#fff" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${lk.glyph}</g></g>`;
+      if(state.flash===p.id)g+=`<circle cx="${q.x}" cy="${q.y}" r="${24*s}" fill="none" stroke="var(--ocre)" stroke-width="${3*s}"><animate attributeName="r" from="${14*s}" to="${30*s}" dur="1s" repeatCount="3"/></circle>`;
+    }else{const cx=c.reduce((a,b)=>a+b.q.x,0)/c.length,cy=c.reduce((a,b)=>a+b.q.y,0)/c.length;
+      const cols=[...new Set(c.map(o=>look(o.p).color))];const r=17*s;
+      let ring='';const n=cols.length;cols.forEach((col,k)=>{const a0=k/n*2*Math.PI-Math.PI/2,a1=(k+1)/n*2*Math.PI-Math.PI/2;const rr=r+3*s;
+        ring+=n===1?`<circle cx="${cx}" cy="${cy}" r="${rr}" fill="none" stroke="${col}" stroke-width="${4*s}"/>`:`<path d="M${cx+rr*Math.cos(a0)},${cy+rr*Math.sin(a0)} A${rr},${rr} 0 0 1 ${cx+rr*Math.cos(a1)},${cy+rr*Math.sin(a1)}" fill="none" stroke="${col}" stroke-width="${4*s}"/>`});
+      g+=`<g class="mk" data-cluster="${c.map(o=>o.p.id).join(',')}" role="button" tabindex="0" aria-label="${c.length} lieux, toucher pour zoomer">${ring}<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--sapin)"/><text x="${cx}" y="${cy}" style="font-size:${13*s}px;fill:var(--paper)">${c.length}</text></g>`}
+  }
+  host.innerHTML=`<div class="mapwrap"><svg class="map" viewBox="${x} ${y} ${w} ${hh}" aria-label="Carte des lieux">${g}</svg>
+   <div class="mapctl"><button aria-label="Zoomer" data-z="in">${svg(I.plus)}</button><button aria-label="Dézoomer" data-z="out">${svg(I.minus)}</button><button aria-label="Recentrer sur le domaine" data-z="fit">${svg(I.target)}</button>${state.answers.me==='yes'?`<button aria-label="Me localiser" data-z="me">${svg(I.locate)}</button>`:''}</div>
+   <span class="attrib">© OpenStreetMap (dans l'appli)</span></div>`;
+  mapEl=host.querySelector('svg.map');
+  bindPan(mapEl,s);
+}
+function fitBox(vb,W,H){const a=W/H;let w=vb.w,h=vb.h;if(w/h>a)h=w/a;else w=h*a;return{x:vb.x+(vb.w-w)/2,y:vb.y+(vb.h-h)/2,w,h}}
+function animateTo(target){
+  const from={...state.vb};const t0=performance.now();const dur=matchMedia('(prefers-reduced-motion: reduce)').matches?0:320;
+  const step=t=>{const k=dur?Math.min(1,(t-t0)/dur):1;const e=1-Math.pow(1-k,3);
+    state.vb={x:from.x+(target.x-from.x)*e,y:from.y+(target.y-from.y)*e,w:from.w+(target.w-from.w)*e,h:from.h+(target.h-from.h)*e};drawMap();if(k<1)requestAnimationFrame(step)};
+  requestAnimationFrame(step);
+}
+function zoom(f,cx,cy){const v=state.vb;cx=cx??v.x+v.w/2;cy=cy??v.y+v.h/2;const w=Math.min(FULL.w*1.2,Math.max(.3,v.w*f)),h=w*v.h/v.w;animateTo({x:cx-w/2,y:cy-h/2,w,h})}
+function bindPan(el,s){
+  let start=null;
+  el.addEventListener('pointerdown',e=>{if(e.target.closest('.mk'))return;start={x:e.clientX,y:e.clientY,vb:{...state.vb}};el.setPointerCapture(e.pointerId)});
+  el.addEventListener('pointermove',e=>{if(!start)return;state.vb={...start.vb,x:start.vb.x-(e.clientX-start.x)*s,y:start.vb.y-(e.clientY-start.y)*s};
+    const b=fitBox(state.vb,el.clientWidth,el.clientHeight);el.setAttribute('viewBox',`${b.x} ${b.y} ${b.w} ${b.h}`)});
+  el.addEventListener('pointerup',()=>{if(start){start=null;drawMap()}});
+  el.addEventListener('wheel',e=>{e.preventDefault();zoom(e.deltaY>0?1.25:.8)},{passive:false});
+}
+
+/* ---------- sheet ---------- */
+function gpsLinks(p){
+  const ll=`${p.lat},${p.lng}`;
+  return {apple:`https://maps.apple.com/?daddr=${ll}&dirflg=d`,google:`https://www.google.com/maps/dir/?api=1&destination=${ll}`,waze:`https://waze.com/ul?ll=${ll}&navigate=yes`};
+}
+function openSheet(id){state.selected=id;state.chooser=false;renderSheet();$('#scrim').classList.add('on');$('#sheet').classList.add('on');if(state.view==='map')drawMap();setTimeout(()=>{const b=$('#sheet .btn');b&&b.focus()},330)}
+function closeSheet(){$('#scrim').classList.remove('on');$('#sheet').classList.remove('on');state.selected=null;state.chooser=false;if(state.screen==='places'&&state.view==='map')drawMap()}
+function renderSheet(){
+  const p=PLACES.find(x=>x.id===state.selected);if(!p)return;
+  const lk=look(p),st=status(p),d=distLabel(p),L=gpsLinks(p);
+  let html=`<div class="grab"></div><button class="ib" style="position:absolute;right:8px;top:6px" aria-label="Fermer" data-close>${svg(I.close)}</button>
+  <span class="badge"><i style="background:${lk.color}"></i>${esc(lk.label)}</span><h3 id="sheetTitle">${esc(p.name)}</h3><p class="meta">${esc(p.commune)}${d?' · '+esc(d):''}</p>`;
+  if(st)html+=`<p class="status ${st.cls}">${esc(st.txt)}</p>`;
+  if(p.accepts)html+=`<div class="tags">${p.accepts.map(a=>`<span class="tag">${esc(ACCEPT_LABEL[a])}</span>`).join('')}</div>`;
+  if(p.hours&&state.answers.hours==='structured'){const{d:td}=now();const order=[1,2,3,4,5,6,0];
+    html+=`<table class="hours">${order.map(k=>`<tr class="${k===td?'today':''}"><td>${DAYS[k]}</td><td>${(p.hours[k]||[]).length?p.hours[k].map(([o,c])=>fmt(o)+' – '+fmt(c)).join(', '):'fermé'}</td></tr>`).join('')}</table>`}
+  if(p.hours&&state.answers.hours==='text')html+=`<p class="txt">Mar., jeu.–sam. 7 h – 13 h, 15 h – 18 h 30 ; mer., dim. 7 h – 12 h 30. Fermé le lundi.</p>`;
+  if(p.note)html+=`<p class="txt">${esc(p.note)}</p>`;
+  html+=`<p class="txt" style="font-size:12px">Vérifié le 26/11/2026</p>`;
+  if(state.chooser){
+    html+=`<div class="chooser" role="group" aria-label="Ouvrir l'itinéraire avec"><a href="${L.apple}" target="_blank" rel="noopener"><span class="ico" style="background:#3B82F6">P</span>Plans<small>iPhone</small></a><a href="${L.google}" target="_blank" rel="noopener"><span class="ico" style="background:#34A853">G</span>Google Maps</a><a href="${L.waze}" target="_blank" rel="noopener"><span class="ico" style="background:#33CCFF">W</span>Waze</a></div>
+    <p class="note" style="font-size:12px;color:var(--ink-soft)">Le dernier choix est retenu sur ce téléphone : la fois suivante, « Itinéraire » l'ouvre directement, avec « Changer d'appli » dessous.</p>`;
+  }else{
+    const go=state.answers.gps==='chooser'?`<button class="btn" data-gps>${svg(I.nav)} Itinéraire</button>`:
+      state.answers.gps==='google'?`<a class="btn" href="${L.google}" target="_blank" rel="noopener">${svg(I.nav)} Itinéraire</a>`:
+      `<a class="btn" href="geo:${p.lat},${p.lng}?q=${p.lat},${p.lng}(${encodeURIComponent(p.name)})" data-native>${svg(I.nav)} Itinéraire</a>`;
+    html+=`<div class="acts">${go}${p.phone?`<a class="btn ghost" href="tel:${p.phone}">${svg(I.phone)} Appeler</a>`:''}</div>`;
+  }
+  $('#sheet').innerHTML=html;
+}
+
+/* ---------- render ---------- */
+function render(){
+  app.classList.toggle('night',$('#night').checked);
+  renderBar();renderTabs();
+  const sc=$('#screen');
+  sc.innerHTML=state.screen==='home'?renderHome():state.screen==='booklet'?renderBooklet():renderPlaces();
+  if(state.screen==='places'&&state.view==='map'&&!$('#offline').checked)requestAnimationFrame(drawMap);
+  renderSummary();renderCounts();
+}
+
+document.addEventListener('click',e=>{
+  const go=e.target.closest('[data-go]');
+  if(go&&app.contains(go)){closeSheet();state.screen=go.dataset.go;
+    if(go.dataset.preset){state.filters=new Set([state.answers.waste==='split'?'om':go.dataset.preset]);if(state.answers.waste==='split'){state.filters.add('tri');state.filters.add('decheterie')}state.vb={...FULL}}
+    else if(state.screen==='places'&&!go.closest('.tabbar')){state.filters=new Set()}
+    if(state.screen==='places'&&!state.viewSet)state.view=state.answers.view;
+    render();return}
+  const f=e.target.closest('[data-f]');
+  if(f){const k=f.dataset.f;if(k==='*')state.filters.clear();else state.filters.has(k)?state.filters.delete(k):state.filters.add(k);
+    if(state.selected&&!shown().some(p=>p.id===state.selected))closeSheet();render();return}
+  const v=e.target.closest('[data-v]');if(v){state.view=v.dataset.v;state.viewSet=true;render();return}
+  const z=e.target.closest('[data-z]');
+  if(z){const k=z.dataset.z;if(k==='in')zoom(.6);else if(k==='out')zoom(1.6);else if(k==='fit')animateTo({...FULL});
+    else if(k==='me'){state.me=true;toast('Position trouvée : vous êtes à Satillieu');const q=proj(45.1509,4.6158);animateTo({x:q.x-1,y:q.y-1.2,w:2,h:2.4})}return}
+  const c=e.target.closest('[data-cluster]');
+  if(c){const ids=c.dataset.cluster.split(',');const ps=PLACES.filter(p=>ids.includes(p.id)).map(p=>proj(p.lat,p.lng));
+    const minx=Math.min(...ps.map(q=>q.x)),maxx=Math.max(...ps.map(q=>q.x)),miny=Math.min(...ps.map(q=>q.y)),maxy=Math.max(...ps.map(q=>q.y));
+    const w=Math.max(.45,(maxx-minx)*2.6),hh=Math.max(.55,(maxy-miny)*2.6);animateTo({x:(minx+maxx)/2-w/2,y:(miny+maxy)/2-hh/2,w,h:hh});return}
+  const p=e.target.closest('[data-p]');if(p&&app.contains(p)){openSheet(p.dataset.p);return}
+  if(e.target.closest('[data-close]')||e.target.id==='scrim'){closeSheet();return}
+  if(e.target.closest('[data-gps]')){state.chooser=true;renderSheet();return}
+  if(e.target.closest('[data-native]')){e.preventDefault();toast("Android : choix de l'appli GPS · iPhone : Plans")}
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&$('#sheet').classList.contains('on'))closeSheet();
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('.mk')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}))}
+});
+['offline','night','clock'].forEach(id=>$('#'+id).addEventListener('change',()=>{render();if(state.selected)renderSheet()}));
+window.addEventListener('resize',()=>{if(state.screen==='places')drawMap()});
+
+/* ---------- Studio ---------- */
+const sCat=$('#sCat');sCat.innerHTML=Object.entries(CATS).map(([k,c])=>`<option value="${k}">${c.one||c.fr}</option>`).join('');
+$('#sAccepts').innerHTML=Object.entries(ACCEPT_LABEL).map(([k,l])=>`<label><input type="checkbox" value="${k}"> ${l}</label>`).join('');
+sCat.addEventListener('change',()=>{$('#fAccepts').hidden=sCat.value!=='dechets'});
+function parsePos(t){
+  t=t.trim();let m;
+  if((m=t.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/)))return{lat:+m[1],lng:+m[2]};
+  if((m=t.match(/[?&](?:q|query|destination|ll|daddr)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i)))return{lat:+m[1],lng:+m[2]};
+  if((m=t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)))return{lat:+m[1],lng:+m[2]};
+  if((m=t.match(/^(-?\d{1,2}(?:[.,]\d+)?)\s*[,; ]\s*(-?\d{1,3}(?:[.,]\d+)?)$/)))return{lat:+m[1].replace(',','.'),lng:+m[2].replace(',','.')};
+  return null;
+}
+function setErr(input,errEl,msg){input.setAttribute('aria-invalid',msg?'true':'false');errEl.hidden=!msg;errEl.textContent=msg||''}
+$('#studioForm').addEventListener('submit',e=>{
+  e.preventDefault();$('#sOk').textContent='';
+  const name=$('#sName').value.trim(),pos=parsePos($('#sPos').value),cat=sCat.value;
+  const acc=[...document.querySelectorAll('#sAccepts input:checked')].map(i=>i.value);
+  const phone=$('#sPhone').value.trim();
+  let bad=false;
+  setErr($('#sName'),$('#eName'),!name?'Le nom est obligatoire.':name.length>80?'80 caractères au plus.':'');bad=bad||!name||name.length>80;
+  let pm='';
+  if(!$('#sPos').value.trim())pm='La position est obligatoire.';
+  else if(!pos)pm='Position non reconnue : collez « 45.1502, 4.6151 » ou un lien Google Maps qui contient les coordonnées.';
+  else if(Math.abs(pos.lat)>90||Math.abs(pos.lng)>180)pm='Coordonnées impossibles.';
+  else{const d=km(DOMAIN,pos);if(d>15)pm=`Ce lieu est à ${Math.round(d)} km du domaine : la carte couvre 15 km autour.`}
+  setErr($('#sPos'),$('#ePos'),pm);bad=bad||!!pm;
+  const am=cat==='dechets'&&!acc.length?"Cochez au moins ce qu'on peut y déposer.":'';
+  $('#eAcc').hidden=!am;$('#eAcc').textContent=am;bad=bad||!!am;
+  const phm=phone&&phone.replace(/[\s.+()-]/g,'').length<10?'Numéro incomplet : 10 chiffres attendus.':'';
+  setErr($('#sPhone'),$('#ePhone'),phm);bad=bad||!!phm;
+  if(bad){const first=document.querySelector('#studioForm [aria-invalid="true"]');first&&first.focus();return}
+  const id='new'+Date.now();
+  PLACES.push({id,cat,name,commune:$('#sCommune').value,lat:pos.lat,lng:pos.lng,phone:phone||undefined,accepts:cat==='dechets'?acc:undefined,kind:cat==='dechets'?'pav':undefined,src:'Studio'});
+  $('#sOk').textContent=`« ${name} » ajouté : il apparaît sur la carte.`;
+  e.target.reset();$('#fAccepts').hidden=true;
+  state.screen='places';state.filters=new Set();state.view='map';state.flash=id;const q=proj(pos.lat,pos.lng);state.vb={x:q.x-1.2,y:q.y-1.5,w:2.4,h:3};
+  render();setTimeout(()=>{state.flash=null},3200);
+});
+function renderCounts(){
+  $('#counts').innerHTML='<tr><td colspan="2" style="font-weight:700;padding-top:10px">Lieux par catégorie</td></tr>'+Object.entries(CATS).map(([k,c])=>{const n=PLACES.filter(p=>p.cat===k).length;
+    return `<tr><td>${c.fr}${n?'':' <span class="hid">— masquée aux clients tant qu\'elle est vide</span>'}</td><td>${n}</td></tr>`}).join('');
+}
+
+/* ---------- questions ---------- */
+const Q=[
+  {k:'name',t:'Nom de la tuile et de la page',p:'Une tuile se lit en un coup d\'œil, à côté de « Activités » et de « Livret ».',o:[
+    ['pratique','Pratique','Court, tient sur une tuile, en anglais « Essentials ».'],
+    ['autour','Au village','Plus chaleureux, mais la déchèterie et Saint-Alban ne sont pas « au village ».'],
+    ['commerces','Commerces & déchets','Exact, mais long : il passe sur deux lignes sur la tuile.']]},
+  {k:'gps',t:'« Itinéraire » : vers quel GPS ?',p:'Soliomap et le bloc Lieu du livret ouvrent Google Maps. Sur iPhone sans l\'appli Google, ça ouvre la version web.',o:[
+    ['chooser','Proposer Plans, Google Maps ou Waze','Le premier tap affiche le choix ; le téléphone le retient. Plans n\'est proposé que sur un appareil Apple.'],
+    ['google','Google Maps directement','Comme aujourd\'hui. Un seul tap, mais les utilisateurs de Plans ou de Waze arrivent sur le web.'],
+    ['native','Le GPS du système','geo: sur Android (le téléphone demande l\'appli), Plans sur iPhone. Waze n\'est jamais proposé sur iPhone.']]},
+  {k:'waste',t:'Déchets : un filtre ou trois ?',p:'Il y a des points de collecte (ordures + tri + verre) et une déchèterie (encombrants, végétaux).',o:[
+    ['one','Un seul filtre « Déchets »','La fiche dit ce qu\'on peut déposer à chaque point. Moins de filtres en haut de la page.'],
+    ['split','Trois filtres : Ordures ménagères · Tri et verre · Déchèterie','Le client va droit au bon bac, mais la barre de filtres est plus longue que l\'écran.']]},
+  {k:'hours',t:'Horaires d\'ouverture',p:'Changez l\'« Heure simulée » à côté de la maquette pour voir l\'effet. Seuls la Spar et la boulangerie de Saint-Alban ont des horaires.',o:[
+    ['structured','Horaires saisis jour par jour, avec « Ouvert · ferme à 13 h »','Le serveur calcule l\'état à l\'heure de Paris. Plus de saisie dans le Studio, mais c\'est ce qui sert vraiment à 12 h 50.'],
+    ['text','Un texte libre « horaires indicatifs »','Rapide à saisir, mais l\'appli ne sait pas dire si c\'est ouvert maintenant.'],
+    ['none','Pas d\'horaires','On évite de donner des horaires faux, mais le client doit appeler ou se déplacer pour savoir.']]},
+  {k:'distance',t:'Distance affichée',p:'Les routes de montagne allongent tout : Satillieu est à 2 km à vol d\'oiseau et à environ 4 km par la route.',o:[
+    ['crow','« 2,1 km du domaine », calculé par le serveur','Rien à saisir. C\'est une distance à vol d\'oiseau, qui sous-estime le trajet.'],
+    ['drive','« 6 min en voiture », saisi par lieu dans le Studio','Comme Soliomap, plus parlant, mais il faut saisir un chiffre par lieu.'],
+    ['none','Pas de distance','La liste est triée par distance quand même.']]},
+  {k:'view',t:'Vue à l\'ouverture',p:'Hors connexion, la liste s\'affiche toujours, quel que soit ce choix.',o:[
+    ['map','La carte','On voit d\'un coup d\'œil ce qui est au village et ce qui est plus loin.'],
+    ['list','La liste','Plus rapide sur réseau faible ; la carte est à un tap.']]},
+  {k:'me',t:'Bouton « Me localiser »',p:'Utile pour quelqu\'un qui se promène dans Satillieu et cherche la pharmacie. L\'appli demande l\'autorisation au premier tap seulement ; la position ne quitte jamais le téléphone.',o:[
+    ['yes','Oui, à la demande','Un point bleu sur la carte. Rien n\'est envoyé au serveur.'],
+    ['no','Non','Le domaine reste le seul repère.']]},
+  {k:'extra',multi:true,t:'Autres catégories (facultatif, plusieurs choix possibles)',p:'Ensemble fermé : ajouter une catégorie plus tard demandera une modification de la spec. Rien coché = les 6 demandées.',o:[
+    ['poste','La Poste','Il y en a une à Satillieu et une à Saint-Romain-d\'Ay.'],
+    ['dab','Distributeur de billets','Rare dans le secteur, et c\'est souvent la question qu\'on pose.'],
+    ['medecin','Médecin','Avec le 15 et le 3237 (pharmacie de garde) dans la fiche.'],
+    ['carburant','Carburant et recharge électrique','Pour ceux qui repartent loin.']]}
+];
+function renderQuestions(){
+  $('#questions').innerHTML=Q.map(q=>`<fieldset class="q" style="border:1px solid #DCD4C2"><legend style="padding:0"><h3>${q.t}</h3></legend><p>${q.p}</p>${q.o.map(([v,l,d],i)=>`<label class="opt"><input type="${q.multi?'checkbox':'radio'}" name="q-${q.k}" value="${v}" ${q.multi?(state.answers.extra.includes(v)?'checked':''):(state.answers[q.k]===v?'checked':'')}><span><b>${l}</b>${!q.multi&&i===0?'<span class="rec" style="display:inline">recommandé</span>':''}<span>${d}</span></span></label>`).join('')}</fieldset>`).join('');
+  $('#questions').addEventListener('change',e=>{const n=e.target.name.slice(2);
+    if(n==='extra')state.answers.extra=[...document.querySelectorAll('input[name="q-extra"]:checked')].map(i=>i.value);
+    else state.answers[n]=e.target.value;
+    if(n==='waste')state.filters.clear();
+    if(n==='view'){state.view=e.target.value;state.viewSet=false}
+    if(n==='me'&&e.target.value==='no')state.me=false;
+    render();if(state.selected)renderSheet()});
+}
+function renderSummary(){
+  const lines=['Carte « Pratique » de l\'appli séjour — choix sur la maquette du 26/11/2026 :'];
+  for(const q of Q){
+    if(q.multi){const ls=q.o.filter(o=>state.answers.extra.includes(o[0])).map(o=>o[1]);lines.push(`- ${q.t.replace(/ \(.*\)/,'')} : ${ls.length?ls.join(', '):'aucune (les 6 demandées)'}`);continue}
+    const o=q.o.find(x=>x[0]===state.answers[q.k]);lines.push(`- ${q.t} : ${o[1]}${o===q.o[0]?' (recommandé)':''}`);
+  }
+  $('#summary').value=lines.join('\n');
+}
+$('#copyBtn').addEventListener('click',async()=>{const t=$('#summary');try{await navigator.clipboard.writeText(t.value)}catch(_){t.select();document.execCommand('copy')}$('#copyOk').textContent='Copié : collez-le dans la conversation.'});
+
+/* ---------- data table ---------- */
+$('#dataTable').innerHTML='<tr><th>Catégorie</th><th>Lieu</th><th>Commune</th><th>Distance</th><th>Remarque</th></tr>'+
+  [...PLACES].sort((a,b)=>a.cat.localeCompare(b.cat)||km(DOMAIN,a)-km(DOMAIN,b)).map(p=>`<tr><td>${CATS[p.cat].one||CATS[p.cat].fr}</td><td>${esc(p.name)}</td><td>${esc(p.commune)}</td><td>${km(DOMAIN,p).toFixed(1).replace('.',',')} km</td><td>${p.src}${p.hours?' · horaires OSM':''}${p.commune==='à vérifier'?' · <span class="flag">commune à vérifier</span>':''}</td></tr>`).join('');
+
+renderQuestions();render();
+})();
+</script>
+</body>
+</html>
