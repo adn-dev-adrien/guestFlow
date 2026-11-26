@@ -54,13 +54,16 @@ for the balance; a devis converted by hand confirms the stay like one converted 
    by the shared formatter, never a literal.
 4. **A payment that needs action keeps its own alert**: a payment booked on a cancelled stay, a double
    payment or an amount mismatch already raise `notifyPaidAfterCancel` / the mismatch alert; they are not
-   announced a second time as an ordinary receipt.
+   announced a second time as an ordinary receipt. A payment that also lands in a date conflict is the opposite case: it is an
+   ordinary payment, so it gets both the ordinary notice and the conflict alert.
 
 ### 3.B The home subject
 
 5. **« Paiements reçus »** — a home attention subject (severity `info`, never pinned) counting the online
    payments recorded in the last 24 hours, one line each (guest, bucket, amount, time), each opening its fiche.
-   Shaped by the server like « Nouvelles réservations »; absent when the count is 0.
+   Shaped by the server like « Nouvelles réservations »; absent when the count is 0. The 24 hours run from the payment's
+   own time (`paidAt`, the provider's clock): `payment_links` keeps no separate recording time, so a payment the poll finds
+   late is listed for what remains of its 24 hours.
 
 ### 3.C The guest's receipt for the balance
 
@@ -125,7 +128,7 @@ payment, the amount right-aligned in tabular figures. The push opens the fiche.
 
 ## 7. Test plan
 
-- Server: `online-payment-notices.unit.test.js` (19 tests) — rules 1-8 (one notice per payment, none on a manual mark,
+- Server: `online-payment-notices.unit.test.js` (23 tests) — rules 1-8 (one notice per payment, none on a manual mark,
   none twice, words, the 24 h subject, `balance_received` queued when `manual` and sent when `auto`, manual
   conversion confirms once).
 - Client: `PaymentsReceivedAlert.test.jsx` (2 tests) — renders the server's lines, empty or failing → absent.
@@ -153,4 +156,6 @@ None open.
 
 - The receipt shows the stay's balance (`{{balanceAmount}}`) and, when an arrival complement is still due, « Reste à régler sur place » (`{{complementAmount}}`), otherwise « Reste à payer : rien ». It uses only tokens of the stay's own context, so the queued e-mail renders exactly like the one sent at once.
 - The home subject lists every paid link of a live stay in the last 24 hours, including one that raised an alert of its own (a double payment keeps its line: the money did arrive).
+- The notices are fired after the confirmation and the conflict alert and are never awaited: a slow push or SMTP holds neither the guest's return page nor the webhook. Whether a link closes the balance is read before any await, and the receipt's auto path skips a stay that already has a `sent` row or a send in flight, so two last échéances settled at once mail the guest once.
+- Event-triggered templates are ignored by the daily auto-send pass and by the check that arms it (`anyTemplateAutoSends`), so shipping `balance_received` as `auto` does not arm the 08:00 pass.
 - The e-mail is addressed only through `notifyOperator`'s gates; a payment announced when SMTP or the address is missing is announced by push only.

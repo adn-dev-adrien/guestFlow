@@ -46,6 +46,7 @@ async function pay(link, over = {}) {
     link: links.findById(link.id), paidPayment: { paid: true, paymentId: `pay${link.id}`, paidAt: new Date().toISOString() },
     ...over,
   });
+  await new Promise(setImmediate); // the notices are fired after the effect, never awaited by it
   return { out, told, alerts, receipts };
 }
 
@@ -89,15 +90,29 @@ test('rule 1 — an échéance of a schedule is announced, and the last one clos
 });
 
 test('rule 1 — a payment the operator ticks by hand is not announced', async () => {
-  const id = stay();
-  const told = [];
-  const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
-  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'deposit', paidDate: f.inDays(0) });
-  assert.equal(flags(id).depositPaid, 1);
-  assert.deepEqual(told, [], 'only processPaidLink reaches the notifier, and a hand tick never goes through it');
-  // A link paid for a bucket already ticked is a double payment, answered by its own alert (rule 4), not by a receipt.
-  const late = await pay(paidLink(id, 'deposit', asks(id, 'deposit')));
-  assert.equal(late.told.length, 0);
+  const notificationService = require('../utils/notificationService');
+  const original = notificationService.notifyOperator;
+  const sent = [];
+  notificationService.notifyOperator = async (notice) => { sent.push(notice.title); };
+  try {
+    const deps = require('../utils/paymentEffectDeps').buildPaymentEffectDeps();
+    const id = stay();
+    const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
+    recordStayPayment(depsFor(db), { reservationId: id, bucket: 'deposit', paidDate: f.inDays(0) });
+    await new Promise(setImmediate);
+    assert.equal(flags(id).depositPaid, 1);
+    assert.deepEqual(sent, [], 'a hand tick reaches no notifier');
+    // The control: the same bucket paid through a link, with the real wiring, is announced.
+    const other = stay();
+    await pay(paidLink(other, 'deposit', asks(other, 'deposit')), { notifyPaymentReceived: deps.notifyPaymentReceived });
+    assert.equal(sent.length, 1);
+    assert.match(sent[0], /^Acompte reçu · /);
+    // A link paid for a bucket already ticked is a double payment, answered by its own alert (rule 4), not by a receipt.
+    const late = await pay(paidLink(id, 'deposit', asks(id, 'deposit')));
+    assert.equal(late.told.length, 0);
+  } finally {
+    notificationService.notifyOperator = original;
+  }
 });
 
 test('rule 2 — a replayed poll or webhook on the same link announces nothing more', async () => {
@@ -242,27 +257,92 @@ test('rule 6 — « Solde reçu » is a default template in French and English, 
   assert.notEqual(t.anchor, 'start', 'never date-scheduled');
 });
 
+const gated = (mode, over = {}) => {
+  const rows = [];
+  const queued = [];
+  const smtp = [];
+  const stored = { ...template(), id: 7, enabled: 1, sendMode: mode };
+  const sender = buildGatedStayMailSender({
+    database: db, stableKey: 'balance_received',
+    templatesModel: { findByStableKey: () => stored },
+    queueModel: { add: (templateId, reservationId) => queued.push([templateId, reservationId]) },
+    logModel: {
+      insert: (row) => { rows.push(row); return { id: rows.length }; },
+      existsFor: (templateId, reservationId, statuses) => rows.some((r) => r.templateId === templateId && r.reservationId === reservationId && statuses.includes(r.status)),
+    },
+    settingsModel: { read: () => ({}), decryptedSmtpSettings: () => ({}) },
+    emailServiceFactory: () => ({ send: async (message) => { smtp.push(message); await new Promise(setImmediate); } }),
+    ...over,
+  });
+  return { sender, rows, queued, smtp };
+};
+const stayWithEmail = () => {
+  const id = stay();
+  db.prepare("UPDATE clients SET email = 'camille@example.test' WHERE id = 1").run();
+  return id;
+};
+
 test('rule 7 — the balance receipt ships auto, and leaves at once when auto, queued when manual', async () => {
   assert.equal(template().sendMode, 'auto');
   assert.equal(templateAutoSends({ ...template(), id: 1 }), true);
-  const queued = [];
-  const sent = [];
-  const make = (mode) => buildGatedStayMailSender({
-    database: db, stableKey: 'balance_received',
-    templatesModel: { findByStableKey: () => ({ id: 7, stableKey: 'balance_received', enabled: 1, sendMode: mode }) },
-    queueModel: { add: (templateId, reservationId) => queued.push([templateId, reservationId]) },
-    logModel: { insert: (row) => { sent.push(row); return { id: 1 }; } },
-    settingsModel: { read: () => ({}), decryptedSmtpSettings: () => ({}) },
-    emailServiceFactory: () => ({ send: async () => {} }),
+  const id = stayWithEmail();
+
+  const manual = gated('manual');
+  assert.equal((await manual.sender(id)).queued, true);
+  assert.equal((await manual.sender(id)).queued, true);
+  assert.deepEqual(manual.queued, [[7, id], [7, id]], 'the queue itself is idempotent (INSERT OR IGNORE)');
+  assert.equal(manual.smtp.length, 0, 'nothing leaves while manual');
+
+  const auto = gated('auto');
+  const result = await auto.sender(id);
+  assert.equal(result.sent, true);
+  assert.equal(auto.smtp.length, 1, 'exactly one e-mail');
+  assert.deepEqual(auto.queued, [], 'auto does not queue');
+  assert.deepEqual(auto.rows.map((r) => [r.status, r.recipientEmail]), [['sent', 'camille@example.test']]);
+  assert.match(auto.smtp[0].subject, /solde/i);
+});
+
+test('rule 7 — two payments settling the stay at once mail the receipt once; a later one finds it already sent', async () => {
+  const id = stayWithEmail();
+  const auto = gated('auto');
+  const [a, b] = await Promise.all([auto.sender(id), auto.sender(id)]);
+  assert.deepEqual([a.sent, b.sent].sort(), [false, true]);
+  assert.equal(auto.smtp.length, 1);
+  const later = await auto.sender(id);
+  assert.equal(later.reason, 'already-sent');
+  assert.equal(auto.smtp.length, 1);
+});
+
+test('rule 7 — two last échéances processed together decide « closes the balance » before any await', async () => {
+  const id = stay();
+  const { buildModel } = require('../models/installmentsModel');
+  const installments = buildModel(db);
+  installments.replacePlan(id, [{ number: 1, dueDate: f.inDays(200), amountCents: 5000 }, { number: 2, dueDate: f.inDays(230), amountCents: 5000 }], 10000);
+  const [first, second] = installments.listFor(id);
+  const linkA = paidLink(id, 'installment', 5000, { installmentId: first.id });
+  const linkB = paidLink(id, 'installment', 5000, { installmentId: second.id });
+  const [a, b] = await Promise.all([pay(linkA), pay(linkB)]);
+  assert.equal(a.receipts.length + b.receipts.length, 1, 'the plan closes once: one receipt asked');
+});
+
+test('rule 7 — an event-triggered template never arms nor joins the daily auto-send pass', async () => {
+  const { anyTemplateAutoSends } = require('../utils/autoSendPolicy');
+  const only = { listEnabled: () => [{ ...template(), id: 7, enabled: 1 }] };
+  assert.equal(anyTemplateAutoSends(only), false, 'shipping balance_received auto does not arm the 08:00 pass');
+  const withDated = { listEnabled: () => [{ ...template(), id: 7, enabled: 1 }, { stableKey: 'season_new_year', id: 8, enabled: 1, sendMode: 'auto' }] };
+  assert.equal(anyTemplateAutoSends(withDated), true);
+
+  const { performAutoEmailPass } = require('../utils/emailAutoSendRunner');
+  const queried = [];
+  const result = await performAutoEmailPass({
+    database: { prepare: (sql) => { queried.push(sql); return { all: () => [], get: () => undefined, run: () => ({}) }; } },
+    templatesModel: {
+      listEnabled: () => [{ ...template(), id: 7, enabled: 1 }, { stableKey: 'custom_hello', id: 9, enabled: 1, sendMode: 'auto', anchor: 'balanceReceived', dayOffset: 0 }],
+      findByStableKey: () => null,
+    },
+    logModel: {}, settingsModel: { read: () => ({}) }, emailServiceFactory: () => { throw new Error('no SMTP for an event template'); },
   });
-  const manual = await make('manual')(41);
-  assert.deepEqual([manual.queued, queued], [true, [[7, 41]]]);
-  const again = await make('manual')(41);
-  assert.equal(again.queued, true);
-  assert.equal(sent.length, 0, 'nothing leaves while manual');
-  const auto = await make('auto')(41);
-  assert.equal(queued.length, 2, 'auto does not queue');
-  assert.notEqual(auto.queued, true);
+  assert.ok(!result.results.some((r) => r.templateId === 7), 'the event-triggered template is not processed by the cron');
 });
 
 test('rule 7 — only an online balance triggers the receipt: not an acompte, not a full payment', async () => {
@@ -309,4 +389,36 @@ test('rule 8 — a confirmation that fails never undoes the conversion', async (
   await new Promise(setImmediate);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.reservationId, 9);
+});
+
+test('rule 8 — through the real devis model: one confirmation for the conversion, none for a second one or for a devis a payment confirmed', async () => {
+  const { buildController } = require('../controllers/devisController');
+  const sent = [];
+  const controller = buildController(devisModel, { emitPluginEvent: () => {}, sendConfirmation: async (id) => { sent.push(id); } });
+  const call = async (id) => {
+    const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+    controller.convertToReservation({ params: { id: String(id) } }, res);
+    await new Promise(setImmediate);
+    return res;
+  };
+  const newDevis = () => Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, totalPrice, finalPrice,
+      depositAmount, balanceAmount, devisStatus, platform) VALUES ('devis', 1, 1, ?, ?, 2, 300, 300, 90, 210, 'sent', 'direct')`)
+    .run(f.inDays(400 + 10 * sequence), f.inDays(403 + 10 * sequence)).lastInsertRowid);
+  sequence += 1;
+
+  const manual = newDevis();
+  const first = await call(manual);
+  assert.equal(first.statusCode, 200);
+  assert.deepEqual(sent, [first.body.reservationId], 'the new stay goes to the sender');
+  const again = await call(manual);
+  assert.equal(again.statusCode, 400, 'already converted: refused by the model');
+  assert.deepEqual(sent, [first.body.reservationId], 'converting twice sends nothing more');
+
+  const paid = newDevis();
+  const confirmedByPayment = await pay(paidLink(paid, 'deposit', 9000));
+  assert.equal(confirmedByPayment.out.effect, 'converted', 'a payment converted and confirmed it');
+  sent.length = 0;
+  const afterPayment = await call(paid);
+  assert.equal(afterPayment.statusCode, 400);
+  assert.deepEqual(sent, [], 'a devis a payment already confirmed gets no second confirmation');
 });

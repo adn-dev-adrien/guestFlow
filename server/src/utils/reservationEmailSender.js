@@ -197,16 +197,27 @@ function buildGatedConfirmationSender({
 function buildGatedStayMailSender({
   database, templatesModel, logModel, settingsModel, emailServiceFactory, queueModel, stableKey, onQueueError,
 }) {
+  // One receipt per stay: two payments settling it at once (a webhook and a poll) must not both mail the guest.
+  const inFlight = new Set();
   return async (reservationId) => {
+    const key = Number(reservationId);
     try {
       if (stableKeyAutoSends(templatesModel, stableKey)) {
-        return await sendReservationTemplateEmail({
-          database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey,
-        });
+        const template = templatesModel.findByStableKey(stableKey);
+        if (inFlight.has(key)) return { sent: false, reason: 'already-sending' };
+        if (logModel.existsFor && logModel.existsFor(template.id, key, ['sent'])) return { sent: false, reason: 'already-sent' };
+        inFlight.add(key);
+        try {
+          return await sendReservationTemplateEmail({
+            database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey,
+          });
+        } finally {
+          inFlight.delete(key);
+        }
       }
       const template = templatesModel.findByStableKey(stableKey);
       if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
-      queueModel.add(template.id, Number(reservationId));
+      queueModel.add(template.id, key);
       return { sent: false, reason: 'template-manual', queued: true };
     } catch (err) {
       if (onQueueError) onQueueError(err);

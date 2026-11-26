@@ -513,12 +513,10 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 
   // specs/payments/online-payment-notices.md rules 1-4, 7 — an ordinary payment is announced; every case above that needs
   // action has already told the operator in its own words, and a payment booked for a withdrawn link has its own alert.
-  if (ANNOUNCED_EFFECTS.has(effect.effect) && !effect.amountMismatch && !effect.closed && !retiredReason) {
-    if (notifyPaymentReceived) { try { await notifyPaymentReceived(link); } catch { /* best effort */ } }
-    if (sendBalanceReceived && require('./paymentsReceived').closesTheBalance(database, link)) {
-      try { await sendBalanceReceived(effect.reservationId || link.reservationId); } catch { /* best effort */ }
-    }
-  }
+  // Whether the link closes the balance is read now, before any await: a concurrent webhook and poll on two last
+  // échéances must not both see the plan closed.
+  const announce = ANNOUNCED_EFFECTS.has(effect.effect) && !effect.amountMismatch && !effect.closed && !retiredReason;
+  const closesBalance = announce && Boolean(sendBalanceReceived) && require('./paymentsReceived').closesTheBalance(database, link);
 
   if (CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
     const confirmedId = effect.reservationId || link.reservationId;
@@ -527,6 +525,12 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     // its own caller (bookWithdrawnPaid, bookDatesTakenPaid).
     if (effect.closed && !retiredReason && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: 'closed', livePayment: true }); } catch { /* best effort */ } }
     if (effect.conflict && notifyConflict) { try { await notifyConflict(confirmedId); } catch (e) { /* best effort */ } }
+  }
+  // Fired last and never awaited: a slow push or SMTP must not hold the guest's return page, the confirmation or the conflict alert.
+  if (announce) {
+    const quiet = (what) => (err) => console.warn(`[payments] ${what} failed:`, (err && err.message) || err); // eslint-disable-line no-console
+    if (notifyPaymentReceived) Promise.resolve().then(() => notifyPaymentReceived(link)).catch(quiet('payment notice'));
+    if (closesBalance) Promise.resolve().then(() => sendBalanceReceived(effect.reservationId || link.reservationId)).catch(quiet('balance receipt'));
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
 }

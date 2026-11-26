@@ -110,7 +110,7 @@ in one click.
    nothing was attempted. The queue is the record of what is waiting.
 
 11. **Current policy (added 2026-11-26, restates what survives rule 17b).** A guest e-mail leaves by itself
-   only from an enabled template whose own `sendMode` is `auto` (every default template ships `manual`;
+   only from an enabled template whose own `sendMode` is `auto` (every default template ships `manual`, except `balance_received`, the third exception below;
    `utils/autoSendPolicy` fails closed), and never from the payment-request templates
    (`PAYMENT_STABLE_KEYS`: a request for money is never sent by a cron). Everything else is proposed in
    « Emails à envoyer » or sent on the operator's click. Exactly three named exceptions exist, all granted
