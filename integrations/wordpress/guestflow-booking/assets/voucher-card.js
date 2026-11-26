@@ -236,7 +236,7 @@
     }
 
     var main = makeView();
-    var node = div('gf-card');
+    var node = div('gf-vcard');
     node.setAttribute('data-face', onBack ? 'back' : 'front');
     node.appendChild(main.flip);
 

@@ -103,7 +103,7 @@ function setup({ campaigns = [BATH], back = BACK, hash = '#campagne=bain-jour', 
   return { host, ...loaded };
 }
 
-const card = () => document.querySelector('.gf-card');
+const card = () => document.querySelector('.gf-vcard');
 const face = () => card().getAttribute('data-face');
 const type = (label, value) => fireEvent.input(screen.getByLabelText(label), { target: { value } });
 const texts = (selector) => [...document.querySelectorAll(selector)].map((n) => n.textContent);
@@ -457,6 +457,6 @@ test('rule 66: after payment the front is the voucher\'s frozen one, read by ord
 test('rule 66: with no back to draw the code still stands on the page after payment', async () => {
   paid({ withBack: false });
   await screen.findByText('Le bon est prêt');
-  expect(document.querySelector('.gf-card')).toBeNull();
+  expect(document.querySelector('.gf-vcard')).toBeNull();
   expect(document.querySelector('.gf-gv-codebox .gf-gv-code').textContent.replace(/\W/g, '')).toBe('7KQ4M9TX2WHBR6PE');
 });

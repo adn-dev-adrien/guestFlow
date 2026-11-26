@@ -467,8 +467,8 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 @font-face { font-family: "GF Card Sans"; src: url(fonts/SourceSans3-Semibold.latin.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
 @font-face { font-family: "GF Card Sans"; src: url(fonts/SourceSans3-It.latin.woff2) format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
 
-.gf-card-col { min-width: 0; width: min(74%, 300px); justify-self: center; }
-.gf-card { display: grid; justify-items: center; gap: .6rem; width: 100%; animation: gf-gv-front-in .45s cubic-bezier(.2, .8, .2, 1); }
+.gf-card-col { min-width: 0; width: min(100%, 420px); justify-self: center; }
+.gf-vcard { display: grid; justify-items: center; gap: .6rem; width: 100%; animation: gf-gv-front-in .45s cubic-bezier(.2, .8, .2, 1); }
 @keyframes gf-gv-front-in { from { opacity: 0; transform: translateY(10px); } }
 .gf-card-flip { width: 100%; perspective: 1600px; }
 .gf-card-flip.is-zoomable { cursor: zoom-in; }
@@ -493,12 +493,12 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 @container gf-gv (min-width: 600px) {
   .gf-gv-lead.has-card { grid-template-columns: minmax(220px, 34%) minmax(0, 1fr); gap: 2.5rem; align-items: start; }
   .gf-gv-lead.has-card > .gf-card-col { width: 100%; align-self: stretch; }
-  .gf-gv-lead.has-card .gf-card { position: sticky; top: var(--gf-sticky-top, 96px); }
+  .gf-gv-lead.has-card .gf-vcard { position: sticky; top: var(--gf-sticky-top, 96px); }
 }
 @container gf-gv (min-width: 900px) { .gf-gv-lead.has-card { grid-template-columns: 400px minmax(0, 1fr); } }
 .gf-gv-codebox { padding: 1rem 1.2rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: var(--gfb-surface); }
 @media (prefers-reduced-motion: reduce) {
-  .gf-card { animation: none; }
+  .gf-vcard { animation: none; }
   .gf-card-inner { transition: none; transform: none !important; }
   .gf-card-face { transition: opacity .2s; backface-visibility: visible; -webkit-backface-visibility: visible; }
   .gf-card-backface { transform: none; }
