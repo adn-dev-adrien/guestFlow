@@ -389,7 +389,7 @@ function paid({ withBack = true, withFront = true } = {}) {
     brand: 'Domaine Solio',
     amountCents: 10900,
     balanceCents: 10900,
-    expiresOn: '2027-11-15',
+    expiresOn: '2027-11-15', // date-literal-ok: a server field the card prints as given, never compared with today
     recipientName: 'Marie',
     senderName: 'Paul',
     message: 'Bravo',
