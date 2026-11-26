@@ -54,6 +54,8 @@ function resetLegacyColumns(db) {
 }
 
 function register(ctx) {
+  // specs/payments/online-payment-notices.md rule 2 — the push toggle of « Paiement reçu en ligne ».
+  ctx.pushChannel({ key: 'stay-payments', label: 'Paiements en ligne reçus' });
   ctx.settings.declare(DECLARED);
   ctx.settings.declare(reconciliationDeclared(ctx.settings));
   ctx.settings.declare(mollieDeclared());

@@ -24,6 +24,9 @@ router.post('/ical-cancellation/:id/reject', controller.rejectIcalCancellation);
 // specs/planning/dashboard-ical-new-reservations.md — read-only card listing the last 24 hours' reservations.
 router.get('/new-reservations', controller.newReservations);
 
+// specs/payments/online-payment-notices.md rule 5 — read-only card listing the last 24 hours' online payments.
+router.get('/payments-received', controller.paymentsReceived);
+
 // specs/reservations/reservation-number-and-search.md rule 15 — stays numbered by the boot repair, until checked.
 router.get('/repaired-reservation-numbers', controller.repairedReservationNumbers);
 router.post('/repaired-reservation-numbers/:id/acknowledge', controller.acknowledgeRepairedReservationNumber);
@@ -73,6 +76,7 @@ function coreAttentionSources() {
     { key: 'dates-taken', rank: 25, handler: controller.datesTaken },
     { key: 'email-readiness', rank: 80, handler: require('./emailReadiness').controller.get },
     { key: 'new-reservations', rank: 10, handler: controller.newReservations },
+    { key: 'payments-received', rank: 12, handler: controller.paymentsReceived },
     { key: 'email-pending', rank: 30, handler: require('./emails').controller.pending },
     { key: 'update-available', rank: 40, handler: require('../controllers/systemController').getVersion },
     {

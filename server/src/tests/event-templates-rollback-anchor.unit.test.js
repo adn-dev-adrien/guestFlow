@@ -12,8 +12,12 @@ const { localIsoDate } = require('../utils/localDate');
 const { freshDb, seedProperty } = require('./guestEmailSequenceFixtures');
 const { FLOOR_TEMPLATE_KEYS, FLOOR_QUEUE_ANCHORS, floorQueue } = require('./rollbackFloorQueue');
 
-// New default templates the floor may offer, each with why that is harmless. None today.
-const DECLARED_SAFE_FOR_FLOOR = Object.freeze({});
+// New default templates the floor may offer, each with why that is harmless.
+const DECLARED_SAFE_FOR_FLOOR = Object.freeze({
+  // Seeded `auto` on the anchor `balanceReceived`: the floor's queue lists manual templates on its four anchors only,
+  // and its automatic pass skips an anchor it has no query for (`skipped-unsupported-anchor`), so nothing leaves.
+  balance_received: 'auto on an anchor neither the floor\'s queue nor its automatic pass reads',
+});
 
 // The default templates new to the floor that its queue could still offer, each with the reason.
 function floorRisks(templates) {

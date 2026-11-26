@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved — 2026-11-26 (owner, summary page) |
+| **Status** | Implemented — 2026-11-26 (approved by the owner on the summary page) |
 | **Branch** | `feature/online-payment-notices` |
 | **Created** | 2026-11-26 |
 | **Author** | Adrien |
@@ -86,23 +86,28 @@ for the balance; a devis converted by hand confirms the stay like one converted 
 
 | Layer | File | New/Touched | Responsibility |
 |---|---|---|---|
-| utils | `utils/paymentNotices.js` | New | Pure: the words of a payment notice (title, body, url, subject, lines) from the stay and the bucket |
-| utils | `utils/paymentPollRunner.js` | T | After `recordPayment` of an ordinary online payment: notify the operator (rule 1), trigger `balance_received` (rule 7) |
-| utils | `utils/notificationService.js` | T | Reuse `notifyOperator`; idempotence by link id (rule 2) |
-| utils | `utils/dashboardAttention.js` | T | Subject `payments-received` (rule 5) |
-| controllers | `controllers/dashboardAttentionController.js` | T | Reads the payments recorded online in the last 24 h |
-| utils | `utils/defaultEmailTemplatesRegistry.js` | T | Template `balance_received`, `auto`, event-triggered |
+| utils | `utils/paymentNotices.js` | New | Pure: the words of a payment notice (title, body, url, subject, lines) and of one home line, from the stay and the bucket; amounts by `emailMoney.emailAmount` |
+| utils | `utils/paymentsReceived.js` | New | Reads: the stay of a paid link (a devis link follows its devis), the operator's notice, the last 24 hours' lines, « does this link close the balance » (a balance link, or the last échéance) |
+| utils | `utils/paymentPollRunner.js` | T | `processPaidLink`, after an ordinary effect (`converted`, `already-converted`, `deposit-marked`, `balance-marked`, `installment-marked`, no amount mismatch, not closed, not a withdrawn link): `notifyPaymentReceived(link)` (rules 1-2, 4) and `sendBalanceReceived(stayId)` when the link closes the balance (rule 7). Only the caller that flips the link runs it, so a replay announces nothing |
+| utils | `utils/paymentEffectDeps.js` | T | Wires `notifyPaymentReceived` (→ `notificationService.notifyOperator`) and `sendBalanceReceived` (gated sender) into the deps the poll, the webhook and the on-demand status read share |
+| utils | `utils/reservationEmailSender.js` | T | `buildGatedStayMailSender`: the confirmation's gate for any event e-mail of a stay (template `auto` → sent at once, otherwise queued, idempotent) |
+| utils | `utils/dashboardAttention.js` | T | Subject `payments-received` (info, rank 12, never pinned) (rule 5) |
+| controllers | `controllers/dashboardController.js` | T | `paymentsReceived` → `{ alerts }` (read by the subject and `GET /api/dashboard/payments-received`) |
+| routes | `routes/dashboard.js` | T | The endpoint and the attention source |
+| utils | `utils/defaultEmailTemplatesRegistry.js`, `templateWhen.js`, `emailTimeline.js` | T | Template `balance_received` (`auto`, anchor `balanceReceived`, event-triggered); its « Quand » sentence and its place on the Emails page |
 | specs | `specs/emails/no-automatic-email-without-approval.md` | T | Rule 11 names `balance_received` as its third exception |
-| database | `database.js` | T | Seeds `balance_received` on existing databases (idempotent) |
-| controllers | `controllers/devisController.js` | T | Gated confirmation after a manual conversion (rule 8) |
-| plugin | `plugins/online-payment/index.js` | T | `ctx.pushChannel({ key: 'stay-payments', label: 'Paiements en ligne reçus' })`; version bump |
+| controllers | `controllers/devisController.js` | T | After a successful manual conversion, the stay goes to the gated confirmation sender (rule 8) |
+| plugin | `plugins/online-payment/index.js`, `manifest.json` | T | `ctx.pushChannel({ key: 'stay-payments', label: 'Paiements en ligne reçus' })`; version 1.10.0 |
+
+No migration: `ensureDefaultEmailTemplates` inserts a missing default at every boot, so existing databases get `balance_received` (`auto`) idempotently, and never overwrite an operator's choice of mode.
 
 ### Client
 
 | Layer | File | New/Touched | Responsibility |
 |---|---|---|---|
-| components | `components/PaymentsReceivedAlert.jsx` | New (generic list renderer reused from `NewReservationsAlert` if it fits) | Unfolds the « Paiements reçus » subject |
-| pages | home | T | Registers the subject |
+| components | `components/PaymentsReceivedAlert.jsx` | New | Unfolds the « Paiements reçus » subject: an `AttentionCard` with one `ReservationLinkLine` per payment (guest and amount on the first line, bucket and logement, then the time); it fetches `getPaymentsReceived` like `NewReservationsAlert` and renders what the server wrote |
+| components | `components/attentionSubjects.js` | T | Registers the subject |
+| services | `api.js` | T | `getPaymentsReceived` |
 
 ### API
 
@@ -120,10 +125,10 @@ payment, the amount right-aligned in tabular figures. The push opens the fiche.
 
 ## 7. Test plan
 
-- Server: `online-payment-notices.unit.test.js` — rules 1-8 (one notice per payment, none on a manual mark,
+- Server: `online-payment-notices.unit.test.js` (19 tests) — rules 1-8 (one notice per payment, none on a manual mark,
   none twice, words, the 24 h subject, `balance_received` queued when `manual` and sent when `auto`, manual
-  conversion queues once).
-- Client: `PaymentsReceivedAlert.test.jsx` — renders the server's lines, empty → absent.
+  conversion confirms once).
+- Client: `PaymentsReceivedAlert.test.jsx` (2 tests) — renders the server's lines, empty or failing → absent.
 - Manual: a Qonto sandbox payment on a stay → push, e-mail, home subject, queued receipt; phone check.
 
 ## 8. Out of scope
@@ -143,3 +148,9 @@ None open.
 - The « Solde reçu » e-mail → ships `auto` (rule 7), third named exception to the e-mail policy.
 - A devis converted by hand → follows the mode of the « Confirmation » template (rule 8).
 - Sibling Qonto links (fix PR, not this spec) → deactivated at once when a payment settles the bucket.
+
+**Built as follows (2026-11-26):**
+
+- The receipt shows the stay's balance (`{{balanceAmount}}`) and, when an arrival complement is still due, « Reste à régler sur place » (`{{complementAmount}}`), otherwise « Reste à payer : rien ». It uses only tokens of the stay's own context, so the queued e-mail renders exactly like the one sent at once.
+- The home subject lists every paid link of a live stay in the last 24 hours, including one that raised an alert of its own (a double payment keeps its line: the money did arrive).
+- The e-mail is addressed only through `notifyOperator`'s gates; a payment announced when SMTP or the address is missing is announced by push only.

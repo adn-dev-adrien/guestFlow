@@ -188,4 +188,31 @@ function buildGatedConfirmationSender({
   };
 }
 
-module.exports = { sendReservationTemplateEmail, buildConfirmationSender, buildGatedConfirmationSender };
+/**
+ * The gated sender of a stay's event e-mail that is not part of the guest sequence — « Solde reçu » after an online
+ * balance (specs/payments/online-payment-notices.md rule 7), the confirmation of a devis converted by hand (rule 8
+ * goes through `buildGatedConfirmationSender` instead). Same gate as the confirmation: sent at once when the template
+ * is `auto`, otherwise proposed in « Emails à envoyer » (idempotent). Never throws.
+ */
+function buildGatedStayMailSender({
+  database, templatesModel, logModel, settingsModel, emailServiceFactory, queueModel, stableKey, onQueueError,
+}) {
+  return async (reservationId) => {
+    try {
+      if (stableKeyAutoSends(templatesModel, stableKey)) {
+        return await sendReservationTemplateEmail({
+          database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey,
+        });
+      }
+      const template = templatesModel.findByStableKey(stableKey);
+      if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
+      queueModel.add(template.id, Number(reservationId));
+      return { sent: false, reason: 'template-manual', queued: true };
+    } catch (err) {
+      if (onQueueError) onQueueError(err);
+      return { sent: false, reason: 'send-failed' };
+    }
+  };
+}
+
+module.exports = { sendReservationTemplateEmail, buildConfirmationSender, buildGatedConfirmationSender, buildGatedStayMailSender };
