@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paiements en ligne reçus — résumé à valider</title>
+<style>
+  :root{
+    --fir:#2F5D46; --fir-dark:#214131; --honey:#C99038; --paper:#F8F5EF; --white:#FFF;
+    --ink:#27251F; --muted:#6E6A5E; --divider:rgba(60,54,36,.1);
+    --ok:#3E7D54; --ok-soft:#E6F0E8; --ok-text:#2C5E3D;
+    --warn:#8F6A1D; --warn-soft:#F6EEDC; --warn-text:#6B4F14;
+    --err:#A8433A; --err-soft:#F6E3E0; --err-text:#82322B;
+    --info:#31556E; --info-soft:#E3ECF2; --info-text:#294A61;
+    --r:14px; --card:0 3px 16px rgba(60,54,36,.09); --panel:0 1px 2px rgba(39,37,31,.04);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  main{max-width:1240px;margin:0 auto;padding:24px 16px 64px}
+  h1,h2{font-family:"Source Serif 4",Georgia,"Times New Roman",serif;font-weight:600;margin:0}
+  h1{font-size:1.35rem;color:var(--fir)} h2{font-size:1.05rem;margin:32px 0 12px}
+  h3{font-size:.95rem;margin:0 0 8px}
+  p{max-width:75ch;margin:.4em 0}
+  .muted{color:var(--muted)} .num{font-variant-numeric:tabular-nums}
+  .grid{display:grid;gap:16px;grid-template-columns:1fr 1fr}
+  @media (max-width:899px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--white);border-radius:var(--r);box-shadow:var(--card);padding:16px}
+  @media (max-width:599px){.card{padding:12px}}
+  .panel{background:var(--white);border:1px solid var(--divider);border-radius:var(--r);box-shadow:var(--panel);padding:16px}
+  .label{font-size:.74rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  ul{margin:.3em 0;padding-left:1.2em} li{margin:.15em 0}
+  .badge{display:inline-block;font-size:.78rem;font-weight:600;padding:2px 10px;border-radius:999px}
+  .b-ok{background:var(--ok-soft);color:var(--ok-text)} .b-info{background:var(--info-soft);color:var(--info-text)}
+  .b-warn{background:var(--warn-soft);color:var(--warn-text)} .b-err{background:var(--err-soft);color:var(--err-text)}
+  button{font:inherit;font-weight:500;border-radius:10px;min-height:44px;padding:8px 14px;cursor:pointer;border:1px solid var(--divider);background:var(--white);color:var(--ink);transition:background-color .15s ease-out,border-color .15s ease-out}
+  button:hover{background:#f3f0e8} button:active{background:#ebe6da}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--fir);outline-offset:2px}
+  button.primary{background:var(--fir);color:#fff;border-color:var(--fir)} button.primary:hover{background:var(--fir-dark)}
+  button[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  @media (max-width:599px){.row.stack{flex-direction:column;align-items:stretch}.row.stack button{width:100%}}
+  label.f{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:4px}
+  input,select{font:inherit;min-height:44px;padding:8px 10px;border:1px solid rgba(60,54,36,.25);border-radius:10px;background:#fff;color:var(--ink)}
+  input[readonly]{background:var(--paper);color:var(--muted)}
+  .help{font-size:.8rem;color:var(--muted)} .help.err{color:var(--err-text)}
+  input.invalid{border-color:var(--err)}
+  /* Attention card */
+  .att{display:flex;gap:12px;border:1px solid var(--divider);border-radius:var(--r);padding:12px;background:#fff}
+  .glyph{width:32px;height:32px;border-radius:10px;background:var(--info-soft);color:var(--info);display:flex;align-items:center;justify-content:center;flex:none}
+  .att h4{margin:0;font-size:.95rem;font-weight:600;display:flex;gap:8px;align-items:center}
+  .count{font-size:.75rem;font-weight:600;background:var(--info-soft);color:var(--info-text);border-radius:999px;padding:1px 8px}
+  .lines{list-style:none;padding:0;margin:8px 0 0}
+  .lines li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--divider);font-size:.875rem}
+  .lines li:first-child{border-top:0}
+  .lines .amt{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+  .empty{font-size:.875rem;color:var(--muted);padding:8px 0}
+  /* phone push */
+  .phone{width:100%;max-width:340px;background:#1f1d19;border-radius:28px;padding:14px;margin:0 auto}
+  .push{background:rgba(255,255,255,.95);border-radius:16px;padding:10px 12px;font-size:.82rem;margin-bottom:8px;transition:opacity .2s ease-out,transform .2s cubic-bezier(.2,0,0,1)}
+  .push b{display:block;font-size:.85rem}
+  .push.enter{opacity:0;transform:translateY(-6px)}
+  @media (prefers-reduced-motion:reduce){.push{transition:opacity .2s ease-out}.push.enter{transform:none}}
+  .mail{border:1px solid var(--divider);border-radius:var(--r);padding:14px;background:#fff;font-size:.9rem}
+  .mail .subj{font-weight:600;margin-bottom:6px}
+  .state{margin-top:8px;font-size:.85rem}
+  .seg{display:inline-flex;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .seg button{border:0;border-radius:0;min-width:64px}
+  .seg button[aria-pressed="true"]{background:rgba(47,93,70,.08);color:var(--fir);font-weight:600}
+  /* questions */
+  fieldset{border:1px solid var(--divider);border-radius:var(--r);background:#fff;padding:14px 16px;margin:0 0 12px}
+  legend{font-weight:600;padding:0 6px}
+  .opt{display:flex;gap:10px;align-items:flex-start;padding:8px 6px;border-radius:10px;cursor:pointer}
+  .opt:hover{background:#faf8f3}
+  .opt input{min-height:auto;margin-top:5px;accent-color:var(--fir)}
+  .opt small{display:block;color:var(--muted)}
+  textarea{width:100%;min-height:150px;font:13px/1.45 ui-monospace,Menlo,monospace;border:1px solid var(--divider);border-radius:10px;padding:10px;background:#fff;color:var(--ink)}
+  .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ok-soft);color:var(--ok-text);font-weight:600;padding:10px 16px;border-radius:12px;box-shadow:var(--card);opacity:0;pointer-events:none;transition:opacity .2s ease-out}
+  .toast.show{opacity:1}
+  @media (max-width:599px){.toast{left:12px;right:12px;transform:none;text-align:center}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Paiements en ligne reçus — ce qu'on construit, ce qu'on corrige</h1>
+  <p class="muted">Résumé à valider · 26/11/2026 · spec <span class="num">specs/payments/online-payment-notices.md</span> · deux PR : A (corrections), B (notifications)</p>
+
+  <div class="grid" style="margin-top:16px">
+    <section class="card">
+      <div class="label">Constat</div>
+      <ul>
+        <li>Quand un client paie en ligne (acompte, solde, échéance), GuestFlow l'enregistre <b>sans rien dire</b> : tu ne le vois qu'en ouvrant la fiche.</li>
+        <li>Le client ne reçoit <b>aucun reçu</b> pour son solde.</li>
+        <li>Un devis converti à la main <b>n'envoie pas</b> la confirmation, contrairement à un devis converti par un paiement.</li>
+        <li>L'audit a aussi trouvé <b>2 bugs d'argent</b> (taxe de séjour sous-déclarée, complément redaté) : PR A.</li>
+      </ul>
+    </section>
+    <section class="card">
+      <div class="label">Proposition</div>
+      <ul>
+        <li><b>Chaque paiement en ligne</b> : un push « Paiements en ligne reçus » + un e-mail à ton adresse de notification.</li>
+        <li>Sur l'accueil, un sujet <b>« Paiements reçus »</b> (24 h), comme « Nouvelles réservations ».</li>
+        <li>Un nouveau modèle <b>« Solde reçu »</b> pour le client, <b>livré en Auto</b> (choix du 26/11 : 3e exception à la règle des e-mails).</li>
+        <li>La conversion manuelle d'un devis <b>propose la confirmation</b>, selon le mode de son modèle.</li>
+      </ul>
+    </section>
+    <section class="card">
+      <div class="label">Ce qu'on ne fait pas</div>
+      <ul>
+        <li>Pas d'annonce pour un paiement que tu marques toi-même : tu le sais déjà.</li>
+        <li>Pas de reçu d'acompte : la confirmation joue déjà ce rôle.</li>
+        <li>Pas d'annonce des versements de plateformes (Booking, Airbnb).</li>
+      </ul>
+    </section>
+    <section class="card">
+      <div class="label">Risque</div>
+      <ul>
+        <li><b>Bruit</b> : un push par paiement. Le canal a son propre interrupteur.</li>
+        <li><b>Doublon</b> : un même paiement relu deux fois n'annonce qu'une fois (testé).</li>
+        <li><b>E-mail client</b> : aucun ne part sans ta validation, la règle actuelle reste intacte.</li>
+      </ul>
+    </section>
+  </div>
+
+  <h2>Essaie : un client paie en ligne</h2>
+  <div class="grid">
+    <section class="panel">
+      <div class="label">Simuler</div>
+      <div class="row stack" style="align-items:flex-end">
+        <label class="f">Échéance
+          <select id="bucket">
+            <option value="acompte">Acompte</option>
+            <option value="solde">Solde</option>
+            <option value="total">Paiement total</option>
+            <option value="echeance">Échéance (échéancier)</option>
+          </select>
+        </label>
+        <label class="f">Montant (€)
+          <input id="amount" inputmode="decimal" value="320" aria-describedby="amountHelp" style="width:120px">
+        </label>
+      </div>
+      <div id="amountHelp" class="help">Montant payé sur le lien.</div>
+      <div class="row stack" style="margin-top:10px">
+        <button id="payOnline" class="primary">Paiement en ligne reçu</button>
+        <button id="payManual">Marqué à la main</button>
+        <button id="replay" aria-disabled="true" title="Aucun paiement à relire">Relire le dernier paiement</button>
+      </div>
+      <p class="help" id="explain" style="margin-top:10px">Le paiement en ligne s'annonce ; un paiement marqué à la main, non ; relire un paiement déjà annoncé n'ajoute rien.</p>
+
+      <div class="label" style="margin-top:16px">Accueil</div>
+      <div id="homeSubject"></div>
+    </section>
+    <section class="panel">
+      <div class="label">Ton téléphone</div>
+      <div class="phone" aria-live="polite"><div id="pushes"><div class="push" style="opacity:.6"><b>Aucune notification</b>Les push apparaissent ici.</div></div></div>
+      <div class="label" style="margin-top:16px">E-mail à ton adresse de notification</div>
+      <div class="mail" id="hostMail"><span class="muted">Aucun e-mail pour l'instant.</span></div>
+    </section>
+  </div>
+
+  <h2>Essaie : l'e-mail « Solde reçu » au client</h2>
+  <div class="grid">
+    <section class="panel">
+      <div class="row" style="justify-content:space-between">
+        <div class="label" style="margin:0">Aperçu</div>
+        <div class="seg" role="group" aria-label="Langue">
+          <button data-lang="fr" aria-pressed="true">FR</button><button data-lang="en" aria-pressed="false">EN</button>
+        </div>
+      </div>
+      <div class="mail" id="guestMail" style="margin-top:10px"></div>
+    </section>
+    <section class="panel">
+      <div class="label">Mode du modèle « Solde reçu »</div>
+      <div class="seg" role="group" aria-label="Mode d'envoi">
+        <button data-mode="manual" aria-pressed="true">À valider</button><button data-mode="auto" aria-pressed="false">Auto</button>
+      </div>
+      <p class="help">Livré en « À valider », comme tous les modèles. Tu peux le passer en Auto dans E-mails.</p>
+      <button id="balancePaid" class="primary" style="margin-top:8px">Le solde est payé en ligne</button>
+      <div class="state" id="guestState" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <h2>Essaie : convertir un devis à la main</h2>
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <div><b>Devis D-2026-118</b> · <span class="muted">Martin Dubois · La Granja · 12 → 19 juil.</span></div>
+      <span id="devisBadge" class="badge b-info">Devis</span>
+    </div>
+    <div class="row stack" style="margin-top:12px"><button id="convert">Convertir en réservation</button></div>
+    <div class="state" id="convertState" aria-live="polite"></div>
+  </section>
+
+  <h2>PR A — le taux de TVA des commissions, réservé à l'admin</h2>
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <div class="label" style="margin:0">Plan comptable · Commissions des plateformes</div>
+      <div class="seg" role="group" aria-label="Rôle">
+        <button data-role="admin" aria-pressed="true">Admin</button><button data-role="accountant" aria-pressed="false">Comptable</button>
+      </div>
+    </div>
+    <div class="row stack" style="margin-top:12px;align-items:flex-start">
+      <label class="f">Compte par défaut<input id="account" value="62220000"></label>
+      <label class="f">TVA sur les commissions (%)<input id="vat" value="20" inputmode="decimal" aria-describedby="vatHelp" style="width:140px"></label>
+    </div>
+    <div id="vatHelp" class="help">Modifiable par l'admin.</div>
+    <div class="row stack" style="margin-top:10px"><button id="saveVat" class="primary">Enregistrer</button></div>
+    <div class="state" id="vatState" aria-live="polite"></div>
+    <p class="help" style="margin-top:12px">Le comptable garde les numéros de compte. Côté serveur, un changement de taux envoyé par lui est refusé (403), même par une requête fabriquée.</p>
+  </section>
+
+  <h2>PR A — les autres corrections (sans changement d'écran)</h2>
+  <section class="card">
+    <ul>
+      <li><b>Taxe de séjour</b> : un remboursement ne retire une nuit de la déclaration qu'une fois la nuit entière remboursée (aujourd'hui, une demi-nuit suffit, la commune est sous-déclarée).</li>
+      <li><b>Complément déjà perçu</b> : il ne peut plus être redaté ni passé en caisse interne par une requête fabriquée (refus 409, comme les autres échéances).</li>
+      <li><b>Nettoyages</b> : <span class="num">totalPending</span> supprimé (lu par aucun écran) ; tests des acomptes désactivables puis spec passée en « Implemented » ; anciennes règles de l'interrupteur d'e-mails retirées.</li>
+      <li><b>Mollie</b> : la spec dit enfin que les frais restent exportés quand l'export bancaire est coupé (le code le fait déjà, c'est voulu).</li>
+    </ul>
+  </section>
+
+  <h2>Tes choix</h2>
+  <form id="q"></form>
+  <div class="label">Résumé à coller dans la conversation</div>
+  <textarea id="out" readonly aria-label="Résumé des choix"></textarea>
+  <div class="row" style="margin-top:8px"><button id="copy" class="primary">Copier</button></div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const euro = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }) + ' €';
+  const now = () => new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const toast = (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2600); };
+  const LABELS = { acompte: 'Acompte reçu', solde: 'Solde reçu', total: 'Paiement total reçu', echeance: 'Échéance reçue' };
+  const BUCKET = { acompte: 'acompte', solde: 'solde', total: 'paiement total', echeance: 'échéance' };
+  const GUESTS = ['Martin Dubois', 'Sophie Lefèvre', 'Jan de Vries', 'Chiara Rossi', 'Émilie Moreau-Garnier'];
+  const received = []; let lastId = null; let seq = 0;
+
+  function parseAmount() {
+    const raw = $('#amount').value.trim().replace(/\s/g, '').replace(',', '.');
+    const ok = /^\d+(\.\d{1,2})?$/.test(raw) && Number(raw) > 0;
+    $('#amount').classList.toggle('invalid', !ok);
+    $('#amount').setAttribute('aria-invalid', String(!ok));
+    const help = $('#amountHelp');
+    help.textContent = ok ? 'Montant payé sur le lien.' : 'Montant refusé : un nombre positif, deux décimales au plus (ex. 320 ou 160,50).';
+    help.classList.toggle('err', !ok);
+    return ok ? Number(raw) : null;
+  }
+  $('#amount').addEventListener('input', parseAmount);
+
+  function renderHome() {
+    const box = $('#homeSubject');
+    if (!received.length) { box.innerHTML = '<div class="empty">Rien à signaler : le sujet n\'apparaît pas tant qu\'aucun paiement en ligne n\'est arrivé en 24 h.</div>'; return; }
+    box.innerHTML = `<div class="att"><div class="glyph" aria-hidden="true">€</div><div style="flex:1;min-width:0">
+      <h4>Paiements reçus <span class="count num">${received.length}</span></h4>
+      <div class="help">En ligne, dernières 24 h</div>
+      <ul class="lines">${received.slice().reverse().map((p) => `<li><span style="min-width:0;overflow-wrap:anywhere">${p.guest} · ${BUCKET[p.bucket]} · <span class="muted num">${p.at}</span></span><span class="amt">${euro(p.amount)}</span></li>`).join('')}</ul></div></div>`;
+  }
+  function push(p) {
+    const box = $('#pushes'); if (box.firstElementChild && box.firstElementChild.style.opacity === '0.6') box.innerHTML = '';
+    const el = document.createElement('div'); el.className = 'push enter';
+    el.innerHTML = `<b>GuestFlow · ${LABELS[p.bucket]} · ${euro(p.amount)}</b>${p.guest}, La Granja, du 12 au 19 juillet.`;
+    box.prepend(el); requestAnimationFrame(() => el.classList.remove('enter'));
+    while (box.children.length > 3) box.lastElementChild.remove();
+    $('#hostMail').innerHTML = `<div class="subj">${LABELS[p.bucket]} : ${euro(p.amount)} — ${p.guest}</div>${p.guest}, La Granja, du 12 au 19 juillet.<br><span class="muted">Ouvrir dans GuestFlow : …/reservations/412</span>`;
+  }
+  function setReplay(enabled) { const b = $('#replay'); b.setAttribute('aria-disabled', String(!enabled)); b.title = enabled ? '' : 'Aucun paiement à relire'; }
+
+  $('#payOnline').addEventListener('click', () => {
+    const amount = parseAmount(); if (amount == null) { $('#amount').focus(); return; }
+    const p = { id: ++seq, bucket: $('#bucket').value, amount, guest: GUESTS[(seq - 1) % GUESTS.length], at: now() };
+    received.push(p); lastId = p.id; renderHome(); push(p); setReplay(true);
+    $('#explain').textContent = 'Annoncé : un push, un e-mail à toi, une ligne sur l\'accueil.';
+  });
+  $('#payManual').addEventListener('click', () => {
+    if (parseAmount() == null) { $('#amount').focus(); return; }
+    $('#explain').textContent = 'Marqué à la main : enregistré sur la fiche, rien n\'est annoncé (tu le sais déjà).';
+  });
+  $('#replay').addEventListener('click', (e) => {
+    if (e.currentTarget.getAttribute('aria-disabled') === 'true') return;
+    $('#explain').textContent = `Le paiement n° ${lastId} a déjà été annoncé : la relecture n'ajoute ni push, ni e-mail, ni ligne.`;
+  });
+  renderHome();
+
+  // Guest e-mail
+  const MAIL = {
+    fr: { s: 'Solde reçu — votre séjour à La Granja', b: 'Bonjour Martin,<br><br>Nous avons bien reçu votre solde de <b class="num">1 280 €</b>. Votre séjour du <b>samedi 12 juillet</b> (arrivée à partir de 16 h) au <b>samedi 19 juillet</b> (départ avant 10 h) est entièrement réglé : reste à payer <b class="num">0 €</b>.<br><br>À très bientôt,<br>Solio' },
+    en: { s: 'Balance received — your stay at La Granja', b: 'Hello Martin,<br><br>We have received your balance of <b class="num">€1,280</b>. Your stay from <b>Saturday 12 July</b> (check-in from 4 pm) to <b>Saturday 19 July</b> (check-out by 10 am) is fully paid: <b class="num">€0</b> left to pay.<br><br>See you soon,<br>Solio' },
+  };
+  let lang = 'fr', mode = 'manual';
+  const renderMail = () => { $('#guestMail').innerHTML = `<div class="subj">${MAIL[lang].s}</div>${MAIL[lang].b}`; };
+  document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => { lang = b.dataset.lang; document.querySelectorAll('[data-lang]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); renderMail(); }));
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { mode = b.dataset.mode; document.querySelectorAll('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); $('#guestState').innerHTML = ''; }));
+  $('#balancePaid').addEventListener('click', () => {
+    $('#guestState').innerHTML = mode === 'manual'
+      ? '<span class="badge b-warn">À valider</span> Proposé dans « Emails à envoyer » : il part quand tu cliques sur Envoyer.'
+      : '<span class="badge b-ok">Envoyé</span> Parti tout de suite, parce que le modèle est en Auto.';
+  });
+  renderMail();
+
+  // Devis conversion
+  let converted = false;
+  $('#convert').addEventListener('click', () => {
+    if (converted) { $('#convertState').innerHTML = 'Déjà converti : rien n\'est proposé une deuxième fois.'; return; }
+    converted = true; $('#devisBadge').className = 'badge b-ok'; $('#devisBadge').textContent = 'Réservation';
+    $('#convertState').innerHTML = '<span class="badge b-warn">À valider</span> La confirmation est proposée dans « Emails à envoyer » (modèle « Confirmation » en mode À valider).';
+    toast('Devis converti en réservation');
+  });
+
+  // VAT by role
+  let role = 'admin'; const saved = { vat: '20', account: '62220000' };
+  function renderRole() {
+    const v = $('#vat'); const acc = role === 'accountant';
+    v.readOnly = acc; v.value = saved.vat;
+    $('#vatHelp').textContent = acc ? 'Réservé à l\'admin : le comptable le voit mais ne peut pas le modifier.' : 'Modifiable par l\'admin.';
+    $('#vatHelp').classList.remove('err'); v.classList.remove('invalid'); $('#vatState').innerHTML = '';
+  }
+  document.querySelectorAll('[data-role]').forEach((b) => b.addEventListener('click', () => { role = b.dataset.role; document.querySelectorAll('[data-role]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); renderRole(); }));
+  $('#vat').addEventListener('input', () => {
+    const raw = $('#vat').value.trim().replace(',', '.'); const ok = /^\d+(\.\d+)?$/.test(raw) && Number(raw) >= 0 && Number(raw) <= 100;
+    $('#vat').classList.toggle('invalid', !ok); $('#vatHelp').classList.toggle('err', !ok);
+    $('#vatHelp').textContent = ok ? 'Modifiable par l\'admin.' : 'Taux refusé : un pourcentage entre 0 et 100.';
+  });
+  $('#saveVat').addEventListener('click', () => {
+    if ($('#vat').classList.contains('invalid')) { $('#vat').focus(); return; }
+    saved.account = $('#account').value; if (role === 'admin') saved.vat = $('#vat').value;
+    $('#vatState').innerHTML = role === 'admin' ? '<span class="badge b-ok">Enregistré</span> Compte et taux enregistrés.' : '<span class="badge b-ok">Enregistré</span> Compte enregistré ; le taux reste celui fixé par l\'admin.';
+    toast('Enregistré');
+  });
+  renderRole();
+
+  // Questions
+  const Q = [
+    { id: 'which', t: 'Quels paiements annoncer ?', o: [
+      ['all', 'Tous les paiements en ligne (Recommandé)', 'Acompte, solde, paiement total, échéance : tu sais tout ce qui arrive.'],
+      ['balance', 'Le solde seulement', 'Moins de notifications ; un acompte payé reste silencieux.'] ] },
+    { id: 'home', t: 'Où sur l\'accueil ?', o: [
+      ['own', 'Un sujet « Paiements reçus » (Recommandé)', 'Comme « Nouvelles réservations », 24 h, une ligne par paiement.'],
+      ['merge', 'Dans « Nouvelles réservations »', 'Un seul sujet ; les paiements s\'y ajoutent.'],
+      ['none', 'Pas sur l\'accueil', 'Push et e-mail seulement.'] ] },
+    { id: 'channel', t: 'Quel canal push ?', o: [
+      ['own', 'Un canal « Paiements en ligne reçus » (Recommandé)', 'Son propre interrupteur dans Notifications push.'],
+      ['reuse', 'Le canal « Nouvelle réservation »', 'Un interrupteur de moins, mais tu ne peux pas couper l\'un sans l\'autre.'] ] },
+    { id: 'mail', t: 'L\'e-mail « Solde reçu » au client', o: [
+      ['manual', 'Livré « À valider » (Recommandé)', 'Proposé dans « Emails à envoyer », comme tous les modèles.'],
+      ['auto', 'Livré en Auto', 'Il part seul : une 3e exception à la règle « aucun e-mail sans validation ».'] ] },
+    { id: 'devis', t: 'Devis converti à la main', o: [
+      ['mode', 'Selon le mode du modèle Confirmation (Recommandé)', 'Même chemin qu\'une conversion par paiement.'],
+      ['ask', 'Une case « Envoyer la confirmation » à la conversion', 'Tu choisis à chaque fois ; un écran de plus.'] ] },
+    { id: 'qonto', t: 'PR A — liens Qonto voisins', o: [
+      ['now', 'Les désactiver tout de suite (Recommandé)', 'Ferme la fenêtre de quelques minutes où un 2e paiement reste possible (il serait détecté et remboursé).'],
+      ['later', 'Laisser au passage suivant', 'Rien ne change.'] ] },
+  ];
+  const form = $('#q');
+  form.innerHTML = Q.map((q) => `<fieldset><legend>${q.t}</legend>${q.o.map(([v, l, d], i) => `<label class="opt"><input type="radio" name="${q.id}" value="${v}" ${i === 0 ? 'checked' : ''}><span>${l}<small>${d}</small></span></label>`).join('')}</fieldset>`).join('');
+  function summary() {
+    const lines = ['Choix — paiements en ligne reçus (spec online-payment-notices) :'];
+    Q.forEach((q) => { const v = form.querySelector(`input[name="${q.id}"]:checked`); const o = q.o.find((x) => x[0] === v.value); lines.push(`- ${q.t} → ${o[1].replace(' (Recommandé)', '')}`); });
+    $('#out').value = lines.join('\n');
+  }
+  form.addEventListener('change', summary); summary();
+  $('#copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('#out').value); toast('Résumé copié'); }
+    catch { $('#out').select(); document.execCommand('copy'); toast('Résumé copié'); }
+  });
+})();
+</script>
+</body>
+</html>
