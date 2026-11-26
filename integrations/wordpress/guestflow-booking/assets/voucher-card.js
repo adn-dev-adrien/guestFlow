@@ -1,5 +1,5 @@
 /**
- * The voucher card that turns (specs/gift-voucher-campaigns.md rule 66, build-free plain ES): one A6 card, its front the campaign's picture (rule 62) and its back drawn in HTML
+ * The voucher card that turns (specs/gift-vouchers/gift-voucher-campaigns.md rule 66, build-free plain ES): one A6 card, its front the campaign's picture (rule 62) and its back drawn in HTML
  * as GuestFlow's PDF draws it. Shared by the purchase form (the preview) and the page shown after payment (the real voucher).
  *
  * It writes nothing of the back itself. GuestFlow sends the dimensions (`layout`, turned here into CSS custom properties), the fixed words (`texts`), the logo, the company's

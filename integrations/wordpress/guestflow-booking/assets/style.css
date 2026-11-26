@@ -1,13 +1,13 @@
 /* GuestFlow Booking — shared styles for the three blocks. Theme-agnostic, responsive. */
 
-/* ── Colour tokens (specs/wordpress-plugin.md rule 29) ───────────────────────────────────────────
+/* ── Colour tokens (specs/site/wordpress-plugin.md rule 29) ───────────────────────────────────────────
    ONE accent drives every colour of the engine; the rest is one neutral ink and three semantic
    pairs. A site sets `--gf-accent` (and may set `--gf-muted`, `--gf-border`, `--gf-blocked`); a
    theme that exposes `--wp--preset--color--primary` is used next; Maison fir green otherwise.
 
    The private `--gfb-*` tokens are declared on the block AND on every direct child of the engine
    form (`.gf-engine`, set by view.js): the Solio drawer moves those children out of the block that
-   would have declared them (specs/site-booking-drawer.md rule 12), and a token only inherited from
+   would have declared them (specs/site/site-booking-drawer.md rule 12), and a token only inherited from
    `.gf-block` would then resolve to nothing. Declared there, each one recomputes from the
    `--gf-accent` it inherits — the block's, or the drawer panel's. Never on a site's own `gf-*`
    elements. `:where()` keeps the specificity at zero.
@@ -60,20 +60,20 @@
 }
 
 .gf-block { max-width: 100%; }
-/* Padding inside the declared width, whatever the theme sets (specs/wordpress-plugin.md rule 17):
+/* Padding inside the declared width, whatever the theme sets (specs/site/wordpress-plugin.md rule 17):
    with the browser's content-box, `width: 100%` plus padding overflowed the card on a stock theme.
    Scoped to the blocks, so the theme's own elements are never touched. */
 .gf-block, .gf-block *, .gf-block *::before, .gf-block *::after { box-sizing: border-box; }
 /* Two equal columns per form row, on any width: the booking block sizes against its own box. */
 .gf-booking { container-type: inline-size; }
 /* The block's wrapper is the container the sticky bar and the two-column layout read
-   (specs/wp-booking-widget-redesign.md rules 32-33): a container query cannot style its own box. */
+   (specs/site/wp-booking-widget-redesign.md rules 32-33): a container query cannot style its own box. */
 .gf-booking-block, .gf-session-block { container: gf-host / inline-size; }
 .gf-loading, .gf-error, .gf-empty { padding: 1rem; color: var(--gfb-muted); font-style: italic; }
 .gf-error { color: var(--gfb-error); font-style: normal; }
 
 /* Every control of the engine answers on press and never flashes the browser's tap highlight
-   (specs/wp-booking-widget-redesign.md rule 29). Hover styles live in the `(hover: hover)` block at the end: a touch screen keeps
+   (specs/site/wp-booking-widget-redesign.md rule 29). Hover styles live in the `(hover: hover)` block at the end: a touch screen keeps
    `:hover` on the last cell tapped, which is how the chosen departure went unreadable. */
 .gf-block button, .gf-engine button, button.gf-engine { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
@@ -94,7 +94,7 @@
 .gf-cal-dow { text-align: center; font-size: .72rem; color: var(--gfb-muted); padding: .25rem 0; text-transform: uppercase; }
 .gf-cal-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: .9rem; border-radius: 8px; }
 .gf-cal-day.gf-empty-cell { background: transparent; }
-/* Four states that never look alike (specs/wp-booking-widget-redesign.md rule 31): free (accent tint), taken (struck through on a
+/* Four states that never look alike (specs/site/wp-booking-widget-redesign.md rule 31): free (accent tint), taken (struck through on a
    hatch — information), past (a muted figure — noise), and the stay itself (filled accent). */
 .gf-cal-day.gf-free { background: var(--gfb-tint); }
 .gf-cal-day.gf-blocked, button.gf-cal-day.gf-taken {
@@ -110,7 +110,7 @@ button.gf-cal-day:disabled { cursor: not-allowed; }
 button.gf-cal-day.gf-past:disabled { cursor: default; }
 /* The chosen stay outranks any hover — the plugin's own and the one the legacy `gf-booking.php`
    mu-plugin still prints on the Solio Pi (`.gf-cal-day:hover:not(:disabled)`, specificity 0,3,0):
-   the class is doubled to reach 0,3,1 (specs/wp-booking-widget-redesign.md rule 29). */
+   the class is doubled to reach 0,3,1 (specs/site/wp-booking-widget-redesign.md rule 29). */
 button.gf-cal-day.gf-range.gf-range { background: var(--gfb-range); border-radius: 0; }
 button.gf-cal-day.gf-edge.gf-edge, button.gf-cal-day.gf-edge.gf-edge:disabled { background: var(--gfb-fill); color: var(--gfb-on-accent); font-weight: 700; text-decoration: none; }
 button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
@@ -136,7 +136,7 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-fill); outline-of
 @keyframes gf-slide-next { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 @keyframes gf-slide-prev { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
 @keyframes gf-fade { from { opacity: 0; } to { opacity: 1; } }
-/* specs/booking-drawer-friction.md rules 11-13 — the night's price under the day, and the departures
+/* specs/site/booking-drawer-friction.md rules 11-13 — the night's price under the day, and the departures
    under the minimum stay: hatched in a warm tone, reachable by extending the stay, never struck like a
    taken night. */
 button.gf-cal-day { flex-direction: column; line-height: 1.1; }
@@ -160,7 +160,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 /* A transparent outline under the ring: invisible normally, drawn by the system in forced colours. */
 .gf-field input:focus, .gf-field select:focus, .gf-field textarea:focus { outline: 2px solid transparent; outline-offset: 1px; border-color: var(--gfb-accent); box-shadow: 0 0 0 3px var(--gfb-focus); }
 .gf-field input.gf-ro { background: var(--gfb-surface); color: inherit; font-weight: 600; pointer-events: none; }
-/* Refused on the field (specs/wordpress-plugin.md rule 28): a red edge, and the reason right under it. */
+/* Refused on the field (specs/site/wordpress-plugin.md rule 28): a red edge, and the reason right under it. */
 .gf-field.is-invalid input, .gf-field.is-invalid textarea { border-color: var(--gfb-error); background: #FFFBFA; }
 .gf-field.is-invalid input:focus { box-shadow: 0 0 0 3px var(--gfb-error-soft); }
 .gf-field-error { font-size: .82rem; color: var(--gfb-error); }
@@ -190,7 +190,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-line-desc { font-size: .85rem; color: var(--gfb-muted); margin-top: .3rem; }
 .gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gfb-fill); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
 
-/* Cancellation insurance (specs/cancellation-insurance.md §6.3). Its own framed block just before
+/* Cancellation insurance (specs/payments/cancellation-insurance.md §6.3). Its own framed block just before
    the price summary, with a mandatory Oui/Non choice — nothing is preselected, and the submit
    button stays inert until the visitor answers. */
 .gf-insurance { border: 1px solid var(--gfb-border); border-radius: 10px; padding: .9rem 1rem; background: var(--gfb-surface); }
@@ -202,7 +202,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-choice:active { transform: scale(.98); }
 .gf-choice-on { border-color: var(--gfb-accent); background: var(--gfb-range); font-weight: 700; }
 
-/* Collapsible option categories (specs/option-categories.md §6.3). Collapsed by default; the
+/* Collapsible option categories (specs/options/option-categories.md §6.3). Collapsed by default; the
    options the visitor already picked render above the fold and stay visible when closed. */
 .gf-group { border-top: 1px solid var(--gfb-border); margin-top: .5rem; }
 .gf-group-head { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 44px; padding: .55rem .25rem; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; color: inherit; border-radius: 8px; }
@@ -226,7 +226,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-summary-line { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; }
 .gf-summary-line > span:last-child { white-space: nowrap; }
 .gf-summary-total { font-weight: 700; border-top: 1px solid var(--gfb-border); margin-top: .35rem; padding-top: .35rem; }
-/* « Bon cadeau » on the booking engine (specs/gift-vouchers.md rules 36-38): one field, its button, the server's refusal under it. */
+/* « Bon cadeau » on the booking engine (specs/gift-vouchers/gift-vouchers.md rules 36-38): one field, its button, the server's refusal under it. */
 .gf-voucher { margin: 1rem 0; }
 .gf-voucher[hidden] { display: none; }
 .gf-voucher-row { display: flex; gap: .5rem; align-items: stretch; flex-wrap: wrap; }
@@ -239,14 +239,14 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-inline-warn { color: var(--gfb-warn); background: var(--gfb-warn-soft); border: 1px solid var(--gfb-warn-soft); border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
 .gf-success { color: var(--gfb-ok); background: var(--gfb-ok-soft); border: 1px solid var(--gfb-ok-soft); border-radius: 8px; padding: 1rem; }
 /* The primary action. `.gf-btn` is never styled bare: the Solio site has its own `.gf-btn`
-   buttons (gf-site-style.php), which a bare rule repainted (specs/wordpress-plugin.md rule 29). The
+   buttons (gf-site-style.php), which a bare rule repainted (specs/site/wordpress-plugin.md rule 29). The
    engine's submit is reached as a child of the block or as an engine child (`.gf-engine`, how the
    drawer finds it); `.gfb-cta` is the same button outside the flow (sticky bar, summary card), and
    never carries `.gf-btn`, which the drawer reads as « the engine's submit ». */
 .gf-block .gf-btn, .gf-btn.gf-engine, .gfb-cta { background: var(--gfb-fill); color: var(--gfb-on-accent); border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; transition: transform .1s ease-out, background-color .15s ease; user-select: none; -webkit-user-select: none; }
 .gf-block .gf-btn:active:not([disabled]), .gf-btn.gf-engine:active:not([disabled]), .gfb-cta:active:not([disabled]) { transform: scale(.98); }
 .gf-block .gf-btn[disabled], .gf-btn.gf-engine[disabled], .gfb-cta[disabled] { opacity: .5; cursor: not-allowed; }
-/* Rules 2-4 of specs/booking-drawer-friction.md: the price per person under the total, and the request
+/* Rules 2-4 of specs/site/booking-drawer-friction.md: the price per person under the total, and the request
    without paying beside the payment. The alternative stays in the flow when the primary moves to the
    sticky bar or the summary card. */
 .gf-summary-pp { text-align: right; font-size: .82rem; color: var(--gfb-muted); padding-top: .15rem; }
@@ -254,7 +254,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-block .gf-btn.gf-btn-alt, .gf-btn.gf-engine.gf-btn-alt { background: #fff; color: inherit; border: 1.5px solid currentColor; margin: .5rem 0 0 .5rem; }
 .gf-booking > .gf-btn.gf-btn-alt { display: inline-block; }
 .gf-booking > .gf-btn.gf-btn-alt[hidden], .gf-booking > .gf-request-hint[hidden] { display: none; }
-/* CGV acceptance (specs/terms-acceptance-record.md rule 10): the whole line is the hit area. */
+/* CGV acceptance (specs/reservations/terms-acceptance-record.md rule 10): the whole line is the hit area. */
 .gf-cgv-accept { display: flex; gap: .6rem; align-items: flex-start; margin: .9rem 0 .4rem; cursor: pointer; line-height: 1.45; }
 .gf-cgv-accept input { width: 20px; height: 20px; margin: .1rem 0 0; flex: 0 0 auto; accent-color: var(--gfb-accent); }
 .gf-cgv-accept a, .gf-cgv-accept a.gf-link { color: var(--gfb-fill); text-decoration: underline; }
@@ -379,7 +379,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
   .gf-group-title { font-size: .95rem; }
 }
 
-/* ── Gift voucher tunnel (specs/gift-vouchers.md §6) ─────────────────────────────────────────────
+/* ── Gift voucher tunnel (specs/gift-vouchers/gift-vouchers.md §6) ─────────────────────────────────────────────
    Same tokens as the booking engine. The block sizes against its own box, like the booking block:
    one column below 640 px of block width (preview UNDER the form), two above (preview beside it). */
 .gf-gift-voucher-block { container: gf-gv / inline-size; }
@@ -438,7 +438,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-button svg { flex: 0 0 auto; }
 .gf-gv-button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .gf-gv-button { transition: none; } .gf-gv-button:active { transform: none; } }
-/* Composed vouchers (specs/gift-voucher-campaigns.md rules 16-19) and « Utiliser un bon cadeau » (rules 23-32). Same tokens;
+/* Composed vouchers (specs/gift-vouchers/gift-voucher-campaigns.md rules 16-19) and « Utiliser un bon cadeau » (rules 23-32). Same tokens;
    44 px targets; one column, the bar of the total stuck to the bottom of the screen on a phone. */
 .gf-gv-kind { margin-top: 1rem; }
 .gf-gv-offers { display: grid; gap: .6rem; grid-template-columns: minmax(0, 1fr); }
@@ -448,7 +448,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-offer b { font-size: 1.05rem; overflow-wrap: anywhere; }
 .gf-gv-offer-detail { color: var(--gfb-muted); font-size: .9rem; }
 .gf-gv-offer-price { font-weight: 600; color: var(--gfb-fill); font-variant-numeric: tabular-nums; }
-/* The campaign's front, read from GuestFlow (specs/gift-voucher-campaigns.md rule 62): a small whole card on each offer, the
+/* The campaign's front, read from GuestFlow (specs/gift-vouchers/gift-voucher-campaigns.md rule 62): a small whole card on each offer, the
    card at the head of the form (rule 66: the card that turns) — above the title in one column, a sticky column beside the form from 600 px of block. */
 .gf-gv-offer-text { display: grid; gap: .15rem; min-width: 0; }
 .gf-gv-offer.has-thumb { grid-template-columns: 60px minmax(0, 1fr); align-items: center; column-gap: .9rem; padding-left: .7rem; }
@@ -595,7 +595,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-compose-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .35rem 0; border-top: 1px solid var(--gfb-border); }
 .gf-gv-compose-label { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .gf-gv-compose-label small { display: block; font-weight: 400; color: var(--gfb-muted); }
-/* « Ajouter au bon » — the extra time and the add-ons in one fold, closed by default (specs/gift-voucher-campaigns.md rule 64) */
+/* « Ajouter au bon » — the extra time and the add-ons in one fold, closed by default (specs/gift-vouchers/gift-voucher-campaigns.md rule 64) */
 .gf-fold { margin: .3rem 0 .8rem; border: 1px solid var(--gfb-border); border-radius: 12px; background: #fff; overflow: hidden; transition: border-color .2s ease-out, box-shadow .2s ease-out; }
 .gf-fold.is-open { border-color: color-mix(in srgb, var(--gfb-accent) 35%, var(--gfb-border)); box-shadow: 0 6px 18px color-mix(in srgb, var(--gfb-ink) 7%, transparent); }
 .gf-fold-head { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 60px; padding: .7rem .95rem; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color .15s ease-out; }
@@ -635,7 +635,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-recap-line small { display: block; color: var(--gfb-muted); }
 .gf-gv-recap-total { margin-top: .3rem; padding-top: .4rem; border-top: 1px solid var(--gfb-border); font-size: 1.05rem; }
 .gf-gv-recap-vat { font-size: .85rem; color: var(--gfb-muted); }
-/* « Réserver une séance » (specs/site-outside-resource-booking.md rules 1-9): the tokens of the booking engine; the recap follows the scroll in a right-hand column from
+/* « Réserver une séance » (specs/site/site-outside-resource-booking.md rules 1-9): the tokens of the booking engine; the recap follows the scroll in a right-hand column from
    900 px of block width, a bar sticks to the bottom of the screen below it. */
 .gf-sb-title { margin: 0 0 .25rem; font-size: 1.5rem; line-height: 1.2; }
 .gf-sb-intro { margin: 0 0 1.25rem; color: var(--gfb-muted); }
