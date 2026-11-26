@@ -2,7 +2,7 @@
  * « Mon séjour » — the guest app (specs/guest-app/guest-app.md). The `.app` root carries the register's tokens
  * (`theme.js`) and the layout classes (rule 51); the routes are the screens of §6.6.
  */
-import { useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import { cssVars, muiTheme } from './theme';
@@ -21,10 +21,13 @@ import BathPlanPage from './pages/BathPlanPage';
 import { OrderPage, OrdersPage } from './pages/OrdersPages';
 import LookupPage from './pages/LookupPage';
 import SoliomapPage from './pages/SoliomapPage';
-import PlacesPage from './pages/PlacesPage';
 import HomeAutomationPage from './pages/HomeAutomationPage';
 import EntryPage from './pages/EntryPage';
 import { FailedScreen, UnavailableScreen, UnknownCodeScreen } from './pages/GateScreens';
+
+// The « Pratique » page and its Leaflet map load on demand: they stay out of the first load's budget
+// (specs/guest-app/guest-app-local-amenities.md §4.2).
+const PlacesPage = lazy(() => import('./pages/PlacesPage'));
 
 /** Rule 11bis — a screen of a module the lodging does not show is not reachable: home instead. */
 function Guard({ module, children }) {
@@ -56,7 +59,7 @@ function Screens() {
       <Route path="/commandes/:id" element={<OrderPage />} />
       <Route path="/commande/:id" element={<OrderPage />} />
       <Route path="/activites" element={<Guard module="soliomap"><SoliomapPage /></Guard>} />
-      <Route path="/pratique" element={<Guard module="places"><PlacesPage /></Guard>} />
+      <Route path="/pratique" element={<Guard module="places"><Suspense fallback={null}><PlacesPage /></Suspense></Guard>} />
       <Route path="/domotique" element={<Guard module="home"><HomeAutomationPage /></Guard>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
