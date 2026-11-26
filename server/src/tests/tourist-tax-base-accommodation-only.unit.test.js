@@ -155,9 +155,9 @@ test('the platform brut derives the base again, net of the extras billed through
   // subtracting it would deduct it twice.
   assert.equal(platformBrutAndComplementExtra.touristTaxBaseAccommodation, 450);
 
-  // The brut still pins the money: it holds the whole stay, the reversed tax included
-  // (specs/platform-payment-tourist-tax-as-option.md).
-  assert.equal(platformWithBrut.totalStayPrice, 450);
+  // The brut still pins the money: it holds the whole stay, the reversed tax on top of it. Amended 2026-11-26
+  // (specs/platform-host-statement-and-commission-vat.md rules 1, 7): the brut is the host amount, tax out of it.
+  assert.equal(platformWithBrut.totalStayPrice, 450 + platformWithBrut.touristTaxTotal);
   db.close();
 });
 

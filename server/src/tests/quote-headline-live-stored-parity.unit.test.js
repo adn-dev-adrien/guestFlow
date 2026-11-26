@@ -23,7 +23,7 @@ test('Airbnb brut 500, tax handled by the platform: 500 live and stored (was 506
 
 test('a withheld tax stated by the operator is in the gross and is the cascade\'s deduction', () => {
   const db = pricingAuditDb({ touristTax: 1, platforms: [{ name: 'Airbnb', collects: 1, remits: 1 }] });
-  const q = calculateReservationQuote({ ...STAY, db, platform: 'Airbnb', platformGrossAmount: 504, platformTouristTaxAmount: 4 });
+  const q = calculateReservationQuote({ ...STAY, db, platform: 'Airbnb', platformGrossAmount: 500, platformTouristTaxAmount: 4 });
   assert.equal(q.summaryCascade.grossTotal, 504);
   assert.equal(q.summaryCascade.offeredTaxDeduction, 4);
   assert.equal(q.summaryCascade.commissionBase, 500);

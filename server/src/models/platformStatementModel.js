@@ -9,10 +9,15 @@ const { captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const correction = require('../utils/platformStatementCorrection');
 const { formatEuros } = require('../utils/reservationLedger');
 const stayClockModel = require('./stayClockModel');
+const platformsModel = require('./platformsModel');
+const { statementReadout } = require('../utils/platformStatementReadout');
+const { touristTaxGapOf } = require('../utils/pricing/storedSaleFigures');
+const { billedOf } = require('../utils/platformOptionsAdjustment');
 
 const HISTORY_LABELS = {
-  platformGrossAmount: 'Montant total payé par le client',
-  platformTouristTaxAmount: 'Taxe de séjour retenue',
+  platformGrossAmount: 'Montant hôte (relevé)',
+  platformOptionsAmount: 'Options (relevé)',
+  platformTouristTaxAmount: 'Taxe de séjour (relevé)',
   platformCommissionAmount: 'Commission solde',
   acompteCommissionAmount: 'Commission acompte',
   depositAmount: 'Acompte',
@@ -68,7 +73,8 @@ function createPlatformStatementModel(database) {
     if (plan && plan.n > 0) {
       return fail(409, 'Séjour avec échéancier : le relevé se corrige depuis la fiche.', { code: 'STATEMENT_WITH_PLAN' });
     }
-    const parsed = correction.parseStatement(body, stored);
+    const mode = platformsModel.getTouristTaxCollection(stored.platform);
+    const parsed = correction.parseStatement(body, stored, mode);
     if (!parsed.ok) return fail(400, parsed.error, { code: 'INVALID_STATEMENT' });
     // The transfer is the mark's business until the payout is received (rule 8).
     if (!received) delete parsed.statement.platformPayoutAmount;
@@ -80,6 +86,11 @@ function createPlatformStatementModel(database) {
     }
     if (correction.driftedWithoutGross(stored, parsed.statement, before)) {
       return fail(409, 'Le tarif du séjour a changé depuis la vente : saisir le montant total payé par le client.', { code: 'STATEMENT_WOULD_REPRICE', moved: [] });
+    }
+    // Rule 2 — the lines of a started or paid stay are not the statement's to move: the options typed must be the ones billed.
+    const billed = billedOf(after);
+    if (parsed.statement.platformOptionsAmount != null && Math.abs(parsed.statement.platformOptionsAmount - billed) >= 0.005) {
+      return fail(409, `Le relevé compte ${formatEuros(parsed.statement.platformOptionsAmount)} d’options, la fiche ${formatEuros(billed)} : déverrouiller la fiche pour corriger les options.`, { code: 'INVALID_STATEMENT', field: 'platformOptionsAmount' });
     }
     const clamped = correction.clampedCommission(parsed.statement, after);
     if (clamped) return fail(400, `${clamped} dépasse le montant de son échéance.`, { code: 'INVALID_STATEMENT' });
@@ -94,10 +105,20 @@ function createPlatformStatementModel(database) {
     if (received) next.platformPayoutAmount = transfer;
 
     const changes = Object.keys(next).filter((column) => !unchanged(column, stored[column], next[column]));
+    const platformRow = platformsModel.findForStay(stored.platform);
+    const readout = statementReadout({
+      figures: { ...stored, ...next, platformPayoutAmount: received ? transfer : null },
+      mode,
+      touristTaxGap: touristTaxGapOf(after),
+      platformLabel: platformRow ? platformRow.name : String(stored.platform),
+      commissionPercent: platformRow ? platformRow.commissionPercent : 0,
+    });
     const outcome = {
       ok: true,
       netGap: received ? correction.netGapOf(next, transfer) : 0,
       netLabel: correction.netLabelOf(next, received ? transfer : null, formatEuros),
+      lines: readout.lines,
+      warnings: readout.warnings,
       changed: changes,
     };
     if (dryRun || changes.length === 0) return outcome;

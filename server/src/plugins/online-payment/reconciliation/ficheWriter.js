@@ -82,7 +82,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
         payout = payoutWithPenalty({ payout: got / 100 + platformAcompteNet(before), penalty: before.platformPenaltyAmount });
         const gross = grossOf(before);
         commission = computePlatformCommission({
-          gross, payout, touristTax: before.platformTouristTaxAmount, acompteCommission: before.acompteCommissionAmount,
+          platform: before.platform, gross, payout, touristTax: before.platformTouristTaxAmount, acompteCommission: before.acompteCommissionAmount,
         });
         body.platformPayoutAmount = payout;
         if (commission != null) body.platformCommissionAmount = commission;

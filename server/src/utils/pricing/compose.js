@@ -350,6 +350,7 @@ function touristTaxFigure(input) {
   return {
     touristTaxOriginalTotal: originalTouristTax(ctx.touristTaxBreakdown),
     platformTouristTaxWithheld: withheldTouristTax(ctx),
+    reversedTouristTaxInBrut: ctx.reversedTouristTaxInBrut,
   };
 }
 

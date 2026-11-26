@@ -12,6 +12,7 @@
  */
 
 const db = require('../database');
+const { touristTaxModeOf } = require('../utils/platformTaxMode');
 const {
   formatPlatformName, isDirectChannel, refreshDirectChannels, refreshChoreFreeChannels, refreshGuestContactChannels,
 } = require('../utils/platformNameFormat');
@@ -153,6 +154,13 @@ function createPlatformsModel(database) {
       if (name == null || name === '') return null;
       return stmts.findByName.get(String(name)) || null;
     },
+    // The platform row a stay's `platform` string names, whatever its spelling (case, accents, « .com »): the one
+    // its tourist-tax mode and commission settings are read from.
+    findForStay(name) {
+      const slug = platformSlug(name);
+      if (!slug || slug === DIRECT_NAME) return null;
+      return stmts.listAll.all().find((p) => platformSlug(p.name) === slug) || null;
+    },
     findById(id) {
       if (id == null) return null;
       return stmts.findById.get(Number(id)) || null;
@@ -274,7 +282,8 @@ function createPlatformsModel(database) {
       } catch (_) {
         return 'platform';
       }
-      if (!row) return 'platform';
+      // A key an iCal source wrote (`booking.com`, a label the platform row does not carry): the engine's own resolver names the platform.
+      if (!row) return touristTaxModeOf(database, name);
       return flagsToTouristTaxCollection(row.collectsTouristTax, row.touristTaxRemittedByPlatform);
     },
 

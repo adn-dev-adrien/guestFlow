@@ -37,7 +37,7 @@ test('an extra added without a flag stays in the acompte / solde, and the acompt
 test('a brut entered on the site engine is read like a direct sale: the extras stay inside it', () => {
   const q = calculateReservationQuote({
     ...STAY, db: lodgifyDb({ collects: 1, remits: 0 }), platform: 'Lodgify',
-    selectedOptions: [{ optionId: 10, quantity: 1 }], platformGrossAmount: 684.8, platformCommissionAmount: 6.85,
+    selectedOptions: [{ optionId: 10, quantity: 1 }], platformGrossAmount: 680, platformTouristTaxAmount: 4.8, platformCommissionAmount: 6.85,
   });
   assert.equal(q.totalStayPrice, 684.8, 'nothing added on top of the brut');
   assert.equal(q.complementAmount, 0);

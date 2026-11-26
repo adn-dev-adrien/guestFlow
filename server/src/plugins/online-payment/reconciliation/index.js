@@ -44,6 +44,11 @@ function mountReconciliation(ctx, { store, attachPdf, companyName }) {
     const { buildLedger } = sdk.coreModule('reservationLedger');
     const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
     const { applyPaymentMark, computePlatformCommission, takeBackRefusal } = sdk.coreModule('reservationPaymentMark');
+    // specs/platform-host-statement-and-commission-vat.md rule 8 — the tax box adds to the host amount only where the platform reverses the tax.
+    const platformsModel = sdk.coreModule('platformsModel');
+    const statementCommission = ({ platform, touristTax, ...figures }) => computePlatformCommission({
+      ...figures, touristTax: platformsModel.getTouristTaxCollection(platform) === 'platform_reversed' ? touristTax : 0,
+    });
     const { platformDisplay } = sdk.coreModule('platformDisplay');
     const { getTodayIsoDate } = sdk.coreModule('reservationHelpers');
     const paymentLinks = sdk.coreModule('paymentLinksModel');
@@ -53,7 +58,7 @@ function mountReconciliation(ctx, { store, attachPdf, companyName }) {
     const transactions = createBankTransactionsModel(ctx.db);
     const model = createReconciliationModel(ctx.db);
     const qonto = (fn) => withQonto({ settings: store, origin: 'reconciliation' }, fn);
-    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments, takeBackRefusal });
+    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission: statementCommission, reservations, installments, takeBackRefusal });
     const links = paymentLinks.buildModel(ctx.db);
     const settlements = createSettlementsModel(ctx.db);
     const mollie = createMollieConnection({ settings: ctx.settings, db: ctx.db, settlements });

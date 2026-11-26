@@ -10,11 +10,13 @@ const { settingsSchema } = platformPrice;
 
 const { resolvePlatformPrice, grossFromNet } = platformPrice;
 
-test('rule 17 — the accommodation is the gross less every term the platform price already holds', () => {
+// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 3, 7): the gross is the host amount of the statement; the only
+// tax term left is the signed gap between what the platform paid for the tax and GuestFlow's own, which goes into the accommodation.
+test('rule 17 — the accommodation is the gross less the terms the platform price already holds, plus the tax gap', () => {
   const { accommodation } = resolvePlatformPrice({
-    gross: 500, extraGuestsInBrut: 40, platformLines: 60, withheldTax: [10, 5],
+    gross: 500, extraGuestsInBrut: 40, platformLines: 60, taxGap: 10,
   });
-  assert.equal(accommodation, 385);
+  assert.equal(accommodation, 410);
 });
 
 test('rule 17 — platformLines may be a list of line totals, summed to the cent', () => {
@@ -22,9 +24,10 @@ test('rule 17 — platformLines may be a list of line totals, summed to the cent
   assert.equal(resolvePlatformPrice({ gross: 100, platformLines: [] }).accommodation, 100);
 });
 
-test('rule 17 — withheldTax is a total or the pair [reversed, withheld]', () => {
-  assert.equal(resolvePlatformPrice({ gross: 100, withheldTax: 7 }).accommodation, 93);
-  assert.equal(resolvePlatformPrice({ gross: 100, withheldTax: [7, 3] }).accommodation, 90);
+test('rule 17 — the tax gap is signed: a platform that paid more tax than ours raises the accommodation, less lowers it', () => {
+  assert.equal(resolvePlatformPrice({ gross: 100, taxGap: 7 }).accommodation, 107);
+  assert.equal(resolvePlatformPrice({ gross: 100, taxGap: -7 }).accommodation, 93);
+  assert.equal(resolvePlatformPrice({ gross: 100 }).accommodation, 100);
 });
 
 test('rule 17 — a gross that does not cover the terms is floored at 0, never negative', () => {
@@ -92,9 +95,9 @@ test('rule 17 — the unit and the engine agree: the engine\'s accommodation und
     propertyId: 1, db, platform: 'expedia', startDate: '2026-07-10', endDate: '2026-07-12', checkInTime: '15:00', checkOutTime: '10:00', // date-literal-ok: seeded stay, nothing compares with today
     adults: 2, children: 0, teens: 0, babies: 0, selectedOptions: [], customOptions: [], selectedResources: [],
     discountPercent: 0, customPrice: '', depositPaid: false, balancePaid: false,
-    platformGrossAmount: 204.8, platformCommissionAmount: 20,
+    platformGrossAmount: 200, platformTouristTaxAmount: 4.8, platformCommissionAmount: 20,
   });
-  const { accommodation } = resolvePlatformPrice({ gross: 204.8, extraGuestsInBrut: 0, platformLines: 0, withheldTax: [4.8, 0] });
+  const { accommodation } = resolvePlatformPrice({ gross: 200, extraGuestsInBrut: 0, platformLines: 0, taxGap: 0 });
   assert.equal(quote.accommodationAdjustedPrice, accommodation);
   assert.equal(accommodation, 200);
   db.close();

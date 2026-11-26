@@ -64,6 +64,7 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
     platformGrossAmount: blankToNull(r.platformGrossAmount),
     platformPayoutAmount: blankToNull(r.platformPayoutAmount),
     platformTouristTaxAmount: blankToNull(r.platformTouristTaxAmount),
+    platformOptionsAmount: blankToNull(r.platformOptionsAmount),
     cautionAmount: r.cautionAmount,
     cautionReceived: r.cautionReceived,
     cautionReceivedDate: r.cautionReceivedDate,

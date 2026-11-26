@@ -40,7 +40,7 @@ function window(nights = 2) {
 
 async function addedGuestStay({ propertyId = 3, party = { adults: 3 }, base = {} } = {}) {
   seedHere();
-  const stay = { propertyId, platform: 'Canal', platformGrossAmount: 600, ...window(), ...base };
+  const stay = { propertyId, platform: 'Canal', platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8, ...window(), ...base };
   const id = createStay(stay);
   const res = await save(id, { ...stay, ...party });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -67,7 +67,7 @@ test('rule 19: the brut cleared takes the occupants with it, and a request body 
 
 test('rule 19: on a percentage property the comparison reads the occupants, the supplement keeps the persons billed', async () => {
   seedHere();
-  const stay = { propertyId: 4, platform: 'Canal', platformGrossAmount: 600, children: 2, ...window() };
+  const stay = { propertyId: 4, platform: 'Canal', platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8, children: 2, ...window() };
   const id = createStay(stay);
   // The upgrade of DB-3: the head count the platform billed differs from the party the backfill read.
   db.prepare('UPDATE reservations SET platformPaidGuests = 6, platformPaidOccupants = 4 WHERE id = ?').run(id);
@@ -83,7 +83,7 @@ test('rule 19: on a percentage property the comparison reads the occupants, the 
 
 test('D12, rule 5: a child removed on a percentage property bills the gap, with nobody added', async () => {
   seedHere();
-  const stay = { propertyId: 4, platform: 'Canal', platformGrossAmount: 600, children: 2, ...window() };
+  const stay = { propertyId: 4, platform: 'Canal', platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8, children: 2, ...window() };
   const id = createStay(stay);
   const saved = await save(id, { ...stay, children: 1 });
   assert.equal(saved.statusCode, 200, JSON.stringify(saved.body));
@@ -169,7 +169,7 @@ test('rule 23: every surface of the line says « Complément de taxe de séjour 
 
 test('rule 23: a tax that is whole in the complement keeps its own name', async () => {
   seedHere();
-  const stay = { propertyId: 3, platform: 'Canal', platformGrossAmount: 600, touristTaxInComplement: 1, ...window() };
+  const stay = { propertyId: 3, platform: 'Canal', platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8, touristTaxInComplement: 1, ...window() };
   const id = createStay(stay);
   const saved = await save(id, { ...stay, adults: 3 });
   assert.equal(saved.statusCode, 200, JSON.stringify(saved.body));
@@ -191,7 +191,7 @@ test('rule 23: a single payment of solde and complement names the whole tax', ()
 
 test('preview, rules 1, 2: a guest added on the live quote reads the stored paid base', async () => {
   seedHere();
-  const stay = { propertyId: 3, platform: 'Canal', platformGrossAmount: 600, ...window() };
+  const stay = { propertyId: 3, platform: 'Canal', platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8, ...window() };
   const id = createStay(stay);
   const quote = await liveQuote(id, { ...stay, adults: 3 });
   assert.equal(quote.platformPaidAdults, 2);
@@ -242,7 +242,7 @@ test('rule 1: a locked past stay can still take its brut, the paid base follows'
   const startDate = addDaysToIsoDate(TODAY, -5);
   const endDate = addDaysToIsoDate(TODAY, -3);
   db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?').run(startDate, endDate, id);
-  const saved = await save(id, { propertyId: 3, platform: 'Canal', startDate, endDate, platformGrossAmount: 600 });
+  const saved = await save(id, { propertyId: 3, platform: 'Canal', startDate, endDate, platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8 });
   assert.equal(saved.statusCode, 200, JSON.stringify(saved.body));
   assert.equal(rowOf(id).platformPaidAdults, 2);
   assert.equal(rowOf(id).platformPaidOccupants, 2);

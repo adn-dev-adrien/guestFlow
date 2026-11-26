@@ -68,6 +68,10 @@ function loadInputs(db, inputs) {
   })();
   // `isDirectChannel` reads a set cached at boot, when this database still held the seeded platforms.
   app('utils/platformNameFormat.js').refreshDirectChannels(db);
+  // specs/platform-host-statement-and-commission-vat.md rule 4 — the brut of every platform stay becomes the host amount, as the boot of a
+  // real database does it: this is what keeps the stays of the copy at their price.
+  const brut = app('utils/hostStatementBrutMigration.js');
+  brut.runHostStatementBrutMigration(db, { reversedTaxOf: brut.reversedTaxOfStoredStay(db) });
   // The boot migrated an EMPTY database: the backfills of the stored columns run again on the rows just loaded, as the
   // boot of a real database runs them (specs/pricing-components.md rule 36).
   const lines = app('utils/pricingLinesMigration.js');

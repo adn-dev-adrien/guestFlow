@@ -18,6 +18,10 @@ const { calculateReservationQuote } = require('../utils/pricing').__test;
 //   Taxe de séjour            14,40   ← collected AND remitted by the centrale
 //   Payé par le client       747,40
 //   Virement propriétaire    668,00   → the real commission is 65,00
+//
+// Amended 2026-11-26 by platform-host-statement-and-commission-vat.md rules 1 and 5: the brut is now the HOST amount (733,00, the tax out of it);
+// the box « Taxe de séjour » keeps what the platform kept and enters no price in mode `platform` — the figures below are the same stay typed
+// that way, and every price, VAT base and declared base is the one the 747,40 convention produced.
 
 function createDb({ sources = [], touristTaxMode = 'per_day_per_person', percentage = 0 } = {}) {
   const db = new Database(':memory:');
@@ -88,19 +92,19 @@ const OWNER = [{ platformKey: 'abracadaroom', platformLabel: 'Abracadaroom', col
 const ACCOMMODATION = 653;
 const OPTIONS = 80;
 const TAX = 14.40;
-const BRUT_TTC = 747.40;   // what the guest paid, tax included (rule 3)
-const BRUT_HT_TAX = 733;   // the stay alone — the August convention (rule 2)
+const BRUT_TTC = 747.40;   // what the guest paid, tax included — the convention before 2026-11-26
+const BRUT_HT_TAX = 733;   // the host amount: the stay alone
 const VIREMENT = 668;
 
 // ---------------------------------------------------------------------------
 // rules 3 + 6 — a stated tax comes back out of the brut
 // ---------------------------------------------------------------------------
 
-test('rules 3 + 6 — Victor: brut 747,40 with 14,40 withheld → finalPrice 733, accommodation 653', () => {
+test('rules 1 + 5 — Victor: host amount 733 with 14,40 kept → finalPrice 733, accommodation 653', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC,
+    platformGrossAmount: BRUT_HT_TAX,
     platformTouristTaxAmount: TAX,
   });
 
@@ -128,11 +132,11 @@ test('rule 2 — an empty box keeps the August reading of the brut, to the cent'
   db.close();
 });
 
-test('rule 2 — both conventions land on the same revenue, which is what makes the migration unnecessary', () => {
+test('rule 5 — the box moves no price: with or without it the revenue is the same', () => {
   const db = createDb({ sources: OFFERED });
   const withBox = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
   });
   const withoutBox = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
@@ -153,7 +157,7 @@ test('rule 1 — a direct booking ignores the withheld amount entirely', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'direct',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
   });
 
   assert.equal(q.platformTouristTaxWithheld, null);
@@ -162,21 +166,27 @@ test('rule 1 — a direct booking ignores the withheld amount entirely', () => {
   db.close();
 });
 
-test('rule 1 — `platform_reversed` ignores it: the tax is in the brut AND in the virement', () => {
+test('rule 5 — `platform_reversed`: the box is the tax paid with the transfer; GuestFlow\'s own figure leaves no gap, another figure moves the accommodation', () => {
   const db = createDb({ sources: REVERSED });
-  const withBox = calculateReservationQuote({
-    ...VICTOR, db, platform: 'Lodgify',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
-  });
   const withoutBox = calculateReservationQuote({
     ...VICTOR, db, platform: 'Lodgify',
-    platformGrossAmount: BRUT_TTC,
+    platformGrossAmount: BRUT_HT_TAX,
+  });
+  const ownTax = calculateReservationQuote({
+    ...VICTOR, db, platform: 'Lodgify',
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
+  });
+  const otherTax = calculateReservationQuote({
+    ...VICTOR, db, platform: 'Lodgify',
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: 20,
   });
 
-  assert.equal(withBox.platformTouristTaxWithheld, null);
-  assert.equal(withBox.finalPrice, withoutBox.finalPrice);
-  assert.equal(withBox.accommodationAdjustedPrice, withoutBox.accommodationAdjustedPrice);
-  assert.equal(withBox.totalStayPrice, withoutBox.totalStayPrice);
+  assert.equal(ownTax.platformTouristTaxWithheld, null, 'a reversed tax is not a withheld one');
+  assert.equal(ownTax.finalPrice, withoutBox.finalPrice);
+  assert.equal(ownTax.accommodationAdjustedPrice, withoutBox.accommodationAdjustedPrice);
+  assert.equal(ownTax.totalStayPrice, withoutBox.totalStayPrice);
+  assert.equal(otherTax.accommodationAdjustedPrice, withoutBox.accommodationAdjustedPrice + 5.6, 'the 5,60 the platform paid beyond our tax goes into the accommodation');
+  assert.equal(otherTax.totalStayPrice, withoutBox.totalStayPrice + 5.6);
   db.close();
 });
 
@@ -221,14 +231,14 @@ test('rule 6bis — the declared tax base drops the withheld tax (no tax on the 
   const db = createDb({ sources: OFFERED, touristTaxMode: 'percentage_accommodation', percentage: 5 });
   const withBox = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
   });
   const reference = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX,
   });
 
-  // Same stay, same declared base, whichever convention the operator typed it under.
+  // Same stay, same declared base, with the box or without it.
   assert.equal(withBox.touristTaxOriginalTotal, reference.touristTaxOriginalTotal);
   assert.ok(withBox.touristTaxOriginalTotal > 0, 'the percentage mode must produce an amount at all');
   db.close();
@@ -238,13 +248,13 @@ test('rule 7 — the VAT base is the stay, never the tourist tax', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
   });
 
-  // TTC 733 at 10 % → 66.64 of VAT, 666.36 net. The tax's 14.40 is nowhere in it.
+  // TTC 733 at 10 % → 66.64 of VAT, 666.36 net. The tax's 14.40 is nowhere in it: it was never in the brut.
   assert.equal(q.totalNetPrice + q.totalVatAmount, BRUT_HT_TAX);
-  const vatOnBrut = Math.round(BRUT_TTC * (10 / 110) * 100) / 100;
-  assert.notEqual(q.totalVatAmount, vatOnBrut);
+  const vatOnGuestTotal = Math.round(BRUT_TTC * (10 / 110) * 100) / 100;
+  assert.notEqual(q.totalVatAmount, vatOnGuestTotal);
   db.close();
 });
 
@@ -257,7 +267,7 @@ test('rule 9 — the quote publishes the withheld amount beside the untouched en
   const OTHER = 16.02; // a platform figure that is NOT our per-person nightly estimate (Booking-style)
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: 749.02, platformTouristTaxAmount: OTHER,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: OTHER,
   });
 
   assert.equal(q.platformTouristTaxWithheld, OTHER);
@@ -272,7 +282,7 @@ test('rule 11 — net perçu equals the virement: the écart closes on the state
   const COMMISSION = 65;
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
     platformCommissionAmount: COMMISSION,
   });
 
@@ -284,16 +294,15 @@ test('rule 11 — net perçu equals the virement: the écart closes on the state
 });
 
 test('rule 10 — the commission the « Calculer » button writes is the real one', () => {
-  // The button's formula lives in the client; this pins the arithmetic it must produce, and that the
-  // engine then reconciles it. 747,40 − 668 − 14,40 = 65,00, where brut − virement alone gives 79,40.
-  const commission = Math.max(0, Math.round((BRUT_TTC - VIREMENT - TAX) * 100) / 100);
+  // The host amount is the brut, so the commission is brut − virement: 733 − 668 = 65,00 (the guest total 747,40 would give 79,40).
+  const commission = Math.max(0, Math.round((BRUT_HT_TAX - VIREMENT) * 100) / 100);
   assert.equal(commission, 65);
   assert.notEqual(commission, Math.round((BRUT_TTC - VIREMENT) * 100) / 100);
 
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
     platformCommissionAmount: commission,
   });
   assert.equal(q.platformNetReceivedAmount, VIREMENT);
@@ -308,7 +317,7 @@ test('rule 8 — the withheld tax stays out of our books and out of the declarat
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
     platformCommissionAmount: 65,
   });
 
@@ -324,12 +333,12 @@ test('rule 8 — the withheld tax stays out of our books and out of the declarat
 // edge cases — rules 15, 16, 19, 20
 // ---------------------------------------------------------------------------
 
-test('rule 16 — a brut that does not cover the tax it claims to contain is flagged, not floored silently', () => {
+test('rule 16 — a brut that does not cover the extras billed through it is flagged, not floored silently', () => {
   const db = createDb({ sources: OFFERED });
-  // Brut 85 covers the 80 € option but not the option + the 14,40 it is supposed to include.
+  // Brut 70 does not cover the 80 € option.
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: 85, platformTouristTaxAmount: TAX,
+    platformGrossAmount: 70, platformTouristTaxAmount: TAX,
   });
 
   assert.equal(q.touristTaxBrutInconsistent, true);
@@ -337,24 +346,24 @@ test('rule 16 — a brut that does not cover the tax it claims to contain is fla
   db.close();
 });
 
-test('rule 16 — the same brut without a withheld tax is consistent (the threshold really moved)', () => {
+test('rule 16 — the box no longer moves the threshold: the brut is the host amount, tax out of it', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: 85,
+    platformGrossAmount: 85, platformTouristTaxAmount: TAX,
   });
 
   assert.equal(q.touristTaxBrutInconsistent, false);
   db.close();
 });
 
-test('rule 17 — a platform switched out of the offered mode makes a stored amount inert, not lost', () => {
+test('rule 17 — a platform switched out of the offered mode: the stored amount is read as the tax paid with the transfer (rule 5 of the host statement)', () => {
   // The mode is a GLOBAL platform setting: flipping it must neither crash nor keep deducting. The
   // stored euros stay in the row and become live again if the mode comes back.
   const offered = createDb({ sources: OFFERED });
   const before = calculateReservationQuote({
     ...VICTOR, db: offered, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
   });
   assert.equal(before.finalPrice, BRUT_HT_TAX);
   assert.equal(before.platformTouristTaxWithheld, TAX);
@@ -364,11 +373,11 @@ test('rule 17 — a platform switched out of the offered mode makes a stored amo
   const flipped = createDb({ sources: [{ platformKey: 'gitesdefrance', platformLabel: 'GitesDeFrance', collects: 1, remitted: 0 }] });
   const after = calculateReservationQuote({
     ...VICTOR, db: flipped, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
   });
-  assert.equal(after.platformTouristTaxWithheld, null); // inert
+  assert.equal(after.platformTouristTaxWithheld, null); // no longer a withheld tax
   const reference = calculateReservationQuote({
-    ...VICTOR, db: flipped, platform: 'GitesDeFrance', platformGrossAmount: BRUT_TTC,
+    ...VICTOR, db: flipped, platform: 'GitesDeFrance', platformGrossAmount: BRUT_HT_TAX,
   });
   assert.equal(after.finalPrice, reference.finalPrice);
   flipped.close();
@@ -420,7 +429,7 @@ test('rule 19 — a frozen tax does not move the withheld amount, which is the p
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
     ...VICTOR, db, platform: 'GitesDeFrance',
-    platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
+    platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
     freezeTouristTax: true, frozenTouristTaxTotal: 9.60, frozenTouristTaxRate: 0.80,
   });
 

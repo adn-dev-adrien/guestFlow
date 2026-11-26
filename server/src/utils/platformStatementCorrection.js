@@ -11,13 +11,13 @@
 
 const { pricedProjection } = require('./storedReservationQuote');
 const { round2 } = require('./reservationSettlement');
-const { storedPreArrival, storedNet, totalCommission } = require('./pricing/platformPayment');
+const { storedPreArrival, storedNet, totalCommission, taxPaidWithPayout } = require('./pricing/platformPayment');
 
 const HALF_CENT = 0.005;
 
 // The fields of the statement, as the fiche's « Paiement plateforme » sends them, plus the transfer received
 // (rule 8: only on a received payout, where the panel shows it prefilled and editable).
-const STATEMENT_FIELDS = ['platformGrossAmount', 'platformTouristTaxAmount', 'platformCommissionAmount', 'acompteCommissionAmount', 'platformPayoutAmount'];
+const STATEMENT_FIELDS = ['platformGrossAmount', 'platformOptionsAmount', 'platformTouristTaxAmount', 'platformCommissionAmount', 'acompteCommissionAmount', 'platformPayoutAmount'];
 const COMMISSION_FIELDS = ['platformCommissionAmount', 'acompteCommissionAmount'];
 
 // What a statement may never move (rule 7), with the words the refusal uses.
@@ -42,9 +42,10 @@ function readMoney(value) {
 
 /**
  * The statement of the body, validated. Only the fields present are taken; the others keep their stored value.
+ * `mode` is the platform's tourist-tax mode: the tax paid with the transfer raises what the commission may reach (rule 12).
  * @returns {{ ok: true, statement: object } | { ok: false, error: string }}
  */
-function parseStatement(body = {}, stored = {}) {
+function parseStatement(body = {}, stored = {}, mode = 'platform') {
   const statement = {};
   for (const field of STATEMENT_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
@@ -56,8 +57,9 @@ function parseStatement(body = {}, stored = {}) {
   const merged = { ...stored, ...statement };
   const gross = merged.platformGrossAmount == null || merged.platformGrossAmount === '' ? null : Number(merged.platformGrossAmount);
   const commissions = totalCommission(Number(merged.platformCommissionAmount || 0), Number(merged.acompteCommissionAmount || 0));
-  if (gross != null && commissions > gross + HALF_CENT) {
-    return { ok: false, error: 'La commission ne peut pas dépasser le montant payé par le client.' };
+  const taxPaid = taxPaidWithPayout({ mode, box: merged.platformTouristTaxAmount });
+  if (gross != null && commissions > gross + taxPaid + HALF_CENT) {
+    return { ok: false, error: 'La commission ne peut pas dépasser le montant hôte et la taxe de séjour versée avec le virement.' };
   }
   return { ok: true, statement };
 }

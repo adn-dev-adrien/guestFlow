@@ -201,7 +201,8 @@ test('the inclusions are deducted from the platform brut too', () => {
   assert.equal(direct.touristTaxBaseAccommodation, 299.79);
   assert.equal(withBrut.touristTaxBaseAccommodation, 390);
   assert.ok(withBrut.touristTaxTotal > direct.touristTaxTotal);
-  assert.equal(withBrut.totalStayPrice, 450);
+  // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 1): the brut is the host amount, the reversed tax rides on top of it.
+  assert.equal(withBrut.totalStayPrice, 450 + withBrut.touristTaxTotal);
   db.close();
 });
 

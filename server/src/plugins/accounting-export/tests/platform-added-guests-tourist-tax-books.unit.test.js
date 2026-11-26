@@ -1,5 +1,7 @@
 // specs/platform-added-guests-tourist-tax.md rules 13, 17 — the balance and complement entries share the
 // added guests' tourist tax without a cent lost, on a solde whose contribs are frozen or not.
+// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
+// with its 7,20 of reversed tax inside is a brut of 592,80 and a box of 7,20; the stay, its buckets and its entries are the same.
 
 process.env.DB_PATH = ':memory:';
 
@@ -64,10 +66,10 @@ test('rule 17: reversed platform, gross entered, 2 → 3 adults, solde then comp
   db.prepare("INSERT INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES ('Canal', 1, 0)").run();
 
   const stay = { propertyId: 3, platform: 'Canal', startDate: inDays(100), endDate: inDays(102) };
-  const id = createStay({ ...stay, platformGrossAmount: 600 });
+  const id = createStay({ ...stay, platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   assert.equal(rowOf(id).balanceAmount, 600);
 
-  const saved = await save(id, { ...stay, adults: 3, platformGrossAmount: 600 });
+  const saved = await save(id, { ...stay, adults: 3, platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   assert.equal(saved.statusCode, 200, JSON.stringify(saved.body));
   assert.equal(rowOf(id).balanceAmount, 600);
   assert.equal(rowOf(id).complementAmount, 42.4);

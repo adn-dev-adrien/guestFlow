@@ -5,9 +5,10 @@ const assert = require('node:assert/strict');
 const unit = require('../utils/pricing/platformPayment');
 
 test('rule 70 — statementRemainder is the commission before its floor; statementPayout is the payout a statement implies', () => {
-  assert.equal(unit.statementRemainder({ gross: 1236.26, payout: 1028.44, tax: 28.86 }), 178.96);
+  // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 8): the gross is the host amount, the tax paid with the transfer adds to it.
+  assert.equal(unit.statementRemainder({ gross: 1154.6, payout: 1028.44, tax: 52.8 }), 178.96);
   assert.equal(unit.statementRemainder({ gross: 100, payout: 120 }), -20, 'negative when the figures disagree');
-  assert.equal(unit.statementPayout({ gross: 500, commission: 75, acompteCommission: 10, tax: 5 }), 410);
+  assert.equal(unit.statementPayout({ gross: 500, commission: 75, acompteCommission: 10, tax: 5 }), 420);
   assert.equal(unit.statementPayout({ gross: 500, commission: null }), 500);
 });
 

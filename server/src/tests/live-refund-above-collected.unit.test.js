@@ -21,7 +21,7 @@ test('D10 — nothing collected on a direct stay: a refund is refused with what 
 });
 
 test('D10 — reversed platform with a guest added, solde collected: 600 € at most, not the 642,40 € offered', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.reversed, { platformGrossAmount: 600 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.reversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   pay(stay.id, S);
   const refused = refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 635.2 }, { key: TAX, amountTtc: 7.2 }]);

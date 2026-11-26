@@ -1656,6 +1656,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // specs/platform-tourist-tax-out-of-the-commission.md rule 2 — '' is not 0 here: it is what says
       // the brut was typed tourist-tax-excluded, and the fiche must be able to tell the two apart.
       reservation.platformTouristTaxAmount = reservation.platformTouristTaxAmount == null ? '' : Number(reservation.platformTouristTaxAmount);
+      // specs/platform-host-statement-and-commission-vat.md rule 1 — '' is a statement not typed: no check on the lines.
+      reservation.platformOptionsAmount = reservation.platformOptionsAmount == null ? '' : Number(reservation.platformOptionsAmount);
       reservation.complementAmount = Number(reservation.complementAmount || 0);
       reservation.complementPaid = Number(reservation.complementPaid || 0);
       reservation.complementPaidDate = reservation.complementPaidDate || null;
@@ -2568,6 +2570,16 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         return resolved;
       });
       return run();
+    },
+
+    // specs/platform-host-statement-and-commission-vat.md rule 1 — the options of the platform's statement, NULL when not typed
+    // and on a direct stay. Written by the save right after the row, in the same transaction.
+    storePlatformOptionsAmount(reservationId, amount) {
+      const row = database.prepare('SELECT platform FROM reservations WHERE id = ?').get(reservationId);
+      const platformIsNonDirect = row && String(formatPlatformName(row.platform) || 'direct').toLowerCase() !== 'direct';
+      const value = platformIsNonDirect && amount != null && amount !== '' && Number.isFinite(Number(amount))
+        ? Math.max(0, roundMoneyStrict(Number(amount))) : null;
+      database.prepare('UPDATE reservations SET platformOptionsAmount = ? WHERE id = ?').run(value, reservationId);
     },
 
     updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing = false, stayPinned = false } = {}) {

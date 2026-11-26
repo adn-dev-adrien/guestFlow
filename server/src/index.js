@@ -198,6 +198,25 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// specs/platform-host-statement-and-commission-vat.md rule 4 — once, after the engine can load: the brut of every platform stay becomes the
+// host amount of the statement (tourist tax out of it), so that every stored price, schedule, tax and entry stays to the cent.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const name = 'platform_host_statement_brut_v1';
+    if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(name)) {
+      const { runHostStatementBrutMigration, reversedTaxOfStoredStay } = require('./utils/hostStatementBrutMigration');
+      const migrated = db.transaction(() => {
+        const { migrated: ids } = runHostStatementBrutMigration(db, { reversedTaxOf: reversedTaxOfStoredStay(db) });
+        db.prepare('INSERT INTO migrations (name) VALUES (?)').run(name);
+        return ids;
+      })();
+      console.log(`[migration:platform-host-statement] re-based the brut of ${migrated.length} platform stay(s) on the host amount`);
+    }
+  } catch (err) {
+    logErrorMarker(`Platform host statement brut migration failed: ${err.message}`);
+  }
+}
+
 // Rule 8 — once, after the controller can load: the extra guests and the tax each live stay's sale reads as stored.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {

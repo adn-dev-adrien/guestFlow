@@ -80,7 +80,7 @@ const externalPayment = require('./steps/externalPayment');
  * touristTax: isTouristTaxCollectedOnArrival, isTouristTaxOfferedByPlatform, isTouristTaxRemittedByOwnerFlag,
  *     resolvedPlatformPaidOccupants, reversedTouristTaxInBrut, taxAccommodationPaid, taxBaseAccommodation,
  *     taxBaseBeforeDeduction, touristTaxAddedGuestsAdults, touristTaxAddedGuestsAmount, touristTaxBreakdown,
- *     touristTaxBrutInconsistent, touristTaxIncludedInRateDeduction, touristTaxReversedByPlatform,
+ *     touristTaxBrutInconsistent, touristTaxGap, touristTaxIncludedInRateDeduction, touristTaxReversedByPlatform,
  *     touristTaxTotal, withheldTouristTaxEntered, withheldTouristTaxInBrut
  * platformPrice: accommodationAdjustedPrice, pinnedAccommodation
  * discounts: accommodationDeltaAmount, accommodationDeltaType, accommodationDiscountAmount,
