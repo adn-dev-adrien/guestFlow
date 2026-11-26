@@ -2,12 +2,17 @@
 // bucket are deactivated at the provider in the SAME pass; a failed call leaves the deactivation owed (next pass).
 
 const test = require('node:test');
+
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
 const paymentLinksModel = require('../models/paymentLinksModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 const devisModel = require('../models/devisModel');
 const { runPaymentPoll, processPaidLink, retryPendingCancellations } = require('../utils/paymentPollRunner');
 const { migratePaymentLinksToProviders } = require('../utils/paymentLinksProviderMigration');
@@ -21,7 +26,7 @@ function seed() {
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@x.fr')").run();
   const id = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults,
       finalPrice, depositAmount, depositPaid, balanceAmount, balancePaid)
-    VALUES ('reservation', 1, 1, '2026-11-10', '2026-11-12', 2, 300, 0, 0, 300, 0)`).run().lastInsertRowid);
+    VALUES ('reservation', 1, 1, ?, ?, 2, 300, 0, 0, 300, 0)`).run(inDays(30), inDays(32)).lastInsertRowid);
   const links = paymentLinksModel.buildModel(db);
   const paying = links.create({ reservationId: id, type: 'balance', amountCents: 30000, providerLinkId: 'pl_paying', url: 'https://pay/1' });
   const sibling = links.create({ reservationId: id, type: 'balance', amountCents: 30000, providerLinkId: 'pl_sibling', url: 'https://pay/2' });
@@ -81,7 +86,7 @@ test('rule 70: a failed immediate call leaves the deactivation owed, and the nex
 function addStay(db, { balancePaid = 0 } = {}) {
   return Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults,
       finalPrice, depositAmount, depositPaid, balanceAmount, balancePaid)
-    VALUES ('reservation', 1, 1, '2026-12-10', '2026-12-12', 2, 300, 0, 0, 300, ?)`).run(balancePaid).lastInsertRowid);
+    VALUES ('reservation', 1, 1, ?, ?, 2, 300, 0, 0, 300, ?)`).run(inDays(60), inDays(62), balancePaid).lastInsertRowid);
 }
 const payLink = (db, links, link, p) => processPaidLink({
   database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, link,
