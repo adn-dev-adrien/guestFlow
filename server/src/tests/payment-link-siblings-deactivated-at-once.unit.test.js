@@ -9,7 +9,7 @@ const Database = require('better-sqlite3');
 
 const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
-const { runPaymentPoll } = require('../utils/paymentPollRunner');
+const { runPaymentPoll, processPaidLink, retryPendingCancellations } = require('../utils/paymentPollRunner');
 const { migratePaymentLinksToProviders } = require('../utils/paymentLinksProviderMigration');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
@@ -76,4 +76,63 @@ test('rule 70: a failed immediate call leaves the deactivation owed, and the nex
   await poll(db, links, p);
   assert.equal(links.findById(sibling.id).remoteCancelPendingAt, null);
   assert.ok(p.calls.some((c) => c[0] === 'cancelLink' && c[1] === 'pl_sibling'));
+});
+
+function addStay(db, { balancePaid = 0 } = {}) {
+  return Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults,
+      finalPrice, depositAmount, depositPaid, balanceAmount, balancePaid)
+    VALUES ('reservation', 1, 1, '2026-12-10', '2026-12-12', 2, 300, 0, 0, 300, ?)`).run(balancePaid).lastInsertRowid);
+}
+const payLink = (db, links, link, p) => processPaidLink({
+  database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, link,
+  paidPayment: { paid: true, paymentId: 'pay_x', paidAt: new Date().toISOString() }, provider: p,
+});
+
+test('rule 70: a payment on one stay deactivates only that stay\'s siblings, never another stay\'s settled links', async () => {
+  const { db, links, paying, sibling } = seed();
+  const other = addStay(db, { balancePaid: 1 });
+  const foreign = links.create({ reservationId: other, type: 'balance', amountCents: 30000, providerLinkId: 'pl_foreign', url: 'https://pay/3' });
+  migratePaymentLinksToProviders(db);
+  const p = provider();
+  await payLink(db, links, links.findById(paying.id), p);
+  await settle();
+  assert.deepEqual(p.calls.filter((c) => c[0] === 'cancelLink'), [['cancelLink', 'pl_sibling']]);
+  assert.equal(links.findById(sibling.id).remoteCancelPendingAt, null);
+  assert.ok(links.findById(foreign.id).remoteCancelPendingAt, 'left to the next pass');
+});
+
+test('rule 70: while a retry pass is running the immediate deactivation is skipped, the link stays owed', async () => {
+  const { db, links, paying, sibling } = seed();
+  const busy = addStay(db);
+  const held = links.create({ reservationId: busy, type: 'balance', amountCents: 30000, providerLinkId: 'pl_held', url: 'https://pay/4' });
+  migratePaymentLinksToProviders(db);
+  links.cancel(held.id, { remotePending: true });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const p = provider();
+  const baseGet = p.getPayment;
+  p.getPayment = async (id) => { if (id === 'pl_held') await gate; return baseGet(id); };
+  const running = retryPendingCancellations({ database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, provider: p });
+  await settle();
+  await payLink(db, links, links.findById(paying.id), p);
+  await settle();
+  assert.ok(!p.calls.some((c) => c[0] === 'cancelLink' && c[1] === 'pl_sibling'), 'skipped');
+  assert.ok(links.findById(sibling.id).remoteCancelPendingAt, 'still owed');
+  release();
+  await running;
+});
+
+test('rule 70: a provider rate limit stops the immediate deactivation, no further provider call', async () => {
+  const { db, id, links, paying } = seed();
+  links.create({ reservationId: id, type: 'balance', amountCents: 30000, providerLinkId: 'pl_sibling2', url: 'https://pay/5' });
+  migratePaymentLinksToProviders(db);
+  const p = provider();
+  p.getPayment = async (linkId) => {
+    p.calls.push(['getPayment', linkId]);
+    throw Object.assign(new Error('429'), { code: 'RATE_LIMITED' });
+  };
+  await payLink(db, links, links.findById(paying.id), p);
+  await settle();
+  assert.equal(p.calls.length, 1, JSON.stringify(p.calls));
+  assert.ok(!p.calls.some((c) => c[0] === 'cancelLink'));
 });
