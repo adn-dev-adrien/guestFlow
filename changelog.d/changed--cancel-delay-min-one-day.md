@@ -1,0 +1,1 @@
+- Property « Paiement & caution »: the cancellation delay after the solde's due date now starts at **1 day** (0 is refused, « Entre 1 et 60 jours. »), so a stay is never proposed for cancellation on the very day its solde falls due (spec `settings-input-guards.md` rule 10, 2026-11-26).

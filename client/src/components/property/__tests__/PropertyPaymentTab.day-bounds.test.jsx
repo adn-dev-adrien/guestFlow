@@ -41,7 +41,17 @@ test('rule 10: solde and annulation accept up to 60 days, and the minus is strip
   fireEvent.focus(annulation);
   fireEvent.change(annulation, { target: { value: '61' } });
   fireEvent.blur(annulation);
-  expect(screen.getByText('Entre 0 et 60 jours.')).toBeInTheDocument();
+  expect(screen.getByText('Entre 1 et 60 jours.')).toBeInTheDocument();
+});
+
+test('rule 10: an annulation delay of 0 days is refused, 1 day is the minimum', () => {
+  render(<Harness />);
+  const annulation = screen.getByLabelText(/Annulation \(jours après échéance du solde\)/);
+  fireEvent.focus(annulation);
+  fireEvent.change(annulation, { target: { value: '0' } });
+  fireEvent.blur(annulation);
+  expect(annulation).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByText('Entre 1 et 60 jours.')).toBeInTheDocument();
 });
 
 test('rule 12: a message from the server lands under its own field', () => {

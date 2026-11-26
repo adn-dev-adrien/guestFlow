@@ -39,6 +39,7 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 
 = 1.26.1 =
 * Réserver une séance : le curseur ne se pose plus tout seul dans le champ « Code bon cadeau » à l’ouverture de la page (Safari).
+* Bon cadeau : sur téléphone, la carte prend la largeur du formulaire (420 px au plus) et ne reprend plus le cadre `.gf-card` d'un thème.
 
 = 1.26.0 =
 * Réserver une séance : « Ajouter à la séance » propose les options choisies dans GuestFlow, chacune avec son unité et le prix de chaque quantité, comme pour un bon cadeau ; la limite s’écrit « N au maximum par séance ».

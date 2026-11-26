@@ -155,7 +155,8 @@ acompte is kept as an indemnity, and the books say so correctly.
     the row stays visible as an unpaid-arrival warning with no cancel button — cancelling a stay whose
     guest is at the door is not a decision the dashboard should suggest.
     **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 10-12): `cancelAfterBalanceDueDays` is a
-    whole number from 0 to 60, refused (400) otherwise.
+    whole number from 0 to 60, refused (400) otherwise. **Amended 2026-11-26** (same rule 10): from **1** to
+    60 — the cancellation proposal never falls on the solde's due day itself.
 
 ### 3.4 Dashboard alert
 
