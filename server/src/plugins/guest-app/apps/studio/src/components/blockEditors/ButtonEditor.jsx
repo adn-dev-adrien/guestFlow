@@ -5,7 +5,27 @@
  */
 import { Box, MenuItem, TextField } from '@mui/material';
 import BilingualField from '../BilingualField';
-import { PLACE_CATEGORIES } from '../../constants/studio';
+import { useLoad } from '../../hooks/useLoad';
+import { api } from '../../services/api';
+
+/** The category choice of the « Pratique » target: the closed set is the server's (`GET /places`), read when this target is picked. */
+function PlaceCategoryField({ target, setTarget }) {
+  const { data } = useLoad(() => api.places(), []);
+  const categories = (data && data.categories) || [];
+  const known = categories.some((c) => c.key === target.category);
+  return (
+    <TextField
+      select
+      label="Catégorie"
+      value={known ? target.category : ''}
+      onChange={(e) => setTarget(e.target.value ? { kind: 'places', category: e.target.value } : { kind: 'places' })}
+      helperText="La page s’ouvre avec cette catégorie déjà sélectionnée."
+    >
+      <MenuItem value="">Toutes</MenuItem>
+      {categories.map((c) => <MenuItem key={c.key} value={c.key}>{c.label}</MenuItem>)}
+    </TextField>
+  );
+}
 
 const NEW_TARGET = {
   page: { kind: 'page', slug: '' },
@@ -52,18 +72,7 @@ export default function ButtonEditor({ data, onChange, pages = [], items = [] })
             {items.map((i) => <MenuItem key={`${i.kind}:${i.id}`} value={`${i.kind}:${i.id}`}>{i.title}</MenuItem>)}
           </TextField>
         ) : null}
-        {target.kind === 'places' ? (
-          <TextField
-            select
-            label="Catégorie"
-            value={target.category || ''}
-            onChange={(e) => setTarget(e.target.value ? { kind: 'places', category: e.target.value } : { kind: 'places' })}
-            helperText="La page s’ouvre avec cette catégorie déjà sélectionnée."
-          >
-            <MenuItem value="">Toutes</MenuItem>
-            {PLACE_CATEGORIES.map((c) => <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>)}
-          </TextField>
-        ) : null}
+        {target.kind === 'places' ? <PlaceCategoryField target={target} setTarget={setTarget} /> : null}
         {target.kind === 'url' ? (
           <TextField label="Adresse" type="url" value={target.href || ''} onChange={(e) => setTarget({ kind: 'url', href: e.target.value })} helperText="Commence par https://" slotProps={{ htmlInput: { maxLength: 2000, inputMode: 'url' } }} />
         ) : null}

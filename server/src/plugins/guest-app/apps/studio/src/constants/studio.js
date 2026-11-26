@@ -17,13 +17,6 @@ export const MODULES = Object.freeze({
   home: { label: { fr: 'Domotique', en: 'Smart home' }, icon: 'home', hint: 'Les mesures et lumières de l’écran Domotique, pendant le séjour, tant que Sowel envoie ses mesures.' },
 });
 
-/** « Pratique » rule 10 — the closed set of categories, as the button's target names them (the places screen gets its labels from the server). */
-export const PLACE_CATEGORIES = Object.freeze([
-  { value: 'dechets', label: 'Déchets' }, { value: 'boulangerie', label: 'Boulangeries' }, { value: 'pharmacie', label: 'Pharmacie' },
-  { value: 'boucherie', label: 'Boucheries' }, { value: 'epicerie', label: 'Épiceries' }, { value: 'tabac', label: 'Tabac-presse' },
-  { value: 'poste', label: 'La Poste' }, { value: 'distributeur', label: 'Distributeur de billets' }, { value: 'carburant', label: 'Carburant et recharge' },
-]);
-
 /** The modules that never make a home tile (rule 11bis: `orders` is a tab). */
 export const NOT_A_TILE = Object.freeze(['orders']);
 

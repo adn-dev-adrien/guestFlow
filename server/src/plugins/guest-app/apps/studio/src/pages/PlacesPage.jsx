@@ -24,9 +24,6 @@ import { api } from '../services/api';
 
 const bar = <PageActionBar title="Pratique" subtitle={<Chip size="small" label="Tous les logements" />} />;
 
-/** « 26 nov. 2026 » for a verification date (`YYYY-MM-DD`, a calendar day). */
-const dayLabel = (ymd) => new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${ymd}T12:00:00Z`));
-
 function EstatePosition({ estate, onSaved }) {
   const [value, setValue] = useState(estate.position);
   const [error, setError] = useState(null);
@@ -69,7 +66,7 @@ function PlaceRow({ place, onEdit, onDelete, onPublish }) {
     <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 1, alignItems: 'center', py: 1, borderBottom: 1, borderColor: 'divider' }}>
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{place.nameFr}</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{place.commune} · {place.driveMinutes} min en voiture · vérifié le {dayLabel(place.verifiedOn)}</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{place.commune} · {place.driveLabel} · {place.verifiedLabel}</Typography>
         <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
           {place.needsReview ? <Chip size="small" color="warning" label="À revérifier" /> : null}
           {!place.published ? <Chip size="small" label="Masqué" /> : null}
@@ -101,7 +98,7 @@ export default function PlacesPage() {
     return <StudioPage bar={bar}>{list.error ? <ErrorAlert message={list.error.message} onRetry={list.reload} /> : <LoadingState />}</StudioPage>;
   }
   const {
-    groups, estate, categories, reviewCount,
+    groups, estate, categories, wasteKinds, accepts, energies, reviewCount,
   } = list.data;
 
   const save = async (body) => {
@@ -161,6 +158,9 @@ export default function PlacesPage() {
         onClose={() => setEditing(undefined)}
         place={editing || null}
         categories={categories}
+        wasteKinds={wasteKinds}
+        accepts={accepts}
+        energies={energies}
         communes={estate.communes}
         onSave={save}
       />

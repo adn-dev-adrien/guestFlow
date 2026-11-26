@@ -124,7 +124,9 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
     - `carburant` without anything in `energies` → « Cochez au moins une énergie : essence, gazole ou recharge. »;
     - phone optional, French format, 10 digits (`+33 (0)4 75 12 34 56` accepted);
     - note FR / EN optional (≤ 280);
-    - hours: each range `open < close`, ranges of a day not overlapping.
+    - hours: each range `open < close`, ranges of a day not overlapping. The Studio's time pickers go by half hours, the last
+      choice being « minuit » = 24:00 = 1440; 23:59 stays 1439. « Copier le lundi du mardi au samedi » copies Monday's ranges onto
+      Tuesday–Saturday and leaves Sunday as it is.
 17. **Seed.** No automatic import. The OpenStreetMap extraction of 2026-11-26 (summary page, « Données de
     départ ») is entered once by Adrien after checking it on the ground; it is not shipped in a migration.
 
@@ -178,9 +180,9 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 | guest | `App.jsx`, `pages/HomePage.jsx`, `components/Icon.jsx`, `hooks/useActions.js`, `services/api.js`, `i18n/`, `styles.css` | T | Route `/pratique` (module guard), tile icon and action, `api.places()`, the `places` button target, FR / EN strings, the page's styles |
 | guest | `public/sw.js` | T | Cache `/public/v1/guest/places` with the booklet reads |
 | guest | `package.json` | T | `leaflet` (no `react-leaflet`: one component, imperative API, smaller). The map is loaded lazily with the page (`React.lazy`): the home and the shop do not pay for it |
-| studio | `pages/PlacesPage.jsx` | C | Estate position field, list by category, publish switch, delete, « À revérifier » |
-| studio | `components/PlaceDialog.jsx` | C | Add / edit dialog; refusals shown under their field; hours with the existing `RangesEditor` |
-| studio | `StudioShell.jsx`, `App.jsx`, `services/api.js`, `constants/studio.js`, `components/ModuleIcon.jsx`, `preview/PreviewApp.jsx`, `components/blockEditors/ButtonEditor.jsx` | T | Entry « Pratique » under Réglages (`/reglages/pratique`), the module's label and icon, the `places` button target with its category |
+| studio | `pages/PlacesPage.jsx` | C | Estate position field, list by category, publish switch, delete, « À revérifier »; renders the server's `driveLabel` / `verifiedLabel` and closed sets |
+| studio | `components/PlaceDialog.jsx` | C | Add / edit dialog; refusals shown under their field; hours with the existing `RangesEditor` (`endOfDay` prop: `24:00` = minuit); kinds, what is dropped and energies from the server's lists |
+| studio | `StudioShell.jsx`, `App.jsx`, `services/api.js`, `constants/studio.js`, `components/ModuleIcon.jsx`, `preview/PreviewApp.jsx`, `components/blockEditors/ButtonEditor.jsx`, `components/RangesEditor.jsx` | T | Entry « Pratique » under Réglages (`/reglages/pratique`), the module's label and icon, the `places` button target with its category (categories read from `GET /places`, no client copy), `RangesEditor`'s optional `endOfDay` |
 
 No GuestFlow admin client change.
 
@@ -242,7 +244,7 @@ the pane. Touch targets ≥ 44 px (map controls included). `prefers-reduced-moti
   button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesPage.freshness.test.jsx` (5): a state is hidden past its `until` or without network (the week's table stays), refetched when an `until` passes and on return to the foreground; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
   tiles and their referrer policy, redraw on zoom only, estate marker, grouping bubble, fan-out, « Me localiser »; `PlacesMap.grouping.test.js` (4): pure grouping and the palette's contrast;
   `sw.offline.test.js` (+2): `/places` cached like the booklet.
-- Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx` (10): the list, « À revérifier », the switch, delete, refusals shown under their field, the week sent as minutes, the estate position.
+- Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx` (14): the list and the server's wording, « À revérifier », the switch, delete, refusals shown under their field, the week sent as minutes, Monday copied to Tuesday–Saturday, 23:59 kept at 1439 and midnight at 1440, closed sets from the server, the estate position; `ButtonEditor.places.test.jsx` (1): the button's categories come from the server.
 - Manual: iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night.
 
 ## 8. Out of scope

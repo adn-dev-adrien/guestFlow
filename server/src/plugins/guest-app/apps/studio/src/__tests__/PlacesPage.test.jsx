@@ -20,7 +20,7 @@ const CATEGORIES = [
 ].map(([key, label]) => ({ key, label }));
 
 const place = (over = {}) => ({
-  id: 3, category: 'boulangerie', nameFr: 'Maison Roux', nameEn: null, commune: 'Satillieu', position: '45.15123, 4.6163', lat: 45.15123, lng: 4.6163, driveMinutes: 4,
+  id: 3, category: 'boulangerie', nameFr: 'Maison Roux', nameEn: null, commune: 'Satillieu', position: '45.15123, 4.6163', lat: 45.15123, lng: 4.6163, driveMinutes: 4, driveLabel: '4 min en voiture', verifiedLabel: 'vérifié le 1 juil. 2099',
   wasteKind: null, accepts: null, energies: null, phone: null, noteFr: null, noteEn: null, hours: null, published: true, verifiedOn: '2099-07-01', needsReview: false, ...over, // date-literal-ok: a calendar day the server sends
 });
 
@@ -35,6 +35,9 @@ function listOf(places, over = {}) {
   return {
     estate: { lat: 45.16369, lng: 4.63184, position: '45.16369, 4.63184', communes: ['Satillieu', 'Saint-Romain-d’Ay', 'Saint-Alban-d’Ay'], maxKm: 15 },
     categories: CATEGORIES,
+    wasteKinds: [{ key: 'point', label: 'Point de collecte' }, { key: 'decheterie', label: 'Déchèterie' }],
+    accepts: ['om:Ordures ménagères', 'emballages:Emballages', 'verre:Verre', 'papier:Papier', 'textile:Textile', 'vegetaux:Végétaux', 'encombrants:Encombrants'].map((p) => ({ key: p.split(':')[0], label: p.split(':')[1] })),
+    energies: [{ key: 'essence', label: 'Essence' }, { key: 'gazole', label: 'Gazole' }, { key: 'recharge', label: 'Recharge électrique' }],
     groups,
     reviewCount: places.filter((p) => p.needsReview).length,
     ...over,
@@ -160,13 +163,55 @@ describe('PlacesPage — the dialog shows what the server refuses (rule 16)', ()
     const user = userEvent.setup();
     const dialog = await fill(user, { position: '45.1502, 4.6151', drive: '5' });
     await user.click(within(within(dialog).getByRole('group', { name: 'Lundi' })).getByRole('button', { name: 'Ajouter une plage' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Copier le lundi sur la semaine' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Copier le lundi du mardi au samedi' }));
     await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() => expect(api.createPlace).toHaveBeenCalled());
     const { hours } = api.createPlace.mock.calls[0][0];
     expect(hours).toHaveLength(7);
-    expect(hours[0]).toEqual([[480, 720]]);
-    expect(hours.every((day) => JSON.stringify(day) === '[[480,720]]')).toBe(true);
+    expect(hours[0]).toEqual([]);
+    expect([1, 2, 3, 4, 5, 6].every((day) => JSON.stringify(hours[day]) === '[[480,720]]')).toBe(true);
+  });
+
+  it('« Copier le lundi du mardi au samedi » leaves Sunday as it is', async () => {
+    setup([place({ hours: [[[600, 700]], [[480, 720]], [], [], [], [], []] })]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Modifier Maison Roux' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Modifier le lieu' });
+    await user.click(within(dialog).getByRole('button', { name: 'Copier le lundi du mardi au samedi' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(api.savePlace).toHaveBeenCalled());
+    const { hours } = api.savePlace.mock.calls[0][1];
+    expect(hours[0]).toEqual([[600, 700]]);
+    expect(hours.slice(1).every((day) => JSON.stringify(day) === '[[480,720]]')).toBe(true);
+  });
+
+  it('a closing at 23:59 stays 1439 — only midnight is 1440 — and a place that closes at midnight keeps it', async () => {
+    setup([place({ hours: [[], [[480, 1439]], [[480, 1440]], [], [], [], []] })]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Modifier Maison Roux' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Modifier le lieu' });
+    expect(within(dialog).getByRole('combobox', { name: 'Lundi, plage 1, fin' })).toHaveTextContent('23 h 59');
+    expect(within(dialog).getByRole('combobox', { name: 'Mardi, plage 1, fin' })).toHaveTextContent('minuit');
+    await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(api.savePlace).toHaveBeenCalled());
+    const { hours } = api.savePlace.mock.calls[0][1];
+    expect([hours[1], hours[2]]).toEqual([[[480, 1439]], [[480, 1440]]]);
+  });
+
+  it('the checkboxes and the kinds come from the server\'s closed sets, not from the page', async () => {
+    api.places.mockImplementation(async () => listOf([], { accepts: [{ key: 'om', label: 'Bacs gris' }], wasteKinds: [{ key: 'point', label: 'Colonne' }, { key: 'decheterie', label: 'Grande déchèterie' }] }));
+    renderStudio(<PlacesPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Ajouter un lieu' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ajouter un lieu' });
+    expect(within(dialog).getByRole('checkbox', { name: 'Bacs gris' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('checkbox', { name: 'Verre' })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Grande déchèterie' })).toBeInTheDocument();
+  });
+
+  it('a row reads the drive and verification wording the server sent', async () => {
+    setup([place({ driveLabel: '4 min en voiture', verifiedLabel: 'vérifié le 1 juil. 2099' })]);
+    expect(await screen.findByText('Satillieu · 4 min en voiture · vérifié le 1 juil. 2099')).toBeInTheDocument();
   });
 
   it('editing a place keeps its commune, position and publication, and saves under its id', async () => {
