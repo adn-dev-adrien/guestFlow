@@ -131,4 +131,7 @@ function quoteSession(config, session) {
   };
 }
 
-module.exports = { sessionModesOf, quoteSession, isBanded };
+/** Whether the website sells sessions of this resource (site-outside-resource-booking rule 1): sellable outside a stay, banded, and at least one band open. */
+const isOfferedOnline = (resource) => Boolean(resource) && Number(resource.sellableExternally) === 1 && isBanded(resource) && sessionModesOf(resource).some((mode) => mode.sellable);
+
+module.exports = { sessionModesOf, quoteSession, isBanded, isOfferedOnline };

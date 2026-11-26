@@ -29,6 +29,7 @@ const { createOutsideOffer } = require('./outsideOffer');
 const { createHoldsModel } = require('./holdsModel');
 const { createSessionOrdersModel } = require('./sessionOrdersModel');
 const { createPublicSessionService } = require('./publicSessionService');
+const { isOfferedOnline } = require('./sessionQuote');
 const { buildPublicSessionController } = require('./publicSessionController');
 const { buildPublicSessionRouter } = require('./publicSessionRoutes');
 const { CHANNEL: ONLINE_SALES_CHANNEL, CHANNEL_LABEL: ONLINE_SALES_LABEL } = require('./sessionNotices');
@@ -81,14 +82,15 @@ function register(ctx) {
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
-  // The outside-visit spec rule 37 — the resources sold by the hour are the contexts of the generic « Proposés à l'arrivée » lists (kind `resource`); the lists
-  // themselves are the core's `suggested_articles` rows, never a setting of this plugin.
+  // The outside-visit spec rule 37 — the resources sold by the hour are the contexts of the generic « Options proposées » lists (kind `resource`); the lists
+  // themselves are the core's `suggested_articles` rows, never a setting of this plugin. Site-outside-resource-booking rule 35 — a list is shown on the site while the resource is offered there.
   ctx.suggestionContexts({
     kind: 'resource',
     label: 'Ressources à l’heure',
     list: () => (hasTable(ctx.db, 'resources')
       ? ctx.db.prepare("SELECT id, name AS label FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 ORDER BY name, id").all()
       : []),
+    shownOnSite: (id) => hasTable(ctx.db, 'resources') && isOfferedOnline(ctx.db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(id))),
   });
   // specs/gift-voucher-campaigns.md rule 37 — the bath's own general terms: a draft, versions and a tab of Réglages → Conditions générales, kept like the lodging's. The first draft is seeded, never published.
   ctx.termsActivity({ key: 'resource', label: 'Bain nordique et activités', seed: termsSeed });

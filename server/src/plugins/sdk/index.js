@@ -172,6 +172,8 @@ const CORE_MODULES = Object.freeze({
   csvJournal: '../../utils/accounting/exporters/csvJournal', // the CSV journal exporter (rule 63)
   salesJson: '../../utils/accounting/exporters/salesJson', // the sales JSON exporter (rule 63)
   synthesisExporter: '../../utils/accounting/exporters/synthesis', // the synthesis exporter: VAT return, checks, collections (rule 63)
+  // the price table of an add-on sold outside a stay, one function for every plugin that offers one (site-outside-resource-booking rule 37, SDK 2.36.0)
+  addOnPricing: '../../utils/addOnPricing',
 });
 
 function coreModule(name) {

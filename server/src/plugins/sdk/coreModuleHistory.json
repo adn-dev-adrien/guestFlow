@@ -370,6 +370,17 @@
           "notifyOperator"
         ]
       }
+    },
+    {
+      "version": "2.36.0",
+      "modules": [
+        "addOnPricing"
+      ],
+      "names": {
+        "articles": [
+          "NOT_SELLABLE_OUTSIDE"
+        ]
+      }
     }
   ]
 }

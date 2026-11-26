@@ -283,17 +283,19 @@ function createContext(id, {
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
     },
-    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.32.0): `kind` names it
-    // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
+    // `{ kind, label, list, shownOnSite }` — a kind of sale context the generic « Options proposées » lists are kept for (the outside-visit spec rule 37, SDK 2.32.0): `kind` names it
+    // (`resource`), `label` heads it in Réglages → Options et ressources, `list() → [{ id, label }]` says which contexts of that kind exist now. `shownOnSite(id) → boolean` (optional, SDK 2.36.0,
+    // site-outside-resource-booking rule 35) says whether the website shows that context's list; absent, the list is shown at the arrival only. `property` is the core's own kind. While the
     // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
-    suggestionContexts({ kind, label, list } = {}) {
+    suggestionContexts({ kind, label, list, shownOnSite } = {}) {
       if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(kind || ''))) throw new Error(`${prefix} a suggestion context needs a kind like "resource"`);
       if (kind === 'property') throw new Error(`${prefix} the "property" suggestion context is the core's`);
       if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} suggestion context "${kind}" needs a label`);
       if (typeof list !== 'function') throw new Error(`${prefix} suggestion context "${kind}" needs a list function`);
+      if (shownOnSite !== undefined && typeof shownOnSite !== 'function') throw new Error(`${prefix} suggestion context "${kind}" shownOnSite must be a function`);
       const other = registry.all().find((r) => r.id !== id && (r.suggestionContexts || []).some((c) => c.kind === kind));
       if (other) throw new Error(`${prefix} the suggestion context "${kind}" is already declared by ${other.id}`);
-      record.suggestionContexts.push({ kind, label, list });
+      record.suggestionContexts.push({ kind, label, list, shownOnSite });
     },
     // ({ from, to }) → [sale] — what the plugin sold outside any stay, for the journal and the card batch
     // (specs/resource-booking-pricing-and-invoicing.md rules 20-21). Synchronous, reads the plugin's own tables.

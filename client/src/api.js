@@ -459,10 +459,15 @@ const api = {
   withdrawStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}`, { method: 'DELETE' }),
   emailStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}/email`, { method: 'POST' }),
   closeStandaloneSaleObligation: (id, obligationId, status = 'settled') => request(`/standalone-sales/${id}/obligations/${obligationId}`, { method: 'PATCH', body: { status } }),
-  // specs/sas/outside-booking-sas.md rules 36-37 — the « Proposés à l'arrivée » lists and the articles that can join them.
+  // specs/sas/outside-booking-sas.md rules 36-37 — the « Options proposées » lists and the articles that can join them.
   getSuggestedArticlesSettings: () => request('/settings/suggested-articles'),
   saveSuggestedArticles: (kind, id, articleRefs) => request(`/settings/suggested-articles/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, { method: 'PUT', body: { articleRefs } }),
-  getSuggestedArticlesCatalogue: ({ customerContext = 'external', q = '' } = {}) => request(`/suggested-articles/catalogue?customerContext=${customerContext}&q=${encodeURIComponent(q)}`),
+  // `context` ('<kind>:<id>') makes the server take the customer from the kind; `all` adds the articles that kind cannot sell, greyed with their reason (site-outside-resource-booking rule 36).
+  getSuggestedArticlesCatalogue: ({
+    customerContext = 'external', q = '', context = null, all = false,
+  } = {}) => request(`/suggested-articles/catalogue?${new URLSearchParams({
+    customerContext, q, ...(context ? { context } : {}), ...(all ? { all: '1' } : {}),
+  })}`),
   issueResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice`, { method: 'POST', body }),
   attachResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice/attach`, { method: 'POST', body }),
 

@@ -452,7 +452,7 @@
       addHost.innerHTML = '';
       st.qty = {};
       fold = GF.voucherExtrasFold({
-        extraTime: null, addOns: addOnsOffered(), title: GF.t('sbAddTitle'), foot: GF.t('sbAddFoot'),
+        extraTime: null, addOns: addOnsOffered(), title: GF.t('sbAddTitle'), foot: GF.t('sbAddFoot'), maxKey: 'sbAddMax',
         onAddOn: function (ref, n) { st.qty[ref] = n; if (st.slot) requote(); },
       });
       addHost.hidden = !fold;

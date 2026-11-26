@@ -393,6 +393,7 @@ final class GF_Blocks
                 'sbEvening'       => __(' · soirée', 'guestflow-booking'),
                 'sbAddTitle'      => __('Ajouter à la séance', 'guestflow-booking'),
                 'sbAddFoot'       => __('Prix TTC, ajoutés au montant de la séance.', 'guestflow-booking'),
+                'sbAddMax'        => __('%s au maximum par séance', 'guestflow-booking'),
                 'sbContact'       => __('Vos coordonnées', 'guestflow-booking'),
                 'sbTermsBefore'   => __('J’accepte les ', 'guestflow-booking'),
                 'sbTermsLink'     => __('conditions de la séance', 'guestflow-booking'),

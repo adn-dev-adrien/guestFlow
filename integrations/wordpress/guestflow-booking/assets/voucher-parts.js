@@ -7,7 +7,7 @@
  *   GFBooking.voucherDuration(minutes)   « 2 h », « 1 h 30 », « 45 min »
  *   GFBooking.voucherStepper(opts)       − n + counter, ≥ 44 px: { value, min, max, step, format(n), name, onChange(n) } → node (with .set(n)); `step` is the server's, never a rule of the page
  *   GFBooking.voucherExtrasFold(opts)    « Ajouter au bon » (specs/gift-voucher-campaigns.md rule 64): the extra time and the add-ons in one fold, closed by default, each line with the price
- *                                        GuestFlow gives for its quantity. { extraTime, addOns, onExtraTime(minutes), onAddOn(articleRef, qty), title?, foot? } → node with .update(extrasCents):
+ *                                        GuestFlow gives for its quantity. { extraTime, addOns, onExtraTime(minutes), onAddOn(articleRef, qty), title?, foot?, maxKey? } → node with .update(extrasCents):
  *                                        a number shows « + Y € » once something is chosen, null shows « … » (the price is being asked), undefined shows nothing. Every amount is
  *                                        looked up in the server's `prices`; the page multiplies and adds nothing. `.updateExtraTimePrices(prices)` swaps the extra-time table for the
  *                                        one the server priced at a chosen start (`null` brings the offer's back); a step with `cents: null` has no price before a slot is chosen.
@@ -109,6 +109,7 @@
   }
 
   GF.voucherExtrasFold = function (o) {
+    var maxKey = o.maxKey || 'gvExtrasMax';
     var extra = o.extraTime && o.extraTime.prices && o.extraTime.prices.length ? o.extraTime : null;
     var offeredExtraPrices = extra ? extra.prices : null;
     var extraPrices = offeredExtraPrices;
@@ -170,7 +171,7 @@
           if (!state.extra) return extraPrices[0].cents == null ? step : GF.voucherMoney(extraPrices[0].cents) + ' ' + step;
           var cents = priceAt(extraPrices, 'minutes', state.extra);
           var line = '+' + GF.voucherDuration(state.extra) + (cents === null ? ' · ' + GF.t('gvExtrasBySlot') : ' = ' + GF.voucherMoney(cents));
-          return extra.maxMinutes && state.extra >= xMax ? line + ' · ' + GF.t('gvExtrasMax', GF.voucherDuration(xMax)) : line;
+          return extra.maxMinutes && state.extra >= xMax ? line + ' · ' + GF.t(maxKey, GF.voucherDuration(xMax)) : line;
         },
         chosen: function () { return state.extra > 0; },
         name: function () { return '+' + GF.voucherDuration(state.extra); },
@@ -186,7 +187,7 @@
           if (!n) return GF.voucherMoney(a.prices[0].cents) + ' ' + unitText(a.unitLabel);
           var total = GF.voucherMoney(priceAt(a.prices, 'qty', n));
           var line = a.linear === false ? n + ' : ' + total : n + ' × ' + GF.voucherMoney(a.prices[0].cents) + ' = ' + total;
-          return n >= Math.min(a.maxQty, a.prices[a.prices.length - 1].qty) ? line + ' · ' + GF.t('gvExtrasMax', String(n)) : line;
+          return n >= Math.min(a.maxQty, a.prices[a.prices.length - 1].qty) ? line + ' · ' + GF.t(maxKey, String(n)) : line;
         },
         chosen: function () { return (state.qty[a.articleRef] || 0) > 0; },
         name: function () { var n = state.qty[a.articleRef]; return a.label + (n > 1 ? ' ×' + n : ''); },

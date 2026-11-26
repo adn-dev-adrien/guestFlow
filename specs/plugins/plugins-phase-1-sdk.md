@@ -684,7 +684,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     SDK 2.32.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.32.0 adds `coreModule('standaloneSale')`
     (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
     `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
-    (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list })`, the
+    (the articles suggested for a sale context), `saleDetail.buildDocumentDetail`, the context hook `ctx.suggestionContexts({ kind, label, list, shownOnSite? })` (`shownOnSite(id) → boolean`, optional since SDK 2.36.0: whether the website shows that context's list, `specs/site/site-outside-resource-booking.md` §3.H rule 35), the
     event `standaloneSale.sold` (after the commit, an observer), and the client exports `SuggestedArticlesStep`, `SalePaymentLink`
     and `StandaloneSaleDialog` (optional `client` prop, outside-booking-sas rule 48)
     (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.30.0's). guest-app and hourly-resources range `^2.32.0`.
@@ -938,13 +938,13 @@ Optional: a plugin that declares nothing reads « Actif ».
     again showed it current for a frame (counter, SAS, visit, penalty, credit link, « Ajouter un produit »: seeds 368, 202, 208, 271, 250,
     275, 328, 209, 210 of the per-commit probe). And a tender block once unmounted reports nothing live: a « Plusieurs moyens » reopened no
     longer named, for its first commit, the amount of the lines just closed (fiche seeds 276, 310).
-59. *(Added 2026-11-26, spec reorganization — the SDK is at **2.35.0**, `server/src/plugins/sdk/version.js`.)* **SDK 2.33.0 to 2.35.0 are
+59. *(Added 2026-11-26, spec reorganization — the SDK is at **2.36.0**, `server/src/plugins/sdk/version.js`.)* **SDK 2.33.0 to 2.36.0 are
     specified where they were introduced, not here.** 2.33.0: `ctx.prepaid`, `core.payments.saleLink`, the outside-booking offer
     (`ctx.core` outside-booking limits/`bookOutside`), per-activity core terms, `refuse(db)` on `ctx.data`, a stay-less e-mail, and the core
     modules `bookingHorizon`, `pdfFonts`, `prepaidReceipts`, `prepaidSources`, `termsAcceptance`, `termsActivities`
     (`specs/gift-vouchers/gift-voucher-campaigns.md`, `specs/payments/mixed-method-payments.md` rules 60-63). 2.34.0: client export `ReservationLinkLine`
     (`specs/planning/mobile-dashboard-exercise-cash.md`). 2.35.0: `pushChannel({ shared })` and `notificationService.notifyOperator`
-    (`specs/site/site-outside-resource-booking.md` rule 24). The authoritative list of core modules and names per version is
+    (`specs/site/site-outside-resource-booking.md` rule 24). 2.36.0: the core module `addOnPricing` (`createAddOnPricing`, `unitLabelOf`), `articles.NOT_SELLABLE_OUTSIDE` and the optional `shownOnSite` of `ctx.suggestionContexts` (`specs/site/site-outside-resource-booking.md` §3.H). The authoritative list of core modules and names per version is
     `coreModuleHistory.json`.
     > **Sans test** — pointer rule; the specs it names carry the tests.
 

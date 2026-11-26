@@ -1147,3 +1147,7 @@ msgstr "Choose a time"
 #: blocks/session-booking, includes/class-gf-blocks.php (specs/site-outside-resource-booking.md rule 30)
 msgid "inclus dans le bon"
 msgstr "included in the voucher"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/site/site-outside-resource-booking.md rule 37)
+msgid "%s au maximum par séance"
+msgstr "%s at most per session"
