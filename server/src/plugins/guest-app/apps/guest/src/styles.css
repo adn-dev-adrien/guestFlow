@@ -1,5 +1,5 @@
 /*
- * The guest app's look (specs/guest-app.md §6) — ported from the validated review boards v5
+ * The guest app's look (specs/guest-app/guest-app.md §6) — ported from the validated review boards v5
  * (specs/guest-app-planches.html, `.app` world). The register colours come from `theme.js` as custom properties
  * on the `.app` root (`cssVars`); only the text drawn over photos (the same day and night) is written here.
  */
@@ -401,6 +401,12 @@ summary::-webkit-details-marker{display:none}
 .app:not(.desk) .tiles.n1 .tile{grid-column:span 6;aspect-ratio:auto;min-height:96px}
 .app:not(.desk) .tiles.n4 .tile,.app:not(.desk) .tiles.n2 .tile,.app:not(.desk) .tiles.n5 .tile:nth-child(n+4){min-height:104px}
 .app:not(.desk) .tiles{grid-auto-rows:1fr}
+/* More than six tiles (specs/guest-app/guest-app-local-amenities.md rules 20-23): an endless full-bleed row under 900 px, one line from 900 px. */
+.app:not(.desk) .tiles.loop{display:grid;grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:calc((100% - 3 * 9px) / 3.6);grid-auto-rows:auto;padding:18px 0 4px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;position:relative}
+.tiles.loop::-webkit-scrollbar{display:none}
+.app:not(.desk) .tiles.loop .tile{grid-column:auto;scroll-snap-align:center}
+.app.wide .tiles.many{grid-template-columns:repeat(var(--n),minmax(0,1fr))}
+.app.wide .tiles.many .tile{grid-column:auto}
 .app.wide.desk .tiles.n5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .app.wide.desk .tiles.n4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .app.wide.desk .tiles.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -491,7 +497,7 @@ summary::-webkit-details-marker{display:none}
 .sheet .stock{display:flex;gap:6px;flex-wrap:wrap}
 .app.wide .main{max-width:none}
 .app.desk .scroll>.pad,.app.desk .scroll>.stickhead{max-width:1200px;margin-left:auto;margin-right:auto;width:100%}
-/* specs/guest-app-bath-home-scheduling.md §6 — the home's bath card: the night ground, its words over it, its buttons stacked at one height. */
+/* specs/guest-app/guest-app-bath-home-scheduling.md §6 — the home's bath card: the night ground, its words over it, its buttons stacked at one height. */
 .bathcard{position:relative;margin:14px 16px 0;border-radius:4px;overflow:hidden;color:#F5F0E6;isolation:isolate}
 .bathcard .bg{position:absolute;inset:0;z-index:-1}
 .bathcard .in{display:grid;gap:6px;padding:18px 16px 16px}
@@ -542,7 +548,7 @@ summary::-webkit-details-marker{display:none}
 .cline>.ct{display:grid;gap:1px;min-width:0}
 .timeline .tl{justify-items:stretch;text-align:left}
 .ocard .timeline .tl{display:grid}
-/* « Domotique » (specs/guest-app-home-automation.md §6) — ported from guest-app-home-automation-maquette.html. */
+/* « Domotique » (specs/guest-app/guest-app-home-automation.md §6) — ported from guest-app-home-automation-maquette.html. */
 .smart-home .sh-hero{min-height:260px;display:flex;align-items:flex-end;color:#FBF7EC}
 .smart-home .sh-hero.short{min-height:170px}
 .smart-home .sh-hero-in{position:relative;z-index:2;padding:0 20px 20px;width:100%}
