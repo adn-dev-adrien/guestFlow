@@ -163,6 +163,7 @@ Full detail: [docs/agent/git-squash-merge-check.md](docs/agent/git-squash-merge-
 - Release notes are mandatory; the French `### Summary` digest (≤ 6 lines × 160 chars) is the one exception to §2.
 - **Publishing is not deploying**: never trigger an install, never SSH into production to finish a release.
 - **Never add `runs-on: self-hosted`** (security regression). The only allowed force-push is re-pointing a release **tag**.
+- **The repository is public, the code is not free**: public for now because it keeps the CI simple, under a proprietary licence (`LICENSE`: reading only, no use, copy or distribution without written permission); going private is still planned. Never add an open-source licence header to a file, except the GPL WordPress plugins under `integrations/wordpress/`.
 
 Full detail: [docs/agent/releases.md](docs/agent/releases.md).
 
