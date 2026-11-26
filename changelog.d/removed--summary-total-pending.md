@@ -1,0 +1,1 @@
+- Finance summary: `totalPending` and `totalPendingHt` removed from `getSummary()` (read by no screen); the pending amount stays in the operational « Paiements en attente » tab.
