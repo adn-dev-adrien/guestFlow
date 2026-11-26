@@ -6,6 +6,8 @@
 // tax back in the solde and refused the flip on its conservation invariant (409). Measured on a
 // copy of production on 2026-10-23: reservation 202609003 (Airbnb, 24 € withheld) and 11773
 // (Gîtes de France, 19,20 €) could not be marked paid from the fiche.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5): the brut is the host amount, tax out of it, and the box
+// only says what the platform kept — the replay still has to carry it, and the solde is the same.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -81,7 +83,7 @@ function seedDb() {
     (id, propertyId, startDate, endDate, checkInTime, checkOutTime, adults, children, teens, babies,
      platform, platformGrossAmount, platformTouristTaxAmount, balanceAmount, finalPrice)
     VALUES (1, 1, '2027-03-08', '2027-03-10', '16:00', '10:00', 4, 0, 0, 0, 'Airbnb', ?, ?, ?, ?)`)
-    .run(GROSS, WITHHELD, GROSS - WITHHELD, GROSS - WITHHELD);
+    .run(GROSS - WITHHELD, WITHHELD, GROSS - WITHHELD, GROSS - WITHHELD);
   return db;
 }
 
@@ -92,7 +94,7 @@ test('the engine input carries the tourist tax the platform withheld', () => {
   assert.equal(buildReservationEngineInput(db, row(db)).platformTouristTaxAmount, WITHHELD);
 });
 
-test('the replayed solde is the brut minus the withheld tax, as on the fiche', () => {
+test('the replayed solde is the host amount, the box enters nothing, as on the fiche', () => {
   const db = seedDb();
   const quote = calculateReservationQuote(buildReservationEngineInput(db, row(db)));
   assert.equal(quote.balanceAmount, GROSS - WITHHELD);

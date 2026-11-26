@@ -1,22 +1,22 @@
 /**
  * PlatformStatementEditor — the statement fields of a platform payout row, opened from its amount
- * (specs/payments/reservation-payment-ledger.md rule 25). The levers are the ones the fiche always had — « Total
- * facturé par la plateforme » / « Montant total payé par le client », « Taxe de séjour retenue », the
- * per-échéance commissions — with their labels, helpers and server rules unchanged
- * (platform-payment-entry, platform-per-echeance-commission, platform-tourist-tax-out-of-the-commission).
- * The figures are a draft until « Valider », which applies them to the form; « Annuler » leaves the
- * fiche as it was. Saved with the fiche, as before.
+ * (specs/payments/reservation-payment-ledger.md rule 25). Since specs/platforms/platform-host-statement-and-commission-vat.md the block takes the HOST side
+ * of the platform's statement: « Location (relevé) » and « Options (relevé) » (their sum is the host amount the fiche stores), the tourist-tax
+ * box whose meaning follows the platform's mode (labelled by the server), the per-échéance commissions and « Calculer la commission ». Under
+ * them, the server's own reading of the figures: the closing line, the tax gap, the commission's booking, the option lines it adjusted — all
+ * worded by the server; a refusal sits on its field, a commission rate that looks off is a warning on the commission field.
+ * The figures are a draft until « Valider », which applies them to the form; « Annuler » leaves the fiche as it was.
  *
  * Props:
- *   form, pricingQuote: the fiche's state and live quote
+ *   form, pricingQuote: the fiche's state and live quote (`pricingQuote.platformStatement.box` names the box of the platform's mode)
  *   withDepositCommission: the platform takes an acompte (its commission field shows)
  *   locked: past-locked fiche
  *   onApply(patch), onCancel()
  *   computeCommission(figures) → { commission } — « Calculer la commission » (server)
  *   received: { net, label } | null — the payout already received: its transfer is a field, prefilled, editable
  *     (specs/platforms/platform-statement-after-payout.md rules 3, 8)
- *   preview(statement) → { netLabel } — the server's net against the transfer, nothing written (rules 3-4, 7);
- *     null when the statement is a draft saved with the fiche
+ *   preview(statement) → { lines, warnings, refusals } — the server's reading of the typed statement, nothing written
+ *     (the statement of a received or locked stay is read by its own endpoint, a draft by the fiche's quote)
  *   lockedReason: why the fields are disabled, shown under them
  */
 import React, { useEffect, useState } from 'react';
@@ -25,63 +25,75 @@ import ArithmeticTextField from '../ArithmeticTextField';
 import { formatCurrency } from '../../utils/formatters';
 
 const blank = (v) => v === '' || v == null;
+const cents = (v) => Math.round((Number(v) || 0) * 100);
 
 const PREVIEW_DELAY_MS = 250;
+const TONE_SEVERITY = { done: 'success', warning: 'warning', error: 'error', info: 'info' };
+
+// The two figures the operator types are held apart; the fiche stores their sum and the options figure.
+const locationOf = (gross, options) => (blank(gross) ? '' : (cents(gross) - cents(options)) / 100);
+const hostAmountOf = (location, options) => (blank(location) && blank(options) ? '' : (cents(location) + cents(options)) / 100);
 
 export default function PlatformStatementEditor({
   form, pricingQuote, withDepositCommission, locked, onApply, onCancel, computeCommission, onError,
   received = null, preview = null, lockedReason = null,
 }) {
-  // « Sans TVA » follows the stay's own regime, which its live quote carries.
-  const notSubject = pricingQuote?.vatRegime?.regime === 'not_subject';
   const [draft, setDraft] = useState({
-    platformGrossAmount: form.platformGrossAmount ?? '',
+    platformLocationAmount: locationOf(form.platformGrossAmount, form.platformOptionsAmount),
+    platformOptionsAmount: form.platformOptionsAmount ?? '',
     platformTouristTaxAmount: form.platformTouristTaxAmount ?? '',
     acompteCommissionAmount: form.acompteCommissionAmount ?? '',
     platformCommissionAmount: form.platformCommissionAmount ?? '',
     ...(received ? { platformPayoutAmount: received.net } : {}),
   });
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
-  // The server's reading of the typed statement: { tone, label } or a refusal it would answer.
-  const [check, setCheck] = useState(null);
+  // The server's reading of the typed figures: its lines, its warnings, the refusals it would answer.
+  const [reading, setReading] = useState({ lines: [], warnings: {}, refusals: {} });
+  const platformGrossAmount = hostAmountOf(draft.platformLocationAmount, draft.platformOptionsAmount);
+  // The transfer the commission is computed from: the panel's own field on a received payout (rule 3), else the fiche's.
+  const payoutForCompute = received ? draft.platformPayoutAmount : form.platformPayoutAmount;
+  const statement = {
+    platformGrossAmount,
+    platformOptionsAmount: draft.platformOptionsAmount,
+    platformTouristTaxAmount: draft.platformTouristTaxAmount,
+    acompteCommissionAmount: draft.acompteCommissionAmount,
+    platformCommissionAmount: draft.platformCommissionAmount,
+    ...(received ? { platformPayoutAmount: draft.platformPayoutAmount } : { platformPayoutAmount: form.platformPayoutAmount }),
+  };
+
   useEffect(() => {
     // A reading of the previous figures is never shown against the new ones (review L3).
-    setCheck(null);
+    setReading({ lines: [], warnings: {}, refusals: {} });
     if (!preview || locked) return undefined;
     let live = true;
     const timer = setTimeout(async () => {
       try {
-        const answer = await preview(draft);
-        if (live) setCheck(answer?.netLabel ? { tone: answer.netLabel.tone, label: answer.netLabel.label } : null);
+        const answer = await preview(statement);
+        if (!live || !answer) return;
+        const lines = Array.isArray(answer.lines) && answer.lines.length > 0 ? answer.lines : (answer.netLabel ? [answer.netLabel] : []);
+        setReading({ lines, warnings: answer.warnings || {}, refusals: answer.refusals || {} });
       } catch (err) {
-        if (live) setCheck({ tone: 'error', label: err.message || 'Relevé refusé.' });
+        if (!live) return;
+        if (err && err.field) setReading({ lines: [], warnings: {}, refusals: { [err.field]: err.message || 'Relevé refusé.' } });
+        else setReading({ lines: [{ tone: 'error', label: err.message || 'Relevé refusé.' }], warnings: {}, refusals: {} });
       }
     }, PREVIEW_DELAY_MS);
     return () => { live = false; clearTimeout(timer); };
+    // The statement is rebuilt on every render: it is its figures that start a reading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview, locked, draft]);
 
-  // Which number to copy off the statement depends on the platform's tourist-tax mode, so the field
-  // says it (specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md §6).
-  const taxOffered = Boolean(pricingQuote?.touristTaxOfferedByPlatform);
-  const taxReversed = Boolean(pricingQuote?.touristTaxReversedByPlatform);
-  const withheldFilled = !blank(draft.platformTouristTaxAmount);
-  const grossLabel = taxOffered && !withheldFilled ? 'Total séjour facturé par la plateforme' : 'Montant total payé par le client';
-  const grossHelper = taxOffered
-    ? (withheldFilled
-      ? 'Total du relevé, taxe de séjour comprise. La taxe saisie ci-dessous en est déduite.'
-      : "Hébergement + options, hors taxe de séjour et hors frais de dossier — l'hébergement s'ajuste automatiquement.")
-    : taxReversed
-      ? 'Taxe de séjour comprise — la plateforme la reverse avec le virement.'
-      : "L'hébergement s'ajuste automatiquement (brut − options). La taxe de séjour est encaissée à l'arrivée.";
+  const box = pricingQuote?.platformStatement?.box || null;
   const engineTouristTax = Number(pricingQuote?.touristTaxOriginalTotal || 0);
-  // The transfer the commission is computed from: the panel's own field on a received payout (rule 3), else the fiche's.
-  const payoutForCompute = received ? draft.platformPayoutAmount : form.platformPayoutAmount;
-  const canCompute = !blank(draft.platformGrossAmount) && !blank(payoutForCompute) && !locked;
+  const refusals = reading.refusals;
+  const hasRefusal = Object.keys(refusals).length > 0 || reading.lines.some((l) => l.tone === 'error');
+  const canCompute = !blank(platformGrossAmount) && !blank(payoutForCompute) && !locked;
 
   const compute = async () => {
     try {
       const { commission } = await computeCommission({
-        gross: draft.platformGrossAmount,
+        platform: form.platform,
+        gross: platformGrossAmount,
         payout: payoutForCompute,
         touristTax: draft.platformTouristTaxAmount,
         acompteCommission: draft.acompteCommissionAmount,
@@ -90,6 +102,11 @@ export default function PlatformStatementEditor({
     } catch (err) {
       if (onError) onError(err.message || 'Calcul impossible');
     }
+  };
+
+  const apply = () => {
+    const { platformLocationAmount, ...figures } = draft;
+    onApply({ ...figures, platformGrossAmount });
   };
 
   return (
@@ -115,38 +132,42 @@ export default function PlatformStatementEditor({
         />
       )}
       <ArithmeticTextField
-        label={grossLabel}
-        value={draft.platformGrossAmount}
-        onCommit={(v) => set({ platformGrossAmount: v })}
+        label="Location (relevé)"
+        value={draft.platformLocationAmount}
+        onCommit={(v) => set({ platformLocationAmount: v })}
         size="small"
-        helperText={grossHelper}
+        helperText="Le loyer du relevé de la plateforme : sans taxe de séjour ni frais facturés au voyageur."
         disabled={locked}
         autoFocus
       />
-      {taxOffered && (
+      <ArithmeticTextField
+        label="Options (relevé)"
+        value={draft.platformOptionsAmount}
+        onCommit={(v) => set({ platformOptionsAmount: v })}
+        size="small"
+        error={Boolean(refusals.platformOptionsAmount)}
+        helperText={refusals.platformOptionsAmount || 'Ménage, linge… facturés par la plateforme. Vide : les options de la fiche restent telles quelles.'}
+        disabled={locked}
+      />
+      {box && (
         <Box>
           <ArithmeticTextField
-            label="Taxe de séjour retenue"
+            label={box.label}
             value={draft.platformTouristTaxAmount}
             onCommit={(v) => set({ platformTouristTaxAmount: v })}
             size="small"
             fullWidth
             disabled={locked}
-            helperText="Collectée par la plateforme et reversée à la commune — jamais encaissée par l’établissement."
+            helperText={box.helper}
           />
-          <Tooltip title={`Reprendre le calcul du moteur : ${formatCurrency(engineTouristTax)}`}>
-            <span>
-              <Button size="small" variant="text" disabled={locked} onClick={() => set({ platformTouristTaxAmount: engineTouristTax })} sx={{ textTransform: 'none', minHeight: 44 }}>
-                Reprendre le calcul
-              </Button>
-            </span>
-          </Tooltip>
-          {/* specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 12 — the amount that carries the
-              VAT, no longer the number typed above once the box holds something. */}
-          {withheldFilled && !blank(draft.platformGrossAmount) && Number.isFinite(Number(draft.platformGrossAmount)) && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              Montant hors taxe de séjour : <strong>{formatCurrency(Math.round((Number(draft.platformGrossAmount) - Math.max(0, Number(draft.platformTouristTaxAmount) || 0)) * 100) / 100)}</strong> — {notSubject ? 'base de commission' : 'base TVA et base de commission'}.
-            </Typography>
+          {box.mode === 'platform' && (
+            <Tooltip title={`Reprendre le calcul du moteur : ${formatCurrency(engineTouristTax)}`}>
+              <span>
+                <Button size="small" variant="text" disabled={locked} onClick={() => set({ platformTouristTaxAmount: engineTouristTax })} sx={{ textTransform: 'none', minHeight: 44 }}>
+                  Reprendre le calcul
+                </Button>
+              </span>
+            </Tooltip>
           )}
         </Box>
       )}
@@ -167,11 +188,14 @@ export default function PlatformStatementEditor({
           onCommit={(v) => set({ platformCommissionAmount: v })}
           size="small"
           fullWidth
+          error={Boolean(refusals.platformCommissionAmount)}
+          color={reading.warnings.commissionRate ? 'warning' : undefined}
+          focused={reading.warnings.commissionRate ? true : undefined}
           disabled={locked}
-          helperText="Frais retenus sur le solde."
+          helperText={refusals.platformCommissionAmount || reading.warnings.commissionRate || 'Frais retenus sur le solde.'}
         />
         {!blank(payoutForCompute) && (
-          <Tooltip title={canCompute ? 'Commission solde = total facturé − virement (− taxe retenue, − commission acompte)' : 'Renseigner le total facturé'}>
+          <Tooltip title={canCompute ? 'Commission solde = montant hôte (+ taxe versée avec le virement) − virement − commission acompte' : 'Renseigner la location'}>
             <span>
               <Button size="small" variant="text" disabled={!canCompute} onClick={compute} sx={{ textTransform: 'none', minHeight: 44 }}>
                 Calculer la commission
@@ -180,16 +204,18 @@ export default function PlatformStatementEditor({
           </Tooltip>
         )}
       </Box>
-      {check && (
-        <Alert severity={check.tone === 'done' ? 'success' : check.tone === 'error' ? 'error' : 'warning'} sx={{ gridColumn: '1 / -1', fontVariantNumeric: 'tabular-nums' }} role="status">
-          {check.label}
-        </Alert>
+      {reading.lines.length > 0 && (
+        <Stack spacing={0.75} sx={{ gridColumn: '1 / -1', fontVariantNumeric: 'tabular-nums' }}>
+          {reading.lines.map((line) => (
+            <Alert key={line.label} severity={TONE_SEVERITY[line.tone] || 'info'} role="status">{line.label}</Alert>
+          ))}
+        </Stack>
       )}
       {locked && lockedReason && (
         <Typography variant="body2" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>{lockedReason}</Typography>
       )}
       <Stack direction="row" spacing={0.75} sx={{ gridColumn: '1 / -1', flexWrap: 'wrap' }}>
-        <Button variant="contained" disabled={locked || check?.tone === 'error'} onClick={() => onApply(draft)} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
+        <Button variant="contained" disabled={locked || hasRefusal} onClick={apply} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
           Valider
         </Button>
         <Button variant="text" onClick={onCancel} sx={{ minHeight: 44, textTransform: 'none' }}>Annuler</Button>

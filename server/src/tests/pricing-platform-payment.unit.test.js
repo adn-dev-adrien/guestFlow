@@ -10,14 +10,16 @@ const {
   commissionOf, clampCommissions, netReceived, acompteNet, grossOf, payoutWithPenalty, withheldOnCancellation,
 } = platformPayment;
 
-test('rule 70 — commissionOf(statement) = max(0, gross − payout − withheld tax − acompte commission), null when a figure is missing', () => {
-  assert.equal(commissionOf({ basis: 'statement', gross: 500, payout: 420, withheldTax: 20, acompteCommission: 10 }), 50);
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 8): the tax paid with the transfer ADDS to the host amount.
+// The rule numbers below are those of specs/pricing/pricing-components.md.
+test('rule 70 — commissionOf(statement) = max(0, gross + tax paid − payout − acompte commission), null when a figure is missing', () => {
+  assert.equal(commissionOf({ basis: 'statement', gross: 500, payout: 420, taxPaid: 20, acompteCommission: 10 }), 90);
   assert.equal(commissionOf({ gross: 500, payout: 600 }), 0);
   assert.equal(commissionOf({ gross: 100.1, payout: 60.05 }), 40.05);
   assert.equal(commissionOf({ gross: '', payout: 10 }), null);
   assert.equal(commissionOf({ gross: 10, payout: null }), null);
   assert.equal(commissionOf({ gross: 'abc', payout: 1 }), null);
-  assert.equal(commissionOf({ gross: 500, payout: 420, withheldTax: -30 }), 80, 'a negative withheld tax counts as 0');
+  assert.equal(commissionOf({ gross: 500, payout: 420, taxPaid: -30 }), 80, 'a negative tax paid counts as 0');
 });
 
 test('rule 70 — the old module re-exports the same computePlatformCommission', () => {

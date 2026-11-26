@@ -7,6 +7,10 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from './mockReservationForm';
 
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5, 8): the block takes the HOST side of the statement
+// (« Location (relevé) » + « Options (relevé) »), the box is named by the platform's mode (the server's `platformStatement.box`), and the
+// commission formula adds the tax paid with the transfer — resolved by the server from the platform sent with the figures.
+//
 // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md — the « Taxe de séjour retenue » box in the
 // « Paiement plateforme » block: when it shows up, what it says, and what it does to the commission
 // the « Calculer » button writes.
@@ -17,9 +21,11 @@ import { makeMockContext } from './mockReservationForm';
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), computePlatformCommission: vi.fn() } }));
 import api from '../../../api';
 
-const OFFERED = { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.40 };
-const REVERSED = { touristTaxOfferedByPlatform: false, touristTaxReversedByPlatform: true, touristTaxOriginalTotal: 14.40 };
-const OWNER = { touristTaxOfferedByPlatform: false, touristTaxReversedByPlatform: false, touristTaxOriginalTotal: 14.40 };
+const KEPT_BOX = { mode: 'platform', label: 'Taxe de séjour retenue par la plateforme', helper: 'Informatif : la plateforme la reverse à la commune, elle n’entre dans aucun prix.' };
+const PAID_BOX = { mode: 'platform_reversed', label: 'Taxe de séjour versée avec le virement', helper: 'Celle de GuestFlow reste la taxe déclarée.' };
+const OFFERED = { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.40, platformStatement: { mode: 'platform', box: KEPT_BOX } };
+const REVERSED = { touristTaxOfferedByPlatform: false, touristTaxReversedByPlatform: true, touristTaxOriginalTotal: 14.40, platformStatement: { mode: 'platform_reversed', box: PAID_BOX } };
+const OWNER = { touristTaxOfferedByPlatform: false, touristTaxReversedByPlatform: false, touristTaxOriginalTotal: 14.40, platformStatement: { mode: 'owner', box: null } };
 
 const PAYOUT = {
   key: 'balance', label: 'Versement', amount: 747.4, state: 'due', tone: 'due', stateLabel: 'Attendu le 22/10',
@@ -51,6 +57,7 @@ async function calculate(ctx) {
   api.computePlatformCommission.mockResolvedValueOnce({ commission: 123.45 });
   fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
   await waitFor(() => expect(api.computePlatformCommission).toHaveBeenCalledWith({
+    platform: ctx.form.platform,
     gross: ctx.form.platformGrossAmount,
     payout: ctx.form.platformPayoutAmount,
     touristTax: ctx.form.platformTouristTaxAmount ?? '',
@@ -61,7 +68,7 @@ async function calculate(ctx) {
   expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ platformCommissionAmount: 123.45 }));
 }
 
-const boxLabel = /Taxe de séjour retenue/i;
+const boxLabel = /Taxe de séjour (retenue par la plateforme|versée avec le virement)/i;
 
 // ---------------------------------------------------------------------------
 // rule 1 — where the box shows up
@@ -72,9 +79,10 @@ test('rule 1 — the box is shown when the platform collects AND remits the tax 
   expect(screen.getByLabelText(boxLabel)).toBeInTheDocument();
 });
 
-test('rule 1 — no box on a platform that reverses the tax to us', () => {
+test('rule 5 — a platform that reverses the tax to us has its box too: « versée avec le virement », with no « Reprendre le calcul »', () => {
   renderFinance({ form: { platform: 'Lodgify' }, pricingQuote: REVERSED });
-  expect(screen.queryByLabelText(boxLabel)).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Taxe de séjour versée avec le virement')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Reprendre le calcul/i })).not.toBeInTheDocument();
 });
 
 test('rule 1 — no box on a platform whose tax we collect at arrival', () => {
@@ -103,43 +111,20 @@ test('rule 5 — « Reprendre le calcul » writes the engine’s figure into the
   expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ platformTouristTaxAmount: 14.40 }));
 });
 
-test('rule 14 — an empty box keeps the tax-excluded label; a filled one says « payé par le client »', () => {
-  renderFinance({
-    form: { platform: 'Gîtes de France', platformTouristTaxAmount: '' },
-    pricingQuote: OFFERED,
-  });
-  expect(screen.getByLabelText(/Total séjour facturé par la plateforme/i)).toBeInTheDocument();
-  cleanup();
-
-  renderFinance({
-    form: { platform: 'Gîtes de France', platformTouristTaxAmount: 14.40 },
-    pricingQuote: OFFERED,
-  });
-  expect(screen.getByLabelText(/Montant total payé par le client/i)).toBeInTheDocument();
-  expect(screen.getByText(/taxe de séjour comprise/i)).toBeInTheDocument();
-});
-
-// ---------------------------------------------------------------------------
-// rule 12 — the amount that carries the VAT
-// ---------------------------------------------------------------------------
-
-test('rule 12 — the block prints the tax-excluded amount, which is no longer the number typed above', () => {
-  renderFinance({
-    form: { platform: 'Gîtes de France', platformGrossAmount: 747.40, platformTouristTaxAmount: 14.40 },
-    pricingQuote: OFFERED,
-  });
-
-  expect(screen.getByText(/Montant hors taxe de séjour/i)).toBeInTheDocument();
-  expect(screen.getByText('733,00 €')).toBeInTheDocument();
-});
-
-test('rule 12 — nothing is printed while the box is empty (the amount is the brut itself)', () => {
-  renderFinance({
-    form: { platform: 'Gîtes de France', platformGrossAmount: 733, platformTouristTaxAmount: '' },
-    pricingQuote: OFFERED,
-  });
-
+test('rule 1 — the block takes the host side: Location and Options, never the guest total', () => {
+  renderFinance({ form: { platform: 'Gîtes de France', platformGrossAmount: 784, platformOptionsAmount: 0 }, pricingQuote: OFFERED });
+  expect(screen.getByLabelText('Location (relevé)')).toHaveValue('784,00');
+  expect(screen.getByLabelText('Options (relevé)')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Montant total payé par le client/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/Montant hors taxe de séjour/i)).not.toBeInTheDocument();
+});
+
+test('rule 1 — the stored host amount splits into its location and its options; « Valider » writes the sum and the options', () => {
+  const ctx = renderFinance({ form: { platform: 'Gîtes de France', platformGrossAmount: 864, platformOptionsAmount: 80 }, pricingQuote: OFFERED });
+  expect(screen.getByLabelText('Location (relevé)')).toHaveValue('784,00');
+  expect(screen.getByLabelText('Options (relevé)')).toHaveValue('80,00');
+  fireEvent.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ platformGrossAmount: 864, platformOptionsAmount: 80 }));
 });
 
 // ---------------------------------------------------------------------------
@@ -150,7 +135,7 @@ test(`rule 10 — « Calculer la commission » sends the withheld tax to the ser
   const ctx = renderFinance({
     form: {
       platform: 'Gîtes de France',
-      platformGrossAmount: 747.40,
+      platformGrossAmount: 733,
       platformPayoutAmount: 668,
       platformTouristTaxAmount: 14.40,
     },
@@ -178,7 +163,7 @@ test(`rule 10 — the acompte commission is sent too`, async () => {
   const ctx = renderFinance({
     form: {
       platform: 'Gîtes de France',
-      platformGrossAmount: 747.40,
+      platformGrossAmount: 733,
       platformPayoutAmount: 668,
       platformTouristTaxAmount: 14.40,
       acompteCommissionAmount: 10,

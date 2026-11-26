@@ -77,7 +77,7 @@ function validateFinanceInputs(fields, stored = null) {
 const STAY_MONEY_FIELDS = [
   'customPrice', 'depositAmount', 'depositAmountOverride', 'complementAmountOverride',
   'endOfStayComplementAmountOverride', 'balanceAmount', 'cautionAmount', 'platformCommissionAmount',
-  'acompteCommissionAmount', 'platformGrossAmount', 'platformPayoutAmount', 'platformTouristTaxAmount',
+  'acompteCommissionAmount', 'platformGrossAmount', 'platformPayoutAmount', 'platformTouristTaxAmount', 'platformOptionsAmount',
 ];
 
 /**

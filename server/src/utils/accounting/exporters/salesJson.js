@@ -6,7 +6,7 @@ const { roundMoneyStrict } = require('../../pricing/money');
 
 // `create({ accountPlan, csvJournal })` — the account plan and the CSV journal whose rows each card is made of.
 function createSalesJson({ accountPlan, csvJournal }) {
-  const { PASS_THROUGH_ACCOUNTS, accountLabel, planMapper } = accountPlan;
+  const { PASS_THROUGH_ACCOUNTS, REVERSE_CHARGE_ACCOUNTS, accountLabel, planMapper } = accountPlan;
   const { entryToRows, round2 } = csvJournal;
 
   // Same data as the CSV but in a structured, render-friendly shape (one object per encaissement,
@@ -40,8 +40,11 @@ function createSalesJson({ accountPlan, csvJournal }) {
           commissionHt: entry.commission ? entry.commission.ht : null,
           commissionVat: entry.commission ? entry.commission.vat : null,
           commissionHasVat: entry.commission ? entry.commission.hasVat : null,
+          // Rules 13, 15 — the VAT regime the commission is booked under and the VAT we assessed on it.
+          commissionRegime: entry.commission ? entry.commission.regime || null : null,
+          commissionSelfAssessed: entry.commission ? entry.commission.selfAssessed || 0 : null,
         }
-      : { platform: null, gross: null, net: null, commission: null, commissionAccount: null, commissionHt: null, commissionVat: null, commissionHasVat: null };
+      : { platform: null, gross: null, net: null, commission: null, commissionAccount: null, commissionHt: null, commissionVat: null, commissionHasVat: null, commissionRegime: null, commissionSelfAssessed: null };
 
     // Position indices follow CSV_HEADERS exactly.
     const lines = rows.map((row) => {
@@ -129,7 +132,8 @@ function createSalesJson({ accountPlan, csvJournal }) {
     if (s.startsWith('70')) return 'revenue';
     if (s.startsWith('44571')) return 'vat';
     if (s === PASS_THROUGH_ACCOUNTS.TOURIST_TAX) return 'tax_pass_through';
-    if (s === '44566000') return 'commission_vat';
+    if (s === '44566000' || s === REVERSE_CHARGE_ACCOUNTS.DEDUCTIBLE) return 'commission_vat';
+    if (s === REVERSE_CHARGE_ACCOUNTS.DUE) return 'vat';
     if (s.startsWith('6226')) return 'commission_charge';
     // Produits divers (75xxxx) — the cancellation-compensation account. Still a revenue credit for
     // the reader, so it gets the same green treatment as the 70xxx lines.

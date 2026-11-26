@@ -8,6 +8,14 @@
 | **Author** | Adrien |
 | **Related PR** | #549 (rules 1-20, v2.15.0) · amendment §3.5 (rules 21-24) |
 
+
+> **Amended 2026-11-26 by [platform-host-statement-and-commission-vat.md](platform-host-statement-and-commission-vat.md).**
+> Rule 3 (a value in the box means the brut is tax-inclusive) and the rules built on it — 6, 6bis, 10, 12, 14, 16, 24 — are superseded:
+> the brut is the host amount and the box is **informational** in mode `platform` (« Taxe de séjour retenue par la plateforme », it enters no
+> price, no VAT base, no commission), and in mode `platform_reversed` it is the tax **paid with the transfer** (« Taxe de séjour versée avec le
+> virement »; the gap with GuestFlow's own tax goes into the accommodation). Rule 8 (the withheld tax stays out of our books) stands.
+> The tax-base rules (6bis, 7) now hold by construction: the brut never contains the tax.
+
 ---
 
 ## 1. Context

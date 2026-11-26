@@ -2,6 +2,8 @@
 // `complementPaidSplit` existed has none: the register reads it from the stay. Every production complement of today is in
 // that case, so the readings stamped stays never reach are pinned here: the auditor's scenarios with the split NULLed before
 // the cancellation.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
+// with its 7,20 of reversed tax inside is a brut of 592,80 and a box of 7,20; the stay, its buckets and its entries are the same.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -79,14 +81,14 @@ test('C — no acompte, tax in the complement: the tax and the line', async () =
 });
 
 test('D — own channel reversed, added guest, complement alone: supplement and added tax', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600, depositDisabled: 1 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2, depositDisabled: 1 });
   await put(stay, { adults: 3 });
   pay(stay.id, C);
   assert.deepEqual(await givenBack(stay.id), { [ACCOMMODATION]: 40, [TAX]: 2.4 });
 });
 
 test('K5 — the same with an acompte paid: its contribs describe it, the complement reads the same', async () => {
-  const stay = fiche(WITH_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(WITH_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const acompte = rowOf(stay.id).depositAmount;
   pay(stay.id, D, C);
@@ -107,7 +109,7 @@ test('a line that grew after the solde: the complement collected its growth', as
 });
 
 test('solde and complement with no contribs either: the solde\'s buckets, the whole tax, the added guest on the accommodation', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600, depositDisabled: 1 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2, depositDisabled: 1 });
   await put(stay, { adults: 3 });
   pay(stay.id, S, C);
   dropContribs(stay.id);

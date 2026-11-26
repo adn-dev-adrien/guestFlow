@@ -14,7 +14,7 @@
  */
 
 const { isDirectChannel } = require('../utils/platformNameFormat');
-const { computePlatformCommission } = require('../utils/platformCommission');
+const { computePlatformCommission, taxPaidOf } = require('../utils/platformCommission');
 const {
   acompteNet: acompteNetOf, grossOf, statementRemainder, statementPayout, bankReceived,
 } = require('../utils/pricing/platformPayment');
@@ -87,7 +87,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
     const adjusts = payoutRecorded && source === 'fiche' && body.payoutIncludesPenalty === true;
 
     const gross = grossOf(row);
-    const tax = Math.max(0, Number(row.platformTouristTaxAmount) || 0);
+    const tax = taxPaidOf({ platform: row.platform, box: row.platformTouristTaxAmount });
     const acompteCommission = Number(row.acompteCommissionAmount) || 0;
     const acompteNet = acompteNetOf(row);
     const commission = present(row.platformCommissionAmount) ? round2(row.platformCommissionAmount) : null;
@@ -98,7 +98,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
       const raw = statementRemainder({ gross, payout: newPayout, tax, acompteCommission });
       if (raw < 0) {
         errors.push({ code: 'COMMISSION_NEGATIVE', field: 'amount', message: 'Le versement du relevé dépasserait le total facturé : la commission deviendrait négative.' });
-      } else newCommission = computePlatformCommission({ gross, payout: newPayout, touristTax: row.platformTouristTaxAmount, acompteCommission });
+      } else newCommission = computePlatformCommission({ gross, payout: newPayout, touristTax: tax, acompteCommission });
     }
 
     // Rule 26 — the penalties together cannot exceed what the platform pays out for the solde.

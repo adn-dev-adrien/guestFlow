@@ -1,5 +1,5 @@
 /**
- * The intake pass and the operator's actions on an intake (specs/gites-de-france-mail-intake.md §3).
+ * The intake pass and the operator's actions on an intake (specs/platforms/gites-de-france-mail-intake.md §3).
  *
  *   read the mailbox → parse each new mail → match it to the iCal fiche → fill the fiche (untouched
  *   placeholder) or propose (fiche already edited) → wait for the rent when two rents fit the net.
@@ -16,7 +16,7 @@ const isGitesDeFrance = (platform) => /gites?defrance/.test(String(platform || '
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
 const sdk = require('../sdk');
 const { dayReached } = sdk.coreModule('stayClock');
-const { roundMoneyStrict: round2 } = sdk.coreModule('money');
+const { roundMoneyStrict: round2, eurosWithSpaces, toCents } = sdk.coreModule('money');
 const CONTACT_KEPT = 'E-mail ou téléphone déjà renseigné sur la fiche';
 const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
@@ -63,9 +63,12 @@ function createIntakeService(deps) {
     return rentCandidates(booking.netRent, commissionPercent(reservation.platform));
   }
 
+  // Rules 1 and 19 of specs/platforms/platform-host-statement-and-commission-vat.md — « Location » is the rent, « Options » the supplements, the box the tax the
+  // centrale collected and remits itself: the host amount is their sum, never the guest-paid total.
   function paymentPatch(booking, rent) {
     return {
-      platformGrossAmount: round2(rent + booking.optionsTotal + booking.touristTax),
+      platformGrossAmount: round2(rent + booking.optionsTotal),
+      platformOptionsAmount: booking.optionsTotal,
       platformTouristTaxAmount: booking.touristTax,
       platformPayoutAmount: booking.totalNet,
       platformCommissionAmount: core.platformCommission({ basis: 'rentOnly', rent, netRent: booking.netRent }),
@@ -84,9 +87,14 @@ function createIntakeService(deps) {
     const customOptions = stored.customOptions.map((o) => ({ ...o }));
     let offered = stored.offeredOptionIds.map(Number);
     const asCustomLines = [];
+    // What the lines this patch sets bill: a catalogue line once, however many supplements name it, and each free line.
+    let linesTotal = 0;
+    let cleaningSet = false;
 
     booking.supplements.forEach((s, i) => {
       if (cleaning && /ménage/i.test(s.label) && Number(cleaning.price) === s.amount) {
+        if (!cleaningSet) linesTotal += s.amount;
+        cleaningSet = true;
         const existing = options.find((o) => Number(o.optionId) === Number(cleaning.id));
         if (existing) Object.assign(existing, { quantity: 1, inComplement: 0 });
         else options.push({ optionId: cleaning.id, quantity: 1, inComplement: 0 });
@@ -94,6 +102,7 @@ function createIntakeService(deps) {
       } else {
         customOptions.push({ customKey: `gdf_${booking.dossierNumber}_${i + 1}`, description: s.label, amount: s.amount, offered: false, inComplement: 0 });
         asCustomLines.push(s.label);
+        linesTotal += s.amount;
       }
     });
 
@@ -120,6 +129,7 @@ function createIntakeService(deps) {
         offeredOptionIds: offered,
       },
       asCustomLines,
+      linesTotal,
     };
   }
 
@@ -141,7 +151,13 @@ function createIntakeService(deps) {
       return { status: 'error', error };
     }
 
-    const { patch, client } = stayPatch(booking, reservation);
+    const { patch, client, linesTotal } = stayPatch(booking, reservation);
+    // Rule 19 — the supplements the fiche now bills must be the options of the statement, to the cent.
+    if (round2(linesTotal) !== round2(booking.optionsTotal)) {
+      const error = `Options GdF ${eurosWithSpaces(toCents(booking.optionsTotal))} non retrouvées sur la fiche`;
+      intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });
+      return { status: 'error', error };
+    }
     const full = chosen != null ? { ...patch, ...paymentPatch(booking, chosen) } : patch;
     const result = core.updateReservation(reservation.id, full, { label: `Mail Gîtes de France du ${frDate(intake.receivedAt)}`, client, reuseByEmail: intake.senderVerified });
     if (result.status !== 200) {

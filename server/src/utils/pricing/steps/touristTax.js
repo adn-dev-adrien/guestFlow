@@ -29,7 +29,7 @@ const step = {
     'isTouristTaxCollectedOnArrival', 'isTouristTaxOfferedByPlatform', 'isTouristTaxRemittedByOwnerFlag',
     'resolvedPlatformPaidOccupants', 'reversedTouristTaxInBrut', 'taxAccommodationPaid', 'taxBaseAccommodation',
     'taxBaseBeforeDeduction', 'touristTaxAddedGuestsAdults', 'touristTaxAddedGuestsAmount', 'touristTaxBreakdown',
-    'touristTaxBrutInconsistent', 'touristTaxIncludedInRateDeduction', 'touristTaxReversedByPlatform',
+    'touristTaxBrutInconsistent', 'touristTaxGap', 'touristTaxIncludedInRateDeduction', 'touristTaxReversedByPlatform',
     'touristTaxTotal', 'withheldTouristTaxEntered', 'withheldTouristTaxInBrut',
   ],
   apply(ctx) {
@@ -80,13 +80,10 @@ const step = {
     // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered.
     const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
 
-    // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rules 2-3 — in the OFFERED case the operator
-    // may state, in euros, the tourist tax the platform kept out of its payout. That amount is the
-    // PLATFORM's figure, never ours, which is exactly what makes subtracting it safe where subtracting
-    // our own estimate was not (platform-brut-excludes-offered-tourist-tax.md). Empty → 0 → every term
-    // below is inert and the brut keeps being read tax-excluded, so no already-booked reservation moves.
-    // `Entered` is kept apart from the amount: « 0 € withheld » is the platform's answer, not an empty
-    // box, and the fiche must print it instead of falling back to our estimate (spec review 2026-10-27).
+    // specs/platforms/platform-host-statement-and-commission-vat.md rule 5 — in the OFFERED case the box holds the tax the
+    // platform kept: informational, it enters no price (the brut is the host amount, tax excluded). `Entered` is kept
+    // apart from the amount: « 0 € withheld » is the platform's answer, not an empty box, and the fiche prints it
+    // instead of falling back to our estimate.
     const withheldTouristTaxEntered = platformGrossPin != null && isTouristTaxOfferedByPlatform
       && platformTouristTaxAmountInput !== '' && platformTouristTaxAmountInput != null
       && Number.isFinite(Number(platformTouristTaxAmountInput)) && Number(platformTouristTaxAmountInput) >= 0;
@@ -94,8 +91,18 @@ const step = {
       ? roundMoney(Number(platformTouristTaxAmountInput))
       : 0;
 
+    // A tax frozen at 0 was priced under another mode (rule 9): the stay does not move when its platform switches, so the box
+    // reads as nothing for it. The box of a reversed tax is what the platform paid us for the tax (rule 5).
+    const reversedTaxBoxEntered = platformGrossPin != null && collectsFromGuest && isTouristTaxRemittedByOwnerFlag
+      && !(freezeTouristTax && roundMoney(Number(frozenTouristTaxTotal || 0)) === 0)
+      && platformTouristTaxAmountInput !== '' && platformTouristTaxAmountInput != null
+      && Number.isFinite(Number(platformTouristTaxAmountInput)) && Number(platformTouristTaxAmountInput) >= 0;
+    // The base the tax percentage reads keeps what a reversed brut always held: the tax the platform paid, so a stay re-priced after
+    // the brut became the host amount lands on the tax it had (rule 4). Invisible on a per-person tax, which ignores the base.
+    const reversedTaxInBase = reversedTaxBoxEntered ? roundMoney(Number(platformTouristTaxAmountInput)) : 0;
+
     const { taxAccommodationPaid, taxBaseAccommodation, touristTaxBrutInconsistent } = resolveTaxBase({
-      platformGrossPin, preArrivalOptionsResources, withheldTouristTaxInBrut, taxBaseBeforeDeduction,
+      platformGrossPin, preArrivalOptionsResources, reversedTaxInBase, taxBaseBeforeDeduction,
       touristTaxIncludedInRateDeduction, extraGuestInBrutSurcharge,
     });
 
@@ -205,6 +212,12 @@ const step = {
     const reversedTouristTaxInBrut = (platformGrossPin != null && touristTaxReversedByPlatform)
       ? roundMoney(touristTaxTotal - touristTaxAddedGuestsAmount)
       : 0;
+    // specs/platforms/platform-host-statement-and-commission-vat.md rules 6-7 — GuestFlow's own tax is the right one: what the
+    // platform paid us for it (the box) beyond it, or short of it, goes into the accommodation so that Σ credits
+    // equals the money received. Empty box → 0.
+    const touristTaxGap = reversedTaxBoxEntered
+      ? roundMoney(Number(platformTouristTaxAmountInput) - reversedTouristTaxInBrut)
+      : 0;
 
     // The tourist-tax breakdown + platform-mode routing (collectsFromGuest / remitted-by-owner / offered)
     // and the reversed-tax-as-brut handling are resolved earlier, alongside the brut back-solve
@@ -228,7 +241,7 @@ const step = {
       isTouristTaxCollectedOnArrival, isTouristTaxOfferedByPlatform, isTouristTaxRemittedByOwnerFlag,
       resolvedPlatformPaidOccupants, reversedTouristTaxInBrut, taxAccommodationPaid,
       taxBaseAccommodation, taxBaseBeforeDeduction, touristTaxAddedGuestsAdults,
-      touristTaxAddedGuestsAmount, touristTaxBreakdown, touristTaxBrutInconsistent,
+      touristTaxAddedGuestsAmount, touristTaxBreakdown, touristTaxBrutInconsistent, touristTaxGap,
       touristTaxIncludedInRateDeduction, touristTaxReversedByPlatform, touristTaxTotal,
       withheldTouristTaxEntered, withheldTouristTaxInBrut,
     };

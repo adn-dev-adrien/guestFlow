@@ -203,11 +203,15 @@ test('specs/plugins/plugins-phase-2-hosts.md rule 19 — the four account and VA
   controller.getSettings({ params: { id: ID } }, res);
   // …plus the account plan of specs/plugins/plugins-phase-p-productisation.md rule 27, and the Mollie journal of
   // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28.
+  // …and, since specs/platforms/platform-host-statement-and-commission-vat.md rules 14-16, the regime accounts, the self-assessment and the VAT codes.
   assert.deepEqual(Object.keys(res.body).sort(), [
-    'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionVatAccount',
+    'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionEuAccount', 'commissionFrAccount',
+    'commissionNoVatAccount', 'commissionVatAccount',
     'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'drinksRevenueAccount', 'journalCode',
-    'mollieBankAccount', 'mollieClearingAccount', 'mollieExportBank', 'mollieFeeAccount', 'mollieJournalCode', 'platformPenaltyAccount', 'tipAccount',
-    'touristTaxAccount', 'vat10Account', 'vat20Account', 'vatRateCancellationCompensation', 'vatRateCommission',
+    'mollieBankAccount', 'mollieClearingAccount', 'mollieExportBank', 'mollieFeeAccount', 'mollieJournalCode', 'platformPenaltyAccount',
+    'reverseChargeDeductibleAccount', 'reverseChargeDueAccount', 'reverseChargeLines', 'tipAccount',
+    'touristTaxAccount', 'vat10Account', 'vat20Account', 'vatCodeDeductible20', 'vatCodeRate10', 'vatCodeRate20', 'vatCodeRate55',
+    'vatCodeReverseCharge', 'vatRateCancellationCompensation', 'vatRateCommission',
   ]);
   assert.equal(res.body.defaultCommissionAccountNumber, '62260002');
 
@@ -280,6 +284,7 @@ test('specs/plugins/plugins-phase-2-hosts.md rule 22 — describe lists the conf
 
 test('specs/plugins/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the platform columns it owns; the purge resets the settings and those columns, keeps the money, and the journal is identical after a reinstall', async () => {
   const db = freshDb();
+  db.exec("ALTER TABLE platforms ADD COLUMN commissionVatRegime TEXT NOT NULL DEFAULT 'no_vat'");
   bankCompensation(db);
   const before = boot(db, { installed: true });
   const journal = async (app) => {
@@ -294,7 +299,7 @@ test('specs/plugins/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes
   await request(before.app, 'PUT', '/api/accounting/platform-accounts', {
     defaultAccount: '62260001', cancellationCompensationAccount: '75880100', vatRateCommission: 19.6,
     vatRateCancellationCompensation: 5.5,
-    platforms: [{ id: db.prepare("SELECT id FROM platforms WHERE name = 'Airbnb'").get().id, account: '62260300', hasVat: true }],
+    platforms: [{ id: db.prepare("SELECT id FROM platforms WHERE name = 'Airbnb'").get().id, account: '62260300', regime: 'eu_reverse_charge' }],
   });
   db.prepare("UPDATE app_settings SET defaultCommissionAccountNumber = '62260001', cancellationCompensationAccount = '75880100' WHERE id = 1").run();
   assert.notDeepEqual(await journal(before.app), reference, 'the custom produit account shows in the journal');
@@ -310,6 +315,7 @@ test('specs/plugins/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes
   assert.equal(res.statusCode, 200);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM plugin_settings WHERE plugin_id = ?').get(ID).n, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM platforms WHERE commissionAccountNumber IS NOT NULL OR hasVatOnCommission = 1').get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM platforms WHERE commissionVatRegime != 'no_vat'").get().n, 0, 'the regime goes back to its default (rule 13 of the host statement spec)');
   assert.deepEqual(counts(), countsBefore, 'every stay, compensation, refund and platform row is kept');
 
   await controller.install({ params: { id: ID } }, fakeRes());

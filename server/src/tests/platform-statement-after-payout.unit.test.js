@@ -50,7 +50,7 @@ test('rules 4, 6, 8, 10 — a received solde takes its brut and commission: re-s
     [before.balancePaid, before.balancePaidDate, before.touristTaxTotal, before.complementAmount], 'marks, tax and complement untouched');
   const [history] = historyOf(id);
   const fields = JSON.parse(history.changedFields).map((c) => c.label);
-  assert.ok(fields.includes('Montant total payé par le client') && fields.includes('Prix final') && fields.includes('Virement reçu'));
+  assert.ok(fields.includes('Montant hôte (relevé)') && fields.includes('Prix final') && fields.includes('Virement reçu'));
 });
 
 test('rule 4 (Q1) — a net different from the transfer is accepted and returned as a gap', async () => {

@@ -1,6 +1,6 @@
 /**
  * What a confirmation writes on the fiche, and how « Défaire » takes it back
- * (specs/qonto-bank-reconciliation.md rules 34–38).
+ * (specs/accounting/qonto-bank-reconciliation.md rules 34–38).
  *
  * The write goes through the core's own payment mark (`applyPaymentMark`), so every guard of « Marquer
  * perçu » applies and a refusal cancels the confirmation. Only an échéance the fiche does not mark
@@ -82,7 +82,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
         payout = payoutWithPenalty({ payout: got / 100 + platformAcompteNet(before), penalty: before.platformPenaltyAmount });
         const gross = grossOf(before);
         commission = computePlatformCommission({
-          gross, payout, touristTax: before.platformTouristTaxAmount, acompteCommission: before.acompteCommissionAmount,
+          platform: before.platform, gross, payout, touristTax: before.platformTouristTaxAmount, acompteCommission: before.acompteCommissionAmount,
         });
         body.platformPayoutAmount = payout;
         if (commission != null) body.platformCommissionAmount = commission;
@@ -106,7 +106,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
     },
 
     /**
-     * specs/reservation-refunds.md rule 52 — what `restoreForTransaction` would take back must not leave book refunds above
+     * specs/payments/reservation-refunds.md rule 52 — what `restoreForTransaction` would take back must not leave book refunds above
      * what stays collected: the refusal, or null. Only the marks it would really touch count.
      */
     undoRefusal({ transactionId }) {

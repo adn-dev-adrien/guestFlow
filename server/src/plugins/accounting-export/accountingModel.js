@@ -5,20 +5,20 @@
  * For each, we fetch the underlying reservation + client + property and derive the per-bucket
  * HT/VAT from the STORED row money (finalPrice + persisted line totals) — never from a recomputed
  * pricing-engine quote, whose rules may have drifted since the booking was paid
- * (specs/accounting-encaissement-effective-percent.md). The pure `accountingExport` util takes
+ * (specs/accounting/accounting-encaissement-effective-percent.md). The pure `accountingExport` util takes
  * this shape and produces the balanced journal lines (see utils/accountingExport.js).
  *
  * Scope (spec §3.4):
  * - Reservations only, devis never exported — including the ones cancelled for non-payment
  *   (`kind='cancelled'`), whose already-booked encaissements must keep their original month
- *   (specs/payment-schedule-and-cancellation.md §3.6 rule 34).
+ *   (specs/payments/payment-schedule-and-cancellation.md §3.6 rule 34).
  * - Caution is excluded entirely (handled by ignoring `caution*` fields).
  * - Tourist tax never hits a revenue account: it rides the 46710000 pass-through line, entirely
- *   on the solde entry (specs/tourist-tax-on-solde.md) — or on the complement when the routing
+ *   on the solde entry (specs/tourist-tax/tourist-tax-on-solde.md) — or on the complement when the routing
  *   sends it there (owner-collect platforms / `touristTaxInComplement`).
  *
  * Factory `create(db, { settings })`; the plugin builds it on `ctx.db`. The money it reads is core
- * data: this model never writes (specs/plugins-phase-2-hosts.md rule 19).
+ * data: this model never writes (specs/plugins/plugins-phase-2-hosts.md rule 19).
  */
 
 const sdk = require('../sdk');
@@ -50,7 +50,7 @@ const { DEFAULT_COMMISSION_ACCOUNT, PLATFORM_PENALTY_ACCOUNT } = accountPlan;
 
 // `settings` — the export's account and VAT settings (./settings), bound to `database` by default.
 function createAccountingModel(database, { settings = createAccountSettings(database) } = {}) {
-  // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
+  // Mid-stay columns (specs/sas/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
   // reservationsModel ones so a minimal test schema without them degrades to the legacy attribution
   // (nothing sold mid-stay) instead of failing the query.
   const hasReservationColumn = (name) => {
@@ -61,24 +61,24 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     hasReservationColumn('endOfStayComplementDetail') ? 'r.endOfStayComplementDetail' : "NULL AS endOfStayComplementDetail",
     hasReservationColumn('arrivalExtrasBaseline') ? 'r.arrivalExtrasBaseline' : 'NULL AS arrivalExtrasBaseline',
     hasReservationColumn('midStaySettledNotes') ? 'r.midStaySettledNotes' : 'NULL AS midStaySettledNotes',
-    // specs/adjustable-complement-amounts.md §3.6 — the ventilation the fiche stored for an adjusted
+    // specs/sas/adjustable-complement-amounts.md §3.6 — the ventilation the fiche stored for an adjusted
     // complement. Absent (or NULL) → the postes are derived exactly as before.
     hasReservationColumn('complementAllocation') ? 'r.complementAllocation' : 'NULL AS complementAllocation',
   ].join(', ');
-  // specs/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the
+  // specs/sas/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the
   // caisse interne is off the books, exactly like a cash complement. Guarded the same way: a schema
   // without the columns reads 0 = « nothing was collected in cash », i.e. the legacy behaviour.
   const stayCashCols = [
     hasReservationColumn('depositPaidCash') ? 'COALESCE(r.depositPaidCash, 0) AS depositPaidCash' : '0 AS depositPaidCash',
     hasReservationColumn('balancePaidCash') ? 'COALESCE(r.balancePaidCash, 0) AS balancePaidCash' : '0 AS balancePaidCash',
   ].join(', ');
-  // specs/single-payment-at-check-in.md §3.3 rule 12 — the collection this entry belonged to. It
+  // specs/payments/single-payment-at-check-in.md §3.3 rule 12 — the collection this entry belonged to. It
   // changes nothing about WHICH entries are emitted nor what they contain: the ventilation stays per
   // bucket (different revenue accounts, different VAT rates). It only lets the reading side say
   // « these two were one payment ».
   const paymentGroupCol = hasReservationColumn('arrivalPaymentGroup')
     ? 'r.arrivalPaymentGroup' : 'NULL AS arrivalPaymentGroup';
-  // specs/arrival-payment-detail-and-adjustment.md §3.4 — what the guest actually handed over for that
+  // specs/sas/arrival-payment-detail-and-adjustment.md §3.4 — what the guest actually handed over for that
   // one payment, when it differs from the buckets: a réduction accordée, or a pourboire. Each gets its
   // own entry, stamped with the same group, so the card reads « voilà ce qui a été encaissé ».
   const addedGuestsTaxCol = hasReservationColumn('touristTaxAddedGuestsAmount')
@@ -104,7 +104,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const surchargeCol = hasReservationColumn('extraGuestComplementSurcharge')
     ? 'r.extraGuestComplementSurcharge'
     : '0 AS extraGuestComplementSurcharge';
-  // specs/accounting-books-the-money-collected.md rules 16-17 — on a core older than these columns: « nothing stored ».
+  // specs/accounting/accounting-books-the-money-collected.md rules 16-17 — on a core older than these columns: « nothing stored ».
   const bookedEntryCols = [
     hasReservationColumn('complementPaidSplit') ? 'r.complementPaidSplit' : 'NULL AS complementPaidSplit',
     hasReservationColumn('removedLineContribs') ? 'r.removedLineContribs' : 'NULL AS removedLineContribs',
@@ -116,18 +116,18 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const depositCashFilter = hasReservationColumn('depositPaidCash') ? 'AND COALESCE(r.depositPaidCash, 0) = 0' : '';
   const balanceCashFilter = hasReservationColumn('balancePaidCash') ? 'AND COALESCE(r.balancePaidCash, 0) = 0' : '';
   // A stay whose ONLY collection of the month is a « note en séjour » must still be selected — its
-  // buckets may all be paid in another month, or not at all yet (specs/mid-stay-notes.md §3.4).
+  // buckets may all be paid in another month, or not at all yet (specs/sas/mid-stay-notes.md §3.4).
   // Month prefix match on the serialised `paidDate`; `inMonth` below stays the authoritative filter.
   const hasNotesColumn = hasReservationColumn('midStaySettledNotes');
   const midStayNotesClause = hasNotesColumn ? 'OR (r.midStaySettledNotes LIKE ?)' : '';
   const midStayNotesParams = (from) => (hasNotesColumn ? [`%"paidDate":"${String(from).slice(0, 8)}%`] : []);
-  // specs/direct-installments.md — an installment is an encaissement of its own, at its paid date. A schema
+  // specs/payments/direct-installments.md — an installment is an encaissement of its own, at its paid date. A schema
   // without the table (a minimal test one) simply has none.
   const hasInstallments = hasTable(database, 'reservation_installments');
   const installmentClause = hasInstallments
     ? `OR EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id AND i.paid = 1 AND i.paidDate >= ? AND i.paidDate < ?)`
     : '';
-  // specs/accounting-books-the-money-collected.md rule 14 — the split frozen when the installment was
+  // specs/accounting/accounting-books-the-money-collected.md rule 14 — the split frozen when the installment was
   // collected. A schema without the column (older test fixtures) reads NULL: the live split.
   const paidSplitCol = hasInstallments && (() => {
     try { return database.prepare('PRAGMA table_info(reservation_installments)').all().some((c) => c.name === 'paidSplit'); }
@@ -139,12 +139,12 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   // Refunds live in their own tables, so the month filter is a plain range predicate (no LIKE scan
   // like the notes register needs). Bound to the same database so the test factory covers both.
   const refunds = createRefundsModel(database);
-  // Cancellation compensations (specs/cancellation-compensation.md §3.3): same lazy-statement
+  // Cancellation compensations (specs/payments/cancellation-compensation.md §3.3): same lazy-statement
   // discipline as the refunds model, so a minimal test schema without the table stays buildable.
   const compensations = buildCompensationsModel(database);
-  // Platform penalties (specs/reconciliation-assisted-matching.md rule 28), same lazy discipline.
+  // Platform penalties (specs/accounting/reconciliation-assisted-matching.md rule 28), same lazy discipline.
   const penalties = buildPenaltiesModel(database);
-  // specs/mixed-method-payments.md rule 26 — a payment split over several methods is booked settlement by
+  // specs/payments/mixed-method-payments.md rule 26 — a payment split over several methods is booked settlement by
   // settlement, at each one's date, for its share on the books. A schema without the table has none.
   const settlementsStore = buildSettlementsModel(database);
   const hasSettlements = hasTable(database, 'payment_settlements');
@@ -152,7 +152,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     ? 'OR EXISTS (SELECT 1 FROM payment_settlements s WHERE s.reservationId = r.id AND s.paidDate >= ? AND s.paidDate < ?)'
     : '';
   // Tax collected at check-in (→ complement) only when WE charge the guest directly, i.e. a non-direct platform that
-  // does NOT collect the tax from the guest (case 3 « owner » of specs/per-platform-tourist-tax-three-way.md).
+  // does NOT collect the tax from the guest (case 3 « owner » of specs/tourist-tax/per-platform-tourist-tax-three-way.md).
   // Mirrors the pricing engine's `isTouristTaxCollectedOnArrival` without recomputing a full quote.
   const taxContextOf = (row) => ({
     collectedOnArrival: String(row.platform || 'direct').toLowerCase() !== 'direct'
@@ -160,7 +160,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       && !isPlatformCollectingTouristTax(database, row.propertyId, row.platform),
   });
 
-  // specs/payment-schedule-and-cancellation.md rule 55 — what the stay's paid acompte or solde credited per
+  // specs/payments/payment-schedule-and-cancellation.md rule 55 — what the stay's paid acompte or solde credited per
   // `${bucket}|${rate}` (TTC, HT, VAT), as its own entry books it: a cancellation's avoir mirrors it. A plan's money
   // was booked installment by installment: its acompte is read from none.
   const bookedSplitsOf = (reservationId, kind) => {
@@ -176,7 +176,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     const salesRegime = vatRegimeModel.forRow(database, row);
     const context = { ...buildCommissionContext(settings.read()), vatRate: salesRegime.rate, salesRegime: salesRegime.regime };
     const whole = buildEntry(row, kind, buildPerLineData(database, row), context, taxContextOf(row));
-    // specs/mixed-method-payments.md rule 26 — a bucket paid with several methods booked only its share.
+    // specs/payments/mixed-method-payments.md rule 26 — a bucket paid with several methods booked only its share.
     const bookedShare = bookedShareOf(settlementsStore.listFor(row.id), kind, row);
     const scaled = whole && bookedShare !== 1 ? scaleEntry(whole, bookedShare, null) : whole;
     // The avoir mirrors what the receipt booked: the same sale-line cut on a stay the readers serve.
@@ -190,7 +190,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   };
 
   // Every encaissement paid in [from, nextMonth): of the month, or (`reservationId`) of one stay over any window — the
-  // books a closing refund settles (specs/mixed-method-payments.md rule 56).
+  // books a closing refund settles (specs/payments/mixed-method-payments.md rule 56).
   const encaissementsIn = (from, nextMonth, reservationId = null) => {
       const oneStay = reservationId != null;
       return saleEntries({ from, nextMonth }, {
@@ -221,7 +221,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
           FROM reservations r
           JOIN clients c ON r.clientId = c.id
           JOIN properties p ON r.propertyId = p.id
-          -- specs/payment-schedule-and-cancellation.md §3.6 rule 34 — a stay cancelled for non-payment
+          -- specs/payments/payment-schedule-and-cancellation.md §3.6 rule 34 — a stay cancelled for non-payment
           -- keeps kind = 'cancelled', which drops it from every operational read at once. Accounting
           -- is the one deliberate exception: the acompte it collected was booked in a month that may
           -- already be at the accountant's, and that month must never change. The requalification is
@@ -258,12 +258,12 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       });
   };
 
-  // One refund's avoir (specs/reservation-refunds.md §3.4).
+  // One refund's avoir (specs/payments/reservation-refunds.md §3.4).
   const refundEntry = (row) => {
     // Rule 48 — the share a cancelled stay gives back from its indemnity debits the account the indemnity was credited
     // on, at its rate: read only when such a share exists, so a minimal test schema without settings never needs them.
     const indemnity = (row.lines || []).some((line) => line.bucket === 'indemnity') ? compensationSettings(settings.read()) : null;
-    // specs/payment-schedule-and-cancellation.md rule 55 — a requalification avoir netted of the stay's earlier refunds
+    // specs/payments/payment-schedule-and-cancellation.md rule 55 — a requalification avoir netted of the stay's earlier refunds
     // mirrors their split: read only for such an avoir, so every other entry stays byte-identical.
     const adjusted = row.method === 'retained' && (row.lines || []).some(isAdjustedLine);
     const entry = buildRefundEntry(row, {
@@ -289,7 +289,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     .filter((other) => other.method !== 'internal'
       && (other.refundDate < row.refundDate || (other.refundDate === row.refundDate && other.id < row.id)));
 
-  // specs/mixed-method-payments.md rule 56 (verification R35 leftovers, R34b-3) — a stay paid with several methods books
+  // specs/payments/mixed-method-payments.md rule 56 (verification R35 leftovers, R34b-3) — a stay paid with several methods books
   // each settlement's share entry by entry (`scaleEntry`), its refunds line by line from the register: the two round
   // their cents apart. The refund that gives back the last of its book money therefore debits what is left on each sale
   // account instead of its lines, so every 706 / 706010 / 709 / 4457 / 4671 account of the stay ends at exactly 0.
@@ -328,7 +328,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       return encaissementsIn(from, nextMonth);
     },
 
-    // Remboursements of the month (specs/reservation-refunds.md §3.4): one REVERSED entry per
+    // Remboursements of the month (specs/payments/reservation-refunds.md §3.4): one REVERSED entry per
     // non-`internal` refund whose `refundDate` falls in the month. Same entry shape as an
     // encaissement — `direction: 'refund'` is what flips the debit/credit sides at export time.
     refundsByMonth({ month, year }) {
@@ -340,7 +340,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       return refunds.listByMonth({ from, nextMonth }).map(entryOf).filter(Boolean);
     },
 
-    // Pénalités plateforme du mois (specs/reconciliation-assisted-matching.md rule 28): one entry per
+    // Pénalités plateforme du mois (specs/accounting/reconciliation-assisted-matching.md rule 28): one entry per
     // penalty, dated on the penalty's own date — never folded into the balance entry of the stay.
     platformPenaltiesByMonth({ month, year }) {
       // A minimal test schema has no penalties table: nothing to report there.
@@ -358,7 +358,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         .filter(Boolean);
     },
 
-    // Indemnités d'annulation encaissées dans le mois (specs/cancellation-compensation.md §3.3
+    // Indemnités d'annulation encaissées dans le mois (specs/payments/cancellation-compensation.md §3.3
     // rule 15): one entry per compensation whose `receivedDate` falls in the month. A `pending`
     // compensation is NOT accounting — no money moved yet, so it never reaches this list.
     // The account + VAT rate are read once here so `accountingExport` stays pure.
@@ -381,7 +381,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         .filter(Boolean);
     },
 
-    // specs/resource-booking-pricing-and-invoicing.md rules 21-22 — the sales a plugin made outside any stay (the
+    // specs/resources/resource-booking-pricing-and-invoicing.md rules 21-22 — the sales a plugin made outside any stay (the
     // nordic bath of a walk-in guest), on their payment day, for their part on the books: the caisse interne stays
     // off, exactly as a fiche's settlement (mixed-method-payments D2).
     standaloneSalesByMonth({ month, year }) {
@@ -396,7 +396,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         .map((entry) => (entry.standaloneRole === 'tip' ? { ...entry, tipAccount, accountLabels: { [tipAccount]: 'Pourboire' } } : entry));
     },
 
-    // specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — what a live plugin books of Mollie in the month:
+    // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — what a live plugin books of Mollie in the month:
     // its entries (a paid link, a reconciled credit, a settlement's costs), the credits it could not attach, and the
     // balance of the clearing account at month end.
     mollieByMonth({ month, year }) {
@@ -435,7 +435,10 @@ function buildCommissionContext(accountSettings) {
   const platforms = (platformsModel.listAll ? platformsModel.listAll() : []) || [];
   const byName = new Map();
   for (const p of platforms) byName.set(String(p.name || '').toLowerCase(), p);
-  return { defaultAccount, vatRateCommission, platformByName: byName };
+  // Rule 15 — `reverseChargeLines = '0'` leaves the two self-assessment lines of an EU commission out of the export.
+  return {
+    defaultAccount, vatRateCommission, platformByName: byName, reverseChargeLines: String(accountSettings.reverseChargeLines) !== '0',
+  };
 }
 
 module.exports = {

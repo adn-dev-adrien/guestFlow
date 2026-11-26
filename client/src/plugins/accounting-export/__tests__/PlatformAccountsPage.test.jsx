@@ -6,8 +6,9 @@ import { vi } from 'vitest';
  * Pins:
  *   - GET payload shapes the bottom table (defaults + per-platform rows with isDirect flag).
  *   - Direct row's inputs are disabled (rule 18); the "Pas de commission" caption is rendered.
- *   - Editing a per-platform compte commission + Switch fires updates; Save sends the
- *     normalized payload (account trimmed, hasVat boolean, Direct row excluded).
+ *   - Editing a per-platform compte commission + regime fires updates; Save sends the
+ *     normalized payload (account trimmed, regime, Direct row excluded) — the regime replaced the
+ *     « TVA déductible » switch (specs/platforms/platform-host-statement-and-commission-vat.md rule 13).
  *   - The "Rafraîchir la liste" button calls `api.refreshPlatformAccounts` and flashes a
  *     success snackbar with the +N count (rule 2 + §6).
  *   - The vatRateCommission caption shows the active rate; admin sees a clickable
@@ -48,10 +49,15 @@ const SAMPLE_GET = {
   vatRateCommission: 20,
   cancellationCompensationAccount: '75880000',
   vatRateCancellationCompensation: 0,
+  regimes: [
+    { key: 'fr_vat', label: 'France — TVA 20 % déductible', account: '62260500' },
+    { key: 'eu_reverse_charge', label: 'UE — autoliquidation', account: '62260300' },
+    { key: 'no_vat', label: 'Sans TVA', account: '62260600' },
+  ],
   platforms: [
-    { id: 1, name: 'direct',         commissionAccountNumber: null,        hasVatOnCommission: false, isDirect: true },
-    { id: 2, name: 'Airbnb',         commissionAccountNumber: null,        hasVatOnCommission: false, isDirect: false },
-    { id: 3, name: 'Gitedefrance',   commissionAccountNumber: '62260500',  hasVatOnCommission: true,  isDirect: false },
+    { id: 1, name: 'direct',         commissionAccountNumber: null,        commissionVatRegime: 'no_vat', isDirect: true },
+    { id: 2, name: 'Airbnb',         commissionAccountNumber: null,        commissionVatRegime: 'no_vat', isDirect: false, regimeAccounts: { fr_vat: '62260500', eu_reverse_charge: '62260300', no_vat: null } },
+    { id: 3, name: 'Gitedefrance',   commissionAccountNumber: '62260500',  commissionVatRegime: 'fr_vat', isDirect: false, regimeAccounts: { fr_vat: '62260500', eu_reverse_charge: '62260300', no_vat: '62260600' } },
   ],
 };
 
@@ -84,10 +90,8 @@ test('renders the default account + every platform row from the GET payload', as
 
 test("Direct row is rendered with disabled inputs + the 'Pas de commission' caption", async () => {
   renderPage();
-  // The aria-label of the TVA switch carries the platform name — that's the cheapest stable
-  // way to locate the Direct row's Switch.
-  const directSwitch = await screen.findByLabelText('TVA déductible commission Direct');
-  expect(directSwitch).toBeDisabled();
+  const directRow = (await screen.findByText('Direct')).closest('tr');
+  expect(within(directRow).getByRole('combobox')).toHaveAttribute('aria-disabled', 'true');
   expect(screen.getByText(/Pas de commission sur les réservations directes/i)).toBeInTheDocument();
 });
 
@@ -97,7 +101,7 @@ test('both accounting VAT rates are editable fields, and a save sends them', asy
   const user = userEvent.setup();
   api.savePlatformAccounts.mockResolvedValue(SAMPLE_GET);
   renderPage();
-  const commission = await screen.findByLabelText(/TVA déductible sur commissions/i);
+  const commission = await screen.findByLabelText(/TVA des commissions/i);
   expect(commission).toHaveValue('20');
   expect(screen.getByLabelText(/TVA sur indemnités/i)).toHaveValue('0');
 
@@ -115,14 +119,14 @@ test('a VAT rate refused by the server shows its message under the field', async
     errors: { vatRateCommission: 'Doit être un nombre entre 0 et 100.' },
   }));
   renderPage();
-  const commission = await screen.findByLabelText(/TVA déductible sur commissions/i);
+  const commission = await screen.findByLabelText(/TVA des commissions/i);
   await user.clear(commission);
   await user.type(commission, '120');
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Doit être un nombre entre 0 et 100.')).toBeInTheDocument();
 });
 
-test('saving forwards the normalized payload (Direct row excluded, hasVat as boolean)', async () => {
+test('saving forwards the normalized payload (Direct row excluded, the regime of each platform)', async () => {
   const user = userEvent.setup();
   api.savePlatformAccounts.mockResolvedValue(SAMPLE_GET);
   renderPage();
@@ -142,7 +146,7 @@ test('saving forwards the normalized payload (Direct row excluded, hasVat as boo
   // Only non-direct platforms in the payload (rule 18).
   expect(payload.platforms.every((p) => p.id !== 1)).toBe(true);
   const airbnbInPayload = payload.platforms.find((p) => p.id === 2);
-  expect(airbnbInPayload).toMatchObject({ id: 2, account: '62260300', hasVat: false });
+  expect(airbnbInPayload).toMatchObject({ id: 2, account: '62260300', regime: 'no_vat' });
 });
 
 test('"Rafraîchir la liste" button calls the API and flashes the +N snackbar', async () => {
@@ -151,7 +155,7 @@ test('"Rafraîchir la liste" button calls the API and flashes the +N snackbar', 
     ...SAMPLE_GET,
     platforms: [
       ...SAMPLE_GET.platforms,
-      { id: 4, name: 'Booking', commissionAccountNumber: null, hasVatOnCommission: false, isDirect: false },
+      { id: 4, name: 'Booking', commissionAccountNumber: null, commissionVatRegime: 'no_vat', isDirect: false },
     ],
     newCount: 1,
   });
@@ -191,17 +195,18 @@ test('round-trip — after save, the form shows the values the server returned (
   api.savePlatformAccounts.mockResolvedValue({
     ...SAMPLE_GET,
     platforms: SAMPLE_GET.platforms.map((p) =>
-      p.id === 2 ? { ...p, commissionAccountNumber: '62260300', hasVatOnCommission: true } : p
+      p.id === 2 ? { ...p, commissionAccountNumber: '62260300', commissionVatRegime: 'eu_reverse_charge' } : p
     ),
   });
   renderPage();
   await screen.findByText('Airbnb');
-  // Edit Airbnb's account + toggle TVA, then save.
+  // Edit Airbnb's account + choose its regime, then save.
   const airbnbRow = screen.getByText('Airbnb').closest('tr');
   const airbnbAccount = within(airbnbRow).getByPlaceholderText('622600 (défaut)');
   await user.clear(airbnbAccount);
   await user.type(airbnbAccount, '62260300');
-  await user.click(within(airbnbRow).getByRole('switch'));
+  await user.click(within(airbnbRow).getByRole('combobox'));
+  await user.click(await screen.findByRole('option', { name: 'UE — autoliquidation' }));
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
   // After save, the form's Airbnb row must show what the server returned —
   // not what the user typed, not the pre-save state. The "Configuration
@@ -210,7 +215,7 @@ test('round-trip — after save, the form shows the values the server returned (
   await screen.findByText(/Configuration enregistrée/i);
   const airbnbRow2 = screen.getByText('Airbnb').closest('tr');
   expect(within(airbnbRow2).getByPlaceholderText('622600 (défaut)')).toHaveValue('62260300');
-  expect(within(airbnbRow2).getByRole('switch')).toBeChecked();
+  expect(within(airbnbRow2).getByRole('combobox')).toHaveTextContent('UE — autoliquidation');
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });
 
@@ -230,13 +235,13 @@ test('round-trip — remount after save: GET returns the persisted state, form r
   api.getPlatformAccounts.mockResolvedValue({
     ...SAMPLE_GET,
     platforms: SAMPLE_GET.platforms.map((p) =>
-      p.id === 2 ? { ...p, commissionAccountNumber: '62260300', hasVatOnCommission: true } : p
+      p.id === 2 ? { ...p, commissionAccountNumber: '62260300', commissionVatRegime: 'eu_reverse_charge' } : p
     ),
   });
   renderPage();
   const airbnbRow = (await screen.findByText('Airbnb')).closest('tr');
   expect(within(airbnbRow).getByPlaceholderText('622600 (défaut)')).toHaveValue('62260300');
-  expect(within(airbnbRow).getByRole('switch')).toBeChecked();
+  expect(within(airbnbRow).getByRole('combobox')).toHaveTextContent('UE — autoliquidation');
 });
 
 test('Cancel restores the last-saved state (not the in-progress edits)', async () => {
@@ -299,5 +304,22 @@ test('the accountant may edit the compensation account (it is a chart-of-account
   expect(field).not.toBeDisabled();
   // …and so are the VAT rates (rule 14).
   expect(screen.getByLabelText(/TVA sur indemnités/i)).not.toBeDisabled();
-  expect(screen.getByLabelText(/TVA déductible sur commissions/i)).not.toBeDisabled();
+  expect(screen.getByLabelText(/TVA des commissions/i)).not.toBeDisabled();
+});
+
+// Rule 14 — choosing a regime proposes its account when the platform has none or still holds the previous regime's proposal; a typed one stays.
+test('choosing a regime proposes its account, never over a typed one', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  const airbnbRow = (await screen.findByText('Airbnb')).closest('tr');
+  await user.click(within(airbnbRow).getByRole('combobox'));
+  await user.click(await screen.findByRole('option', { name: 'UE — autoliquidation' }));
+  expect(within(airbnbRow).getByLabelText(/Compte commission Airbnb/)).toHaveValue('62260300');
+  const gdfRow = screen.getByText('Gitedefrance').closest('tr');
+  const gdfAccount = within(gdfRow).getByLabelText(/Compte commission Gitedefrance/);
+  await user.clear(gdfAccount);
+  await user.type(gdfAccount, '62269999');
+  await user.click(within(gdfRow).getByRole('combobox'));
+  await user.click(await screen.findByRole('option', { name: 'Sans TVA' }));
+  expect(gdfAccount).toHaveValue('62269999');
 });

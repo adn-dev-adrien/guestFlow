@@ -1,6 +1,6 @@
 # Plugins — the plugin engine (SDK, registry, provisioning), the plugin boundaries, and the plugin-owned integrations
 
-Start with: `plugins-phase-1-sdk` (the `ctx` contract every plugin codes against; SDK 2.36.0). See also: `hosting/`, `settings/`, `payments/`, `resources/`, `gift-vouchers/`, `platforms/`, `site/`.
+Start with: `plugins-phase-1-sdk` (the `ctx` contract every plugin codes against; SDK 2.37.0). See also: `hosting/`, `settings/`, `payments/`, `resources/`, `gift-vouchers/`, `platforms/`, `site/`.
 
 - `plugins-phase-0-foundation` — plugin states (available / active / inactive), install/activate/deactivate/uninstall refusals, what hides while a plugin is off, the Plugins page, the bare-install E2E. Code: `server/src/constants/plugins.js`, `server/src/controllers/pluginsController.js`.
 - `plugins-phase-1-sdk` — the plugin module contract: `register(ctx)` server extension points, client slots, data erasure, money-dialog contract; SDK 2.33–2.35 pointers in rule 59. Code: `server/src/plugins/sdk/`, `client/src/plugins/sdk/`.

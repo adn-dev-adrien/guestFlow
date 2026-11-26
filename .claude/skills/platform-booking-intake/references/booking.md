@@ -28,26 +28,25 @@ Measured on the two payouts received so far:
 and is **not** withheld: it comes back in the payout. « Commission et frais » = 15 % of « Montant
 soumis à commission » + ~1,4 % payment fee on « Montant total » (2026-10-06: 302,13 + 28,59 = 330,72).
 
-GuestFlow keeps Booking in tourist-tax mode « plateforme collecte et reverse » (operator, 2026-10-06:
-Booking remits the tax to the commune). That mode has no slot for a tax that comes back in the payout,
-so the operator chose (2026-10-06, option « B ») the entry below. It gets the payout and the revenue
-right; the stored commission is lower than Booking's « Commission et frais » by exactly the tax. This
-is a known, accepted gap pending the accountant's opinion — do not « fix » it on your own.
+## Entry order in « Paiement plateforme » (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5, 21, 22)
 
-## Entry order in « Paiement plateforme »
+The block takes the **host side** of the statement: the figures never contain the tourist tax nor a fee the
+guest paid Booking. Booking is in tourist-tax mode « plateforme collecte et reverse » (the tax comes back in
+the payout), so the box is the tax **paid with the transfer**.
 
-1. **Montant total payé par le client** = « Montant total » (tax included). **Never** « Montant soumis
-   à commission » — that one is already tax-excluded, and GuestFlow subtracts the tax again.
-2. **Taxe de séjour retenue** = the « Taxe de séjour » line of the breakdown (Booking's figure, not
-   GuestFlow's estimate — they differ: Booking applies 4,4 % of the price).
-3. **Virement reçu (contrôle)** = « Montant total » − « Commission et frais ».
-4. **Calculer la commission** — only now, after the tax box is filled.
+1. **Location (relevé)** = « Sous-total » (the commissionable amount). **Never** « Montant total »
+   (tax included).
+2. **Options (relevé)** = 0, unless the extranet lists extras. The fiche follows it: a paid option the
+   statement does not count goes to « offerte » by itself (the block says so).
+3. **Taxe de séjour** = the « Taxe de séjour » line of the page (Booking's figure, not GuestFlow's
+   estimate — they differ). The gap with GuestFlow's own tax goes into the accommodation (the block says so).
+4. **Virement reçu (contrôle)** = « Montant total » − « Commission et frais ».
+5. **Calculer la commission** — only now. It equals « Commission et frais »: Sous-total + tax − virement.
 
-Expected result: « Montant soumis à commission » in the summary = Booking's « Sous-total »; « Net
-perçu » = the virement, with ✓.
+Expected: « Net perçu » = the virement, with ✓; the commission rate line stays quiet (Booking ≈ 16,44 %).
 
-Worked example, 5300000003 (GuestFlow 22304, entered 2026-10-06): 2 042,21 / 28,03 / 1 711,49 →
-commission 302,69, total séjour 2 014,18.
+Worked example, Gilibert: Sous-total 690 / tax 20,02 / virement 596,58 → commission 113,44; the tax GuestFlow
+computes (26,40) is the right one for 46710000, the 6,38 of gap comes out of the accommodation.
 
 ## Reading the page
 

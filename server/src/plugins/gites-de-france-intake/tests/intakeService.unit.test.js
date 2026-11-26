@@ -31,15 +31,17 @@ test('rule 10: an untouched iCal fiche is filled — guest, party, number, ména
   assert.deepEqual(calls.clients[0], { firstName: 'Claire', lastName: 'Dupont', email: 'claire.dupont@example.org', phone: '06 12 34 56 78', emailLanguage: 'fr' });
 });
 
-test('rules 7-8: one rent → the payment block lands on the payout (brut = rent + options + tax)', async () => {
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 19): the brut is the host amount — rent + options, the tax out of it.
+test('rules 7-8, 19: one rent → the payment block lands on the payout (brut = rent + options, the tax in its box)', async () => {
   const { service, calls } = setup({ mails: [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: withTotals(BOOKING_MAIL, { net: '455.00', options: '80.00', total: '535.00' }) }] });
   await service.runPass();
   const p = calls.updates[0].patch;
-  assert.equal(p.platformGrossAmount, 605.2); // 506 + 80 + 19.20
+  assert.equal(p.platformGrossAmount, 586); // 506 + 80
+  assert.equal(p.platformOptionsAmount, 80);
   assert.equal(p.platformTouristTaxAmount, 19.2);
   assert.equal(p.platformPayoutAmount, 535);
   assert.equal(p.platformCommissionAmount, 51);
-  assert.equal(p.platformGrossAmount - p.platformTouristTaxAmount - p.platformCommissionAmount, p.platformPayoutAmount);
+  assert.equal(p.platformGrossAmount - p.platformCommissionAmount, p.platformPayoutAmount, 'host amount − commission = the transfer (the tax is not in it)');
 });
 
 test('rules 7, 12: two rents (dossier 11773) → filled without the payment, the banner offers 504 / 505', async () => {
@@ -54,7 +56,7 @@ test('rules 7, 12: two rents (dossier 11773) → filled without the payment, the
 
   const chosen = service.applyFromBanner(block.id, { rent: 504 });
   assert.equal(chosen.status, 'applied');
-  assert.deepEqual(calls.updates[1].patch, { platformGrossAmount: 603.2, platformTouristTaxAmount: 19.2, platformPayoutAmount: 534, platformCommissionAmount: 50 });
+  assert.deepEqual(calls.updates[1].patch, { platformGrossAmount: 584, platformOptionsAmount: 80, platformTouristTaxAmount: 19.2, platformPayoutAmount: 534, platformCommissionAmount: 50 });
   assert.equal(intakes.get(block.id).status, 'applied');
   assert.equal(service.applyFromBanner(block.id, { rent: 600 }).status, 'error');
 });

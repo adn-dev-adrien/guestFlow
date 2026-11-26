@@ -36,16 +36,21 @@ function createDb({ mode = 'reversed', taxMode = 'per_day_per_person' } = {}) {
   return db;
 }
 
+// Amended 2026-11-26 by platform-host-statement-and-commission-vat.md rules 1, 4: the brut is the HOST amount and the tax the platform
+// reversed sits in its box. The same stay as before — a guest total of 600 with the 4,80 of its two paid adults inside — is a
+// brut of 595,20 and a box of 4,80; a platform that does not reverse the tax keeps its brut of 600 and no box.
 const BASE = {
   propertyId: 1, startDate: '2027-05-01', endDate: '2027-05-03', checkInTime: '15:00', checkOutTime: '10:00',
   adults: 2, children: 0, teens: 0, babies: 0, selectedOptions: [], customOptions: [], selectedResources: [],
-  discountPercent: 0, customPrice: '', platform: 'Canal', platformGrossAmount: 600,
+  discountPercent: 0, customPrice: '', platform: 'Canal', platformGrossAmount: 595.2, platformTouristTaxAmount: 4.8,
   platformPaidGuests: 2, platformPaidAdults: 2,
 };
 
 function quote(input = {}, dbOptions) {
   const db = createDb(dbOptions);
-  try { return calculateReservationQuote({ ...BASE, db, ...input }); } finally { db.close(); }
+  const reverses = !dbOptions || !dbOptions.mode || dbOptions.mode === 'reversed';
+  const base = reverses ? BASE : { ...BASE, platformGrossAmount: 600, platformTouristTaxAmount: undefined };
+  try { return calculateReservationQuote({ ...base, db, ...input }); } finally { db.close(); }
 }
 
 test('rule 1: the paid adults follow the brut, and the body is never read', () => {

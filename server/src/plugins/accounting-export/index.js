@@ -1,5 +1,5 @@
 /**
- * Export comptable (specs/accountant-accounting-export.md; module per specs/plugins-phase-2-hosts.md
+ * Export comptable (specs/accounting/accountant-accounting-export.md; module per specs/plugins/plugins-phase-2-hosts.md
  * §3.E). The monthly sales journal and its CSV, the platform account plan, and the accountant's way
  * in. Nothing is stored as accounting: the journal is recomputed from core money data at every read.
  *
@@ -58,10 +58,12 @@ function copySettingsFromAppSettings(db) {
 // Rule 22 — the platform rows that carry a commission account or a « TVA déductible » box.
 function configuredPlatformCount(db) {
   if (!hasTable(db, 'platforms')) return 0;
+  // A regime other than the default (`no_vat`) is configuration too (specs/platforms/platform-host-statement-and-commission-vat.md rule 13).
+  const regime = tableColumns(db, 'platforms').has('commissionVatRegime') ? " OR commissionVatRegime != 'no_vat'" : '';
   return db.prepare(`
     SELECT COUNT(*) AS n FROM platforms
     WHERE LOWER(name) != 'direct'
-      AND ((commissionAccountNumber IS NOT NULL AND commissionAccountNumber != '') OR hasVatOnCommission = 1)
+      AND ((commissionAccountNumber IS NOT NULL AND commissionAccountNumber != '') OR hasVatOnCommission = 1${regime})
   `).get().n;
 }
 
@@ -71,7 +73,7 @@ function register(ctx) {
     { name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings },
     // Rule 35 — the TTC-share split starts the month after this version is installed.
     { name: 'ttc_split_from_v1', up: (db) => { if (hasTable(db, 'plugin_settings')) storeTtcSplitFrom(db); } },
-    // specs/mixed-method-payments.md rule 58 — a one-method stay's closing refund starts the month after too.
+    // specs/payments/mixed-method-payments.md rule 58 — a one-method stay's closing refund starts the month after too.
     { name: 'stay_closing_from_v1', up: (db) => { if (hasTable(db, 'plugin_settings')) storeStayClosingFrom(db); } },
   ]);
 
@@ -90,7 +92,7 @@ function register(ctx) {
     });
     return controller;
   };
-  // specs/accounting-synthesis.md — the « Synthèse » tab of the Comptabilité page.
+  // specs/accounting/accounting-synthesis.md — the « Synthèse » tab of the Comptabilité page.
   const getSynthesis = () => {
     if (!synthesis) {
       synthesis = createSynthesisController(() => {
@@ -150,6 +152,7 @@ function register(ctx) {
     // reruns at the next install, so it must not find the erased values there.
     purge: (db) => {
       db.prepare('UPDATE platforms SET commissionAccountNumber = NULL, hasVatOnCommission = 0').run();
+      if (tableColumns(db, 'platforms').has('commissionVatRegime')) db.prepare("UPDATE platforms SET commissionVatRegime = 'no_vat'").run();
       if (hasTable(db, 'app_settings')) {
         const cols = tableColumns(db, 'app_settings');
         const keys = KEYS.filter((key) => cols.has(key));

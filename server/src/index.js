@@ -198,6 +198,30 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// specs/platforms/platform-host-statement-and-commission-vat.md rule 4 — once, after the engine can load: the brut of every platform stay becomes the
+// host amount of the statement (tourist tax out of it), so that every stored price, schedule, tax and entry stays to the cent.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const name = 'platform_host_statement_brut_v1';
+    if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(name)) {
+      const { runHostStatementBrutMigration, reversedTaxOfStoredStay, frozenAtZeroOfStoredStay } = require('./utils/hostStatementBrutMigration');
+      const migrated = db.transaction(() => {
+        const { migrated: ids } = runHostStatementBrutMigration(db, { reversedTaxOf: reversedTaxOfStoredStay(db), frozenAtZero: frozenAtZeroOfStoredStay(db) });
+        db.prepare('INSERT INTO migrations (name) VALUES (?)').run(name);
+        return ids;
+      })();
+      console.log(`[migration:platform-host-statement] re-based the brut of ${migrated.length} platform stay(s) on the host amount`);
+      // Their stored sale figures were computed on the old brut: written again, so that a sale on them reads them as stored.
+      const { backfillSaleFigures } = require('./utils/pricingStoredFiguresMigration');
+      if (migrated.length > 0) backfillSaleFigures(db, { force: true, ids: migrated });
+    }
+  } catch (err) {
+    // The new semantics on old data would misprice every platform stay: the server does not start (the transaction rolled back).
+    logErrorMarker(`Platform host statement brut migration failed: ${err.message}`);
+    throw err;
+  }
+}
+
 // Rule 8 — once, after the controller can load: the extra guests and the tax each live stay's sale reads as stored.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {

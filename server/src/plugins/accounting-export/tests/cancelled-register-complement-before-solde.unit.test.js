@@ -1,6 +1,8 @@
 // specs/payments/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a paid complement never reads as « whatever
 // the solde did not hold » while the solde is unpaid: the register offers what each line collected, and giving everything
 // back nets every account to 0. Replays of the auditor's p2 / p3 / p5 / item2c probes.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
+// with its 7,20 of reversed tax inside is a brut of 592,80 and a box of 7,20; the stay, its buckets and its entries are the same.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -70,7 +72,7 @@ test('C — no acompte, tax in the complement, solde unpaid: 54,80 € on the li
 });
 
 test('D — own channel reversed, added guest, complement 42,40 € alone: supplement and added tax', async () => {
-  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600, depositDisabled: 1 });
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2, depositDisabled: 1 });
   await put(stay, { adults: 3 });
   assert.equal(rowOf(stay.id).complementAmount, 42.4);
   pay(stay.id, C);
@@ -78,7 +80,7 @@ test('D — own channel reversed, added guest, complement 42,40 € alone: suppl
 });
 
 test('K5 — the same with an acompte paid', async () => {
-  const stay = fiche(WITH_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  const stay = fiche(WITH_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2 });
   await put(stay, { adults: 3 });
   const acompte = rowOf(stay.id).depositAmount;
   pay(stay.id, D, C);
@@ -90,7 +92,7 @@ test('Controls — solde paid: lines as before, nets to 0 on either order, no se
   pay(both.id, S, C);
   assert.deepEqual(await gaveEverythingBack(both.id), { [ACCOMMODATION]: 600, 'custom:libre': 100, 'custom:forcée': 50, [TAX]: 4.8 });
 
-  const reversed = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600, depositDisabled: 1 });
+  const reversed = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 592.8, platformTouristTaxAmount: 7.2, depositDisabled: 1 });
   await put(reversed, { adults: 3 });
   pay(reversed.id, C, S);
   assert.deepEqual(await gaveEverythingBack(reversed.id), { [ACCOMMODATION]: 635.2, [TAX]: 7.2 });

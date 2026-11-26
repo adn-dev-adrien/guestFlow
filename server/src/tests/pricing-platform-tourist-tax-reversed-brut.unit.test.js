@@ -67,16 +67,18 @@ const BASE_INPUTS = {
   depositPaid: false, balancePaid: false,
 };
 
-test('platform_reversed + brut (incl. tax): reversed tax counts as part of the brut → écart 0', () => {
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5, 7): the brut is the HOST amount (200), the tax the platform
+// paid us with its transfer is the box (4,80); the tax gap is 0 and the totals are the ones of the guest-paid brut that was typed before.
+test('platform_reversed + host amount and the tax paid in the box: the reversed tax adds to the money received → écart 0', () => {
   const db = createDb([{ platformKey: 'expedia', collects: 1, remitted: 0 }]); // platform_reversed
   const ACCOMMODATION = 200; // 2 nights × 100
   const TAX = 4.80;
-  const BRUT = ACCOMMODATION + TAX; // 204.80 — what the guest paid the platform (tax included)
+  const BRUT = ACCOMMODATION + TAX; // 204.80 — what the platform pays us for the stay: the host amount and the tax with the transfer
   const COMMISSION = 20;
 
   const q = calculateReservationQuote({
     ...BASE_INPUTS, db, platform: 'expedia',
-    platformGrossAmount: BRUT, platformCommissionAmount: COMMISSION,
+    platformGrossAmount: ACCOMMODATION, platformTouristTaxAmount: TAX, platformCommissionAmount: COMMISSION,
   });
 
   // Tax amount itself is unchanged (computed on the accommodation base, not on the brut).

@@ -589,6 +589,7 @@ export default function ReservationPage() {
     // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 2 — '' means « the brut carries no
     // tourist tax », which is what every reservation stored before this feature says. Never 0.
     platformTouristTaxAmount: '',
+    platformOptionsAmount: '',
   });
 
   // §3.7 — keep the defaults cache in sync with the form's current property. This covers the
@@ -694,6 +695,7 @@ export default function ReservationPage() {
     // specs/platforms/platform-payment-entry.md — the brut pins the total séjour (recompute when it changes).
     platformGrossAmount: form.platformGrossAmount === '' ? '' : Number(form.platformGrossAmount),
     platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? '' : Number(form.platformTouristTaxAmount),
+    platformOptionsAmount: form.platformOptionsAmount === '' ? '' : Number(form.platformOptionsAmount),
     depositPaid: Boolean(form.depositPaid),
     balancePaid: Boolean(form.balancePaid),
     complementPaid: Boolean(form.complementPaid),
@@ -755,7 +757,7 @@ export default function ReservationPage() {
     // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.discountTarget, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.laterOptions, form.laterResources, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.discountTarget, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.laterOptions, form.laterResources, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformOptionsAmount, form.platformTouristTaxAmount, refreshTouristTax]);
   // The clean baseline of the unsaved-changes guard, derived in the render that needs it — never in an effect,
   // which would leave a render comparing the quoted form with no baseline (a flash of « modified »).
   // For an existing record it is the form AS LOADED, with what the quote writes into it once the quote is
@@ -1170,6 +1172,7 @@ export default function ReservationPage() {
             platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
             platformPayoutAmount: res.platformPayoutAmount == null || res.platformPayoutAmount === '' ? '' : res.platformPayoutAmount,
             platformTouristTaxAmount: res.platformTouristTaxAmount == null || res.platformTouristTaxAmount === '' ? '' : res.platformTouristTaxAmount,
+            platformOptionsAmount: res.platformOptionsAmount == null || res.platformOptionsAmount === '' ? '' : res.platformOptionsAmount,
             touristTaxInComplement: Boolean(res.touristTaxInComplement),
             // Auto-options that were flipped to Complément on this reservation. Their inComplement
             // bit lives in `reservation_options`, but they're not part of form.selectedOptions
@@ -1309,6 +1312,7 @@ export default function ReservationPage() {
             platformGrossAmount: '',
             platformPayoutAmount: '',
             platformTouristTaxAmount: '',
+            platformOptionsAmount: '',
             touristTaxInComplement: Boolean(devis.touristTaxInComplement),
             autoOptionsInComplement: (devis.options || [])
               .filter((o) => !o.isCustom && Number(o.autoEnabled || 0) === 1 && Number(o.inComplement || 0) === 1)
@@ -1443,6 +1447,7 @@ export default function ReservationPage() {
             platformGrossAmount: '',
             platformPayoutAmount: '',
             platformTouristTaxAmount: '',
+            platformOptionsAmount: '',
           });
 
           // A URL range the fiche refuses (rules 12-13) is asked for nothing: its departure is dropped above.
@@ -2824,6 +2829,7 @@ export default function ReservationPage() {
           platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
           platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount,
+          platformOptionsAmount: form.platformOptionsAmount === '' ? null : form.platformOptionsAmount,
           cautionAmount: form.cautionAmount,
           // specs/payments/reservation-payment-ledger.md rule 13 — the caution columns are not sent: only the
           // payment PATCH changes them. Rule 23 — the ledger edit this save carries, for the history.
@@ -2905,6 +2911,7 @@ export default function ReservationPage() {
           platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
           platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount,
+          platformOptionsAmount: form.platformOptionsAmount === '' ? null : form.platformOptionsAmount,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,
@@ -3201,6 +3208,7 @@ export default function ReservationPage() {
       // specs/platforms/platform-statement-after-payout.md rule 5 — the statement written by its own PATCH, and the solde it moved.
       platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
       platformTouristTaxAmount: res.platformTouristTaxAmount == null ? '' : res.platformTouristTaxAmount,
+      platformOptionsAmount: res.platformOptionsAmount == null ? '' : res.platformOptionsAmount,
       acompteCommissionAmount: res.acompteCommissionAmount == null ? '' : res.acompteCommissionAmount,
       balanceAmount: Number(res.balanceAmount || 0),
       // Rule 35 — undoing a received acompte freezes it server-side: the form must carry it on.
@@ -3239,6 +3247,15 @@ export default function ReservationPage() {
     const quote = await api.calculatePrice(buildFicheQuoteBody({ ledgerEdit: { row, amount } }));
     return quote.ledgerEdit || { ok: false, reason: 'Calcul impossible.' };
   };
+  // specs/platforms/platform-host-statement-and-commission-vat.md rule 10 — what the server says of a statement still in the editor: the fiche's quote with
+  // the draft figures on it. The lines, warnings and refusals come back worded; the adjusted option lines of rule 2 are in them.
+  // Stable across renders: the editor reads again only when its own figures change, not each time the fiche renders.
+  const quoteBodyBuilderRef = useRef(null);
+  quoteBodyBuilderRef.current = buildFicheQuoteBody;
+  const previewStatementDraft = useCallback(async (draft) => {
+    const quote = await api.calculatePrice(quoteBodyBuilderRef.current(draft));
+    return quote.platformStatement || null;
+  }, []);
   // « Valider » applies the server's form fields verbatim; the save traces it (rule 23).
   const applyLedgerPatch = useCallback((patch) => {
     const { ledgerAmountEdit, ...fields } = patch || {};
@@ -3972,7 +3989,7 @@ export default function ReservationPage() {
     // Rule 7 (review of #727) — the stored ledger by default, the live one only once the operator has
     // changed the fiche, never on a locked one; a fiche never saved has only the live one.
     ledger: showLiveMoney ? (shownQuote?.ledger || storedLedger) : storedLedger,
-    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink,
+    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink, previewStatementDraft,
     installmentPlan, setInstallmentPlan, fichePristine: !isDirty,
     // The live quote reads the stored payments afresh; the GET answers until it arrives.
     depositDisabledLockedReason: shownQuote && shownQuote.depositDisabledLockedReason !== undefined

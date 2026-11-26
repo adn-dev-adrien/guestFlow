@@ -117,10 +117,10 @@ test('the solde editor on an unlocked fiche: a different solde is refused, the s
 });
 
 // Rule 35's exception, written 2026-11-06 (audit R26 D21 review L2): on a platform that remits the tax with a brut
-// entered, the final price is the brut less the withheld tax, so typing « Taxe de séjour retenue » or correcting the brut
-// moves it. D21 stays strict: refused under the unlock; the locked fiche takes that save.
+// entered, correcting the brut moves the final price. D21 stays strict: refused under the unlock; the locked fiche takes that save.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 5): the box « Taxe de séjour retenue » is informational
+// — the brut is the host amount, tax out of it — so typing it moves nothing, and is saved even under the unlock (see below).
 for (const [label, over, finalPrice] of [
-  ['the withheld tax', { platformGrossAmount: 640, platformTouristTaxAmount: 4.8 }, 655.2],
   ['a brut correction', { platformGrossAmount: 650 }, 670],
 ]) {
   test(`a platform remitting the tax, ${label}: refused unlocked, saved on the locked fiche`, async () => {
@@ -137,3 +137,12 @@ for (const [label, over, finalPrice] of [
     assert.equal(rowOf(stay.id).finalPrice, finalPrice);
   });
 }
+
+test('a platform remitting the tax: the box « Taxe de séjour retenue » moves no price, so the unlocked fiche takes it', async () => {
+  const stay = fiche(NO_ACOMPTE, PLATFORM.remitted, { customOptions: [forced(20)], platformGrossAmount: 640 });
+  const moved = started(stay);
+  const before = rowOf(stay.id);
+  const saved = await save(stay, unlocked({ ...moved, platformGrossAmount: 640, platformTouristTaxAmount: 4.8 }));
+  assert.equal(saved.statusCode, 200, JSON.stringify(saved.body));
+  assert.equal(rowOf(stay.id).finalPrice, before.finalPrice);
+});

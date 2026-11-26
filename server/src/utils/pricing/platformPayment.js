@@ -15,13 +15,22 @@
 const { roundMoney } = require('./money');
 
 /**
- * The commission of a platform stay, from the figures of its statement
- * (specs/platforms/booking-extranet-intake.md §4.1). « Calculer la commission » of the fiche and the Booking
- * intake plugin both ask for it here, so the two can never disagree.
+ * The tourist tax a platform pays us WITH its transfer (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 8):
+ * the box of the statement in mode `platform_reversed`, nothing in any other mode (`platform`: the tax the platform
+ * kept is out of the books; `owner` and direct: no box).
+ */
+function taxPaidWithPayout({ mode, box }) {
+  if (mode !== 'platform_reversed') return 0;
+  return Math.max(0, Number(box) || 0);
+}
+
+/**
+ * The commission of a platform stay, from the figures of its statement (rule 8). « Calculer la commission » of the
+ * fiche and the intake plugins ask for it here, so they can never disagree:
  *
- *   commission = gross − payout − tourist tax withheld − commission already taken on the acompte
+ *   commission = host amount + tax paid with the transfer − transfer − commission already taken on the acompte
  *
- * Rounded to the cent and never negative. Pure.
+ * `touristTax` is the tax paid with the transfer (`taxPaidWithPayout`). Rounded to the cent and never negative. Pure.
  */
 
 const { roundMoneyStrict: round2 } = require('./money');
@@ -36,22 +45,22 @@ function computePlatformCommission({ gross, payout, touristTax = 0, acompteCommi
   if (gross === '' || gross == null || payout === '' || payout == null || !Number.isFinite(g) || !Number.isFinite(p)) return null;
   const tax = Math.max(0, asNumber(touristTax) || 0);
   const acompte = asNumber(acompteCommission) || 0;
-  return Math.max(0, round2(g - p - tax - acompte));
+  return Math.max(0, round2(g + tax - p - acompte));
 }
 
 /**
- * The commission of a platform stay. `statement`: from the figures of the platform's statement (gross − payout − tax
- * withheld − acompte commission), never negative. `rentOnly` (Gîtes de France): the rent less the net rent the
- * centrale pays, rounded to the cent. `null` when a figure is missing.
+ * The commission of a platform stay. `statement`: from the figures of the platform's statement (host amount + tax paid
+ * with the transfer − transfer − acompte commission), never negative. `rentOnly` (Gîtes de France): the rent less the net
+ * rent the centrale pays, rounded to the cent. `null` when a figure is missing.
  */
-function commissionOf({ basis = 'statement', gross, payout, withheldTax = 0, acompteCommission = 0, rent, netRent } = {}) {
+function commissionOf({ basis = 'statement', gross, payout, taxPaid = 0, acompteCommission = 0, rent, netRent } = {}) {
   if (basis === 'rentOnly') {
     const r = Number(rent);
     const n = Number(netRent);
     if (rent === '' || rent == null || netRent === '' || netRent == null || !Number.isFinite(r) || !Number.isFinite(n)) return null;
     return round2(r - n);
   }
-  return computePlatformCommission({ gross, payout, touristTax: withheldTax, acompteCommission });
+  return computePlatformCommission({ gross, payout, touristTax: taxPaid, acompteCommission });
 }
 
 /**
@@ -109,13 +118,17 @@ const present = (v) => v !== '' && v != null && Number.isFinite(Number(v));
 const acompteNet = (row) => (Number(row.depositDisabled || 0) === 1 || !(Number(row.depositAmount || 0) > 0)
   ? 0 : Math.max(0, roundSafe(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0))));
 
-const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
+// `taxPaid` (`taxPaidWithPayout`) is the tax the platform pays WITH its transfer: the money it settles is the host amount plus it (rule 8 of
+// specs/platforms/platform-host-statement-and-commission-vat.md). The fallback (no host amount typed) is the stored schedule, which holds it already.
+const grossOf = (row, taxPaid = 0) => (present(row.platformGrossAmount)
+  ? roundSafe(Number(row.platformGrossAmount) + Math.max(0, Number(taxPaid) || 0))
+  : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
 
-/** What the platform's statement leaves unexplained once its payout, the tourist tax it withheld and the acompte commission are out (negative when the figures disagree). */
-const statementRemainder = ({ gross, payout, tax = 0, acompteCommission = 0 }) => roundSafe(Number(gross) - Number(payout) - Number(tax) - Number(acompteCommission));
+/** What the platform's statement leaves unexplained once its payout and the acompte commission are out, the tax paid with the transfer counted in (negative when the figures disagree). */
+const statementRemainder = ({ gross, payout, tax = 0, acompteCommission = 0 }) => roundSafe(Number(gross) + Number(tax) - Number(payout) - Number(acompteCommission));
 
-/** The payout a statement implies from its gross and its commissions (no payout recorded yet). */
-const statementPayout = ({ gross, commission = 0, acompteCommission = 0, tax = 0 }) => roundSafe(Number(gross) - Number(commission || 0) - Number(acompteCommission) - Number(tax));
+/** The payout a statement implies from its host amount, the tax paid with it and its commissions (no payout recorded yet). */
+const statementPayout = ({ gross, commission = 0, acompteCommission = 0, tax = 0 }) => roundSafe(Number(gross) + Number(tax) - Number(commission || 0) - Number(acompteCommission));
 
 /** What reaches the bank for the solde: the payout less the acompte already paid out and the penalties the platform kept (null without a payout). */
 const bankReceived = ({ payout, acompteNet: paidOut = 0, penalties = 0 }) => (payout == null ? null : roundSafe(Number(payout) - Number(paidOut) - Number(penalties)));
@@ -144,6 +157,6 @@ function withheldOnCancellation(row) {
 }
 
 module.exports = {
-  computePlatformCommission, commissionOf, clampCommissions, netReceived, acompteNet, grossOf, payoutWithPenalty, withheldOnCancellation,
+  computePlatformCommission, commissionOf, taxPaidWithPayout, clampCommissions, netReceived, acompteNet, grossOf, payoutWithPenalty, withheldOnCancellation,
   statementRemainder, statementPayout, bankReceived, totalCommission, netOfCommission, storedPreArrival, storedNet,
 };

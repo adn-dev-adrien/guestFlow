@@ -54,7 +54,7 @@ async function proposedIntake() {
   const intake = idb.prepare('SELECT id, parsed FROM gdf_intakes').get();
   // A supplement the catalogue does not sell: every application used to add one more custom line.
   const parsed = JSON.parse(intake.parsed);
-  idb.prepare('UPDATE gdf_intakes SET parsed = ? WHERE id = ?').run(JSON.stringify({ ...parsed, supplements: [{ label: CUSTOM_LINE, amount: 12 }] }), intake.id);
+  idb.prepare('UPDATE gdf_intakes SET parsed = ? WHERE id = ?').run(JSON.stringify({ ...parsed, supplements: [{ label: CUSTOM_LINE, amount: 12 }], optionsTotal: 12 }), intake.id);
   const statusOf = () => idb.prepare('SELECT status FROM gdf_intakes WHERE id = ?').get(intake.id).status;
   const set = (sql) => idb.prepare(`UPDATE gdf_intakes SET ${sql} WHERE id = ?`).run(intake.id);
   return { id, service, intakeId: intake.id, statusOf, set };

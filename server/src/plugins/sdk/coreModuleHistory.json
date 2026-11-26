@@ -381,6 +381,15 @@
           "NOT_SELLABLE_OUTSIDE"
         ]
       }
+    },
+    {
+      "version": "2.37.0",
+      "modules": [],
+      "names": {
+        "platformPayment": [
+          "taxPaidWithPayout"
+        ]
+      }
     }
   ]
 }
