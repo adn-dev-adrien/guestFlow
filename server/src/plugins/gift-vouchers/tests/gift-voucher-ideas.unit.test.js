@@ -128,7 +128,7 @@ test('rule 14: GET /offer answers the bounds, the validity, the priced ideas and
   const res = await server.call('GET', '/public/v1/gift-vouchers/offer');
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
-  // The back the site draws (rule 66) has its own suite.
+  // The back the site draws (specs/gift-voucher-campaigns.md rule 66) has its own suite.
   const { back, ...offered } = res.body.data;
   assert.ok(back);
   offered.campaigns = offered.campaigns.map(({ back: _back, ...rest }) => rest);

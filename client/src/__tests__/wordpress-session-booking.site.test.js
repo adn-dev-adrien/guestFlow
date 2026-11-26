@@ -70,7 +70,7 @@ test('rule 19 — the purchase page links to the session page below the form, an
   expect(screen.queryByText('Réserver votre séance')).toBeNull();
 });
 
-test('rule 20 — the voucher card stands straight: no rotation in the rule or the keyframes, the entrance keeps its fade and rise, and none under reduced motion (the turn of rule 66 is the only rotation)', () => {
+test('rule 20 — the voucher card stands straight: no rotation in the rule or the keyframes, the entrance keeps its fade and rise, and none under reduced motion (the turn of specs/gift-voucher-campaigns.md rule 66 is the only rotation)', () => {
   const css = read('assets/style.css');
   const rule = css.split('\n').find((line) => line.startsWith('.gf-card {'));
   expect(rule).toBeTruthy();

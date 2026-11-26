@@ -10,7 +10,7 @@ const OFFER = {
   termsVersionId: 4,
   validityMonths: 18,
   ideas: [],
-  // The back of rule 66, reduced to what this suite reads: the card that names the first name only.
+  // The back of specs/gift-voucher-campaigns.md rule 66, reduced to what this suite reads: the card that names the first name only.
   back: {
     layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
     texts: { title: 'BON CADEAU', recipient: 'Pour {name}', sender: 'de la part de {name}', codePlaceholder: 'XXXX', validUntil: '{date}', bullet: '•' },
