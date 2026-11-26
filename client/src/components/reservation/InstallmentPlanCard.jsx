@@ -26,8 +26,11 @@
  *   onMoneyChanged: () → void — the plan moved the stay's money: re-read the ledger
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import CheckIcon from '@mui/icons-material/Check';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import SendIcon from '@mui/icons-material/SendOutlined';
 import RemoveIcon from '@mui/icons-material/Remove';
 import api from '../../api';
 import DateField from '../DateField';
@@ -42,6 +45,33 @@ const COUNT_DEBOUNCE_MS = 300;
 const DEFAULT_COUNT = 3;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const BADGE = { paid: 'success', late: 'error', requested: 'info', toRequest: 'warning', upcoming: 'neutral' };
+
+// Icon-only row action: the tooltip carries the words, the aria-label names the button. The span keeps the
+// tooltip alive on a disabled button.
+function RowAction({ label, icon, onClick, disabled, filled }) {
+  return (
+    <Tooltip title={label} enterDelay={300} enterNextDelay={300}>
+      <span>
+        <IconButton
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+          sx={{
+            width: 44,
+            height: 44,
+            border: '1px solid',
+            borderColor: filled ? 'primary.main' : 'divider',
+            touchAction: 'manipulation',
+            ...(filled ? { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } } : {}),
+            '&.Mui-disabled': filled ? { bgcolor: 'action.disabledBackground', borderColor: 'transparent' } : {},
+          }}
+        >
+          {icon}
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
 
 // The fiche column can be narrow even on a wide screen: the layout follows the width of the card, not the
 // window's. Narrow = a two-line card (number + status, then date + amount, then the actions); wide = one line.
@@ -125,7 +155,8 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
     >
       <Typography sx={{ gridArea: 'n', fontWeight: 600, color: 'text.secondary' }}>{installment.number}</Typography>
 
-      <Box sx={{ gridArea: 'date' }}>
+      {/* Date and amount share their top edge, so a mark under the amount never pushes the amount off the date. */}
+      <Box sx={{ gridArea: 'date', alignSelf: 'start', [WIDE]: { alignSelf: 'center' } }}>
         {paid ? (
           <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
             {displayDate(installment.paidDate || installment.dueDate)}
@@ -146,7 +177,17 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
         )}
       </Box>
 
-      <Box sx={{ gridArea: 'amt', justifySelf: 'end', textAlign: 'right' }}>
+      <Box sx={{ gridArea: 'amt', justifySelf: 'end', alignSelf: 'start', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', [WIDE]: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', columnGap: 1 } }}>
+        {(installment.amountEdited || installment.added > 0) && (
+          <Box sx={{ order: 1, textAlign: 'right', lineHeight: 1.2, [WIDE]: { order: 0 } }}>
+            {installment.amountEdited && (
+              <Typography variant="caption" color="info.text" sx={{ display: 'block' }}>{t.PINNED_MARK}</Typography>
+            )}
+            {installment.added > 0 && (
+              <Typography variant="caption" color="warning.text" sx={{ display: 'block' }}>{t.ADDED_MARK(formatCurrency(installment.added))}</Typography>
+            )}
+          </Box>
+        )}
         {showAmountInput ? (
           <TextField
             size="small"
@@ -160,16 +201,10 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
               input: { endAdornment: <InputAdornment position="end">€</InputAdornment> },
               htmlInput: { inputMode: 'decimal', 'aria-label': t.AMOUNT_LABEL(installment.number), 'aria-invalid': amountError ? 'true' : undefined },
             }}
-            sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 600, fontSize: 16, fontVariantNumeric: 'tabular-nums' } }}
+            sx={{ width: 104, [WIDE]: { width: 120 }, '& input': { textAlign: 'right', fontWeight: 600, fontSize: 16, fontVariantNumeric: 'tabular-nums' } }}
           />
         ) : (
-          <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(installment.amount)}</Typography>
-        )}
-        {installment.amountEdited && (
-          <Typography variant="caption" color="info.text" sx={{ display: 'block' }}>{t.PINNED_MARK}</Typography>
-        )}
-        {installment.added > 0 && (
-          <Typography variant="caption" color="warning.text" sx={{ display: 'block' }}>{t.ADDED_MARK(formatCurrency(installment.added))}</Typography>
+          <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', minHeight: 40, display: 'flex', alignItems: 'center' }}>{formatCurrency(installment.amount)}</Typography>
         )}
       </Box>
 
@@ -178,14 +213,14 @@ function InstallmentRow({ installment, arrivalDate, dateError, amountError, busy
       </Box>
 
       {hasActions && (
-        <Stack direction="row" spacing={0.75} sx={{ gridArea: 'acts', '& > button': { flex: 1 }, [WIDE]: { justifyContent: 'flex-end', '& > button': { flex: 'none' } } }}>
+        <Stack direction="row" spacing={0.75} sx={{ gridArea: 'acts', justifyContent: 'flex-end' }}>
           {installment.linkUrl && installment.requestedAt && (
-            <Button variant="outlined" onClick={() => onCopy(installment)} sx={{ minHeight: 44, textTransform: 'none' }}>{t.ACTION_COPY}</Button>
+            <RowAction label={t.ACTION_COPY} icon={<ContentCopyIcon fontSize="small" />} onClick={() => onCopy(installment)} />
           )}
           {!installment.requestedAt && canRequest && (
-            <Button variant="outlined" disabled={busy || locked} onClick={() => onSend(installment)} sx={{ minHeight: 44, textTransform: 'none' }}>{t.ACTION_SEND}</Button>
+            <RowAction label={t.ACTION_SEND} icon={<SendIcon fontSize="small" />} disabled={busy || locked} onClick={() => onSend(installment)} />
           )}
-          <Button variant="contained" disabled={busy || locked} onClick={() => onPay(installment)} sx={{ minHeight: 44, textTransform: 'none' }}>{t.ACTION_PAY}</Button>
+          <RowAction label={t.ACTION_PAY} icon={<CheckIcon fontSize="small" />} disabled={busy || locked} onClick={() => onPay(installment)} filled />
         </Stack>
       )}
 
