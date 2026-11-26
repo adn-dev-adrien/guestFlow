@@ -40,6 +40,11 @@ function buildBookletResolver({ booklet, media, soldKeysOf, shownKeys }) {
     let sold = null;
     return (target) => {
       if (target.kind === 'url') return true;
+      // Rule 18 (local amenities) — « Pratique » is open to every mode, while the lodging shows it.
+      if (target.kind === 'places') {
+        shown = shown || shownKeys(lodging, mode);
+        return shown.includes('places');
+      }
       if (target.kind !== 'item' || mode !== 'stay') return false;
       shown = shown || shownKeys(lodging, mode);
       if (!shown.includes('shop')) return false;

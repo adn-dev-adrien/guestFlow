@@ -12,6 +12,8 @@ const MODULES = Object.freeze([
   { key: 'bath', on: true, label: { fr: 'Bain nordique', en: 'Nordic bath' } },
   // Rule 15 — the tile reads « Activités » (Adrien, 2026-11-06); the key stays `soliomap`.
   { key: 'soliomap', on: true, label: { fr: 'Activités', en: 'Activities' } },
+  // specs/guest-app/guest-app-local-amenities.md rule 1 — the shops, services and waste points around the estate, on a map.
+  { key: 'places', on: true, label: { fr: 'Pratique', en: 'Essentials' } },
   { key: 'booklet', on: true, label: { fr: 'Livret', en: 'Booklet' } },
   { key: 'orders', on: true, label: { fr: 'Mes commandes', en: 'My orders' } },
   { key: 'contacts', on: false, label: { fr: 'Urgences & contacts', en: 'Emergency & contacts' } },
@@ -43,6 +45,7 @@ const PREREQUISITES = Object.freeze({
   shop: (facts) => Number(facts.soldItems) > 0,
   bath: (facts) => Number(facts.soldHourlyResources) > 0,
   soliomap: (facts) => Boolean(facts.soliomapUrl),
+  places: (facts) => Number(facts.publishedPlaces) > 0,
   contacts: (facts) => Number(facts.contactCount) > 0,
   home: (facts) => Boolean(facts.homeReady),
 });

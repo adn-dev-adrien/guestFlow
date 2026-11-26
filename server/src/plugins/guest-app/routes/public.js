@@ -9,7 +9,7 @@ const { requireModule } = require('../middleware/guestSession');
 const { webManifest } = require('../webManifest');
 
 function buildPublicRouter({
-  controller, shop, orders, booklet, guestSession, limiters, appName = () => null, home,
+  controller, shop, orders, booklet, guestSession, limiters, appName = () => null, home, places,
 }) {
   const router = express.Router();
   // Rule 52 — the install manifest: the same for every guest, readable before any session, revalidated on each read.
@@ -47,6 +47,8 @@ function buildPublicRouter({
   router.get('/booklet', ...bookletRoute, booklet.index);
   router.get('/booklet/search', ...bookletRoute, booklet.search);
   router.get('/booklet/pages/:slug', ...bookletRoute, booklet.page);
+  // specs/guest-app/guest-app-local-amenities.md rules 1, 5 — the « Pratique » places: a session or, in visitor mode, the printed code.
+  router.get('/places', limiters.read, booklet.reader, requireModule('places', controller.shownKeysOf), places.guestRead);
   // specs/guest-app-home-automation.md rules 17-22 — the « Domotique » page, a stay session only.
   const homeRoute = [limiters.read, guestSession.requireSession, requireModule('home', controller.shownKeysOf), guestSession.requireStayGuest];
   router.get('/home', ...homeRoute, home.read);

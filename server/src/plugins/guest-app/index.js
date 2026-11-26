@@ -19,6 +19,7 @@ const createBookletModel = require('./models/bookletModel');
 const createMediaModel = require('./models/mediaModel');
 const createStockModel = require('./models/stockModel');
 const createHomeBlocksModel = require('./models/homeBlocksModel');
+const createPlacesModel = require('./models/placesModel');
 const { alertPush } = require('./stock');
 const mediaFiles = require('./media');
 const { parisDate } = require('./currentStay');
@@ -38,6 +39,7 @@ const { buildBookletController, buildBookletResolver } = require('./controllers/
 const { buildStudioController } = require('./controllers/studioController');
 const { buildStudioSettingsController } = require('./controllers/studioSettingsController');
 const { buildHomeController } = require('./controllers/homeController');
+const { buildPlacesController } = require('./controllers/placesController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 const { createGuestLimiters } = require('./rateLimiters');
@@ -106,6 +108,7 @@ function buildGuestApi({
   const media = once(() => createMediaModel(db()));
   const stock = once(() => createStockModel(db()));
   const homeBlocks = once(() => createHomeBlocksModel(db()));
+  const placesModel = once(() => createPlacesModel(db()));
   const fulfilment = () => settings.fulfilmentOf((key) => settingsStore().get(key));
 
   /** Rule 37quater — the low / out pushes a move of the stock made due, each once until the next restock. Best effort. */
@@ -172,10 +175,12 @@ function buildGuestApi({
   const home = buildHomeController({
     homeBlocks, lodgings, homeData, now,
   });
+  const places = buildPlacesController({ placesModel, settingsStore, now });
   const controller = buildSessionController({
     lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
     bathCards: shop.bathCards,
     homeReady: home.ready,
+    publishedPlaces: places.publishedCount,
     ...(readGateUrl ? { readGateUrl } : {}),
   });
   const arrivalOrders = buildArrivalOrdersController({
@@ -193,7 +198,7 @@ function buildGuestApi({
   return {
     publicRouter: buildPublicRouter({
       controller, shop, orders: orderBook, booklet: buildBookletController({ resolver, guestSession, lodgings }), guestSession, limiters, appName,
-      home,
+      home, places,
     }),
     adminRouter: buildAdminRouter({
       lodgings: buildLodgingsController({
@@ -211,7 +216,7 @@ function buildGuestApi({
       }),
       stayLinks: links,
       orders: { ...buildOrdersAdminController({ orders, stays, lodgings, now }), amend: arrivalOrders.amend },
-      home,
+      home, places,
     }),
     // specs/guest-app-home-automation.md rule 4 — what the house is asked to send.
     homeSelection: home.selection,

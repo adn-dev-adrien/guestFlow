@@ -51,7 +51,7 @@ const DEFAULT_APP_NAME = 'Domaine Solio';
 
 function buildSessionController({
   lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, readGateUrl = gate.keyUrlOf,
-  appName = () => null, soliomapEmbed = () => false, bathCards = () => [], homeReady = () => false,
+  appName = () => null, soliomapEmbed = () => false, bathCards = () => [], homeReady = () => false, publishedPlaces = () => 0,
 }) {
   function factsOf(lodging) {
     return {
@@ -61,6 +61,7 @@ function buildSessionController({
       soliomapUrl: soliomapUrl(),
       contactCount: lodging.contacts.length,
       homeReady: homeReady(lodging.propertyId),
+      publishedPlaces: publishedPlaces(),
     };
   }
 

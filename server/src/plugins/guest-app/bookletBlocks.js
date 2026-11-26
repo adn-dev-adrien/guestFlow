@@ -7,6 +7,8 @@
  * its text kept and escaped; script-like elements lose their content too.
  */
 
+const { CATEGORY_KEYS } = require('./placeCategories');
+
 const BLOCK_TYPES = Object.freeze(['text', 'image', 'gallery', 'callout', 'steps', 'wifi', 'contact', 'place', 'faq', 'button', 'hours']);
 const ITEM_KINDS = Object.freeze(['option', 'breakfast', 'resource']);
 const CALLOUT_TONES = Object.freeze(['info', 'warning']);
@@ -184,7 +186,14 @@ function buttonTarget(target) {
     if (!/^https:\/\/[^\s]+$/i.test(href)) fail('L’adresse du bouton doit commencer par https://.');
     return { kind: 'url', href };
   }
-  return fail('La cible du bouton est une page, un article ou une adresse.');
+  // specs/guest-app/guest-app-local-amenities.md rule 18 — the « Pratique » page, with a category's chip already on.
+  if (target.kind === 'places') {
+    onlyKeys(target, ['kind', 'category'], 'La cible du bouton');
+    if (target.category === undefined) return { kind: 'places' };
+    if (!CATEGORY_KEYS.includes(target.category)) fail('La catégorie visée est invalide.');
+    return { kind: 'places', category: target.category };
+  }
+  return fail('La cible du bouton est une page, un article, la page Pratique ou une adresse.');
 }
 
 // --- Types --------------------------------------------------------------------------------------------------

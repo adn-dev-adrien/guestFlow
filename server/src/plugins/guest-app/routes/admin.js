@@ -3,7 +3,7 @@
 const express = require('express');
 
 function buildAdminRouter({
-  lodgings, items, serviceHours, studio, studioSettings, stayLinks, orders, home,
+  lodgings, items, serviceHours, studio, studioSettings, stayLinks, orders, home, places,
 }) {
   const router = express.Router();
   router.get('/lodgings/:propertyId', lodgings.read);
@@ -26,6 +26,12 @@ function buildAdminRouter({
   router.get('/planning/order-cards', orders.planningCards);
   router.get('/service-hours', serviceHours.read);
   router.put('/service-hours', serviceHours.write);
+
+  // specs/guest-app/guest-app-local-amenities.md rules 15-16.
+  router.get('/places', places.studioList);
+  router.post('/places', places.create);
+  router.put('/places/:id', places.update);
+  router.delete('/places/:id', places.remove);
 
   router.get('/studio/lodgings', studioSettings.lodgingsList);
   router.get('/studio/settings', studioSettings.read);

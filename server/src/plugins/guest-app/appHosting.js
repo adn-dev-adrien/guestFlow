@@ -36,7 +36,8 @@ function guestCsp({ frameOrigin = null } = {}) {
     "script-src 'self'",
     // MUI / emotion inject their styles at run time.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // specs/guest-app/guest-app-local-amenities.md rule 2 — the « Pratique » map's tiles; images only, no script, no connection.
+    "img-src 'self' data: blob: https://tile.openstreetmap.org",
     "font-src 'self'",
     "connect-src 'self'",
     "manifest-src 'self'",

@@ -13,8 +13,9 @@
 const {
   DECLARED, MAX_PICKUP_PLACE, OWN_HOST_REFUSAL, ownHostsOf,
 } = require('../settings');
+const { estateOf, positionText } = require('../places');
 
-const KEYS = Object.freeze(['appName', 'guestHost', 'soliomapUrl', 'soliomapEmbed', 'maxOrderTotal', 'fulfilment', 'pickupPlace']);
+const KEYS = Object.freeze(['appName', 'guestHost', 'soliomapUrl', 'soliomapEmbed', 'maxOrderTotal', 'fulfilment', 'pickupPlace', 'estatePosition']);
 const OUT_OF_APP = 'Hors application';
 
 const truthy = (v) => v === true || v === 1 || v === '1' || v === 'true';
@@ -67,6 +68,7 @@ function buildStudioSettingsController({
       maxOrderTotal: Number(get('maxOrderTotal')) || 500,
       fulfilment: get('fulfilment') === 'pickup' ? 'pickup' : 'delivery',
       pickupPlace: get('pickupPlace') || '',
+      estatePosition: positionText(estateOf(get('estatePosition'))),
       soliomap: syncView(lastSync(), now()),
     };
   }
