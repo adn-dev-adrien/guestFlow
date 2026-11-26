@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13 (past reading of 2026-11-02) on the laundry writes — a skip, a manual
+// specs/tech/reservations-backend-mvc.md rule 13 (past reading of 2026-11-02) on the laundry writes — a skip, a manual
 // addition and an extra trip are entered on a day from today − 5 years to today + 5 years (400
 // DATE_OUTSIDE_WINDOW, nothing written); a date already stored is edited whatever its day.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/pricing-components.md rules 72, 74, 75 and specs/outside-booking-sas.md rules 49, 52, 53 (stabilisation loop t2, B2-1 to B2-4) — the three figures of a
+// specs/pricing/pricing-components.md rules 72, 74, 75 and specs/sas/outside-booking-sas.md rules 49, 52, 53 (stabilisation loop t2, B2-1 to B2-4) — the three figures of a
 // sale document's lowered lines, each in its component: SETTLEMENT's transfer of what a lowered line holds onto the lines still due, REFUNDS' open rows in
 // step with what is owed, and REFUNDS' choice of the line a refund leaves.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 7 — on an operator-managed space the address of a plugin
+// specs/plugins/plugin-operator-provisioning.md rule 7 — on an operator-managed space the address of a plugin
 // that is off reads « Page introuvable » for every role: no « Plugin inactif », no « Ouvrir Plugins »,
 // and the server is not even asked who owns the page.
 import React from 'react';

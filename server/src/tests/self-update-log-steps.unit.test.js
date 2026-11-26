@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 55 — the update log records every staging step with its result: download,
+// specs/hosting/self-update-and-releases.md rule 55 — the update log records every staging step with its result: download,
 // signature, SHA-256, extraction, dependencies, promotion (shadow trial of 4.0.0: the log held the header and the
 // swap, none of the steps in between). A failure names the step that failed.
 const test = require('node:test');

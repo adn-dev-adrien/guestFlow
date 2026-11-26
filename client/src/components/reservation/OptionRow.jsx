@@ -20,7 +20,7 @@ import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/o
 import TypedCountField from './TypedCountField';
 
 /**
- * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).
+ * Occurrence checklist for an option-driven planning card (specs/options/option-planning-card.md §3.2).
  * 'once' → a single editable date + heure. 'daily' → one checkbox row per (stay day × time slot),
  * all pre-checked, with an editable heure. The selection drives the billed quantity (§3.4), shown
  * as a caption. Reads/writes the working occurrence grid via `setOptionCardOccurrences`; the grid
@@ -32,7 +32,7 @@ function OptionCardOccurrences({ opt }) {
   const selected = form.selectedOptions.find((so) => Number(so.optionId) === Number(opt.id));
   const grid = Array.isArray(selected?.cardOccurrences) ? selected.cardOccurrences : [];
   const perPerson = String(opt.priceType || '').includes('per_person');
-  // Covers actually served on each moment (specs/card-option-served-persons.md §3.2 rule 8): the
+  // Covers actually served on each moment (specs/options/card-option-served-persons.md §3.2 rule 8): the
   // whole party unless the operator lowered it in the « Personnes servies » field above.
   const personFactor = perPerson
     ? Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1)
@@ -55,7 +55,7 @@ function OptionCardOccurrences({ opt }) {
   const setSlotTime = (slot, time) => {
     const retimed = grid.map((o) => ((o.slot ?? 0) === slot ? { ...o, time } : o));
     // Re-filter presence: moving a slot's time across the check-in/out bound on the arrival/departure
-    // day adds or removes that day's occurrence (specs/option-planning-card.md § presence).
+    // day adds or removes that day's occurrence (specs/options/option-planning-card.md § presence).
     setOptionCardOccurrences(opt.id, reconcileCardGrid(opt, form.startDate, form.endDate, retimed, form.checkInTime, form.checkOutTime));
   };
   const toggleOcc = (date, slot, checked) => setOptionCardOccurrences(opt.id, grid.map((o) => (o.date === date && (o.slot ?? 0) === slot ? { ...o, checked } : o)));
@@ -78,7 +78,7 @@ function OptionCardOccurrences({ opt }) {
   );
 }
 
-// specs/bed-config-in-linen-card.md §3 + §6. Bed counters (lits doubles / simples / bébé)
+// specs/linen/bed-config-in-linen-card.md §3 + §6. Bed counters (lits doubles / simples / bébé)
 // + "Suggérer les lits" button + capacity-mismatch warning, rendered inside the option
 // card of the FIRST enabled `countsAsBedLinen = 1` option (rule 10). Lives in this file as
 // a private sub-component because it's tightly coupled to the reservation-form context and
@@ -92,7 +92,7 @@ function BedLinenInputsBlock() {
     handleSuggestBeds,
     selectedProp, isReservationLocked, extrasWindowOpen, propertyOptions, arrivalLines,
   } = useReservationForm();
-  // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the bed counts follow the linen line: frozen
+  // specs/sas/mid-stay-extras-on-locked-fiche.md rule 8 — the bed counts follow the linen line: frozen
   // when a bed-linen option was sold at arrival, editable when it is added during the stay.
   const linenSoldAtArrival = (propertyOptions || []).some(
     (o) => Number(o.countsAsBedLinen || 0) === 1 && Boolean((arrivalLines || {})[optionLineKey(o.id)]),
@@ -105,7 +105,7 @@ function BedLinenInputsBlock() {
       </Typography>
       <Stack spacing={1.5}>
         {/* "Lits bébé" lives in the Voyageurs card (shown whenever babies > 0), not here —
-            specs/bed-config-in-linen-card.md §10 follow-up (2026-06-08). */}
+            specs/linen/bed-config-in-linen-card.md §10 follow-up (2026-06-08). */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
           <QuantityField
             label="Lits doubles"
@@ -161,7 +161,7 @@ function BedLinenInputsBlock() {
  *
  * Extracted from ExtrasSection so the same renderer serves the three places an option can now
  * appear: the flat ungrouped list, the pinned enabled rows of a category, and the folded remainder
- * (specs/option-categories.md §4.2). Everything is read from the reservation-form context — the
+ * (specs/options/option-categories.md §4.2). Everything is read from the reservation-form context — the
  * only prop is the option itself.
  */
 export default function OptionRow({ opt }) {
@@ -173,12 +173,12 @@ export default function OptionRow({ opt }) {
     setOptionCardPersons, setOptionTypedCount, maxGuestsAllowed, pricingQuote,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode, isPlatformSale,
-    // specs/plugins-phase-3b-neat.md rule 16 — what live plugins draw under a line, fed by the
+    // specs/plugins/plugins-phase-3b-neat.md rule 16 — what live plugins draw under a line, fed by the
     // payload's `pluginBlocks`.
     pluginBlocks, setPluginBlock, pluginLineContext,
   } = useReservationForm();
   const lineContributions = useSlot('reservation.optionLine').filter((c) => c.appliesTo(opt));
-  // specs/plugins-phase-3b-neat.md rule 22 — an option the catalogue hides, shown because the stay
+  // specs/plugins/plugins-phase-3b-neat.md rule 22 — an option the catalogue hides, shown because the stay
   // carries it: its price stands, nothing about it can change.
   const readOnly = Boolean(opt.readOnly);
 
@@ -190,7 +190,7 @@ export default function OptionRow({ opt }) {
   // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
   // of `form.selectedOptions` — see ReservationPage.js (spec force-item-to-complement.md §3.1).
   const autoOptionsInComplementSet = new Set((form?.autoOptionsInComplement || []).map(Number));
-  // specs/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
+  // specs/sas/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). Only engine-derived auto-options keep their toggle hidden — their routing
   // is the algorithm's, not the operator's (rule 5).
@@ -198,16 +198,16 @@ export default function OptionRow({ opt }) {
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
   // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
-  // split whatever the platform (specs/devis-extras-parity-and-price-lock.md §3 rule 17).
+  // split whatever the platform (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 17).
   const complementChecked = (value) => (value == null ? (isPlatformReservation && !isDevisMode) : Boolean(value));
 
   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
   const explicitlyEnabled = Boolean(selected && Number(selected.quantity) > 0);
-  // specs/bed-config-in-linen-card.md §3 rule 4.bis — a bed-linen-flagged
+  // specs/linen/bed-config-in-linen-card.md §3 rule 4.bis — a bed-linen-flagged
   // option that's a property default is FORCED ON, even when it's not (yet)
   // in form.selectedOptions. The Switch shows checked + disabled. The server
   // re-merges the same default at save time so the option lands in the DB.
-  // specs/tourist-tax-included-services-deduction.md rule 4 — same rendering for every service
+  // specs/tourist-tax/tourist-tax-included-services-deduction.md rule 4 — same rendering for every service
   // included in the rate, on a new booking as on an existing one that carries it: it is sold inside
   // the night, so removing it would misprice the stay AND the declared tourist tax.
   const isForcedByPropertyDefault = bedLinenForcedOptionIds?.has(opt.id)
@@ -221,7 +221,7 @@ export default function OptionRow({ opt }) {
   // autoEnabled=0; they're undeletable in the catalog but manually toggled per
   // reservation). Using autoOptionType here would wrongly disable the Switch.
   const isAutoTimedOption = Number(opt.autoEnabled || 0) === 1;
-  // specs/baby-bed-supplement.md §3.1 — the third engine-derived family: not a timed option, so it
+  // specs/options/baby-bed-supplement.md §3.1 — the third engine-derived family: not a timed option, so it
   // has no « seuil nuit complète » to show. Its driver is the « Lits bébé » counter of the
   // Voyageurs card, and its price is per cot, for the whole stay.
   const isBabyBedOption = isAutoTimedOption && opt.autoOptionType === 'baby_bed';
@@ -231,15 +231,15 @@ export default function OptionRow({ opt }) {
   else if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
   else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
   else if (opt.priceType === 'per_person_per_night') factorHint = `×${quantityPersons} pers. ×${quantityNights} j.`;
-  // specs/cancellation-insurance.md §3.1 rule 5 — a percentage of the stay is a yes/no product:
+  // specs/payments/cancellation-insurance.md §3.1 rule 5 — a percentage of the stay is a yes/no product:
   // no quantity to type, and the hint says what the percentage bites on.
   else if (opt.priceType === 'percent_of_stay') factorHint = 'du montant hébergement';
   const isPercentOfStay = opt.priceType === 'percent_of_stay';
-  // specs/cancellation-insurance.md §3.1 rule 5bis — the insurance is a yes/no product whatever its
+  // specs/payments/cancellation-insurance.md §3.1 rule 5bis — the insurance is a yes/no product whatever its
   // price type: the engine bills 1 × (its multiplier), so there is no quantity to type. A per-night
   // insurance still shows its « ×N j. » hint above, which is exactly what it will be billed.
   const hasNoQuantity = isPercentOfStay || Boolean(opt.isCancellationInsurance);
-  // specs/card-option-served-persons.md §3.2 — a per-person card option (a meal, the breakfast) is
+  // specs/options/card-option-served-persons.md §3.2 — a per-person card option (a meal, the breakfast) is
   // not always taken by the whole table: the field says how many covers each of its moments serves.
   // It replaces the « Qté » field, which a card option deliberately hides (the moments are the
   // quantity). Fixed-price card options don't get it — the covers wouldn't bite.
@@ -248,7 +248,7 @@ export default function OptionRow({ opt }) {
     && String(opt.priceType || '').includes('per_person');
   const servedPersons = Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1);
   const servedPersonsMax = Math.max(servedPersons, Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1);
-  // specs/non-card-option-served-persons.md rules 8, 9, 19 — a non-card option's « Qté » is the number
+  // specs/options/non-card-option-served-persons.md rules 8, 9, 19 — a non-card option's « Qté » is the number
   // of people or of nights. The server says when a typed number no longer matches (rule 20).
   const typedKind = hasNoQuantity ? null : typedCountKind(opt);
   const typedCurrent = typedKind === 'nights' ? quantityNights : quantityPersons;
@@ -277,7 +277,7 @@ export default function OptionRow({ opt }) {
           <Box flex={1}>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
               <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
-              {/* specs/welcome-pack-auto-options.md §6 — says why this option ticked itself. */}
+              {/* specs/options/welcome-pack-auto-options.md §6 — says why this option ticked itself. */}
               {isWelcomePackLine(selected) && (
                 <Chip size="small" color="success" variant="outlined" label="Pack de bienvenue" />
               )}
@@ -333,7 +333,7 @@ export default function OptionRow({ opt }) {
 
         {enabled && !isAutoTimedOption && !readOnly && (
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-            {/* Card-option (specs/option-planning-card.md §3.4): the occurrence
+            {/* Card-option (specs/options/option-planning-card.md §3.4): the occurrence
                 checklist below replaces the manual Qté — the selection drives the
                 billed quantity server-side. */}
             {hasServedPersons ? (
@@ -380,7 +380,7 @@ export default function OptionRow({ opt }) {
                   Small Switch — same visual family as the activation Switch above, just
                   smaller, so the operator perceives it as the same kind of widget at a
                   glance. Tooltip carries the affordance label. On platform reservations
-                  it defaults ON but stays editable (specs/force-extras-complement-on-platform.md
+                  it defaults ON but stays editable (specs/sas/force-extras-complement-on-platform.md
                   §3 rule 1bis). */}
               <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
                 <FormControlLabel
@@ -407,18 +407,18 @@ export default function OptionRow({ opt }) {
           </Stack>
         )}
 
-        {/* Option-driven planning card occurrences (specs/option-planning-card.md
+        {/* Option-driven planning card occurrences (specs/options/option-planning-card.md
             §3.2). The checklist of moments + the billed-quantity caption. */}
         {enabled && !isAutoTimedOption && Boolean(opt.showsPlanningCard) && (
           <OptionCardOccurrences opt={opt} />
         )}
 
-        {/* Breakfast desired time (specs/breakfast-time.md) — only on the
+        {/* Breakfast desired time (specs/options/breakfast-time.md) — only on the
             breakfast-typed option when enabled. Defaults to the option's configured
             time; empty form value = use the option default (planning resolves it). */}
         {/* Legacy single « Heure souhaitée » — only when breakfast is NOT a card option.
             When showsPlanningCard is on, the per-day occurrence checklist drives the hour
-            (specs/breakfast-option-planning-card.md §3 rule 2). */}
+            (specs/options/breakfast-option-planning-card.md §3 rule 2). */}
         {enabled && opt.autoOptionType === 'breakfast' && !opt.showsPlanningCard && (
           <TextField
             size="small"
@@ -430,7 +430,7 @@ export default function OptionRow({ opt }) {
           />
         )}
 
-        {/* specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed counters
+        {/* specs/linen/bed-config-in-linen-card.md §3 rules 2 + 10 — bed counters
             sit inside the first enabled `countsAsBedLinen = 1` option card. */}
         {enabled
           && Number(opt.countsAsBedLinen || 0) === 1
@@ -451,7 +451,7 @@ export default function OptionRow({ opt }) {
                   case: late check-out surcharge collected at check-out → belongs in the
                   Complément entry, not in the deposit/balance split. Hidden on platform
                   reservations — server forces inComplement = 1
-                  (specs/force-extras-complement-on-platform.md §3 rule 5). */}
+                  (specs/sas/force-extras-complement-on-platform.md §3 rule 5). */}
               {!isPlatformReservation && (
                 <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
                   <FormControlLabel

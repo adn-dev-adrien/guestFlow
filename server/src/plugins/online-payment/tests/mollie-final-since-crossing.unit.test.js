@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 1 and 2 — a correction of the data that moves an estimated card
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 1 and 2 — a correction of the data that moves an estimated card
 // payment ACROSS « Retenue appliquée depuis » decides again whether it carries a reserve, in both directions.
 const test = require('node:test');
 const assert = require('node:assert/strict');

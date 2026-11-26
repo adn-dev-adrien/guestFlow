@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 33 — the unread counters are internal settings, and the reader keeps
+// specs/platforms/gites-de-france-mail-intake.md rule 33 — the unread counters are internal settings, and the reader keeps
 // small records (tests/mail-reader-envelope-retention.unit.test.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');

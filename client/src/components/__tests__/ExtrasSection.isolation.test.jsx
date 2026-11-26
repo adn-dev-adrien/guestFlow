@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 44 — the fiche draws plugin lines under each option; one that
+// specs/plugins/plugins-phase-4-registry.md rule 44 — the fiche draws plugin lines under each option; one that
 // throws leaves the fiche, the option and the other plugin's line up.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

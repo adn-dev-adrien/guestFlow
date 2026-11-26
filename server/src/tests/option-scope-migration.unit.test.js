@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/option-property-scope.md §3.4 — the one-time migration links every currently-UNLINKED option
+// specs/options/option-property-scope.md §3.4 — the one-time migration links every currently-UNLINKED option
 // (legacy « global ») to all current properties, preserving its availability under the new explicit
 // model. This pins the exact backfill SQL used in database.js.
 

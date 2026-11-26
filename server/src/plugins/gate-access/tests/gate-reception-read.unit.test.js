@@ -1,4 +1,4 @@
-// specs/gate-access-sowel-connector.md §3.5 rule 27 — reception runs the SAS, so it READS the gate
+// specs/guest-app/gate-access-sowel-connector.md §3.5 rule 27 — reception runs the SAS, so it READS the gate
 // key (the code and its QR). It can change nothing: nobody can from here, the actions live in
 // Sowel.
 
@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 
 const enforceRoleAccess = require('../../../middleware/enforceRoleAccess');
 
-// Plugin modules declare their own reception entries (specs/plugins-phase-1-sdk.md rule 5).
+// Plugin modules declare their own reception entries (specs/plugins/plugins-phase-1-sdk.md rule 5).
 require('../../loader').registerAll({ db: null, isInstalled: () => false });
 require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
 
@@ -48,7 +48,7 @@ test('a sibling route does not pass for all that', () => {
   );
 });
 
-// specs/gate-access-sowel-connector.md §3.3 rule 16 — the dashboard alert is the admins'.
+// specs/guest-app/gate-access-sowel-connector.md §3.3 rule 16 — the dashboard alert is the admins'.
 test('the gate-keys dashboard alert stays out of reception and accountant reach', () => {
   for (const roles of [['reception'], ['accountant']]) {
     const { nextCalled, res } = call({ roles, method: 'GET', path: '/dashboard/gate-keys' });

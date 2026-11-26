@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 48 and specs/payment-schedule-and-cancellation.md rule 55, readings of 2026-11-02
+// specs/payments/reservation-refunds.md rule 48 and specs/payments/payment-schedule-and-cancellation.md rule 55, readings of 2026-11-02
 // (audit R15-L1). Money collected in the caisse interne never reaches the books (encaissementsByMonth skips it), yet:
 //   - the cancellation requalified a caisse-interne acompte as if it had been booked: 706 + 4457 debited on a sale
 //     never booked, 7588 credited with money off the books (P1);

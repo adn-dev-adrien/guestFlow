@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const reservationsModel = require('../models/reservationsModel');
 
-// specs/reservation-number-and-search.md §3 rules 8-9 — live "jump to a reservation" search.
+// specs/reservations/reservation-number-and-search.md §3 rules 8-9 — live "jump to a reservation" search.
 // Matching + shaping + cap are all server-side (fat backend).
 
 const DDL = `
@@ -32,7 +32,7 @@ function addRes(db, { kind = 'reservation', reservationNumber = null, clientId =
   ).run(kind, reservationNumber, clientId, startDate, endDate).lastInsertRowid;
 }
 
-// specs/reservation-number-and-search.md rule 11 — a blank query lists nothing.
+// specs/reservations/reservation-number-and-search.md rule 11 — a blank query lists nothing.
 test('blank query returns []', () => {
   const { db, model } = freshModel();
   addRes(db, { reservationNumber: '2026-07-001' });
@@ -97,7 +97,7 @@ test('orders by startDate DESC and caps at 20', () => {
   }
 });
 
-// specs/payment-schedule-and-cancellation.md §3.5 rule 26 — every list view drops a cancelled stay;
+// specs/payments/payment-schedule-and-cancellation.md §3.5 rule 26 — every list view drops a cancelled stay;
 // search is the one path that must still find it, flagged so the UI can badge it.
 test('finds a cancelled stay and flags it', () => {
   const { db, model } = freshModel();

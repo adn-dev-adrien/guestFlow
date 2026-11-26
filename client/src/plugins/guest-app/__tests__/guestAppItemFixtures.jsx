@@ -1,4 +1,4 @@
-// Shared by the GuestAppItemFields suites (specs/guest-app.md rules 22, 37bis). `vi.mock` stays in each file.
+// Shared by the GuestAppItemFields suites (specs/guest-app/guest-app.md rules 22, 37bis). `vi.mock` stays in each file.
 import React from 'react';
 import { render } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

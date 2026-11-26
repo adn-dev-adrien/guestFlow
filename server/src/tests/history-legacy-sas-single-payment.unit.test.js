@@ -1,4 +1,4 @@
-// specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R45-PL-L1) — the SAS « paiement unique »
+// specs/payments/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R45-PL-L1) — the SAS « paiement unique »
 // line stored before sas 1.9.3 (and by the core SAS of v3.21.0) carries fromText « — » and toText
 // « 144.95 € — CB / Chèque le 2026-09-01 — solde, complément »: it read back as stored. It now reads French like the
 // core lines — amount, day, and the bare « complément » named « complément d'arrivée » —, idempotent, stored row

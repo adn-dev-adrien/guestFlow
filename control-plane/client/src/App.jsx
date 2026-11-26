@@ -1,7 +1,7 @@
 /**
- * The console's shell (specs/control-plane-plans-and-access.md §4.2): GuestFlow's theme and dialog
+ * The console's shell (specs/hosting/control-plane-plans-and-access.md §4.2): GuestFlow's theme and dialog
  * provider, the login until an operator is signed in (rule 31), then the navigation between the
- * fleet, the releases and fleet updates (specs/hosting-h1-fleet-runtime.md), the catalogue, the
+ * fleet, the releases and fleet updates (specs/hosting/hosting-h1-fleet-runtime.md), the catalogue, the
  * renewal emails, GuestFlow's own Paiements page (rule 32) and the profile.
  */
 import React, { useEffect, useState } from 'react';

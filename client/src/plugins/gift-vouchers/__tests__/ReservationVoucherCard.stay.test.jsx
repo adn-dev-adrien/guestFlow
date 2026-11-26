@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 40-41 — the fiche's card: what the server shaped is rendered; paying checks the code and the
+// specs/gift-vouchers/gift-vouchers.md rules 40-41 — the fiche's card: what the server shaped is rendered; paying checks the code and the
 // amount inline before any call and shows the server's refusal; a payment is taken back after a confirmation; a cancelled stay
 // offers « Recréditer le bon »; and the card is absent where there is nothing to show.
 import React from 'react';

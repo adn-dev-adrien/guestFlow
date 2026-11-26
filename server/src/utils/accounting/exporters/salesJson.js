@@ -1,6 +1,6 @@
 const { roundMoneyStrict } = require('../../pricing/money');
 /**
- * The sales JSON exporter (specs/pricing-components.md §3 rule 63): the CSV's rows grouped per entry and pre-classified so the
+ * The sales JSON exporter (specs/pricing/pricing-components.md §3 rule 63): the CSV's rows grouped per entry and pre-classified so the
  * Comptabilité page renders the journal as cards. Pure, formatting only. Moved from the accounting-export plugin.
  */
 
@@ -53,7 +53,7 @@ function createSalesJson({ accountPlan, csvJournal }) {
       const creditVal = typeof credit === 'number' ? credit : null;
       return {
         compte: String(compte),
-        // specs/arrival-payment-detail-and-adjustment.md rule 25 — the pourboire shares the produit-divers
+        // specs/sas/arrival-payment-detail-and-adjustment.md rule 25 — the pourboire shares the produit-divers
         // account with the indemnité d'annulation, so an entry may name what ITS use of the account is.
         // Everything else keeps the shared chart-of-accounts label.
         accountLabel: (entry.accountLabels && entry.accountLabels[String(compte)]) || accountLabel(roleOf(compte)),
@@ -83,12 +83,12 @@ function createSalesJson({ accountPlan, csvJournal }) {
     return {
       reservationId: entry.reservationId,
       kind: entry.kind,
-      // specs/reservation-refunds.md §3.4 rule 25 — the card renders as an « avoir » when set.
-      // specs/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
+      // specs/payments/reservation-refunds.md §3.4 rule 25 — the card renders as an « avoir » when set.
+      // specs/payments/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
       direction: isRefund ? 'refund'
         : (isCompensation ? 'compensation'
           : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : (isMollie ? 'mollie' : 'sale'))))),
-      // specs/resource-booking-pricing-and-invoicing.md rule 22 — a sale made outside any stay, and its Qonto invoice.
+      // specs/resources/resource-booking-pricing-and-invoicing.md rule 22 — a sale made outside any stay, and its Qonto invoice.
       standalone: entry.direction === 'standalone' ? { label: entry.standaloneLabel || '', invoiceNumber: entry.piece || null } : null,
       compensationId: entry.compensationId != null ? entry.compensationId : null,
       // The cancelled stay window, so the card can say WHICH séjour the indemnity replaces.
@@ -105,7 +105,7 @@ function createSalesJson({ accountPlan, csvJournal }) {
       libelle: rows[0][5],          // libellé column
       clientAccount: rows[0][6],    // compte column on the debit row
       encaissementTtc: round2(entry.encaissementTtc),
-      // specs/single-payment-at-check-in.md §3.3 rule 12 — the collection this entry belonged to, so
+      // specs/payments/single-payment-at-check-in.md §3.3 rule 12 — the collection this entry belonged to, so
       // the Comptabilité can render ONE card for one payment. Carried through untouched: the entry's
       // own ventilation (accounts, VAT, share of the séjour) is not affected by the grouping.
       ...(entry.paymentGroup ? { paymentGroup: entry.paymentGroup } : {}),
@@ -169,7 +169,7 @@ function createSalesJson({ accountPlan, csvJournal }) {
           totalDebits: roundMoneyStrict(totalDebits),
           totalCredits: roundMoneyStrict(totalCredits),
           allBalanced: structured.every((e) => e.balanced),
-          // specs/reservation-payment-ledger.md rule 43 — a sale whose credits are all on the
+          // specs/payments/reservation-payment-ledger.md rule 43 — a sale whose credits are all on the
           // tourist-tax account carries no revenue and no VAT: shown, never silently exported.
           taxOnlyEntries: taxOnlyEntries(structured),
         },

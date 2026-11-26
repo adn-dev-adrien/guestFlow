@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 26 — the directory: the console reads each instance's
+// specs/hosting/control-plane-plans-and-access.md rule 26 — the directory: the console reads each instance's
 // active accounts, keeps only their HMAC, replaces them at each read, keeps what it had when an
 // instance cannot be read, and forgets an erased customer.
 

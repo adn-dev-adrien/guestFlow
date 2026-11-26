@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 36, §6.6 — the « Seuil de franchise (€) » field of the TVA card: only
+// specs/accounting/vat-optional-mode.md rule 36, §6.6 — the « Seuil de franchise (€) » field of the TVA card: only
 // under « Sans TVA » with the art. 293 B mention, the hint or the day it was typed, the mirror of the
 // server's refusals, and a valid amount turned into a number on leaving the field.
 import React from 'react';

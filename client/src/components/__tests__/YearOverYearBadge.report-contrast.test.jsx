@@ -1,4 +1,4 @@
-// specs/report-grammar.md §3 rule 19 — in report mode the pill writes in its tone's `text` shade on its
+// specs/design-system/report-grammar.md §3 rule 19 — in report mode the pill writes in its tone's `text` shade on its
 // `soft` background, ≥ 4.5:1 for small text; `main` would fall short (success: 4.2:1).
 import React from 'react';
 import { render, screen } from '@testing-library/react';

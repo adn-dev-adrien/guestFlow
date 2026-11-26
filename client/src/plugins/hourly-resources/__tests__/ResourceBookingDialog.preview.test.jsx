@@ -1,4 +1,4 @@
-// specs/resource-supplements-total-server-side.md rules 8-16 — the booking dialog renders the server's
+// specs/resources/resource-supplements-total-server-side.md rules 8-16 — the booking dialog renders the server's
 // price: it sends the price-relevant draft only, the latest answer wins, a pending / unavailable /
 // refused state is said, and a commit at another price is announced, never silent.
 import React from 'react';
@@ -137,7 +137,7 @@ test('rule 16 — a free range reads 0,00 €, its total the answer\'s', async (
   expect(screen.getAllByText('0,00 €').length).toBeGreaterThan(0);
 });
 
-// specs/resource-booking-pricing-and-invoicing.md rules 4-5 — the lines, the total and the VAT are the server's, rendered as is.
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 4-5 — the lines, the total and the VAT are the server's, rendered as is.
 test('rule 4 — every line of the answer is rendered, with its detail; rule 5 — the VAT is the answer\'s', async () => {
   api.previewResourceBooking.mockResolvedValue(PRICE(40, {
     freeMinutesApplied: 60, billedMinutes: 60, grossTotal: 70, freeValue: 30,

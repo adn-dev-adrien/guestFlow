@@ -1,5 +1,5 @@
 /**
- * Writes under /api come from this app's own pages (specs/plugins-phase-4-registry.md rule 31, PR
+ * Writes under /api come from this app's own pages (specs/plugins/plugins-phase-4-registry.md rule 31, PR
  * review minor 9). A browser sends `Origin` (or at least `Referer`) with every cross-site write; a
  * write whose origin is another site is refused, so a page elsewhere cannot use an administrator's
  * session to install or update a plugin — or to do anything else.

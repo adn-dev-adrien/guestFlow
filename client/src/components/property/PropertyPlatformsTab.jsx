@@ -1,6 +1,6 @@
 /**
  * PropertyPlatformsTab — « Plateformes & iCal » tab of the property page
- * (specs/settings-rationalization.md rules 18, 21).
+ * (specs/settings/settings-rationalization.md rules 18, 21).
  *
  * Only what belongs to THIS property is edited here: each platform's iCal URL, its sync, disabling
  * it, removing a configured feed, adding a platform, and the export link. The platform's global
@@ -9,10 +9,10 @@
  *
  * A disabled calendar greys its content (chips, URL, sync line) but not the buttons that still
  * work: « Réactiver » is filled and « Retirer » keeps its colour; only « Synchroniser » is greyed.
- * A stopped calendar (`isActive = 0`, specs/ical-import-hardening.md rule 2) carries « Arrêté » and has
+ * A stopped calendar (`isActive = 0`, specs/platforms/ical-import-hardening.md rule 2) carries « Arrêté » and has
  * no « Synchroniser ». The status line is the server's `syncStatus` (rule 9): when, and what changed;
  * the engine's full sentence is its tooltip. The URL editor also carries the « séjours en CLOSED »
- * switch (specs/lodgify-decommission.md §3 rule 16): a feed that names every stay « CLOSED - Not
+ * switch (specs/platforms/lodgify-decommission.md §3 rule 16): a feed that names every stay « CLOSED - Not
  * available », as Booking.com does, whatever the platform is called.
  *
  * Props: propertyId, propertyName, canManage
@@ -47,7 +47,7 @@ const STATUS_ICON = {
   success: { Icon: CheckCircleIcon, color: 'success.main' },
 };
 
-// specs/lodgify-decommission.md §3 rule 16 — Booking.com's wording, kept as the feed writes it.
+// specs/platforms/lodgify-decommission.md §3 rule 16 — Booking.com's wording, kept as the feed writes it.
 const CLOSED_LABEL = 'Séjours en « CLOSED »';
 const CLOSED_SWITCH_LABEL = 'Chaque séjour est noté « CLOSED - Not available »';
 

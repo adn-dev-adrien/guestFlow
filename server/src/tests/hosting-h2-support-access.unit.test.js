@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 12-17 — support access with consent: the console's
+// specs/hosting/hosting-h2-account-security.md rules 12-17 — support access with consent: the console's
 // signed request becomes the banner, accepting opens a 1 h / 24 h / 7 days access, the signed link
 // (2 minutes, single use, refused without an open access) opens a session as « Support GuestFlow »,
 // its writes and pages are logged, expiry ends the session, and nothing exists without a licence key.
@@ -140,7 +140,7 @@ test('rules 15-16 — writes and pages are written to support_access_log; me car
 
   // Rule 20: the customer reads what was done, never a method, a path or an HTTP status.
   const { entries } = h.supportAccess.logs(id);
-  // A page opened is a read: it reads « Consultation : … » (specs/hosting-h2-account-security.md rule 25).
+  // A page opened is a read: it reads « Consultation : … » (specs/hosting/hosting-h2-account-security.md rule 25).
   assert.deepEqual(entries.map((e) => e.label).sort(), ['Connexion du support', 'Réservation 22301 modifiée', 'Consultation : Planning'].sort());
   assert.equal(entries.find((e) => e.label === 'Réservation 22301 modifiée').outcomeLabel, 'Effectué');
   assert.ok(entries.every((e) => !('summary' in e) && !/\/api|PUT|GET|\b200\b/.test(`${e.label} ${e.outcomeLabel}`)));

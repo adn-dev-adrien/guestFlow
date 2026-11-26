@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md §3.E — the accounting export becomes a plugin module: its routes
+// specs/plugins/plugins-phase-2-hosts.md §3.E — the accounting export becomes a plugin module: its routes
 // answer only while it is live, the accountant reaches them only through it, its four settings live in
 // plugin_settings, and its erasure resets configuration without touching a single accounting fact.
 // Keeps the default models off the real database file: parallel files would race on its migration.
@@ -121,7 +121,7 @@ const EXPORT_ROUTES = [
   ['POST', '/api/accounting/platform-accounts/refresh'],
 ];
 
-test('specs/plugins-phase-2-hosts.md rule 19 — the export routes answer 404 PLUGIN_INACTIVE while the plugin is off; the compensations stay reachable', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 19 — the export routes answer 404 PLUGIN_INACTIVE while the plugin is off; the compensations stay reachable', async () => {
   const db = freshDb();
   const { app } = boot(db, { installed: true, active: false });
   for (const [method, url] of EXPORT_ROUTES) {
@@ -140,7 +140,7 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the export routes answer 404 PL
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 3 — the accountant reaches the export only while accounting-export is live, and still reads the compensations', { skip: skipWithout(['website-booking']) }, async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 3 — the accountant reaches the export only while accounting-export is live, and still reads the compensations', { skip: skipWithout(['website-booking']) }, async () => {
   const db = freshDb();
   const accountant = { roles: ['accountant'] };
 
@@ -158,7 +158,7 @@ test('specs/plugins-phase-2-hosts.md rule 3 — the accountant reaches the expor
 
   const off = boot(db, { installed: true, active: false, user: accountant });
   const sales = await request(off.app, 'GET', '/api/accounting/sales?month=9&year=2026');
-  assert.equal(sales.status, 403, 'an inactive plugin contributes no allowlist entry (specs/plugins-phase-2-hosts.md rule 33)');
+  assert.equal(sales.status, 403, 'an inactive plugin contributes no allowlist entry (specs/plugins/plugins-phase-2-hosts.md rule 33)');
   assert.equal(sales.body.error, 'FORBIDDEN_ROLE');
   const read = await request(off.app, 'GET', '/api/accounting/cancellation-compensations?month=9&year=2026');
   assert.notEqual(read.status, 403, 'the compensations read is a core entry of the accountant');
@@ -166,7 +166,7 @@ test('specs/plugins-phase-2-hosts.md rule 3 — the accountant reaches the expor
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settings are read from and written to plugin_settings', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 19 — the four account and VAT settings are read from and written to plugin_settings', async () => {
   const db = freshDb();
   // The old columns hold other values: they are no longer read.
   db.prepare("UPDATE app_settings SET defaultCommissionAccountNumber = '62269999', vatRateCommission = 5.5 WHERE id = 1").run();
@@ -201,9 +201,9 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settin
   const controller = createController(buildPluginsModel(db), { registry, settingsModel: () => buildPluginSettingsModel(db) });
   const res = fakeRes();
   controller.getSettings({ params: { id: ID } }, res);
-  // …plus the account plan of specs/plugins-phase-p-productisation.md rule 27, and the Mollie journal of
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28.
-  // …and, since specs/platform-host-statement-and-commission-vat.md rules 14-16, the regime accounts, the self-assessment and the VAT codes.
+  // …plus the account plan of specs/plugins/plugins-phase-p-productisation.md rule 27, and the Mollie journal of
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28.
+  // …and, since specs/platforms/platform-host-statement-and-commission-vat.md rules 14-16, the regime accounts, the self-assessment and the VAT codes.
   assert.deepEqual(Object.keys(res.body).sort(), [
     'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionEuAccount', 'commissionFrAccount',
     'commissionNoVatAccount', 'commissionVatAccount',
@@ -227,13 +227,13 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settin
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 28 — the app_settings values are copied once into plugin_settings; empty values are skipped', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 28 — the app_settings values are copied once into plugin_settings; empty values are skipped', () => {
   const db = freshDb();
   db.prepare(`UPDATE app_settings SET defaultCommissionAccountNumber = '62260003', vatRateCommission = 19.6,
     cancellationCompensationAccount = '', vatRateCancellationCompensation = 5.5 WHERE id = 1`).run();
   boot(db, { installed: true });
-  // `ttcSplitFrom` is the cutoff of specs/accountant-accounting-export.md rule 35, `stayClosingFrom` that of
-  // specs/mixed-method-payments.md rule 58: not copied settings.
+  // `ttcSplitFrom` is the cutoff of specs/accounting/accountant-accounting-export.md rule 35, `stayClosingFrom` that of
+  // specs/payments/mixed-method-payments.md rule 58: not copied settings.
   const stored = Object.fromEntries(db.prepare("SELECT key, value FROM plugin_settings WHERE plugin_id = ? AND key NOT IN ('ttcSplitFrom', 'stayClosingFrom')").all(ID).map((r) => [r.key, r.value]));
   assert.deepEqual(stored, { defaultCommissionAccountNumber: '62260003', vatRateCommission: '19.6', vatRateCancellationCompensation: '5.5' });
   assert.equal(createAccountSettings(db).read().cancellationCompensationAccount, '75880000', 'an empty value is not copied: the default reads');
@@ -246,7 +246,7 @@ test('specs/plugins-phase-2-hosts.md rule 28 — the app_settings values are cop
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 28 — a value already in plugin_settings is never overwritten by the copy', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 28 — a value already in plugin_settings is never overwritten by the copy', () => {
   const db = freshDb();
   db.prepare("UPDATE app_settings SET defaultCommissionAccountNumber = '62260003' WHERE id = 1").run();
   createAccountSettings(db).write({ defaultCommissionAccountNumber: '62260009' });
@@ -255,7 +255,7 @@ test('specs/plugins-phase-2-hosts.md rule 28 — a value already in plugin_setti
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 22 — describe lists the configured platforms and the changed defaults, zero lines left out', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 22 — describe lists the configured platforms and the changed defaults, zero lines left out', () => {
   const db = freshDb();
   const { plugins } = boot(db, { installed: true });
   const list = () => {
@@ -282,7 +282,7 @@ test('specs/plugins-phase-2-hosts.md rule 22 — describe lists the configured p
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the platform columns it owns; the purge resets the settings and those columns, keeps the money, and the journal is identical after a reinstall', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the platform columns it owns; the purge resets the settings and those columns, keeps the money, and the journal is identical after a reinstall', async () => {
   const db = freshDb();
   db.exec("ALTER TABLE platforms ADD COLUMN commissionVatRegime TEXT NOT NULL DEFAULT 'no_vat'");
   bankCompensation(db);
@@ -329,7 +329,7 @@ test('specs/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the pla
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 22 — phase 0 rule 8 still refuses the uninstall while an accountant-only account exists', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 22 — phase 0 rule 8 still refuses the uninstall while an accountant-only account exists', () => {
   const db = freshDb();
   const { plugins } = boot(db, { installed: true });
   db.prepare("INSERT INTO users (id, email, passwordHash) VALUES (1, 'compta@example.com', 'x')").run();

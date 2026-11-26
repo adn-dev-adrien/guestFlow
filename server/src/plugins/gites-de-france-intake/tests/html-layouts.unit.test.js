@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rules 27–28 (review of PR #849) — an HTML-only mail is rendered like a browser
+// specs/platforms/gites-de-france-mail-intake.md rules 27–28 (review of PR #849) — an HTML-only mail is rendered like a browser
 // shows it, whatever the markup around the lines, and a parse failure is read again once the plugin version changes.
 const test = require('node:test');
 const assert = require('node:assert/strict');

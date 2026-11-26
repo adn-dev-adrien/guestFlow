@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13, 29, 94 (loop t1 S-1, S-2) — a custom line is named by its label: a card sale of one paid before the
+// specs/pricing/pricing-components.md §3 rules 13, 29, 94 (loop t1 S-1, S-2) — a custom line is named by its label: a card sale of one paid before the
 // arrival settles it, and a second sale of the same label is a line of its own (its discount, payment and removal never reach the first).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

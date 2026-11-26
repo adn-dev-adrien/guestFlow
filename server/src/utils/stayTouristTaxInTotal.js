@@ -1,11 +1,11 @@
-// The tourist tax that sits INSIDE a stay's « total de séjour » (specs/stay-profile.md rule 22, D-HC9:
+// The tourist tax that sits INSIDE a stay's « total de séjour » (specs/accounting/stay-profile.md rule 22, D-HC9:
 // the tax is never revenue). Pure.
 //
 // The total counts every bucket the operator keeps on the books (financeModel.totalSejour): acompte,
 // solde, the two complements, the installments, net of commissions, each bucket left in the caisse
 // interne excluded, net of book refunds. The tax is placed bucket by bucket as the accounting export
-// books it (accounting-export `computeTaxTtcForKind`, specs/tourist-tax-on-solde.md,
-// specs/accounting-books-the-money-collected.md rule 13, specs/platform-added-guests-tourist-tax.md
+// books it (accounting-export `computeTaxTtcForKind`, specs/tourist-tax/tourist-tax-on-solde.md,
+// specs/accounting/accounting-books-the-money-collected.md rule 13, specs/tourist-tax/platform-added-guests-tourist-tax.md
 // rule 13): never on the acompte; on the solde (frozen in its contribs once paid) unless it is
 // collected at arrival, then on the arrival complement; an installment plan carries it, the added
 // guests' share riding the complement. A commission is taken on the stay, never on the tax, so a

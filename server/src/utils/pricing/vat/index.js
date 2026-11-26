@@ -1,5 +1,5 @@
 /**
- * VAT — the one place a rate is resolved and a VAT is cut out of a TTC amount (specs/pricing-components.md §3 rules 51, 61, 62).
+ * VAT — the one place a rate is resolved and a VAT is cut out of a TTC amount (specs/pricing/pricing-components.md §3 rules 51, 61, 62).
  *
  * Contract:
  * - `resolveRate(vatClass, customerContext, { regime, settings })` → the rate in percent. A franchise regime

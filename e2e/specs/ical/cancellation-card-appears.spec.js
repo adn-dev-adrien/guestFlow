@@ -28,7 +28,7 @@ test('A pending cancellation alert renders an orange card on the Dashboard', asy
   });
 
   await page.goto('/');
-  // The subject's row in « À traiter » (specs/shell-and-home-day-first.md rules 6, 10), unfolded in place.
+  // The subject's row in « À traiter » (specs/planning/shell-and-home-day-first.md rules 6, 10), unfolded in place.
   const row = page.getByRole('button', { name: /Annulations iCal à valider/ });
   await expect(row).toBeVisible({ timeout: 10_000 });
   await row.click();

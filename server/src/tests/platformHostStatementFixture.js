@@ -1,4 +1,4 @@
-// Shared fixture of the specs/platform-host-statement-and-commission-vat.md suites: a minimal engine database (one lodging, a
+// Shared fixture of the specs/platforms/platform-host-statement-and-commission-vat.md suites: a minimal engine database (one lodging, a
 // ménage and a linge option, the three tourist-tax modes of the platforms) and the production figures of 2026-11-26.
 const Database = require('better-sqlite3');
 
@@ -57,7 +57,7 @@ const STAY = {
 const MENAGE_PAID = { optionId: 1, quantity: 1, inComplement: 0 };
 const LINGE = { optionId: 2, quantity: 1, inComplement: 0 };
 
-// The stays of the accountant's October review (specs/platform-host-statement-and-commission-vat.md §1), figures measured in production.
+// The stays of the accountant's October review (specs/platforms/platform-host-statement-and-commission-vat.md §1), figures measured in production.
 const FRAISSE = {
   ...STAY, startDate: '2026-10-10', endDate: '2026-10-12', adults: 13, platformPaidAdults: 10, platformPaidGuests: 10, platformPaidOccupants: 10,
   selectedOptions: [MENAGE_PAID, LINGE], offeredOptionIds: [2], platform: 'Airbnb',

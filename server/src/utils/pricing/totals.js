@@ -1,5 +1,5 @@
 /**
- * TOTALS — what the steps before it returned, added up (specs/pricing-components.md §3 rules 15, 51).
+ * TOTALS — what the steps before it returned, added up (specs/pricing/pricing-components.md §3 rules 15, 51).
  *
  * Contract: `aggregateTotals({ accommodation, extraGuestSurcharge, optionsTotal, resourcesTotal, touristTaxTotal, subtotal,
  * vat })` → `{ finalPrice, discountAmount, totalStayPrice, vatByRate, breakdown }`. `finalPrice` is the sum of the four

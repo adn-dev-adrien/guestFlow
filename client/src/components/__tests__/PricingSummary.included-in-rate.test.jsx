@@ -4,11 +4,11 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/per-property-default-options.md — a property-default option configured « offered » is INCLUDED
+// specs/options/per-property-default-options.md — a property-default option configured « offered » is INCLUDED
 // in the night rate: the summary labels it « Comprise » + « incluse dans le tarif », not the green
 // « ✓ Offert » of a one-off geste commercial. Both, however, show their REAL price STRUCK THROUGH and
 // bill 0 — the guest has to see what the rate already covers AND what it is worth
-// (specs/tariff-recipes/spec.md §3.8).
+// (specs/pricing/tariff-recipes.md §3.8).
 
 const PROPERTY_OPTIONS = [
   { id: 10, title: 'Petit-déjeuner', price: 25, priceType: 'per_stay' },
@@ -64,7 +64,7 @@ test('a one-off offered option (not included) keeps « ✓ Offert » + the struc
   expect(screen.getByText('15,00 €')).toBeInTheDocument();
 });
 
-// specs/tourist-tax-included-services-deduction.md rule 13 — the summary says the subtraction out
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rule 13 — the summary says the subtraction out
 // loud: the accommodation charged, minus what the rate already covers, is what the commune is
 // declared on.
 const TAXED_QUOTE = {
@@ -91,7 +91,7 @@ test('no deduction → no caption', () => {
   expect(screen.queryByText(/de prestations comprises/)).toBeNull();
 });
 
-// specs/welcome-pack-auto-options.md §6 — a welcome-pack line says how many units the rate covers on
+// specs/options/welcome-pack-auto-options.md §6 — a welcome-pack line says how many units the rate covers on
 // the left, and what they are worth in the AMOUNT column: greyed, struck through, one size down,
 // right above the 0,00 € it explains. It used to sit under the « + compl. » chip, where it read as a
 // second label rather than as a price.

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReservationHistoryPanel from '../ReservationHistoryPanel';
 
-// specs/reservation-history-granular-diff.md §6 — le panneau n'est qu'un afficheur : le serveur
+// specs/reservations/reservation-history-granular-diff.md §6 — le panneau n'est qu'un afficheur : le serveur
 // envoie des lignes prêtes à imprimer, on vérifie le regroupement et les états vides / chargement.
 
 const ENTRY = {

@@ -1,6 +1,6 @@
-// specs/plugins-phase-p-productisation.md rule 40 — for an administrator, the address of a plugin that
+// specs/plugins/plugins-phase-p-productisation.md rule 40 — for an administrator, the address of a plugin that
 // is not active reads « Plugin inactif » with a link to Plugins; any other address, or another role,
-// keeps « Page introuvable ». An unmanaged space only (specs/plugin-operator-provisioning.md rule 7).
+// keeps « Page introuvable ». An unmanaged space only (specs/plugins/plugin-operator-provisioning.md rule 7).
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

@@ -7,11 +7,11 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from './mockReservationForm';
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 5, 8): the block takes the HOST side of the statement
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5, 8): the block takes the HOST side of the statement
 // (« Location (relevé) » + « Options (relevé) »), the box is named by the platform's mode (the server's `platformStatement.box`), and the
 // commission formula adds the tax paid with the transfer — resolved by the server from the platform sent with the figures.
 //
-// specs/platform-tourist-tax-out-of-the-commission.md — the « Taxe de séjour retenue » box in the
+// specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md — the « Taxe de séjour retenue » box in the
 // « Paiement plateforme » block: when it shows up, what it says, and what it does to the commission
 // the « Calculer » button writes.
 //
@@ -33,7 +33,7 @@ const PAYOUT = {
   amountEdit: { editable: true, mode: 'statement', min: null, max: null, reason: null }, detail: null,
 };
 
-// Since specs/reservation-payment-ledger.md rule 25 the statement fields open from the payout row's
+// Since specs/payments/reservation-payment-ledger.md rule 25 the statement fields open from the payout row's
 // amount: a platform fiche is rendered with that editor open; a direct one has no payout row.
 function renderFinance(overrides) {
   const platform = overrides && overrides.form && overrides.form.platform;
@@ -50,7 +50,7 @@ function renderFinance(overrides) {
   return ctx;
 }
 
-// specs/booking-extranet-intake.md §4.1 — the commission is computed by the server
+// specs/platforms/booking-extranet-intake.md §4.1 — the commission is computed by the server
 // (`POST /api/reservations/platform-commission`, rules in platform-commission.unit.test.js); the button
 // only sends the figures of the statement and writes back what it answers, applied on « Valider ».
 async function calculate(ctx) {
@@ -194,7 +194,7 @@ test(`rule 10 — the figure the server answers is written, even 0`, async () =>
 // Réservation 22219 (Booking, 17-19 July 2026, 8 guests), measured 2026-09-25: Montant Total
 // 1 283,34 · virement 1 075,27. Booking withheld 208,07, of which 19,20 is the commune's tax
 // (8 × 2 × 1,20) and 188,87 is commission and payment fees — which the fiche models as one
-// commission (specs/accounting-platform-commission-and-no-deposit.md).
+// commission (specs/accounting/accounting-platform-commission-and-no-deposit.md).
 
 const BOOKING_22219 = { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 19.20 };
 

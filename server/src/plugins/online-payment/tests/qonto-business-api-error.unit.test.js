@@ -1,5 +1,5 @@
 // Reading the Business API's error envelope, not just its HTTP status.
-// See specs/qonto-settings-in-app.md §3 rule 17.
+// See specs/settings/qonto-settings-in-app.md §3 rule 17.
 //
 // Found by the first production run of v2.13.0: the page said « Qonto a renvoyé une erreur —
 // HTTP 400 » while the body already named the cause.

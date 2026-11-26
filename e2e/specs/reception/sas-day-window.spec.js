@@ -1,5 +1,5 @@
 // @ts-check
-// specs/reception-sas-today-only.md — the « Accueil » role may only act on the SAS of the DAY.
+// specs/sas/reception-sas-today-only.md — the « Accueil » role may only act on the SAS of the DAY.
 // This is the end-to-end guard: the unit tests pin the window arithmetic and each guard in
 // isolation, but only a real browser session proves that a reception user actually sees an inert ✓
 // on a past / future / committed SAS and a live one on today's.
@@ -80,7 +80,7 @@ test("today's SAS is live while past / future ones are inert for the reception r
   // the <span> that carries its tooltip: that is the element tapped, by an ordinary click. A forced
   // click on the button itself skips Playwright's hit-target check and fires at coordinates taken
   // before the tap; the planning keeps today pinned under its bar until an operator gesture
-  // (specs/dashboard-planning-scroll.md rule 24), so a card that grew meanwhile scrolled today's ✓ under
+  // (specs/planning/dashboard-planning-scroll.md rule 24), so a card that grew meanwhile scrolled today's ✓ under
   // those coordinates and the tap opened today's wizard (CI, 2026-11-23).
   await futureSas.locator('xpath=..').click();
   await expect(sasDialog(page, future)).toHaveCount(0);

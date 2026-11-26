@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 65, 66 and 72 — static guards against a formula coming back: the VAT split lives in
+// specs/pricing/pricing-components.md §3 rules 65, 66 and 72 — static guards against a formula coming back: the VAT split lives in
 // `utils/pricing/vat/` (rules 61-62), what a platform pays out lives in `utils/pricing/platformPayment.js` (rule 70) and
 // every refund cap, trop-perçu and requalification figure lives in `utils/pricing/refunds/` (rule 72).
 //

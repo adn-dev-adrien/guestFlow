@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 5-11, 25, 28, 31 — the pure rules: amount bounds, expiry frozen at issue, derived states, the
+// specs/gift-vouchers/gift-vouchers.md rules 5-11, 25, 28, 31 — the pure rules: amount bounds, expiry frozen at issue, derived states, the
 // balance as a sum, what a movement may do, the settings that feed them.
 const test = require('node:test');
 const assert = require('node:assert/strict');

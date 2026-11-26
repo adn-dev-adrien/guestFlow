@@ -8,7 +8,7 @@ const propertiesModel = require('../models/propertiesModel');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 
-// specs/per-property-option-prices.md — the reservation fiche reads `property.options` from
+// specs/options/per-property-option-prices.md — the reservation fiche reads `property.options` from
 // getByIdWithDetails; each option must carry its EFFECTIVE price for THAT property (the per-property
 // override when set, else the base price), so the displayed unit price matches the pricing engine.
 function freshDb() {

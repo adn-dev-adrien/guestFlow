@@ -1,6 +1,6 @@
 /**
  * ChartEndLabels — the name of each line written at its last point, on a white halo, pushed apart so
- * two names never overlap and kept inside the plot (specs/report-grammar.md rules 8, 22). Drawn inside
+ * two names never overlap and kept inside the plot (specs/design-system/report-grammar.md rules 8, 22). Drawn inside
  * a Recharts chart (it reads the chart's scales and plot area); positions only, no figure. A name
  * wider than `maxWidth` is cut with « … », the full name in its `<title>`. Generic: any line chart over
  * a category axis.

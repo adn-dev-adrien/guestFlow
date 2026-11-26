@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 18, reading of 2026-11-05 (audit R23-A1) — a null is not a secret and clears
+// specs/hosting/hosting-h2-account-security.md rule 18, reading of 2026-11-05 (audit R23-A1) — a null is not a secret and clears
 // none: the support policy lets `null` through on PUT /onboarding/emails as « nothing written », and the writer now agrees.
 const test = require('node:test');
 const assert = require('node:assert/strict');

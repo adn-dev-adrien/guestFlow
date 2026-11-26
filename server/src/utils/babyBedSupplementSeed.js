@@ -1,5 +1,5 @@
 /**
- * « Lit bébé » supplement option seeder (specs/baby-bed-supplement.md §5).
+ * « Lit bébé » supplement option seeder (specs/options/baby-bed-supplement.md §5).
  *
  * Structural boot-time seed with the same contract as `cancellationInsuranceSeed.js`: idempotent,
  * non-destructive, re-run on every server start, keyed on `options.seedKey` so the operator can
@@ -10,7 +10,7 @@
  *     from `reservations.babyBeds`; the option is never ticked by hand, and stays undeletable in the
  *     Options screen (every typed option is).
  *   - `priceType = 'per_stay'`, `price = 0` → free until the operator prices it
- *     (specs/plugins-phase-p-productisation.md rule 15; a price is never the product's to choose).
+ *     (specs/plugins/plugins-phase-p-productisation.md rule 15; a price is never the product's to choose).
  *     Once priced, it is per cot for the whole stay. The engine bills
  *     `price × babyBeds` whatever the price type says: a cot is never per-night or per-person
  *     (spec §3.1 rule 3). Re-pricing per logement goes through `property_option_prices`, and a

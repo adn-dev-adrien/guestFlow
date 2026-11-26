@@ -1,5 +1,5 @@
 /**
- * specs/ui-review-2026-10-19-operations.md rule 37 — the directory row keeps the e-mail link and a call
+ * specs/design-system/ui-review-2026-10-19-operations.md rule 37 — the directory row keeps the e-mail link and a call
  * button (the phone text link is hidden by CSS on a coarse pointer, measured in the browser).
  */
 import React from 'react';

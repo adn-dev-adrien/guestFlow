@@ -1,4 +1,4 @@
-// specs/reception-sas-today-only.md §3.2 rule 6 — for the « Accueil » role the status toggles follow
+// specs/sas/reception-sas-today-only.md §3.2 rule 6 — for the « Accueil » role the status toggles follow
 // the SAME day window as the SAS: « Prêt » / « Arrivé » on the arrival date, « Parti » on the
 // departure date. Unlike the SAS itself, a COMMITTED SAS does not lock them (fixing a mis-tick is not
 // a re-edit). Admin is never limited.
@@ -146,7 +146,7 @@ test('updatePayment — admin is never limited by the window', () => {
 // ---- the pre-existing financial-field guard still runs first ----
 
 test('updatePayment — a reception payload carrying money is stripped, not 403-ed, inside the window', () => {
-  // specs/reception-role-checkin-only.md §3.5 rule 10: financial fields are dropped silently; only the
+  // specs/sas/reception-role-checkin-only.md §3.5 rule 10: financial fields are dropped silently; only the
   // status fields survive — so this payload is a plain in-window status write.
   const { res } = patchPayment({
     user: RECEPTION_USER, row: baseRow(), body: { checkInDone: true, depositPaid: true, complementPaid: true },

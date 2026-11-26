@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §4.1 — « Textes des emails ». Admin-only through the role guard.
+// specs/emails/guest-email-texts-made-simple.md §4.1 — « Textes des emails ». Admin-only through the role guard.
 const express = require('express');
 const { buildController } = require('../controllers/emailTextsController');
 

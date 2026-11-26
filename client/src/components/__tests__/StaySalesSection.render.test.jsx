@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 32 — the SAS shows the departure sales apart, as the server serves them: title, lines with status, what is due.
+// specs/pricing/pricing-components.md §3 rule 32 — the SAS shows the departure sales apart, as the server serves them: title, lines with status, what is due.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import StaySalesSection from '../StaySalesSection';

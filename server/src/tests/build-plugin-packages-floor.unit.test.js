@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 62 (D24, audit R34 L-T1) — the package build refuses a manifest
+// specs/plugins/plugins-phase-4-registry.md rule 62 (D24, audit R34 L-T1) — the package build refuses a manifest
 // whose `guestflow` range is anything but a floor: a ceiling would claim a refusal no core applies. The
 // refusal comes before anything is staged in the output folder.
 const test = require('node:test');

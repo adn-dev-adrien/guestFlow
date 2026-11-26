@@ -1,5 +1,5 @@
 /**
- * Platform penalties — declare, preview, list, remove (specs/reconciliation-assisted-matching.md rules
+ * Platform penalties — declare, preview, list, remove (specs/accounting/reconciliation-assisted-matching.md rules
  * 23–31). An amount a platform keeps on a stay's payout for a reason other than its commission or the
  * tourist tax (host cancellation, relocation costs, non-compliance…).
  *
@@ -73,7 +73,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
     const validDate = isRealIsoDay(date);
     if (!validDate) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: 'Date invalide.' });
     else if (date > today) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: 'La date ne peut pas être dans le futur.' });
-    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — the date the operator typed; the
+    // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — the date the operator typed; the
     // default is the stored solde date, never re-judged.
     else if (body.date && dateBeforeHorizon(date, today)) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: PAST_HORIZON_MESSAGE });
 

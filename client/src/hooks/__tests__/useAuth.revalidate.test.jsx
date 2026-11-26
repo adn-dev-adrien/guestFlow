@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 36 — the session is re-read when the route changes or the
+// specs/plugins/plugin-operator-provisioning.md rule 36 — the session is re-read when the route changes or the
 // tab comes back, at most every 30 s: a module the operator switched off leaves the menu, and a failed
 // re-read neither signs out nor flashes.
 import React from 'react';

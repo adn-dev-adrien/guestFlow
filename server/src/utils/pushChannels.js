@@ -1,6 +1,6 @@
 /**
- * The push notification toggles a user may set (specs/pwa-push-notifications.md §6,
- * specs/platform-settings-relay-and-review.md rule 8): the core's own, then those the live plugins
+ * The push notification toggles a user may set (specs/guest-app/pwa-push-notifications.md §6,
+ * specs/platforms/platform-settings-relay-and-review.md rule 8): the core's own, then those the live plugins
  * declared with `ctx.pushChannel({ key, label })`. Served with their French label, so the settings card
  * renders the list as is and the core never names a plugin.
  */
@@ -11,13 +11,13 @@ const CORE_PUSH_CHANNELS = Object.freeze([
   { key: 'newReservation', label: 'Nouvelle réservation' },
   { key: 'arrivals', label: 'Arrivées' },
   { key: 'departures', label: 'Départs' },
-  // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md rule 6).
+  // Breakfast serving-time push (specs/sas/sas-breakfast-bread-and-push.md rule 6).
   { key: 'breakfast', label: 'Petit déjeuner' },
 ]);
 
 /**
  * The channels of the live plugins. A plugin that goes inactive takes its toggle with it; a `shared` channel (several plugins declare the same
- * key and label, specs/site-outside-resource-booking.md rule 24) is listed once, while any of its declaring plugins is live.
+ * key and label, specs/site/site-outside-resource-booking.md rule 24) is listed once, while any of its declaring plugins is live.
  */
 function pluginPushChannels() {
   const listed = new Map();

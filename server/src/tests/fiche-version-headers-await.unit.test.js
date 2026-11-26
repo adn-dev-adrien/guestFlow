@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 10 — the fiche's version pair is this request's own writes,
+// specs/reservations/reservation-fiche-concurrency.md rule 10 — the fiche's version pair is this request's own writes,
 // never a snapshot around the handler: a foreign write landing during a provider await is not adopted.
 const { listenLocal } = require('./listenLocal');
 const test = require('node:test');

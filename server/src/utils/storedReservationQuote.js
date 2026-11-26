@@ -115,7 +115,7 @@ function pinStoredPricing(quote, stored) {
   return pinned;
 }
 
-// specs/pricing-components.md rule 30 (owner 2026-11-15) — a sale, a line changed or a line removed moves only the money of its line. `base` is the
+// specs/pricing/pricing-components.md rule 30 (owner 2026-11-15) — a sale, a line changed or a line removed moves only the money of its line. `base` is the
 // row the same engine gives the stored stay before the gesture: the difference `quote − base` is what the gesture moved, and it is added to what the
 // stay stores. The figures no line moves (the tax, its rate, the discount, the deadlines, the commissions) stay the stored ones, whatever the engine of
 // today would make of them (a platform's tax mode changed since, a stay stored at a figure the engine no longer reproduces).

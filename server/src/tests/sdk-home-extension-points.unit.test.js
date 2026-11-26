@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md §4.1 — the two extension points of SDK 2.28.0: the Sowel connector declares the
+// specs/guest-app/guest-app-home-automation.md §4.1 — the two extension points of SDK 2.28.0: the Sowel connector declares the
 // house's data (`homeData`), the guest app declares which readings the lodgings use (`homeSelection`). Plugins never
 // import each other; the core hands each out to the other.
 const test = require('node:test');

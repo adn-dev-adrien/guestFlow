@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/site-traffic-analytics.md rules 21-23 — « Canaux de réservation »: one row per platform, the
+// specs/site/site-traffic-analytics.md rules 21-23 — « Canaux de réservation »: one row per platform, the
 // website split by source, and « Direct (saisie) »; website rows carry requests + conversion; and the
 // card's total is the per-logement chart's total for the same window (rule 22).
 const financeModel = require('../models/financeModel');
@@ -68,7 +68,7 @@ function seed(db) {
 const pick = (rows) => rows.map(({ key, group, label, reservations, nights, revenue, requests, converted, conversionRate }) => (
   { key, group, label, reservations, nights, revenue, requests, converted, conversionRate }));
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('revenueByChannel: the website by source, then platforms and manual direct, each sorted by revenue', () => {

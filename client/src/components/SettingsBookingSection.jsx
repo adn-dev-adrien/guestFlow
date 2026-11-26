@@ -7,7 +7,7 @@
  *   onChange:  (key, value) => void
  *   disabled:  boolean
  *
- * How far ahead the public may book a lodging, in whole months (specs/gift-voucher-campaigns.md rule 51).
+ * How far ahead the public may book a lodging, in whole months (specs/gift-vouchers/gift-voucher-campaigns.md rule 51).
  * The date limit itself is computed by the server; this field only edits the number of months.
  */
 import React from 'react';

@@ -1,5 +1,5 @@
 // Review amendments: rule 50 — « Saison » starts with both dates empty.
-// specs/settings-input-guards.md rules 22-27 — the pool: off, all year, or a season.
+// specs/settings/settings-input-guards.md rules 22-27 — the pool: off, all year, or a season.
 import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

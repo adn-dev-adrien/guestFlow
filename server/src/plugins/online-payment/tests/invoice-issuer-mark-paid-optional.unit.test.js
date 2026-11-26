@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 38 (R35-EXT-1) — once Qonto has numbered the invoice, nothing may
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 38 (R35-EXT-1) — once Qonto has numbered the invoice, nothing may
 // lose it: « marquer payée » (undocumented, Q4) failing for any reason leaves the invoice issued, `markPending`, and the
 // issuer's `markPaid` tries it again later. All HTTP is stubbed.
 const test = require('node:test');

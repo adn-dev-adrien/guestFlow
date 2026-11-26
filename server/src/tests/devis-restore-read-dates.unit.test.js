@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 25 (audits R33b L1, L2). Rule 20 re-stored an open devis only when D23 read it as
+// specs/payments/deposit-blocks-the-dates.md rule 25 (audits R33b L1, L2). Rule 20 re-stored an open devis only when D23 read it as
 // one payment; two more disagreements between the columns and the read were left:
 // - L1: outside the window, a change of « Solde dû … jours avant » moved the read's solde date (fiche, PDF, link quote)
 //   while the columns kept the save-time date (e-mail tokens, conversion): two dates for one devis.

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.A rules 1–5 — the arrival facts of a property: stored with
+// specs/emails/guest-email-texts-made-simple.md §3.A rules 1–5 — the arrival facts of a property: stored with
 // their secrets encrypted, composed into three J-2 paragraphs that disappear while empty, placed by
 // the neutral J-2 only, and the key-box code left out when the gate key already says how to get in.
 

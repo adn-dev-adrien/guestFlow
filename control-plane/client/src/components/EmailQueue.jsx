@@ -1,5 +1,5 @@
 /**
- * EmailQueue — the emails awaiting the operator's approval (specs/control-plane-plans-and-access.md
+ * EmailQueue — the emails awaiting the operator's approval (specs/hosting/control-plane-plans-and-access.md
  * rule 33): one line each with « Voir », « Envoyer », « Ignorer »; the buttons go under the line on
  * xs. Specific to the renewal emails; used on the home page and on a customer's page.
  *

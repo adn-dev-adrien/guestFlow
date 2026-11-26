@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 1, 9, 9bis, 11quater — the stay link on the operator's side: created the first time
+// specs/guest-app/guest-app.md rules 1, 9, 9bis, 11quater — the stay link on the operator's side: created the first time
 // the SAS step, an e-mail or the fiche needs it, shown again, regenerated (the old link and its sessions die at
 // once); the SAS payload's switch and the plugin's own `{{stayAppUrl}}` e-mail variable with its gate-link fallback.
 const test = require('node:test');

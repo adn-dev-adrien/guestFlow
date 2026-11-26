@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 70 — the reconciliation, the Gîtes de France intake and the ledger's commission detail read
+// specs/pricing/pricing-components.md §3 rule 70 — the reconciliation, the Gîtes de France intake and the ledger's commission detail read
 // PLATFORM PAYMENT instead of their own arithmetic: the helpers they call return what the inline formulas returned.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -23,7 +23,7 @@ test('rule 70 — rentOnly commission is the rent less the net rent, to the cent
 
 test('rule 70 — the SDK platformCommission keeps the statement basis and adds rentOnly', () => {
   const services = require('../plugins/sdk/coreServices');
-  // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 8): the box adds to the host amount only for a platform that
+  // Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 8): the box adds to the host amount only for a platform that
   // reverses the tax; a figure set without a platform row is read in the legacy mode, which keeps it.
   assert.equal(services.reservations.platformCommission({ gross: 300, payout: 250, touristTax: 10 }), 50);
   assert.equal(services.reservations.platformCommission({ basis: 'rentOnly', rent: 300, netRent: 255.5 }), 44.5);

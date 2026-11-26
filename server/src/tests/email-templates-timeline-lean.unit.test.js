@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 11 — the timeline lists what Emails › Modèles shows and no template
+// specs/tech/inte-performance.md rule 11 — the timeline lists what Emails › Modèles shows and no template
 // body; the editor reads the bodies from GET /:id. The plain list keeps its full rows for its other
 // readers (history filter, send dialog).
 const test = require('node:test');

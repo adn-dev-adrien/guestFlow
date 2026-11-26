@@ -1,6 +1,6 @@
 // Client mirror of server/src/constants/plugins.js (ids only — the server owns the catalogue and the
 // states; the client only hides what `user.enabledPlugins` does not list).
-// specs/plugins-phase-0-foundation.md rules 14 and 16; specs/plugins-phase-1-sdk.md rule 15.
+// specs/plugins/plugins-phase-0-foundation.md rules 14 and 16; specs/plugins/plugins-phase-1-sdk.md rule 15.
 import PLUGIN_MODULES from '../plugins';
 import liveRecord from '../utils/liveRecord';
 
@@ -31,7 +31,7 @@ export const PLUGIN_IDS = Object.freeze([
 
 // The pages plugin modules contribute, with the roles that may open them (rule 15). Read live:
 // a production build fills the module list after this file evaluated
-// (specs/plugins-phase-4-registry.md rule 18).
+// (specs/plugins/plugins-phase-4-registry.md rule 18).
 const moduleRoutes = () => PLUGIN_MODULES.flatMap((mod) => ((mod.contributes && mod.contributes.routes) || [])
   .map((route) => ({ ...route, pluginId: mod.id })));
 const modulesVersion = () => PLUGIN_MODULES.length;
@@ -42,7 +42,7 @@ export const MODULE_ROUTE_ROLES = liveRecord(
 );
 
 // The plugins that put a section in Intégrations: read from their `settings.integrations` contribution, so a
-// plugin that adds one is never left out of the page's visibility (specs/integrations-tab-per-plugin.md rule 8).
+// plugin that adds one is never left out of the page's visibility (specs/plugins/integrations-tab-per-plugin.md rule 8).
 const integrationPlugins = () => PLUGIN_MODULES
   .filter((mod) => mod.contributes && (mod.contributes['settings.integrations'] || []).length)
   .map((mod) => mod.id);

@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 9 — from 00:00 Europe/Paris on the arrival day, the pre-arrival
+// specs/payments/payment-link-lifecycle.md rule 9 — from 00:00 Europe/Paris on the arrival day, the pre-arrival
 // links of the stay (deposit, balance, full, installment; those of the devis it came from too) lapse with
 // reason `stay-started`. A complement link is untouched, and a link minted on or after the arrival day keeps
 // its 36 hours. The Paris midnight moves with daylight saving time: both changeover days are pinned here.

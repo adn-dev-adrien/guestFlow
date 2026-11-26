@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 5–9 — the allocation of ticked credits over a fiche's
+// specs/accounting/reconciliation-assisted-matching.md rules 5–9 — the allocation of ticked credits over a fiche's
 // open receipts: first in first out, the preview's words, manual pairs and their refusals, an installment
 // plan following its own order. Fictional data only.
 const test = require('node:test');

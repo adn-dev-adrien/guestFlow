@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 102 reading (stabilisation loop t15, S15-2, 2026-11-17) — a late guest (the check-in hour passed, the
+// specs/pricing/pricing-components.md §3 rule 102 reading (stabilisation loop t15, S15-2, 2026-11-17) — a late guest (the check-in hour passed, the
 // arrival not validated, its complement not collected): an unpaid arrival line raised at the door stays in the arrival complement on the save
 // (the window's engine baseline reads the open arrival keys as never mid-stay). The price preview now prices on that same baseline
 // (`midStayWindowBaselines`, shared), so it no longer carved the raise out to the end of stay (complement −5 € vs the save).

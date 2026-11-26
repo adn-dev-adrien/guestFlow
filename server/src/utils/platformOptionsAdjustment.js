@@ -1,6 +1,6 @@
 /**
  * The option lines of a platform fiche follow the options of its statement, by themselves
- * (specs/platform-host-statement-and-commission-vat.md rule 2).
+ * (specs/platforms/platform-host-statement-and-commission-vat.md rule 2).
  *
  * `adjustOptionLines` compares « Options (relevé) » with the sum of the option and resource lines the platform bills (not
  * offered, not in the complement) and settles the gap on the posted lines, to the cent:

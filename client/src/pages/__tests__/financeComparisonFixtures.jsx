@@ -1,5 +1,5 @@
 /**
- * Fixtures of the RevPAR / year-over-year suites of FinancePage (specs/finance-revpar-year-over-year.md):
+ * Fixtures of the RevPAR / year-over-year suites of FinancePage (specs/accounting/finance-revpar-year-over-year.md):
  * the shared dashboard payload with the fields that spec adds. Not a test file.
  */
 import { DASHBOARD } from './financePageFixtures';

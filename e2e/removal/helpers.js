@@ -1,4 +1,4 @@
-// Shared by the removal suites (specs/plugin-removal-resilience.md rules 8-17).
+// Shared by the removal suites (specs/plugins/plugin-removal-resilience.md rules 8-17).
 const fs = require('fs');
 const path = require('path');
 
@@ -12,7 +12,7 @@ const seed = () => JSON.parse(fs.readFileSync(path.join(WORK, 'seed.json'), 'utf
 const reference = () => JSON.parse(fs.readFileSync(path.join(WORK, 'reference.json'), 'utf8'));
 const removed = () => (process.env.REMOVED_PLUGINS || '').split(',').filter(Boolean);
 
-// The pages the core owns (specs/plugins-phase-0-foundation.md rule 28's list).
+// The pages the core owns (specs/plugins/plugins-phase-0-foundation.md rule 28's list).
 const CORE_PAGES = ['/', '/calendar', '/planning', '/clients', '/devis', '/emails', '/emails/historique',
   '/finance', '/finance/tourist-tax', '/options', '/parametres/options-ressources', '/parametres/vacances-fermetures',
   '/parametres/conditions-generales', '/properties', '/reservations/new', '/reservations/upcoming', '/settings',

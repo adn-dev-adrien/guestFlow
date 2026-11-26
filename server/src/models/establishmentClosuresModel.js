@@ -124,7 +124,7 @@ function createModel(database) {
   }
 
   /**
-   * Every reservation the closure would cover (specs/payment-link-lifecycle.md rule 40): the same
+   * Every reservation the closure would cover (specs/payments/payment-link-lifecycle.md rule 40): the same
    * night-block expansion as `findReservationOverlap`, which the tariff-recipes plugin keeps calling.
    */
   function findReservationOverlaps(propertyId, startDate, endDate) {
@@ -242,7 +242,7 @@ function createModel(database) {
    * Expands a list of closures into a sorted, de-duplicated list of date
    * strings (inclusive start, exclusive end — same convention as reservations),
    * kept inside the asked window [from, to) when one is given
-   * (specs/establishment-closures.md rule 19). A row whose bounds are not real days expands to nothing.
+   * (specs/pricing/establishment-closures.md rule 19). A row whose bounds are not real days expands to nothing.
    */
   function expandClosuresToDates(closures, { from = null, to = null } = {}) {
     const set = new Set();

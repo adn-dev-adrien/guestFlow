@@ -1,6 +1,6 @@
 /**
  * SupportAccessPage — Paramètres › Accès du support at `/parametres/acces-support`
- * (specs/hosting-h2-account-security.md rules 13, 15, 17): every request with its decision and state,
+ * (specs/hosting/hosting-h2-account-security.md rules 13, 15, 17): every request with its decision and state,
  * « Révoquer » on an open access, and the log of what the support did, read-only. The page exists
  * only on an instance with a licence key (the route and the menu entry are hidden otherwise).
  */

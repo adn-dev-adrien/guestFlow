@@ -1,4 +1,4 @@
-// specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) and its class — the fiche
+// specs/payments/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) and its class — the fiche
 // history wrote the « paiement unique » as « 281.98 € — CB / Chèque le 2026-09-01 — balance, endOfStayComplement »
 // beside rows reading « 281,98 € » and « 01/09/2026 », and the cancel entry's figures as « 142.16 ». Every such text
 // now reads French amounts, days and bucket names; the rows stored before are read the same way, untouched.
@@ -46,7 +46,7 @@ test('rule 9 reading — a line written already French passes as it is', () => {
   assert.equal(changes[0].toText, '12,50 € — CB / Chèque le 01/02/2030 — solde');
 });
 
-test('specs/payment-schedule-and-cancellation.md rules 55, 61 — the cancel entry reads its figures as amounts', () => {
+test('specs/payments/payment-schedule-and-cancellation.md rules 55, 61 — the cancel entry reads its figures as amounts', () => {
   const { changes } = buildHistoryRows([
     { field: 'retainedDeposit', label: 'Acompte conservé', from: null, to: 142.16 },
     { field: 'writtenOffBalance', label: 'Solde abandonné', from: null, to: 249.79 },

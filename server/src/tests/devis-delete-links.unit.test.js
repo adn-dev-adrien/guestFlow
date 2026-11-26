@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 50 — deleting a devis deactivates its open payment links
+// specs/payments/payment-schedule-and-cancellation.md rule 50 — deleting a devis deactivates its open payment links
 // at the provider first; a link that cannot be deactivated refuses the delete (audit 2026-10-28).
 const test = require('node:test');
 const assert = require('node:assert/strict');

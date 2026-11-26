@@ -1,5 +1,5 @@
 /**
- * SCHEMA FLOOR (specs/self-update-and-releases.md §3.B rule 57; pricing-components rule 85).
+ * SCHEMA FLOOR (specs/hosting/self-update-and-releases.md §3.B rule 57; pricing-components rule 85).
  *
  * A migration that no previous release can run on raises the floor to its own version, in the same transaction as the
  * change. The floor lives in the database (`migrations` rows named `schema_floor:<version>`) and is only ever raised:

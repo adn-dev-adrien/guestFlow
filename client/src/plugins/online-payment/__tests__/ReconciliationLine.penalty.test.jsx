@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import ReconciliationLine from '../ReconciliationLine';
 import { gap } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rule 24 — a platform credit below the expected payout offers
+// specs/accounting/reconciliation-assisted-matching.md rule 24 — a platform credit below the expected payout offers
 // « Déclarer une pénalité de … » with the gap the server computed.
 
 test('rule 24 — the action carries the server\'s gap and opens the penalty dialog through the callback', () => {

@@ -1,5 +1,5 @@
 /**
- * specs/defer-arrival-complement-to-checkout.md §3.3 — la fiche décide aussi.
+ * specs/sas/defer-arrival-complement-to-checkout.md §3.3 — la fiche décide aussi.
  *
  * L'interrupteur « Percevoir en fin de séjour » écrit le MÊME marqueur que le récap du SAS arrivée,
  * il est tracé dans l'historique, et il fait basculer le split avant même le début du séjour — sinon

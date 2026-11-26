@@ -1,5 +1,5 @@
 // Review amendments: rule 49 — several links start on a new line; a space refused; legacy input held to the host.
-// specs/settings-input-guards.md rules 35-44 — the ordered social links of the guest e-mails.
+// specs/settings/settings-input-guards.md rules 35-44 — the ordered social links of the guest e-mails.
 const path = require('path');
 const os = require('os');
 const fs = require('fs');

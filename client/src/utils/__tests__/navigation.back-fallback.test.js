@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 22 — saving or leaving a page opened directly (no
+// specs/design-system/ui-review-2026-10-19-operations.md rule 22 — saving or leaving a page opened directly (no
 // `from`, nothing of the app behind it in the tab) never leaves the app: it goes to an in-app route.
 import { vi } from 'vitest';
 import { navigateBack, navigateBackWithFrom, hasInAppHistory, DEFAULT_BACK_PATH } from '../navigation';

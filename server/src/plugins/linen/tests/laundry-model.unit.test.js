@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const laundryModel = require('../laundryModel');
 
-// In-memory DB tests for the bed-linen aggregation (specs/weekly-bed-linen-tracking.md §3.1–3.3).
+// In-memory DB tests for the bed-linen aggregation (specs/linen/weekly-bed-linen-tracking.md §3.1–3.3).
 
 function makeDb() {
   const db = new Database(':memory:');
@@ -464,7 +464,7 @@ test('dropOffBathroomForWindow: towel*PerPerson = 0 silences that size (client f
 // `reservation_options`. The explicit row (when present) still wins as a strict override.
 
 test('dropOffForWindow: property default of a VISIBLE option does NOT count an unticked reservation', () => {
-  // specs/laundry-counts-explicit-option-only.md §3.1 rule 3. Bed linen only became mandatory on
+  // specs/linen/laundry-counts-explicit-option-only.md §3.1 rule 3. Bed linen only became mandatory on
   // the lodge in June 2026, so a property default cannot be read as a retroactive contract on a
   // stay where the operator did not tick the option. The ticked row is the only signal.
   const db = makeDb();
@@ -484,7 +484,7 @@ test('dropOffForWindow: property default of a VISIBLE option does NOT count an u
 });
 
 test('dropOffForWindow: property default of an INTERNAL option still counts (its only possible source)', () => {
-  // specs/laundry-counts-explicit-option-only.md §3.1 rule 4. An internal option is never written
+  // specs/linen/laundry-counts-explicit-option-only.md §3.1 rule 4. An internal option is never written
   // to reservation_options (reservationsModel.insertOptions + the iCal import both skip it), so
   // dropping its property-default source would silently zero it forever.
   const db = makeDb();
@@ -516,7 +516,7 @@ test('dropOffForWindow: property default DOES NOT count a reservation of a diffe
   assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
 });
 
-// specs/laundry-counts-explicit-option-only.md rule 1 — the ticked row brings the beds, its includes flags gate each type.
+// specs/linen/laundry-counts-explicit-option-only.md rule 1 — the ticked row brings the beds, its includes flags gate each type.
 test('dropOffForWindow: explicit row WINS over the property default (operator intent preserved)', () => {
   // The property has a default that says "include all bed types". The reservation has an
   // explicit row pointing at an option with linenIncludesBaby = 0 (operator unticked baby).
@@ -555,7 +555,7 @@ test('dropOffForWindow: a PAST reservation that pre-dates the property default s
 });
 
 test('dropOffForWindow: schema without displayToClient falls back to explicit-row-only', () => {
-  // specs/laundry-counts-explicit-option-only.md §3.1 rule 5 — a partially-migrated DB reads every
+  // specs/linen/laundry-counts-explicit-option-only.md §3.1 rule 5 — a partially-migrated DB reads every
   // option as visible, so the property default never conjures a contract. No crash either.
   const db = makeDb();
   db.exec('ALTER TABLE options DROP COLUMN displayToClient');
@@ -589,7 +589,7 @@ test('dropOffForWindow: devis-stage reservation excluded even when the property 
 // --- Bathroom-linen mirror ---
 
 test('dropOffBathroomForWindow: property default of a VISIBLE option conjures no towel', () => {
-  // specs/laundry-counts-explicit-option-only.md §3.1 rule 3 — bath linen is an extra sold at
+  // specs/linen/laundry-counts-explicit-option-only.md §3.1 rule 3 — bath linen is an extra sold at
   // arrival: not ticked means not provided.
   const db = makeDb();
   const opt = makeOption(db, {
@@ -629,7 +629,7 @@ test('dropOffBathroomForWindow: property default of an INTERNAL option still cou
   );
 });
 
-// specs/laundry-counts-explicit-option-only.md rule 2 — the ticked bathroom row, scaled by its quantity.
+// specs/linen/laundry-counts-explicit-option-only.md rule 2 — the ticked bathroom row, scaled by its quantity.
 test('dropOffBathroomForWindow: explicit quantity (sub-occupation factor) WINS over the property default', () => {
   // Reservation has the option with qty 0.6667 (= "2 of 3 want towels"); property also has it
   // as default. Source 1 wins → 3 × 0.6667 ≈ 2.0001 → ROUND = 2. NOT 3 × 1.0 = 3.
@@ -666,12 +666,12 @@ test('dropOffBathroomForWindow: property default DOES NOT cross properties', () 
   );
 });
 
-// --- incompleteBedConfigForWindow (specs/laundry-counts-explicit-option-only.md §3.2) ---
+// --- incompleteBedConfigForWindow (specs/linen/laundry-counts-explicit-option-only.md §3.2) ---
 //
 // Now that the ticked option is the only signal, a stay that declares bed linen with no quantity
 // saved yet contributes a silent zero. These pin the list the Planning card uses to say so.
 
-// specs/laundry-counts-explicit-option-only.md rules 7 + 8 — flagged, `clientName` falling back to `#<id>`.
+// specs/linen/laundry-counts-explicit-option-only.md rules 7 + 8 — flagged, `clientName` falling back to `#<id>`.
 test('incompleteBedConfigForWindow: flags a ticked-option stay whose bed counts are all zero', () => {
   const db = makeDb();
   const opt = makeOption(db);
@@ -700,7 +700,7 @@ test('incompleteBedConfigForWindow: a stay WITH bed counts is not flagged', () =
   assert.deepEqual(model.incompleteBedConfigForWindow('2026-05-26', '2026-06-02'), []);
 });
 
-// specs/laundry-counts-explicit-option-only.md rule 7 — no ticked option, no contract, nothing to flag.
+// specs/linen/laundry-counts-explicit-option-only.md rule 7 — no ticked option, no contract, nothing to flag.
 test('incompleteBedConfigForWindow: a stay WITHOUT the option is not flagged (it declares no linen)', () => {
   const db = makeDb();
   const opt = makeOption(db);

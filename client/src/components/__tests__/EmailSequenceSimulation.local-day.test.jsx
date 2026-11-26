@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md rule 31, reading of 2026-11-03 (audit R20-C4) — « Du » opens on the operator's own day
+// specs/emails/guest-email-sequence.md rule 31, reading of 2026-11-03 (audit R20-C4) — « Du » opens on the operator's own day
 // and « Au » sixty days later, never the UTC day: early in the morning east of Greenwich the UTC day is still yesterday.
 import React from 'react';
 import { vi } from 'vitest';

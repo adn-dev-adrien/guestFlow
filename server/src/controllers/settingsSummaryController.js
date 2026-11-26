@@ -1,6 +1,6 @@
 /**
  * GET /api/settings/summary — the one-line state of each Paramètres page, for the summary page
- * (specs/settings-rationalization.md rule 25; UI/UX review 2026-10-18, proposal 20).
+ * (specs/settings/settings-rationalization.md rule 25; UI/UX review 2026-10-18, proposal 20).
  *
  *   → { lines: { '<page path>': { text, tone: 'neutral' | 'warning' } } }
  *

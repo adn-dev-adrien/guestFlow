@@ -9,7 +9,7 @@ const { fakeScheduleModel } = require('./laundry-schedule-fixtures');
 const { todayIso } = require('../../../utils/localDate');
 const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
-// The dates of this suite hang on today (specs/server-test-isolation.md rule 6), on fixed weekdays: a
+// The dates of this suite hang on today (specs/tech/server-test-isolation.md rule 6), on fixed weekdays: a
 // Thursday free of laundry, the Tuesday before it (laundry weekday 2), and the Tuesday after.
 const THURSDAY = (() => {
   const from = addDaysToIsoDate(todayIso(), -75);
@@ -18,7 +18,7 @@ const THURSDAY = (() => {
 const TUESDAY = addDaysToIsoDate(THURSDAY, -2);
 const NEXT_TUESDAY = addDaysToIsoDate(THURSDAY, 5);
 
-// specs/laundry-extra-trip.md §4.3 + §7 — endpoint-shape coverage for the extra-trip handlers,
+// specs/linen/laundry-extra-trip.md §4.3 + §7 — endpoint-shape coverage for the extra-trip handlers,
 // driven via mock req/res. Role enforcement is owned by `enforceRoleAccess` (its own suite); here
 // we only check the handlers' validation + payloads.
 

@@ -17,7 +17,7 @@ import { buildMiniStripDayGradient } from '../components/MiniPlanningStrip';
 // path that maps a reservation's platform to a colour: the central
 // `getReservationColor` util + the mini strip's `buildDayGradient` helper. (The
 // SyncedPropertyMiniCalendars gradient was covered here too until that dead
-// component was removed by the phase-1 DS cleanup, specs/ds-theme-maison.md.)
+// component was removed by the phase-1 DS cleanup, DESIGN.md.)
 // The bottom of the file also asserts that no source module outside
 // `constants/platforms.js` does a direct `PLATFORM_COLORS[…]` lookup (which
 // would re-open the regression silently).

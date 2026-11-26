@@ -1,5 +1,5 @@
 // @ts-check
-// settings/settings-input-guards — specs/settings-input-guards.md rules 2, 4, 5, 9, 28: a bounded number
+// settings/settings-input-guards — specs/settings/settings-input-guards.md rules 2, 4, 5, 9, 28: a bounded number
 // strips a typed minus, refuses an out-of-range value (the server answers the same), and a commission
 // that is not a number brings the previous rate back.
 import { test, expect } from '@playwright/test';

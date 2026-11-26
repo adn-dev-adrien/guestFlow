@@ -1,5 +1,5 @@
 /**
- * Keeps the stored installments in step with the stay (specs/direct-installments.md rules 7-9a, 13).
+ * Keeps the stored installments in step with the stay (specs/payments/direct-installments.md rules 7-9a, 13).
  *
  * `syncAfterTotalChange` is what every recalculation of the reservation total ends with: the dates that
  * fell after the arrival are brought back (rule 13), the amounts are rebalanced (rules 7, 8, 9a) and the

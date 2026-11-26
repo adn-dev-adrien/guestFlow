@@ -1,5 +1,5 @@
 /**
- * Settings rationalization — specs/settings-rationalization.md.
+ * Settings rationalization — specs/settings/settings-rationalization.md.
  * One file for the whole spec: dropped settings, derived settings, moved settings.
  */
 
@@ -49,7 +49,7 @@ function legacyDb() {
 
 // ---------- rules 9-10 — dead settings are dropped ----------
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('rules 9-10: a fresh install never creates the dead columns', () => {
@@ -181,7 +181,7 @@ test('rule 12: GET /settings returns each override and what it falls back to whe
     fromEmail: 'contact@solio.fr', // the contact email
     username: 'no-reply@solio.fr', // the sending address in force
     fromName: 'Domaine Solio', // the company name
-    publicUrl: '', // the hosting's address (specs/hosting-h1-fleet-runtime.md rule 25): none here
+    publicUrl: '', // the hosting's address (specs/hosting/hosting-h1-fleet-runtime.md rule 25): none here
   });
   assert.equal(shaped.notifications.derivedRecipient, 'no-reply@solio.fr');
   assert.equal('port' in shaped.smtp, false);

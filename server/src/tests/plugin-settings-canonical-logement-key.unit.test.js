@@ -3,7 +3,7 @@
 // settings page), others as a number (booking `propertyIdFor`, GdF, Airbnb): one stored key meant logement 1 to some and
 // nothing to others — a dead extranet link, Envoi on with nothing to send, a second Booking hotel tied to logement 1
 // that the page could neither show nor clear. The key is the logement's id as the page writes it, or refused
-// (specs/google-vacation-rentals-feed.md rule 20, airbnb-mail-intake rule 37, gites-de-france-mail-intake rule 36,
+// (specs/site/google-vacation-rentals-feed.md rule 20, airbnb-mail-intake rule 37, gites-de-france-mail-intake rule 36,
 // booking-extranet-intake rule 38, readings of 2026-11-10).
 const test = require('node:test');
 const assert = require('node:assert/strict');

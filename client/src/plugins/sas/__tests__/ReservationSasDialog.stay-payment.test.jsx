@@ -1,4 +1,4 @@
-// Collecting the stay at check-in — specs/collect-stay-payment-at-check-in.md
+// Collecting the stay at check-in — specs/sas/collect-stay-payment-at-check-in.md
 //
 // One file per subject (CLAUDE.md §9): two features appending their cases no longer collide on
 // the last line of a shared suite. Fixtures used by more than one subject live in ./sasFixtures.
@@ -9,7 +9,7 @@ import api from '../../../api';
 import { sasPayload, stayDue, renderDialog, clickBtn, stayPageReady } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // Mock the API the dialog consumes.
@@ -19,7 +19,7 @@ vi.mock('../../../api', () => ({
     previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
-    // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
+    // Weather alerts (specs/guest-app/checkin-weather-alerts.md) — fired in the background on arrival open.
     // Default to "no alert" so the wizard flow under test is unchanged.
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
@@ -27,13 +27,13 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
 });
 
-// ── « Séjour à régler » — specs/collect-stay-payment-at-check-in.md ──────────────────────────────
+// ── « Séjour à régler » — specs/sas/collect-stay-payment-at-check-in.md ──────────────────────────────
 
-// specs/collect-stay-payment-at-check-in.md rule 6
+// specs/sas/collect-stay-payment-at-check-in.md rule 6
 test('arrival SAS: the stay step is absent when nothing is owed on the séjour', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -45,7 +45,7 @@ test('arrival SAS: the stay step is absent when nothing is owed on the séjour',
   expect(screen.queryByText('Séjour à régler :')).toBeNull();
 });
 
-// specs/collect-stay-payment-at-check-in.md rule 10
+// specs/sas/collect-stay-payment-at-check-in.md rule 10
 test('arrival SAS: « CB / Chèque » on the stay step commits stayPaid without the caisse interne', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -74,7 +74,7 @@ test('arrival SAS: « CB / Chèque » on the stay step commits stayPaid without 
   expect(payload.stayPaidCash).toBe(false);
 });
 
-// specs/collect-stay-payment-at-check-in.md rule 10
+// specs/sas/collect-stay-payment-at-check-in.md rule 10
 test('arrival SAS: « Payé en liquide » on the stay commits the caisse interne', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -98,7 +98,7 @@ test('arrival SAS: « Payé en liquide » on the stay commits the caisse interne
   expect(payload.stayPaidCash).toBe(true);
 });
 
-// specs/collect-stay-payment-at-check-in.md rule 11
+// specs/sas/collect-stay-payment-at-check-in.md rule 11
 test('arrival SAS: « Pas maintenant » is the default — validating writes no stay payment', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -121,7 +121,7 @@ test('arrival SAS: « Pas maintenant » is the default — validating writes no 
   expect(payload.stayPaidCash).toBe(false);
 });
 
-// specs/collect-stay-payment-at-check-in.md rule 9
+// specs/sas/collect-stay-payment-at-check-in.md rule 9
 test('arrival SAS: an OTA stay warns that the solde is the platform payout, and pre-selects nothing', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -138,7 +138,7 @@ test('arrival SAS: an OTA stay warns that the solde is the platform payout, and 
   expect(screen.getByText("Le séjour reste dû (rien n'est encaissé).")).toBeInTheDocument();
 });
 
-// specs/collect-stay-payment-at-check-in.md rule 12
+// specs/sas/collect-stay-payment-at-check-in.md rule 12
 test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can undo it', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -169,11 +169,11 @@ test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can und
   expect(payload.stayPaid).toBe(false);
 });
 
-// Superseded on 2026-08-30 by specs/single-payment-at-check-in.md: when BOTH sides are collectible
+// Superseded on 2026-08-30 by specs/payments/single-payment-at-check-in.md: when BOTH sides are collectible
 // the recap now asks once, because that is what happens at the door. The two independent settlements
 // this spec introduced are still there — one tap away, behind « Régler séparément » — because the
 // case the independent settlements were written for (one side collected, the other deferred) is real.
-// specs/collect-stay-payment-at-check-in.md rules 21-23 — le séjour et le complément gardent
+// specs/sas/collect-stay-payment-at-check-in.md rules 21-23 — le séjour et le complément gardent
 // chacun leur bloc, et le récap porte le total combiné à percevoir à l'arrivée.
 test('arrival SAS recap: both sides listed, and « Régler séparément » restores the two settlements', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 106 a (stabilisation loop t7, UI7-1, 2026-11-16) — the open `lineLowered` obligation of a paid
+// specs/pricing/pricing-components.md §3 rule 106 a (stabilisation loop t7, UI7-1, 2026-11-16) — the open `lineLowered` obligation of a paid
 // line offered on a PLATFORM stay is owed whatever the operator types elsewhere on the fiche: the live preview (`calculatePrice`, what
 // a dirty fiche shows) keeps the « Trop-perçu · À rembourser » row the stored ledger shows, floored like `storedOverpayment`.
 // Before: typing a note on the fiche of a Booking stay made the 30 € owed and its « Rembourser » disappear until the save.

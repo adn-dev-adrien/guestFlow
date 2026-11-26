@@ -1,4 +1,4 @@
-// specs/option-categories.md §3 rules 1, 3, 6 — the category round-trip through optionsModel.
+// specs/options/option-categories.md §3 rules 1, 3, 6 — the category round-trip through optionsModel.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

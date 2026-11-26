@@ -1,6 +1,6 @@
 /**
  * LifecycleChip — a subscription state as GuestFlow's StatusBadge
- * (specs/control-plane-plans-and-access.md rule 14). Generic across the console: fleet rows, the
+ * (specs/hosting/control-plane-plans-and-access.md rule 14). Generic across the console: fleet rows, the
  * customer page, the alerts.
  *
  * Props:

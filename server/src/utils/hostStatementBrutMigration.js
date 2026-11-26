@@ -1,5 +1,5 @@
 /**
- * One pass over the stored brut of every platform stay (specs/platform-host-statement-and-commission-vat.md rule 4).
+ * One pass over the stored brut of every platform stay (specs/platforms/platform-host-statement-and-commission-vat.md rule 4).
  *
  * The brut used to be the guest-paid total (tourist tax inside it); it is now the host amount of the platform's statement,
  * which never holds the tax. So that every stored price stays to the cent, the tax a row's brut contained comes out of it:

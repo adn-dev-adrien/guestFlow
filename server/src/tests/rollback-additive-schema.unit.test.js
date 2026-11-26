@@ -1,8 +1,8 @@
-// specs/self-update-and-releases.md rule 39 (amends rule 31) — an automatic rollback runs the previous
+// specs/hosting/self-update-and-releases.md rule 39 (amends rule 31) — an automatic rollback runs the previous
 // release on the migrated database, so a migration may add, never rename or drop. Two guards:
 //   1. every column the v3.18.0 schema holds is still there on a current install (generic: a future
 //      rename or drop of ANY core column fails here);
-//   2. the payment-link rename of rule 6 of specs/plugins-phase-3a-online-payment.md is additive —
+//   2. the payment-link rename of rule 6 of specs/plugins/plugins-phase-3a-online-payment.md is additive —
 //      v3.18.0's own SQL runs on the migrated table, and both name sets stay in step.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

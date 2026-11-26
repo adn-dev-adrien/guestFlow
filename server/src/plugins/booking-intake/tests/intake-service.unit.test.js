@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rules 6 and 12–20 — matching, auto-apply onto an untouched fiche,
+// specs/platforms/booking-extranet-intake.md rules 6 and 12–20 — matching, auto-apply onto an untouched fiche,
 // proposal onto a filled one, the refusals, and what is kept.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -53,13 +53,13 @@ function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1
 
 const page = { hotelId: '14407976', resId: '6300000001', text: PAGE_6300000001 };
 
-test('specs/booking-extranet-intake.md rule 12: the property is the one mapped to the establishment id', () => {
+test('specs/platforms/booking-extranet-intake.md rule 12: the property is the one mapped to the establishment id', () => {
   const { service, calls } = setup();
   service.handlePage(page);
   assert.equal(calls.searches[0].propertyId, 1);
 });
 
-test('specs/booking-extranet-intake.md rule 12: an unmapped establishment is refused by name, nothing is written', () => {
+test('specs/platforms/booking-extranet-intake.md rule 12: an unmapped establishment is refused by name, nothing is written', () => {
   const { service, calls } = setup({ hotels: {} });
   const r = service.handlePage(page);
   assert.equal(r.status, 'refused');
@@ -67,14 +67,14 @@ test('specs/booking-extranet-intake.md rule 12: an unmapped establishment is ref
   assert.deepEqual(calls.reservation, []);
 });
 
-test('specs/booking-extranet-intake.md rule 13: the fiche is found by property and exact dates, whatever its canal', () => {
+test('specs/platforms/booking-extranet-intake.md rule 13: the fiche is found by property and exact dates, whatever its canal', () => {
   const { service, calls } = setup();
   service.handlePage(page);
   assert.deepEqual(calls.searches[0], { propertyId: 1, startDate: '2026-11-06', endDate: '2026-11-08' });
   assert.equal(calls.reservation[0].id, 22309);
 });
 
-test('specs/booking-extranet-intake.md rule 13: no fiche → refused, asks to retry after the iCal import, creates nothing', () => {
+test('specs/platforms/booking-extranet-intake.md rule 13: no fiche → refused, asks to retry after the iCal import, creates nothing', () => {
   const { service, calls } = setup({ rows: [] });
   const r = service.handlePage(page);
   assert.equal(r.status, 'refused');
@@ -82,7 +82,7 @@ test('specs/booking-extranet-intake.md rule 13: no fiche → refused, asks to re
   assert.deepEqual(calls.reservation, []);
 });
 
-test('specs/booking-extranet-intake.md rule 14: an untouched placeholder (no gross, no e-mail, no phone) is filled on its own', () => {
+test('specs/platforms/booking-extranet-intake.md rule 14: an untouched placeholder (no gross, no e-mail, no phone) is filled on its own', () => {
   const { service } = setup();
   const r = service.handlePage(page);
   assert.equal(r.status, 'applied');
@@ -90,19 +90,19 @@ test('specs/booking-extranet-intake.md rule 14: an untouched placeholder (no gro
   assert.equal(r.reservationId, 22309);
 });
 
-test('specs/booking-extranet-intake.md rule 14: a fiche with a client e-mail is never overwritten silently', () => {
+test('specs/platforms/booking-extranet-intake.md rule 14: a fiche with a client e-mail is never overwritten silently', () => {
   const { service, calls } = setup({ reservation: { ...PLACEHOLDER, email: 'x@y.fr' } });
   assert.equal(service.handlePage(page).status, 'proposed');
   assert.deepEqual(calls.reservation, []);
 });
 
-test('specs/booking-extranet-intake.md rule 14: a fiche whose « Paiement plateforme » is filled is never overwritten silently', () => {
+test('specs/platforms/booking-extranet-intake.md rule 14: a fiche whose « Paiement plateforme » is filled is never overwritten silently', () => {
   const { service, calls } = setup({ reservation: { ...PLACEHOLDER, platformGrossAmount: 500 } });
   assert.equal(service.handlePage(page).status, 'proposed');
   assert.deepEqual(calls.reservation, []);
 });
 
-test('specs/booking-extranet-intake.md rule 15: applying writes the guest, the party, the number, the arrival time and the four money figures', () => {
+test('specs/platforms/booking-extranet-intake.md rule 15: applying writes the guest, the party, the number, the arrival time and the four money figures', () => {
   const { service, calls } = setup();
   service.handlePage(page);
   const { patch, opts } = calls.reservation[0];
@@ -122,7 +122,7 @@ test('specs/booking-extranet-intake.md rule 15: applying writes the guest, the p
   assert.equal(opts.label, 'Rempli depuis l’extranet Booking (réservation 6300000001)');
 });
 
-test('specs/booking-extranet-intake.md rule 15: the guest’s requests are appended under a dated line, the operator’s text stays', () => {
+test('specs/platforms/booking-extranet-intake.md rule 15: the guest’s requests are appended under a dated line, the operator’s text stays', () => {
   const { service, calls } = setup();
   service.handlePage(page);
   assert.equal(calls.reservation[0].patch.notes, [
@@ -134,27 +134,27 @@ test('specs/booking-extranet-intake.md rule 15: the guest’s requests are appen
   ].join('\n'));
 });
 
-test('specs/booking-extranet-intake.md rule 15: requests already in the notes are not repeated, whatever the capitals', () => {
+test('specs/platforms/booking-extranet-intake.md rule 15: requests already in the notes are not repeated, whatever the capitals', () => {
   const notes = 'Booking, 14/10 :\nest ce possible d\'avoir 2 lits d\'appoints (nous ne sommes pas certains d\'en avoir besoin)\nDemande de lit d\'appoint: Le client a demandé un lit d\'appoint pour un bébé de adult an.';
   const { service, calls } = setup({ reservation: { ...PLACEHOLDER, notes } });
   service.handlePage(page);
   assert.equal(calls.reservation[0].patch.notes, notes);
 });
 
-test('specs/booking-extranet-intake.md rule 15: a phone Booking did not give is not written over the client’s, and the toast says so', () => {
+test('specs/platforms/booking-extranet-intake.md rule 15: a phone Booking did not give is not written over the client’s, and the toast says so', () => {
   const { service, calls } = setup();
   const r = service.handlePage({ ...page, text: replaceOnce(PAGE_6300000001, '+33 6 12 34 56 78\n', '') });
   assert.equal(r.message, 'GuestFlow : fiche 22309 remplie ✓ (téléphone non communiqué)');
   assert.equal('phone' in calls.client[0].patch, false);
 });
 
-test('specs/booking-extranet-intake.md rule 15: the English-speaking guest gets English e-mails', () => {
+test('specs/platforms/booking-extranet-intake.md rule 15: the English-speaking guest gets English e-mails', () => {
   const { service, calls } = setup();
   service.handlePage({ ...page, text: replaceOnce(PAGE_6300000001, 'Langue préférée\n\nfrançais', 'Langue préférée\n\nnéerlandais') });
   assert.equal(calls.client[0].patch.emailLanguage, 'en');
 });
 
-test('specs/booking-extranet-intake.md rule 16: a stay that has started or passed is refused, nothing written', () => {
+test('specs/platforms/booking-extranet-intake.md rule 16: a stay that has started or passed is refused, nothing written', () => {
   const { service, calls } = setup({ today: '2026-11-06' });
   const r = service.handlePage(page);
   assert.equal(r.status, 'refused');
@@ -162,7 +162,7 @@ test('specs/booking-extranet-intake.md rule 16: a stay that has started or passe
   assert.deepEqual(calls.reservation, []);
 });
 
-test('specs/booking-extranet-intake.md rule 16: when the update service refuses, the reason is shown and the client stays untouched', () => {
+test('specs/platforms/booking-extranet-intake.md rule 16: when the update service refuses, the reason is shown and the client stays untouched', () => {
   const { service, calls } = setup({ updateStatus: 409 });
   const r = service.handlePage(page);
   assert.equal(r.status, 'refused');
@@ -170,7 +170,7 @@ test('specs/booking-extranet-intake.md rule 16: when the update service refuses,
   assert.deepEqual(calls.client, []);
 });
 
-test('specs/booking-extranet-intake.md rule 17: a fiche already identical to the page is « Déjà à jour » and nothing is written', () => {
+test('specs/platforms/booking-extranet-intake.md rule 17: a fiche already identical to the page is « Déjà à jour » and nothing is written', () => {
   const { service, calls } = setup({ reservation: FILLED });
   const r = service.handlePage(page);
   assert.equal(r.status, 'same');
@@ -178,12 +178,12 @@ test('specs/booking-extranet-intake.md rule 17: a fiche already identical to the
   assert.deepEqual(calls.reservation, []);
 });
 
-test('specs/booking-extranet-intake.md rule 17: phone formats compare as the same number', () => {
+test('specs/platforms/booking-extranet-intake.md rule 17: phone formats compare as the same number', () => {
   const { service } = setup({ reservation: { ...FILLED, phone: '+33 6 12 34 56 78' } });
   assert.equal(service.handlePage(page).status, 'same');
 });
 
-test('specs/booking-extranet-intake.md rule 17: a filled fiche that differs gets a proposal listing old → new, nothing written', () => {
+test('specs/platforms/booking-extranet-intake.md rule 17: a filled fiche that differs gets a proposal listing old → new, nothing written', () => {
   const { service, intakes, calls } = setup({ reservation: { ...FILLED, adults: 8, platformPayoutAmount: 600 } });
   const r = service.handlePage(page);
   assert.equal(r.status, 'proposed');
@@ -193,7 +193,7 @@ test('specs/booking-extranet-intake.md rule 17: a filled fiche that differs gets
   assert.deepEqual(stored.parsed.differences.map((d) => [d.field, d.from, d.to]), [['adults', 8, 10], ['platformPayoutAmount', 600, 606.44]]);
 });
 
-test('specs/booking-extranet-intake.md rule 17: Appliquer writes Booking’s values, Ignorer drops the proposal', () => {
+test('specs/platforms/booking-extranet-intake.md rule 17: Appliquer writes Booking’s values, Ignorer drops the proposal', () => {
   const { service, intakes, calls } = setup({ reservation: { ...FILLED, adults: 8 } });
   service.handlePage(page);
   const id = intakes.latestForReservation(22309).id;
@@ -210,7 +210,7 @@ test('specs/booking-extranet-intake.md rule 17: Appliquer writes Booking’s val
   assert.deepEqual(second.calls.reservation, []);
 });
 
-test('specs/booking-extranet-intake.md rule 18: the banner of an applied intake carries the date and the unanswered guest message', () => {
+test('specs/platforms/booking-extranet-intake.md rule 18: the banner of an applied intake carries the date and the unanswered guest message', () => {
   const { service } = setup();
   service.handlePage(page);
   const block = service.blockFor(22309);
@@ -219,7 +219,7 @@ test('specs/booking-extranet-intake.md rule 18: the banner of an applied intake 
   assert.equal(block.guestMessagePending, false);
 });
 
-test('specs/booking-extranet-intake.md rule 18: a later view of the page updates the unanswered-message flag, and Masquer hides the banner', () => {
+test('specs/platforms/booking-extranet-intake.md rule 18: a later view of the page updates the unanswered-message flag, and Masquer hides the banner', () => {
   const { service, intakes } = setup({ reservation: FILLED });
   service.handlePage(page);
   assert.equal(service.blockFor(22309), null, 'a « same » view alone shows no banner');
@@ -235,12 +235,12 @@ test('specs/booking-extranet-intake.md rule 18: a later view of the page updates
   assert.equal(intakes.count(), 1);
 });
 
-test('specs/booking-extranet-intake.md rule 19: applying never sends an e-mail — the service has no way to', () => {
+test('specs/platforms/booking-extranet-intake.md rule 19: applying never sends an e-mail — the service has no way to', () => {
   const source = require('fs').readFileSync(require.resolve('../intakeService'), 'utf8');
   assert.doesNotMatch(source, /sendMail|emailService|nodemailer|reservationEmailSender/);
 });
 
-test('specs/booking-extranet-intake.md rule 20: every intake is logged — applied, same, proposed and refused with its reason', () => {
+test('specs/platforms/booking-extranet-intake.md rule 20: every intake is logged — applied, same, proposed and refused with its reason', () => {
   const a = setup();
   a.service.handlePage(page);
   const b = setup({ reservation: FILLED });
@@ -253,7 +253,7 @@ test('specs/booking-extranet-intake.md rule 20: every intake is logged — appli
   assert.equal(d.intakes.list(10)[0].error, 'Établissement Booking 14407976 non relié à un logement');
 });
 
-test('specs/booking-extranet-intake.md rule 20: a refused page keeps no guest data, and no row ever holds the raw text', () => {
+test('specs/platforms/booking-extranet-intake.md rule 20: a refused page keeps no guest data, and no row ever holds the raw text', () => {
   const { service, db } = setup({ hotels: {} });
   service.handlePage(page);
   const rows = db.prepare('SELECT * FROM booking_intakes').all();
@@ -265,15 +265,15 @@ test('specs/booking-extranet-intake.md rule 20: a refused page keeps no guest da
   assert.doesNotMatch(stored, /Détails de la réservation|Conversation avec le client|Protégez la sécurité/);
 });
 
-test('specs/booking-extranet-intake.md rule 6: the answer carries the toast text — refusal reasons of the parser included', () => {
+test('specs/platforms/booking-extranet-intake.md rule 6: the answer carries the toast text — refusal reasons of the parser included', () => {
   const { service } = setup();
   const r = service.handlePage({ ...page, text: replaceOnce(PAGE_6300000001, 'Taxe de séjour\t4.4 %\t€ 20,02', 'Taxe de séjour\t4.4 %\t€ 25,02') });
   assert.equal(r.status, 'refused');
   assert.match(r.message, /Sous-total 701,80 € \+ taxe 25,02 € ≠ total 721,82 €/);
 });
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 5, 21): « Location » is the Sous-total, the box the page's tax.
-test('specs/booking-extranet-intake.md rule 31: Booking reversing the tax to us → the box is the tax paid with the transfer, the commission is all of « Commission et frais »', () => {
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 21): « Location » is the Sous-total, the box the page's tax.
+test('specs/platforms/booking-extranet-intake.md rule 31: Booking reversing the tax to us → the box is the tax paid with the transfer, the commission is all of « Commission et frais »', () => {
   const { service, calls } = setup({ mode: 'platform_reversed' });
   service.handlePage(page);
   const { patch } = calls.reservation[0];
@@ -284,7 +284,7 @@ test('specs/booking-extranet-intake.md rule 31: Booking reversing the tax to us 
   );
 });
 
-test('specs/booking-extranet-intake.md rule 31: a fiche filled with a tax box while the tax is collected on arrival gets a proposal to clear it', () => {
+test('specs/platforms/booking-extranet-intake.md rule 31: a fiche filled with a tax box while the tax is collected on arrival gets a proposal to clear it', () => {
   const { service, calls, intakes } = setup({ reservation: FILLED, mode: 'owner' });
   const r = service.handlePage(page);
   assert.equal(r.status, 'proposed');
@@ -293,7 +293,7 @@ test('specs/booking-extranet-intake.md rule 31: a fiche filled with a tax box wh
     [['platformTouristTaxAmount', 20.02, null]]);
 });
 
-test('specs/booking-extranet-intake.md rule 31: an empty withheld tax on both sides is the same, not a difference', () => {
+test('specs/platforms/booking-extranet-intake.md rule 31: an empty withheld tax on both sides is the same, not a difference', () => {
   const { service } = setup({ reservation: { ...FILLED, platformTouristTaxAmount: null }, mode: 'owner' });
   assert.equal(service.handlePage(page).status, 'same');
 });

@@ -4,7 +4,7 @@ const {
 
 /**
  * The tourist tax a platform pays us with its transfer, from the box of a stay's statement and the platform's own mode
- * (specs/platform-host-statement-and-commission-vat.md rules 5, 8). Required lazily: the platforms model opens the database.
+ * (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 8). Required lazily: the platforms model opens the database.
  */
 function taxPaidOf({ platform, box }) {
   const mode = require('../models/platformsModel').getTouristTaxCollection(platform);

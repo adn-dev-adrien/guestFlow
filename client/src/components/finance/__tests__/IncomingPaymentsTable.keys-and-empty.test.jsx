@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 22 and 24 — two blocks without a `clientId` that share a name
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 22 and 24 — two blocks without a `clientId` that share a name
 // are distinct blocks (unique key, no React warning); the empty state of « Reçus ces 30 derniers jours » does not claim
 // that everything expected has arrived.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 29 + specs/google-calendar-oauth-rework.md rule 31 — the
+// specs/options/non-card-option-served-persons.md rule 29 + specs/settings/google-calendar-oauth-rework.md rule 31 — the
 // event description prints the count the fiche shows, not `quantity`, which stays 1 on a typed line.
 
 const test = require('node:test');

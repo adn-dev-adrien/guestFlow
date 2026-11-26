@@ -1,5 +1,5 @@
 /**
- * EXTRA GUESTS — the supplement for the guests beyond those included (specs/pricing-components.md §3 rules 1, 2, 6).
+ * EXTRA GUESTS — the supplement for the guests beyond those included (specs/pricing/pricing-components.md §3 rules 1, 2, 6).
  *
  * Contract: `computeExtraGuestSurcharge({...})` prices the extra guests of a stay, per stay or per night, from the
  * property's tiers and the nights' seasons; `splitExtraGuestCount({ persons, includedGuests, paidGuests })` tells how
@@ -13,7 +13,7 @@ const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('../extraGuestTiers');
 
-// specs/tariff-recipes/spec.md §3.6 rules 37-38 — the extra-guest supplement, in either unit.
+// specs/pricing/tariff-recipes.md §3.6 rules 37-38 — the extra-guest supplement, in either unit.
 //   per_stay  (legacy, every existing property): flat `count × unitPrice`, byte-for-byte the
 //             pre-recipe behaviour. This branch is the regression guarantee.
 //   per_night: each night contributes `count × unitPrice(night) × ratio(night)` where
@@ -22,7 +22,7 @@ const {
 //             prices drive the supplement too. A per-season `pricing_rules.extraGuestPrice`
 //             override wins over the property's unit price for the nights it covers; a fixed-mode
 //             season yields ratio 1 (a plain per-night fee).
-// specs/platform-extra-guest-complement.md §3.3 rule 7 — the extra guests above BOTH the free count and
+// specs/platforms/platform-extra-guest-complement.md §3.3 rule 7 — the extra guests above BOTH the free count and
 // what the platform billed are collected on arrival; the others stay inside the brut. No paid base
 // (direct, or a brut never entered) → nothing goes to the complement.
 function splitExtraGuestCount({ persons, includedGuests, paidGuests }) {
@@ -32,7 +32,7 @@ function splitExtraGuestCount({ persons, includedGuests, paidGuests }) {
   return { complementGuests, inBrutGuests: extra - complementGuests };
 }
 
-// specs/tariff-recipes/spec.md §3 rule 58 — a sold night keeps the season it was sold under: its full
+// specs/pricing/tariff-recipes.md §3 rule 58 — a sold night keeps the season it was sold under: its full
 // price (the ratio's denominator) and the season's extra-guest unit price are carried in the tariff
 // snapshot (`extraGuestNights`, by date) and replayed for every night whose price comes from the lock.
 // Without it, raising a season after the sale re-priced the supplement of a booking already sold.
@@ -99,7 +99,7 @@ function computeExtraGuestSurcharge({
   };
 }
 
-// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('extraGuests', scope).
+// specs/pricing/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('extraGuests', scope).
 const nonNegative = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
 const settingsSchema = [
   { key: 'includedGuests', type: 'number', default: 0, scope: 'property', validate: nonNegative },

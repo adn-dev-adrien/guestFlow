@@ -1,6 +1,6 @@
 /**
  * liveRecord(compute) — a read-only object whose keys and values are `compute()`'s, read at each
- * access (specs/plugins-phase-4-registry.md rule 18). For the maps derived from the plugin module
+ * access (specs/plugins/plugins-phase-4-registry.md rule 18). For the maps derived from the plugin module
  * list: in a production build that list is filled from the plugins' own bundles after the SDK
  * modules have evaluated, so a map frozen at import time would miss every plugin. `compute` is
  * cached on `version()` — the list's length — so a lookup costs nothing once the list is complete.

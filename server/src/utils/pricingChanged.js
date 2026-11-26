@@ -1,6 +1,6 @@
 /**
  * `pricing.changed { propertyId | null, source }` — announced after a successful write that can move
- * a price, a minimum stay, a changeover day or a closed night (specs/google-vacation-rentals-feed.md
+ * a price, a minimum stay, a changeover day or a closed night (specs/site/google-vacation-rentals-feed.md
  * rule 12). Inert while no plugin listens. `null` = every property (an establishment-wide closure,
  * an option of the shared catalogue).
  */

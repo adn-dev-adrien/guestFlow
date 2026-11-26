@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { setDirectChannels } = require('../utils/platformNameFormat');
 
-// specs/platform-per-echeance-commission.md rules 3 and 7 — spec review 2026-10-27 (agent 4 #1).
+// specs/platforms/platform-per-echeance-commission.md rules 3 and 7 — spec review 2026-10-27 (agent 4 #1).
 // « Commission > its échéance amount → clamped to the amount (net cash ≥ 0). » The engine only
 // floored at 0: a 100 € commission typed on a platform stay with no acompte gave a −100 € acompte net
 // that finance summed as cash.

@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 46, reading of 2026-11-01 (audit R12-C1: show before refusing) — the devis
+// specs/payments/payment-link-lifecycle.md rule 46, reading of 2026-11-01 (audit R12-C1: show before refusing) — the devis
 // « Transformer en devis » creates is built from the stored stay, not from the typed values: while the fiche holds
 // unsaved changes the action is disabled with « Enregistrer d'abord les modifications. » (the tooltip on a wider
 // screen, the reason beneath the item in the phone's « Plus d'actions » menu), nothing is sent and the fiche stays.

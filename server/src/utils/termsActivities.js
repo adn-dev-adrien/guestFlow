@@ -1,5 +1,5 @@
 /**
- * The activities whose terms the core keeps (specs/gift-voucher-campaigns.md rule 37): `lodging` is the core's own, a plugin
+ * The activities whose terms the core keeps (specs/gift-vouchers/gift-voucher-campaigns.md rule 37): `lodging` is the core's own, a plugin
  * declares another with `ctx.termsActivity({ key, label, seed? })` — read here through the registry, so a plugin that is off
  * takes its tab and its public text away while its published versions and acceptances stay.
  */

@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 22-24 — the stays the removed « platform disabled » filter used to
+// specs/planning/calendar-property-parity.md rules 22-24 — the stays the removed « platform disabled » filter used to
 // hide are not all duplicates. The one-shot migration sets aside only the true copies (a hidden stay
 // overlapping a visible stay of the same logement, carrying no money), audits it, and the other hidden
 // stays simply reappear. A stay set aside leaves every read, the iCal sync never resurrects it, and
@@ -20,12 +20,12 @@ const { findCandidates, setAsideDuplicates, REASON } = require('../utils/superse
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-// The future stays hang on a day 370 days out (specs/server-test-isolation.md rule 6): `day(n)` is n days after
+// The future stays hang on a day 370 days out (specs/tech/server-test-isolation.md rule 6): `day(n)` is n days after
 // it, `compact(n)` the same day as an iCal DATE.
 const FIRST = addDaysToIsoDate(todayIso(), 370);
 const day = (n) => addDaysToIsoDate(FIRST, n);
 // The calendar-year fixture lies in last year: nothing in it is compared with today, it never meets the
-// stays hung on FIRST, and its writes stay inside the five-year date window (specs/server-test-isolation.md rule 6).
+// stays hung on FIRST, and its writes stay inside the five-year date window (specs/tech/server-test-isolation.md rule 6).
 const Y = Number(todayIso().slice(0, 4)) - 1;
 const compact = (n) => day(n).replace(/-/g, '');
 

@@ -1,4 +1,4 @@
-// specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — le SAS départ ne défait que ce
+// specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — le SAS départ ne défait que ce
 // qu'il a encaissé lui-même.
 //
 // Le bug épinglé ici, constaté en production sur la réservation 22281 et **rejoué à l'identique dans
@@ -167,7 +167,7 @@ test('sans la colonne marqueur, le comportement d’avant la règle 9bis est con
   assert.equal(r.paid, 0);
 });
 
-// ── specs/arrival-payment-detail-and-adjustment.md rule 23 ────────────────────
+// ── specs/sas/arrival-payment-detail-and-adjustment.md rule 23 ────────────────────
 // La réduction meurt avec le groupe, y compris quand c'est le SAS ARRIVÉE rejoué en « Plus tard »
 // qui le retire. Laissée derrière, elle minorerait la comptabilité au nom d'une collecte disparue.
 test('un SAS arrivée rejoué en « Plus tard » efface aussi la réduction', () => {

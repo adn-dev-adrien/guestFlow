@@ -1,4 +1,4 @@
-// SettingsQuoteSection — bilingual footer (FR + EN) — see specs/devis-english-language.md §6.4.
+// SettingsQuoteSection — bilingual footer (FR + EN) — see specs/devis/devis-english-language.md §6.4.
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';

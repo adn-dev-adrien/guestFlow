@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the reconciliation dialogs of
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the reconciliation dialogs of
 // online-payment, « Répartir le versement » (`SplitSharesDialog`) and « Rattacher des virements » (`LinkTransactionDialog`). The driver and
 // the invariants are in `moneyDialogsHarness.jsx`.
 import React from 'react';

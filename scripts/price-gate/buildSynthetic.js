@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The synthetic refund stays of the price gate (specs/pricing-components.md §3 rules 68 and 72, PR A bullet).
+ * The synthetic refund stays of the price gate (specs/pricing/pricing-components.md §3 rules 68 and 72, PR A bullet).
  *
  *   DB_PATH=:memory: node scripts/price-gate/buildSynthetic.js <capturedAt ISO> <out.json>
  *

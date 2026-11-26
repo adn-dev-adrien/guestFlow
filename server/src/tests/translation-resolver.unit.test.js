@@ -1,5 +1,5 @@
 /**
- * specs/translation-catalogue.md rules 14-18 — what the guest actually gets.
+ * specs/site/translation-catalogue.md rules 14-18 — what the guest actually gets.
  *
  * The fallbacks are deliberately asymmetric and that is the whole subject: a missing TITLE falls back
  * to French, because a label cannot be blank; a missing DESCRIPTION is dropped, because a missing

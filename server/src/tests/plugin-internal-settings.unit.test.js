@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 34 (internal settings, SDK 2.17.0, audit r5) — a setting declared `internal` is the
+// specs/plugins/plugins-phase-1-sdk.md rule 34 (internal settings, SDK 2.17.0, audit r5) — a setting declared `internal` is the
 // plugin's own bookkeeping: the PUT refuses it, the GET leaves it out, the plugin still writes it.
 const test = require('node:test');
 const assert = require('node:assert/strict');

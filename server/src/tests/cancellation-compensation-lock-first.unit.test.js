@@ -1,4 +1,4 @@
-// specs/cancellation-compensation.md rule 6 and rule 29 (spec review of 2026-10-27, agent 3 F7) — a received
+// specs/payments/cancellation-compensation.md rule 6 and rule 29 (spec review of 2026-10-27, agent 3 F7) — a received
 // compensation is an accounting entry: any PUT on it answers 409 COMPENSATION_LOCKED, whatever its body.
 // A body without platform used to be judged first and answered 400 PLATFORM_REQUIRED.
 

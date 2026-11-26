@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 116, reading of 2026-11-16 (stabilisation loop t9, B9-3 and B9-1) — on a platform stay the collected
+// specs/pricing/pricing-components.md §3 rule 116, reading of 2026-11-16 (stabilisation loop t9, B9-3 and B9-1) — on a platform stay the collected
 // arrival complement's money a line no longer charges is credited to what is still due exactly as a note's (rule 104): Booking, complement
 // (beer ×5, 30 €) collected, a plank 20 € sold unpaid before the arrival, then the beer offered → nothing asked, 10 € owed (before: 20 €
 // asked AND 30 € owed). Offering a line that credit paid gives the credit back (owed again). And a caisse-interne refund of complement cash

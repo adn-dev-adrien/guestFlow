@@ -1,6 +1,6 @@
 /**
- * Stay content of the guest email sequence — pure (specs/guest-email-sequence.md §3.5 + §6.1,
- * specs/plugins-phase-p-productisation.md §3.A–3.B).
+ * Stay content of the guest email sequence — pure (specs/emails/guest-email-sequence.md §3.5 + §6.1,
+ * specs/plugins/plugins-phase-p-productisation.md §3.A–3.B).
  *
  * Decides, for ONE reservation, what its property includes, what the guest booked and what may still
  * be proposed (rule 20), then fills every conditional paragraph of the six emails. It holds no
@@ -19,7 +19,7 @@
  *                              priceOptionId, optionIds }]  in proposal order
  *   facts.confirmationOrder ['mention:<id>' | 'babyBed' | 'towels']
  *   facts.arrival           { address, mapUrl, accessFr, accessEn, accessCode, wifiName, wifiPassword } | null
- *                           (specs/guest-email-texts-made-simple.md rules 1–5)
+ *                           (specs/emails/guest-email-texts-made-simple.md rules 1–5)
  */
 
 const { emailAmount } = require('./emailMoney');
@@ -161,7 +161,7 @@ function classifyOptions(lines, facts, lang = 'fr') {
     included,
     booked,
     // In the guest's language: the English title when the catalogue has one, else the French one
-    // (specs/email-client-language-and-fiche-polish.md rule 4).
+    // (specs/emails/email-client-language-and-fiche-polish.md rule 4).
     bookedTitles: bookedLines
       .map((o) => (lang === 'en' && safe(o.titleEn).trim()) || safe(o.title).trim())
       .filter(Boolean),
@@ -178,7 +178,7 @@ function classifyOptions(lines, facts, lang = 'fr') {
 /**
  * @returns {{ vars: object, flags: object }} merged over emailContextBuilder's context.
  */
-/** A map link built from the address when none is typed (specs/guest-email-texts-made-simple.md rule 1). */
+/** A map link built from the address when none is typed (specs/emails/guest-email-texts-made-simple.md rule 1). */
 function mapLinkOf(address, mapUrl) {
   const typed = safe(mapUrl).trim();
   if (typed) return typed;
@@ -224,7 +224,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   if (singles) beds.push(t(`${singles} lit${singles > 1 ? 's' : ''} simple${singles > 1 ? 's' : ''}`, `${singles} single bed${singles > 1 ? 's' : ''}`));
   const bedConfigLabel = joinList(beds, L);
 
-  // specs/guest-email-texts-made-simple.md rule 28 — the owner's answer wins over the options; a fact
+  // specs/emails/guest-email-texts-made-simple.md rule 28 — the owner's answer wins over the options; a fact
   // nobody gave yet says nothing.
   const pending = pendingFactsOf(p);
   const linenBooked = cls.booked.has('bedLinen');
@@ -253,7 +253,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   }
 
   // --- pool season (the property's, MM-DD) overlapping the stay; empty means no pool (rule 14,
-  // specs/guest-email-texts-made-simple.md rule 34)
+  // specs/emails/guest-email-texts-made-simple.md rule 34)
   const stayOverlapsPool = (() => {
     const start = safe(p.poolSeasonStart);
     const end = safe(p.poolSeasonEnd);
@@ -325,7 +325,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   if (pending.has('cleaning') && !cleaningBooked) cleaningParagraph = '';
   else if (cleaningIncluded) cleaningParagraph = say('cleaning.included');
   else if (cleaningBooked) cleaningParagraph = say('cleaning.booked');
-  // specs/airbnb-no-checkout-chores.md rules 6, 8 — no written chore request on such a channel.
+  // specs/platforms/airbnb-no-checkout-chores.md rules 6, 8 — no written chore request on such a channel.
   else if (isChoreFreeChannel(r.platform)) cleaningParagraph = '';
   else cleaningParagraph = say('cleaning.notBooked');
   const complementDue = Number(r.complementAmount || 0) > 0 && Number(r.complementPaid || 0) !== 1;
@@ -333,12 +333,12 @@ function buildStayContent({ reservation, client, property, options = [], facts =
     ? say(Number(r.complementDeferredToCheckout || 0) === 1 ? 'complement.atDeparture' : 'complement.atArrival', { amount: euro(r.complementAmount, L) })
     : '';
 
-  // --- J-2 arrival facts (specs/guest-email-texts-made-simple.md rules 3–5): one paragraph per fact,
+  // --- J-2 arrival facts (specs/emails/guest-email-texts-made-simple.md rules 3–5): one paragraph per fact,
   // omitted while its facts are empty; a gate code given by the gate-access plugin is not repeated.
   const arrival = facts.arrival || {};
   const trimEnd = (text) => text.replace(/\s+$/, '');
   // The property's own address, else the company's: nothing to type twice for a single-site owner
-  // (specs/guest-email-texts-made-simple.md rule 3, 2026-10-17).
+  // (specs/emails/guest-email-texts-made-simple.md rule 3, 2026-10-17).
   const address = (safe(arrival.address).trim() || safe(settings.companyAddress).trim());
   const addressParagraph = address ? trimEnd(say('addressParagraph', { address, mapUrl: mapLinkOf(address, arrival.mapUrl) })) : '';
   // How to get in is new data: an empty English sends the French (rule 14).
@@ -352,7 +352,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   // --- J+1
   const googleReviewUrl = safe(settings.googleReviewUrl).trim();
   // Where the platform's guests leave a review, as the operator wrote it in Paramètres › Plateformes,
-  // else the platform's display name (specs/platform-settings-relay-and-review.md rules 3-4).
+  // else the platform's display name (specs/platforms/platform-settings-relay-and-review.md rules 3-4).
   const platformName = platformReviewWhere(r.platform, L) || platformDisplay(r.platform);
   let reviewParagraph = '';
   if (isDirectChannel(r.platform)) {
@@ -360,7 +360,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   } else {
     reviewParagraph = say('review.platform', { platform: platformName, link: googleReviewUrl }, { hasGoogleReview: Boolean(googleReviewUrl) });
   }
-  // specs/settings-input-guards.md rule 39 — one link renders exactly as the single Instagram URL did.
+  // specs/settings/settings-input-guards.md rule 39 — one link renders exactly as the single Instagram URL did.
   const socialLinks = effectiveSocialLinks(settings);
   const instagramParagraph = socialLinks.length ? say('instagram', { link: renderSocialLinks(socialLinks, L) }) : '';
 

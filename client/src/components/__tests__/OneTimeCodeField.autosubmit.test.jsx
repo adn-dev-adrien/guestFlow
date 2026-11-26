@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 32–33 (UI/UX review 2026-10-18, proposal 23) — one
+// specs/hosting/hosting-h2-account-security.md rules 32–33 (UI/UX review 2026-10-18, proposal 23) — one
 // native one-time-code input drawn as six cells: sent once at the 6th digit (or a whole backup code),
 // nothing before; a refusal under the cells, the digits kept and selected so the next keystroke
 // replaces them.

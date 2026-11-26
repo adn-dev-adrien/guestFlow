@@ -1,6 +1,6 @@
 /**
  * Contact parsing — turns what a user pastes or drags from a web page into clean client fields
- * (specs/client-contact-smart-input.md).
+ * (specs/clients/client-contact-smart-input.md).
  *
  * Pure functions, no DB, no framework: the client ships the raw string and renders whatever comes back.
  *

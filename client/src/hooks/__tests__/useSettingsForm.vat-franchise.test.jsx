@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 36 — the settings draft edits the threshold as a field of its own and
+// specs/accounting/vat-optional-mode.md rule 36 — the settings draft edits the threshold as a field of its own and
 // sends it only when it changed; the server's `franchise` block is never sent back.
 import { __test } from '../useSettingsForm';
 

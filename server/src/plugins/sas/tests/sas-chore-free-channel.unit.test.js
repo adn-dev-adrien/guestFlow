@@ -1,4 +1,4 @@
-// specs/airbnb-no-checkout-chores.md — on a channel that forbids checkout chores (`platforms.forbidsGuestChores`,
+// specs/platforms/airbnb-no-checkout-chores.md — on a channel that forbids checkout chores (`platforms.forbidsGuestChores`,
 // ticked here on Airbnb), the SAS read never tells the operator to remind the guest of the dishes and the
 // trash, and never offers to bill an undone ménage at departure.
 
@@ -50,31 +50,31 @@ function readSas({ platform, sold, mode }) {
   return res.body;
 }
 
-// specs/airbnb-no-checkout-chores.md rule 1
+// specs/platforms/airbnb-no-checkout-chores.md rule 1
 test('chore-free channel with the ménage included: no guest reminder', () => {
   const body = readSas({ platform: 'Airbnb', sold: true });
   assert.equal(body.cleaning.included, true);
   assert.equal(body.cleaning.guestReminder, false);
 });
 
-// specs/airbnb-no-checkout-chores.md rule 4
+// specs/platforms/airbnb-no-checkout-chores.md rule 4
 test('other channel with the ménage included: the reminder stays', () => {
   assert.equal(readSas({ platform: 'Booking', sold: true }).cleaning.guestReminder, true);
 });
 
-// specs/airbnb-no-checkout-chores.md rule 5
+// specs/platforms/airbnb-no-checkout-chores.md rule 5
 test('chore-free channel without the ménage: no reminder', () => {
   const body = readSas({ platform: 'Airbnb', sold: false });
   assert.equal(body.cleaning.included, false);
   assert.equal(body.cleaning.guestReminder, false);
 });
 
-// specs/airbnb-no-checkout-chores.md edge case — no platform counts as direct
+// specs/platforms/airbnb-no-checkout-chores.md edge case — no platform counts as direct
 test('no recorded platform counts as direct: the reminder stays', () => {
   assert.equal(readSas({ platform: null, sold: true }).cleaning.guestReminder, true);
 });
 
-// specs/airbnb-no-checkout-chores.md rule 7
+// specs/platforms/airbnb-no-checkout-chores.md rule 7
 test('departure read: the ménage is never billable on a chore-free channel', () => {
   assert.equal(readSas({ platform: 'Airbnb', sold: false, mode: 'departure' }).cleaning.billableAtDeparture, false);
   assert.equal(readSas({ platform: 'Booking', sold: false, mode: 'departure' }).cleaning.billableAtDeparture, true);

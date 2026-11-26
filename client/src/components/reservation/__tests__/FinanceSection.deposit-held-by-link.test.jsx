@@ -1,4 +1,4 @@
-// specs/disable-deposit-per-reservation.md rule 13 (review of PR #893, RQ2) — an acompte a payment link
+// specs/payments/disable-deposit-per-reservation.md rule 13 (review of PR #893, RQ2) — an acompte a payment link
 // collected cannot be switched off: the server says so (`depositDisabledLockedReason`), the fiche greys
 // « Sans acompte » and gives the reason under it.
 import { screen, fireEvent } from '@testing-library/react';

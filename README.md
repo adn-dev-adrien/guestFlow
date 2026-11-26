@@ -185,7 +185,7 @@ npm run dev:client
 Trying a change on a copy of the real data must never email a guest. Start the server with a mail
 outbox: every email it would send (guest emails, account emails, notifications) is written as a JSON
 file in that folder instead, and no SMTP connection is opened. The variable is ignored when
-`NODE_ENV=production` (`specs/guest-email-texts-made-simple.md` rule 26).
+`NODE_ENV=production` (`specs/emails/guest-email-texts-made-simple.md` rule 26).
 
 ```bash
 sqlite3 server/guestflow.db "VACUUM INTO '/tmp/recette.db'"
@@ -204,7 +204,7 @@ GUESTFLOW_PERF_PASSWORD=... node e2e/perf/measure-pages.mjs http://localhost:410
 ```
 
 The script copies the database (and the `.env.local` / `uploads` next to it), sends mails to an outbox
-and points Qonto and Neat at a dead address (`specs/inte-performance.md` rules 1 and 6).
+and points Qonto and Neat at a dead address (`specs/tech/inte-performance.md` rules 1 and 6).
 
 ### Running Unit Tests
 
@@ -302,7 +302,7 @@ Optional environment variables (sensible defaults otherwise):
 
 GuestFlow exposes a **separate, key-authenticated** public API under `/public/v1/*` for a trusted
 server-to-server proxy (the WordPress showcase site's backend) — distinct from the internal `/api/*`
-admin API, which stays session-guarded and unchanged. See `specs/public-api.md` for the full contract.
+admin API, which stays session-guarded and unchanged. See `specs/site/public-api.md` for the full contract.
 Endpoints: list/detail/options/availability per property (read-only), `POST /public/v1/quote` (uses the
 existing pricing engine), and `POST /public/v1/booking-requests` (creates a *draft devis*, never a
 confirmed reservation).
@@ -320,7 +320,7 @@ sourcemaps (`build.sourcemap = false` in `client/vite.config.js`) so the CSP can
 
 GuestFlow ships as **versioned releases that the running application installs itself**, on an
 operator's click. Nothing deploys automatically, and no GitHub agent runs on the production machine
-— see [`specs/self-update-and-releases.md`](specs/self-update-and-releases.md) for the full model
+— see [`specs/hosting/self-update-and-releases.md`](specs/hosting/self-update-and-releases.md) for the full model
 and its rationale.
 
 ```
@@ -718,7 +718,7 @@ The full application is then available at `http://localhost:4000`.
 
 GuestFlow syncs all reservations to a Google Calendar of your choice — including a **private
 calendar** — by connecting your Google account with OAuth (no calendar sharing, no service
-account). Full spec: `specs/google-calendar-oauth-rework.md`.
+account). Full spec: `specs/settings/google-calendar-oauth-rework.md`.
 
 > Procedure validated end-to-end on the production instance on 2026-07-21 (Google Workspace
 > domain, Internal consent screen). The ⚠️ notes mark the traps actually hit during that
@@ -944,7 +944,7 @@ inside the LAN, as the user owning all of it.
 That workflow, that branch and that runner are gone. Production now only makes **outbound** calls to
 `api.github.com`, and installs a release when its operator asks for it. If you ever find yourself
 adding `runs-on: self-hosted` to this repository, read
-[`specs/self-update-and-releases.md`](specs/self-update-and-releases.md) §1.2 first.
+[`specs/hosting/self-update-and-releases.md`](specs/hosting/self-update-and-releases.md) §1.2 first.
 
 Removing the runner from a host that still has one:
 
@@ -983,7 +983,7 @@ pm_err_log_path
 Production lives on a single Raspberry Pi with a single SD card. The rolling `backup-*.db` files in
 `~/guestflow/data/` sit on that same card, so they do not survive a card failure. The two scripts
 below pull a complete off-device snapshot onto a workstation and push it back onto a Pi.
-Full rationale and the disaster-recovery runbook: [`specs/backup-restore.md`](specs/backup-restore.md).
+Full rationale and the disaster-recovery runbook: [`specs/hosting/backup-restore.md`](specs/hosting/backup-restore.md).
 
 **What is saved** (everything not reproducible from git): the SQLite database, `data/.env.local`
 (the `GUESTFLOW_ENCRYPTION_KEY` — without it the encrypted settings columns are unreadable, so a
@@ -1102,4 +1102,7 @@ docker run --rm --network host \
 
 ## License
 
+Proprietary, source available, all rights reserved: the code may be read, not used, copied, modified or
+distributed, for any purpose, commercial or not, without written permission. Versions up to v4.5.0 were
+released under the AGPL v3. The WordPress plugins under `integrations/wordpress/` stay GPLv2 or later.
 See the [LICENSE](LICENSE) file.

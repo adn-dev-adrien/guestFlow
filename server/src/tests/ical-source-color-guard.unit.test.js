@@ -1,4 +1,4 @@
-// specs/platforms-and-ical-rework.md rule 17 (audit R24-I5, 2026-11-05) — through the real application: a colour sent on an
+// specs/platforms/platforms-and-ical-rework.md rule 17 (audit R24-I5, 2026-11-05) — through the real application: a colour sent on an
 // iCal source passes the platform colour check, a stored colour sent back exempt; refused, nothing is written.
 const test = require('node:test');
 const assert = require('node:assert/strict');

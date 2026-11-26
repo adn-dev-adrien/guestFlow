@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 42 — « Retirer le lien »: the operator withdraws an open link by hand.
+// specs/payments/payment-link-lifecycle.md rule 42 — « Retirer le lien »: the operator withdraws an open link by hand.
 // Withdrawn (`cancelled`, reason `operator`) and deactivated at the provider, the marker kept on failure; refused
 // when the guest has just paid (the payment is then booked) and on a read-only stay; the ledger offers it.
 

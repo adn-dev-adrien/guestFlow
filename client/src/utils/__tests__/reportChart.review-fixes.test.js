@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 21, 22 and 26 — review round R5 / R3: y ticks on nice steps or
+ * specs/design-system/report-grammar.md §3 rules 21, 22 and 26 — review round R5 / R3: y ticks on nice steps or
  * a fixed domain, end names kept inside the plot and fitted to their margin, long category labels
  * thinned by their measured width.
  */

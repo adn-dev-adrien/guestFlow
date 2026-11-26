@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 47 (audit r2 N1): an unset release public key is announced at
+// specs/hosting/self-update-and-releases.md rule 47 (audit r2 N1): an unset release public key is announced at
 // boot and kept as a host alert until it is configured.
 const test = require('node:test');
 const assert = require('node:assert/strict');

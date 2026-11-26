@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 27 and 34 — the checks strip: four checks, a gap opens what it names, an
+// specs/accounting/accounting-synthesis.md §3 rules 27 and 34 — the checks strip: four checks, a gap opens what it names, an
 // entry leads to its month in « Écritures », a stay to its fiche for an admin only, the last export with its month.
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rule 18 (audit R2 G) — a redirect response's body is cancelled before the
+// specs/platforms/ical-import-hardening.md rule 18 (audit R2 G) — a redirect response's body is cancelled before the
 // next hop, so a large 302 body never holds the feed until the request timeout.
 const test = require('node:test');
 const assert = require('node:assert/strict');

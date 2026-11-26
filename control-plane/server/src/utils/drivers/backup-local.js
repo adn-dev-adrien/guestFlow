@@ -1,5 +1,5 @@
 /**
- * The `local` backup driver (specs/hosting-h1-fleet-runtime.md H-D6): development and CI. Each
+ * The `local` backup driver (specs/hosting/hosting-h1-fleet-runtime.md H-D6): development and CI. Each
  * instance's database is copied with SQLite's online backup into `<dir>/<key>/snapshots/<time>.db`
  * every `intervalMs`; a point in time is the newest snapshot at or before it — the same contract as
  * Litestream's WAL replica, at a coarser grain. Snapshots older than the retention are dropped.

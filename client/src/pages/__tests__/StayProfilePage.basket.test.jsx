@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rules 13, 15 and 21 — the basket table: last year's and this year's average,
+// specs/accounting/stay-profile.md §3 rules 13, 15 and 21 — the basket table: last year's and this year's average,
 // the year-over-year pill or « — vs N-1 », the one notice, and the « hors taxe de séjour » source.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 1, 2 and 6 — EXTRA GUESTS alone: the supplement per stay and per night (season
+// specs/pricing/pricing-components.md §3 rules 1, 2 and 6 — EXTRA GUESTS alone: the supplement per stay and per night (season
 // override, tier table, ratio of a discounted night, sold nights replayed) and the split between the platform's
 // brut and the complement. No DB, plain objects.
 const test = require('node:test');

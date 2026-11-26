@@ -1,6 +1,6 @@
 /**
  * STORED SALE FIGURES — what EXTRA GUESTS and TOURIST TAX gave a stay, kept so a sale reads them as stored
- * (specs/pricing-components.md §3 rule 8).
+ * (specs/pricing/pricing-components.md §3 rule 8).
  *
  * A stay edit runs the two units and stores what each provided (`reservations.storedExtraGuests`, `storedTouristTax`: the
  * extra-guest supplement and its share inside a platform price, the tax and its whole detail — base, rate, routing, the
@@ -88,7 +88,7 @@ function saleFiguresOfContext(ctx) {
 const saleFiguresOf = (quote) => (quote && quote[SALE_FIGURES]) || null;
 
 /**
- * The tourist-tax gap of a quote (specs/platform-host-statement-and-commission-vat.md rule 7): what the platform paid for the tax beyond
+ * The tourist-tax gap of a quote (specs/platforms/platform-host-statement-and-commission-vat.md rule 7): what the platform paid for the tax beyond
  * GuestFlow's own, signed, already inside the accommodation. Read from the tax record, not a key of the quote: the quote's key set is the one
  * every caller and the price gate know.
  */

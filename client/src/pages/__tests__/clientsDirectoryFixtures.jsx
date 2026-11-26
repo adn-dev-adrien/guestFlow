@@ -1,5 +1,5 @@
 // Shared payloads for the Clients page suites: the shape `GET /api/clients/directory` answers
-// (specs/clients-upcoming-past-directory.md §4.3, amendment of 2026-10-28).
+// (specs/clients/clients-upcoming-past-directory.md §4.3, amendment of 2026-10-28).
 
 export function directoryClient(over = {}) {
   return {

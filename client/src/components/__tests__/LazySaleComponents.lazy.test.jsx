@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 4 (loop t19 A19-1) — the SDK hands the four sale blocks out lazily: its exports are the
+// specs/tech/inte-performance.md rule 4 (loop t19 A19-1) — the SDK hands the four sale blocks out lazily: its exports are the
 // lazy wrappers, each renders the real component with its props once its code arrived, and « Vente hors séjour » is not
 // even fetched while it has never been opened (then it stays mounted after closing, so the closing transition can
 // play). The bundle budget step of CI is the weight proof.

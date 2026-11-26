@@ -1,11 +1,11 @@
 /**
- * Provider-neutral payment links (specs/plugins-phase-3a-online-payment.md rules 6, 8, 20).
+ * Provider-neutral payment links (specs/plugins/plugins-phase-3a-online-payment.md rules 6, 8, 20).
  *
  * Qonto is one payment provider among possible others: its two id columns get neutral twins
  * (`providerLinkId`, `providerPaymentId`), every existing row is a Qonto one, and a link GuestFlow
  * abandoned but could not deactivate remotely carries `remoteCancelPendingAt` until the poll manages it.
  *
- * The migration is ADDITIVE (specs/self-update-and-releases.md rule 31: an automatic rollback does not
+ * The migration is ADDITIVE (specs/hosting/self-update-and-releases.md rule 31: an automatic rollback does not
  * restore the database, so the previous release must still run on the migrated schema). The legacy
  * columns `qontoPaymentLinkId` / `qontoPaymentId` stay, and `syncLegacyQontoColumns` keeps each pair
  * equal in both directions, so v3.18 code writing the old names and this code writing the new ones both
@@ -72,7 +72,7 @@ function syncLegacyQontoColumns(db) {
 }
 
 /**
- * specs/payment-link-lifecycle.md rules 19, 20 — when a lapsed link's last payment read is due, and when
+ * specs/payments/payment-link-lifecycle.md rules 19, 20 — when a lapsed link's last payment read is due, and when
  * the admin was told its deactivation keeps failing. Additive and idempotent; runs after the installments
  * rebuild of `payment_links`, which only copies the columns it knows.
  */
@@ -89,7 +89,7 @@ function migrateLinkLifecycleColumns(db) {
   // Re-review of #912 (R1, R2, n5) — when the withdrawal happened, and why a link was closed without a notice.
   if (!cols.includes('withdrawnAt')) db.exec('ALTER TABLE payment_links ADD COLUMN withdrawnAt TEXT');
   if (!cols.includes('noticeClosedReason')) db.exec('ALTER TABLE payment_links ADD COLUMN noticeClosedReason TEXT');
-  // specs/guest-app.md rule 35 — a `complement` link bills an explicit basket (a guest order), named here as
+  // specs/guest-app/guest-app.md rule 35 — a `complement` link bills an explicit basket (a guest order), named here as
   // `{ source, ref }`: no arrival-complement reader takes it for the stay's complement.
   if (!cols.includes('basketJson')) db.exec('ALTER TABLE payment_links ADD COLUMN basketJson TEXT');
 }

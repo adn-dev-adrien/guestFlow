@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rules 11-23 — the planning is a timeline of 14-day windows on a fixed
+// specs/planning/dashboard-planning-scroll.md rules 11-23 — the planning is a timeline of 14-day windows on a fixed
 // grid: one server call per window, opening on today, both edges extending, an empty fortnight never
 // stopping the scroll, past days toned down, « Aujourd'hui » as a bar action, 8 windows at most, edge
 // errors that retry, targeted reloads, no date input, a rebuild when the server day moves on.

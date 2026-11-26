@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 53 (review of #869) — an upload whose `x-file-name` is not valid
+// specs/plugins/plugins-phase-4-registry.md rule 53 (review of #869) — an upload whose `x-file-name` is not valid
 // percent-encoding is a 400 BAD_FILE_NAME with a message, not a 500.
 
 const test = require('node:test');

@@ -1,5 +1,5 @@
 // @ts-check
-// Direct SQLite seed helpers (specs/e2e-playwright-smoke-suite.md §3.1 rule 6, §4.3). Used when
+// Direct SQLite seed helpers (specs/tech/e2e-playwright-smoke-suite.md §3.1 rule 6, §4.3). Used when
 // the spec wants to exercise the UI surfacing of server-side state WITHOUT going through the
 // real engine (sync, simulation, etc.). The engines have dense unit test coverage already
 // (~880 server tests pin their math); the E2E suite verifies that the Dashboard / Planning
@@ -23,7 +23,7 @@ function withDb(fn) {
 }
 
 /**
- * Insert a pending row in `ical_date_drift_alerts` (specs/ical-sync-override-locked-dates.md
+ * Insert a pending row in `ical_date_drift_alerts` (specs/platforms/ical-sync-override-locked-dates.md
  * §5). Used by the Dashboard date-drift card spec — no need to run the real sync engine.
  */
 function seedPendingDateDrift({ reservationId, previousStartDate, previousEndDate, newStartDate, newEndDate }) {
@@ -38,7 +38,7 @@ function seedPendingDateDrift({ reservationId, previousStartDate, previousEndDat
 }
 
 /**
- * Insert a pending row in `ical_cancellation_alerts` (specs/ical-cancellation-approval.md §5).
+ * Insert a pending row in `ical_cancellation_alerts` (specs/platforms/ical-cancellation-approval.md §5).
  */
 function seedPendingCancellation({ reservationId, sourceId, eventUid }) {
   return withDb((db) => {
@@ -52,8 +52,8 @@ function seedPendingCancellation({ reservationId, sourceId, eventUid }) {
 
 /**
  * Stamp the linen stock in the `linen` plugin's settings so the linen simulation projects a shortage
- * given the reservations already in the DB (specs/linen-inventory-shortage-tracking.md §5,
- * specs/plugins-phase-2-hosts.md rule 15). The caller is responsible for having seeded enough
+ * given the reservations already in the DB (specs/linen/linen-inventory-shortage-tracking.md §5,
+ * specs/plugins/plugins-phase-2-hosts.md rule 15). The caller is responsible for having seeded enough
  * reservations to actually exceed the stock.
  */
 function setLinenStock({ single = 0, double = 0, baby = 0, large = 0, medium = 0, small = 0 } = {}) {
@@ -71,7 +71,7 @@ function setLinenStock({ single = 0, double = 0, baby = 0, large = 0, medium = 0
 
 /**
  * A bed-linen option ticked on the given stays `{ id, singleBeds }`, with their single beds written, so
- * their sheets reach the laundry cards (specs/linen-laundry-days.md §7.3). Returns the option id, to hand
+ * their sheets reach the laundry cards (specs/linen/linen-laundry-days.md §7.3). Returns the option id, to hand
  * back to `removeBedLinenOption`.
  */
 function seedBedLinenOption(stays) {
@@ -95,7 +95,7 @@ function removeBedLinenOption(optionId) {
 }
 
 /**
- * Insert an establishment closure (specs/establishment-closures.md). Used to verify the
+ * Insert an establishment closure (specs/pricing/establishment-closures.md). Used to verify the
  * reservation form rejects dates inside a closure.
  */
 function seedClosure({ propertyId, startDate, endDate, reason = 'Test closure' }) {
@@ -110,7 +110,7 @@ function seedClosure({ propertyId, startDate, endDate, reason = 'Test closure' }
 
 /**
  * Toggle the global "allow editing past reservations" flag for the admin escape hatch test
- * (specs/admin-unlock-past-reservations.md).
+ * (specs/reservations/admin-unlock-past-reservations.md).
  */
 function setAllowEditPastReservations(value) {
   return withDb((db) => {
@@ -133,7 +133,7 @@ function lockIcalReservation(reservationId) {
  * Force a reservation's stay dates directly (bypasses the API "no past dates" guard). Used to set up
  * a past stay for the email-history rolling-window spec without flipping the global admin escape hatch.
  */
-// specs/reservation-payment-ledger.md — a property that takes an acompte (30 %), so the ledger has
+// specs/payments/reservation-payment-ledger.md — a property that takes an acompte (30 %), so the ledger has
 // both an acompte and a solde row.
 function enablePropertyDeposit(propertyId, percent = 30) {
   return withDb((db) => {
@@ -141,7 +141,7 @@ function enablePropertyDeposit(propertyId, percent = 30) {
   });
 }
 
-// specs/reservation-payment-ledger.md rule 7 — a stored amount that drifted from today's engine (a
+// specs/payments/reservation-payment-ledger.md rule 7 — a stored amount that drifted from today's engine (a
 // stay priced under an earlier rule), to prove the fiche shows and marks what is stored.
 function setReservationAmounts(reservationId, fields) {
   return withDb((db) => {
@@ -151,7 +151,7 @@ function setReservationAmounts(reservationId, fields) {
   });
 }
 
-// specs/reservation-payment-ledger.md §3.8 — a property with one season (so the « Prix plateformes » grid
+// specs/payments/reservation-payment-ledger.md §3.8 — a property with one season (so the « Prix plateformes » grid
 // has a cell) and a commissioned platform: the grid then lists the night at ceil(price / (1 − c)).
 function seedPlatformChannel({ propertyId, platform, commissionPercent, pricePerNight }) {
   return withDb((db) => {
@@ -170,7 +170,7 @@ function setReservationDates(reservationId, startDate, endDate) {
 }
 
 /**
- * Insert a row in `email_log` (specs/email-history-rolling-window.md). Used to exercise the
+ * Insert a row in `email_log` (specs/emails/email-history-rolling-window.md). Used to exercise the
  * history list + rolling window without an SMTP send.
  */
 function seedEmailLog({ reservationId, templateId = null, status = 'sent', channel = 'smtp', renderedSubject = 'Sujet test', renderedBody = 'Corps test', recipientEmail = 'guest@test.fr', sentAt = null }) {
@@ -195,7 +195,7 @@ function setEmailLanguage(reservationId, lang) {
 }
 
 /**
- * Set a CLIENT's email language (specs/email-client-language-and-fiche-polish.md) — drives every email
+ * Set a CLIENT's email language (specs/emails/email-client-language-and-fiche-polish.md) — drives every email
  * for that client. The API create helper doesn't take it, so the spec stamps it here.
  */
 function setClientEmailLanguage(clientId, lang) {
@@ -207,7 +207,7 @@ function setClientEmailLanguage(clientId, lang) {
 
 /**
  * A « Boissons » + « Restauration » catalogue, linked to one property. The core no longer seeds one
- * (specs/plugins-phase-p-productisation.md rule 12): the spec that needs it brings it, here the list
+ * (specs/plugins/plugins-phase-p-productisation.md rule 12): the spec that needs it brings it, here the list
  * Solio's database holds. Idempotent per article.
  */
 function seedCateringOptions(propertyId) {
@@ -226,7 +226,7 @@ function seedCateringOptions(propertyId) {
 }
 
 /**
- * Set one company setting (specs/guest-email-texts-made-simple.md rule 15 — the test send goes to the
+ * Set one company setting (specs/emails/guest-email-texts-made-simple.md rule 15 — the test send goes to the
  * company address). Returns the previous value so a spec can put it back.
  */
 function setCompanySetting(column, value) {
@@ -253,7 +253,7 @@ function setPublicUrl(url) {
 function markIcalImported(reservationId, platformKey) {
   return withDb((db) => {
     // Like a real import: the stay points at an active source of its property for that platform, which
-    // is what the Booking intake reads to tell Booking's stays (specs/booking-extranet-intake.md rule 21).
+    // is what the Booking intake reads to tell Booking's stays (specs/platforms/booking-extranet-intake.md rule 21).
     const { propertyId } = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(reservationId);
     const existing = db.prepare('SELECT id FROM ical_sources WHERE propertyId = ? AND platformKey = ?').get(propertyId, platformKey);
     const sourceId = existing ? existing.id : Number(db.prepare(
@@ -273,7 +273,7 @@ function setPlatformPayout(reservationId, amount) {
   });
 }
 
-// specs/vat-optional-mode.md — a stay booked in the past, so a switch « à partir d'aujourd'hui » leaves it alone.
+// specs/accounting/vat-optional-mode.md — a stay booked in the past, so a switch « à partir d'aujourd'hui » leaves it alone.
 function backdateReservation(reservationId, createdAt) {
   return withDb((db) => {
     db.prepare('UPDATE reservations SET createdAt = ? WHERE id = ?').run(createdAt, reservationId);
@@ -300,7 +300,7 @@ function setFranchiseRegime() {
 }
 
 /**
- * Make the bank reconciliation readable on the E2E database (specs/reconciliation-assisted-matching.md):
+ * Make the bank reconciliation readable on the E2E database (specs/accounting/reconciliation-assisted-matching.md):
  * a stored Qonto connection marker (no Qonto call is ever made), the start date, and credits loaded
  * straight into the plugin's table. Fictional data only.
  */
@@ -330,7 +330,7 @@ function clearBankSeed() {
 
 /**
  * What a plugin intake or the iCal sync does to a stay behind the operator's back: a new note and a
- * newer `updatedAt` (specs/reservation-fiche-concurrency.md). The version moves five minutes ahead so
+ * newer `updatedAt` (specs/reservations/reservation-fiche-concurrency.md). The version moves five minutes ahead so
  * the test never depends on the clock's one-second resolution.
  */
 function simulateBackgroundWrite(reservationId, notes) {
@@ -338,7 +338,7 @@ function simulateBackgroundWrite(reservationId, notes) {
 }
 
 /**
- * A plain per-person option on a priced property (specs/non-card-option-served-persons.md rule 25).
+ * A plain per-person option on a priced property (specs/options/non-card-option-served-persons.md rule 25).
  */
 function seedPerPersonOption({ propertyId, title, price, priceType = 'per_person' }) {
   return withDb((db) => {

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 23 — a switch stored on for an item the app cannot sell (its price type changed, or a
+// specs/guest-app/guest-app.md rule 23 — a switch stored on for an item the app cannot sell (its price type changed, or a
 // per_person resource) shows the server's reason, and stays enabled so the operator can switch it off.
 import { screen } from '@testing-library/react';
 import guestAppApi from '../guestAppApi';

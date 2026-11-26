@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const laundryExtraTripsModel = require('../extraTripsModel');
 
-// specs/laundry-extra-trip.md §5 + §7 — model coverage for `laundry_extra_trips`.
+// specs/linen/laundry-extra-trip.md §5 + §7 — model coverage for `laundry_extra_trips`.
 
 const DDL = `
   CREATE TABLE IF NOT EXISTS laundry_extra_trips (

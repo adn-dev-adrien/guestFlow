@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 3, 14 and 15 — the reserve settings and the optional Mollie
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 3, 14 and 15 — the reserve settings and the optional Mollie
 // account: what the settings endpoint refuses (and says), and what « Tester » reports. The token is a secret that never
 // leaves the server. No network: « Tester » talks to a local stand-in for Mollie (`MOLLIE_API_BASE`).
 const test = require('node:test');

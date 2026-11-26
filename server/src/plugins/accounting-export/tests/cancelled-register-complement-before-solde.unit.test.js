@@ -1,7 +1,7 @@
-// specs/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a paid complement never reads as « whatever
+// specs/payments/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a paid complement never reads as « whatever
 // the solde did not hold » while the solde is unpaid: the register offers what each line collected, and giving everything
 // back nets every account to 0. Replays of the auditor's p2 / p3 / p5 / item2c probes.
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
 // with its 7,20 of reversed tax inside is a brut of 592,80 and a box of 7,20; the stay, its buckets and its entries are the same.
 process.env.DB_PATH = ':memory:';
 

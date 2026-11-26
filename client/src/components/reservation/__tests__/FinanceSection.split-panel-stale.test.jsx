@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 16, 20 (audit R34-C-L1) — a correction left open on a settlement the row no longer
+// specs/payments/mixed-method-payments.md rules 16, 20 (audit R34-C-L1) — a correction left open on a settlement the row no longer
 // has (undone meanwhile, then recorded again) does not hide the new settlement's « Modifier » nor its reste's
 // « Marquer payé ».
 import React from 'react';

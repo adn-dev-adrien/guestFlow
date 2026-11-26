@@ -1,5 +1,5 @@
 /**
- * What every article family shares (specs/pricing-components.md §3 rule 47): the config schema, the request checks,
+ * What every article family shares (specs/pricing/pricing-components.md §3 rule 47): the config schema, the request checks,
  * the tagged amount a line emits and the phrase `describe` prints. A family emits tagged amounts (rule 61), never VAT.
  *
  * Internal to `articles/`.

@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 26 (audit R36-RES-L2) — rule 21's refusal protects a promise the stay reads: only
+// specs/payments/deposit-blocks-the-dates.md rule 26 (audit R36-RES-L2) — rule 21's refusal protects a promise the stay reads: only
 // a converted devis that made one is refused deletion while its stay lives. A direct devis owing one payment (rules 22, 24,
 // D27) stays refused; an OTA devis (rule 24: its acompte 0 is no promise) and a direct devis converted with an acompte
 // outside the window (rule 22: the stay takes the reservation rules) hold nothing, and are deleted, the stay untouched.

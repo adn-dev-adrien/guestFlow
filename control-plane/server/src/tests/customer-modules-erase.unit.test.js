@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 22–23 — erasing one module's data: the operator's, on an
+// specs/plugins/plugin-operator-provisioning.md rules 22–23 — erasing one module's data: the operator's, on an
 // inactive module only, the customer's slug typed to confirm; the order travels in the licence and
 // leaves it once the space reports it executed.
 const test = require('node:test');
@@ -30,7 +30,7 @@ test('rule 22: an active module, a module without data and a module the space no
   const { modules } = env.ctx.controllers;
   writeSpace(env, { active: ['linen', 'sas'], applied: writtenAt(env), facts: FACTS });
   assert.equal(lineOf(modules.view(env.id), 'linen').canErase, false, 'active');
-  // Vigilance Météo-France requires the SAS (specs/plugin-dependencies.md rule 20): it goes first.
+  // Vigilance Météo-France requires the SAS (specs/plugins/plugin-dependencies.md rule 20): it goes first.
   modules.toggle(env.id, 'weather-alerts', false, 'op');
   modules.toggle(env.id, 'sas', false, 'op');
   writeSpace(env, { inactive: ['sas'], active: ['linen'], applied: writtenAt(env), facts: { sas: { setup: null, erasable: false, data: [] } } });

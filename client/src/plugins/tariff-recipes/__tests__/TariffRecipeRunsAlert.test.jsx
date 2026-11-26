@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 
-// specs/tariff-recipes/spec.md §3.2 rule 12 + specs/tariff-events-and-extra-guest-tiers §3.3 rule 17
+// specs/pricing/tariff-recipes.md §3.2 rule 12 + specs/tariff-events-and-extra-guest-tiers §3.3 rule 17
 // — the Dashboard card that surfaces the horizon-task journal AND the event years whose dates are
 // still unknown. The second half is the rule this test exists for: it shipped spec-first and the
 // review caught the code never reaching the Dashboard.
@@ -21,7 +21,7 @@ vi.mock('../../../api', () => ({
 import api from '../../../api';
 import TariffRecipeRunsAlert from '../TariffRecipeRunsAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'recipe-runs', severity: 'todo', count: 1, title: 'Calendrier saisonnier', detail: '1 point à relire' };
 
 beforeEach(() => { vi.clearAllMocks(); });

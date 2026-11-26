@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rules 1, 2 and 7 — the public door authenticates itself, in constant
+// specs/platforms/booking-extranet-intake.md rules 1, 2 and 7 — the public door authenticates itself, in constant
 // time, before reading anything; it is rate-limited, size-limited and never logs the page; an inactive
 // plugin answers 404; the admin routes hand out the script and rotate the secret.
 const test = require('node:test');
@@ -27,7 +27,7 @@ async function serve({ live = true, perMinute = 100, secret = () => SECRET, hand
 
 const PAGE = { v: 1, hotelId: '14407976', resId: '6300000001', text: 'Numéro de réservation' };
 
-test('specs/booking-extranet-intake.md rule 7: the right secret reaches the handler and its answer comes back', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 7: the right secret reaches the handler and its answer comes back', async () => {
   const s = await serve({ handlePage: (page) => ({ status: 'applied', message: `fiche pour ${page.resId}` }) });
   const res = await s.post(PAGE);
   assert.equal(res.status, 200);
@@ -35,7 +35,7 @@ test('specs/booking-extranet-intake.md rule 7: the right secret reaches the hand
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 7: a wrong or missing secret is a bare 401 and the handler is never called', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 7: a wrong or missing secret is a bare 401 and the handler is never called', async () => {
   let called = 0;
   const s = await serve({ handlePage: () => { called += 1; return {}; } });
   for (const headers of [{ 'X-Booking-Intake-Key': 'nope' }, {}]) {
@@ -47,13 +47,13 @@ test('specs/booking-extranet-intake.md rule 7: a wrong or missing secret is a ba
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 7: with no secret generated yet nobody gets in', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 7: with no secret generated yet nobody gets in', async () => {
   const s = await serve({ secret: () => '' });
   assert.equal((await s.post(PAGE, { 'X-Booking-Intake-Key': '' })).status, 401);
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 7: the comparison is constant-time on equal-length digests', () => {
+test('specs/platforms/booking-extranet-intake.md rule 7: the comparison is constant-time on equal-length digests', () => {
   assert.equal(secretMatches('abc', 'abc'), true);
   assert.equal(secretMatches('abc', 'abd'), false);
   assert.equal(secretMatches('a', 'abcdefghijklmnop'), false);
@@ -61,7 +61,7 @@ test('specs/booking-extranet-intake.md rule 7: the comparison is constant-time o
   assert.match(source, /timingSafeEqual/);
 });
 
-test('specs/booking-extranet-intake.md rule 7: 30 requests a minute, counted before the secret is checked', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 7: 30 requests a minute, counted before the secret is checked', async () => {
   const s = await serve({ perMinute: 3 });
   const codes = [];
   for (let i = 0; i < 5; i += 1) codes.push((await s.post(PAGE, { 'X-Booking-Intake-Key': 'guess' })).status);
@@ -70,7 +70,7 @@ test('specs/booking-extranet-intake.md rule 7: 30 requests a minute, counted bef
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 7: a page over 128 kB is refused, an incomplete request is a 400', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 7: a page over 128 kB is refused, an incomplete request is a 400', async () => {
   const s = await serve();
   const big = await s.post({ ...PAGE, text: 'x'.repeat(MAX_PAGE_BYTES + 10) });
   assert.equal(big.status, 413);
@@ -78,7 +78,7 @@ test('specs/booking-extranet-intake.md rule 7: a page over 128 kB is refused, an
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 7: an error inside the handler is a 500 with no detail, and the log never holds the page', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 7: an error inside the handler is a 500 with no detail, and the log never holds the page', async () => {
   const lines = [];
   const s = await serve({ handlePage: () => { throw new Error('boom'); }, log: (line) => lines.push(line) });
   const res = await s.post({ ...PAGE, text: 'Détails de la réservation PRIVATE-GUEST-NAME' });
@@ -89,7 +89,7 @@ test('specs/booking-extranet-intake.md rule 7: an error inside the handler is a 
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 1: an inactive plugin answers 404 on the public route, secret or not', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 1: an inactive plugin answers 404 on the public route, secret or not', async () => {
   const s = await serve({ live: false });
   const res = await s.post(PAGE);
   assert.equal(res.status, 404);
@@ -97,7 +97,7 @@ test('specs/booking-extranet-intake.md rule 1: an inactive plugin answers 404 on
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 2: the admin routes serve the script, refuse it without a public URL, and rotate the secret', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 2: the admin routes serve the script, refuse it without a public URL, and rotate the secret', async () => {
   let regenerated = 0;
   const app = express();
   app.use('/api/booking-intake', adminRouter({
@@ -119,7 +119,7 @@ test('specs/booking-extranet-intake.md rule 2: the admin routes serve the script
   await new Promise((resolve) => server.close(resolve));
 });
 
-// specs/public-api.md rule 22, reading of 2026-11-04 (audit R22, public finding 4).
+// specs/site/public-api.md rule 22, reading of 2026-11-04 (audit R22, public finding 4).
 test('rule 22 — a non-scalar id is « Requête incomplète », the handler never called', async () => {
   let called = 0;
   const s = await serve({ handlePage: () => { called += 1; return { status: 'applied', message: 'ok' }; } });
@@ -135,7 +135,7 @@ test('rule 22 — a non-scalar id is « Requête incomplète », the handler nev
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 36: dismissing a fiche takes digits, anything else is a 404 and nothing is written', async (t) => {
+test('specs/platforms/booking-extranet-intake.md rule 36: dismissing a fiche takes digits, anything else is a 404 and nothing is written', async (t) => {
   const dismissed = [];
   const app = express();
   app.use('/admin', adminRouter({ dismissFiche: (id) => dismissed.push(id) }));
@@ -154,7 +154,7 @@ test('specs/booking-extranet-intake.md rule 36: dismissing a fiche takes digits,
   assert.deepEqual(dismissed, [12]);
 });
 
-test('specs/booking-extranet-intake.md rule 37: a fiche number that names no stay is a 404, never a stored dismissal', async (t) => {
+test('specs/platforms/booking-extranet-intake.md rule 37: a fiche number that names no stay is a 404, never a stored dismissal', async (t) => {
   const app = express();
   app.use('/admin', adminRouter({ dismissFiche: () => false }));
   const server = http.createServer(app);
@@ -164,7 +164,7 @@ test('specs/booking-extranet-intake.md rule 37: a fiche number that names no sta
   assert.equal(res.status, 404);
 });
 
-test('specs/booking-extranet-intake.md rule 37: the model dismisses an existing stay only', () => {
+test('specs/platforms/booking-extranet-intake.md rule 37: the model dismisses an existing stay only', () => {
   const Database = require('better-sqlite3');
   const { buildModel, TABLE_SQL } = require('../intakesModel');
   const db = new Database(':memory:');

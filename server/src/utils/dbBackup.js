@@ -1,5 +1,5 @@
 /**
- * WAL-safe database snapshots (specs/self-update-and-releases.md §3.D rule 26).
+ * WAL-safe database snapshots (specs/hosting/self-update-and-releases.md §3.D rule 26).
  *
  * `cp guestflow.db backup.db` is NOT a backup: the database runs in `journal_mode=WAL`, so the most
  * recent transactions live in the `-wal` sidecar until a checkpoint happens. Copying the main file

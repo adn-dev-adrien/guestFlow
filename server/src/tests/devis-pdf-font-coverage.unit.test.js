@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 27-30 — every word of the quote PDF is drawn by an
+// specs/design-system/ui-review-2026-10-19-operations.md rules 27-30 — every word of the quote PDF is drawn by an
 // embedded face that covers the guest's alphabet (owner decision 2026-10-20). PDFKit encodes text as
 // glyph indexes, so coverage is proven on the font files themselves (fontkit) and the embedding on
 // the uncompressed document's font dictionary.

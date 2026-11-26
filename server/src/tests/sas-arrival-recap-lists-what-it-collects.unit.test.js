@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-3, 2026-11-16) — the arrival SAS recap lists what the arrival complement
+// specs/pricing/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-3, 2026-11-16) — the arrival SAS recap lists what the arrival complement
 // collects: a line moved to the departure is not listed, a line discounted on the fiche is listed at its net amount, and the lines add up to the
 // total the SAS asks. Stays booked 20 days ahead (`saleRound1Fixtures`, check-in 15:00).
 process.env.DB_PATH = ':memory:';

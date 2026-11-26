@@ -1,6 +1,6 @@
 /**
  * EmailPendingList — inline queue table on the Emails page.
- * See specs/email-automation.md §6.3 + §6.10.
+ * See specs/emails/email-automation.md §6.3 + §6.10.
  */
 
 import React from 'react';

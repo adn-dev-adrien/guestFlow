@@ -1,4 +1,4 @@
-// specs/google-calendar-oauth-rework.md rule 29 (audit r5) — the connection and last-sync stamps are the plugin's own state:
+// specs/settings/google-calendar-oauth-rework.md rule 29 (audit r5) — the connection and last-sync stamps are the plugin's own state:
 // the generic settings PUT refuses them, the plugin still writes them, and no client form round-trips them.
 const test = require('node:test');
 const assert = require('node:assert/strict');

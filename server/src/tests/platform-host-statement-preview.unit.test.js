@@ -1,4 +1,4 @@
-// specs/platform-host-statement-and-commission-vat.md rules 2, 5, 10-12 — what the fiche's quote and save say of a typed statement: the box by mode,
+// specs/platforms/platform-host-statement-and-commission-vat.md rules 2, 5, 10-12 — what the fiche's quote and save say of a typed statement: the box by mode,
 // the server's lines, the option lines it adjusts (shown by the preview, stored by the save), its one refusal.
 process.env.DB_PATH = ':memory:';
 

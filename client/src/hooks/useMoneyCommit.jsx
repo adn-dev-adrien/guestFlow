@@ -1,5 +1,5 @@
 /**
- * useMoneyCommit — the money-dialog contract in ONE place (specs/plugins-phase-1-sdk.md rule 58, loop t26; owner decision of 2026-11-19
+ * useMoneyCommit — the money-dialog contract in ONE place (specs/plugins/plugins-phase-1-sdk.md rule 58, loop t26; owner decision of 2026-11-19
  * « corriger les problèmes à la source »). Every dialog that previews money and commits it — the counter sale, the outside visit's arrival,
  * the hourly booking, the SAS recaps, « Nouvelle note », the platform penalty, the payout split, the credit link, the fiche's payment forms —
  * takes from here what used to be decided screen by screen, and the generative harness (`src/__tests__/moneyDialogs.invariants.*`) checks

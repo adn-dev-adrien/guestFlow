@@ -1,6 +1,6 @@
 /**
  * `user_push_channel_prefs` — the toggles of the push channels plugins declare
- * (specs/platform-settings-relay-and-review.md rule 8): the table on every boot, and the one-shot
+ * (specs/platforms/platform-settings-relay-and-review.md rule 8): the table on every boot, and the one-shot
  * `push_channel_prefs_v1` that carries the « Souscriptions Neat » choices of the former
  * `user_push_prefs.neat` column over. Only an « off » is worth a row: no row reads ON.
  */

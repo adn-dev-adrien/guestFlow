@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The removal matrix's server (specs/plugin-removal-resilience.md rules 7-10, 15): the production
+// The removal matrix's server (specs/plugins/plugin-removal-resilience.md rules 7-10, 15): the production
 // build — built client, every plugin loaded from its package — on the seeded database of a cell,
 // supervised like PM2 would (an exit starts it again). A plugin whose package was not built is
 // reported `PACKAGE_MISSING`, its row still installed.
@@ -29,7 +29,7 @@ const serverEnv = {
   GUESTFLOW_CLIENT_DIR: path.join(ROOT, 'client', 'dist'),
   GUESTFLOW_SUPERVISED: '1',
   GUESTFLOW_SMTP_DETECT: 'off',
-  // specs/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync.
+  // specs/tech/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync.
   GUESTFLOW_DISABLE_OUTBOUND: '1',
   GUESTFLOW_SESSION_SECRET: 'e2e-removal-fixed-session-secret-not-for-prod-32b',
   GUESTFLOW_ENCRYPTION_KEY: 'ZTJlZml4ZWRlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MGE=',

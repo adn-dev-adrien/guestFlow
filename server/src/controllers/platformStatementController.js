@@ -1,4 +1,4 @@
-// specs/platform-statement-after-payout.md §4.3 — thin: body → model → status.
+// specs/platforms/platform-statement-after-payout.md §4.3 — thin: body → model → status.
 
 const model = require('../models/platformStatementModel');
 

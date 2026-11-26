@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The only root command the console may run (specs/hosting-h1-fleet-runtime.md H-D1, H-D3).
+# The only root command the console may run (specs/hosting/hosting-h1-fleet-runtime.md H-D1, H-D3).
 # Installed by bootstrap-host.sh as /usr/local/sbin/guestflow-systemctl (root:root, 755) and allowed
 # by /etc/sudoers.d/guestflow. It accepts exactly the systemctl calls the process driver makes — on
 # one `guestflow@<slug>.service` at a time — and refuses anything else. (Litestream is restarted by

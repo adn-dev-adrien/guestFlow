@@ -1,9 +1,9 @@
 /**
- * Welcome pack — specs/welcome-pack-auto-options.md.
+ * Welcome pack — specs/options/welcome-pack-auto-options.md.
  *
  * The pack an own-channel booking arrives with is not a product: it is the set of options whose
  * first N units the rate already covers (`property_option_prices.freeUnits`, written by the tariff
- * recipe — specs/tariff-recipes/spec.md §3.9). This module turns that set into the lines a brand-new
+ * recipe — specs/pricing/tariff-recipes.md §3.9). This module turns that set into the lines a brand-new
  * reservation form may apply AS IS, and it applies the one rule that makes the whole feature safe to
  * run unattended: a line is emitted only when the free units cover the WHOLE order, so the pack can
  * never pre-sell a billable unit (rule 7).

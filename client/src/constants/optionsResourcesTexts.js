@@ -1,4 +1,4 @@
-/** French strings of Options & ressources (specs/options-resources-ux.md rules 10, 11, 16, 17, 22). */
+/** French strings of Options & ressources (specs/options/options-resources-ux.md rules 10, 11, 16, 17, 22). */
 
 export const PAGE_TITLE = 'Options & ressources';
 

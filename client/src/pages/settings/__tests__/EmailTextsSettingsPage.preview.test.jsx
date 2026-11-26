@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 13–15 — beside the texts, the email the server renders
+// specs/emails/guest-email-texts-made-simple.md rules 13–15 — beside the texts, the email the server renders
 // from the draft: on the next stay or « Exemple », FR/EN with the English gap said, and a test sent
 // to oneself.
 import { vi } from 'vitest';

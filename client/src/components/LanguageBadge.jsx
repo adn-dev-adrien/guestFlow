@@ -15,7 +15,7 @@ import StatusBadge from './StatusBadge';
  * English is marked `info`, French `neutral`: French is the ordinary case here and should not
  * compete for attention, while English is the one that changes what the operator should check.
  *
- * specs/site-english-version.md §4.2 — generic on purpose, so the devis list can use it the day
+ * specs/site/site-english-version.md §4.2 — generic on purpose, so the devis list can use it the day
  * English requests become common.
  */
 export default function LanguageBadge({ lang, origin }) {

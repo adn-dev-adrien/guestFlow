@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 28 — what the Envoi card hears from the server: a provider
+// specs/settings/settings-rationalization.md rule 28 — what the Envoi card hears from the server: a provider
 // found, a sentence to show (not found, not supported), or nothing at all when the lookup is off or
 // the request refused (a read-only instance never reads « Serveur introuvable »).
 import { renderHook, waitFor } from '@testing-library/react';

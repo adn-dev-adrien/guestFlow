@@ -1,5 +1,5 @@
 /**
- * specs/devis-extras-parity-and-price-lock.md §4.1 — the single writer of a booking's line graph.
+ * specs/devis/devis-extras-parity-and-price-lock.md §4.1 — the single writer of a booking's line graph.
  *
  * `reservationsModel` and `devisModel` both go through this store, which is what stops a new line
  * column from landing on one side and being forgotten on the other. Two things are pinned here: it
@@ -68,7 +68,7 @@ function fresh(ddl) {
   return { db, store: bookingLinesModel.buildModel(db) };
 }
 
-// specs/force-item-to-complement.md rule 1
+// specs/sas/force-item-to-complement.md rule 1
 test('writes every line column when the schema has them', () => {
   const { db, store } = fresh(FULL_DDL);
   store.replaceOptions(1, OPTION_LINES);
@@ -106,7 +106,7 @@ test('degrades on a minimal schema instead of throwing', () => {
   assert.equal(snapshot.lockedResourceLines[0].acompteContribTtc, null);
 });
 
-// specs/force-item-to-complement.md rule 3
+// specs/sas/force-item-to-complement.md rule 3
 test('a line in Complément never carries acompte/solde contributions', () => {
   const { db, store } = fresh(FULL_DDL);
   store.replaceOptions(1, [{ optionId: 6, quantity: 1, totalPrice: 10, inComplement: 1, acompteContribTtc: 4, soldeContribTtc: 6 }]);
@@ -173,7 +173,7 @@ test('getPricingSnapshot returns the engine-shaped locked lines', () => {
   assert.deepEqual(snapshot.lockedTariff, { recipeId: 'lodge-2026' });
 });
 
-// specs/card-option-served-persons.md §5 — the served count of a card option is money: a writer that
+// specs/options/card-option-served-persons.md §5 — the served count of a card option is money: a writer that
 // forgets it silently re-bills the whole party at the next save.
 
 test('cardPersons is written and survives a re-save of the fiche', () => {

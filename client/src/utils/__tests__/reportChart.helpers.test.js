@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 8, 10 and 12 — the pure helpers behind the report charts: end
+ * specs/design-system/report-grammar.md §3 rules 8, 10 and 12 — the pure helpers behind the report charts: end
  * labels never overlap, fewer ticks on a phone, the CSV a spreadsheet pastes into columns.
  */
 import { lastValueIndex, layoutEndLabels, tickInterval, rowsFromSeries, toCsv } from '../reportChart';

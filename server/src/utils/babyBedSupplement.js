@@ -1,6 +1,6 @@
 const { roundMoneyStrict } = require('./pricing/money');
 /**
- * Baby-bed supplement rule (specs/baby-bed-supplement.md).
+ * Baby-bed supplement rule (specs/options/baby-bed-supplement.md).
  *
  * A cot entered on a booking (`reservations.babyBeds`) bills a flat amount PER COT for the WHOLE
  * stay — 5 € by default, re-priceable per logement. The line is derived by the pricing engine from

@@ -1,4 +1,4 @@
-// Fixture of the « Profil des séjours » suites (specs/stay-profile.md): a payload shaped as the server
+// Fixture of the « Profil des séjours » suites (specs/accounting/stay-profile.md): a payload shaped as the server
 // sends it. Not a test file.
 const row = (key, label, count, amount, cp, ap) => ({
   key, label, count, amount, countPercent: cp, amountPercent: ap, countShare: cp / 100, amountShare: ap / 100, countBar: 1, amountBar: 1,

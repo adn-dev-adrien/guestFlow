@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 4–6 — the core's money path talks to one payment
+// specs/plugins/plugins-phase-3a-online-payment.md rules 4–6 — the core's money path talks to one payment
 // provider a plugin declares; without a ready one, every online-payment entry point refuses, and the
 // screens are told to hide their buttons.
 

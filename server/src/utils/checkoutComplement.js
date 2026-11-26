@@ -1,5 +1,5 @@
 /**
- * Merged « complément de fin de séjour » — specs/defer-arrival-complement-to-checkout.md §3.2.
+ * Merged « complément de fin de séjour » — specs/sas/defer-arrival-complement-to-checkout.md §3.2.
  *
  * When the operator settles the arrival complement with « En fin de séjour » on the check-in recap,
  * the reservation carries `complementDeferredToCheckout = 1`. From that moment there is only ONE
@@ -115,7 +115,7 @@ function buildCheckoutComplement(reservation, arrivalDetail) {
 
 /**
  * Same block, built from the LIVE quote instead of the stored row —
- * specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis.
+ * specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 7bis.
  *
  * The stored block goes stale the moment the operator edits an option: the summary panel follows the
  * quote while the merged card kept showing the last save (« repas : 100 € » under a live total of

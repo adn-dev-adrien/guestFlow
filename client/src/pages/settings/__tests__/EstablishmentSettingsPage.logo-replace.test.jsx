@@ -1,4 +1,4 @@
-// specs/settings.md rule 18 (audit R25-C4, 2026-11-06) — a replaced logo shows at once: the server keeps the same path for a
+// specs/settings/settings.md rule 18 (audit R25-C4, 2026-11-06) — a replaced logo shows at once: the server keeps the same path for a
 // file of the same format, so the preview asks for the new bytes; the saved logo path stays the plain one.
 import React from 'react';
 import { vi } from 'vitest';

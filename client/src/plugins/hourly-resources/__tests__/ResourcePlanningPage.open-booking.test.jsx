@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md amendment 2026-11-13 — `?booking=<id>&resource=<id>&date=<date>`
+// specs/plugins/plugins-phase-3c-hourly-resources.md amendment 2026-11-13 — `?booking=<id>&resource=<id>&date=<date>`
 // moves the page to that resource and week, then opens the booking's editor.
 import React from 'react';
 import { vi } from 'vitest';

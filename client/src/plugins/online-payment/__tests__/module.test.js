@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 17 — the Paiements page and its menu entry are the
+// specs/plugins/plugins-phase-3a-online-payment.md rule 17 — the Paiements page and its menu entry are the
 // online-payment module's: the entry opens the family it always opened, right before « TVA & exercice ».
 import { SETTINGS_MENU } from '../../../constants/settingsMenu';
 import { ROUTE_PLUGINS, MODULE_ROUTE_ROLES } from '../../../constants/plugins';

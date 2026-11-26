@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import PricingSummary from '../PricingSummary';
 
 // Client-side regression coverage for the devis PDF bug fixes shipped in PR #112
-// (`specs/devis-pdf-and-tourist-tax-fixes.md`). The PDF is server-rendered, but the
+// (`specs/devis/devis-pdf-and-tourist-tax-fixes.md`). The PDF is server-rendered, but the
 // fix's principle — "the calculation is owned by the backend and only displayed by
 // the UI" — applies symmetrically here: PricingSummary MUST consume the engine quote
 // fields (`touristTaxTotal`, `touristTaxUnitAmount`, `touristTaxAdultsCount`,
@@ -127,7 +127,7 @@ describe('PricingSummary — tourist tax mirrors the engine quote (devis PDF par
   });
 });
 
-// specs/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax already collected or
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax already collected or
 // declared is frozen; a refresh button next to the « Taxe de séjour » label forces a live recompute.
 describe('PricingSummary — refresh button for a frozen tourist tax', () => {
   test('no refresh button while the tax is still live', () => {
@@ -145,7 +145,7 @@ describe('PricingSummary — refresh button for a frozen tourist tax', () => {
   });
 });
 
-// specs/per-platform-tourist-tax-three-way.md §6.2 — case 2 (platform collects AND remits the tax to
+// specs/tourist-tax/per-platform-tourist-tax-three-way.md §6.2 — case 2 (platform collects AND remits the tax to
 // the commune itself). The fiche shows the tax amount STRUCK THROUGH (it never lands in our books)
 // but NOT labelled "Offert" — it isn't a geste commercial. A short neutral caption explains who
 // handles it.

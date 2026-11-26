@@ -1,4 +1,4 @@
-// specs/finance-data-checks.md §3 rules 12, 13, 14 and 15 — the generic « À vérifier » list.
+// specs/accounting/finance-data-checks.md §3 rules 12, 13, 14 and 15 — the generic « À vérifier » list.
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

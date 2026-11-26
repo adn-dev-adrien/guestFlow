@@ -1,4 +1,4 @@
-// Shared fixtures of the fiche's refunded offered line (specs/pricing-components.md rule 108): a direct stay whose « Bière » line was
+// Shared fixtures of the fiche's refunded offered line (specs/pricing/pricing-components.md rule 108): a direct stay whose « Bière » line was
 // offered after a note paid it. The live quote carries the server's own key of the custom line (`key`), which is what the fiche matches.
 import React from 'react';
 import { render } from '@testing-library/react';

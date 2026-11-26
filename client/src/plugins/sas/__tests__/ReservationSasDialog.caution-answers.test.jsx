@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 31 (2026-11-12, manual trial of 4.0.0) — the caution page asks once: a caution
+// specs/sas/arrival-departure-sas.md rule 31 (2026-11-12, manual trial of 4.0.0) — the caution page asks once: a caution
 // deferred to the departure is never shown again before the recap, and « Non » says no caution is taken for the stay.
 import { screen } from '@testing-library/react';
 import { vi } from 'vitest';

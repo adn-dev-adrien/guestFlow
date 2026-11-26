@@ -1,5 +1,5 @@
 // The credentials the operator edits in Réglages → Paiements.
-// See specs/qonto-settings-in-app.md §3 rules 1, 3, 6, 7, 16.
+// See specs/settings/qonto-settings-in-app.md §3 rules 1, 3, 6, 7, 16.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -91,7 +91,7 @@ test('rule 6: the payload carries the redirect URI to declare at Qonto', () => {
   );
 });
 
-// Rule 7, amended by specs/plugins-phase-3a-online-payment.md rule 15 — the payment tunnel still reads
+// Rule 7, amended by specs/plugins/plugins-phase-3a-online-payment.md rule 15 — the payment tunnel still reads
 // the public site origin, but it is a core setting now, edited with the CGV: the Qonto form no longer
 // writes it.
 test('rule 7: the payload shows the core public site origin, and the form no longer writes it', () => {

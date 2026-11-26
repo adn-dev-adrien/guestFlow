@@ -1,6 +1,6 @@
 /**
  * BackupCodesDialog — the backup codes shown once after « Nouveaux codes de secours »
- * (specs/hosting-h2-account-security.md rules 6, 45). Full screen on a phone (§6). Only « Terminé »
+ * (specs/hosting/hosting-h2-account-security.md rules 6, 45). Full screen on a phone (§6). Only « Terminé »
  * closes it — neither a click outside nor Escape — and « Terminé » waits for the codes to be saved
  * (BackupCodesPanel: copied, downloaded, or the box ticked).
  *

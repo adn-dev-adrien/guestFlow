@@ -1,4 +1,4 @@
-// specs/e2e-playwright-smoke-suite.md rule 19 (reading 2026-11-16, loop t4 UI4-1) — the 5 s action budget is the UI's, not the API's: every
+// specs/tech/e2e-playwright-smoke-suite.md rule 19 (reading 2026-11-16, loop t4 UI4-1) — the 5 s action budget is the UI's, not the API's: every
 // request context the suite creates itself carries `API_TIMEOUT`, and a read-back after a save waits for the save's answer, then polls.
 const test = require('node:test');
 const assert = require('node:assert/strict');

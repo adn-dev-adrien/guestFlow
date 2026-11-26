@@ -1,11 +1,11 @@
-// specs/plugins-phase-4-registry.md rule 46 (audit round 2, N4) — a dependant revived live after its
+// specs/plugins/plugins-phase-4-registry.md rule 46 (audit round 2, N4) — a dependant revived live after its
 // requirement came up is failed (nothing of it runs) when its migration throws, and an enabled one waits
 // for every requirement to be enabled, not only loaded.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['website-booking', 'google-vacation-rentals', 'sas'])) return;
 const h = require('./pluginPackagesFixture');

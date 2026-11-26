@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 28, 34, 35 — on the property page, the « Arrivée »
+// specs/emails/guest-email-texts-made-simple.md rules 28, 34, 35 — on the property page, the « Arrivée »
 // block is saved by the page's own Enregistrer and guarded like every other field (rule 35); a fact
 // the start assistant could not know shows empty and is sent only once answered (rule 28); the pool
 // season is set on the Séjour tab (rule 34).

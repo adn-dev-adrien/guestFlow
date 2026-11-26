@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 37 (UI/UX review 2026-10-18, decision 15) — the preview
+// specs/emails/guest-email-texts-made-simple.md rule 37 (UI/UX review 2026-10-18, decision 15) — the preview
 // shows either part of the guest email: the text as sent, or the HTML part the server derived from it,
 // in a sandboxed frame. No HTML from the server → no switch.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/platform-statement-after-payout.md — the platform's statement (brut, commissions) written on a received
+// specs/platforms/platform-statement-after-payout.md — the platform's statement (brut, commissions) written on a received
 // payout or a locked fiche, outside the fiche save: re-split, never re-priced, traced.
 
 process.env.DB_PATH = ':memory:';

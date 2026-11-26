@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 3, 5 and 6 — one source: the synthesis reads the very rows the CSV export
+// specs/accounting/accounting-synthesis.md §3 rules 3, 5 and 6 — one source: the synthesis reads the very rows the CSV export
 // writes, and the export, refactored to carry each row's role beside it, writes the same bytes as before. The
 // expected file below was produced by the export as it stood before the refactor (inte/plugins 5437951d), on these
 // entries, with the default plan and with a renamed one. The clock is pinned: the dates are inputs of pure functions.
@@ -89,7 +89,7 @@ const GOLDEN_DEFAULT = [
   '',
 ].join('\r\n');
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 16): the export before the refactor, plus the « Code TVA » column
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 16): the export before the refactor, plus the « Code TVA » column
 // appended last — every row of the old golden is the same bytes up to that last cell.
 test('rule 3 — the CSV is byte-identical to the export before the refactor, default plan and renamed plan, but for the trailing VAT code', () => {
   const bytes = csvBytes(ENTRIES);

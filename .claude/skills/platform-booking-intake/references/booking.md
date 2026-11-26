@@ -28,7 +28,7 @@ Measured on the two payouts received so far:
 and is **not** withheld: it comes back in the payout. « Commission et frais » = 15 % of « Montant
 soumis à commission » + ~1,4 % payment fee on « Montant total » (2026-10-06: 302,13 + 28,59 = 330,72).
 
-## Entry order in « Paiement plateforme » (specs/platform-host-statement-and-commission-vat.md rules 1, 5, 21, 22)
+## Entry order in « Paiement plateforme » (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5, 21, 22)
 
 The block takes the **host side** of the statement: the figures never contain the tourist tax nor a fee the
 guest paid Booking. Booking is in tourist-tax mode « plateforme collecte et reverse » (the tax comes back in

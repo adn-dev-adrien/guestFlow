@@ -1,4 +1,4 @@
-// 2026-10-27 spec review (specs/plugins-phase-p-productisation.md rule 48) — at 1280 px with the side
+// 2026-10-27 spec review (specs/plugins/plugins-phase-p-productisation.md rule 48) — at 1280 px with the side
 // menu open the table showed 1043 px of columns in a 926 px card, « Sans corvées » behind an invisible
 // scroll. The table now shows from 1280 px with compact columns (the colour beside the name, short
 // one-line headers); below, the cards.

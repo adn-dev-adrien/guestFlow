@@ -1,4 +1,4 @@
-// The terms of a suite — the SDK's `ctx.terms` as a stub (specs/gift-voucher-campaigns.md rule 37). Not a test file.
+// The terms of a suite — the SDK's `ctx.terms` as a stub (specs/gift-vouchers/gift-voucher-campaigns.md rule 37). Not a test file.
 
 /**
  * `published` maps an activity to its current version id. `accepted` collects what was recorded; the refusals are the core's: nothing owed when nothing is published,

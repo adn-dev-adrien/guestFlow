@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 7, readings of 2026-11-04 and 2026-11-05 (audit R22-P1, R23-P1) — the generic settings
+// specs/plugins/plugins-phase-1-sdk.md rule 7, readings of 2026-11-04 and 2026-11-05 (audit R22-P1, R23-P1) — the generic settings
 // write: an object or a list is 400 INVALID_SETTING with nothing written and no validator called; a field of spaces keeps a
 // secret as '' does; a secret is a string or null, and a boolean never reaches a validator.
 const test = require('node:test');

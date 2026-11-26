@@ -1,9 +1,9 @@
 /**
  * Email manual queue model — sole DB access for `email_manual_queue`
- * (specs/manual-email-from-template.md §4.1 + §5).
+ * (specs/emails/manual-email-from-template.md §4.1 + §5).
  *
  * Stores the (templateId, reservationId, occurrenceKey) triples the operator explicitly queued for sending.
- * The occurrence key is '' except for an email sent once per installment (specs/direct-installments.md).
+ * The occurrence key is '' except for an email sent once per installment (specs/payments/direct-installments.md).
  * The pending controller merges these with the date-driven candidates; send / acknowledge
  * remove the pair. Only the pair + createdAt is stored — the email body is always re-rendered
  * live at preview/send, so template/reservation edits are reflected (no stale snapshot).

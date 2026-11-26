@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/site-english-version.md rule 8 (reading of 2026-11-05, audit R23 public finding 2): a limiter's 429, the 404 of
+// specs/site/site-english-version.md rule 8 (reading of 2026-11-05, audit R23 public finding 2): a limiter's 429, the 404 of
 // the public tree and the two key refusals follow `lang`. Only the message moves: code and status do not.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');

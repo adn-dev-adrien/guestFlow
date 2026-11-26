@@ -7,10 +7,10 @@ const laundryTripSkipsController = require('../skipsController');
 const { todayIso } = require('../../../utils/localDate');
 const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
-// specs/skip-laundry-trip.md §4.3 + §7.1 — endpoint-shape coverage for the GET/POST/DELETE
+// specs/linen/skip-laundry-trip.md §4.3 + §7.1 — endpoint-shape coverage for the GET/POST/DELETE
 // trio. Drives the controller via mock req/res. Role enforcement (admin-only) is owned by
 // the global `enforceRoleAccess` middleware which has its own dedicated test suite — we
 // don't re-test it here, we just confirm the handlers themselves don't add a second guard.

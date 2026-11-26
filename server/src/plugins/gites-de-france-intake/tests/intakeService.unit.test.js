@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rules 1–3 and 7–15 — the pass, the matching, the fill and the banner.
+// specs/platforms/gites-de-france-mail-intake.md rules 1–3 and 7–15 — the pass, the matching, the fill and the banner.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -31,7 +31,7 @@ test('rule 10: an untouched iCal fiche is filled — guest, party, number, ména
   assert.deepEqual(calls.clients[0], { firstName: 'Claire', lastName: 'Dupont', email: 'claire.dupont@example.org', phone: '06 12 34 56 78', emailLanguage: 'fr' });
 });
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 19): the brut is the host amount — rent + options, the tax out of it.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 19): the brut is the host amount — rent + options, the tax out of it.
 test('rules 7-8, 19: one rent → the payment block lands on the payout (brut = rent + options, the tax in its box)', async () => {
   const { service, calls } = setup({ mails: [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: withTotals(BOOKING_MAIL, { net: '455.00', options: '80.00', total: '535.00' }) }] });
   await service.runPass();

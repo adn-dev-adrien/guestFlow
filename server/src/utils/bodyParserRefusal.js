@@ -1,15 +1,15 @@
 /**
  * The body-parser errors that are the caller's fault, turned into a French JSON refusal —
- * specs/express-5-upgrade.md rule 7.
+ * specs/tech/express-5-upgrade.md rule 7.
  *
  * `express.json()` hands a malformed or oversized body to the global error middleware with
  * `err.type` set; without this the caller read « Erreur interne du serveur » and the log recorded an
  * unhandled crash for what is a bad request. Anything else returns null and stays a real 500.
- * `messageKey` is the sentence the public tree answers with, in its own envelope (specs/public-api.md rule 22).
+ * `messageKey` is the sentence the public tree answers with, in its own envelope (specs/site/public-api.md rule 22).
  *
  * `requestRefusal` adds what the same terminal handler must not read as a crash: a compressed body that does not
- * inflate, a dropped upload, a badly encoded path parameter (specs/express-5-upgrade.md rule 9), and the last-resort
- * net of a wrong JSON type no route refused first (specs/hosting-h2-account-security.md rule 68).
+ * inflate, a dropped upload, a badly encoded path parameter (specs/tech/express-5-upgrade.md rule 9), and the last-resort
+ * net of a wrong JSON type no route refused first (specs/hosting/hosting-h2-account-security.md rule 68).
  */
 
 const REFUSALS = {

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 25, 31, 104 (stabilisation loop t5, S5-3, 2026-11-16) — the money a note paid on a line since discounted or
+// specs/pricing/pricing-components.md §3 rules 25, 31, 104 (stabilisation loop t5, S5-3, 2026-11-16) — the money a note paid on a line since discounted or
 // offered is credited to what the stay still asks (rule 104), and every reader shows that credit as a line of its own, « Déjà réglé (<line>) »
 // −amount, in the bucket it comes off: each article keeps its price and the lines of every recap sum to what its bucket asks. Before: the
 // arrival e-mail and SAS listed the basket at 45 € for a complement of 35 €, and the end-of-stay detail billed another article at the credited

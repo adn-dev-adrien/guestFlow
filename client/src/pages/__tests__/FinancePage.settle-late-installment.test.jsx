@@ -1,5 +1,5 @@
 /**
- * FinancePage — specs/finance-dashboard-redesign.md rules 34 + 49, specs/direct-installments.md rules 14 + 48 (spec
+ * FinancePage — specs/accounting/finance-dashboard-redesign.md rules 34 + 49, specs/payments/direct-installments.md rules 14 + 48 (spec
  * review of 2026-10-27, agent 3 F3): a late installment is an element of « En retard »; « Marquer payé »
  * records it through its own endpoint, never through a payment flag it does not have.
  */

@@ -13,7 +13,7 @@ const CLIENT_URL = `http://localhost:${CLIENT_PORT}`;
 const SERVER_PORT = process.env.E2E_SERVER_PORT || '4000';
 
 // The budget of one API call made by the suite itself (seeds, read-backs), apart from the 5 s UI action budget
-// (specs/e2e-playwright-smoke-suite.md rule 19, reading of 2026-11-16): a request context created in a test
+// (specs/tech/e2e-playwright-smoke-suite.md rule 19, reading of 2026-11-16): a request context created in a test
 // inherits `actionTimeout`, and one call stalled on the dev-proxy hop then failed a test whose server answered in ms.
 const API_TIMEOUT = 15_000;
 

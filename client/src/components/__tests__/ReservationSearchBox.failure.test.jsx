@@ -1,4 +1,4 @@
-// specs/reservation-number-and-search.md rule 17 — a failed search says « Recherche indisponible. », never
+// specs/reservations/reservation-number-and-search.md rule 17 — a failed search says « Recherche indisponible. », never
 // « Aucune réservation » (which reads as « this reservation does not exist »).
 import React from 'react';
 import { vi } from 'vitest';

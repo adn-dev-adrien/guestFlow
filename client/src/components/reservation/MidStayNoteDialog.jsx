@@ -18,7 +18,7 @@ import useMoneyCommit, { PreviewFailure } from '../../hooks/useMoneyCommit';
 import { TENDER_TEXTS } from '../../constants/tenderMethods';
 
 /**
- * « Nouvelle note » — specs/mid-stay-notes.md §3.2 + §6.
+ * « Nouvelle note » — specs/sas/mid-stay-notes.md §3.2 + §6.
  *
  * A bar tab: the operator ticks what the guest is paying among the prestations still to collect,
  * adds new ones from the catalogue, and closes the note with ONE payment choice (CB / caisse interne
@@ -58,7 +58,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
 
   const [checkedKeys, setCheckedKeys] = useState([]);
   const [busy, setBusy] = useState(false);
-  // specs/mixed-method-payments.md rules 1, 21-22 — « Plusieurs moyens », closed on every opening.
+  // specs/payments/mixed-method-payments.md rules 1, 21-22 — « Plusieurs moyens », closed on every opening.
   const [splitOpen, setSplitOpen] = useState(false);
   const [tenders, setTenders] = useState(null);
   // The sold options when the dialog opened: « Annuler » must leave the reservation exactly as it was,
@@ -109,7 +109,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   const settleOff = !settle.ready;
   const instruction = () => ({ checkedKeys, opening: opening || [] });
   // What a line sold counts: its typed people or nights, else its units (a typed line's `quantity` stays
-  // 1, specs/non-card-option-served-persons.md rule 13). Same reading as the field below.
+  // 1, specs/options/non-card-option-served-persons.md rule 13). Same reading as the field below.
   const kindOf = (optionId) => typedCountKind((propertyOptions || []).find((p) => Number(p.id) === Number(optionId)));
   const soldCount = (line) => {
     const kind = kindOf(line.optionId);
@@ -143,11 +143,11 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
     }
   };
 
-  // Same server-computed grouping as the fiche's Options section (specs/option-categories.md):
+  // Same server-computed grouping as the fiche's Options section (specs/options/option-categories.md):
   // `{ ungrouped, groups: [{ category, options }] }`, with a flat fallback for older payloads.
   // Auto-timed options (early check-in / late check-out) are never a mid-stay sale.
   const catalogue = useMemo(() => {
-    // The cancellation insurance is never sold during the stay (specs/cancellation-insurance.md
+    // The cancellation insurance is never sold during the stay (specs/payments/cancellation-insurance.md
     // §3.2 rule 17) — same reason as at check-in: there is nothing left to cancel.
     const sellable = (list) => (list || []).filter((o) => !o.autoEnabled && !o.isCancellationInsurance);
     const groups = [
@@ -204,7 +204,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                     <Stack spacing={1}>
                       {group.options.map((opt) => {
                         const selected = (form.selectedOptions || []).find((o) => Number(o.optionId) === Number(opt.id));
-                        // Same field as the fiche's OptionRow (specs/non-card-option-served-persons.md
+                        // Same field as the fiche's OptionRow (specs/options/non-card-option-served-persons.md
                         // rule 13). 0 = not sold; a number on an unsold line sells that number (rule 35).
                         const typedKind = typedCountKind(opt);
                         const typedCurrent = typedKind === 'nights' ? quantityNights : quantityPersons;
@@ -236,7 +236,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                             {/* A planning-card option (petit-déjeuner…) is billed by its scheduled
                                 occurrences, never by a raw quantity — the fiche shows no Qté field for
                                 it either. Here it is a simple add/remove; the days stay editable on the
-                                fiche (specs/option-planning-card.md §3.4). */}
+                                fiche (specs/options/option-planning-card.md §3.4). */}
                             {opt.showsPlanningCard ? (
                               <Button
                                 size="small"

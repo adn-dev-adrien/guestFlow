@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 6–7 — « À compléter »: the server's items as links to
+// specs/emails/guest-email-texts-made-simple.md rules 6–7 — « À compléter »: the server's items as links to
 // where each is fixed; nothing when complete; the dashboard card counts what concerns a stay soon.
 import React from 'react';
 import { vi } from 'vitest';
@@ -38,7 +38,7 @@ test('rule 6: nothing when complete, or the done label when asked', () => {
 });
 
 test('rule 7: « Emails incomplets » on the dashboard only while a stay within 14 days is concerned', () => {
-  // The 14-day count is the server's (soonCount → the home's subject, specs/shell-and-home-day-first.md
+  // The 14-day count is the server's (soonCount → the home's subject, specs/planning/shell-and-home-day-first.md
   // rule 6); the card draws what it is given and leads to « Textes des emails ».
   const attention = { key: 'email-readiness', severity: 'todo', count: 2, title: 'Emails incomplets', detail: '2 points à compléter avant les prochaines arrivées' };
   const { unmount } = render(<MemoryRouter><EmailReadinessAlert attention={attention} /></MemoryRouter>);

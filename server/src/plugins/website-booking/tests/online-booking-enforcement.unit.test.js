@@ -1,6 +1,6 @@
-// specs/terms-acceptance-record.md rules 17-18 — the outdated-plugin warning and the closed-booking
+// specs/reservations/terms-acceptance-record.md rules 17-18 — the outdated-plugin warning and the closed-booking
 // alert of the « Réservation en ligne » card. Moved from terms-publishing.unit.test.js with the card
-// (specs/plugins-phase-2-hosts.md rule 25): the verdicts are now computed by the plugin.
+// (specs/plugins/plugins-phase-2-hosts.md rule 25): the verdicts are now computed by the plugin.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

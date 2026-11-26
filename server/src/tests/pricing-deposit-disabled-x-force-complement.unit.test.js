@@ -4,8 +4,8 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing');
 
-// Cross-feature interaction tests: `depositDisabled` (specs/disable-deposit-per-reservation.md)
-// composed with per-item routing to Complément (specs/force-item-to-complement.md). Both
+// Cross-feature interaction tests: `depositDisabled` (specs/payments/disable-deposit-per-reservation.md)
+// composed with per-item routing to Complément (specs/sas/force-item-to-complement.md). Both
 // features modify the deposit/balance/complement split in the engine; this file pins their
 // expected interaction so neither side can silently break the other.
 

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 66, 80 — PR B leaves no copy of a formula waiting for it: every allow-list of the static guards holds no entry that PR B was to remove
+// specs/pricing/pricing-components.md §3 rules 66, 80 — PR B leaves no copy of a formula waiting for it: every allow-list of the static guards holds no entry that PR B was to remove
 // (what remains is PR C's, with its reason). The guards themselves are `no-duplicate-formulas`.
 const test = require('node:test');
 const assert = require('node:assert/strict');

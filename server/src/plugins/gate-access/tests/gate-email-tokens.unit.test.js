@@ -1,4 +1,4 @@
-// The gate-key tokens in the emails — specs/gate-access-sowel-connector.md §3.5 rule 23.
+// The gate-key tokens in the emails — specs/guest-app/gate-access-sowel-connector.md §3.5 rule 23.
 //
 // Composing an email NEVER reaches the house. The tokens come from the stored result, so an email
 // leaves with its paragraph or without it, but it never sits waiting.

@@ -1,6 +1,6 @@
 // Audit R42-EXT-L2 and its class (2026-11-10) — the id-keyed maps of the plugin settings name logements of the core:
-// specs/google-vacation-rentals-feed.md rule 20 (`properties`), specs/airbnb-mail-intake.md rule 37 (`listings`),
-// specs/gites-de-france-mail-intake.md rule 36 (`giteNumbers`), specs/booking-extranet-intake.md rule 38 (`hotelIds`). A key that names no logement is refused, nothing
+// specs/site/google-vacation-rentals-feed.md rule 20 (`properties`), specs/platforms/airbnb-mail-intake.md rule 37 (`listings`),
+// specs/platforms/gites-de-france-mail-intake.md rule 36 (`giteNumbers`), specs/platforms/booking-extranet-intake.md rule 38 (`hotelIds`). A key that names no logement is refused, nothing
 // stored: it let Envoi pass with no logement, and tied a logement created later to a listing nobody chose. A key already
 // stored stays accepted, so a deleted logement's line never blocks a save.
 const test = require('node:test');

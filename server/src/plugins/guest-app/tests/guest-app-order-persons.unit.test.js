@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 55 (audit R36-M-H1) — persons ordered beyond what the stay can still be served are refused
+// specs/guest-app/guest-app.md rule 55 (audit R36-M-H1) — persons ordered beyond what the stay can still be served are refused
 // before anything is priced: the engine serves a per-person line at most max(party, the lodging's capacity) persons, so
 // the persons above it were delivered and never billed (a repeat order confirmed at 0 €). The whole class: a per-person
 // option on the note, by card, at 0 € and in pickup mode, the breakfast line's persons, a pending card order's persons,
@@ -115,7 +115,7 @@ test('rule 55: a breakfast asking more persons than its line already serves is r
   });
 });
 
-test('specs/pricing-components.md rule 85 (was guest-app rule 55): an article the fiche offers is ordered as a line of its own — billed, never confirmed at 0 €', async () => {
+test('specs/pricing/pricing-components.md rule 85 (was guest-app rule 55): an article the fiche offers is ordered as a line of its own — billed, never confirmed at 0 €', async () => {
   const stay = seedStay({ propertyId: 1 });
   db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
     VALUES (?, 404, 1, 12, 1, 'per_stay', 0, 1)`).run(stay);

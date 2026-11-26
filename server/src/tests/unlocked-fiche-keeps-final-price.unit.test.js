@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — « Lorsqu'on déverrouille une fiche il faut autoriser
+// specs/settings/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — « Lorsqu'on déverrouille une fiche il faut autoriser
 // que les modifications possibles qui ne changent pas le prix final. » The admin unlock of a started stay exists to correct
 // the amounts expected from the platforms: a save that moves the final price or the tourist tax is refused 409
 // UNLOCKED_PRICE_CHANGED and writes nothing; every save that keeps both passes. The ledger's solde editor, which reaches
@@ -118,7 +118,7 @@ test('the solde editor on an unlocked fiche: a different solde is refused, the s
 
 // Rule 35's exception, written 2026-11-06 (audit R26 D21 review L2): on a platform that remits the tax with a brut
 // entered, correcting the brut moves the final price. D21 stays strict: refused under the unlock; the locked fiche takes that save.
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 5): the box « Taxe de séjour retenue » is informational
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 5): the box « Taxe de séjour retenue » is informational
 // — the brut is the host amount, tax out of it — so typing it moves nothing, and is saved even under the unlock (see below).
 for (const [label, over, finalPrice] of [
   ['a brut correction', { platformGrossAmount: 650 }, 670],

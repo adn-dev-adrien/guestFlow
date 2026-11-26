@@ -1,5 +1,5 @@
 /**
- * EmailSettingsPage — Paramètres → Emails & notifications (specs/settings-rationalization.md rule 2).
+ * EmailSettingsPage — Paramètres → Emails & notifications (specs/settings/settings-rationalization.md rule 2).
  *
  * Sending (SMTP, with the derived identity of rule 12), the content the guest emails quote, the
  * operator's own notifications, and push on this device. Whether a guest email leaves by itself is
@@ -26,9 +26,9 @@ export default function EmailSettingsPage() {
   const disabled = form.loading || form.saving;
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
-  // specs/settings-rationalization.md rule 28 — the server proposes the sending server while none is
+  // specs/settings/settings-rationalization.md rule 28 — the server proposes the sending server while none is
   // saved, for an own server only: never on a managed instance sending through the platform, until
-  // a password is stored or typed there (specs/hosting-h1-fleet-runtime.md rules 18–19).
+  // a password is stored or typed there (specs/hosting/hosting-h1-fleet-runtime.md rules 18–19).
   const smtpDraft = form.draft.smtp || {};
   const savedHost = String((form.saved && form.saved.smtp && form.saved.smtp.host) || '').trim();
   const ownServer = !(smtpDraft.platform && smtpDraft.platform.available)

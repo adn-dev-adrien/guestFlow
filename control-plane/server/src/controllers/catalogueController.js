@@ -1,5 +1,5 @@
 /**
- * The plan catalogue editor (specs/control-plane-plans-and-access.md rules 1–6).
+ * The plan catalogue editor (specs/hosting/control-plane-plans-and-access.md rules 1–6).
  *
  * The catalogue is stored as the lowest plan of each plugin; higher plans inherit it, so the plans
  * are nested by construction (rule 2). The editor works on a draft `lowest` map that the client
@@ -77,7 +77,7 @@ function createCatalogueController(ctx, customersController) {
     };
   }
 
-  // specs/plugin-dependencies.md rule 19 — a plan may not include a plugin without the ones it requires.
+  // specs/plugins/plugin-dependencies.md rule 19 — a plan may not include a plugin without the ones it requires.
   function refuseIncoherent(lowest, plans) {
     const { rank } = planIndex(plans);
     for (const plan of plans) {

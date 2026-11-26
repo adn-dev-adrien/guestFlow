@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 35, 108 and specs/pricing-components.md rules 21, 31, 93 — a card order paid before the arrival is netted out of the
+// specs/guest-app/guest-app.md rules 35, 108 and specs/pricing/pricing-components.md rules 21, 31, 93 — a card order paid before the arrival is netted out of the
 // stored arrival complement in the sale's own transaction: the bucket states (the SAS's « Rien à encaisser ») and a complement link read the row,
 // so the guest is never asked a second time at the door for what the card already paid (end review R2-3).
 const test = require('node:test');

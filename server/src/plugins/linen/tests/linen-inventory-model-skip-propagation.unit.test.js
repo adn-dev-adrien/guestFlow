@@ -7,7 +7,7 @@ const laundryTripSkipsModel = require('../skipsModel');
 const laundryExtraTripsModel = require('../extraTripsModel');
 const { fakeScheduleModel } = require('./laundry-schedule-fixtures');
 
-// specs/skip-laundry-trip.md §4.1 — wiring test that pins the propagation chain:
+// specs/linen/skip-laundry-trip.md §4.1 — wiring test that pins the propagation chain:
 // `laundry_trip_skips` DB rows → `laundryTripSkipsModel.listAll()` →
 // `linenInventoryModel.simulate()` → `simulateInventory({ skippedDates })` → days reflect the
 // skip → `shortagesByType` reflects the skip.
@@ -164,7 +164,7 @@ test('skipping a Tuesday pushes the shortage threshold forward by a week — `sh
     'skip on 06-16 prevents the linen from being clean on 06-17 → shortage surfaces');
 });
 
-// specs/laundry-extra-trip.md §4.1 — the extra-trip chain: `laundry_extra_trips` row →
+// specs/linen/laundry-extra-trip.md §4.1 — the extra-trip chain: `laundry_extra_trips` row →
 // `laundryExtraTripsModel.listAll()` → `linenInventoryModel.simulate()` → `simulateInventory({
 // extraTripsByDate })` → the pool comes back on the extra day.
 test('an extra trip row propagates through the model: pool back on the Thursday, not the next Tuesday', () => {

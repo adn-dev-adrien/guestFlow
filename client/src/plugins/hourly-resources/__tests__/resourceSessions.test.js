@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { enumerateStayDates, timeOptions, isHourlyScheduled } from '../resourceSessions';
 
-// specs/resource-hourly-scheduling.md — client helpers for the sessions (no money: specs/resource-supplements-total-server-side.md).
+// specs/resources/resource-hourly-scheduling.md — client helpers for the sessions (no money: specs/resources/resource-supplements-total-server-side.md).
 
 describe('enumerateStayDates', () => {
   it('lists inclusive days without TZ shift', () => {

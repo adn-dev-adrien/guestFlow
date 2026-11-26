@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 57 — every registered article family, the seven core ones and `hourly`, goes through the
+// specs/pricing/pricing-components.md §3 rule 57 — every registered article family, the seven core ones and `hourly`, goes through the
 // same cases: validate refuses out-of-bounds, price is deterministic and shaped the same, tagged amounts carry no VAT,
 // describe matches the quote.
 const test = require('node:test');

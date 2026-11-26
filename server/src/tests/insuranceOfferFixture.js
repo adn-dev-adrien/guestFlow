@@ -1,5 +1,5 @@
 /**
- * Offers the cancellation insurance in a suite (specs/plugins-phase-3b-neat.md rule 5): a live `neat`
+ * Offers the cancellation insurance in a suite (specs/plugins/plugins-phase-3b-neat.md rule 5): a live `neat`
  * declaring an unready quote post-processor — the insurance is sold at its Options price, as with Neat
  * installed but not configured. A non-test module so no suite imports another.
  */

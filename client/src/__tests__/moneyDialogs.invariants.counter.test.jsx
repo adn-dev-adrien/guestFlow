@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: « Vente hors séjour »
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: « Vente hors séjour »
 // (`StandaloneSaleDialog`). The driver and the invariants are in `moneyDialogsHarness.jsx`.
 import React from 'react';
 import { act } from '@testing-library/react';
@@ -18,7 +18,7 @@ const ARTICLES = [
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const linesKey = (lines) => (lines || []).map((l) => `${l.articleRef}x${l.quantity}${l.offered ? 'o' : ''}`).join(',');
-// The request names the customer as the dialog may send it (specs/plugins-phase-1-sdk.md rule 54 reading of 2026-11-19, loop t26 UI26-1):
+// The request names the customer as the dialog may send it (specs/plugins/plugins-phase-1-sdk.md rule 54 reading of 2026-11-19, loop t26 UI26-1):
 // the address once it reads as one, « Enregistrer comme client » once a name is there. A change of it is a new request of the same amounts.
 const customerKey = (c = {}) => [c.name || '', c.email || '', c.registerAsClient ? 'r' : ''].join('/');
 const requestKey = (body) => `${linesKey(body.lines)}|${customerKey(body.customer)}`;

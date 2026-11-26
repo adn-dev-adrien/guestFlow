@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 22, 34 and 35 — verification round V5: the top tick hugs the largest
+ * specs/design-system/report-grammar.md §3 rules 22, 34 and 35 — verification round V5: the top tick hugs the largest
  * value (a 25,8 k€ cumul reads 0 / 10 / 20 / 30 k€, not 0 / 20 / 40 k€), and long category labels are
  * evenly spaced.
  */

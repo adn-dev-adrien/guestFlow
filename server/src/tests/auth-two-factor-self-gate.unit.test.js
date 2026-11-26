@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 6 — the user's own second-step routes (/api/auth/2fa/
+// specs/hosting/hosting-h2-account-security.md rule 6 — the user's own second-step routes (/api/auth/2fa/
 // status|start|confirm|disable|backup-codes|snooze) are mounted outside requireAuth, so they apply
 // its gate themselves: a deleted or deactivated account, or one still on its default password, is
 // refused even though its session is still open, and never falls back to the stale session copy.

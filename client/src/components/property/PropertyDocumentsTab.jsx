@@ -1,5 +1,5 @@
 /**
- * PropertyDocumentsTab — « Documents » tab of the property page (specs/settings-rationalization.md
+ * PropertyDocumentsTab — « Documents » tab of the property page (specs/settings/settings-rationalization.md
  * rule 21). A table of the documents with « Retirer » per row, and one « Ajouter un document »
  * button that reveals Type, Nom and « Parcourir… » with Annuler / Enregistrer. Adding or removing a
  * document is written at once through its own endpoint — never through the property's Save.

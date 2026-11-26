@@ -1,4 +1,4 @@
-// specs/integrations-tab-per-plugin.md rule 8 — the summary's search finds the Intégrations row with
+// specs/plugins/integrations-tab-per-plugin.md rule 8 — the summary's search finds the Intégrations row with
 // the words its active plugins bring, and a word of one plugin opens that plugin's tab.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

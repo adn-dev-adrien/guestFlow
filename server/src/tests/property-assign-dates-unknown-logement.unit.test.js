@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 26 (audit R42-C-L1, 2026-11-10) — painting a period into a NEW season on a
+// specs/tech/reservations-backend-mvc.md rule 26 (audit R42-C-L1, 2026-11-10) — painting a period into a NEW season on a
 // logement that does not exist (a stale tab after its deletion) is refused 404 « Logement non trouvé », like every
 // sibling pricing route: it used to reach the new season's foreign-key INSERT and answer 500. Nothing is written.
 process.env.DB_PATH = ':memory:';

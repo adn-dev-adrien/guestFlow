@@ -1,5 +1,5 @@
 /**
- * STEP totals (external) — the lines of an external sale, ready to store and to render, and their total (specs/pricing-components.md §3 rules 52, 74).
+ * STEP totals (external) — the lines of an external sale, ready to store and to render, and their total (specs/pricing/pricing-components.md §3 rules 52, 74).
  *
  * `lines` are the document's lines in sale order — the stored ones as they were frozen, then a fulfilled line (the session of a visit) as its family
  * priced it, then the new articles as the head priced them — each in

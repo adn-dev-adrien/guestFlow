@@ -1,6 +1,6 @@
 /**
  * Arrival facts of a property — sole DB access for `property_arrival_facts`
- * (specs/guest-email-texts-made-simple.md rules 1–2, §5).
+ * (specs/emails/guest-email-texts-made-simple.md rules 1–2, §5).
  *
  * The key-box code and the Wi-Fi password are secrets: stored encrypted (AES-256-GCM, the
  * `ENCRYPTED_COLUMNS` rule of CLAUDE.md §8), decrypted only for the email context, never returned by

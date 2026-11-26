@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 47, 48 — « Désactiver », « Nouveaux codes de secours » and
+// specs/hosting/hosting-h2-account-security.md rules 47, 48 — « Désactiver », « Nouveaux codes de secours » and
 // « Changer d’appli » ask the password and a current code (sent with the call), then do their work; a
 // refusal stays in the dialog, and a change of app opens the dialog at step 2.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/mid-stay-notes.md rule 24 reading R32-C-L2 (2026-11-09) — a note's settlement is judged by its PATCH alone. A
+// specs/sas/mid-stay-notes.md rule 24 reading R32-C-L2 (2026-11-09) — a note's settlement is judged by its PATCH alone. A
 // re-read failing after it left « Nouvelle note » busy with every button disabled (« Annuler » included), and a stored
 // settlement followed by a failed re-read was reported « Encaissement impossible ». The re-read is now best effort.
 import { screen, waitFor } from '@testing-library/react';

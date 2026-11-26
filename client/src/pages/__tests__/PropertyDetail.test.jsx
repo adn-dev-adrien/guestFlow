@@ -1,6 +1,6 @@
 // Behavior / non-regression tests for the PropertyDetail page itself (load → populate → save,
 // dirty-reveals-actions, cancel-reverts, new-property guard). The page is split into tabs
-// (specs/settings-rationalization.md rule 21): the tabs have their own suites
+// (specs/settings/settings-rationalization.md rule 21): the tabs have their own suites
 // (PropertyDetail.tabs, components/property/__tests__/*). Mocks the API, the
 // router hooks, usePlatforms, and the two heavy child cards so the test exercises ONLY this page's
 // own logic — the payloads it sends and the affordances it shows.
@@ -28,7 +28,7 @@ vi.mock('../../api', () => ({
   default: {
     getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
     getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(),
-    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
+    // The « Arrivée » block is part of the page (specs/emails/guest-email-texts-made-simple.md rule 35).
     getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
     savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock('../../api', () => ({
   },
 }));
 
-// specs/platforms-and-ical-rework.md — the merged per-property platform list that drives the section.
+// specs/platforms/platforms-and-ical-rework.md — the merged per-property platform list that drives the section.
 const PLATFORMS = [
   { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, isDirectChannel: true, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', payoutDueDays: 10, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
   { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isDirectChannel: false, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', payoutDueDays: 10, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
@@ -89,12 +89,12 @@ test('existing property: loads via api.getProperty and populates the form', asyn
   renderPage();
   expect(await screen.findByDisplayValue('Le Moulin')).toBeInTheDocument(); // name field value (first form field)
   expect(api.getProperty).toHaveBeenCalledWith('5');
-  // specs/property-capacity-single-total.md — one total instead of adultes/enfants buckets.
+  // specs/reservations/property-capacity-single-total.md — one total instead of adultes/enfants buckets.
   expect(screen.getByLabelText(/Max voyageurs/)).toHaveValue(3);
   expect(screen.getByLabelText(/Max bébés/)).toHaveValue(1);
   expect(screen.queryByLabelText(/Max adultes/)).toBeNull();
   expect(screen.queryByLabelText(/Max enfants/)).toBeNull();
-  // specs/payment-schedule-and-cancellation.md §3 — the schedule is driven by three per-property
+  // specs/payments/payment-schedule-and-cancellation.md §3 — the schedule is driven by three per-property
   // delays: the acompte counts from the BOOKING, the solde from the arrival, the cancellation from
   // the solde deadline. This fixture has the « Acompte » switch OFF, so only the last two are on
   // screen — the switch and what it reveals live in PropertyDetail.deposit-switch.test.jsx.

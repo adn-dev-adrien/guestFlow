@@ -1,5 +1,5 @@
 /**
- * calendarLayout — the pixel geometry shared by the two calendars (specs/calendar-property-parity.md
+ * calendarLayout — the pixel geometry shared by the two calendars (specs/planning/calendar-property-parity.md
  * rules 9, 10, 18). Pure: turns the stays and closures of a month into week rows, lane-packed bars
  * and per-week segments. Nothing here is a business rule: which stays exist, their labels, colours and
  * past flag all come from `GET /api/calendar`.

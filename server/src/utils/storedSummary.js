@@ -1,6 +1,6 @@
 /**
  * The pricing summary of a STORED reservation, shaped like the live quote so the fiche renders it with
- * the very component that renders the quote (specs/reservation-payment-ledger.md rules 44-45, 50-52).
+ * the very component that renders the quote (specs/payments/reservation-payment-ledger.md rules 44-45, 50-52).
  *
  * Every amount and date is the one saved on the fiche; the lines (options, custom options, resources)
  * are the saved rows, with the flags the summary needs to word them. What a fresh engine run would add
@@ -205,7 +205,7 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
     finalPrice: round2(row.finalPrice),
     touristTaxTotal: tax,
     touristTaxOriginalTotal: tax,
-    // specs/platform-added-guests-tourist-tax.md rule 18 — the fiche prints its own line, as on the live quote.
+    // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 18 — the fiche prints its own line, as on the live quote.
     touristTaxAddedGuestsAmount: round2(row.touristTaxAddedGuestsAmount),
     touristTaxInComplement: flag(row.touristTaxInComplement),
     touristTaxOfferedByPlatform,

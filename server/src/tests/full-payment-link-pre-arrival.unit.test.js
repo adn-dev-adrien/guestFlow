@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 18 and specs/payment-links-vat.md rule 10 (audit 2026-10-27,
+// specs/payments/deposit-blocks-the-dates.md rule 18 and specs/payments/payment-links-vat.md rule 10 (audit 2026-10-27,
 // finding 3) — a `full` payment link charges exactly what its payment marks paid: the acompte plus the
 // solde, i.e. the pre-arrival amount, tourist tax included and the arrival complement excluded.
 //

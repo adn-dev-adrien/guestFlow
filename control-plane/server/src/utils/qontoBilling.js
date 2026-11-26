@@ -1,5 +1,5 @@
 /**
- * The renewal in Qonto terms (specs/control-plane-plans-and-access.md rules 17, 32, 34): the client,
+ * The renewal in Qonto terms (specs/hosting/control-plane-plans-and-access.md rules 17, 32, 34): the client,
  * the invoice, its attached payment link, their payment state, cancel and deactivate.
  *
  * Every call goes through GuestFlow's `withQonto`, over the console's settings, so a failure lands in

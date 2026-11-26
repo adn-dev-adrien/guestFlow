@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { addDays, weekdayOf, previousMatchingDay, __test } = require('../laundryWindow');
 
-// Pure ISO date math — no DB. Pinned cases for specs/weekly-bed-linen-tracking.md §3.3.
+// Pure ISO date math — no DB. Pinned cases for specs/linen/weekly-bed-linen-tracking.md §3.3.
 
 test('parseIso rejects malformed input', () => {
   assert.throws(() => __test.parseIso('not-a-date'));
@@ -38,7 +38,7 @@ test('weekdayOf returns Date.getUTCDay() semantics (0=Sunday)', () => {
   assert.equal(weekdayOf('2026-06-06'), 6);
 });
 
-// --- specs/linen-laundry-days.md §3.2 rule 8 — the day-by-day walk that replaced the 7-day jumps ---
+// --- specs/linen/linen-laundry-days.md §3.2 rule 8 — the day-by-day walk that replaced the 7-day jumps ---
 
 const nonSkipped = (weekdays, skipped = []) => (iso) => weekdays.includes(weekdayOf(iso)) && !skipped.includes(iso);
 

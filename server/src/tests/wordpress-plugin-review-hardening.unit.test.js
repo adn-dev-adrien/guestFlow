@@ -1,5 +1,5 @@
-// specs/wordpress-plugin-self-update.md rule 6, specs/wordpress-plugin.md rule 14 and
-// specs/public-online-payment.md rule 2 — WordPress plugin 1.16.1: the update package must come from
+// specs/site/wordpress-plugin-self-update.md rule 6, specs/site/wordpress-plugin.md rule 14 and
+// specs/site/public-online-payment.md rule 2 — WordPress plugin 1.16.1: the update package must come from
 // GuestFlow's own releases, a fully trusted X-Forwarded-For chain never relays its client-written
 // left-most hop, and the payment redirect only follows an https URL. The plugin has no PHP harness,
 // so the PHP rules are read from the source and the redirect guard is run from view.js itself.

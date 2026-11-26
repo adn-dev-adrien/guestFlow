@@ -1,5 +1,5 @@
 /**
- * TrendChart — lines over a category axis, the report chart of specs/report-grammar.md rules 8–13:
+ * TrendChart — lines over a category axis, the report chart of specs/design-system/report-grammar.md rules 8–13:
  * a light area under the series flagged `area`, last year dashed, each line named at its end, a
  * legend whose items switch series on and off, a crosshair and tooltip under the pointer or finger,
  * and a « ⋯ » menu (view as a table, copy the data). One y axis, never two. Every value comes from the

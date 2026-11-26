@@ -1,4 +1,4 @@
-// specs/platform-added-guests-tourist-tax.md §5 and rules 19, 21 — the one-shot backfill, on a real boot of a
+// specs/tourist-tax/platform-added-guests-tourist-tax.md §5 and rules 19, 21 — the one-shot backfill, on a real boot of a
 // seeded file: it runs once in production with no undo, and a wrong paid base bills every platform fiche.
 
 const test = require('node:test');

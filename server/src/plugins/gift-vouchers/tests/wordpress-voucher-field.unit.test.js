@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 36-38 — the « Bon cadeau » field of the booking engine (WordPress block): the plugin's static
+// specs/gift-vouchers/gift-vouchers.md rules 36-38 — the « Bon cadeau » field of the booking engine (WordPress block): the plugin's static
 // contract. The code is normalised and its check character verified in the browser (`GF.voucherCode`) before any call, the field
 // exists only while GuestFlow says a plugin takes one, only a paying request carries it, and what the page shows of the amounts
 // comes from the server's `payment.prepaid` — never computed by the page.

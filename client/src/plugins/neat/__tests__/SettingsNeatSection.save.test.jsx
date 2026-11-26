@@ -1,7 +1,7 @@
 import React, { createRef } from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
-// specs/settings-one-save-and-automatic-webhook.md §3 rules 1, 2, 3 — the Neat card lost its three
+// specs/settings/settings-one-save-and-automatic-webhook.md §3 rules 1, 2, 3 — the Neat card lost its three
 // « Enregistrer » buttons. It now tells the page when it holds unsaved changes, and the page's
 // action bar writes it through a ref.
 

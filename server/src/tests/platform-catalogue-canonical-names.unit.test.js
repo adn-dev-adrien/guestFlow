@@ -1,4 +1,4 @@
-// 2026-10-27 spec review (specs/platforms-and-ical-rework.md rules 15-16) — one platform, one catalogue
+// 2026-10-27 spec review (specs/platforms/platforms-and-ical-rework.md rules 15-16) — one platform, one catalogue
 // row, one source per property, however its name is sent; and a platform that appears after the boot is
 // on Paramètres › Plateformes at once.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 31, 67 — owner 2026-11-15 « Brancher quand même », read with « éviter de toucher les anciens
+// specs/pricing/pricing-components.md §3 rules 31, 67 — owner 2026-11-15 « Brancher quand même », read with « éviter de toucher les anciens
 // séjours »: on a stay booked once 4.2.0 is installed, the Suivi financier reads its HT off the sale lines; its earnings stay
 // `totalSejour` (a stay reduced after it was paid would otherwise lose its trop-perçu refund twice, reservation-refunds rule 36,
 // proved end to end by `trop-percu-refund-books`). Every other stay keeps today's figures.

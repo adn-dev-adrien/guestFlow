@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 16, 40, 58 and 59 — DISCOUNTS in cents: the targets `extras` and `all`, a fixed amount, the
+// specs/pricing/pricing-components.md §3 rules 16, 40, 58 and 59 — DISCOUNTS in cents: the targets `extras` and `all`, a fixed amount, the
 // largest-remainder split (ties: accommodation, then lines by `soldAt`, then id), the lines a stay discount covers.
 const test = require('node:test');
 const assert = require('node:assert/strict');

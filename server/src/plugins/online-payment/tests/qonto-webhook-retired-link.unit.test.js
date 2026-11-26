@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 33 — a payment on a link GuestFlow already retired (marker
+// specs/plugins/plugins-phase-3a-online-payment.md rule 33 — a payment on a link GuestFlow already retired (marker
 // owed) reaches the single-link retry at once, so a double payment is flagged by the webhook itself.
 
 const test = require('node:test');

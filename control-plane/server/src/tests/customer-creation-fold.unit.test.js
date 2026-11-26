@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 38 — the « Création » card of a customer: no host path
+// specs/hosting/control-plane-plans-and-access.md rule 38 — the « Création » card of a customer: no host path
 // in a step's detail, and the card folds to one line once every step is done.
 
 const test = require('node:test');

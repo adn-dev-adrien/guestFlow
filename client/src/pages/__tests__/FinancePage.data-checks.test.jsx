@@ -1,4 +1,4 @@
-// specs/finance-data-checks.md §3 rules 16 and 17 — « À vérifier » sits at the bottom of the Suivi financier, reads the
+// specs/accounting/finance-data-checks.md §3 rules 16 and 17 — « À vérifier » sits at the bottom of the Suivi financier, reads the
 // exercise the page shows and its logement, and a refusal of the checks leaves the rest of the page as it is.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

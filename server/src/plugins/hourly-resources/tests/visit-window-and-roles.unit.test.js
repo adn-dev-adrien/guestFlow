@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 1, 5, 7 — who gets the mini SAS, its day window (D 00:00 → D+1 04:00, the stay SAS's), and what the reception may do:
+// specs/sas/outside-booking-sas.md rules 1, 5, 7 — who gets the mini SAS, its day window (D 00:00 → D+1 04:00, the stay SAS's), and what the reception may do:
 // open and commit inside the window, read-only after it, never a paid line, a refund or a refund amount (403 `ADMIN_ONLY`).
 // The reception's side of it is reception-role-checkin-only rule 17.
 const test = require('node:test');

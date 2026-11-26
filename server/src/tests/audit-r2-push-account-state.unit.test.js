@@ -1,4 +1,4 @@
-// specs/pwa-push-notifications.md rule 13 (audit R2, finding N1) — a push device receives guest data
+// specs/guest-app/pwa-push-notifications.md rule 13 (audit R2, finding N1) — a push device receives guest data
 // only while its owner is an active, non-support administrator; the devices go with the account's
 // standing.
 

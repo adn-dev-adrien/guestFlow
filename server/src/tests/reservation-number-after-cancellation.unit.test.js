@@ -1,4 +1,4 @@
-// specs/reservation-number-and-search.md rules 13 and 14 — a cancelled stay keeps its number, so the
+// specs/reservations/reservation-number-and-search.md rules 13 and 14 — a cancelled stay keeps its number, so the
 // generator must step over it. Before the fix, cancelling the latest stay of the month made the next
 // creation reuse that number: the unique index refused the write (HTTP 500), the row was left behind
 // without a number, devis conversions and iCal imports failed the same way until the month changed.
@@ -24,7 +24,7 @@ const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const PREFIX = monthPrefix(new Date());
-/** `YYYY-MM-DD`, `days` after today: a stay the controller creates is never in the past (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: a stay the controller creates is never in the past (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function realSchemaDb() {

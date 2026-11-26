@@ -1,6 +1,6 @@
 /**
- * A stand-in for the server's arrival preview (specs/sas-arrival-total-server-side.md §4.3) and, further
- * down, for its departure preview (specs/sas-departure-recap-server-side.md §4.3), for the
+ * A stand-in for the server's arrival preview (specs/sas/sas-arrival-total-server-side.md §4.3) and, further
+ * down, for its departure preview (specs/sas/sas-departure-recap-server-side.md §4.3), for the
  * ReservationSasDialog suites. The dialog no longer prices anything: it renders what
  * `POST …/sas/arrival/preview` answers. These suites test THAT rendering and the draft it sends, so the
  * double answers like the server would for the fixture payload (`sasPayload`) the test loaded — the
@@ -174,7 +174,7 @@ export function previewLikeTheServer(api) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The departure preview (specs/sas-departure-recap-server-side.md §4.3). Same contract as above: the
+// The departure preview (specs/sas/sas-departure-recap-server-side.md §4.3). Same contract as above: the
 // dialog renders what the server answers, so the double answers like it for the fixture payload. The
 // arithmetic itself is pinned server-side (server/src/tests/sas-departure-plan.unit.test.js).
 // ---------------------------------------------------------------------------------------------

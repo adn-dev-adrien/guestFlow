@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 30 (reading of card-option-served-persons rule 9) — the
+// specs/options/non-card-option-served-persons.md rule 30 (reading of card-option-served-persons rule 9) — the
 // field shows what is billed: a numeric echo of the engine wins over the form, a null echo (« follows
 // the party or the stay ») keeps what the form holds.
 import { expect, test } from 'vitest';

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/stay-profile.md §3 rules 22, 23, 24 and 26 — review of 2026-11-06 (R4-2, R4-3, R4-9, R4-11):
+// specs/accounting/stay-profile.md §3 rules 22, 23, 24 and 26 — review of 2026-11-06 (R4-2, R4-3, R4-9, R4-11):
 // the basket removes the tourist tax actually inside the total, lead times read each logement's own
 // tracking start, an exercise over before the history has no notice, and a unit never leaves its number.
 const { freshDb, insert, TODAY } = require('./financeDashboardFixture');

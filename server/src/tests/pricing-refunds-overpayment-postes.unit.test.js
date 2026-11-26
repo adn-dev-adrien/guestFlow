@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 74 and 76 — the trop-perçu poste split reads lines and what the payments named on them, never the
+// specs/pricing/pricing-components.md §3 rules 74 and 76 — the trop-perçu poste split reads lines and what the payments named on them, never the
 // audit log: a line collects more than it costs → the excess of its poste; a key a stay has dropped costs nothing; a removed
 // paid line adds to its poste.
 const test = require('node:test');

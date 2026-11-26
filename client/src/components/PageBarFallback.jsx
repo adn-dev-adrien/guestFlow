@@ -1,6 +1,6 @@
 /**
  * PageBarFallback — the Suspense fallback of a tab whose page loads on demand
- * (specs/ds-tabs.md rule 12). It draws the same bar the loaded tab will draw, so nothing moves when
+ * (specs/design-system/ds-tabs.md rule 12). It draws the same bar the loaded tab will draw, so nothing moves when
  * the real bar mounts: title, tabs, and either the inert Save / Cancel pair (when the tab's page has
  * one) or an empty action-sized slot that holds the row's height without showing a wrong button.
  *

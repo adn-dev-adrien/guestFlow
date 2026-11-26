@@ -1,6 +1,6 @@
 /**
  * Wiring a freshly staged release to the data that must survive it
- * (specs/self-update-and-releases.md §3.D rule 25b).
+ * (specs/hosting/self-update-and-releases.md §3.D rule 25b).
  *
  * A release archive is code only. Three paths inside `server/` are NOT code and must point at the
  * persistent locations instead, or swapping `current` silently destroys them:

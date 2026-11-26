@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 15 and specs/non-card-option-served-persons.md rule 34 (audit R21, 2026-11-03)
+// specs/tech/reservations-backend-mvc.md rule 15 and specs/options/non-card-option-served-persons.md rule 34 (audit R21, 2026-11-03)
 // — one boundary guard for every option, party and amount number of a reservation or devis write: refused,
 // never clamped, the same on the preview, the save and the quote; a stored line sent back unchanged is not re-judged.
 process.env.DB_PATH = ':memory:';

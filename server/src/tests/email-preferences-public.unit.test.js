@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md §3.2 rule 9 + §4.3 — the public unsubscribe page: a GET never
+// specs/emails/guest-email-sequence.md §3.2 rule 9 + §4.3 — the public unsubscribe page: a GET never
 // unsubscribes (mail scanners open every link), a POST does, once; an unknown token learns nothing.
 
 const test = require('node:test');

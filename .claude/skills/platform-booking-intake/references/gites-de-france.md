@@ -44,7 +44,7 @@ collected **and remitted** by the centrale: it is never in the payout. « Frais 
 | 4318 | 1 791 | 80 | 1 692 | 179 |
 | 3084 | 3 582 | 80 | 3 304 | 358 |
 
-## Entry order in « Paiement plateforme » (specs/platform-host-statement-and-commission-vat.md rules 1, 2, 19, 22)
+## Entry order in « Paiement plateforme » (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 2, 19, 22)
 
 The block takes the host side of the « Relevé des réservations »: never the tourist tax, never the guest's
 fees. The centrale collects **and remits** the tax: the box is informational (mode « plateforme »), it enters

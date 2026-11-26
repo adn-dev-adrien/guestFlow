@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 48 — « Dates prises » prints the server's marker and opens the stay that took
+// specs/payments/payment-link-lifecycle.md rule 48 — « Dates prises » prints the server's marker and opens the stay that took
 // the nights; nothing without a marker; a list row's badge is not a link (the row opens the devis).
 import React from 'react';
 import { render, screen } from '@testing-library/react';

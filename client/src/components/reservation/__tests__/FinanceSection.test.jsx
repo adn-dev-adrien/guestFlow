@@ -28,7 +28,7 @@ test('renders the brut price and the adjusted-price field', () => {
   expect(screen.getByLabelText('Prix ajusté')).toBeInTheDocument();
 });
 
-test('the adjusted price commits an arithmetic expression on blur (specs/reservation-price-arithmetic.md)', () => {
+test('the adjusted price commits an arithmetic expression on blur (specs/reservations/reservation-price-arithmetic.md)', () => {
   const ctx = renderFinance();
   const input = screen.getByLabelText('Prix ajusté');
   // No commit while typing…
@@ -46,7 +46,7 @@ test('"Actualiser tarifs" (edit mode) calls refreshToCurrentPricing', async () =
   expect(ctx.refreshToCurrentPricing).toHaveBeenCalled();
 });
 
-// specs/reservation-payment-ledger.md rule 8 — « Marquer perçu » opens the inline form (today's date)
+// specs/payments/reservation-payment-ledger.md rule 8 — « Marquer perçu » opens the inline form (today's date)
 // and « Valider » hands the mark to the page's save-first pipeline.
 test('the acompte row marks through the inline form, with today\'s date', async () => {
   const user = userEvent.setup();

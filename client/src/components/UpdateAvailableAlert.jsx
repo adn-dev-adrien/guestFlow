@@ -1,9 +1,9 @@
 /**
- * UpdateAvailableAlert — a published GuestFlow version (specs/self-update-and-releases.md §6.1), as a
+ * UpdateAvailableAlert — a published GuestFlow version (specs/hosting/self-update-and-releases.md §6.1), as a
  * subject of the home: the server decides it shows (not postponed, not running) and words it
- * (specs/shell-and-home-day-first.md rule 6). Nothing is ever installed from here — « Voir les
+ * (specs/planning/shell-and-home-day-first.md rule 6). Nothing is ever installed from here — « Voir les
  * nouveautés » opens the dialog that shows what changed first; « Plus tard » postpones this version;
- * « Ouvrir » goes to Réglages › Système et mises à jour (specs/mobile-dashboard-exercise-cash.md rule 7).
+ * « Ouvrir » goes to Réglages › Système et mises à jour (specs/planning/mobile-dashboard-exercise-cash.md rule 7).
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';

@@ -1,5 +1,5 @@
 /**
- * The VAT regime of a sale (specs/vat-optional-mode.md rule 8). The ONE source of a VAT rate: every
+ * The VAT regime of a sale (specs/accounting/vat-optional-mode.md rule 8). The ONE source of a VAT rate: every
  * reader of the rate asks `forRow` for the row it is working on, and no code outside this module reads
  * `app_settings.vatRate` — that column is only a mirror of the rate in force, kept for the plugin SDK.
  *
@@ -147,7 +147,7 @@ function inForceBlock(db) {
 }
 
 /**
- * The regimes in force during [from, to] (specs/accounting-synthesis.md rule 35): the regime of a booking made and
+ * The regimes in force during [from, to] (specs/accounting/accounting-synthesis.md rule 35): the regime of a booking made and
  * arriving on `from`, then on every day a period takes effect inside the window. Distinct blocks, in order; [] on a
  * database without periods (the historical « subject » reading).
  */

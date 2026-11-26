@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md §4.1 — the banner the intake plugins share: message, details, notes,
+// specs/platforms/airbnb-mail-intake.md §4.1 — the banner the intake plugins share: message, details, notes,
 // choices, actions, link, close, busy.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

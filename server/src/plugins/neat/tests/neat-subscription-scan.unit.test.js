@@ -1,5 +1,5 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §3.2 rules 7-8, 12, 16 — the eligibility scan.
+ * specs/plugins/neat-cancellation-insurance-subscription.md §3.2 rules 7-8, 12, 16 — the eligibility scan.
  *
  * Insured + deposit-paid direct reservations are enqueued; platform / cancelled / started / unpaid
  * ones are not; an « offert » insurance still insures; the single-payment schedule counts through
@@ -30,7 +30,7 @@ function runPass(db, { settings = fakeNeatSettings(), clientFactory = fakeNeatCl
   };
 }
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../../../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('an insured, deposit-paid, direct, future reservation is enqueued and subscribed', async () => {

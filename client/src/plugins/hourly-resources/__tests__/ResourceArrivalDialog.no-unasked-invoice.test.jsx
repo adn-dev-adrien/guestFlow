@@ -1,6 +1,6 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 13, 45 (R35b N1) on the mini SAS (specs/outside-booking-sas.md rule 31) — a guest who paid at booking time arrives:
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 13, 45 (R35b N1) on the mini SAS (specs/sas/outside-booking-sas.md rule 31) — a guest who paid at booking time arrives:
 // « Valider l'arrivée » records the arrival and never makes a Qonto invoice nobody asked for; « Créer la facture » in the invoice block is the explicit choice (arrival, then the invoice).
-// specs/server-test-isolation.md rules 16, 17 — these dialog walks run under the client suite's one 30 s budget.
+// specs/tech/server-test-isolation.md rules 16, 17 — these dialog walks run under the client suite's one 30 s budget.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

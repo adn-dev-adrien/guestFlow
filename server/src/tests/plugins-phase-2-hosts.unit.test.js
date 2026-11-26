@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md §3.A — what the SDK gains in phase 2: a reviewed list of core modules
+// specs/plugins/plugins-phase-2-hosts.md §3.A — what the SDK gains in phase 2: a reviewed list of core modules
 // a plugin may call, and allowlist entries for every restricted role, not only reception. The four
 // moved plugins carry their own tests in `plugins/<id>/tests/`.
 const test = require('node:test');

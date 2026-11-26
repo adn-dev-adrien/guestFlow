@@ -1,4 +1,4 @@
-# One GuestFlow instance per customer (specs/hosting-h1-fleet-runtime.md H-D1, rule 21).
+# One GuestFlow instance per customer (specs/hosting/hosting-h1-fleet-runtime.md H-D1, rule 21).
 #
 # Installed once by bootstrap-host.sh into /etc/systemd/system/. The console enables and starts
 # `guestflow@<slug>.service`; everything the instance needs — its port, its version, its database,

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 1, 2, 3 and 6 — TOURIST TAX alone: the three property modes, a frozen base, the
+// specs/pricing/pricing-components.md §3 rules 1, 2, 3 and 6 — TOURIST TAX alone: the three property modes, a frozen base, the
 // French captions, and the tax of the guests added after what a platform billed. No DB, plain objects.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -98,7 +98,7 @@ test('rule 3 — the tax base is the tariff less the deduction, floored at zero;
     { taxAccommodationPaid: 300, taxBaseAccommodation: 251, touristTaxBrutInconsistent: false },
   );
   assert.equal(touristTax.resolveTaxBase({ ...none, taxBaseBeforeDeduction: 30, touristTaxIncludedInRateDeduction: 49 }).taxBaseAccommodation, 0);
-  // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — no withheld tax comes
+  // Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — no withheld tax comes
   // out of it — and the tax a reversing platform paid keeps entering the base a percentage tax reads (`reversedTaxInBase`).
   const brut = {
     platformGrossPin: 500, preArrivalOptionsResources: 60, extraGuestInBrutSurcharge: 40, taxBaseBeforeDeduction: 300, touristTaxIncludedInRateDeduction: 20,

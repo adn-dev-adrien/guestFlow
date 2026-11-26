@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 34, 36, 37 (R35-C-M2, R35-M-L1, R35-DB-L1) — a paid booking is a
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 34, 36, 37 (R35-C-M2, R35-M-L1, R35-DB-L1) — a paid booking is a
 // sale: it is not deleted before its payment is taken back, it keeps the total its payment covers when only its notes or
 // client move (whatever the tariff now), and `paid` is the truth a rolled-back release's untick writes.
 const test = require('node:test');

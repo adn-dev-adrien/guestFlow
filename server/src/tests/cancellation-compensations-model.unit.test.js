@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const compensationsModel = require('../models/cancellationCompensationsModel');
 
-// Pins the lifecycle of a cancellation compensation (specs/cancellation-compensation.md §3.1, §5):
+// Pins the lifecycle of a cancellation compensation (specs/payments/cancellation-compensation.md §3.1, §5):
 // pending is editable and invisible to accounting, received is frozen and booked at its date.
 
 const DDL = `
@@ -51,7 +51,7 @@ function freshModel() {
   return { db, model: compensationsModel.buildModel(db) };
 }
 
-// specs/cancellation-compensation.md rule 2
+// specs/payments/cancellation-compensation.md rule 2
 test('create: persists the snapshot and starts pending', () => {
   const { model } = freshModel();
   const created = model.create(DRAFT);
@@ -65,7 +65,7 @@ test('create: persists the snapshot and starts pending', () => {
   assert.equal(created.receivedDate, null);
 });
 
-// specs/cancellation-compensation.md rule 28
+// specs/payments/cancellation-compensation.md rule 28
 test('create: amounts are rounded to the cent', () => {
   const { model } = freshModel();
   const created = model.create({ ...DRAFT, expectedAmount: 84.567, cancelledStayAmount: 612.499 });
@@ -73,7 +73,7 @@ test('create: amounts are rounded to the cent', () => {
   assert.equal(created.cancelledStayAmount, 612.5);
 });
 
-// specs/cancellation-compensation.md rule 4
+// specs/payments/cancellation-compensation.md rule 4
 test('update: rewrites a pending row', () => {
   const { model } = freshModel();
   const created = model.create(DRAFT);
@@ -90,7 +90,7 @@ test('update: keeps the originating alert link (it is not part of the editable p
   assert.equal(result.data.cancellationAlertId, 7);
 });
 
-// specs/cancellation-compensation.md rule 5
+// specs/payments/cancellation-compensation.md rule 5
 test('receive: books the row at its payment date and freezes it', () => {
   const { model } = freshModel();
   const created = model.create(DRAFT);
@@ -106,7 +106,7 @@ test('receive: books the row at its payment date and freezes it', () => {
   assert.deepEqual(model.receive(created.id, { receivedAmount: 10, receivedDate: '2026-08-29' }), { error: 'COMPENSATION_LOCKED', status: 409 });
 });
 
-// specs/cancellation-compensation.md rule 6
+// specs/payments/cancellation-compensation.md rule 6
 test('reopen: clears the banked amount + date so a half-corrected row can never look booked', () => {
   const { model } = freshModel();
   const created = model.create(DRAFT);
@@ -120,7 +120,7 @@ test('reopen: clears the banked amount + date so a half-corrected row can never 
   assert.deepEqual(model.reopen(created.id), { error: 'COMPENSATION_NOT_RECEIVED', status: 409 });
 });
 
-// specs/cancellation-compensation.md rule 7
+// specs/payments/cancellation-compensation.md rule 7
 test('remove: deletes a pending row, 404s on an unknown one', () => {
   const { model } = freshModel();
   const created = model.create(DRAFT);
@@ -129,7 +129,7 @@ test('remove: deletes a pending row, 404s on an unknown one', () => {
   assert.deepEqual(model.remove(created.id), { error: 'INTROUVABLE', status: 404 });
 });
 
-// specs/cancellation-compensation.md rule 22
+// specs/payments/cancellation-compensation.md rule 22
 test('listPending: only pending rows, most overdue first, NULL expected dates last', () => {
   const { model } = freshModel();
   const late = model.create({ ...DRAFT, expectedDate: '2026-08-01' });
@@ -142,7 +142,7 @@ test('listPending: only pending rows, most overdue first, NULL expected dates la
   assert.deepEqual(pending.map((c) => c.id), [late.id, soon.id, undated.id]);
 });
 
-// specs/cancellation-compensation.md rule 15
+// specs/payments/cancellation-compensation.md rule 15
 test('listReceivedByMonth: half-open range — the 1st is in, the 1st of next month is out', () => {
   const { model } = freshModel();
   const inFirst = model.create(DRAFT);
@@ -158,7 +158,7 @@ test('listReceivedByMonth: half-open range — the 1st is in, the 1st of next mo
   assert.deepEqual(august.map((c) => c.receivedDate), ['2026-08-01', '2026-08-31']);
 });
 
-// specs/cancellation-compensation.md rule 23
+// specs/payments/cancellation-compensation.md rule 23
 test('overdue: a pending row whose expected date has passed is flagged server-side', () => {
   const { model } = freshModel();
   const past = model.create({ ...DRAFT, expectedDate: '2020-01-01' });

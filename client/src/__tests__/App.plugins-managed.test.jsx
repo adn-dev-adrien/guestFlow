@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 3 — the route /parametres/plugins is the app's own 404 for an
+// specs/plugins/plugin-operator-provisioning.md rule 3 — the route /parametres/plugins is the app's own 404 for an
 // administrator of an operator-managed space, and the Plugins page for the administrator of any other.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

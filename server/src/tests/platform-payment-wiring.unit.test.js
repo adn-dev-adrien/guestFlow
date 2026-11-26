@@ -1,11 +1,11 @@
-// specs/pricing-components.md §3 rules 3 and 70 — PLATFORM PAYMENT is wired: the penalties controller, the stored summary, the gross
+// specs/pricing/pricing-components.md §3 rules 3 and 70 — PLATFORM PAYMENT is wired: the penalties controller, the stored summary, the gross
 // fallback of the payment mark and the Airbnb intake's payment block ask the unit instead of carrying the formulas.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const unit = require('../utils/pricing/platformPayment');
 
 test('rule 70 — statementRemainder is the commission before its floor; statementPayout is the payout a statement implies', () => {
-  // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 8): the gross is the host amount, the tax paid with the transfer adds to it.
+  // Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 8): the gross is the host amount, the tax paid with the transfer adds to it.
   assert.equal(unit.statementRemainder({ gross: 1154.6, payout: 1028.44, tax: 52.8 }), 178.96);
   assert.equal(unit.statementRemainder({ gross: 100, payout: 120 }), -20, 'negative when the figures disagree');
   assert.equal(unit.statementPayout({ gross: 500, commission: 75, acompteCommission: 10, tax: 5 }), 420);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Recette tool of the bank reconciliation (specs/qonto-bank-reconciliation.md §7): loads a Qonto CSV export
+ * Recette tool of the bank reconciliation (specs/accounting/qonto-bank-reconciliation.md §7): loads a Qonto CSV export
  * into the stored credits of a SHADOW database, so the reconciliation can be tried on the real statement
  * without ever connecting the shadow to the real Qonto account.
  *

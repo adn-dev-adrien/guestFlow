@@ -1,5 +1,5 @@
 /**
- * What GuestFlow expects to find on the bank account (specs/qonto-bank-reconciliation.md rules 2, 8–10).
+ * What GuestFlow expects to find on the bank account (specs/accounting/qonto-bank-reconciliation.md rules 2, 8–10).
  *
  * One receipt per ledger row that moves money through the bank, read from the core's own payments ledger
  * (`buildLedger`): the plugin re-implements no amount. Cash and caisse-interne rows never reach the bank
@@ -43,7 +43,7 @@ const reservationBrief = (row) => ({
 const TRANCHE_WORDS = { immediat: 'versement immédiat', retenue: 'retenue Mollie' };
 
 /**
- * specs/mollie-rolling-reserve-and-incoming-payments.md rules 7-8 — a paid link is two expected receipts, its immediate
+ * specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 7-8 — a paid link is two expected receipts, its immediate
  * share and its reserve, keyed `<ledgerKey>#immediat` and `<ledgerKey>#retenue`. A refund (rule 6) cuts the immediate
  * share first; a tranche left at 0 expects nothing. The guest still owes one échéance: the receipts are the bank's side.
  */
@@ -68,7 +68,7 @@ function trancheReceipts({ split, ledgerKey, label, brief, platform, ledgerRow =
 }
 
 /**
- * specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 35) — a paid link billing a plugin's own basket (a guest
+ * specs/plugins/plugins-phase-1-sdk.md rule 47 (guest-app rule 35) — a paid link billing a plugin's own basket (a guest
  * order) lands on the account like any link payment: its whole amount, whatever part is flagged « à rembourser »
  * (that money leaves later, as a refund). On a platform stay as on a direct one: the guest paid GuestFlow, not
  * the platform.
@@ -96,10 +96,10 @@ function basketReceipts(row, links, brief, platform, splitFor) {
  * @param {Function} deps.buildLedger  the core's ledger
  * @param {Function} deps.parseGroup   the core's single-payment parser
  * @param {object[]} deps.links        the reservation's payment links
- * @param {object[]} [deps.installments] the reservation's installments (specs/direct-installments.md rule 38)
- * @param {object[]} [deps.settlements] the reservation's split payments (specs/mixed-method-payments.md rule 28)
+ * @param {object[]} [deps.installments] the reservation's installments (specs/payments/direct-installments.md rule 38)
+ * @param {object[]} [deps.settlements] the reservation's split payments (specs/payments/mixed-method-payments.md rule 28)
  * @param {Function} [deps.settlementFigures] the core's reading of one settlement
- * @param {Function} [deps.splitFor] `(link) → stored Mollie split | null` (specs/mollie-rolling-reserve-and-incoming-payments.md rule 8)
+ * @param {Function} [deps.splitFor] `(link) → stored Mollie split | null` (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 8)
  * @param {Function} [deps.sourceSplit] `(sourceType, sourceKey) → stored Mollie split | null`, for a card payment recorded on site (rule 1)
  * @param {string} deps.today
  * @returns {object[]} receipts
@@ -140,7 +140,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     return [...out, ...baskets];
   }
 
-  // specs/mixed-method-payments.md rule 28 — a payment split over several methods is expected settlement by
+  // specs/payments/mixed-method-payments.md rule 28 — a payment split over several methods is expected settlement by
   // settlement, for its card, cheque and transfer lines only; what it paid is not expected a second time.
   const splitKinds = new Set(settlements.flatMap((s) => (s.parts || []).map((p) => p.kind)));
   const splitInstallments = new Set(settlements.filter((s) => s.targetKind === 'installment').map((s) => String(s.targetKey)));
@@ -233,7 +233,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
   return [...out, ...baskets];
 }
 
-// The stay's split payments, read through the core's model (specs/mixed-method-payments.md rule 28).
+// The stay's split payments, read through the core's model (specs/payments/mixed-method-payments.md rule 28).
 function settlementsReader(db) {
   const model = sdk.coreModule('paymentSettlementsModel').buildModel(db);
   const { settlementFigures } = sdk.coreModule('paymentTenders');

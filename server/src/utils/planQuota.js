@@ -1,5 +1,5 @@
 /**
- * Plan quotas (specs/control-plane-plans-and-access.md rule 13). Creating a rental unit or an
+ * Plan quotas (specs/hosting/control-plane-plans-and-access.md rule 13). Creating a rental unit or an
  * account beyond the licence's quota is refused; what already exists above a lowered quota keeps
  * working. `licence` is injectable for tests.
  */

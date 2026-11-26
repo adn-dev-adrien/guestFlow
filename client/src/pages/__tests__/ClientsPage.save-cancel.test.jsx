@@ -136,7 +136,7 @@ describe('ClientsPage — Save / Cancel race regression (PR #132)', () => {
     await waitFor(() => {
       expect(screen.queryByText('Modifier le client')).not.toBeInTheDocument();
     });
-    // specs/server-test-isolation.md rule 11 (audit R27-S2): the router commits the URL after the dialog closes.
+    // specs/tech/server-test-isolation.md rule 11 (audit R27-S2): the router commits the URL after the dialog closes.
     await waitFor(() => expect(getUrl()).toBe('/clients'));
     // A regression of the old race would re-open the dialog → handleOpen re-fetches
     // the impact. If that ever creeps back in, this assertion fails.

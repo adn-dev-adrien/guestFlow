@@ -1,5 +1,5 @@
 /**
- * ALLOWANCES — the stay's free units and free minutes (specs/pricing-components.md §3 rule 41).
+ * ALLOWANCES — the stay's free units and free minutes (specs/pricing/pricing-components.md §3 rule 41).
  *
  * Contract: grants come from the catalogue (`options.freeUnits` per lodging, `resources.freeMinutes`) and from what the
  * stay was sold with (its tariff snapshot); consumption is read from the lines. This is the read-only form of what the
@@ -32,7 +32,7 @@ function applyPerHourFreeMinutes(baseUnits, freeMinutes) {
   return roundMoney(Math.max(0, normalizedUnits - freeUnits));
 }
 
-// specs/tariff-recipes/spec.md §3.9 rules 52bis-52ter — the first N units of an option are covered
+// specs/pricing/tariff-recipes.md §3.9 rules 52bis-52ter — the first N units of an option are covered
 // by the rate (the direct welcome pack's two breakfasts). The operator orders the FULL quantity and
 // only the units beyond the free ones are billed; `billedUnits` — what the Planning and SAS cards
 // prepare — is deliberately untouched. Own-channel bookings only — `direct` AND `Lodgify`, the
@@ -67,7 +67,7 @@ function releaseAllowance(line) {
 }
 
 function createFreeUnitsLedger({ lockedTariff, optionsById, lockedOptionsById, isDirectBooking }) {
-  // specs/tariff-recipes/spec.md §3 rules 12bis + 66 — the free units of an option are read from two
+  // specs/pricing/tariff-recipes.md §3 rules 12bis + 66 — the free units of an option are read from two
   // maps of the tariff snapshot, never one:
   //   - `grantedFreeUnitsByOption`: what the stay was GRANTED per option (0 included). It survives
   //     every save, the option removed, its quantity lowered or the stay moved to a platform, so a

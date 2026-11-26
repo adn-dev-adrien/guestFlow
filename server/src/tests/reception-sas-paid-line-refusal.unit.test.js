@@ -1,4 +1,4 @@
-// specs/reception-role-checkin-only.md rule 18 (loop t7 A7-1) — at the SAS a reception-only account never sees the amount a paid line would owe
+// specs/sas/reception-role-checkin-only.md rule 18 (loop t7 A7-1) — at the SAS a reception-only account never sees the amount a paid line would owe
 // back and cannot force it: the 409 names no amount, `forceOverpayment` is dropped, nothing is written. The admin flow is unchanged.
 // Loop t8 A8-1 / A8-2 / A8-3 — the refusal keeps the recap keys of the refused lines (no money); the departure commit is held the same way;
 // and the reverse gesture: an offered paid line whose money is owed back is locked offered for reception, and un-offering it is refused.

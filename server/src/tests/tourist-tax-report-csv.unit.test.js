@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 13, 30 and 44 — the CSV of the tourist-tax report, pure: French Excel format, one row per
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 13, 30 and 44 — the CSV of the tourist-tax report, pure: French Excel format, one row per
 // stay or per night, the statut of each row, the total line read from the report's totals, the file's name.
 
 process.env.TZ = 'Europe/Paris';

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 39 — only the latest request counts.
+// specs/design-system/ui-review-2026-10-19-operations.md rule 39 — only the latest request counts.
 import { renderHook } from '@testing-library/react';
 import useLatestRequest from '../useLatestRequest';
 

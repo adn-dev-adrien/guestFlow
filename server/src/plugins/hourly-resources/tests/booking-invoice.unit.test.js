@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 13-19, 25 and A2 — the Qonto invoice of a booking, through a fake
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 13-19, 25 and A2 — the Qonto invoice of a booking, through a fake
 // issuer: what it is asked, what is frozen, what a refusal keeps.
 const test = require('node:test');
 const assert = require('node:assert/strict');

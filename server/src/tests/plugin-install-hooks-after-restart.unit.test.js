@@ -1,10 +1,10 @@
-// specs/plugins-phase-4-registry.md rule 41 — an install that needed a restart owes its install and
+// specs/plugins/plugins-phase-4-registry.md rule 41 — an install that needed a restart owes its install and
 // activation hooks: they run once at the boot that follows, not never.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['linen'])) return;
 const h = require('./pluginPackagesFixture');
@@ -45,7 +45,7 @@ test('rule 41: an ordinary live install leaves nothing pending', async () => {
   delete globalThis.__hooks;
 });
 
-test('rule 41 + specs/plugin-dependencies.md rule 9: a plugin only switched on owes its activation hooks, not its install hooks', async () => {
+test('rule 41 + specs/plugins/plugin-dependencies.md rule 9: a plugin only switched on owes its activation hooks, not its install hooks', async () => {
   globalThis.__hooks = [];
   const s = h.realSetup([HOOKED]);
   await h.call(s.ctrl.install, { params: { id: 'linen' } });

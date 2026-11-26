@@ -1,6 +1,6 @@
 /**
  * PlatformStatementEditor — the statement fields of a platform payout row, opened from its amount
- * (specs/reservation-payment-ledger.md rule 25). Since specs/platform-host-statement-and-commission-vat.md the block takes the HOST side
+ * (specs/payments/reservation-payment-ledger.md rule 25). Since specs/platforms/platform-host-statement-and-commission-vat.md the block takes the HOST side
  * of the platform's statement: « Location (relevé) » and « Options (relevé) » (their sum is the host amount the fiche stores), the tourist-tax
  * box whose meaning follows the platform's mode (labelled by the server), the per-échéance commissions and « Calculer la commission ». Under
  * them, the server's own reading of the figures: the closing line, the tax gap, the commission's booking, the option lines it adjusted — all
@@ -14,7 +14,7 @@
  *   onApply(patch), onCancel()
  *   computeCommission(figures) → { commission } — « Calculer la commission » (server)
  *   received: { net, label } | null — the payout already received: its transfer is a field, prefilled, editable
- *     (specs/platform-statement-after-payout.md rules 3, 8)
+ *     (specs/platforms/platform-statement-after-payout.md rules 3, 8)
  *   preview(statement) → { lines, warnings, refusals } — the server's reading of the typed statement, nothing written
  *     (the statement of a received or locked stay is read by its own endpoint, a draft by the fiche's quote)
  *   lockedReason: why the fields are disabled, shown under them

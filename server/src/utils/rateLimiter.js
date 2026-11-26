@@ -1,5 +1,5 @@
 /**
- * A sliding-window counter per key, in memory (specs/hosting-h2-account-security.md rule 3).
+ * A sliding-window counter per key, in memory (specs/hosting/hosting-h2-account-security.md rule 3).
  *
  * express-rate-limit (middleware/rateLimiters.js) answers 429 once a limit is reached; the forgotten
  * password must instead give the same answer whether it sent a link or not, so the controller asks

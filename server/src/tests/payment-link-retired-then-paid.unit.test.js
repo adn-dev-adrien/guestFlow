@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 24 — a link retired by rule 23 and then found paid at
+// specs/plugins/plugins-phase-3a-online-payment.md rule 24 — a link retired by rule 23 and then found paid at
 // the provider is, most of the time, the very payment the operator ticked by hand before the webhook
 // arrived: it becomes `paid`, nothing is recorded twice and nobody is asked to refund. Only a bucket
 // recorded paid on an earlier day than the link payment raises an alert, worded « à vérifier »

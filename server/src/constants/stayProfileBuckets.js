@@ -1,5 +1,5 @@
 /**
- * Bucket boundaries of the « Profil des séjours » (specs/stay-profile.md rules 6-8). The one place
+ * Bucket boundaries of the « Profil des séjours » (specs/accounting/stay-profile.md rules 6-8). The one place
  * they are written: the model, the tests and the spec read them from here.
  *
  * Each bucket holds `max`, its inclusive upper bound (null = no bound); a value falls in the first

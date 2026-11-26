@@ -1,6 +1,6 @@
 /**
  * What the « Paiement plateforme » block says about the statement typed on a fiche, worded here so the client only
- * renders it (specs/platform-host-statement-and-commission-vat.md rules 7, 10, 11, 12). Pure.
+ * renders it (specs/platforms/platform-host-statement-and-commission-vat.md rules 7, 10, 11, 12). Pure.
  *
  * Returns `{ lines: [{ tone, label }], warnings: { commissionRate }, refusals: { [field]: message }, optionAdjustment }`:
  * `tone` is `done` (the figures close), `warning` (they do not, the stay is saved anyway), `info`.

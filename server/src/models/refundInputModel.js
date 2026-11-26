@@ -1,5 +1,5 @@
 /**
- * Refund input model — builds what REFUNDS reads about a stay (specs/pricing-components.md §3 rules 48, 72 and 76).
+ * Refund input model — builds what REFUNDS reads about a stay (specs/pricing/pricing-components.md §3 rules 48, 72 and 76).
  *
  * The pure units of `utils/pricing/refunds/` never touch the database: this loader reads the stay's payment allocations through
  * the PaymentLedger port, its stored total through the StayRepository port, and its refunds, and hands them over as plain
@@ -42,7 +42,7 @@ function adjustedComplementCents(db, row, allocations) {
 
 // What the end-of-stay complement collected for the departure's own sales (damage, missing items, a cleaning the SAS sold):
 // they are no line of the stay yet, so no part of its total pays for them. Its mid-stay lines are inside the price (the
-// share it received, specs/mixed-method-payments.md rule 47); the rest is not a trop-perçu when it exceeds nothing.
+// share it received, specs/payments/mixed-method-payments.md rule 47); the rest is not a trop-perçu when it exceeds nothing.
 function departureOwnCents(db, row) {
   const paid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
   const amount = toCents(row.endOfStayComplementAmount);

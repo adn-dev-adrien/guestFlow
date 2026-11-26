@@ -1,4 +1,4 @@
-// French strings of the Clients page (specs/clients-upcoming-past-directory.md rules 11-22).
+// French strings of the Clients page (specs/clients/clients-upcoming-past-directory.md rules 11-22).
 
 export const VIEWS = [
   { value: 'upcoming', param: null, label: 'À venir' },

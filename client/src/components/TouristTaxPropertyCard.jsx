@@ -1,6 +1,6 @@
 /**
  * TouristTaxPropertyCard — the head of one logement's section on the « Taxe de séjour » page
- * (specs/tourist-tax-report-v2.md rule 58; mock specs/tourist-tax-by-property-maquette.html): the logement's name behind a
+ * (specs/tourist-tax/tourist-tax-report-v2.md rule 58; mock tourist-tax-by-property-maquette.html (mock-up, deleted 2026-11-26)): the logement's name behind a
  * coloured left edge, the total to declare in large type, what remains (or « tout est déclaré »), a declared / remaining bar,
  * three tiles, a note for the stays the platform remits, and the two actions of the logement. It joins the table below it
  * (square bottom corners). Render-only: every figure is the server's (`totals` = one `byProperty` entry).

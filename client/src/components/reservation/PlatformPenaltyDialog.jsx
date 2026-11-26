@@ -1,5 +1,5 @@
 /**
- * PlatformPenaltyDialog — « Pénalité plateforme » (specs/reconciliation-assisted-matching.md rules 24–26, 29).
+ * PlatformPenaltyDialog — « Pénalité plateforme » (specs/accounting/reconciliation-assisted-matching.md rules 24–26, 29).
  * An amount a platform kept on a payout besides its commission: amount, motif, date, and — only when the
  * server needs it — whether the payout typed on the fiche is the statement figure or the bank amount. The
  * server previews both figures and refuses in words; nothing is computed here.

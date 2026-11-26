@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 112, 115, 116 (stabilisation loop t9, D9-1, 2026-11-16) — on a platform stay the cash a caisse-interne
+// specs/pricing/pricing-components.md §3 rules 112, 115, 116 (stabilisation loop t9, D9-1, 2026-11-16) — on a platform stay the cash a caisse-interne
 // refund already gave back is every cent it settled, as `refundedClaimedCents` reads it: no trop-perçu opens a lowered row there, so the arrival
 // complement's cash counts as much as a note's. Booking: beer 30 in the complement collected « caisse interne », breakfast 60 sold by a card note.
 // The beer offered and its 30 € refunded through the till, then the breakfast offered: the 60 € trop-perçu is card money — no « Caisse interne »

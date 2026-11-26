@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 71 (audit R39-DB-L1 / R39-M-L1, 2026-11-10) — the arrival SAS obeys rule 38
+// specs/payments/reservation-payment-ledger.md rule 71 (audit R39-DB-L1 / R39-M-L1, 2026-11-10) — the arrival SAS obeys rule 38
 // on the caution: a caution already received is never received again. The SAS's « Caution perçue » freezes the
 // property's caution only on the flip from not received to received (caution-live-from-property rule 2); on a caution
 // already received (a stale SAS tab after « Caution reçue » on the fiche, a replayed or crafted request) it writes

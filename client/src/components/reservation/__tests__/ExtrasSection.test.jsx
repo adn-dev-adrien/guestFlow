@@ -5,7 +5,7 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from './mockReservationForm';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 function renderExtras(overrides) {
@@ -81,7 +81,7 @@ test('an auto-timed option (autoEnabled=1) renders the "Ajout automatique" hint'
 });
 
 // 2026-06-02 regression — the bed-linen / bathroom-linen seeds carry `autoOptionType` purely
-// as an undeletability marker in the catalog (see specs/weekly-bed-linen-tracking.md §4.4). They
+// as an undeletability marker in the catalog (see specs/linen/weekly-bed-linen-tracking.md §4.4). They
 // must behave like manual options on the reservation form: Switch ENABLED, no "Ajout
 // automatique" hint. The discriminator for "engine-derived" is `autoEnabled === 1`, NOT the
 // mere presence of `autoOptionType`.

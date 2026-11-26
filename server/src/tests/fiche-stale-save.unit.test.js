@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rules 1-3 — the fiche save is refused (409 STALE_FICHE) when the
+// specs/reservations/reservation-fiche-concurrency.md rules 1-3 — the fiche save is refused (409 STALE_FICHE) when the
 // stored stay changed since the version the form was built on, instead of rewriting every column from a
 // stale form and erasing what a plugin, the iCal sync or another tab wrote meanwhile (audit 2026-10-28).
 const test = require('node:test');

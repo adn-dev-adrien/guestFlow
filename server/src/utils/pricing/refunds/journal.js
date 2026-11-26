@@ -1,5 +1,5 @@
 /**
- * The journal entries of a refund (specs/pricing-components.md §3 rules 63 and 64): the avoir of a refund, the requalification
+ * The journal entries of a refund (specs/pricing/pricing-components.md §3 rules 63 and 64): the avoir of a refund, the requalification
  * of a cancelled stay's money, the share given back from an indemnity, and the closing of a split stay's books. Pure: the
  * refund register and the stay's earlier entries are read by the caller. Moved from the accounting-export plugin.
  */
@@ -13,14 +13,14 @@ const {
 // HT/VAT at that rate; tourist-tax lines ride the 46710000 pass-through with no VAT, exactly like the
 // tax portion of an encaissement. No commission, ever (rule 23): the owner refunds the guest directly.
 // A `retained` avoir reverses encaissements line for line (one line per installment and bucket,
-// specs/direct-installments.md rule 46), so it splits each line on its own, as each encaissement was
+// specs/payments/direct-installments.md rule 46), so it splits each line on its own, as each encaissement was
 // split, and the accounts net to the cent. With one line per bucket, as every acompte avoir has, both
 // splits are the same numbers.
-// On a cancelled stay, the lines given back from the indemnity (bucket `indemnity`, specs/reservation-refunds.md
+// On a cancelled stay, the lines given back from the indemnity (bucket `indemnity`, specs/payments/reservation-refunds.md
 // rule 48) debit the indemnity account at its own rate — the mirror of the compensation entry — and never touch
 // 706 or VAT on sales: that revenue was already reversed by the cancellation's `retained` avoir.
 // A requalification line adjusted for earlier refunds keeps the TTC it was booked on as `unitPrice`
-// (specs/payment-schedule-and-cancellation.md rule 55); every other avoir line carries its own amount there.
+// (specs/payments/payment-schedule-and-cancellation.md rule 55); every other avoir line carries its own amount there.
 function isAdjustedLine(line) {
   return line.unitPrice != null && line.bucket !== 'touristTax' && round2(line.unitPrice) !== round2(line.amountTtc);
 }
@@ -156,7 +156,7 @@ function indemnityShare(ttc, config) {
   return { account: (config && config.account) || null, ht, vat: round2(ttc - ht), ratePercent: rate };
 }
 
-// specs/mixed-method-payments.md rule 56 — the refund that gives back the last of its book money debits what is left on each
+// specs/payments/mixed-method-payments.md rule 56 — the refund that gives back the last of its book money debits what is left on each
 // sale account instead of its lines. `entriesOfStay` / `earlierRefundsOf` / `entryOf` read the stay's entries and its
 // earlier refunds, `addSaleLegs` sums what an entry left on the sale accounts.
 function closeStayBooks(entry, row, { entriesOfStay, earlierRefundsOf, entryOf, addSaleLegs }) {

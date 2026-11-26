@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 102, specs/guest-app.md rule 110 a (stabilisation loop t5, S5-6, 2026-11-16) — « the arrival is still open
+// specs/pricing/pricing-components.md §3 rule 102, specs/guest-app/guest-app.md rule 110 a (stabilisation loop t5, S5-6, 2026-11-16) — « the arrival is still open
 // at the door » is ONE judge (`extraSale.arrivalOpenAt`), and its reading of the validation is the stay clock's: the check-in box or the
 // committed SAS count from the arrival day only. Before: the judge read the raw flags, so a box ticked days ahead said « closed » while the
 // `atArrival` sale it answers for was accepted into the arrival complement.

@@ -1,5 +1,5 @@
 /**
- * Article family `perPersonPerNight` — one price per person and per night (specs/pricing-components.md §3 rule 47).
+ * Article family `perPersonPerNight` — one price per person and per night (specs/pricing/pricing-components.md §3 rule 47).
  *
  * Contract: `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
  * `price` returns `{ quantity, unitPrice, billedUnits, typed, components, allowanceUsed, amounts }` before the head

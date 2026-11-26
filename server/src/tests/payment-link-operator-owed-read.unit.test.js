@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand whose deactivation is
+// specs/payments/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand whose deactivation is
 // still owed (provider disconnected at the withdrawal) is read before a new link of its bucket is minted: paid
 // before its withdrawal, it is booked and the request refused; unpaid, the new link is minted.
 

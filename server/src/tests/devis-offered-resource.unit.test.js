@@ -1,5 +1,5 @@
 /**
- * specs/devis-offered-resource-parity.md — a resource marked « offert » must be worth 0 € everywhere.
+ * specs/devis/devis-offered-resource-parity.md — a resource marked « offert » must be worth 0 € everywhere.
  *
  * Operator report (2026-08-17): a devis with an offered bain nordique printed its price, did NOT say
  * « Offert », and the amount was deducted from the accommodation row (300 € stay printed 250 €).

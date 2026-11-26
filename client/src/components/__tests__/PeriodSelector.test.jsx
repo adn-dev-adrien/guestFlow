@@ -1,7 +1,7 @@
 /**
- * PeriodSelector — specs/finance-dashboard-redesign.md rules 1-2: the three window kinds, and a
+ * PeriodSelector — specs/accounting/finance-dashboard-redesign.md rules 1-2: the three window kinds, and a
  * custom window with reversed or missing dates refused on the spot, the page keeping its window. The
- * custom dates hang on today, since the window of rule 51 judges them (specs/server-test-isolation.md rule 6).
+ * custom dates hang on today, since the window of rule 51 judges them (specs/tech/server-test-isolation.md rule 6).
  */
 
 import React from 'react';

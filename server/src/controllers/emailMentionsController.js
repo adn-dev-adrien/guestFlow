@@ -1,6 +1,6 @@
 /**
  * Email mentions controller — « Options citées » of « Textes des mails »
- * (specs/plugins-phase-p-productisation.md §3.B rules 7–9, §4.3).
+ * (specs/plugins/plugins-phase-p-productisation.md §3.B rules 7–9, §4.3).
  *
  *   GET    /api/email-mentions                     { mentions, confirmationOrder }
  *   POST   /api/email-mentions                     create → 201 | 400 | 422 { field, message }
@@ -60,7 +60,7 @@ function validate(body, optionExists) {
 
 /**
  * The arrival the preview renders: the date sent when it is a real day inside the date window
- * (specs/reservations-backend-mvc.md rule 13, second reading), otherwise today — the preview never fails.
+ * (specs/tech/reservations-backend-mvc.md rule 13, second reading), otherwise today — the preview never fails.
  */
 function previewStartDate(value, today = localTodayIso()) {
   return isRealIsoDay(value) && !dateWindowMessage(value, today) ? value : today;

@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-api.md rule 13 (2026-10-27 audit) — an anonymous request whose e-mail matches a client
+// specs/site/public-api.md rule 13 (2026-10-27 audit) — an anonymous request whose e-mail matches a client
 // never changes that client (name, phone, language); the identity the visitor typed lands on the devis
 // notes, for the operator to read.
 const test = require('node:test');

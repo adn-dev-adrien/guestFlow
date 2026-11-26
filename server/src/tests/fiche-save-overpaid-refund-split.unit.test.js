@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 113 (stabilisation loop t8, UI8-1 / UI8-2) — the 409 OVERPAID a fiche save answers carries the split the
+// specs/pricing/pricing-components.md §3 rule 113 (stabilisation loop t8, UI8-1 / UI8-2) — the 409 OVERPAID a fiche save answers carries the split the
 // ledger row's `refundPrefill` serves once the save is confirmed: lines by poste, means, and the cash part (`overpaymentCash`, rule 112) — on a
 // platform stay too, whose refusal comes from the paid-line judgment (rule 104). The refund dialog replayed on that body (its cash part
 // « Caisse interne » first, then the rest by the booked means) books one avoir on 70600010, and only on the booked money.

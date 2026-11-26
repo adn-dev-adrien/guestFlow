@@ -1,6 +1,6 @@
 /**
  * SubscriptionBanner — where the instance's subscription stands, for admins
- * (specs/control-plane-plans-and-access.md §6).
+ * (specs/hosting/control-plane-plans-and-access.md §6).
  *
  * Driven by `GET /api/subscription` → `{ state, severity, text, payUrl, … }`, which the server reads
  * from the signed licence and words; `text: null` (nothing enforced, or active) renders nothing.

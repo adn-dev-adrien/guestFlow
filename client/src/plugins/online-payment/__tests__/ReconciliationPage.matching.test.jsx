@@ -7,7 +7,7 @@ import DialogProvider from '../../../components/DialogProvider';
 import ReconciliationPage from '../ReconciliationPage';
 import { proposed, COUNTS, BULK, previewPayload } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rules 18, 21 — the page says how many matches confirmed themselves
+// specs/accounting/reconciliation-assisted-matching.md rules 18, 21 — the page says how many matches confirmed themselves
 // after the read and leads to them; a group that needs typed shares opens the shares dialog.
 
 vi.mock('../../../api', () => ({

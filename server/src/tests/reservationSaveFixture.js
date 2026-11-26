@@ -33,7 +33,7 @@ function seed() {
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Fiche')").run();
 }
 
-/** `YYYY-MM-DD`, `days` after today: every stay date of these suites hangs on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: every stay date of these suites hangs on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function stayBody(over = {}) {

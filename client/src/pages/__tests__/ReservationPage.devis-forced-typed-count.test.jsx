@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 23 — forcing is the decision, on a devis as on a
+// specs/options/non-card-option-served-persons.md rule 23 — forcing is the decision, on a devis as on a
 // reservation: once saved the line is no longer flagged, and the next save does not ask again.
 import React from 'react';
 import { vi } from 'vitest';

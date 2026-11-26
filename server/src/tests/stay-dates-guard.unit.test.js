@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 11 (audit R18-1, 2026-11-02) — every internal write and quote of a stay
+// specs/tech/reservations-backend-mvc.md rule 11 (audit R18-1, 2026-11-02) — every internal write and quote of a stay
 // refuses dates that are not `YYYY-MM-DD` real days, or a departure that does not follow the arrival: 400
 // INVALID_STAY_DATES with a short French message, before pricing and availability, nothing written. A reversed
 // stay used to be created at 0 €, free its nights for a double booking, and reach the iCal export.
@@ -156,7 +156,7 @@ test('rule 11: approving an iCal date drift onto reversed dates is refused and l
   assert.equal(f.db.prepare('SELECT acknowledgedAt FROM ical_date_drift_alerts WHERE id = ?').get(driftId).acknowledgedAt, null);
 });
 
-// The import never needed the guard (specs/ical-import-hardening.md rule 21): a day the calendar lacks drops the
+// The import never needed the guard (specs/platforms/ical-import-hardening.md rule 21): a day the calendar lacks drops the
 // event, a reversed or zero-night event becomes one night. Whatever a feed carries, what reaches the sync passes it.
 test('rule 11: every event the iCal parser hands to the sync passes the guard', () => {
   const compact = (iso) => iso.replace(/-/g, '');

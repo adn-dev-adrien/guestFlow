@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 14, 15, 18, 19, 21, 22 — a payment made around the 36th hour is
+// specs/payments/payment-link-lifecycle.md rules 14, 15, 18, 19, 21, 22 — a payment made around the 36th hour is
 // the stay's money: the webhook books it on a lapsed link, the lifecycle pass deactivates FIRST and reads
 // the payment AFTER, and one last look an hour later catches a payment completed after that read. Each link
 // costs three provider calls once, and two runs at the same time never act twice.

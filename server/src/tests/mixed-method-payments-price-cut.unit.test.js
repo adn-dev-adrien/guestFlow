@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 47 (audit R34-M-H1) — a paid bucket split with a « Reste à percevoir » or a
+// specs/payments/mixed-method-payments.md rule 47 (audit R34-M-H1) — a paid bucket split with a « Reste à percevoir » or a
 // « Geste commercial », then the stay's price cut: the engine keeps a paid acompte, solde or complement at what it
 // RECEIVED, not at its marked amount (reservation-refunds rule 36 read for a split payment). The cut lowers the bucket
 // down to that, so rule 39 cancels the reste, then the geste; only what is left beyond them is a trop-perçu.
@@ -35,7 +35,7 @@ function soldeSplit(receivedCents, kind) {
   return { stay, due };
 }
 
-test('specs/mixed-method-payments.md rule 47 — reste à percevoir, then 20 % off: no trop-perçu, the reste is what the guest still owes', async () => {
+test('specs/payments/mixed-method-payments.md rule 47 — reste à percevoir, then 20 % off: no trop-perçu, the reste is what the guest still owes', async () => {
   const { stay } = soldeSplit(40000, 'due');
   const res = await save(stay, { discountPercent: 20 });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -48,7 +48,7 @@ test('specs/mixed-method-payments.md rule 47 — reste à percevoir, then 20 % o
   assert.equal(overRow(stay.id), undefined);
 });
 
-test('specs/mixed-method-payments.md rule 47 — geste commercial, then a small cut: the geste shrinks, no trop-perçu', async () => {
+test('specs/payments/mixed-method-payments.md rule 47 — geste commercial, then a small cut: the geste shrinks, no trop-perçu', async () => {
   const { stay, due } = soldeSplit(58000, 'waived');
   assert.ok(due > 58000);
   const res = await save(stay, { discountPercent: 3 });
@@ -60,7 +60,7 @@ test('specs/mixed-method-payments.md rule 47 — geste commercial, then a small 
   assert.equal(overRow(stay.id), undefined);
 });
 
-test('specs/mixed-method-payments.md rule 47 — geste commercial, then a cut below what was received: the trop-perçu is the money beyond', async () => {
+test('specs/payments/mixed-method-payments.md rule 47 — geste commercial, then a cut below what was received: the trop-perçu is the money beyond', async () => {
   const { stay } = soldeSplit(58000, 'waived');
   const refused = await save(stay, { discountPercent: 20 });
   assert.equal(refused.statusCode, 409, JSON.stringify(refused.body));
@@ -76,7 +76,7 @@ test('specs/mixed-method-payments.md rule 47 — geste commercial, then a cut be
   assert.equal(r.balanceAmount, 580);
 });
 
-test('specs/mixed-method-payments.md rule 47 — a complement split with a reste, then its line lowered: the reste comes down first', async () => {
+test('specs/payments/mixed-method-payments.md rule 47 — a complement split with a reste, then its line lowered: the reste comes down first', async () => {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(80)] });
   const solde = mark(stay.id, S);
   assert.equal(solde.statusCode, 200, JSON.stringify(solde.body));
@@ -92,7 +92,7 @@ test('specs/mixed-method-payments.md rule 47 — a complement split with a reste
   assert.equal(overRow(stay.id), undefined);
 });
 
-test('specs/mixed-method-payments.md rule 47 — the trop-perçu split by poste reads each poste at what the payment received', async () => {
+test('specs/payments/mixed-method-payments.md rule 47 — the trop-perçu split by poste reads each poste at what the payment received', async () => {
   const { stay, due } = soldeSplit(58000, 'waived');
   const refused = await save(stay, { discountPercent: 20 });
   assert.equal(refused.statusCode, 409, JSON.stringify(refused.body));
@@ -127,7 +127,7 @@ function laterBuyWithGeste(kind) {
 }
 
 for (const kind of ['eos', 'note']) {
-  test(`specs/mixed-method-payments.md rule 47 — ${kind === 'eos' ? 'an end of stay' : 'a mid-stay note'} paid with a geste counts what it received in the stored trop-perçu`, () => {
+  test(`specs/payments/mixed-method-payments.md rule 47 — ${kind === 'eos' ? 'an end of stay' : 'a mid-stay note'} paid with a geste counts what it received in the stored trop-perçu`, () => {
     const stay = laterBuyWithGeste(kind);
     const { storedOverpayment } = require('../controllers/reservationsController');
     const over = storedOverpayment(stay.id);
@@ -136,7 +136,7 @@ for (const kind of ['eos', 'note']) {
   });
 }
 
-test('specs/mixed-method-payments.md rule 47 — an end of stay with a departure line (outside the price) paid with several methods: no trop-perçu', () => {
+test('specs/payments/mixed-method-payments.md rule 47 — an end of stay with a departure line (outside the price) paid with several methods: no trop-perçu', () => {
   const { db } = require('./moneyLedgerFixture');
   const settlementsModel = require('../models/paymentSettlementsModel');
   const stay = fiche(NO_ACOMPTE, 'direct');

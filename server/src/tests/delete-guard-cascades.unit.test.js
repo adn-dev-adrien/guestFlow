@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 52 — the delete guard covers every path that can drop a
+// specs/payments/payment-schedule-and-cancellation.md rule 52 — the delete guard covers every path that can drop a
 // stay: a forced client delete and a property delete (FK cascades) refuse when anything under them carries
 // money; a devis carrying money is kept; an iCal cancellation approval never hard-deletes a stay carrying
 // money (it is cancelled and kept). Money on the devis converted into a stay counts for the stay.

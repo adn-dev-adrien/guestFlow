@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 50 (audit R37-EXT-1) — a Qonto client is reused only for the
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 50 (audit R37-EXT-1) — a Qonto client is reused only for the
 // identity it was created with (name and billing address): a registered client whose record changed between two
 // invoices, or a booking whose billing address was corrected before it is invoiced again, gets a Qonto client carrying
 // what the invoice states; an unchanged identity keeps its Qonto client. The real issuer and Qonto client run over a

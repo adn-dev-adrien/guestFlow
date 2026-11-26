@@ -1,6 +1,6 @@
 /**
  * SidePanel — the editor of a list row, opened beside the list instead of over it
- * (specs/options-resources-ux.md §4.2). Right-hand panel (560 px) with a light scrim on `sm`+, full-height
+ * (specs/options/options-resources-ux.md §4.2). Right-hand panel (560 px) with a light scrim on `sm`+, full-height
  * sheet rising from the bottom on `xs`. Header with the title and a 44 px close button, optional section
  * chips that scroll to each `SidePanelSection`, a body that scrolls on its own, a sticky footer with the
  * state text and « Annuler » / « Enregistrer ».

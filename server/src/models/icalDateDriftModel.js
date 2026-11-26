@@ -1,6 +1,6 @@
 /**
  * icalDateDriftModel — pending date-drift approvals for iCal-locked reservations
- * (specs/ical-sync-override-locked-dates.md §4.1, §5).
+ * (specs/platforms/ical-sync-override-locked-dates.md §4.1, §5).
  *
  * Two write paths:
  *   - `recordPending` — called from the sync engine when a locked reservation's source dates
@@ -87,7 +87,7 @@ function buildModel(database) {
      ORDER BY datetime(d.detectedAt) DESC, d.id DESC
   `);
 
-  // specs/payment-link-lifecycle.md rule 39 — approving the drift would put the platform stay on nights another
+  // specs/payments/payment-link-lifecycle.md rule 39 — approving the drift would put the platform stay on nights another
   // stay holds: the approval dialog says so first, with the stays, and the operator decides.
   function heldDatesWarning(row) {
     if (!Number(row.reservationExists)) return null;
@@ -138,7 +138,7 @@ function buildModel(database) {
   `);
 
   // What the approved dates would sit on: the property's other stays and its closures, as the sync
-  // judges a moved stay (specs/ical-import-hardening.md rule 3).
+  // judges a moved stay (specs/platforms/ical-import-hardening.md rule 3).
   function overlapsTakenNights(reservation, startDate, endDate) {
     const stay = { startDate, endDate };
     const others = has('kind')
@@ -207,7 +207,7 @@ function buildModel(database) {
     if (has('kind') && reservation.kind !== 'reservation') {
       return { error: 'RESERVATION_NON_ACTIVE', status: 409 };
     }
-    // specs/reservations-backend-mvc.md rules 11, 13 — the proposal stays pending: Reject still clears it.
+    // specs/tech/reservations-backend-mvc.md rules 11, 13 — the proposal stays pending: Reject still clears it.
     const datesRefusal = stayDatesRefusal(drift.newStartDate, drift.newEndDate, { stored: reservation });
     if (datesRefusal) return datesRefusal;
     narrowDateUpdate.run(drift.newStartDate, drift.newEndDate, drift.reservationId);
@@ -218,7 +218,7 @@ function buildModel(database) {
       if (conflict) database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ? AND bookingConflictAt IS NULL').run(new Date().toISOString(), drift.reservationId);
       else if (reservation.bookingConflictAt) database.prepare('UPDATE reservations SET bookingConflictAt = NULL WHERE id = ?').run(drift.reservationId);
     }
-    // specs/payment-link-lifecycle.md rule 32 — the platform stay moved onto nights: unpaid requests there lose their links.
+    // specs/payments/payment-link-lifecycle.md rule 32 — the platform stay moved onto nights: unpaid requests there lose their links.
     require('../utils/datesTaken').withdrawForStay(database, drift.reservationId);
     insertHistoryStmt.run(drift.reservationId, buildDateHistoryPayload(
       reservation.startDate, reservation.endDate, drift.newStartDate, drift.newEndDate,

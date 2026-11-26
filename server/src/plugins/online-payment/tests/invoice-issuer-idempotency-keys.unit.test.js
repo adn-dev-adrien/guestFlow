@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 39 (R35-EXT-2, R35-M-L3) — every key Qonto receives is a UUID;
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 39 (R35-EXT-2, R35-M-L3) — every key Qonto receives is a UUID;
 // the client key changes with the name and the billing address, the invoice key with the Qonto client, so the address
 // typed after « Qonto demande l'adresse » reaches Qonto instead of replaying the first, address-less client.
 const test = require('node:test');

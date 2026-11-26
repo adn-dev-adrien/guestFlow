@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rule 30 (2026-10-27 spec review) — past the 10-message cap
+// specs/site/public-request-abuse-and-grouping.md rule 30 (2026-10-27 spec review) — past the 10-message cap
 // of rule 22 a quote the operator touched gains nothing, so the answer must not say « message ajouté »
 // (it did: `messageAdded: true`, and the drawer told the guest their message was added). It answers
 // `messageAdded: false`, `updated: false`; the drawer then says nothing about a message, and still

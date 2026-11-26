@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 51 + specs/reservations-backend-mvc.md rule 13, second reading (review
+// specs/accounting/finance-dashboard-redesign.md rule 51 + specs/tech/reservations-backend-mvc.md rule 13, second reading (review
 // of PR #938, F8 / V2) — a link to a custom window is judged from the server's day (`GET /api/today`), not the
 // device's: a start the device would accept but the server would refuse keeps the period selector with the message.
 import React from 'react';

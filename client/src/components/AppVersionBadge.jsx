@@ -1,8 +1,8 @@
 /**
- * AppVersionBadge — the way in when a newer GuestFlow exists (specs/self-update-and-releases.md §6.5),
+ * AppVersionBadge — the way in when a newer GuestFlow exists (specs/hosting/self-update-and-releases.md §6.5),
  * and `AppVersionFooter`, the installed version at the foot of the drawer.
  *
- * Since 2026-10-19 (specs/shell-and-home-day-first.md rule 16, decision 3 of the UI/UX review) the
+ * Since 2026-10-19 (specs/planning/shell-and-home-day-first.md rule 16, decision 3 of the UI/UX review) the
  * installed version is no longer in the top bar: it is a fact, read once in a while, so it sits at the
  * foot of the drawer (« GuestFlow v3.10.0 »). The top bar keeps only the offer — a `HeaderPill`,
  * because a tinted, counted pill is seen without being looked for, on every page.

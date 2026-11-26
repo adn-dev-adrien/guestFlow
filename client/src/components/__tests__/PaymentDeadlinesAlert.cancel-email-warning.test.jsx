@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * specs/email-language-fr-en.md rule 12 (adversarial review of the 2026-10-27 fixes) — a cancellation
+ * specs/emails/email-language-fr-en.md rule 12 (adversarial review of the 2026-10-27 fixes) — a cancellation
  * whose notice to the guest could not leave says so after the cancellation, in the server's words
  * (`emailWarning`); `emailSent: false` used to be read by no screen.
  */
@@ -24,7 +24,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
 
 const ROW = {

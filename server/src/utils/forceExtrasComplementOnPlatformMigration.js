@@ -5,7 +5,7 @@
  * enforced by `reservationsModel.replace{Options,CustomOptions,Resources}` after
  * the same spec lands.
  *
- * Spec: specs/force-extras-complement-on-platform.md §3 rule 6.
+ * Spec: specs/sas/force-extras-complement-on-platform.md §3 rule 6.
  *
  * Gated by the caller via `migrations.force_extras_complement_on_platform_v1`.
  * This function does NOT check or insert into the `migrations` table — it just

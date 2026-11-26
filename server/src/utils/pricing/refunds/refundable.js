@@ -13,7 +13,7 @@ const { roundMoneyOrZero: round2 } = require('../money');
 const { isResourceKey } = require('../lineKeys');
 
 /**
- * What a cancelled stay can still give back (specs/reservation-refunds.md rule 48). `collectedTtc` is the book
+ * What a cancelled stay can still give back (specs/payments/reservation-refunds.md rule 48). `collectedTtc` is the book
  * money it collected, net of every book refund (`comptaCollected`). Of the rest, `indemnityLeftTtc` is what the
  * cancellation requalified and no refund has taken from the indemnity yet; `saleLeftTtc` is the remainder — a paid
  * solde, say — which a refund still reverses as revenue + VAT.
@@ -60,12 +60,12 @@ function budget({ collectedTtc: receivedTtc, prepaidTtc = 0, cashCollectedTtc = 
  * @param {object} input
  * @param {number} input.finalPrice     reservation TTC (stay + extras, tax excluded)
  * @param {number} input.touristTaxTotal
- * @param {number} input.vatRate        app-wide sales VAT rate (specs/single-vat-rate.md)
+ * @param {number} input.vatRate        app-wide sales VAT rate (specs/accounting/single-vat-rate.md)
  * @param {Array}  input.options        option + custom-option lines (getByIdWithDetails shape)
  * @param {Array}  input.resources      resource lines
  * @param {Array}  input.refunds        the refund register (header + lines)
  * @param {number} input.nights         nights of the stay — makes the tourist-tax line refundable
- *                                      PER NIGHT (specs/reservation-refunds.md §3.5 rule 27)
+ *                                      PER NIGHT (specs/payments/reservation-refunds.md §3.5 rule 27)
  * @param {object} [input.cancelled]    `budget` of a cancelled stay: each line then offers what it
  *                                      collected (rule 48) and carries `indemnityTtc`, the part the indemnity holds
  * @param {object} [input.collected]    `collectedByLine(...)` — on a cancelled stay, each line offers at most what IT
@@ -296,7 +296,7 @@ function applyLiveCollected(perLine, { collected, refunds, planBuckets, reservat
   }
 }
 
-// specs/reservation-refunds.md rule 49 — lowers the rooms (cents) until they add up to `budget` at most, taking the
+// specs/payments/reservation-refunds.md rule 49 — lowers the rooms (cents) until they add up to `budget` at most, taking the
 // excess off the lines in `order` (accommodation, the extras, the tourist tax, unless rule 49's reading ranks them).
 function capInOrder(rooms, budget, order) {
   let excess = rooms.reduce((total, cents) => total + cents, 0) - Math.max(0, budget);
@@ -310,7 +310,7 @@ function capInOrder(rooms, budget, order) {
 
 /**
  * A line keyed by its bucket (`options`, `resources`) names no billed line: it is the requalification avoir of
- * a cancellation, which reverses a whole bucket (specs/reservation-refunds.md rule 45). It consumes the
+ * a cancellation, which reverses a whole bucket (specs/payments/reservation-refunds.md rule 45). It consumes the
  * bucket's lines pro rata of what each still had to give back when it was written (`roomOf`), by largest remainder
  * (rule 46): every cent of it lands on a line that still had it, so the register never offers again what the
  * cancellation requalified. `withheldShare`: the amount is a commission withheld (rule 48 reading of 2026-11-02), which

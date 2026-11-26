@@ -1,5 +1,5 @@
 /**
- * « Modules » on a customer's page (specs/plugin-operator-provisioning.md rules 10–14): which of the
+ * « Modules » on a customer's page (specs/plugins/plugin-operator-provisioning.md rules 10–14): which of the
  * plugins the plan allows run on the customer's space. One line per module with a switch that saves
  * at once; each line says what the space actually runs. Switching off asks first. A refused switch
  * snaps back and shows the server's sentence under the line. Everything shown is the server's.
@@ -8,7 +8,7 @@
  * lists what will be erased, as the space counts it, and asks to type the customer's slug. One that is
  * installed without data has « Désinstaller… » (rule 38): same order, a plain confirmation.
  *
- * specs/plugin-dependencies.md rules 17–18: each line says what it needs (`requires`, an unmet one with its
+ * specs/plugins/plugin-dependencies.md rules 17–18: each line says what it needs (`requires`, an unmet one with its
  * status) and who uses it (`usedBy`); a switch that would take other modules along (`alsoOn`,
  * `alsoOff`, listed by the server) names them in its confirmation and sends `withRequirements` /
  * `withDependents`.

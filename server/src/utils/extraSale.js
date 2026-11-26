@@ -1,5 +1,5 @@
 /**
- * extraSale — the one write path for an extra on a stay that exists (specs/pricing-components.md §3 rules 27-30, 39, 37, 23).
+ * extraSale — the one write path for an extra on a stay that exists (specs/pricing/pricing-components.md §3 rules 27-30, 39, 37, 23).
  *
  *   quote(reservationId, requests, { payment, now, source })  → { status: 200, lines, buckets, totalCents, refusals } | { status, body }   writes nothing
  *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents, atArrival })  → { status: 200, saleDetail } | { status, body }

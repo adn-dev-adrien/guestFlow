@@ -1,5 +1,5 @@
 /**
- * Quand peut-on ouvrir une « note en séjour » ? — specs/mid-stay-notes.md §3.5 rule 17.
+ * Quand peut-on ouvrir une « note en séjour » ? — specs/sas/mid-stay-notes.md §3.5 rule 17.
  *
  * La règle vit ici, en un seul endroit, parce que DEUX surfaces l'appliquent : le bouton de la barre
  * d'actions collante (point d'entrée principal, atteignable de partout dans la fiche) et le bloc

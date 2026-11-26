@@ -1,11 +1,11 @@
 /**
- * The neutral role lines of a journal entry (specs/pricing-components.md §3 rule 63).
+ * The neutral role lines of a journal entry (specs/pricing/pricing-components.md §3 rule 63).
  *
  * `entryLines(entry, splitFrom)` answers what an entry books, with no account number and no CSV column:
  *   { role, side: 'debit' | 'credit', amountCents, vatRate?, vatCents?, account? }
  * `role` is `customer`, `revenue:<class>` (`accommodation`, `options`, `customOptions`, `resources`, `activities`,
  * `compensation`, `indemnity`, `discount`, `tip`, `closing`), `vat:<rate>`, `touristTax`, `commission`, `commissionVat`, `commissionVatSelf` and
- * `commissionVatDue` (the self-assessment of an EU platform's commission, specs/platform-host-statement-and-commission-vat.md rule 15),
+ * `commissionVatDue` (the self-assessment of an EU platform's commission, specs/platforms/platform-host-statement-and-commission-vat.md rule 15),
  * `penalty`, or the Mollie journal's `mollieDebit` / `mollieClearing`. `account` is present only when the entry itself pins one (a configured compensation account, a platform's
  * commission account, the account a closing refund found left on the stay's books). An exporter maps the roles to its own
  * accounts and columns; the amounts, the VAT split and the rounding residue are decided here, once.
@@ -240,7 +240,7 @@ function create({ accountPlan }) {
     ];
   }
 
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the Mollie journal: a paid link debits the clearing account
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the Mollie journal: a paid link debits the clearing account
   // (what Mollie owes) and credits the client; a reconciled credit debits the bank, a settlement's costs the fee account, both
   // crediting the clearing account. Two lines of one amount, on the accounts the entry carries (`mollieAccounts`).
   function mollieLines(entry) {

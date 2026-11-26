@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import LaundryManualAdditionsDialog from '../LaundryManualAdditionsDialog';
 
-// specs/manual-laundry-additions.md §6 — the per-trip manual-linen editor.
+// specs/linen/manual-laundry-additions.md §6 — the per-trip manual-linen editor.
 
 const ZERO = { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 };
 
@@ -40,7 +40,7 @@ test('Annuler calls onClose without saving', () => {
   expect(onSave).not.toHaveBeenCalled();
 });
 
-// ---- withdrawals: « je lave moi-même » (specs/laundry-manual-removals.md §6) ----
+// ---- withdrawals: « je lave moi-même » (specs/linen/laundry-manual-removals.md §6) ----
 
 test('« − » goes below zero and the withdrawal is sent as a negative count', () => {
   const onSave = vi.fn();

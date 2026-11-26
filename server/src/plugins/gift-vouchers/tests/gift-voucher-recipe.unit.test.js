@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 10 — a campaign as a recipe: a .zip holding campaign.json and its images, naming the elements and the tariff mode by their names (never a
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 10 — a campaign as a recipe: a .zip holding campaign.json and its images, naming the elements and the tariff mode by their names (never a
 // price, never an id); imported all-or-nothing through the same rules as the form — an unknown name is « Article introuvable : … » — the images joining the visual library.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

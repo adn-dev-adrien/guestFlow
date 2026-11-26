@@ -1,4 +1,4 @@
-// specs/sas-departure-recap-server-side.md rule 29 and specs/sas-breakfast-and-catering-upsell.md rule 16 (audit R21,
+// specs/sas/sas-departure-recap-server-side.md rule 29 and specs/sas/sas-breakfast-and-catering-upsell.md rule 16 (audit R21,
 // 2026-11-03) — what the SAS sells or counts is finite and at most 999, whole pieces are safe integers, a per-night
 // sale is a stay's worth of nights: refused at the preview as at the commit, before anything is planned or written.
 
@@ -161,7 +161,7 @@ test('sas-breakfast-and-catering-upsell rule 16: the pure pricing never returns 
   }
 });
 
-// specs/sas-breakfast-and-catering-upsell.md rule 16, reading of 2026-11-04, and specs/non-card-option-served-persons.md
+// specs/sas/sas-breakfast-and-catering-upsell.md rule 16, reading of 2026-11-04, and specs/options/non-card-option-served-persons.md
 // rule 36 (audit R22): a sent `persons` is a whole number from 1 to 999. An invalid count never sells the whole party.
 test('sas-breakfast-and-catering-upsell rule 16: persons not a whole number from 1 to 999 is refused, preview and commit, on a per-person option', () => {
   for (const persons of [-5, -1, 0, 0.5, 0.001, 1.5, '-5', '0', 1000, 1e15, Infinity, 'abc', true, [2], {}]) {

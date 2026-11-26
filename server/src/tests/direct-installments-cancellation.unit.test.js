@@ -1,6 +1,6 @@
-// specs/direct-installments.md rule 46 (audit 2026-10-27, finding 11) — cancelling a stay paid through an
+// specs/payments/direct-installments.md rule 46 (audit 2026-10-27, finding 11) — cancelling a stay paid through an
 // installment plan requalifies what the installments collected, exactly as a retained acompte
-// (specs/payment-schedule-and-cancellation.md §3.6): an avoir reversing the stay revenue + VAT and the
+// (specs/payments/payment-schedule-and-cancellation.md §3.6): an avoir reversing the stay revenue + VAT and the
 // tourist tax inside it, and a VAT-free indemnity for the same sum. It used to book nothing — the plan
 // zeroes the acompte, and the requalification only looked at a paid acompte.
 const test = require('node:test');

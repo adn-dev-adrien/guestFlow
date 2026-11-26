@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 24 (audit R23-6) — a reservation number too long or holding control characters
+// specs/tech/reservations-backend-mvc.md rule 24 (audit R23-6) — a reservation number too long or holding control characters
 // is refused in words that name the field, as `INVALID_FIELD` with its `field`; a stored one sent back unchanged passes.
 const test = require('node:test');
 const assert = require('node:assert/strict');

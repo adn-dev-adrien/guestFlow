@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 22 — a mail the receiving server did not authenticate is never
+// specs/platforms/airbnb-mail-intake.md rule 22 — a mail the receiving server did not authenticate is never
 // applied on its own: it becomes a proposal with a warning, and never shadows the genuine mail.
 const test = require('node:test');
 const assert = require('node:assert/strict');

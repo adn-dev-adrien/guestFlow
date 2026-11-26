@@ -1,4 +1,4 @@
-// Qonto webhook controller (specs/public-online-payment.md §3bis): signature verification + the
+// Qonto webhook controller (specs/site/public-online-payment.md §3bis): signature verification + the
 // idempotent paid-link effect. The HTTP handler is exercised via fake req/res; the crypto helpers are
 // pure. No network: we don't reach Qonto unless a verified, known, open link is found (we keep the test
 // to the verification + routing branches).
@@ -11,7 +11,7 @@ const { createWebhookController, __test } = require('../webhookController');
 const { freshSettings } = require('./qontoSettingsFixture');
 const { verifySignature, extractPaymentLinkId } = __test;
 
-// specs/plugins-phase-3a-online-payment.md rule 12 — the handler of the plugin's webhook. An unknown
+// specs/plugins/plugins-phase-3a-online-payment.md rule 12 — the handler of the plugin's webhook. An unknown
 // link never reaches the provider, so the provider double only has to exist.
 const { handleWebhook } = createWebhookController({
   provider: { id: 'qonto', getPayment: async () => { throw new Error('no network in this suite'); } },

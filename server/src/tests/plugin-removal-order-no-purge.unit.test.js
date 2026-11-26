@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 40 — an order the licence marks `removal: true` (the
+// specs/plugins/plugin-operator-provisioning.md rule 40 — an order the licence marks `removal: true` (the
 // console's « Désinstaller » of a module it showed with no data) uninstalls WITHOUT erasing, and a
 // plugin whose data count threw is published as unknown, never as « no data ».
 const test = require('node:test');

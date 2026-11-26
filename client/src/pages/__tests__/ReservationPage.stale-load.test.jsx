@@ -1,4 +1,4 @@
-// Audit R33-C-L1 (specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R33-C-L1) — the devis route and the
+// Audit R33-C-L1 (specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R33-C-L1) — the devis route and the
 // reservation route share one ReservationPage. A load still on its way when the page moves to another record (the
 // re-read after a re-issued devis save, then « Accepté » converting and navigating) used to land last and fill the
 // new reservation's fiche with the devis. A load superseded by a newer one now writes nothing.

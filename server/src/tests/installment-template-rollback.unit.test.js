@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 43 — a rollback to v3.18.0 must not list the installment request
+// specs/hosting/self-update-and-releases.md rule 43 — a rollback to v3.18.0 must not list the installment request
 // in its manual queue: the template carries an anchor that release ignores.
 const test = require('node:test');
 const assert = require('node:assert/strict');

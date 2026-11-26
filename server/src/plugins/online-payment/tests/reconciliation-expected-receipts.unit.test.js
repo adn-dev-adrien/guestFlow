@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rules 2, 8–10 — what the fiches expect on the bank account, read
+// specs/accounting/qonto-bank-reconciliation.md rules 2, 8–10 — what the fiches expect on the bank account, read
 // from the core ledger.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -78,7 +78,7 @@ test('rule 8 — an échéance with nothing to collect is not an expected receip
   assert.deepEqual(of(id), []);
 });
 
-test('specs/plugins-phase-1-sdk.md rule 47 — a paid basket link (a guest order) is expected for its whole amount, on a direct stay as on a platform one', () => {
+test('specs/plugins/plugins-phase-1-sdk.md rule 47 — a paid basket link (a guest order) is expected for its whole amount, on a direct stay as on a platform one', () => {
   const basket = (reservationId, status, cents, refund = null) => db.prepare(`INSERT INTO payment_links
       (reservationId, type, providerLinkId, url, amountCents, currency, status, createdAt, paidAt, basketJson)
       VALUES (?, 'complement', ?, 'https://pay.example.test', ?, 'EUR', ?, ?, ?, ?)`)

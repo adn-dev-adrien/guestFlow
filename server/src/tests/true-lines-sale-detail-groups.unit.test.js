@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13 and 85 (mock M6) — the sale detail groups the lines of an article for display: a same-price group reads
+// specs/pricing/pricing-components.md §3 rules 13 and 85 (mock M6) — the sale detail groups the lines of an article for display: a same-price group reads
 // « 3 × 6,50 € (2 lignes) », different prices « 3 : 1 × 6,50 € + 2 × 7,00 € », an offered line stays in its group, the SAS groups per block.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

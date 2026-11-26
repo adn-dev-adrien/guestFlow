@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 56 (decided by Adrien 2026-10-31) — a link withdrawn by hand and paid AFTER
+// specs/payments/payment-link-lifecycle.md rule 56 (decided by Adrien 2026-10-31) — a link withdrawn by hand and paid AFTER
 // its withdrawal (rule-8 alert, money not counted for the stay) blocks every new payment request of the stay until
 // the operator settles it: refunded (`cancelReason = 'refunded'`), or recorded as the stay's money (`paid`).
 

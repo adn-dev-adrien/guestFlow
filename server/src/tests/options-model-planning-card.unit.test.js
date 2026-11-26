@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const optionsModel = require('../models/optionsModel');
 
-// specs/option-planning-card.md §3.1 + §4.1 — the options model round-trips the planning-card
+// specs/options/option-planning-card.md §3.1 + §4.1 — the options model round-trips the planning-card
 // config: the toggle, the repeat mode, the default date ('once' only), and the slot list (JSON).
 
 const DDL = `

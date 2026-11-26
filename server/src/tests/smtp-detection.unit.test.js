@@ -1,9 +1,9 @@
-// specs/settings-rationalization.md rule 28 (UI/UX review 2026-10-18, decision 14) — the sending
+// specs/settings/settings-rationalization.md rule 28 (UI/UX review 2026-10-18, decision 14) — the sending
 // server is deduced from the sending address: by its own domain, else by the domain's MX records,
 // looked up from the server through an injected resolver (never the network in this suite). A host
 // already saved always wins; a provider not found leaves the host to be typed; nothing is deduced
 // without a password, so a hosted instance keeps sending through the platform
-// (specs/hosting-h1-fleet-runtime.md rules 18–19).
+// (specs/hosting/hosting-h1-fleet-runtime.md rules 18–19).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/ical-export-closures.md rule 11 (2026-10-27 spec review) — the exported feed is RFC 5545
+// specs/platforms/ical-export-closures.md rule 11 (2026-10-27 spec review) — the exported feed is RFC 5545
 // conformant: DTSTART/DTEND are all-day `;VALUE=DATE` values (the dates a platform reads are unchanged)
 // and DTSTAMP is a UTC date-time. Our own importer reads its feed back to the same nights.
 const test = require('node:test');

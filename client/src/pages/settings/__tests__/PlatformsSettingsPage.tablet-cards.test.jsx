@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 35 — at a tablet width (900 px, side menu open) the
+// specs/plugins/plugins-phase-p-productisation.md rule 35 — at a tablet width (900 px, side menu open) the
 // platforms are cards, so « Taxe de séjour », « Virement » and « Vente directe » are never hidden.
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,7 +1,7 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * UpdateProgressOverlay — the screen during a self-update.
- * specs/self-update-and-releases.md §3.F rule 37 + §6.3.
+ * specs/hosting/self-update-and-releases.md §3.F rule 37 + §6.3.
  */
 
 import React from 'react';

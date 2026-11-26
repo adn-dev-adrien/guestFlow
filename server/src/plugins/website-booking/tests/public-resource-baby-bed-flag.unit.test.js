@@ -1,5 +1,5 @@
 /**
- * specs/translation-catalogue.md rule 22 — what the funnel treats specially, it recognises by a flag
+ * specs/site/translation-catalogue.md rule 22 — what the funnel treats specially, it recognises by a flag
  * the server sets, never by a label the catalogue may have translated.
  *
  * The cot is the case that proved it. It is couchage, not a supplement: the widget filters it out of
@@ -69,7 +69,7 @@ const view = fs.readFileSync(
   'utf8',
 );
 
-// specs/wp-booking-widget-redesign.md rule 12 — the cot leaves the supplements list and becomes a
+// specs/site/wp-booking-widget-redesign.md rule 12 — the cot leaves the supplements list and becomes a
 // stepper that exists only when there is a baby to put in it.
 test('the widget keys the cot on the flag, not on the name alone (rule 12)', () => {
   const start = view.indexOf('var supplements =');
@@ -81,7 +81,7 @@ test('the widget keys the cot on the flag, not on the name alone (rule 12)', () 
   );
 });
 
-// specs/wp-booking-widget-redesign.md rule 12 again, its other half: the counter.
+// specs/site/wp-booking-widget-redesign.md rule 12 again, its other half: the counter.
 test('the cot stepper exists only when a baby does (rule 12)', () => {
   assert.ok(
     /if \(state\.babies > 0 && babyRes\)/.test(view),

@@ -8,7 +8,7 @@
  * Some entries are functions (n => string) for pluralisation / parameterised phrases.
  * Tests assert key parity between FR and EN — keep the two maps shape-identical.
  *
- * See specs/devis-english-language.md §3 rules 2, 4, 5, 8, 9, 10, 11.
+ * See specs/devis/devis-english-language.md §3 rules 2, 4, 5, 8, 9, 10, 11.
  */
 
 const FR = Object.freeze({
@@ -45,7 +45,7 @@ const FR = Object.freeze({
   colUnitPriceHt:  'Total HT',
   colVatRate:      'TVA %',
   colTotalTtc:     'Total TTC',
-  // « Sans TVA » (specs/vat-optional-mode.md rule 12b): one amount column, no HT / TTC wording.
+  // « Sans TVA » (specs/accounting/vat-optional-mode.md rule 12b): one amount column, no HT / TTC wording.
   colTotal:        'Total',
 
   // ── Accommodation row ─────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ const FR = Object.freeze({
   // ── Option suffixes ───────────────────────────────────────────────────────
   extraHoursSuffix: (label) => `${label} suppl.`,
   offered:          'OFFERT',
-  // specs/ui-review-2026-10-19-operations.md rule 18 — every offered line in one row.
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 18 — every offered line in one row.
   offeredGroup:     'OFFERT AVEC LE SÉJOUR',
   offeredValue:     (amount) => `valeur ${amount}`,
 
@@ -85,7 +85,7 @@ const FR = Object.freeze({
   ),
   grandTotal:      'TOTAL TTC',
   grandTotalNoVat: 'TOTAL',
-  // specs/pricing-components.md §3 rule 15 — the VAT per rate.
+  // specs/pricing/pricing-components.md §3 rule 15 — the VAT per rate.
   vatRecapHeading: 'Récapitulatif TVA',
   vatRecapRate:    'Taux',
   vatRecapBase:    'Base HT',
@@ -93,7 +93,7 @@ const FR = Object.freeze({
   vatRecapTtc:     'TTC',
   vatRecapTotal:   'Total',
   vatRecapTouristTax: 'La taxe de séjour n’est pas soumise à la TVA.',
-  // specs/ui-review-2026-10-19-operations.md rule 19 — the page-1 summary block.
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 19 — the page-1 summary block.
   summaryTotal:    'Total du séjour TTC',
   summaryTotalNoVat: 'Total du séjour',
   summaryDeposit:  'Acompte',
@@ -106,7 +106,7 @@ const FR = Object.freeze({
   depositLabel:    'Acompte :',
   balanceLabel:    'Solde :',
   payBefore:       'À payer avant le ',
-  // specs/deposit-blocks-the-dates.md rules 1 + 8 — what the payment actually buys. Wording is the one
+  // specs/payments/deposit-blocks-the-dates.md rules 1 + 8 — what the payment actually buys. Wording is the one
   // the `deposit_request` email already uses, so the guest reads the same sentence twice.
   depositSecuresDates:     'Le règlement de l\'acompte bloque vos dates : tant qu\'il n\'est pas payé, elles restent disponibles et peuvent être réservées par un autre client.',
   fullPaymentLabel:        'Paiement intégral :',

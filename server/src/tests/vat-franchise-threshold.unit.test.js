@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 35 and 36 — the threshold is typed by the operator, never supplied:
+// specs/accounting/vat-optional-mode.md rules 35 and 36 — the threshold is typed by the operator, never supplied:
 // parsed like the revenue goal with its own messages, accepted only under the franchise, stamped with
 // the day it changed, and kept (unused) when the regime goes back to VAT.
 

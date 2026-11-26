@@ -1,6 +1,6 @@
 /**
  * One-shot migration: stop the two dunning templates from auto-sending
- * (specs/payment-schedule-and-cancellation.md §1 amendment 2026-08-20, rules 44-45).
+ * (specs/payments/payment-schedule-and-cancellation.md §1 amendment 2026-08-20, rules 44-45).
  *
  * `deposit_reminder` and `balance_reminder` shipped with `sendMode: 'auto'`, so the 08:00 cron mailed
  * them on its own. The operator now validates and sends every money email himself. Flipping the

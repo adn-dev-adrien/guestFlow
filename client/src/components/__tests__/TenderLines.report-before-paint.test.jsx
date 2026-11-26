@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 verifier) — the lines' report reaches the screen before paint, so
+// specs/payments/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 verifier) — the lines' report reaches the screen before paint, so
 // a commit button never shows a frame judged on the previous lines (before: typing « 2 » in the last line drew 1 + 2 with « 9,50 € non
 // couverts » unanswered while « Encaisser 12,50 € » was clickable — a click would have sent 1 + 11,50). The keystroke is dispatched as the
 // browser does, outside `act`, and the button is read synchronously right after it: no waitFor, no flushed passive effect.

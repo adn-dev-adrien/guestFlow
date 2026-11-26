@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 46, 55 — a devis saved onto held (or closed) nights is refused DATES_HELD (CLOSED_DATES): the fiche shows
+// specs/payments/payment-link-lifecycle.md rules 46, 55 — a devis saved onto held (or closed) nights is refused DATES_HELD (CLOSED_DATES): the fiche shows
 // the server's message and the stays that hold the nights, each to open (ConflictList). Rule 48: a devis whose nights
 // another stay took shows « Dates prises » in its action bar.
 import React from 'react';

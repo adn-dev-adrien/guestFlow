@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { toResourcePayload, validateResourceForm, withScope } from '../resourceForm';
 
-// specs/resource-hourly-scheduling.md §3.1 — the catalog save must carry the hourly scheduling fields
+// specs/resources/resource-hourly-scheduling.md §3.1 — the catalog save must carry the hourly scheduling fields
 // (regression: toPayload dropped them, so « Planification par séances » was never persisted).
 const base = {
   name: 'Bain nordique', quantity: 1, price: 30, priceType: 'per_hour', isComplex: true,
@@ -36,7 +36,7 @@ describe('toResourcePayload — hourly scheduling fields', () => {
     expect(p.hourlyEveningRate).toBe(0);
   });
 
-  // specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11 — the thermal model.
+  // specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11 — the thermal model.
   describe('thermal settings', () => {
     it('carries the warm-up and the retention window on a per_hour resource', () => {
       const p = toResourcePayload({ ...base, heatUpMinutes: 240, heatRetentionMinutes: 480 });
@@ -64,7 +64,7 @@ describe('toResourcePayload — hourly scheduling fields', () => {
   });
 });
 
-// specs/options-resources-ux.md rules 21, 28 — price lines follow the resource's scope; a blank price is null.
+// specs/options/options-resources-ux.md rules 21, 28 — price lines follow the resource's scope; a blank price is null.
 describe('toResourcePayload — property price lines', () => {
   const line = (price, freeMinutes = 0) => ({ price, freeMinutes });
 

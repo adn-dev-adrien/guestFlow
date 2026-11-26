@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 17 — the blocks size their own boxes (border-box, scoped to
+// specs/site/wordpress-plugin.md rule 17 — the blocks size their own boxes (border-box, scoped to
 // `.gf-block`), so a stock theme no longer lets the inputs overflow their card. Rule 23 — in a narrow
 // booking block the e-mail and « Effacer » take a whole row, and the CGV language switch is text.
 const test = require('node:test');

@@ -1,5 +1,5 @@
 /**
- * The shared login page's lookup (specs/control-plane-plans-and-access.md rules 24, 25, 26): an email
+ * The shared login page's lookup (specs/hosting/control-plane-plans-and-access.md rules 24, 25, 26): an email
  * becomes the list of spaces it has an account in, through the directory's HMAC. Nothing else is
  * read, nothing is written, and the answer holds company names and addresses only.
  *

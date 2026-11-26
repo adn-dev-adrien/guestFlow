@@ -1,6 +1,6 @@
 /**
  * The plugins the system switched off at a core update because a requirement they now need is off
- * (specs/plugins-phase-4-registry.md rule 57), as the home's attention subject `plugins-switched-off` reads them:
+ * (specs/plugins/plugins-phase-4-registry.md rule 57), as the home's attention subject `plugins-switched-off` reads them:
  * [{ id, name, requires }] with display names. A notice ends when the operator switches the plugin back on, and also when anything touched the row after the
  * switch-off (`updatedAt` moved past `offAt`): a core older than the column toggles rows without clearing the reason.
  */

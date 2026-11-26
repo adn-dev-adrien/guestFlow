@@ -13,7 +13,7 @@ const { assertInside, shareDatabase } = require('./instanceFiles');
 
 const DB_FILE = 'guestflow.db';
 
-// What the space's reconciliation reports (specs/plugin-operator-provisioning.md rules 14, 20, 22):
+// What the space's reconciliation reports (specs/plugins/plugin-operator-provisioning.md rules 14, 20, 22):
 // its outcome per plugin, the licence it last applied, the erase orders it ran, and the setup and data
 // lines it publishes for each plugin. null on a space from before this release (no such table).
 function readProvisioning(db) {
@@ -32,7 +32,7 @@ function readProvisioning(db) {
 
 function createInstances({ root, envsDir }) {
   const base = path.resolve(root || '.');
-  // The environment files, outside every instance directory (specs/hosting-h1-fleet-runtime.md M2).
+  // The environment files, outside every instance directory (specs/hosting/hosting-h1-fleet-runtime.md M2).
   const envs = path.resolve(envsDir || path.join(path.dirname(base), 'envs'));
 
   function dirOf(slug) {
@@ -86,11 +86,11 @@ function createInstances({ root, envsDir }) {
       }
     },
 
-    // The support access of the instance (specs/hosting-h2-account-security.md §4.2): its pending
+    // The support access of the instance (specs/hosting/hosting-h2-account-security.md §4.2): its pending
     // request and its open access, read like the rest. null when it cannot be read (an instance from
     // before H2 has no such table).
     // `requestId` — the request the console last wrote: `known` says whether the instance has
-    // imported it yet (specs/hosting-h2-account-security.md rule 26).
+    // imported it yet (specs/hosting/hosting-h2-account-security.md rule 26).
     readSupportAccess(slug, nowIso, requestId = null) {
       let db;
       try {

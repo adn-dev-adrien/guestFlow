@@ -5,7 +5,7 @@ const { CLIENT_PORT, CLIENT_URL, SERVER_PORT } = require('./e2e/clientUrl');
 const { PROJECTS } = require('./e2e/projects');
 const { OUTBOX, SUPPORT_PUBLIC_KEY } = require('./e2e/fixtures/accountSecurity');
 
-// E2E configuration for the smoke suite (specs/e2e-playwright-smoke-suite.md §3 + §4).
+// E2E configuration for the smoke suite (specs/tech/e2e-playwright-smoke-suite.md §3 + §4).
 // The suite covers ~24 user-visible flows and serves as the safety net for the upcoming
 // CRA → Vite migration. Browser pinned to chromium for v1.
 //
@@ -68,23 +68,23 @@ module.exports = defineConfig({
       // storageState cookie remains valid for the whole suite.
       // GUESTFLOW_PLUGINS=sources: this suite runs the Vite dev client, which imports the plugin
       // sources; the production-build suite (playwright.prod.config.js) runs the packages
-      // (specs/plugins-phase-4-registry.md rule 19). GUESTFLOW_DEV=1: the Vite proxy rewrites the host,
+      // (specs/plugins/plugins-phase-4-registry.md rule 19). GUESTFLOW_DEV=1: the Vite proxy rewrites the host,
       // so the same-origin check of writes (rule 31) is off here — the production-build suite keeps it on.
       command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test GUESTFLOW_PLUGINS=sources GUESTFLOW_DEV=1'
         + ' GUESTFLOW_SESSION_SECRET="' + E2E_SESSION_SECRET + '"'
         + ' GUESTFLOW_ENCRYPTION_KEY="' + E2E_ENCRYPTION_KEY + '"'
         + ` PORT=${SERVER_PORT}`
-        // specs/hosting-h2-account-security.md — the dev mail catcher, the address links point to,
+        // specs/hosting/hosting-h2-account-security.md — the dev mail catcher, the address links point to,
         // and the TEST-ONLY public key the support links are signed for, with the slug they name.
         + ` GUESTFLOW_MAIL_OUTBOX="${OUTBOX}" GUESTFLOW_PUBLIC_URL="${CLIENT_URL}"`
         + ` GUESTFLOW_LICENCE_PUBLIC_KEY="${SUPPORT_PUBLIC_KEY}" GUESTFLOW_SLUG=e2e`
-        // specs/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
+        // specs/settings/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
         + ' GUESTFLOW_SMTP_DETECT=off'
         // The whole suite talks to one server from one address within the limiter's 15 minutes: past
         // ~140 specs a slow CI runner crossed the default 3 000 API requests and got 429s. The limiter
         // keeps its own unit tests; here it would only make the suite's size a failure.
         + ' API_RATELIMIT_MAX=100000'
-        // specs/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync: the
+        // specs/tech/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync: the
         // suite never reads GitHub or data.education.gouv.fr, so its state does not depend on them.
         + ' GUESTFLOW_DISABLE_OUTBOUND=1'
         + ' QONTO_API_BASE=http://127.0.0.1:9 QONTO_OAUTH_BASE=http://127.0.0.1:9'

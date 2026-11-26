@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 39-41 — a bucket paid with several methods whose amount moves afterwards
+// specs/payments/mixed-method-payments.md rules 39-41 — a bucket paid with several methods whose amount moves afterwards
 // (a complement adjusted, a final price saved on a locked fiche): a rise is a reste à percevoir, collected like any
 // other; a fall cancels the reste, then the geste commercial, and what is left of it is a trop-perçu said on the
 // fiche. And the « Notes en séjour » row keeps one reste per note.
@@ -45,7 +45,7 @@ function moveCleaningTo(id, euros) {
 }
 const figures = (r) => ({ compta: comptaCollected(r), cash: cashCollected(r), remaining: remainingToPay(r), settled: isSettled(r) });
 
-test('specs/mixed-method-payments.md rule 39 — a rise after the payment is a reste à percevoir, off the books', () => {
+test('specs/payments/mixed-method-payments.md rule 39 — a rise after the payment is a reste à percevoir, off the books', () => {
   const id = cleaningPaid([cashIn(5000), card(7200)]);
   const r = moveCleaningTo(id, 142);
   assert.equal(r.splitShortfallDue, 20);
@@ -53,7 +53,7 @@ test('specs/mixed-method-payments.md rule 39 — a rise after the payment is a r
   assert.deepEqual(figures(r), { compta: 792, cash: 50, remaining: 20, settled: false });
 });
 
-test('specs/mixed-method-payments.md rule 39 — the reste of a rise is collected like any other, and closes it', () => {
+test('specs/payments/mixed-method-payments.md rule 39 — the reste of a rise is collected like any other, and closes it', () => {
   const id = cleaningPaid([cashIn(5000), card(7200)]);
   moveCleaningTo(id, 142);
   const out = service.collectRemainder({
@@ -66,7 +66,7 @@ test('specs/mixed-method-payments.md rule 39 — the reste of a rise is collecte
   assert.equal(targetFigures(settlementsModel.listFor(id), { currentCents: 14200 }).shortfallDueCents, 0);
 });
 
-test('specs/mixed-method-payments.md rule 39 — a fall cancels the reste first, then the geste commercial', () => {
+test('specs/payments/mixed-method-payments.md rule 39 — a fall cancels the reste first, then the geste commercial', () => {
   const due = cleaningPaid([cashIn(5000), card(6400)], { shortfallCents: 800, shortfallKind: 'due' });
   assert.deepEqual(figures(moveCleaningTo(due, 114)), { compta: 784, cash: 50, remaining: 0, settled: true });
   const waived = cleaningPaid([cashIn(5000), card(6400)], { shortfallCents: 800, shortfallKind: 'waived' });
@@ -75,7 +75,7 @@ test('specs/mixed-method-payments.md rule 39 — a fall cancels the reste first,
   assert.equal(r.splitShortfallDue, 0);
 });
 
-test('specs/mixed-method-payments.md rules 39, 40 — beyond them, a fall is a trop-perçu said on the fiche', () => {
+test('specs/payments/mixed-method-payments.md rules 39, 40 — beyond them, a fall is a trop-perçu said on the fiche', () => {
   const id = cleaningPaid([cashIn(5000), card(7200)]);
   const r = moveCleaningTo(id, 100);
   const f = targetFigures(settlementsModel.listFor(id), { currentCents: 10000 });
@@ -88,7 +88,7 @@ test('specs/mixed-method-payments.md rules 39, 40 — beyond them, a fall is a t
   assert.deepEqual(row.split.overpaid.map((o) => plain(o.label)), ['Trop-perçu 22,00 € : le montant a baissé depuis l\'encaissement']);
 });
 
-test('specs/mixed-method-payments.md rule 39 — a rise on a target entirely in the caisse is owed, never booked', () => {
+test('specs/payments/mixed-method-payments.md rule 39 — a rise on a target entirely in the caisse is owed, never booked', () => {
   const id = cleaningPaid([cashIn(12200)]);
   db.prepare('UPDATE reservations SET endOfStayComplementPaidCash = 1 WHERE id = ?').run(id);
   const before = figures(moveCleaningTo(id, 122));
@@ -98,7 +98,7 @@ test('specs/mixed-method-payments.md rule 39 — a rise on a target entirely in 
   assert.equal(after.cash, 122);
 });
 
-test('specs/mixed-method-payments.md rule 41 — two notes each leaving a reste: the notes row offers both', () => {
+test('specs/payments/mixed-method-payments.md rule 41 — two notes each leaving a reste: the notes row offers both', () => {
   const notes = [
     { id: 'n1', paidDate: TODAY, paidCash: 0, total: 30, lines: [] },
     { id: 'n2', paidDate: TODAY, paidCash: 0, total: 40, lines: [] },

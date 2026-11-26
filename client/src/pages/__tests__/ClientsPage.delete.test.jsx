@@ -1,5 +1,5 @@
 /**
- * ClientsPage — deletion path (specs/clients.md §3 rules 6, 10 and 11, §6).
+ * ClientsPage — deletion path (specs/clients/clients.md §3 rules 6, 10 and 11, §6).
  *
  * Rule 10 — « Supprimer » in the client sheet opens the shared confirmation.
  * Rule 11 — that confirmation closes when asked, and never re-enters on its own.
@@ -145,7 +145,7 @@ describe('ClientsPage — deleting from the client sheet', () => {
     await waitFor(() => {
       expect(screen.queryByText('Modifier le client')).not.toBeInTheDocument();
     });
-    // specs/server-test-isolation.md rule 11 (audit R27-S2): the router commits the URL after the dialog closes.
+    // specs/tech/server-test-isolation.md rule 11 (audit R27-S2): the router commits the URL after the dialog closes.
     await waitFor(() => expect(getUrl()).toBe('/clients?deleteClientId=42'));
     expect(api.deleteClient).not.toHaveBeenCalled();
   });
@@ -216,7 +216,7 @@ describe('ClientsPage — the confirmation dialog closes when asked (2026-09-25 
   });
 });
 
-// specs/clients.md rule 16 — cancelled and set-aside stays are listed with a badge, and a delete the
+// specs/clients/clients.md rule 16 — cancelled and set-aside stays are listed with a badge, and a delete the
 // server will refuse shows its refusal instead of the confirmation lists.
 describe('ClientsPage — protected history (clients.md rule 16)', () => {
   const stay = (over) => ({

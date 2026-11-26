@@ -1,5 +1,5 @@
 /**
- * SuggestedArticlesStep — the generic « Proposés à l'arrivée » step (specs/outside-booking-sas.md rule 35): it renders any `suggestions` payload and tells its parent what the operator did,
+ * SuggestedArticlesStep — the generic « Proposés à l'arrivée » step (specs/sas/outside-booking-sas.md rule 35): it renders any `suggestions` payload and tells its parent what the operator did,
  * with no resource, stay or drink wording of its own; the server's refusal of a quantity shows under its line; the stepper keeps to the bounds it is given.
  */
 import React from 'react';

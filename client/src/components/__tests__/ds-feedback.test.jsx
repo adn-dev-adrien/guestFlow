@@ -1,5 +1,5 @@
 /**
- * DS phase-2 feedback system (specs/ds-components.md §3.2-§3.3) — useToast + fullScreen-on-xs
+ * DS phase-2 feedback system (specs/design-system/ds-components.md §3.2-§3.3) — useToast + fullScreen-on-xs
  * dialog primitives + DataPageScaffold PageActionBar swap.
  */
 import React from 'react';

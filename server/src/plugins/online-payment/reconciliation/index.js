@@ -1,5 +1,5 @@
 /**
- * Wires the bank reconciliation into the online-payment plugin (specs/qonto-bank-reconciliation.md):
+ * Wires the bank reconciliation into the online-payment plugin (specs/accounting/qonto-bank-reconciliation.md):
  * tables, the 8-hour read job, the routes, the fiche block, the home subject and the data erasure.
  * Inert without a Qonto connection (rule 1).
  */
@@ -44,7 +44,7 @@ function mountReconciliation(ctx, { store, attachPdf, companyName }) {
     const { buildLedger } = sdk.coreModule('reservationLedger');
     const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
     const { applyPaymentMark, computePlatformCommission, takeBackRefusal } = sdk.coreModule('reservationPaymentMark');
-    // specs/platform-host-statement-and-commission-vat.md rule 8 — the tax box adds to the host amount only where the platform reverses the tax.
+    // specs/platforms/platform-host-statement-and-commission-vat.md rule 8 — the tax box adds to the host amount only where the platform reverses the tax.
     const platformsModel = sdk.coreModule('platformsModel');
     const statementCommission = ({ platform, touristTax, ...figures }) => computePlatformCommission({
       ...figures, touristTax: platformsModel.getTouristTaxCollection(platform) === 'platform_reversed' ? touristTax : 0,
@@ -90,7 +90,7 @@ function mountReconciliation(ctx, { store, attachPdf, companyName }) {
     status: () => buildStatements().status(), pdf: (id) => buildStatements().pdf(id), retry: (id) => buildStatements().retry(id),
   }));
 
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 15 — « Tester » on the optional Mollie account.
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 15 — « Tester » on the optional Mollie account.
   const mollieRouter = express.Router();
   mollieRouter.post('/test', (req, res) => {
     build();
@@ -123,7 +123,7 @@ function mountReconciliation(ctx, { store, attachPdf, companyName }) {
     },
   });
 
-  // specs/mollie-settlement-receipts.md rule 8 — the statements of the Mollie credits, hourly, once the settlements are read.
+  // specs/accounting/mollie-settlement-receipts.md rule 8 — the statements of the Mollie credits, hourly, once the settlements are read.
   ctx.jobs.every({
     name: 'mollie-statements',
     intervalMs: STATEMENTS_INTERVAL_MS,

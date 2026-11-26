@@ -1,12 +1,12 @@
-// specs/pricing-components.md §3 rules 63, 64 and 65 — the accounting output is a MOVE: every month of the golden database
+// specs/pricing/pricing-components.md §3 rules 63, 64 and 65 — the accounting output is a MOVE: every month of the golden database
 // leaves the same CSV bytes (latin-1, as the route writes them), the same sales JSON and the same synthesis (month windows and
 // whole years) as before the entry builders became `AccountingOutput` and the writers became exporters. The expected hashes
 // were captured on the code before the move; `ACCOUNTING_OUTPUT_UPDATE=1` rewrites them, which is only ever legitimate on
 // code that is known to answer as before.
-// Re-captured on 2026-11-17 when #1067 (the Mollie journal, specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) was
+// Re-captured on 2026-11-17 when #1067 (the Mollie journal, specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) was
 // merged: the 48 `sales/*` bodies gain `mollie: null` (no Mollie provider on the golden database), every other key unchanged, and
 // each sales body minus that key hashes to the previous capture (checked one by one).
-// Re-captured on 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 13, 15, 16): every CSV gains its last column « Code TVA »
+// Re-captured on 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 13, 15, 16): every CSV gains its last column « Code TVA »
 // (header included, so the empty months move too), the sales bodies gain the commission regime fields of `platform`, the synthesis VAT
 // panel gains `selfAssessed`; every other key and every amount unchanged (the golden journal holds no EU commission).
 const test = require('node:test');

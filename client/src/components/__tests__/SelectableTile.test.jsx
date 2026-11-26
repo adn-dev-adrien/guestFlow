@@ -1,5 +1,5 @@
 /**
- * SelectableTile — specs/finance-dashboard-redesign.md rule 13: a tile says whether its table is
+ * SelectableTile — specs/accounting/finance-dashboard-redesign.md rule 13: a tile says whether its table is
  * open, and names the panel it controls.
  */
 

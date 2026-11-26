@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26, the money-dialog contract) — the generative invariant harness of the client money
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26, the money-dialog contract) — the generative invariant harness of the client money
 // dialogs. Not a test file: each `moneyDialogs.invariants.<family>.test.jsx` mocks the api module with `apiModule()`, gives an adapter
 // (how to draw its dialog, what the operator can do in it, how its server prices a draft) and calls `runFamily`.
 //

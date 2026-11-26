@@ -1,6 +1,6 @@
 /**
- * LazySaleComponents — the sale blocks as the plugin SDK hands them out (specs/plugins-phase-1-sdk.md rule 54, readings of
- * 2026-11-18; specs/inte-performance.md rule 4, loop t19 A19-1). The SDK is part of the initial bundle, so a static re-export
+ * LazySaleComponents — the sale blocks as the plugin SDK hands them out (specs/plugins/plugins-phase-1-sdk.md rule 54, readings of
+ * 2026-11-18; specs/tech/inte-performance.md rule 4, loop t19 A19-1). The SDK is part of the initial bundle, so a static re-export
  * made every first page pay for the sale screens of the SAS and of the outside visit (« Vente hors séjour » alone was ~8 kB
  * gzip, the three sections ~6 kB more). Their code is fetched apart, like the report charts (LazyReportCharts).
  *
@@ -75,7 +75,7 @@ export function useSaleComponentsReady(active) {
   return ready;
 }
 
-// Test seam only (specs/server-test-isolation.md rule 23, reading of 2026-11-18, loop t23 UI23-1): forgets the four blocks' loaded code,
+// Test seam only (specs/tech/server-test-isolation.md rule 23, reading of 2026-11-18, loop t23 UI23-1): forgets the four blocks' loaded code,
 // so the next dialog meets it cold, and makes each block's next import wait for `arrive()` first. `setupLateSaleChunks.js` calls it
 // before every client test, so every test — not only the first of its file — runs the late path. The app never calls it.
 export function resetSaleComponentsForTests(arrive) {

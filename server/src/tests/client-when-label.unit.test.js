@@ -1,4 +1,4 @@
-// specs/clients-upcoming-past-directory.md rule 14 — the line under a client's name, at every threshold.
+// specs/clients/clients-upcoming-past-directory.md rule 14 — the line under a client's name, at every threshold.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

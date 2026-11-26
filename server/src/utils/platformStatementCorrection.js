@@ -1,6 +1,6 @@
 /**
  * The platform statement typed on a stay whose figures can no longer go through the fiche save
- * (specs/platform-statement-after-payout.md): a received payout, or a locked fiche. Pure — the model feeds it
+ * (specs/platforms/platform-statement-after-payout.md): a received payout, or a locked fiche. Pure — the model feeds it
  * the stored row and two replays of the same stay by the same engine, `before` (the statement as stored) and
  * `after` (the statement typed).
  *

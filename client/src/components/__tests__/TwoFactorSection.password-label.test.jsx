@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 30 — the activation asks for the password as
+// specs/hosting/hosting-h2-account-security.md rule 30 — the activation asks for the password as
 // « Mot de passe (confirmation) », never a second « Mot de passe actuel » on « Mon compte »; it
 // now lives in the dialog's step 1 (rule 40), not in the card (rule 39).
 import React from 'react';

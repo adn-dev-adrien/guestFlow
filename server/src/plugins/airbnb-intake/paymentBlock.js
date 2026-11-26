@@ -1,6 +1,6 @@
 /**
- * The « Paiement plateforme » block of an Airbnb booking (specs/airbnb-mail-intake.md rules 9–10, as amended by
- * specs/platform-host-statement-and-commission-vat.md rules 1, 5 and 20). Pure.
+ * The « Paiement plateforme » block of an Airbnb booking (specs/platforms/airbnb-mail-intake.md rules 9–10, as amended by
+ * specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5 and 20). Pure.
  *
  * The block is the HOST side of the « Vous gagnez » statement: « Location » = room fees with their adjustments, « Options » = the
  * cleaning fee; their sum is the brut. The box reads the platform's tax mode: the taxes handed to the host in `platform_reversed`, the

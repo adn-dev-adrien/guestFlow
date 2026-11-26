@@ -1,6 +1,6 @@
 /**
  * Linen priced items model — sole DB access for `linen_priced_items`
- * (specs/arrival-departure-sas.md §3.4). Operator-managed list of priced linen elements
+ * (specs/sas/arrival-departure-sas.md §3.4). Operator-managed list of priced linen elements
  * (`category='bed'`) and towels (`category='towel'`) shown in the SAS.
  *
  * Exports a default model bound to the production DB + a `buildModel(db)` factory for tests.

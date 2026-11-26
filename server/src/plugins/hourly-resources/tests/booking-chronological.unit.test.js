@@ -1,4 +1,4 @@
-// specs/resource-supplements-total-server-side.md rule 23, reading of 2026-11-05 (audit R24-P3) — a booking ends after it
+// specs/resources/resource-supplements-total-server-side.md rule 23, reading of 2026-11-05 (audit R24-P3) — a booking ends after it
 // starts, on the preview, the create and the update, whatever the resource's minimum duration; a stored pair of times sent
 // back is exempt. A reversed or empty slot used to be stored at 0 €.
 const test = require('node:test');

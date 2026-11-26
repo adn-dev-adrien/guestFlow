@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md rule 64 (spec review 2026-10-27) — the supplement unit and included
+// specs/pricing/tariff-recipes.md rule 64 (spec review 2026-10-27) — the supplement unit and included
 // guests the recipe writes are listed in the apply preview, and count as a change.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

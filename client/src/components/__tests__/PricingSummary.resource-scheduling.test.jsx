@@ -4,11 +4,11 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 5 — an hourly resource is normally
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 5 — an hourly resource is normally
 // sold unscheduled and planned with the guest during the arrival SAS. « à planifier » is an ordinary
 // state, not an alarm, but it has to be visible: otherwise a bath nobody booked a slot for looks
 // exactly like a scheduled one. The wording comes from the server (`detail`, written by the
-// hourly-resources plugin — specs/plugins-phase-3c-hourly-resources.md rule 23): the summary never
+// hourly-resources plugin — specs/plugins/plugins-phase-3c-hourly-resources.md rule 23): the summary never
 // derives it.
 
 const BAIN = {
@@ -73,7 +73,7 @@ test('a resource that cannot be scheduled never shows the chip', () => {
 
 test('REGRESSION: an unscheduled hourly resource is still worth its money in the summary', () => {
   // The reported bug: the line was dropped entirely, so the resource vanished with its 90 €
-  // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 1).
+  // (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §1 defect 1).
   renderSummary(line({ scheduledHours: 0, detail: 'À planifier' }));
   expect(screen.getByText('90,00 €')).toBeInTheDocument();
 });

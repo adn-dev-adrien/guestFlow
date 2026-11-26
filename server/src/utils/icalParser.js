@@ -20,7 +20,7 @@ function toIsoDate(year, month, day) {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-// specs/ical-import-hardening.md rule 21 — a date is a day of the calendar: `20270231` and `20271399` are not.
+// specs/platforms/ical-import-hardening.md rule 21 — a date is a day of the calendar: `20270231` and `20271399` are not.
 function isRealDate(iso) {
   const date = new Date(`${iso}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso;
@@ -43,7 +43,7 @@ function parseIcalDateUnchecked(rawValue, isDateOnly) {
     return toIsoDate(y, m, d);
   }
 
-  // specs/ical-import-hardening.md rule 7 — a UTC instant is a day in the accommodations' zone, not in
+  // specs/platforms/ical-import-hardening.md rule 7 — a UTC instant is a day in the accommodations' zone, not in
   // UTC: 24/11 23:00Z is 25/11 at midnight in Paris. The zone is the server's (GUESTFLOW_TZ, Europe/Paris
   // by default — utils/serverTimezone), named explicitly so the result never depends on the host clock.
   if (/^\d{8}T\d{6}Z$/.test(compact)) {
@@ -136,7 +136,7 @@ function parseAdultsFromText(summary, description) {
   return 1;
 }
 
-// specs/ical-import-hardening.md rule 8 — the words a platform puts in SUMMARY instead of a name
+// specs/platforms/ical-import-hardening.md rule 8 — the words a platform puts in SUMMARY instead of a name
 // (« CLOSED - Not available » on every Booking stay, « Reserved » on Airbnb's) say nothing about the guest:
 // a summary made only of them is « no name », and the stay gets the « Ical <platform> » fallback.
 // « BOOKED » is what the Gîtes de France feed sends for every stay (rule 11).
@@ -181,7 +181,7 @@ function isUnavailableIcalEvent(summary, description) {
   // local reservations table. Pairs with the closure-overlap guard in
   // `propertyIcalModel.syncSource`.
   if (UNAVAILABLE_MARKER.test(clean(summary))) return true;
-  // specs/ical-import-hardening.md rule 16 — the description only decides when the summary names
+  // specs/platforms/ical-import-hardening.md rule 16 — the description only decides when the summary names
   // nobody: « Jean Dupont » with a description saying « non disponible pour le ménage » is a stay.
   return parseGuestName(summary, '').isFallback && UNAVAILABLE_MARKER.test(clean(description));
 }
@@ -206,8 +206,8 @@ function endDateFromDuration(startDate, dtStartRaw, isDateOnly, durationRaw) {
 }
 
 // A 200 response whose body is not an iCalendar document (HTML error page, empty body…) must be
-// treated as a fetch failure, not as "zero events" — specs/ical-sync-mapping-resilience.md §3 rule 2.
-// specs/ical-import-hardening.md rule 5 — a feed cut short in transit still starts like a calendar: it
+// treated as a fetch failure, not as "zero events" — specs/platforms/ical-sync-mapping-resilience.md §3 rule 2.
+// specs/platforms/ical-import-hardening.md rule 5 — a feed cut short in transit still starts like a calendar: it
 // must also end like one, with every event closed. Otherwise the events it lost would read as cancelled.
 function isWellFormedIcs(icsText) {
   return /BEGIN:VCALENDAR/i.test(String(icsText || ''));
@@ -223,7 +223,7 @@ function isCompleteIcs(icsText) {
 
 // Rule 17 — a stay starts at most two years from now, ends at most three, and lasts at most a year:
 // `DTEND:99991231` is a corrupted or hostile feed, and it would block every later night. The length cap is
-// the internal guard's (specs/reservations-backend-mvc.md rule 11).
+// the internal guard's (specs/tech/reservations-backend-mvc.md rule 11).
 const MAX_START_AHEAD_DAYS = 730;
 const MAX_END_AHEAD_DAYS = 1095;
 
@@ -298,13 +298,13 @@ function parseIcsEvents(icsText, { keepUnavailable = false, now = new Date() } =
       };
     })
     // `keepUnavailable` — Booking.com labels every taken date « CLOSED - Not available », real
-    // reservations included, so its feed must not lose them here (specs/lodgify-decommission.md §3 rule 5).
+    // reservations included, so its feed must not lose them here (specs/platforms/lodgify-decommission.md §3 rule 5).
     .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED' && isWithinHorizon(event, today)
       && (keepUnavailable || !isUnavailableIcalEvent(event.summary, event.description)));
   return disambiguateRepeatedUids(parsed);
 }
 
-// specs/ical-import-hardening.md rule 6 — two stays under one UID would share one mapping: the second
+// specs/platforms/ical-import-hardening.md rule 6 — two stays under one UID would share one mapping: the second
 // overwrites the first at every pass, so one stay never exists and the other churns. A repeated UID is
 // keyed on its RECURRENCE-ID when the feed gives one, on its arrival date otherwise; a unique UID is
 // left exactly as it was, so no existing mapping moves.
@@ -338,7 +338,7 @@ function shouldSkipIcalReservationUpdate(mappedReservation) {
 
 // True when a sync-locked reservation's iCal source proposes different dates from the persisted
 // ones. Drives the "Dashboard date-drift approval" flow
-// (specs/ical-sync-override-locked-dates.md §3 rule 1). The reservation row must carry its
+// (specs/platforms/ical-sync-override-locked-dates.md §3 rule 1). The reservation row must carry its
 // current `startDate` / `endDate` for the comparison; the caller is responsible for SELECTing
 // those.
 function isLockedDateDrift(mappedReservation, event) {

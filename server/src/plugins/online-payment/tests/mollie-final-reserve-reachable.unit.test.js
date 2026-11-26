@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 10 — a settlement composed from the payments list alone
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 10 — a settlement composed from the payments list alone
 // does not name which reserve it frees: a reserve picked by amount must be reachable on the credit's day.
 const test = require('node:test');
 const assert = require('node:assert/strict');

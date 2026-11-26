@@ -1,5 +1,5 @@
 /**
- * FinancePage — specs/finance-dashboard-redesign.md rules 34-36: « En retard » lists the platforms'
+ * FinancePage — specs/accounting/finance-dashboard-redesign.md rules 34-36: « En retard » lists the platforms'
  * late payouts beside the guests' late payments, the « séjours sans montant » insight opens the stays
  * that carry no amount, and the wording reads impersonal (mega review #5, B2, M1, N3, m5).
  */

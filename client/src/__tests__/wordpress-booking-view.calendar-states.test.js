@@ -1,4 +1,4 @@
-// specs/wp-booking-widget-redesign.md rules 29-31 (UI/UX review 2026-10-18, decision 2) — the chosen
+// specs/site/wp-booking-widget-redesign.md rules 29-31 (UI/UX review 2026-10-18, decision 2) — the chosen
 // stay always reads as selected, past days and taken nights never look alike, and a window with
 // nothing to pick says when the first free night is, from the server's `nextAvailableDate`.
 import { screen, waitFor } from '@testing-library/react';

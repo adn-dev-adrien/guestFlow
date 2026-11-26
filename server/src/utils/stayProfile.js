@@ -1,4 +1,4 @@
-// « Profil des séjours » (specs/stay-profile.md §3). Pure: plain stays in, ready-to-render
+// « Profil des séjours » (specs/accounting/stay-profile.md §3). Pure: plain stays in, ready-to-render
 // breakdowns out. The bucket boundaries live in constants/stayProfileBuckets.js.
 //
 // A stay is `{ totalSejour, nights, startDate, bookedOn, channel: { key, label } }`: `totalSejour` the
@@ -44,7 +44,7 @@ function percentShares(values) {
 
 /**
  * Rule 7 — days from the booking day to the arrival, or null when the booking day cannot be trusted:
- * missing, before the tracking start (the initial import, specs/booking-pace.md rule 8), or after the
+ * missing, before the tracking start (the initial import, specs/pricing/booking-pace.md rule 8), or after the
  * arrival (a fiche entered once the guest was there).
  */
 function leadDays(bookedOn, startDate, paceStart) {

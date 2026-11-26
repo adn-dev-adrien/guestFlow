@@ -5,7 +5,7 @@ const { __test } = require('../controllers/pluginUpdateController');
 
 const { buildManifest, notesToHtml, SLUG } = __test;
 
-// specs/wordpress-plugin-self-update.md §3 rules 4-8. WordPress installs whatever `download_url`
+// specs/site/wordpress-plugin-self-update.md §3 rules 4-8. WordPress installs whatever `download_url`
 // points at, so this manifest is a place where "usually fine" is not good enough.
 
 const ASSET_URL = 'https://github.com/adn-dev-adrien/guestFlow/releases/download/v1.1.0/guestflow-booking-1.5.0.zip';

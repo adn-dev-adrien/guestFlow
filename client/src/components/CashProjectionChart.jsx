@@ -1,6 +1,6 @@
 /**
  * CashProjectionChart — « Trésorerie de l'exercice » of the Suivi financier
- * (specs/mobile-dashboard-exercise-cash.md rule 18): the cumulative money of an exercise as one line —
+ * (specs/planning/mobile-dashboard-exercise-cash.md rule 18): the cumulative money of an exercise as one line —
  * solid (sapin) for what was received up to today, dashed (miel) for what is still expected — with a
  * date cursor answering « D'ici le … : N € encaissés, dont M € encore attendus », and the monthly
  * received / expected bars on their own small chart underneath (never a second y scale).

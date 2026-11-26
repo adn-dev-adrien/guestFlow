@@ -87,18 +87,18 @@ function getSortedDateRanges(ranges) {
 
 // Only the ranges that still have sellable days ahead — a season's past dates are noise on a page
 // whose job is to answer « what do I charge from here on ». Purely presentational: nothing is
-// dropped from the data (specs/tariff-recipes/spec.md §3.4 rule 25quinquies).
+// dropped from the data (specs/pricing/tariff-recipes.md §3.4 rule 25quinquies).
 function upcomingRangesFrom(ranges, todayIso) {
   return getSortedDateRanges(ranges).filter((range) => range.endDate >= todayIso);
 }
 
 // Closure lookup for a day — the ranges come computed from the server, this is a plain containment
-// test (specs/tariff-recipes/spec.md §3.4 rule 25bis).
+// test (specs/pricing/tariff-recipes.md §3.4 rule 25bis).
 function findClosureForDate(closureRanges, dateStr) {
   return (closureRanges || []).find((c) => dateStr >= c.startDate && dateStr <= c.endDate) || null;
 }
 
-// Changeover weekdays (specs/tariff-recipes/spec.md §3.4) — JS convention 0 = dimanche … 6 = samedi,
+// Changeover weekdays (specs/pricing/tariff-recipes.md §3.4) — JS convention 0 = dimanche … 6 = samedi,
 // listed Monday-first for the French eye. '' = « Aucun » = unrestricted.
 const WEEKDAYS_FR = [
   { value: 1, label: 'lundi' }, { value: 2, label: 'mardi' }, { value: 3, label: 'mercredi' },
@@ -113,7 +113,7 @@ function SeasonIdentity({ season, recipesOn }) {
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
       <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => season.color || t.palette.primary.main }} />
       {season.label}
-      {/* Recipe-owned vs manual (specs/tariff-recipes/spec.md §3.2 rule 9). */}
+      {/* Recipe-owned vs manual (specs/pricing/tariff-recipes.md §3.2 rule 9). */}
       <Chip
         size="small"
         variant="outlined"
@@ -129,7 +129,7 @@ function SeasonIdentity({ season, recipesOn }) {
  * A season's sellable date ranges, grouped under a discreet year rule.
  *
  * Closed dates are hidden from the display only — the stored ranges keep their full span, so moving
- * a closure re-reveals them (specs/tariff-recipes/spec.md §3.4 rule 25ter). Past ranges are hidden
+ * a closure re-reveals them (specs/pricing/tariff-recipes.md §3.4 rule 25ter). Past ranges are hidden
  * too: only what is still sellable is worth reading here.
  *
  * A date NEVER wraps: `21/06/2027 → 27/06/2027` broken across two lines is unreadable, and the
@@ -212,7 +212,7 @@ export default function PropertyPricingSeasonsPage() {
   // A link from a fiche (« Voir la grille ») brings the operator back to it.
   const backTarget = getFromParam(window.location.search) || `/properties/${id}`;
   // The day dots (school-holiday zones) and the recipe card come from plugin modules
-  // (specs/plugins-phase-1-sdk.md rule 13); the season badge only names a recipe while the plugin is
+  // (specs/plugins/plugins-phase-1-sdk.md rule 13); the season badge only names a recipe while the plugin is
   // active — a core display of core data.
   const { markersFor, captions: markerCaptions } = useDayMarkers();
   const recipesOn = usePlugin(TARIFF_RECIPES);
@@ -242,7 +242,7 @@ export default function PropertyPricingSeasonsPage() {
   const [basePriceInput, setBasePriceInput] = useState('');
   const [tierPriceInputs, setTierPriceInputs] = useState({});
 
-  // Calendar season painting (specs/pricing-min-nights-per-range.md): drag-select a period, then a
+  // Calendar season painting (specs/pricing/pricing-min-nights-per-range.md): drag-select a period, then a
   // dialog (re)assigns it to a season with a minimum-nights. Anchor/hover drive the highlight; the
   // refs distinguish a real drag from a plain click (which keeps the "open season for edit" behaviour).
   const [selectionAnchor, setSelectionAnchor] = useState(null);
@@ -840,7 +840,7 @@ export default function PropertyPricingSeasonsPage() {
           ),
         }]}
       />
-      {/* Calendar first (specs/pricing-min-nights-per-range.md §6): it answers « what is configured
+      {/* Calendar first (specs/pricing/pricing-min-nights-per-range.md §6): it answers « what is configured
           on which dates » at a glance; the recipe card and the season table below are the editing
           surfaces. */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -915,7 +915,7 @@ export default function PropertyPricingSeasonsPage() {
                       const coveringRange = season ? (season.dateRanges || []).find((r) => dateStr >= r.startDate && dateStr <= r.endDate) : null;
                       const seasonDefaultMin = season ? Number(season.minNights || 1) : 1;
                       const dayMin = coveringRange ? Number(coveringRange.minNights ?? seasonDefaultMin) : seasonDefaultMin;
-                      // Changeover markers (specs/tariff-recipes/spec.md §3.4 rule 25): range override
+                      // Changeover markers (specs/pricing/tariff-recipes.md §3.4 rule 25): range override
                       // ⇒ season default ⇒ unrestricted; the marker shows only on the permitted weekday.
                       const arrivalDay = coveringRange?.changeoverArrival ?? season?.changeoverArrival ?? null;
                       const departureDay = coveringRange?.changeoverDeparture ?? season?.changeoverDeparture ?? null;
@@ -996,7 +996,7 @@ export default function PropertyPricingSeasonsPage() {
                                 {c.inMonth ? c.day : ''}
                                 {/* Effective minimum shown whenever it exceeds 1 — a season-wide
                                     minimum is a constraint too, not only a range override
-                                    (specs/tariff-recipes/spec.md §3.4 rule 25). */}
+                                    (specs/pricing/tariff-recipes.md §3.4 rule 25). */}
                                 {!c.closure && c.inMonth && c.dayMin > 1 && (
                                   <Box sx={{ position: 'absolute', top: -1, right: 1, fontSize: 8, fontWeight: 700, color: 'warning.dark', lineHeight: 1 }}>
                                     {c.dayMin}
@@ -1022,7 +1022,7 @@ export default function PropertyPricingSeasonsPage() {
                     );
                   })}
                 </Grid>
-                {/* Legend (specs/tariff-recipes/spec.md §3.4 rule 25) — the calendar now carries five
+                {/* Legend (specs/pricing/tariff-recipes.md §3.4 rule 25) — the calendar now carries five
                     distinct signals; every marker is named here. */}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2.5 }, mt: 1.5, alignItems: 'center' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -1063,7 +1063,7 @@ export default function PropertyPricingSeasonsPage() {
       </Grid>
 
       {/* Plugin cards of the property tariff — the recipe: pick + preview + apply
-          (specs/tariff-recipes/spec.md §3.2). */}
+          (specs/pricing/tariff-recipes.md §3.2). */}
       <Slot
         name="property.tariff"
         propertyId={id}
@@ -1158,7 +1158,7 @@ export default function PropertyPricingSeasonsPage() {
         </CardContent>
       </Card>
 
-      {/* « Prix plateformes » — placed last on the page (specs/platform-price-from-commission.md §6):
+      {/* « Prix plateformes » — placed last on the page (specs/platforms/platform-price-from-commission.md §6):
           gross-up of each season net /nuit by each platform's commission %. */}
       <PlatformPriceCard propertyId={id} refreshKey={platformRefresh} />
 
@@ -1272,7 +1272,7 @@ export default function PropertyPricingSeasonsPage() {
               />
             </Box>
 
-            {/* Changeover day (specs/tariff-recipes/spec.md §3.4): restrict the arrival and/or
+            {/* Changeover day (specs/pricing/tariff-recipes.md §3.4): restrict the arrival and/or
                 departure weekday for the season. « Aucun » = unrestricted (the default). */}
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <FormControl fullWidth>

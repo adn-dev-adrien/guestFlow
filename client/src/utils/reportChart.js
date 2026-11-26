@@ -1,4 +1,4 @@
-// Pure helpers of the report charts (specs/report-grammar.md): layout and export only. They never
+// Pure helpers of the report charts (specs/design-system/report-grammar.md): layout and export only. They never
 // compute a figure — every value, share and total arrives from the server.
 
 /** Index of the last non-null value of a series, -1 when it has none. */

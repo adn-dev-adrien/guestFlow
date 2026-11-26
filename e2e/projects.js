@@ -1,4 +1,4 @@
-// The layout of the Playwright projects (specs/e2e-playwright-smoke-suite.md rule 20), with no dependency so
+// The layout of the Playwright projects (specs/tech/e2e-playwright-smoke-suite.md rule 20), with no dependency so
 // that both playwright.config.js and a server unit test can read it.
 //
 // Specs that rewrite global state never overlap another spec: each gets a project of its own that depends

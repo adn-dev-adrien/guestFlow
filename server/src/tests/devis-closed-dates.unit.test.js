@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 55 (audit R10-1, decided by Adrien 2026-10-31) — a devis is never written on
+// specs/payments/payment-link-lifecycle.md rule 55 (audit R10-1, decided by Adrien 2026-10-31) — a devis is never written on
 // nights an establishment closure covers: created there, or moved there (dates or logement, operator or website
 // source), it is refused 409 CLOSED_DATES « Logement fermé sur ces dates : devis non enregistré. », with the closure
 // to open. A devis already on closed nights keeps its other edits. Defence in depth: a devis link paid anyway is

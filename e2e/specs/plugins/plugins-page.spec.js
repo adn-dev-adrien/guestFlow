@@ -1,5 +1,5 @@
 // @ts-check
-// plugins/plugins-page — specs/plugins-phase-0-foundation.md §3.B, §3.D, §3.E.
+// plugins/plugins-page — specs/plugins/plugins-phase-0-foundation.md §3.B, §3.D, §3.E.
 // Drives the Plugins page against the real server and checks that an inactive plugin leaves no
 // trace. Only Google Agenda is switched off: no other spec depends on it, so the suite can keep
 // running in parallel locally. The seed installs every catalogue plugin active (seed-e2e.js); the
@@ -8,7 +8,7 @@ import { test, expect } from '../../fixtures/test.js';
 
 const GOOGLE = 'Google Agenda';
 const googleCard = (page) => page.locator('.MuiCard-root').filter({ hasText: GOOGLE });
-// specs/plugins-phase-0-foundation.md rule 25 — the E2E database has no Google connection: the card
+// specs/plugins/plugins-phase-0-foundation.md rule 25 — the E2E database has no Google connection: the card
 // says what is missing, and « Désactiver » sits in ⋯ behind a confirmation.
 const GOOGLE_STATE = 'Actif · à connecter';
 
@@ -87,7 +87,7 @@ test('rule 25: « Configurer » on Google Agenda opens its tab of Intégrations'
   await expect(page.getByText('Synchronisation Google Agenda')).toBeInViewport({ timeout: 10_000 });
 });
 
-// specs/integrations-tab-per-plugin.md rules 2, 5 and 6 — « Configurer » lands on its plugin's tab, on a
+// specs/plugins/integrations-tab-per-plugin.md rules 2, 5 and 6 — « Configurer » lands on its plugin's tab, on a
 // phone and on a desktop; on a phone the tab strip scrolls inside the bar, never the page.
 for (const width of [390, 1280]) {
   for (const [name, id, tab] of [['Assurance annulation Neat', 'neat', 'Neat'], ['Vigilance Météo-France', 'weather-alerts', 'Météo-France']]) {
@@ -128,7 +128,7 @@ test('the Plugins entry sits in the Paramètres submenu', async ({ page }) => {
   await expect(nav.getByRole('link', { name: 'Plugins', exact: true }).first()).toBeVisible();
 });
 
-// specs/plugins-phase-1-sdk.md rules 12, 21 and 24 — a plugin module's data goes with it when asked,
+// specs/plugins/plugins-phase-1-sdk.md rules 12, 21 and 24 — a plugin module's data goes with it when asked,
 // and a reinstall starts empty. Météo: no other spec depends on its data.
 test('uninstalling Météo with « Effacer aussi ses données » erases its key; the reinstall starts empty', async ({ page, request }) => {
   const saved = await request.put('/api/plugins/weather-alerts/settings', { data: { apiKey: 'e2e-key' } });

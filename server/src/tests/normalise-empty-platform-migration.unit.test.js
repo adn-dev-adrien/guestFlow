@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { runNormaliseEmptyPlatformMigration } = require('../utils/normaliseEmptyPlatformMigration');
 
-// specs/bed-config-in-linen-card.md §10 hotfix follow-up #4. Plain :memory: fixture with
+// specs/linen/bed-config-in-linen-card.md §10 hotfix follow-up #4. Plain :memory: fixture with
 // the single table touched. The migration backfills NULL / empty / whitespace platform
 // values to 'direct' so the rest of the codebase can trust the column.
 

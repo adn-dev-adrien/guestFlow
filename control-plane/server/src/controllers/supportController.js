@@ -1,5 +1,5 @@
 /**
- * Support access with consent, the console's side (specs/hosting-h2-account-security.md rules 12–14,
+ * Support access with consent, the console's side (specs/hosting/hosting-h2-account-security.md rules 12–14,
  * §4.2).
  *
  * - The operator asks for access with a reason: the console signs a request and writes it next to the

@@ -1,6 +1,6 @@
 /**
  * Public email-preferences page — the unsubscribe link of the season emails
- * (specs/guest-email-sequence.md §3.2 rule 9, §4.3, §6.2).
+ * (specs/emails/guest-email-sequence.md §3.2 rule 9, §4.3, §6.2).
  *
  * GET shows the page and never changes anything: mail scanners and link previews fetch every link of
  * an email, and they must not unsubscribe anybody. POST performs the change. An unknown token gets the
@@ -9,7 +9,7 @@
  * Self-contained HTML: no script, no external asset, readable on a phone.
  */
 
-// The house speaks under its own name (specs/plugins-phase-p-productisation.md rule 17): `{name}` is
+// The house speaks under its own name (specs/plugins/plugins-phase-p-productisation.md rule 17): `{name}` is
 // the company name, « GuestFlow » while none is set.
 const { asText } = require('../../utils/bodyText');
 

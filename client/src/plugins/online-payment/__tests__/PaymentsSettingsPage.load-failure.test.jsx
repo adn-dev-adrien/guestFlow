@@ -1,5 +1,5 @@
 /**
- * specs/qonto-settings-in-app.md rule 20 — when the settings fail to load, the page says so with a
+ * specs/settings/qonto-settings-in-app.md rule 20 — when the settings fail to load, the page says so with a
  * « Réessayer » instead of spinning forever.
  */
 import React from 'react';

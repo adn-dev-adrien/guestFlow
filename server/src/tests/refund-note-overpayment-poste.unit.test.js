@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 111 (stabilisation loop t7, B7-2) — the trop-perçu of note money is split on the poste of the line the note
+// specs/pricing/pricing-components.md §3 rule 111 (stabilisation loop t7, B7-2) — the trop-perçu of note money is split on the poste of the line the note
 // paid (`postesLeft` reads the notes register by line key: a note's allocation loses its line once the line is offered), so the refund dialog
 // pre-fills « Prestations complémentaires » and the avoir reverses 70600010, the account that booked the sale — never « Hébergement ».
 // Loop t8 D8-1 (reservation-refunds rule 49 reading of 2026-11-16) — once the stay is cancelled, that key-less refund is deducted from its own poste:

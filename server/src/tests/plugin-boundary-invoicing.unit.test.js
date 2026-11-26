@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 1-2 — the two core contracts are inert without plugins: the
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 1-2 — the two core contracts are inert without plugins: the
 // issuer and the sales of a plugin exist only while it is live, at most one issuer per instance, and a throwing plugin
 // never breaks the journal or the reconciliation.
 const test = require('node:test');

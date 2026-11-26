@@ -7,7 +7,7 @@ import DialogProvider from '../../../components/DialogProvider';
 import ReconciliationPage from '../ReconciliationPage';
 import { proposed, gap, COUNTS, BULK, credit } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rules 11–13 — a counter is a filter kept in the URL, with a
+// specs/accounting/reconciliation-assisted-matching.md rules 11–13 — a counter is a filter kept in the URL, with a
 // chip and Échap to leave it; « Tout confirmer » appears when the view holds proposals.
 
 vi.mock('../../../api', () => ({

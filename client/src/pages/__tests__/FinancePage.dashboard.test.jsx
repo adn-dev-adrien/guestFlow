@@ -1,7 +1,7 @@
 /**
- * FinancePage — the Suivi financier dashboard (specs/finance-dashboard-redesign.md rules 3-4, 12-16).
+ * FinancePage — the Suivi financier dashboard (specs/accounting/finance-dashboard-redesign.md rules 3-4, 12-16).
  * The page renders the server payload as is: the fixtures mirror `/finance/dashboard` and its detail
- * `toCollect` exactly (the month-grouped payments of specs/mobile-dashboard-exercise-cash.md).
+ * `toCollect` exactly (the month-grouped payments of specs/planning/mobile-dashboard-exercise-cash.md).
  */
 
 import React from 'react';

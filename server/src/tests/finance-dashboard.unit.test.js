@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md — the dashboard payload: one window and a logement filter
+// specs/accounting/finance-dashboard-redesign.md — the dashboard payload: one window and a logement filter
 // (rules 1-5), the hero and its goal (rules 6-9), the tiles (rules 13-14), the month series (rule 22),
 // occupancy (rules 23-24) and the comparison with last year (rules 17-21).
 const { freshDb, insert, sum, THIS_YEAR } = require('./financeDashboardFixture');

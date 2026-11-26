@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 60-63 (SDK 2.33.0) — the generic core notion of an amount a stay received in advance from a plugin's
+// specs/payments/mixed-method-payments.md rules 60-63 (SDK 2.33.0) — the generic core notion of an amount a stay received in advance from a plugin's
 // prepaid instrument: a tender line of the method `prepaid` that carries the plugin's source, ref and label; counted as received
 // by the stay, never expected at the bank, never an encaissement of the books; held for a quote and settled into a stay through
 // the calls the plugin declared. Nothing here names an instrument: the source under test is a made-up « storedCredit ».

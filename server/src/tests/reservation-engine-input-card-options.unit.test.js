@@ -1,4 +1,4 @@
-// The stored moments ride with the engine input (specs/unscheduled-card-option.md rule 10).
+// The stored moments ride with the engine input (specs/options/unscheduled-card-option.md rule 10).
 //
 // `buildReservationEngineInput` is « the one way to re-price a booking exactly as its fiche does » —
 // the finance page, the per-bucket contribution capture and the Neat runner all replay through it.

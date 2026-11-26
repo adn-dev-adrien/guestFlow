@@ -1,5 +1,5 @@
 /**
- * PLATFORM PRICE — the accommodation a platform stay is priced at (specs/pricing-components.md §3 rules 17, 50, 70).
+ * PLATFORM PRICE — the accommodation a platform stay is priced at (specs/pricing/pricing-components.md §3 rules 17, 50, 70).
  *
  * Contract: `resolvePlatformPrice({ gross, extraGuestsInBrut, platformLines, taxGap })` →
  * `{ accommodation, commission, payout }`. `accommodation` is the engine's gross pin: the host amount of the platform's
@@ -19,7 +19,7 @@ const { roundMoney } = require('./money');
 // Gross-up a net price by a platform commission % so that, after the platform takes its commission,
 // the owner nets `net`: gross = (net + fixedCost) / (1 − c/100). c is clamped to [0, 99.99]; a value
 // ≥ 100 (would divide by ≤ 0) returns null = "invalid, no price". c ≤ 0 / blank → gross = net.
-// specs/platform-price-from-commission.md §3.3 + specs/tariff-recipes/spec.md §3.6 rules 31-33:
+// specs/platforms/platform-price-from-commission.md §3.3 + specs/pricing/tariff-recipes.md §3.6 rules 31-33:
 //  - `fixedCost` is a per-stay cost the displayed price must cover AFTER commission (the direct
 //    channel's welcome pack) — added to the net before the gross-up;
 //  - `rounding: 'euro_up'` (the default) ceils to the whole euro: this is a price to DISPLAY on a
@@ -63,7 +63,7 @@ function resolvePlatformPrice({
   return { accommodation: pinnedAccommodation, commission: null, payout: null };
 }
 
-// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('platformPrice', scope).
+// specs/pricing/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('platformPrice', scope).
 const settingsSchema = [
   {
     key: 'commissionRate', type: 'number', default: 0, scope: 'global',

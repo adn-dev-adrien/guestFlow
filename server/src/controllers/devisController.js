@@ -21,7 +21,7 @@ function createController(model, {
   frozenOptions = (devisId) => require('../utils/insuranceOffer').frozenOptions(require('../database'), devisId),
   frozenResources = (devisId) => require('../utils/resourceOffer').frozenResources(require('../database'), devisId),
 } = {}) {
-  // A refusal's body: its code, and the stays or closures it names (specs/payment-link-lifecycle.md rules 46, 55).
+  // A refusal's body: its code, and the stays or closures it names (specs/payments/payment-link-lifecycle.md rules 46, 55).
   const errorBody = (result) => ({ error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.field ? { field: result.field } : {}), ...(result.stays ? { stays: result.stays } : {}), ...(result.closures ? { closures: result.closures } : {}), ...(result.lines ? { lines: result.lines } : {}) });
 
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
@@ -36,17 +36,17 @@ function createController(model, {
 
   // Every admin read of one devis — the fiche, its PDF, its history, the extension preview — is the
   // operator handling it: the purge of untouched website requests skips it from then on
-  // (specs/public-request-abuse-and-grouping.md rules 10, 17).
+  // (specs/site/public-request-abuse-and-grouping.md rules 10, 17).
   const seen = (id) => { if (typeof model.markOperatorSeen === 'function') model.markOperatorSeen(id); };
 
   function getOne(req, res) {
     const devis = model.findById(req.params.id);
     if (!devis) return res.status(404).json({ error: 'Devis non trouvé' });
     seen(devis.id);
-    // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
-    // specs/plugins-phase-3a-online-payment.md rule 18 — the payment request button follows the provider.
-    // specs/plugins-phase-3b-neat.md rule 22 — the options it carries that the catalogue hides, read-only;
-    // specs/plugins-phase-3c-hourly-resources.md rule 18 — the same for the resources.
+    // specs/reservations/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
+    // specs/plugins/plugins-phase-3a-online-payment.md rule 18 — the payment request button follows the provider.
+    // specs/plugins/plugins-phase-3b-neat.md rule 22 — the options it carries that the catalogue hides, read-only;
+    // specs/plugins/plugins-phase-3c-hourly-resources.md rule 18 — the same for the resources.
     return res.json({
       ...devis,
       cgv: termsFicheBlock(devis),
@@ -56,7 +56,7 @@ function createController(model, {
     });
   }
 
-  // specs/ui-review-2026-10-19-operations.md rule 20 — what « prolonger » would change, then the
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 20 — what « prolonger » would change, then the
   // extension itself. Both refuse a quote that is not an expired open one (409).
   function extensionPreview(req, res) {
     seen(req.params.id);
@@ -78,7 +78,7 @@ function createController(model, {
     return res.json(h);
   }
 
-  // specs/reservations-backend-mvc.md rule 26 (audit R40-RES-L1) — as on a stay, a devis naming a client that does not
+  // specs/tech/reservations-backend-mvc.md rule 26 (audit R40-RES-L1) — as on a stay, a devis naming a client that does not
   // exist is refused (400 CLIENT_REQUIRED) where its foreign key fails, nothing written (it was a 500).
   const CLIENT_REQUIRED = { error: 'Un client est requis pour enregistrer le devis.', code: 'CLIENT_REQUIRED' };
   function unknownClient(err, body) {
@@ -96,7 +96,7 @@ function createController(model, {
     }
   }
 
-  // A client typed on the devis is written with it (specs/clients.md rule 13).
+  // A client typed on the devis is written with it (specs/clients/clients.md rule 13).
   function create(req, res) {
     const shape = stayShapeRefusal(req.body || {});
     if (shape) return res.status(400).json(shape);
@@ -117,7 +117,7 @@ function createController(model, {
     return res.status(result.status).json(result.body);
   }
 
-  // specs/reservation-fiche-concurrency.md rule 11 — the editor sends the `updatedAt` it loaded; a save
+  // specs/reservations/reservation-fiche-concurrency.md rule 11 — the editor sends the `updatedAt` it loaded; a save
   // built on an older version would rewrite every column and erase what a guest's new request wrote.
   function update(req, res) {
     const shape = stayShapeRefusal(req.body || {}, model.findById(req.params.id));
@@ -147,7 +147,7 @@ function createController(model, {
 
   function convertToReservation(req, res) {
     const result = model.convertToReservation(req.params.id);
-    // The quote became a stay: plugins react after the response (specs/plugins-phase-1-sdk.md rule 9).
+    // The quote became a stay: plugins react after the response (specs/plugins/plugins-phase-1-sdk.md rule 9).
     if (result && result.ok && result.data && result.data.reservationId) {
       emitPluginEvent('reservation.created', { reservationId: result.data.reservationId });
     }
@@ -164,7 +164,7 @@ function createController(model, {
     seen(full.id);
     try {
       const settings = settingsModel.read();
-      // specs/devis-pdf-total-parity.md §3.1 rule 5 — the engine quote comes from the model's single
+      // specs/devis/devis-pdf-total-parity.md §3.1 rule 5 — the engine quote comes from the model's single
       // replay of the sold state (offered lines, price lock, auto-options, Complément routing), so
       // the PDF reads exactly what the fiche shows. Building the engine input here is what let the
       // printed total drift from the printed lines (§1). `null` on any failure → row fallback.

@@ -1,4 +1,4 @@
-// Shared fixtures for the « Domotique » suites of the guest app (specs/guest-app-home-automation.md). Not a test file.
+// Shared fixtures for the « Domotique » suites of the guest app (specs/guest-app/guest-app-home-automation.md). Not a test file.
 // The house's data is a fake `homeData` provider in memory: the guest app never reads the connector's tables.
 
 const CATALOG = Object.freeze([

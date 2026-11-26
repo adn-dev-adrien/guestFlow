@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 110 b (owner, 2026-11-16, loop t1 B-2) — the money of a card order on a cancelled stay has ONE home. Paid before the
+// specs/guest-app/guest-app.md rule 110 b (owner, 2026-11-16, loop t1 B-2) — the money of a card order on a cancelled stay has ONE home. Paid before the
 // cancellation, the order is a collected line of the stay: its refund lives in the cancellation's refund dialog only, the « À rembourser » register
 // holds no row for it, and the dialog never gives it back twice. Paid after the cancellation, nothing reached the fiche: the register's
 // `orderConflict` row is its only home and the dialog does not offer it.

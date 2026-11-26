@@ -1,5 +1,5 @@
 /**
- * Shared fixture for the translation-catalogue suites (specs/translation-catalogue.md).
+ * Shared fixture for the translation-catalogue suites (specs/site/translation-catalogue.md).
  *
  * A sibling module rather than an export from one of the suites: a test file must never have to
  * import — and therefore re-run — another one (CLAUDE.md §9).

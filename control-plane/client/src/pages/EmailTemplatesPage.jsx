@@ -1,5 +1,5 @@
 /**
- * The renewal emails (specs/control-plane-plans-and-access.md rule 33): one card per template with
+ * The renewal emails (specs/hosting/control-plane-plans-and-access.md rule 33): one card per template with
  * its day and its Manuel / Automatique switch (none on « Relancer maintenant », whose click is the
  * approval), and « Modifier »: subject, text, the placeholders as chips that insert at the cursor,
  * and the server's rendering on a sample customer as the text is typed.

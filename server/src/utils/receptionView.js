@@ -1,5 +1,5 @@
 /**
- * Reception-scoped payload serializers (specs/reception-role-checkin-only.md §3.2, §4.1).
+ * Reception-scoped payload serializers (specs/sas/reception-role-checkin-only.md §3.2, §4.1).
  *
  * The `reception` role welcomes guests on-site (arrival / departure SAS) and must NEVER receive any
  * financial figure beyond the caution + complement to collect at the door — and no client contact
@@ -50,7 +50,7 @@ const RESERVATION_KEEP = [
   'departureHandoverNote',
   'extinguisherSealOkAtDeparture',
   // Door money (allowed for reception). The cash/date/detail markers ride along so a committed SAS
-  // can reopen pre-filled (specs/reopen-completed-sas.md §2) — they describe the door collection,
+  // can reopen pre-filled (specs/sas/reopen-completed-sas.md §2) — they describe the door collection,
   // never the stay's revenue.
   'cautionAmount',
   'cautionWaived',
@@ -68,7 +68,7 @@ const RESERVATION_KEEP = [
   'endOfStayComplementPaidDate',
   'endOfStayComplementDetail',
   // « En fin de séjour » marker: labels the complement as collected at check-out, no amount added
-  // (specs/defer-arrival-complement-to-checkout.md §3.2 rule 10).
+  // (specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 10).
   'complementDeferredToCheckout',
   // Operational status flags.
   'checkInReady',
@@ -80,9 +80,9 @@ const RESERVATION_KEEP = [
 
 // Option / resource lines are shown as "title × quantity" only — stay-money prices are stripped.
 // Complement lines (`inComplement = 1`) are DOOR money (spec §3.2 rule 3): their amounts survive so
-// the arrival SAS can reopen its own upsell / linen lines pre-filled (specs/reopen-completed-sas.md
+// the arrival SAS can reopen its own upsell / linen lines pre-filled (specs/sas/reopen-completed-sas.md
 // §5). The `offered` / `sasArrivalOrigin` flags carry no money and drive the « ✓ Offert » seeding
-// (specs/sas-offer-complement-lines.md §3.4 rule 13).
+// (specs/sas/sas-offer-complement-lines.md §3.4 rule 13).
 function receptionOptionLine(o) {
   const line = {
     id: o.id,
@@ -131,7 +131,7 @@ function pick(source, keys) {
 /**
  * Finance-free, PII-free view of one reservation (list row or detailed object).
  *
- * Also carries the resolved edit locks (specs/reception-sas-today-only.md §3.2 rule 9) so the client
+ * Also carries the resolved edit locks (specs/sas/reception-sas-today-only.md §3.2 rule 9) so the client
  * never does date math: `arrivalSasLock` / `departureSasLock` (null | 'done' | 'future' | 'past')
  * and the two status-toggle flags. Admin payloads never go through here, hence never carry them —
  * every consumer reads an absent field as "no lock".
@@ -186,7 +186,7 @@ function toReceptionPropertyList(properties) {
 // reception already sees on reservations — survives for the row label). Resource config
 // (`slotDuration`, `openTime`, …) is dropped as noise. Whitelist, not blacklist, so a finance column
 // added to the planning payload later can never silently reach a reception account
-// (specs/reception-role-checkin-only.md §3.2; 2026-10-08 audit AUTH-4).
+// (specs/sas/reception-role-checkin-only.md §3.2; 2026-10-08 audit AUTH-4).
 const PLANNING_EVENT_KEEP = [
   'id',
   'kind',
@@ -200,7 +200,7 @@ const PLANNING_EVENT_KEEP = [
   'endTime',
   'turnoverMinutes',
   'displayName',
-  // specs/outside-booking-sas.md rules 6-7, 22 — the reception opens the mini SAS from the card of a visit and reads its state (door money only: « Reste 13,00 € »).
+  // specs/sas/outside-booking-sas.md rules 6-7, 22 — the reception opens the mini SAS from the card of a visit and reads its state (door money only: « Reste 13,00 € »).
   'external',
   'arrived',
   'noShowAt',
@@ -221,7 +221,7 @@ function toReceptionPlanningEventList(events) {
   return (events || []).map(toReceptionPlanningEvent);
 }
 
-// specs/reception-role-checkin-only.md §3.5 rule 10 — the ONLY reservation fields a reception-only
+// specs/sas/reception-role-checkin-only.md §3.5 rule 10 — the ONLY reservation fields a reception-only
 // user may write through `PATCH /reservations/:id/payment`. Every financial field in the incoming
 // body (deposit / balance / complement / caution / amounts) is dropped.
 function toReceptionPaymentPatch(body) {
@@ -229,7 +229,7 @@ function toReceptionPaymentPatch(body) {
   return { checkInReady, checkInDone, checkOutDone };
 }
 
-// specs/collect-stay-payment-at-check-in.md §3.6 rule 24 — the « Séjour à régler » step is admin-only:
+// specs/sas/collect-stay-payment-at-check-in.md §3.6 rule 24 — the « Séjour à régler » step is admin-only:
 // the acompte / solde are exactly what this role must never see. The shell keeps the shape the client
 // expects (`applicable` decides whether the step exists) while carrying no amount at all.
 const RECEPTION_STAY_PAYMENT = Object.freeze({ applicable: false });
@@ -244,7 +244,7 @@ function toReceptionStayPayment() {
  * field it should not have sent. Everything else in the body rides through untouched.
  */
 function toReceptionSasCommit(body) {
-  // specs/single-payment-at-check-in.md §3.4 — the unified mode settles the stay, so it is dropped
+  // specs/payments/single-payment-at-check-in.md §3.4 — the unified mode settles the stay, so it is dropped
   // for a reception-only user exactly like `stayPaid`: silently, never rejected. A stale client must
   // not lose a whole check-in over a field it should not have sent. Dropping the mode leaves the
   // complement to settle through its own field, which reception is allowed to use.

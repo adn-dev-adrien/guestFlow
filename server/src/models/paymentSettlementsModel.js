@@ -1,6 +1,6 @@
 /**
  * Payment settlements model — sole DB access for `payment_settlements` / `payment_tenders`
- * (specs/mixed-method-payments.md §5).
+ * (specs/payments/mixed-method-payments.md §5).
  *
  * A settlement records HOW a manual payment was made (its tender lines) and what became of an amount not
  * received. The paid flags of the target stay where they always were (`reservations.*Paid`, the group, the

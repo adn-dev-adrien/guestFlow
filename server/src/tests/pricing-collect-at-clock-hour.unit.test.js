@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 19, 20 and 45 — a sale on the arrival day is routed by the stay clock's hour, not by the day:
+// specs/pricing/pricing-components.md §3 rules 19, 20 and 45 — a sale on the arrival day is routed by the stay clock's hour, not by the day:
 // before the check-in hour it is collected at arrival, from the check-in hour on it is collected at departure.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

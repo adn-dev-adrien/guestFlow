@@ -5,7 +5,7 @@ const googleCalendarClient = require('../client');
 const { testConnection } = googleCalendarClient;
 const { mapGoogleError } = googleCalendarClient.__test;
 
-// OAuth rework (specs/google-calendar-oauth-rework.md): config is now just the selected
+// OAuth rework (specs/settings/google-calendar-oauth-rework.md): config is now just the selected
 // calendar + a configured flag; the caller supplies the authenticated calendarApi.
 const VALID_CONFIG = {
   calendarId: 'mon-agenda@group.calendar.google.com',

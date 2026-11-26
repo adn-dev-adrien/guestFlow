@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 34, superseded by rule 62 (D24, 2026-11-09) — a core major bump never
+// specs/plugins/plugins-phase-4-registry.md rule 34, superseded by rule 62 (D24, 2026-11-09) — a core major bump never
 // switches off a plugin whose contract still holds: `guestflow` is read as a floor, the `sdk` range judges
 // compatibility. Every source manifest writes a floor only (the package build refuses a ceiling), and a package
 // already published with « <4.0.0 » still loads on GuestFlow 4 and later while its SDK range holds.

@@ -1,6 +1,6 @@
 /**
- * PeriodSelector — specs/finance-dashboard-redesign.md rule 51, second reading of 2026-11-02: a custom window
- * starting before today − 5 years (specs/reservations-backend-mvc.md rule 13, past side) is refused on the spot
+ * PeriodSelector — specs/accounting/finance-dashboard-redesign.md rule 51, second reading of 2026-11-02: a custom window
+ * starting before today − 5 years (specs/tech/reservations-backend-mvc.md rule 13, past side) is refused on the spot
  * with the server's message, and never sent.
  */
 

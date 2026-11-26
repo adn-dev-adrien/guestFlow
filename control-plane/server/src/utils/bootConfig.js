@@ -1,6 +1,6 @@
 /**
  * The console's security settings read from the environment at boot
- * (specs/control-plane-plans-and-access.md rule 39).
+ * (specs/hosting/control-plane-plans-and-access.md rule 39).
  *
  * The console fails closed: unless NODE_ENV is explicitly `development` or `test`, it runs as
  * production — the session secret and Caddy's proxy secret are required and cookies are `Secure`.

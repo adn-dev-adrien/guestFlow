@@ -1,5 +1,5 @@
 // Review fixes, round 3 (second verification, 2026-11-06), through the real controllers:
-//   specs/tourist-tax-report-v2.md §3 rules 42 and 43 (V2-1, D-HC18) and rule 46 (V2-8).
+//   specs/tourist-tax/tourist-tax-report-v2.md §3 rules 42 and 43 (V2-1, D-HC18) and rule 46 (V2-8).
 // Each test owns a quarter of its own and moves the clock past it.
 process.env.DB_PATH = ':memory:';
 

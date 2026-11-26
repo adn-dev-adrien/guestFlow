@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 61-63 (end review R2-5) — a receipt is cut over the lines sold by its payment day: a line sold later on
+// specs/pricing/pricing-components.md §3 rules 61-63 (end review R2-5) — a receipt is cut over the lines sold by its payment day: a line sold later on
 // the same stay (a drink at another rate, or the same rate rounded apart) never re-cuts a receipt of a month already declared.
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');

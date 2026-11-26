@@ -1,6 +1,6 @@
 /**
  * The plugin lifecycle exists only where the plugins are the administrator's
- * (specs/plugin-operator-provisioning.md rules 1, 4, 30): on an operator-managed space every route behind
+ * (specs/plugins/plugin-operator-provisioning.md rules 1, 4, 30): on an operator-managed space every route behind
  * this guard answers exactly what an unknown `/api` path answers — for every role, a support session
  * included — so neither the route nor the reason is revealed. Runs before the controller.
  * `isHidden(req)` tells the support audit (which runs earlier) to let such a request through

@@ -1,4 +1,4 @@
-// specs/sas-departure-recap-server-side.md rules 1-2, 6-12, 24 — the departure plan: one function that
+// specs/sas/sas-departure-recap-server-side.md rules 1-2, 6-12, 24 — the departure plan: one function that
 // prices the intent, nets the offered lines, sums the end-of-stay complement and the recalled arrival,
 // shared by the preview and the commit. Real model, in-memory database; fictional figures.
 

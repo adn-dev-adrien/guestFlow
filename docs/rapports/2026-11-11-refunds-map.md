@@ -2,7 +2,7 @@
 
 - Base: worktree `gf-docs-pricing-spec`, branch `docs/pricing-components-spec` = `inte/plugins` `e27229aa` + spec commit `fa6f5dc8`.
   Line numbers are on this tree; the J-7 branch (`feature/guest-app-from-j7`) is cited only where it adds a copy (`flagBasketRefund`).
-- Read: `specs/pricing-components.md` (rules 1-71, §5, §10), `specs/reservation-refunds.md` (rules 1-53), `mixed-method-payments.md`
+- Read: `specs/pricing/pricing-components.md` (rules 1-71, §5, §10), `specs/payments/reservation-refunds.md` (rules 1-53), `mixed-method-payments.md`
   (rules 42-58), `payment-schedule-and-cancellation.md` (rules 27-34, 55, 60-63), `direct-installments.md` rule 46,
   `payment-link-lifecycle.md` rules 56/63, `vat-optional-mode.md` rule 16, INVARIANTS.md (D1-D28 + the refund lines of rounds 15-45).
 - Prod measure: a private copy of `shadows/prod-2026-11-11/gf-snap.db` opened `sqlite3 -readonly`. Counts/ids only.

@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 38 — the projection to 31 December: the collected figure plus every
+// specs/accounting/vat-optional-mode.md rule 38 — the projection to 31 December: the collected figure plus every
 // amount still expected before the year ends on a live reservation, past dates included.
 
 const test = require('node:test');

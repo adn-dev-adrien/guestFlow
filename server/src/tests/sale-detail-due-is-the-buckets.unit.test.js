@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 31 and rule 104 e (stabilisation loop t6, UI6-1 / UI6-2 / UI6-3, 2026-11-16) — the sale panel's « Reste à
+// specs/pricing/pricing-components.md §3 rule 31 and rule 104 e (stabilisation loop t6, UI6-1 / UI6-2 / UI6-3, 2026-11-16) — the sale panel's « Reste à
 // payer » (`totals.dueCents`) is what the stored stay still asks: its open acompte, solde, installments and complements, a rule-104 credit
 // already off the bucket it sits in — since the owner reading of 2026-11-16, the register's « Reste à percevoir » (net of commission on a
 // platform stay). Before: Σ lines − Σ line-level settled, so every euro paid through the acompte, the solde or the platform

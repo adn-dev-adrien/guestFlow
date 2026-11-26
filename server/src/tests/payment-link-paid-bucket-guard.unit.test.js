@@ -1,6 +1,6 @@
 // Spec review of 2026-10-27 (agent 3, item 8) — `ensurePaymentLink` had no guard against an échéance
 // already collected: a link could be minted for a paid acompte or solde and charge the guest twice. The
-// service now refuses with 409 ALREADY_PAID before any provider call (specs/online-payments-qonto.md rule 21).
+// service now refuses with 409 ALREADY_PAID before any provider call (specs/payments/online-payments-qonto.md rule 21).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -40,7 +40,7 @@ function fakeLinksModel(db) {
 }
 
 // `createLink` keeps the Qonto client's answer shape; the provider stub adapts it the way
-// plugins/online-payment/provider.js does (specs/plugins-phase-3a-online-payment.md rule 4).
+// plugins/online-payment/provider.js does (specs/plugins/plugins-phase-3a-online-payment.md rule 4).
 function baseDeps(db, over = {}) {
   const deps = {
     database: db,

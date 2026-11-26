@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import ClientCleanupDialog from '../ClientCleanupDialog';
 
-// Coverage for the selective cleanup popup — see specs/clients.md §3 rule 8 + §6.
+// Coverage for the selective cleanup popup — see specs/clients/clients.md §3 rule 8 + §6.
 // All rows default-checked; master toggle reflects mix; Annuler is a pure no-op; Supprimer calls
 // onConfirm with the currently-checked ids only.
 

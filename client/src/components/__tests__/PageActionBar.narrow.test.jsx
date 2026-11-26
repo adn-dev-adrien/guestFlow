@@ -1,4 +1,4 @@
-// specs/ds-components.md rules 19-20 — review #8, m-7: on a narrow bar the title read « P. » or
+// specs/design-system/ds-components.md rules 19-20 — review #8, m-7: on a narrow bar the title read « P. » or
 // « Syst… », the subtitle took its room and Save/Cancel stacked in a column. The bar now keeps a
 // readable title, lets the subtitle wrap, keeps the actions in a row and sizes every button 44 × 44.
 // jsdom does no layout: these tests pin the styles that make it so; the e2e spec

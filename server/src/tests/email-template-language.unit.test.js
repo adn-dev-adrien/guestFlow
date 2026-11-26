@@ -1,4 +1,4 @@
-// Email template language selection (specs/email-language-fr-en.md §3 rules 2-3).
+// Email template language selection (specs/emails/email-language-fr-en.md §3 rules 2-3).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

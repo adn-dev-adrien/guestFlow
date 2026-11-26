@@ -1,5 +1,5 @@
 /**
- * TermsAcceptanceLine — the CGV acceptance on a fiche (specs/terms-acceptance-record.md rules 21-22).
+ * TermsAcceptanceLine — the CGV acceptance on a fiche (specs/reservations/terms-acceptance-record.md rules 21-22).
  */
 import React from 'react';
 import { vi } from 'vitest';

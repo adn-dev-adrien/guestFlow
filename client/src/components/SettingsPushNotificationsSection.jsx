@@ -1,6 +1,6 @@
 /**
  * SettingsPushNotificationsSection — « Notifications push (cet appareil) » card
- * (specs/pwa-push-notifications.md §6).
+ * (specs/guest-app/pwa-push-notifications.md §6).
  *
  * Self-contained (per-user data via the /push API, not the global settings form): on mount it reads the
  * device subscription state + this user's preferences. The operator enables/disables push on the current
@@ -16,7 +16,7 @@ import api from '../api';
 import { pushSupported, getPushState, enablePush, disablePush } from '../push/registerPush';
 
 // The toggles are the server's `channels` ([{ key, label }]): the core's, then those the live plugins
-// declare (specs/platform-settings-relay-and-review.md rule 8). The card names no plugin.
+// declare (specs/platforms/platform-settings-relay-and-review.md rule 8). The card names no plugin.
 const NO_PREFS = { channels: [] };
 
 export default function SettingsPushNotificationsSection() {
@@ -28,7 +28,7 @@ export default function SettingsPushNotificationsSection() {
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  // specs/plugins-phase-p-productisation.md rule 18 — without any address to sign with, push is off.
+  // specs/plugins/plugins-phase-p-productisation.md rule 18 — without any address to sign with, push is off.
   const [serverReady, setServerReady] = useState(true);
 
   const refresh = useCallback(async () => {

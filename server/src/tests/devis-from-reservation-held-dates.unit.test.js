@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 46, reading of 2026-11-01 (audit R11-2, decided by Adrien: refuse) and rule 55 —
+// specs/payments/payment-link-lifecycle.md rule 46, reading of 2026-11-01 (audit R11-2, decided by Adrien: refuse) and rule 55 —
 // « Transformer en devis » copies its source stay's nights, so it is judged like any other devis creation: refused
 // 409 CLOSED_DATES when a closure covers them, 409 DATES_HELD when a stay holds them. Review of #915 (finding 1):
 // when that stay is the source itself, the refusal says so (« Séjour déjà payé : devis non créé. ») and never lists

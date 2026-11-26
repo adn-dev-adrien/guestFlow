@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 11, reading of 2026-11-02 (audit R19-L1) — a stay lasts at most
+// specs/tech/reservations-backend-mvc.md rule 11, reading of 2026-11-02 (audit R19-L1) — a stay lasts at most
 // 366 nights, the iCal parser's cap. The internal paths priced any length night by night, synchronously:
 // a departure typed as 9999-12-31 froze the whole server for ~100 s. Refused fast, 400 INVALID_STAY_DATES,
 // field endDate, « Séjour trop long. », before pricing, nothing written.

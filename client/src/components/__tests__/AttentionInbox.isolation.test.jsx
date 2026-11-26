@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 44 — the home renders plugin alerts outside <Slot>: a throwing one,
+// specs/plugins/plugins-phase-4-registry.md rule 44 — the home renders plugin alerts outside <Slot>: a throwing one,
 // or a lazy chunk gone after a plugin update, must leave the rest of the home up.
 import React, { lazy } from 'react';
 import { render, screen } from '@testing-library/react';

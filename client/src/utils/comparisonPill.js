@@ -1,7 +1,7 @@
 import { formatCurrency, formatCurrencyRounded } from './formatters';
 
 /**
- * comparisonPill — turns one `dashboard.comparison.metrics.<key>` (specs/finance-revpar-year-over-year.md
+ * comparisonPill — turns one `dashboard.comparison.metrics.<key>` (specs/accounting/finance-revpar-year-over-year.md
  * rules 8-10) into the props of the year-over-year pill (`SelectableTile.comparison`,
  * `YearOverYearBadge` report mode). Presentational only: the change, its unit and whether it compares
  * come from the server; this formats last year's value and maps « not comparable » to change null

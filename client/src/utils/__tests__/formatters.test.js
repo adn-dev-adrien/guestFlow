@@ -3,7 +3,7 @@ import {
   displayDate, displayDateShort, displayDateLong, displayDateTime,
 } from '../formatters';
 
-// specs/design-system.md §3.7 — the only client-side money/date display formatters. Amounts use
+// specs/design-system/design-system.md §3.7 — the only client-side money/date display formatters. Amounts use
 // REGULAR spaces (grouping + before €), matching the app's historical output, not Intl narrow NBSP.
 
 describe('formatCurrency', () => {

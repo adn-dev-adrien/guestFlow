@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/platform-tourist-tax-out-of-the-commission.md — on a platform that collects the tourist tax
+// specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md — on a platform that collects the tourist tax
 // from the guest AND remits it to the commune itself (mode `platform`), the operator may state, in
 // euros, how much of the brut is that tax. The stated amount — the PLATFORM's figure, never our own
 // estimate — comes back out of the brut, so the revenue, the VAT base, the declared tax base and the

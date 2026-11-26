@@ -1,6 +1,6 @@
 /**
  * PaymentDeactivationsAlert — withdrawn payment links a guest could still pay at the provider
- * (specs/payment-link-lifecycle.md rule 67). The server words the card and every row
+ * (specs/payments/payment-link-lifecycle.md rule 67). The server words the card and every row
  * (GET /api/dashboard/payment-deactivations: kind, amount, reference, stay, reason, date); the card lists them, so the
  * operator can find each link at the provider, and offers the way to the Paiements en ligne page where the connection
  * is restored. Renders the summary alone while the list loads or when it cannot be read.

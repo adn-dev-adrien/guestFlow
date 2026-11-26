@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 37 — the pill has no dark-surface variant any more (no caller since
+ * specs/design-system/report-grammar.md §3 rule 37 — the pill has no dark-surface variant any more (no caller since
  * the light hero card): an `onDark` passed by mistake changes nothing.
  */
 import React from 'react';

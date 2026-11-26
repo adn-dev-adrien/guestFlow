@@ -1,4 +1,4 @@
-// « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-27) — the DB reads of the sums
+// « Versements à venir » (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 21-27) — the DB reads of the sums
 // still to arrive on the bank: the unpaid instalments of direct payment plans, the platform payouts that are due, and
 // whatever the live plugins expect (`ctx.incomingPayments`). The grouping, the states and the words are
 // `utils/incomingPayments.js`; this model only gathers.

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 45 (UI/UX review 2026-10-18, decision 13) — the preview
+// specs/emails/guest-email-texts-made-simple.md rule 45 (UI/UX review 2026-10-18, decision 13) — the preview
 // says which text each sentence comes from, so a click on the email opens its field; the tags live in
 // the preview's rolled-back transaction only, and no tag ever leaves in an email.
 

@@ -1,4 +1,4 @@
-// Shared by the plugin-package suites (specs/plugins-phase-4-registry.md): packages built on the
+// Shared by the plugin-package suites (specs/plugins/plugins-phase-4-registry.md): packages built on the
 // fly, a release's plugins-dist, a signed registry served from memory, and the real plugins
 // controller over a temporary data dir. Not a test file.
 const fs = require('fs');

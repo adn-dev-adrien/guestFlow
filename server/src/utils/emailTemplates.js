@@ -1,5 +1,5 @@
 // Plain-text email bodies (French) for the admin account-management flow
-// (specs/admin-account-management.md §3.3 rule 14). Pure functions — no I/O, no nodemailer
+// (specs/hosting/admin-account-management.md §3.3 rule 14). Pure functions — no I/O, no nodemailer
 // dependency. The caller (emailService) takes the rendered { subject, text } and ships it.
 
 function formatRecipientName({ firstName, lastName }) {

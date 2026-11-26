@@ -1,5 +1,5 @@
 /**
- * ResourceEditorPanel — the resource editor, in a SidePanel (specs/options-resources-ux.md rule 20).
+ * ResourceEditorPanel — the resource editor, in a SidePanel (specs/options/options-resources-ux.md rule 20).
  *
  * Sections: Général (name, description, stock — « En service » for a resource sold by the hour — and its
  * properties, legacy « none selected = all »), Prix (type, base price, one line per property with its

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 90.2 — the departure SAS's charges (ménage, missing linen, extinguisher) are custom lines of
+// specs/pricing/pricing-components.md §3 rule 90.2 — the departure SAS's charges (ménage, missing linen, extinguisher) are custom lines of
 // source `sas` at moment `departure`, written with the end-of-stay detail in one write; they stay outside the stay's sale, so every
 // reader of the stay reads exactly what it read when the detail alone carried them. Real schema, in-memory database; fictional figures.
 

@@ -1,6 +1,6 @@
 /**
  * What a reservation's channel means for its money — the single reading every money path shares
- * (specs/plugins-phase-p-productisation.md rules 19 and 45).
+ * (specs/plugins/plugins-phase-p-productisation.md rules 19 and 45).
  *
  * A platform marked « Compté comme vente directe » (`platforms.countsAsDirect`) is a DIRECT SALE: the
  * guest relationship is the operator's own, so it is billed like `direct` — acompte and solde on the

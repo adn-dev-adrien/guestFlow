@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 23-25 — the Mollie kinds of « Versements à venir »: the reserve
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 23-25 — the Mollie kinds of « Versements à venir »: the reserve
 // Mollie holds, and the immediate share still in transit; once received, the same tranches are the « Reçus récemment » with
 // the identifiers of their credit. Contributed by the plugin through `ctx.incomingPayments`, gathered by the core.
 const test = require('node:test');

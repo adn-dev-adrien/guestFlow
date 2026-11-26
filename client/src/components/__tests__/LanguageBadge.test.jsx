@@ -1,4 +1,4 @@
-// specs/site-english-version.md rules 18-19 — the marker that names a guest's language.
+// specs/site/site-english-version.md rules 18-19 — the marker that names a guest's language.
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';

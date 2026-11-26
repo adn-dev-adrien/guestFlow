@@ -1,5 +1,5 @@
 /**
- * Stay texts model — sole DB access for `stay_texts` (specs/plugins-phase-p-productisation.md §3.A).
+ * Stay texts model — sole DB access for `stay_texts` (specs/plugins/plugins-phase-p-productisation.md §3.A).
  *
  * A row is keyed by (key, propertyId); propertyId 0 is the global text. Each language is stored on
  * its own: NULL means « never edited » and falls back, '' means « no paragraph ».

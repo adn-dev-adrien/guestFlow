@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 7, 13, 14, 25 — « Offrir » on the session and on an extra: an offered line is struck through at its catalogue value; a stored line is changed by an
+// specs/sas/outside-booking-sas.md rules 7, 13, 14, 25 — « Offrir » on the session and on an extra: an offered line is struck through at its catalogue value; a stored line is changed by an
 // explicit action; a paid line asks the administrator's confirmation of the refund it owes (the refund amount is the server's, hidden from the reception).
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';

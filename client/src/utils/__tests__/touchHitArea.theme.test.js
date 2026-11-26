@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 39 — on a touch screen an inline link-button (a client's
+// specs/plugins/plugins-phase-p-productisation.md rule 39 — on a touch screen an inline link-button (a client's
 // name, « Fiche ») gets a 44 px hit area without moving the layout, and toggle buttons are in sentence
 // case and 44 px on both sides.
 import theme from '../../theme';

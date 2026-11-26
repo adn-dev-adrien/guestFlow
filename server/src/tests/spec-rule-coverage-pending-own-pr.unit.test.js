@@ -1,4 +1,4 @@
-// specs/spec-rule-coverage.md rules 18 and 19 — a Pending rule is reported as pending even when a test cites it, and a spec
+// specs/tech/spec-rule-coverage.md rules 18 and 19 — a Pending rule is reported as pending even when a test cites it, and a spec
 // « In progress — PR X » cannot keep a `> **Pending** — PR X` line.
 const test = require('node:test');
 const assert = require('node:assert/strict');

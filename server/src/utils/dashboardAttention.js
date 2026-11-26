@@ -1,6 +1,6 @@
 /**
  * The home's attention payload — which subjects ask for the operator, in which order, with which words
- * (specs/shell-and-home-day-first.md §3.B). Pure: the controller reads each source, this module turns
+ * (specs/planning/shell-and-home-day-first.md §3.B). Pure: the controller reads each source, this module turns
  * the payloads into `{ pinned, items, total, unavailable, unavailableLabel, declared }`.
  *
  * A summary is `{ count, title, detail, severity, pinned? }`; `null` (or a count under 1) means the
@@ -84,7 +84,7 @@ const CORE_SUMMARIES = {
       severity: 'todo',
     } : null;
   },
-  // specs/payment-link-lifecycle.md rule 43 — the stays whose dates were taken, and how many guests were not told.
+  // specs/payments/payment-link-lifecycle.md rule 43 — the stays whose dates were taken, and how many guests were not told.
   'dates-taken': (payload) => {
     const rows = listOf(payload, 'alerts');
     if (!rows.length) return null;
@@ -94,7 +94,7 @@ const CORE_SUMMARIES = {
       : plural(notTold, 'client non prévenu', 'clients non prévenus');
     return { count: rows.length, title: 'Dates prises', detail: `${plural(rows.length, 'séjour', 'séjours')} · ${told}`, severity: 'todo' };
   },
-  // specs/payment-link-lifecycle.md rule 67 — a withdrawn link the provider still lets a guest pay.
+  // specs/payments/payment-link-lifecycle.md rule 67 — a withdrawn link the provider still lets a guest pay.
   'payment-deactivations': (payload) => {
     const links = listOf(payload, 'links');
     if (!links.length) return null;

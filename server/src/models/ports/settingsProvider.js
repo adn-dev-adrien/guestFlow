@@ -1,5 +1,5 @@
 /**
- * SettingsProvider — the one way a pricing component receives its parameters (specs/pricing-components.md §3
+ * SettingsProvider — the one way a pricing component receives its parameters (specs/pricing/pricing-components.md §3
  * rules 48, 50).
  *
  * Contract: `create(db).for(componentId, scope)` → `{ [key]: value }`, each key resolved article → property → global →

@@ -1,5 +1,5 @@
 /**
- * What happens to a page the userscript sent (specs/booking-extranet-intake.md rules 12–20):
+ * What happens to a page the userscript sent (specs/platforms/booking-extranet-intake.md rules 12–20):
  *
  *   parse → match the property and the fiche → fill an untouched iCal placeholder, or compare and
  *   propose when the fiche is already filled.
@@ -50,7 +50,7 @@ function createIntakeService(deps) {
     return existing && existing.trim() ? `${existing.trim()}\n\n${block}` : block;
   }
 
-  // Rules 21 and 29 of specs/platform-host-statement-and-commission-vat.md — the box is the « Taxe de séjour » of the page: the tax Booking
+  // Rules 21 and 29 of specs/platforms/platform-host-statement-and-commission-vat.md — the box is the « Taxe de séjour » of the page: the tax Booking
   // keeps to pay the commune itself in mode `platform`, the tax it reverses with the transfer in mode `platform_reversed`; nothing when we collect it.
   function touristTaxBox(booking, reservation) {
     return core.touristTaxMode(reservation.propertyId) === 'owner' ? null : booking.touristTax;

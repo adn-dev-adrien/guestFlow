@@ -110,7 +110,7 @@ test('SAS button — opens the departure SAS when not yet done', () => {
 });
 
 test('SAS button — once the departure SAS is done it stays a clickable ✓ for re-edit', () => {
-  // specs/reopen-completed-sas.md §3 rule 1 — a finished SAS can be re-opened to review / correct.
+  // specs/sas/reopen-completed-sas.md §3 rule 1 — a finished SAS can be re-opened to review / correct.
   const onOpenSas = vi.fn();
   const r = { ...BASE, departureSasDoneAt: '2026-06-13 11:00:00' };
   render(<DepartureMiniRow reservation={r} onToggleDone={noop} onOpenSas={onOpenSas} />);
@@ -120,7 +120,7 @@ test('SAS button — once the departure SAS is done it stays a clickable ✓ for
   expect(onOpenSas).toHaveBeenCalledWith(200);
 });
 
-// specs/reception-sas-today-only.md §3.3 — server-resolved lock reason, rendered as a disabled ✓.
+// specs/sas/reception-sas-today-only.md §3.3 — server-resolved lock reason, rendered as a disabled ✓.
 test.each([
   ['done', "Check-out déjà effectué — modification réservée à l'administrateur"],
   ['past', 'Check-out passé — seuls les check-out du jour sont modifiables'],
@@ -200,7 +200,7 @@ test('done state — "Effectué" badge surfaces when checkOutDone is true', () =
   expect(screen.getByText('Effectué')).toBeInTheDocument();
 });
 
-// specs/sas-breakfast-and-handover-note.md — handover note authored at arrival, shown at departure.
+// specs/sas/sas-breakfast-and-handover-note.md — handover note authored at arrival, shown at departure.
 test('handover note — caption renders when departureHandoverNote is set', () => {
   const r = { ...BASE, departureHandoverNote: 'Récupérer la 2e clé' };
   render(<DepartureMiniRow reservation={r} onToggleDone={noop} />);

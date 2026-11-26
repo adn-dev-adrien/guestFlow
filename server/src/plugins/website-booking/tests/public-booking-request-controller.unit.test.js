@@ -2,12 +2,12 @@ require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Module = require('module');
 
-// Security coverage for the PUBLIC booking-request controller (specs/public-api.md). The pure
+// Security coverage for the PUBLIC booking-request controller (specs/site/public-api.md). The pure
 // security logic (API key, anti-leak projections, input validation) is unit-tested elsewhere; this
 // pins the CONTROLLER orchestration that previously had only manual (curl) coverage:
 //   - honeypot → respond like success but PERSIST NOTHING (anti-spam);
@@ -85,7 +85,7 @@ function buildController({
     '../../models/devisModel': devisModelMock,
     './publicCatalogController': catalogMock,
     './publicQuoteController': quoteMock,
-    // CGV (specs/terms-acceptance-record.md): a published version, accepted by validBody() — the
+    // CGV (specs/reservations/terms-acceptance-record.md): a published version, accepted by validBody() — the
     // enforcement itself is covered by terms-acceptance.unit.test.js.
     '../settings': { termsSettings: () => ({ requireTermsAcceptance: true }), recordPluginVersion: () => {} },
     '../../models/termsModel': {
@@ -112,7 +112,7 @@ function validBody(over = {}) {
   };
 }
 
-// specs/public-request-abuse-and-grouping.md rule 6 — the honeypot stays.
+// specs/site/public-request-abuse-and-grouping.md rule 6 — the honeypot stays.
 test('honeypot filled → 201 fake success, NOTHING persisted', () => {
   const captures = {};
   const controller = buildController({ captures });
@@ -137,7 +137,7 @@ test('valid request → creates a DRAFT DEVIS (platform direct), marks requestOr
   assert.equal(captures.devisCreate.platform, 'direct', 'forced to direct');
   assert.equal(captures.devisCreate.clientId, 7);
   // requestOrigin marked on the freshly-created devis row, with a per-devis capability token that is
-  // both persisted and returned to the proxy (specs/public-online-payment.md §7).
+  // both persisted and returned to the proxy (specs/site/public-online-payment.md §7).
   assert.equal(captures.requestOriginUpdateId, 99);
   assert.ok(captures.requestOriginToken && captures.requestOriginToken.length >= 32, 'a capability token is minted');
   assert.equal(res.body.data.publicToken, captures.requestOriginToken, 'the minted token is returned to the proxy');
@@ -179,7 +179,7 @@ test('min-nights breached → 409 MIN_NIGHTS, nothing persisted', () => {
   assert.equal(captures.devisCreate, undefined);
 });
 
-// specs/property-capacity-single-total.md §3 rule 2 — the mix no longer matters, only the total.
+// specs/reservations/property-capacity-single-total.md §3 rule 2 — the mix no longer matters, only the total.
 // Before the one-total model a `maxChildren: 0` property refused this request outright (409), so a
 // guest travelling with a child simply could not book online.
 test('1 adulte + 1 enfant under the total → accepted, request persisted', () => {
@@ -249,7 +249,7 @@ test('babyBeds defaults to 0 when absent', () => {
   assert.equal(captures.devisCreate.babyBeds, 0);
 });
 
-// specs/site-traffic-analytics.md rules 15-17 — the visit's source is stored with the request, and a
+// specs/site/site-traffic-analytics.md rules 15-17 — the visit's source is stored with the request, and a
 // broken source never costs the guest their booking.
 test('a valid attribution is classified and stored on the new devis', () => {
   const captures = {};
@@ -265,7 +265,7 @@ test('a valid attribution is classified and stored on the new devis', () => {
   assert.equal(id, 99);
 });
 
-// specs/site-traffic-analytics.md rule 14 — an older plugin sends nothing: unknown, never an error.
+// specs/site/site-traffic-analytics.md rule 14 — an older plugin sends nothing: unknown, never an error.
 test('a request without attribution goes through and records no source', () => {
   const captures = {};
   const ctrl = buildController({ captures });

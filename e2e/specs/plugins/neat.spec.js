@@ -1,5 +1,5 @@
 // @ts-check
-// plugins/neat — specs/plugins-phase-3b-neat.md rules 13, 15, 21 (decision P13). With Neat active, its card
+// plugins/neat — specs/plugins/plugins-phase-3b-neat.md rules 13, 15, 21 (decision P13). With Neat active, its card
 // sits in Intégrations, the insurance option is in the catalogue and its push toggle is listed. Switched
 // off, the three go; switched back on, they come back with the option's settings.
 import { test, expect } from '../../fixtures/test.js';

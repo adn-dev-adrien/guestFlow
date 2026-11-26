@@ -1,6 +1,6 @@
 /**
- * Pure helpers for the phone's day agenda (specs/calendar-mobile-view.md, amended by
- * specs/calendar-property-parity.md rule 17).
+ * Pure helpers for the phone's day agenda (specs/planning/calendar-property-parity.md, amended by
+ * specs/planning/calendar-property-parity.md rule 17).
  *
  * Given a YYYY-MM-DD date + the selected property's reservations / devis, return the day's
  * events as plain data the agenda renders as ribbons. No DOM, no React — unit-tested.

@@ -1,6 +1,6 @@
 /**
  * ReservationSearchBox — generic "jump to a reservation" search
- * (specs/reservation-number-and-search.md §6).
+ * (specs/reservations/reservation-number-and-search.md §6).
  *
  * An async, debounced MUI Autocomplete that queries `GET /reservations/search?q=` as the operator
  * types (matching by number / name / first name / "last first" — all server-side) and calls

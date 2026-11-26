@@ -1,5 +1,5 @@
 /**
- * The plugin registry (specs/plugins-phase-4-registry.md rule 8): upload one or more `.tgz` packages,
+ * The plugin registry (specs/plugins/plugins-phase-4-registry.md rule 8): upload one or more `.tgz` packages,
  * see every published version, withdraw one. The server validates each package and re-signs the
  * index; a refusal is shown with the file's name. A table on desktop, cards on a phone.
  */

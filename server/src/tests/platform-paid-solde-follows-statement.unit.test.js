@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 38 — a platform stay has no trop-perçu: its guest paid the platform,
+// specs/payments/reservation-refunds.md rule 38 — a platform stay has no trop-perçu: its guest paid the platform,
 // which refunds them itself, so a paid solde follows the platform amount the operator corrects. Final
 // review 2026-10-18 (minor 1): an Abracadaroom stay ticked « payé » at 600 € then corrected to 450 € kept
 // a 600 € solde and a 150 € trop-perçu nobody could give back. A direct stay still keeps what it

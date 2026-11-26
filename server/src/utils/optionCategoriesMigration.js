@@ -1,5 +1,5 @@
 /**
- * One-shot backfill of `options.category` (specs/option-categories.md §5.3).
+ * One-shot backfill of `options.category` (specs/options/option-categories.md §5.3).
  *
  * The animations and « Le repas des trappeurs » were created by hand long before the category
  * column existed, so they carry no `seedKey` and the catering seed will never touch them — this
@@ -42,7 +42,7 @@ function runOptionCategoriesMigration(database) {
 }
 
 /**
- * One-shot follow-up (specs/option-categories.md §5.3bis): file the breakfast option under
+ * One-shot follow-up (specs/options/option-categories.md §5.3bis): file the breakfast option under
  * « Restauration » and pin it (`alwaysVisible = 1`) so it keeps showing on every reservation even
  * though it now lives inside a collapsible category.
  *

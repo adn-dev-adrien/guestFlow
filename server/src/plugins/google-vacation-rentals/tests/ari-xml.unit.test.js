@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md §4.1 (ariXml.js), §7 « XML: each message matches a golden
+// specs/site/google-vacation-rentals-feed.md §4.1 (ariXml.js), §7 « XML: each message matches a golden
 // file; escaping of codes ». The golden files are tests/golden/*.xml, built from tests/goldenInputs.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');

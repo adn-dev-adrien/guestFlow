@@ -1,6 +1,6 @@
 /**
  * useSmtpDetection — what the server proposes as sending server for an address
- * (specs/settings-rationalization.md rule 28). Asks POST /api/settings/smtp-detect once the address
+ * (specs/settings/settings-rationalization.md rule 28). Asks POST /api/settings/smtp-detect once the address
  * has been still for `delayMs`, and only while `enabled` (no saved host: a configured value always
  * wins). The server is the one that fills the host at save; this only shows what it will use.
  *

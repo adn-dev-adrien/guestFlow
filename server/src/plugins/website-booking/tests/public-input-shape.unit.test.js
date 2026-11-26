@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-api.md rule 22 (audit R21, public findings 1 and 2) — what a JSON body may hold beyond a string
+// specs/site/public-api.md rule 22 (audit R21, public findings 1 and 2) — what a JSON body may hold beyond a string
 // or a number is the field's refusal, in the nested envelope: `{"toString":1}` used to throw (500, a stack per
 // call), `true` or `[1]` used to be coerced and stored (a client named « True », a notes line « [object Object] »,
 // a CGV acceptance from `Number(true) === 1`). Strings and numbers the site really sends are unchanged.
@@ -176,7 +176,7 @@ test('rule 22 — the CGV version is an integer or digits: `true` and `[1]` are 
   for (const sent of [undefined, null, '']) assert.equal(checkTermsAcceptance(sent).code, 'TERMS_NOT_ACCEPTED');
 });
 
-// specs/public-api.md rule 20, reading of 2026-11-04 (audit R22, public finding 3).
+// specs/site/public-api.md rule 20, reading of 2026-11-04 (audit R22, public finding 3).
 test('rule 20 — a name with no letter nor digit is « required », a control character never stored', () => {
   for (const name of ['\u0000', '\u0007', '\u0001\u0002', '\u0085', '\u001b', '\u2800', '\u200D', '\uFEFF', '  ', '---']) {
     for (const field of ['firstName', 'lastName']) {

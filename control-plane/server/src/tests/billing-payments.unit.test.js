@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 15, 19 and 34 — a payment detected in Qonto renews
+// specs/hosting/control-plane-plans-and-access.md rules 15, 19 and 34 — a payment detected in Qonto renews
 // once; a failed attempt is alerted once; a payment recorded by hand closes the open invoice and
 // deactivates its link; deprovisioning cancels; a plan change keeps the invoice already issued.
 

@@ -1,4 +1,4 @@
-// specs/single-payment-at-check-in.md §3.2 rule 10 — quand le check-in a encaissé EN UNE FOIS,
+// specs/payments/single-payment-at-check-in.md §3.2 rule 10 — quand le check-in a encaissé EN UNE FOIS,
 // l'historique de la fiche porte UNE ligne, pas une par échéance.
 //
 // Règle écrite en v2.9.0 et jamais implémentée : l'audit du SAS listait « Acompte encaissé »,

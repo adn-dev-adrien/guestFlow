@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rules 1–3 and 11–17 — the pass, the matching, the fill and the banner.
+// specs/platforms/airbnb-mail-intake.md rules 1–3 and 11–17 — the pass, the matching, the fill and the banner.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -103,7 +103,7 @@ test('rule 12: a cleaning fee at the catalogue price ticks the cleaning option, 
   assert.deepEqual([patch.platformGrossAmount, patch.platformOptionsAmount, patch.platformTouristTaxAmount, patch.platformCommissionAmount], [805, 80, 24, 124.78]);
 });
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 5, 20): the box reads the platform's mode.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 20): the box reads the platform's mode.
 test('rule 20: in mode `platform` the box holds the part of the taxes Airbnb kept; in `owner` mode it stays empty', async () => {
   const kept = setup({ mode: 'platform' });
   await kept.service.runPass();

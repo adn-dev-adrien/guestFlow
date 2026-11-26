@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rules 51-54 and specs/options-resources-ux.md rule 31 (audit R22, 2026-11-04) —
+// specs/settings/settings-input-guards.md rules 51-54 and specs/options/options-resources-ux.md rule 31 (audit R22, 2026-11-04) —
 // what the catalogue stores reaches a stay's money: every number is judged at its route, refused never clamped;
 // a stored value sent back unchanged passes; only MAX_SAFE_INTEGER is a ceiling, the business ones are not decided.
 process.env.DB_PATH = ':memory:';

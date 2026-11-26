@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 1, 2 and 4 — the SAS answered with the thumb: the
+// specs/design-system/ui-review-2026-10-19-operations.md rules 1, 2 and 4 — the SAS answered with the thumb: the
 // primary answer last (at the bottom on a phone), the alternative neutral, « Rien à percevoir ».
 import { screen, within, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -21,7 +21,7 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });

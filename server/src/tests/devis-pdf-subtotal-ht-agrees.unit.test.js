@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 15 and 65 — on a devis PDF, « Sous-total HT » IS the base total of the « Récapitulatif TVA » printed below it:
+// specs/pricing/pricing-components.md §3 rules 15 and 65 — on a devis PDF, « Sous-total HT » IS the base total of the « Récapitulatif TVA » printed below it:
 // the VAT is cut once per rate group, never again row by row (three rows of 1,05 € at 10 % add up to 2,85 € HT one by one, 2,86 € cut once).
 process.env.DB_PATH = ':memory:';
 

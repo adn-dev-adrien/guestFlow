@@ -1,4 +1,4 @@
-// Shared fixtures of the FinanceSection suites (specs/reservation-payment-ledger.md): server-shaped
+// Shared fixtures of the FinanceSection suites (specs/payments/reservation-payment-ledger.md): server-shaped
 // ledger rows, so each suite renders the ledger the way the server sends it, and a render helper.
 import React from 'react';
 import { render } from '@testing-library/react';

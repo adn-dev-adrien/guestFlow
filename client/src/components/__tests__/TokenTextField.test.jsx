@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §6 and specs/guest-email-texts-made-simple.md rule 10 — the
+// specs/plugins/plugins-phase-p-productisation.md §6 and specs/emails/guest-email-texts-made-simple.md rule 10 — the
 // French/English text pair: chips from the server, each variable shown by its label, raw `{{token}}`
 // handed back.
 import React, { useState } from 'react';
@@ -50,7 +50,7 @@ test('rule 10: typed text round-trips; an unlabelled name stays raw for the serv
 
 test('the server refusal shows under its field; the placeholder shows the global text', () => {
   render(<Harness errorEn="Variable inconnue : {{prix}}" placeholderFr="Texte commun {{price}}" />);
-  // specs/guest-email-texts-made-simple.md rule 27 — the refusal in the brackets the field shows.
+  // specs/emails/guest-email-texts-made-simple.md rule 27 — the refusal in the brackets the field shows.
   expect(screen.getByText('Variable inconnue : ⟦prix⟧')).toBeInTheDocument();
   expect(screen.getByLabelText('Français')).toHaveAttribute('placeholder', 'Texte commun ⟦Prix⟧');
 });

@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 14 — GET /api/properties/:id?view=stay leaves out the pricing seasons
+// specs/tech/inte-performance.md rule 14 — GET /api/properties/:id?view=stay leaves out the pricing seasons
 // (about 60 % of the detail), which only the tariff pages render; the default answer is unchanged.
 const test = require('node:test');
 const assert = require('node:assert/strict');

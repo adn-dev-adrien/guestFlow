@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 16, 39, 40, 58, 59 — the engine applies the target of a stay discount and a line's own
+// specs/pricing/pricing-components.md §3 rules 16, 39, 40, 58, 59 — the engine applies the target of a stay discount and a line's own
 // discount: a `nights` discount is today's formula, `extras` / `all` are shared out over the unpaid lines sold with the stay (rule
 // 40), a line discount comes off one line, and a quote without any of them carries no new key on its lines.
 process.env.DB_PATH = ':memory:';

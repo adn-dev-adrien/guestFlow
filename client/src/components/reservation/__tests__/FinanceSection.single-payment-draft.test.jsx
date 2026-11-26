@@ -1,4 +1,4 @@
-// specs/single-payment-from-the-fiche.md (amended 2026-11-12, manual trial of 4.0.0) — « Encaisser en une fois » adds up the
+// specs/payments/single-payment-from-the-fiche.md (amended 2026-11-12, manual trial of 4.0.0) — « Encaisser en une fois » adds up the
 // STORED buckets. While the fiche holds an unsaved change (a guest added, whose nights change the complement the rows above
 // show live), it would announce a total the ledger no longer says: it is withdrawn until the fiche is saved or cancelled.
 import React from 'react';

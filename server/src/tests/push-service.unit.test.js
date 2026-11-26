@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { buildPushService } = require('../utils/pushService');
 
-// specs/pwa-push-notifications.md §3.3 + §3.4 — fan-out, pruning, and total isolation (never throws).
+// specs/guest-app/pwa-push-notifications.md §3.3 + §3.4 — fan-out, pruning, and total isolation (never throws).
 
 function stubVapid(configured = true) { return { isConfigured: () => configured, getPublicKey: () => 'pub' }; }
 

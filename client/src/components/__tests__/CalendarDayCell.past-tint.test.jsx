@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rule 8 (amended 2026-11-12) — a stay the server says is past is drawn in its soft tint
+// specs/planning/calendar-property-parity.md rule 8 (amended 2026-11-12) — a stay the server says is past is drawn in its soft tint
 // by the day cells too, not as the full platform colour dimmed by the cell's own date: a past stay of a dark platform
 // (Booking blue) stayed darker than the ribbon over it. A stay still to come keeps its solid colour.
 import React from 'react';

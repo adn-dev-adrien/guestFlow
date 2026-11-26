@@ -1,5 +1,5 @@
 /**
- * The review a manual accommodation price gets when its booking moves (specs/manual-price-on-placement-change.md).
+ * The review a manual accommodation price gets when its booking moves (specs/reservations/manual-price-on-placement-change.md).
  *
  * `buildManualPriceReview({ customPrice, reference, placement, excluded, evaluate })` → the review or `null`.
  * - `reference` / `placement`: `{ propertyId, propertyName, startDate, endDate, quote }`, the engine's quote of the placement the

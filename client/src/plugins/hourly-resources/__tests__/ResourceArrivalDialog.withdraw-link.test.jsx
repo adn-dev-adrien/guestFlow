@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 39 (V-8) — the administrator withdraws an open payment link on any day: the block shows on a read-only visit and when nothing is left to collect;
+// specs/sas/outside-booking-sas.md rule 39 (V-8) — the administrator withdraws an open payment link on any day: the block shows on a read-only visit and when nothing is left to collect;
 // the reception never gets it.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

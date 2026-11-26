@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 72 and 76 — REFUNDS / overpayment: the trop-perçu of a stay (one formula for every stay:
+// specs/pricing/pricing-components.md §3 rules 72 and 76 — REFUNDS / overpayment: the trop-perçu of a stay (one formula for every stay:
 // Σ allocations − the stay's total − the free lines of origin `overpayment` given back, owner O-6 and O-7), and its split by
 // poste. The legacy module re-exports the unit. Plain objects, no DB.
 const test = require('node:test');
@@ -20,7 +20,7 @@ test('rule 76 — collected beyond the stay\'s total, in cents; nothing when the
   assert.deepEqual(overpayment(ctx({ paymentsCents: 20000 })), { cents: 0, unclampedCents: -9000 });
 });
 
-test('specs/reservation-refunds.md rule 38 — a platform stay has no trop-perçu to give back, whatever was collected', () => {
+test('specs/payments/reservation-refunds.md rule 38 — a platform stay has no trop-perçu to give back, whatever was collected', () => {
   assert.deepEqual(overpayment(ctx({ platform: 'Booking.com', paymentsCents: 99900 })), { cents: 0, unclampedCents: 0 });
 });
 

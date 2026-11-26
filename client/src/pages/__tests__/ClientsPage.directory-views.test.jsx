@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * specs/clients-upcoming-past-directory.md rules 12, 13, 16-20, 22 (amendment of 2026-10-28) — the Clients
+ * specs/clients/clients-upcoming-past-directory.md rules 12, 13, 16-20, 22 (amendment of 2026-10-28) — the Clients
  * page renders the three views the server resolved, in the groups it ordered. The page holds the view
  * (in the URL), the search and the sort, and computes none of the rest.
  */

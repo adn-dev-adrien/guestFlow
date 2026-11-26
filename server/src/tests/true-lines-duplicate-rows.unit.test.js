@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13 and 85 (line key scheme) — a database that already holds TWO rows of one article on one stay
+// specs/pricing/pricing-components.md §3 rules 13 and 85 (line key scheme) — a database that already holds TWO rows of one article on one stay
 // (the line tables lost their article key): every path that addresses a line by its article touches exactly the intended row(s), and every
 // reader returns every row. One block per path, cited by its inventory class (LINE moved to lineId, AGG aggregated on purpose).
 const test = require('node:test');

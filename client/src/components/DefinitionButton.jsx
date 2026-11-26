@@ -1,6 +1,6 @@
 /**
  * DefinitionButton — the small « i » beside a figure's label that opens its definition
- * (specs/report-grammar.md rule 2). Non-modal: a click toggles it, a click outside or Escape closes it,
+ * (specs/design-system/report-grammar.md rule 2). Non-modal: a click toggles it, a click outside or Escape closes it,
  * and Escape gives the focus back to the button. Generic: any label that needs a one-paragraph
  * definition (KPI tile, panel title, table header).
  *

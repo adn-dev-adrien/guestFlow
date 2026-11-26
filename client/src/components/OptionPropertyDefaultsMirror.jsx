@@ -1,6 +1,6 @@
 /**
  * OptionPropertyDefaultsMirror — read-only mirror of `property_option_defaults` for the option
- * being edited (specs/weekly-bed-linen-tracking.md §3.7).
+ * being edited (specs/linen/weekly-bed-linen-tracking.md §3.7).
  *
  * Pure renderer: hits `GET /api/options/:id/property-defaults` once on mount + when the option id
  * changes. Displays the list of properties that have this option as a default + the offered flag.

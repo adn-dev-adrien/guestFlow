@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/terms-acceptance-record.md rule 30 (fixed at the 2026-10-27 spec review) — the CGV refusals of a
+// specs/reservations/terms-acceptance-record.md rule 30 (fixed at the 2026-10-27 spec review) — the CGV refusals of a
 // booking request (503 TERMS_NOT_CONFIGURED, 422 TERMS_NOT_ACCEPTED, 409 TERMS_OUTDATED) speak the
 // visitor's language like every other public error: an English page used to read them in French.
 const test = require('node:test');

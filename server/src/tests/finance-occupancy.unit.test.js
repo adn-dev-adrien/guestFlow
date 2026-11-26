@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rules 23-25 — occupancy = nights sold ÷ sellable nights,
+// specs/accounting/finance-dashboard-redesign.md rules 23-25 — occupancy = nights sold ÷ sellable nights,
 // closures removed (global or per logement, end exclusive), no data = no rate; revenue per night, RevPAR.
 const { sellableNights, nightsSold, occupancyOver, revenuePerNight, revPar } = require('../utils/financeOccupancy');
 

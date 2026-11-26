@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 19 (audit R36-C-L1) — « EN » on the home reads the orders and the booklet again IN ENGLISH:
+// specs/guest-app/guest-app.md rule 19 (audit R36-C-L1) — « EN » on the home reads the orders and the booklet again IN ENGLISH:
 // the home's own reads ran before the session set the API's language, so they asked in the old one and nothing read
 // them again (« Sur votre note » stayed on an English home).
 import { fireEvent, screen, waitFor } from '@testing-library/react';

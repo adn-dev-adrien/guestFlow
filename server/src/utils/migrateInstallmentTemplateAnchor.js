@@ -1,6 +1,6 @@
 /**
  * One-shot migration: move the `installment_request` template off the `start` anchor
- * (specs/self-update-and-releases.md rule 43).
+ * (specs/hosting/self-update-and-releases.md rule 43).
  *
  * v3.18.0's manual queue lists every enabled manual template anchored on `start` that it does not know,
  * so after a rollback the seeded row would show up as a pending email for every arriving stay. Only the

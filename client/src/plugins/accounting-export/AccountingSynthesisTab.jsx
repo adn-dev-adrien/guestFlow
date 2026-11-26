@@ -1,5 +1,5 @@
 /**
- * AccountingSynthesisTab — the « Synthèse » tab of Comptabilité (specs/accounting-synthesis.md rules 25-30):
+ * AccountingSynthesisTab — the « Synthèse » tab of Comptabilité (specs/accounting/accounting-synthesis.md rules 25-30):
  * four figures against last year, the one notice that says why there is no comparison, the checks strip, the
  * VAT to declare by rate or by account, the collected running total against last year. Renders the server's
  * payload as is: no figure is computed here. Feature-local: it arranges the report grammar on this payload.

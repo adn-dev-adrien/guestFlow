@@ -1,4 +1,4 @@
-// D-HC16 (Adrien, 2026-11-06): specs/finance-data-checks.md §3 rule 22 — a repeated `fiscalYear` is refused, one
+// D-HC16 (Adrien, 2026-11-06): specs/accounting/finance-data-checks.md §3 rule 22 — a repeated `fiscalYear` is refused, one
 // unusable value still reads as the current exercise.
 process.env.DB_PATH = ':memory:';
 process.env.NODE_ENV = 'test';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 79, 94 (stabilisation loop t13, S13-1, 2026-11-17) — a free (custom) line the fiche posts back names
+// specs/pricing/pricing-components.md §3 rules 79, 94 (stabilisation loop t13, S13-1, 2026-11-17) — a free (custom) line the fiche posts back names
 // its row (`customOptionId`) and takes THAT row's identity whatever its new text. Before, a renamed unpaid line written by a priced save
 // (delete + insert) matched its row only when the label was unchanged: it lost its `lineId`, moment and sale date, and a discounted one its
 // discount (the guest paid 2 € more with nothing asked); a swap of two labels traded the two lines' identities and discounts.

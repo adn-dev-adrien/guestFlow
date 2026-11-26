@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 23 and rule 106 (stabilisation loop t6, UI6-5 / D6-2, 2026-11-16) — a paid line lowered on a
+// specs/pricing/pricing-components.md §3 rule 23 and rule 106 (stabilisation loop t6, UI6-5 / D6-2, 2026-11-16) — a paid line lowered on a
 // PLATFORM stay opens the `lineLowered` obligation (rule 105, loop t5 A5-1) while the stay's trop-perçu reads 0: the fiche shows that
 // money as its « Trop-perçu » row with « Rembourser », the refund dialog opens pre-filled with it, the refund is accepted and settles the
 // obligation, and the row goes. Before: no row, a prefill of 0 and a 409 « Le trop-perçu est déjà remboursé. ». Loop t6 B6-2 — money a cash

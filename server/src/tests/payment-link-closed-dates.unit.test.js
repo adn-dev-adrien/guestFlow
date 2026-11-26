@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 55 — a stay whose nights an establishment closure covers gets no payment
+// specs/payments/payment-link-lifecycle.md rule 55 — a stay whose nights an establishment closure covers gets no payment
 // link: the mint (acompte, solde, séjour, échéance) and the request e-mail are refused 409 CLOSED_DATES
 // « Logement fermé sur ces dates : aucun lien créé. », before any provider call or mail.
 

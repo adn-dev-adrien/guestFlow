@@ -1,5 +1,5 @@
 /**
- * specs/reservation-save-keeps-pricing.md rule 19 — which stored row a posted custom line is. A custom line's id
+ * specs/reservations/reservation-save-keeps-pricing.md rule 19 — which stored row a posted custom line is. A custom line's id
  * rolls at every priced save, so a form loaded earlier may carry none or a stale one: by id first, over every line so
  * a new line sharing the text never takes a row another line names, then by normalised text. Each row answers once.
  * A line its caller appends (`newLine`: the fiche's typed line, a sale's line) is no stored row whatever its text
@@ -28,7 +28,7 @@ function matchStoredCustomLines(postedLines, storedRows) {
 }
 
 /**
- * specs/pricing-components.md rule 79 reading (loop t13 S13-1) — the engine reads a stored line's facts (its discount, moment, sale date)
+ * specs/pricing/pricing-components.md rule 79 reading (loop t13 S13-1) — the engine reads a stored line's facts (its discount, moment, sale date)
  * under its text key, while a renamed line keeps its row. `renames` are `[{ id, from, to }]` (the posted lines whose text alone changed),
  * `lineIdOf` maps a stored row id to its `lineId`: each renamed line's fact moves to its new key — the old key is freed first, so a new line
  * posted under the old text, a swap of two labels, or a line renamed onto the text of a line this save removes reads only its own fact.

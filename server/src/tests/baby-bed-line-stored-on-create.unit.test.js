@@ -1,4 +1,4 @@
-// specs/baby-bed-supplement.md §3 rule 19 — spec review 2026-10-27. A reservation created with a cot
+// specs/options/baby-bed-supplement.md §3 rule 19 — spec review 2026-10-27. A reservation created with a cot
 // and no ticked option billed the cot (the engine's own line) without writing its row; rule 10 then
 // read the booking as grandfathered and the next save dropped the supplement. The real controller on
 // the boot schema, with the pricing engine stubbed to the quote it produces for such a stay.

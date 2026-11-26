@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 23-24 and 26 — the quotes list opens from the keyboard (the
+// specs/design-system/ui-review-2026-10-19-operations.md rules 23-24 and 26 — the quotes list opens from the keyboard (the
 // number is a link), and the reservation page's mini planning names its two arrows.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

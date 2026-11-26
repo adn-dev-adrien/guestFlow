@@ -1,5 +1,5 @@
 /**
- * The planning timeline as drawn (specs/dashboard-planning-scroll.md rules 14, 15): the loaded windows'
+ * The planning timeline as drawn (specs/planning/dashboard-planning-scroll.md rules 14, 15): the loaded windows'
  * days in order, the cards the plugins loaded for each, and the runs of days with nothing on them
  * folded into one line. Pure layout over what the server sent — which stays arrive where is the server's.
  */

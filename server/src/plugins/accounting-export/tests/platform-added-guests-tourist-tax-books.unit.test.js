@@ -1,6 +1,6 @@
-// specs/platform-added-guests-tourist-tax.md rules 13, 17 — the balance and complement entries share the
+// specs/tourist-tax/platform-added-guests-tourist-tax.md rules 13, 17 — the balance and complement entries share the
 // added guests' tourist tax without a cent lost, on a solde whose contribs are frozen or not.
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
 // with its 7,20 of reversed tax inside is a brut of 592,80 and a box of 7,20; the stay, its buckets and its entries are the same.
 
 process.env.DB_PATH = ':memory:';

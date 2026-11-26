@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 57 (audit R9-M1) — a platform stay never carries a direct payment: the mint
+// specs/payments/payment-link-lifecycle.md rule 57 (audit R9-M1) — a platform stay never carries a direct payment: the mint
 // (acompte, solde, séjour, échéance), the request e-mail and the acompte reminder are refused 409
 // PLATFORM_RESERVATION « Réservation plateforme : aucun lien de paiement. », before any provider call or mail.
 

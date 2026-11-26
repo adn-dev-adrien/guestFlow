@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 29 — the arrivals table prints the figure the server sends,
+// specs/options/non-card-option-served-persons.md rule 29 — the arrivals table prints the figure the server sends,
 // not `quantity`, which stays 1 on a typed line.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

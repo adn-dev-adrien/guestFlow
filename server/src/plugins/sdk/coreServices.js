@@ -1,5 +1,5 @@
 /**
- * `ctx.core` — the ONLY core services a plugin may call (specs/plugins-phase-1-sdk.md rule 11). A
+ * `ctx.core` — the ONLY core services a plugin may call (specs/plugins/plugins-phase-1-sdk.md rule 11). A
  * plugin needing more asks for it here, in one reviewed place, instead of requiring a core file.
  * Requires are lazy: the plugins register while the core is still booting.
  */
@@ -24,19 +24,19 @@ const platformIntakePort = lazy('../../utils/platformIntakePort');
 const extraSalesModel = lazy('../../models/extraSalesModel');
 const platformTaxMode = lazy('../../utils/platformTaxMode');
 
-// specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
+// specs/platforms/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
 // same update path (validation, pricing, history, `reservation.updated`). Only for a stay that has not
 // started: past and ongoing stays stay the operator's. `label` adds one history line naming the source.
 //
-// `client` (SDK 2.7.0, specs/airbnb-mail-intake.md rule 21): the guest's client, found by e-mail or created,
+// `client` (SDK 2.7.0, specs/platforms/airbnb-mail-intake.md rule 21): the guest's client, found by e-mail or created,
 // and set as the fiche's client — in ONE transaction with the update, so a fiche the core refuses leaves no
 // client behind holding a guest's personal data. The result then carries `clientId`.
 const ROLLBACK = Symbol('rollback');
 
 const autoEnabledOptionIds = () => new Set(database().prepare('SELECT id FROM options WHERE COALESCE(autoEnabled, 0) = 1').all().map((o) => o.id));
 
-// SDK 2.21.0 (specs/plugins-phase-1-sdk.md rule 38) — the body `update` spreads a patch over, for a plugin that
+// SDK 2.21.0 (specs/plugins/plugins-phase-1-sdk.md rule 38) — the body `update` spreads a patch over, for a plugin that
 // rewrites one of its lists (`options`, `customOptions`, `resources`): it starts from these lines, so a field the
 // fiche's save carries (a planning card's `cardOccurrences` and `cardPersons`) is never dropped by a copy.
 function storedUpdateBody(id) {
@@ -45,7 +45,7 @@ function storedUpdateBody(id) {
   return updateBody().toUpdateBody(current, autoEnabledOptionIds());
 }
 
-// specs/pricing-components.md rule 71 — the patch of an intake is read as the payload of the platform booking port
+// specs/pricing/pricing-components.md rule 71 — the patch of an intake is read as the payload of the platform booking port
 // (`utils/platformIntakePort.js`) and saved from it; the future `reservations.fromPlatform` calls the same save.
 function savePlatformIntake(id, intake, label) {
   const current = reservations().getByIdWithDetails(Number(id));
@@ -63,7 +63,7 @@ function savePlatformIntake(id, intake, label) {
   return result;
 }
 
-// specs/plugins-phase-1-sdk.md rule 28 — a plugin's client goes through the same
+// specs/plugins/plugins-phase-1-sdk.md rule 28 — a plugin's client goes through the same
 // validation as the client dialog: one e-mail address, a phone number of a sane shape.
 const invalidClient = (message) => Object.assign(new Error(message), { code: 'INVALID_CLIENT' });
 function assertValidClient(payload) {
@@ -71,10 +71,10 @@ function assertValidClient(payload) {
   if (message) throw invalidClient(message);
 }
 
-// SDK 2.30.0 (specs/pricing-components.md rule 71) — `reservations.fromPlatform(id, intake, { label, client, reuseByEmail })`: the
+// SDK 2.30.0 (specs/pricing/pricing-components.md rule 71) — `reservations.fromPlatform(id, intake, { label, client, reuseByEmail })`: the
 // platform booking port. `intake` is the port's payload (`utils/platformIntakePort.js`): platform, number, stay, party, beds, money,
 // notes and the lines with the moment each is collected. `update` is the same save fed with a patch.
-// `reuseByEmail: false` — the mail the client comes from is not proven (specs/gites-de-france-mail-intake.md
+// `reuseByEmail: false` — the mail the client comes from is not proven (specs/platforms/gites-de-france-mail-intake.md
 // rule 26): an address typed by an unverified sender never attaches a stay to a client who already holds it.
 function fromPlatform(id, intake, { label, client, reuseByEmail = true } = {}) {
   if (!client) return savePlatformIntake(id, intake, label);
@@ -111,7 +111,7 @@ function findOrCreateClient(payload, { reuseByEmail = true } = {}) {
   return (reuseByEmail && clients().findByEmail(payload.email)) || clients().insert(payload);
 }
 
-// specs/booking-extranet-intake.md §4.1 — a patch on a client, through the same normalisation as the
+// specs/platforms/booking-extranet-intake.md §4.1 — a patch on a client, through the same normalisation as the
 // client dialog: the stored fields underneath, the patch on top (an update writes every field).
 function updateClient(id, patch) {
   const current = clients().findById(Number(id));
@@ -120,14 +120,14 @@ function updateClient(id, patch) {
   return clients().update(Number(id), { ...current, ...patch });
 }
 
-// SDK 2.26.0 (specs/guest-app.md rules 28-31) — the scheduler a live plugin declared, or null: without it nothing
+// SDK 2.26.0 (specs/guest-app/guest-app.md rules 28-31) — the scheduler a live plugin declared, or null: without it nothing
 // sells an hourly slot outside the fiche.
 function resourceScheduler() {
   const record = registry().all().find((r) => r.resourceScheduler && registry().isLive(r.id));
   return record ? record.resourceScheduler : null;
 }
 
-// SDK 2.30.0 (specs/pricing-components.md rule 48) — the slot availability provider a live plugin declared, or null.
+// SDK 2.30.0 (specs/pricing/pricing-components.md rule 48) — the slot availability provider a live plugin declared, or null.
 function slotAvailability() {
   const record = registry().all().find((r) => r.slotAvailability && registry().isLive(r.id));
   return record ? record.slotAvailability : null;
@@ -139,7 +139,7 @@ function resourceBookingOffer() {
   return record ? record.resourceBookingOffer : null;
 }
 
-// SDK 2.26.0 (specs/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
+// SDK 2.26.0 (specs/guest-app/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
 // source that fails holds nothing: the planning keeps working, and the commit re-checks the slot anyway.
 function resourceHolds({ resourceId, from, to }) {
   return registry().all()
@@ -155,7 +155,7 @@ function resourceHolds({ resourceId, from, to }) {
     });
 }
 
-// SDK 2.28.0 (specs/guest-app-home-automation.md §4.1) — the live connector's home data, or null: without it the guest
+// SDK 2.28.0 (specs/guest-app/guest-app-home-automation.md §4.1) — the live connector's home data, or null: without it the guest
 // app shows no « Domotique » page.
 function homeData() {
   const record = registry().all().find((r) => r.homeData && registry().isLive(r.id));
@@ -183,9 +183,9 @@ module.exports = Object.freeze({
     updateBody: storedUpdateBody,
     suggestBeds,
     platformCommission: (figures) => (figures && figures.basis === 'rentOnly' ? platformCommission().commissionOf(figures) : platformCommission().statementCommission(figures)),
-    // specs/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges
+    // specs/tourist-tax/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges
     // the tax and remits it to the commune itself, so its payout leaves it out.
-    // SDK 2.36.0 (specs/platform-host-statement-and-commission-vat.md rules 5, 8) — the platform's tourist-tax mode, `'platform'` (the platform kept it,
+    // SDK 2.36.0 (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 8) — the platform's tourist-tax mode, `'platform'` (the platform kept it,
     // out of the books) | `'platform_reversed'` (paid with the transfer) | `'owner'` (collected on arrival): what the box of its statement means.
     // `platformCommission(figures)` takes the platform's key with the figures and adds the box to the host amount only in the middle mode.
     touristTaxMode: (propertyId, platformKey) => platformTaxMode().touristTaxModeOf(database(), platformKey),
@@ -217,7 +217,7 @@ module.exports = Object.freeze({
   resourceHolds,
   homeData,
   homeSelection,
-  // SDK 2.26.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
+  // SDK 2.26.0 (specs/guest-app/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
   // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
   payments: Object.freeze({
     basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),

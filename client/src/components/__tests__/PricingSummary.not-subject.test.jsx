@@ -7,7 +7,7 @@ import FinanceDetailPanel from '../FinanceDetailPanel';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 
-// specs/vat-optional-mode.md rule 12 (a) and (d) — « Sans TVA »: the VAT lines of the résumé tarifaire give
+// specs/accounting/vat-optional-mode.md rule 12 (a) and (d) — « Sans TVA »: the VAT lines of the résumé tarifaire give
 // way to the server's legal mention (live and stored), and the finance hero drops its HT figure when the
 // server says it means nothing (`showHt`).
 
@@ -105,7 +105,7 @@ test('rule 12 (a): the price labels of the fiche follow the regime of the stay, 
     </ThemeProvider>,
   );
   const { unmount } = draw('not_subject');
-  // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 1): the brut is the host amount, tax out of it — the editor no
+  // Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 1): the brut is the host amount, tax out of it — the editor no
   // longer prints a « Montant hors taxe de séjour » base, in either regime.
   expect(screen.queryByText(/base TVA et base de commission/)).not.toBeInTheDocument();
   unmount();

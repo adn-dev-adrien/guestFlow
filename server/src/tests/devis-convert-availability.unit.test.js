@@ -1,4 +1,4 @@
-// specs/devis-accept-to-reservation.md rule 9 — turning a devis into a stay checks the dates.
+// specs/devis/devis-accept-to-reservation.md rule 9 — turning a devis into a stay checks the dates.
 // A devis never blocks them, so the sale of the same nights elsewhere while the quote waited went
 // through unnoticed (audit 2026-10-28). The refusal lives in the model so every caller gets it; the
 // paid-link path keeps converting (the money is in) and flags the clash.

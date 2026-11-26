@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 39 and 46 (readings of 2026-11-01, audit R11-C2) — « Ouvrir » in place inside an
+// specs/payments/payment-link-lifecycle.md rules 39 and 46 (readings of 2026-11-01, audit R11-C2) — « Ouvrir » in place inside an
 // app dialog closes that dialog (a confirm answers « no », so « Approuver quand même » never runs out of context) and
 // goes through the page's unsaved-changes guard; « Ouvrir » in a new tab leaves the dialog open.
 import React from 'react';

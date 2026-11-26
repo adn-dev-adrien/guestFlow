@@ -1,5 +1,5 @@
 /**
- * What each bucket paid with several methods actually RECEIVED (specs/mixed-method-payments.md rule 47), as the pricing
+ * What each bucket paid with several methods actually RECEIVED (specs/payments/mixed-method-payments.md rule 47), as the pricing
  * engine and the trop-perçu readers need it: a split that left a « Reste à percevoir » or a « Geste commercial » holds
  * less than its marked amount, and a paid bucket keeps what it received, not what it was marked at.
  *

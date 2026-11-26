@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import ScrollToTop from '../ScrollToTop';
 
-// specs/design-system.md §3.6 — pages must open at the top: React Router preserves scroll between
+// specs/design-system/design-system.md §3.6 — pages must open at the top: React Router preserves scroll between
 // routes, so without this reset a page could open mid-content with the sticky bar out of view.
 
 function App() {

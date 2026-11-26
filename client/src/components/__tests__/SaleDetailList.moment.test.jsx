@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 31, 37 — SaleDetailList renders the server's payload and offers the moment menu on a line the server marks `movable`,
+// specs/pricing/pricing-components.md §3 rules 31, 37 — SaleDetailList renders the server's payload and offers the moment menu on a line the server marks `movable`,
 // listing only that line's `moments` (round-1 finding UI-11 / S-3: no client rule, no fixed list).
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

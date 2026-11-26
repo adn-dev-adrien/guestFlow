@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 28 and 32 — review round R5 / R4: never two categories in one hue
+ * specs/design-system/report-grammar.md §3 rules 28 and 32 — review round R5 / R4: never two categories in one hue
  * (five hues, then the grey of « Autres »), the segment's hover text says what the bar measures, an
  * empty breakdown says so.
  */

@@ -1,5 +1,5 @@
 /**
- * One-shot (specs/payment-schedule-and-cancellation.md rule 63, audit R45-DB-L2): the seeded `cancellation_notice`
+ * One-shot (specs/payments/payment-schedule-and-cancellation.md rule 63, audit R45-DB-L2): the seeded `cancellation_notice`
  * opened with non-payment as the reason for every cancellation. Only that exact seeded sentence is rewritten to the
  * neutral opening, in French and in English; a body the operator reworded, the send mode and the enabled flag are left
  * as they are. Returns the number of fields updated.

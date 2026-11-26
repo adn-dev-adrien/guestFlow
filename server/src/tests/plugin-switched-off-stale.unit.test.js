@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 60 (audit r5, database N1) — the switched-off notice checks itself: a toggle
+// specs/plugins/plugins-phase-4-registry.md rule 60 (audit r5, database N1) — the switched-off notice checks itself: a toggle
 // by a core that does not know `off_reason` / `off_at` ends it, and the migration is idempotent.
 const test = require('node:test');
 const assert = require('node:assert/strict');

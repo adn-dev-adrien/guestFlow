@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) (stabilisation loop t11 UI11-2, 2026-11-17) — the
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) (stabilisation loop t11 UI11-2, 2026-11-17) — the
 // reconciliation screen words a sale outside a stay itself: « Attendu » (no fiche to wait on) and, with no client, no heading
 // besides the sale's label. A stay keeps « La fiche attend » and its client. Fictional data only.
 const test = require('node:test');

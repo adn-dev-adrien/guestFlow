@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 63 — the neutral role lines of a journal entry (C15): roles and cents, no account, no column.
+// specs/pricing/pricing-components.md rule 63 — the neutral role lines of a journal entry (C15): roles and cents, no account, no column.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const accountPlan = require('../accountPlan');

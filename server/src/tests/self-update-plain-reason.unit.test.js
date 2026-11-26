@@ -5,7 +5,7 @@ const os = require('os');
 
 const { selfUpdateSupported } = require('../utils/deploymentPaths');
 
-// specs/ds-components.md rule 25 — review #8, n-3: the « Système » card told the operator that the
+// specs/design-system/ds-components.md rule 25 — review #8, n-3: the « Système » card told the operator that the
 // deployment « n'utilise pas le lien symbolique « current » ». The reason shown is what it means for
 // them, not how the installer is laid out.
 test('rule 25 — an install without the release layout reads « Mise à jour automatique indisponible »', () => {

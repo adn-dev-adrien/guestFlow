@@ -1,5 +1,5 @@
 /**
- * « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-27): every sum still to arrive
+ * « Versements à venir » (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 21-27): every sum still to arrive
  * on the bank account — or, with `recent`, arrived in the last 30 days — grouped by client, with the words of its state.
  *
  * Pure: normalised items × the stays they belong to → the payload of the page, the tile and the detail table. Every

@@ -3,9 +3,9 @@
 _Moved out of `CLAUDE.md` to keep the always-loaded context small; `CLAUDE.md` keeps the short rule and links here._
 
 Production runs **published releases**, never a branch. The full model lives in
-`specs/self-update-and-releases.md`; the operating rules:
+`specs/hosting/self-update-and-releases.md`; the operating rules:
 
-- **`X.Y.Z` has a defined meaning** (`specs/self-update-and-releases.md` §3.A rule 2), and the skill
+- **`X.Y.Z` has a defined meaning** (`specs/hosting/self-update-and-releases.md` §3.A rule 2), and the skill
   derives the number from it: **X** = a structural change or a contract lost for a consumer outside
   this repository (`/public/v1/**` for the WordPress plugin, the iCal export feeds) — never derived,
   always the user's explicit call; **Y** = an improvement, the ordinary case; **Z** = bug fixes and
@@ -30,7 +30,7 @@ Production runs **published releases**, never a branch. The full model lives in
   or when a `changelog.d/` fragment was left unfolded. Never bypass that job.
 - **Every section opens with its operator digest** — a `### Summary` block of at most 6 lines of at
   most 160 characters, and it is the *only* thing the update dialog shows; the rest is folded behind
-  « Tout le changelog » (`specs/self-update-and-releases.md` rule 20c). It is written **in French**,
+  « Tout le changelog » (`specs/hosting/self-update-and-releases.md` rule 20c). It is written **in French**,
   the single exception to §2 in this repository, because it exists to be read inside the application
   by a French operator. `node scripts/build-changelog.mjs --check-digest X.Y.Z` judges it, and the
   `verify` job runs that same command.

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 24-27, 27bis, 11bis — `GET /public/v1/guest/shop` through the real routes: the projection
+// specs/guest-app/guest-app.md rules 24-27, 27bis, 11bis — `GET /public/v1/guest/shop` through the real routes: the projection
 // per lodging and language, the categories, the window, the module and the plugins the shop reads.
 const test = require('node:test');
 const assert = require('node:assert/strict');

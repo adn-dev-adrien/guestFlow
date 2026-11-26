@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 56 (verification R35 leftovers, R34b-3) — a stay paid with several methods books
+// specs/payments/mixed-method-payments.md rule 56 (verification R35 leftovers, R34b-3) — a stay paid with several methods books
 // each settlement's share entry by entry (`scaleEntry`) and its refunds line by line from the register: the two rounded
 // their cents apart, so a cancelled stay given back in full kept a cent on 4671 against 706 / 706010, and the geste's
 // 706 / 709 pair. The refund that gives back the last of the stay's book money now debits what is left on each sale

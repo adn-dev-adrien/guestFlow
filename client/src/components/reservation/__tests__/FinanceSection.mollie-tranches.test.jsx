@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { renderFinance as renderLedger, paidRow, ledgerOf } from './ledgerFixtures';
 
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — a paid link shows its bank tranches under the
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — a paid link shows its bank tranches under the
 // échéance (same drawing as an instalment plan's lines) and the recap line shows « reçus / attendus ». Everything is
 // the server's wording; a fiche with nothing pending shows nothing new (rule 19).
 

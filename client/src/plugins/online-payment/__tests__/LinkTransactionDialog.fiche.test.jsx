@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import LinkTransactionDialog from '../LinkTransactionDialog';
 import { ficheCredit, ficheCreditsPayload, previewPayload } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rules 1–8 — the fiche's « Rattacher des virements »: the server's
+// specs/accounting/reconciliation-assisted-matching.md rules 1–8 — the fiche's « Rattacher des virements »: the server's
 // groups, search and preview are drawn as they come; nothing is summed on the client.
 
 vi.mock('../../../api', () => ({

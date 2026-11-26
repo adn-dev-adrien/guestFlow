@@ -1,4 +1,4 @@
-// Shared fixture of the outside-booking offer suites (specs/gift-voucher-campaigns.md rules 29, 35, 36, 53): the core database in memory with the plugin registered the way the host does
+// Shared fixture of the outside-booking offer suites (specs/gift-vouchers/gift-voucher-campaigns.md rules 29, 35, 36, 53): the core database in memory with the plugin registered the way the host does
 // (so its offer is reached through `ctx.core.resourceBookingOffer()`, as another plugin reaches it), one bath with its following-hours rates and an evening band, one option sold outside a stay,
 // a clock on a Sunday so the slots begin on the Monday after. Not a test file. A suite sets `process.env.DB_PATH = ':memory:'` before requiring it.
 

@@ -1,5 +1,5 @@
 /**
- * Reading a JSON body's fields (specs/control-plane-plans-and-access.md rule 48). `String()` and `Number()` throw
+ * Reading a JSON body's fields (specs/hosting/control-plane-plans-and-access.md rule 48). `String()` and `Number()` throw
  * on {"toString":1} and turn `null` or `{}` into stored text; only a string is text, only a number or a string is
  * a number. Absent and `null` read as empty, so a form's untouched optional field stays fine.
  */

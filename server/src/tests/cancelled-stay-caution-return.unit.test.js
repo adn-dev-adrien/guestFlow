@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — a caution received and still held when the
+// specs/payments/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — a caution received and still held when the
 // stay is cancelled is given back on the cancelled fiche: PATCH /payment takes `cautionReturned` (and its date) alone
 // on a cancelled stay, judged as on a live one (rule 12: never before the receipt); the ledger offers « Restituer »;
 // once returned, the caution no longer holds the stay's client and logement (rule 53's history refusal answers

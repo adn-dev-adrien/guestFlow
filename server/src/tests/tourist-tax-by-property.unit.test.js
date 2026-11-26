@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md rules 56-57 (2026-11-12, manual trial of 4.0.0) — the tax is declared per logement: the
+// specs/tourist-tax/tourist-tax-report-v2.md rules 56-57 (2026-11-12, manual trial of 4.0.0) — the tax is declared per logement: the
 // report carries the totals of each logement, and « Marquer {logement} déclaré » ticks that logement's declarable rows in one
 // call, never a platform's stay and never another logement's.
 process.env.DB_PATH = ':memory:';

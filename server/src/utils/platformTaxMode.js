@@ -1,14 +1,14 @@
 /**
- * The tourist-tax mode of a platform, as the pricing engine reads it (specs/per-platform-tourist-tax-three-way.md).
+ * The tourist-tax mode of a platform, as the pricing engine reads it (specs/tourist-tax/per-platform-tourist-tax-three-way.md).
  *
  * `resolveGlobalPlatformTaxRow(db, platform)` is the engine's resolver, kept here so `database.js` (the one-pass migration of
- * specs/platform-host-statement-and-commission-vat.md rule 4) and every reader of the mode name the same platform the engine does;
+ * specs/platforms/platform-host-statement-and-commission-vat.md rule 4) and every reader of the mode name the same platform the engine does;
  * `touristTaxModeOf(db, platform)` turns its row into `'platform' | 'platform_reversed' | 'owner'`.
  * Pure over the database it is given: it requires nothing that opens one.
  */
 const { isNamedChannel } = require('./saleChannel');
 
-// GLOBAL per-platform tourist-tax mode resolver (specs/per-platform-tourist-tax-three-way.md). The
+// GLOBAL per-platform tourist-tax mode resolver (specs/tourist-tax/per-platform-tourist-tax-three-way.md). The
 // mode lives on the `platforms` table (one row per platform, shared across all properties), like the
 // calendar colour. Returns the `{ collectsTouristTax, touristTaxRemittedByPlatform }` row or null.
 //

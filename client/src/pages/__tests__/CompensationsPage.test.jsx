@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * « Indemnités d'annulation » — specs/plugins-phase-2-hosts.md rule 21 (P7). The core page of Suivi
+ * « Indemnités d'annulation » — specs/plugins/plugins-phase-2-hosts.md rule 21 (P7). The core page of Suivi
  * financier: a month picker in the action bar, the admin's actions, the accountant's read-only view.
  */
 
@@ -60,7 +60,7 @@ function renderPage(roles) {
   );
 }
 
-test('specs/plugins-phase-2-hosts.md rule 21 — the month picker drives the banked list; the pending list ignores it', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 21 — the month picker drives the banked list; the pending list ignores it', async () => {
   const user = userEvent.setup();
   renderPage(['admin']);
   await waitFor(() => expect(api.getCancellationCompensations).toHaveBeenCalledWith(9, 2026));
@@ -79,7 +79,7 @@ test('specs/plugins-phase-2-hosts.md rule 21 — the month picker drives the ban
   expect(screen.getByText(/Claire Notin/)).toBeInTheDocument();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 21 — the admin adds from the bar, and banks, reopens, edits and deletes in the lists', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 21 — the admin adds from the bar, and banks, reopens, edits and deletes in the lists', async () => {
   const user = userEvent.setup();
   renderPage(['admin']);
   expect(await screen.findByText(/Paul Nguyen/)).toBeInTheDocument();
@@ -98,7 +98,7 @@ test('specs/plugins-phase-2-hosts.md rule 21 — the admin adds from the bar, an
   expect(await screen.findByText("Ajouter une indemnité d'annulation")).toBeInTheDocument();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 21 — the accountant reads both lists, with no action anywhere', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 21 — the accountant reads both lists, with no action anywhere', async () => {
   renderPage(['accountant']);
   expect(await screen.findByText(/Paul Nguyen/)).toBeInTheDocument();
   expect(screen.getByText(/Claire Notin/)).toBeInTheDocument();

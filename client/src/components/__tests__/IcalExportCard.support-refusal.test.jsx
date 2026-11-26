@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 24 — a support session is refused the iCal export token:
+// specs/hosting/hosting-h2-account-security.md rule 24 — a support session is refused the iCal export token:
 // the card says so instead of showing an empty address.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

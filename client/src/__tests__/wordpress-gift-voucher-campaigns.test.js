@@ -1,10 +1,10 @@
-// specs/gift-voucher-campaigns.md rules 16-19, 37, 40 — the purchase block lists the campaigns on sale grouped by kind, a card
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 16-19, 37, 40 — the purchase block lists the campaigns on sale grouped by kind, a card
 // address (`#campagne=<slug>`) opens one directly, a composed voucher draws the SERVER's contents, price lines, total and VAT (the
 // page computes nothing), and the terms are those of the campaign's activity. Whatever the way into a campaign, its steppers work.
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { loadBlock } from './wordpressBookingFixtures';
 
-const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js'];
+const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js', 'assets/voucher-card.js'];
 const VIEW = 'blocks/gift-voucher/view.js';
 
 const LODGING = {

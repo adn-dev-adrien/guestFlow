@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { setDirectChannels } = require('../utils/platformNameFormat');
 
-// specs/platform-tourist-tax-out-of-the-commission.md rule 26 — spec review 2026-10-27 (agent 4 #5).
+// specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 26 — spec review 2026-10-27 (agent 4 #5).
 // A platform that withheld NO tourist tax (« 0 » typed in the box) is an answer; the engine served it
 // as `null`, so the fiche fell back to its own estimate and printed it struck through as if the
 // platform had kept it.

@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 30 (audit r3, external N5) — a mail that is not an intake, or that
+// specs/platforms/gites-de-france-mail-intake.md rule 30 (audit r3, external N5) — a mail that is not an intake, or that
 // was too large to read, is remembered like any other, so the next pass skips it before downloading it; the pass
 // hands the reader a `seen` predicate and a cap, and takes the mails one by one.
 const test = require('node:test');

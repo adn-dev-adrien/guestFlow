@@ -1,5 +1,5 @@
 /**
- * specs/shell-and-home-day-first.md §3.B — the home's attention payload: summaries, order, pinned
+ * specs/planning/shell-and-home-day-first.md §3.B — the home's attention payload: summaries, order, pinned
  * subjects, total, failing sources, and the plugin subjects declared with ctx.attention.
  */
 const test = require('node:test');

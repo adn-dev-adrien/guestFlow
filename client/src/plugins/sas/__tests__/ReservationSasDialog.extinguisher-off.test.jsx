@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 16 — with « Contrôle de l'extincteur » off, the departure
+// specs/plugins/plugins-phase-p-productisation.md rule 16 — with « Contrôle de l'extincteur » off, the departure
 // SAS has no extinguisher step and sends no seal field.
 import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -22,7 +22,7 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });

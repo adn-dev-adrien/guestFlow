@@ -1,4 +1,4 @@
-// Shared by the plugin-operator-* suites (specs/plugin-operator-provisioning.md): a space on an
+// Shared by the plugin-operator-* suites (specs/plugins/plugin-operator-provisioning.md): a space on an
 // in-memory database, a licence stand-in, and the real plugins controller / reconciler on top.
 const Database = require('better-sqlite3');
 

@@ -1,9 +1,9 @@
 /**
- * VatFiscalSettingsPage — Paramètres → TVA & exercice (specs/settings-rationalization.md rule 2).
+ * VatFiscalSettingsPage — Paramètres → TVA & exercice (specs/settings/settings-rationalization.md rule 2).
  *
  * The stay VAT rate and the accounting closing month. The commission and cancellation-indemnity
  * rates live on Plan comptable (rule 14), linked from here by the accounting export
- * (slot `settings.platforms.links`, specs/plugins-phase-2-hosts.md rule 19).
+ * (slot `settings.platforms.links`, specs/plugins/plugins-phase-2-hosts.md rule 19).
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -43,7 +43,7 @@ export default function VatFiscalSettingsPage() {
     // Rule 35 — a hidden field gives back what was typed in it.
     form.replaceSaved('vat', 'franchiseThreshold', form.saved.vat?.franchiseThreshold ?? '');
   };
-  // specs/finance-dashboard-redesign.md §3.8 — the exercises the goal fields name, from the server.
+  // specs/accounting/finance-dashboard-redesign.md §3.8 — the exercises the goal fields name, from the server.
   const [goalContext, setGoalContext] = useState(null);
   useEffect(() => {
     let mounted = true;

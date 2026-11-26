@@ -1,5 +1,5 @@
 // @ts-check
-// specs/force-extras-complement-on-platform.md §7 — Playwright smoke for the user-visible
+// specs/sas/force-extras-complement-on-platform.md §7 — Playwright smoke for the user-visible
 // behaviour: on a non-direct platform reservation, the Extras section shows the muted caption
 // "Réservation plateforme — les extras sont placés en paiement complémentaire par défaut
 // (modifiable par ligne)." The per-line "Forcer en complément" Switches now STAY visible on

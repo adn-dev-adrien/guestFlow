@@ -2,12 +2,12 @@ require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Module = require('module');
 
-// Security coverage for the PUBLIC quote controller (specs/public-api.md): a malicious proxy must
+// Security coverage for the PUBLIC quote controller (specs/site/public-api.md): a malicious proxy must
 // NOT be able to manipulate the price. Real validation; the pricing engine is mocked only to capture
 // exactly what input it receives.
 
@@ -46,7 +46,7 @@ function buildController({ captures, applicableOptionIds = [7], applicableResour
     '../../utils/pricing': { calculateReservationQuote: (input) => { captures.engineInput = input; return minimalQuote(); } },
     '../../models/optionsModel': {
       listForProperty: () => applicableOptionIds.map((id) => ({ id })),
-      // specs/cancellation-insurance.md §3.3 — no insurance configured in these fixtures.
+      // specs/payments/cancellation-insurance.md §3.3 — no insurance configured in these fixtures.
       getCancellationInsurance: () => null,
     },
     '../../models/resourcesModel': { list: () => applicableResourceIds.map((id) => ({ id })) },

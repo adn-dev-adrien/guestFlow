@@ -1,6 +1,6 @@
 /**
  * What else uses a resource on a date, for the fiche save's conflict check
- * (specs/hourly-resource-quantity-and-sas-scheduling.md rule 28 « and vice versa », fixed at the
+ * (specs/resources/hourly-resource-quantity-and-sas-scheduling.md rule 28 « and vice versa », fixed at the
  * 2026-10-27 spec review): the external bookings and the sessions of the OTHER stays. The same union the
  * hourly-resources plugin's occupancy model reads when an external booking is created; `resource_bookings`
  * and `resources.turnoverMinutes` exist only once that plugin is installed, hence the guards. The slots the live

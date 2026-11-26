@@ -1,5 +1,5 @@
 /**
- * System routes — version probe and self-update control (specs/self-update-and-releases.md §4.3).
+ * System routes — version probe and self-update control (specs/hosting/self-update-and-releases.md §4.3).
  *
  * Mounted at /api/system. Auth and role gating come from the global pipeline in index.js: every
  * path here is admin-only by construction, since `enforceRoleAccess` is deny-by-default for the

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 27bis, 41 — the breakfast's hour is one of the delivery times the server offers: a
+// specs/guest-app/guest-app.md rules 27bis, 41 — the breakfast's hour is one of the delivery times the server offers: a
 // default the times no longer offer gives way to the first one, a single hour is stated, and a morning where
 // the hour is not a delivery time says so in the guest's language.
 import { render, screen, waitFor } from '@testing-library/react';

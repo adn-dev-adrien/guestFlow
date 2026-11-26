@@ -1,5 +1,5 @@
 /**
- * One-shot migration `guest_email_sequence_v1` (specs/guest-email-sequence.md §5).
+ * One-shot migration `guest_email_sequence_v1` (specs/emails/guest-email-sequence.md §5).
  *
  * 1. Force-sync the three existing sequence templates (confirmation, J-7, J-2) to the registry: the
  *    seed is insert-only, and Adrien validated the new copy and asked for it to replace the old one —

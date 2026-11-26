@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23, 85, 104, 105, 107 and specs/sas-offer-complement-lines.md §4.3 (stabilisation loop t6, S6-3 and S6-4,
+// specs/pricing/pricing-components.md §3 rules 23, 85, 104, 105, 107 and specs/sas/sas-offer-complement-lines.md §4.3 (stabilisation loop t6, S6-3 and S6-4,
 // 2026-11-16) — the arrival SAS on an article sold on two lines: a line ordered in the app and paid by card, the other sold on the fiche.
 // S6-3: the re-open seed names each offered line by the recap's key, so the commit keeps exactly that line offered (before, the client seeded
 // `option:<id>` and the commit offered the article's FIRST line and billed the gift again). S6-4: the commit is judged like every save of the

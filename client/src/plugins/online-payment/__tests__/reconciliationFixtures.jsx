@@ -1,4 +1,4 @@
-// Shared fixtures of the bank reconciliation suites (specs/qonto-bank-reconciliation.md §6). A sibling
+// Shared fixtures of the bank reconciliation suites (specs/accounting/qonto-bank-reconciliation.md §6). A sibling
 // non-test module; `vi.mock('../../../api')` stays in each test file (Vitest hoists it per file).
 // Fictional data only.
 

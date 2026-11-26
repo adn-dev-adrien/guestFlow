@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import SasGateAccessStep from '../SasGateAccessStep';
 
-// specs/gate-access-sowel-connector.md §3.5 rule 24b — « Partager » hands the gate link to the
+// specs/guest-app/gate-access-sowel-connector.md §3.5 rule 24b — « Partager » hands the gate link to the
 // phone's native share sheet; « Copier le lien » stands in where there is none.
 
 vi.mock('../../../api', () => ({

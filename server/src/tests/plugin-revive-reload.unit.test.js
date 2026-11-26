@@ -1,11 +1,11 @@
-// specs/plugins-phase-4-registry.md rule 46 — switching a requirement on answers `reload: true` and the
+// specs/plugins/plugins-phase-4-registry.md rule 46 — switching a requirement on answers `reload: true` and the
 // revived ids when a dependant came up (the browser must import its bundle); a dependant still waiting on
 // another requirement names that one, not the requirement that just came up.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['website-booking', 'google-vacation-rentals', 'sas'])) return;
 const h = require('./pluginPackagesFixture');

@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 1 and 48, §4.3 — the client asks the synthesis with the period it was given,
+// specs/accounting/accounting-synthesis.md §3 rules 1 and 48, §4.3 — the client asks the synthesis with the period it was given,
 // nothing more: the server judges every key.
 import { vi } from 'vitest';
 import api from '../api';

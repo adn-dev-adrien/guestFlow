@@ -1,4 +1,4 @@
-// specs/single-payment-at-check-in.md rule 8bis — la dissolution d'un paiement unique laisse une
+// specs/payments/single-payment-at-check-in.md rule 8bis — la dissolution d'un paiement unique laisse une
 // trace dans l'historique de la fiche.
 //
 // Pourquoi ce fichier existe : depuis la v2.9.0, un groupe pouvait disparaître sans une seule ligne

@@ -1,4 +1,4 @@
-// Dunning emails (specs/payment-schedule-and-cancellation.md §3.7 rule 41): the two payment anchors
+// Dunning emails (specs/payments/payment-schedule-and-cancellation.md §3.7 rule 41): the two payment anchors
 // — `depositDueDate` and `balanceDueDate` — in both the manual queue and the auto-send cron.
 //
 // The point of anchoring on the échéance rather than on the arrival: a reminder must fire relative to
@@ -97,7 +97,7 @@ const emailServiceFactory = (sent) => () => ({
 
 const settingsModel = {
   // The cron only runs when the operator authorised automatic sending
-  // (specs/no-automatic-email-without-approval.md §3 rule 2) — these tests are about what it does
+  // (specs/emails/no-automatic-email-without-approval.md §3 rule 2) — these tests are about what it does
   // once allowed, so the switch is explicitly ON here.
   read: () => ({ companyName: 'Solio', companyPhone: '01', companyEmail: 'x@y' }),
   decryptedSmtpSettings: () => ({ host: 'smtp', port: 587, secure: false, user: 'u', password: 'p', fromEmail: 'f@x', fromName: 'Solio' }),
@@ -112,7 +112,7 @@ const runPass = (db, sent) => performAutoEmailPass({
   today: TODAY,
 });
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('money that arrived is never chased, even on the exact deadline', async () => {
@@ -136,12 +136,12 @@ test('a devis is never dunned by the reservation anchors', async () => {
   db.close();
 });
 
-// specs/payment-schedule-and-cancellation.md rule 42
+// specs/payments/payment-schedule-and-cancellation.md rule 42
 test('manual mode: the same anchors drive the pending queue', () => {
   const db = fixture({ sendMode: 'manual' });
   addReservation(db, { id: 100, depositDueDate: TODAY });
   addReservation(db, { id: 101, balanceDueDate: '2026-08-16' });
-  // Another logement: a paid stay on the same nights would hold them (specs/payment-link-lifecycle.md rule 65).
+  // Another logement: a paid stay on the same nights would hold them (specs/payments/payment-link-lifecycle.md rule 65).
   addReservation(db, { id: 102, depositDueDate: TODAY, depositPaid: 1, propertyId: 2 }); // paid → out
   markRequestSent(db, 100, 'deposit');
   markRequestSent(db, 101, 'balance');
@@ -191,11 +191,11 @@ test('a reservation with no deadline on the anchor is never scheduled', async ()
   db.close();
 });
 
-// ── Channel filter (specs/platform-payout-due-date.md §3.3 rules 33-34) ───────────────────────
+// ── Channel filter (specs/platforms/platform-payout-due-date.md §3.3 rules 33-34) ───────────────────────
 
-// specs/platform-payout-due-date.md rules 33 + 34
+// specs/platforms/platform-payout-due-date.md rules 33 + 34
 
-// specs/direct-installments.md rule 43 (hard guard of rule 44) — whatever its stored mode, a template that
+// specs/payments/direct-installments.md rule 43 (hard guard of rule 44) — whatever its stored mode, a template that
 // asks for money is never sent by the 08:00 pass: the reminders only ever wait in the « à valider » queue.
 test('a payment template in « auto » mode is never sent by the pass, on any anchor', async () => {
   const db = fixture();

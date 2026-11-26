@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md rule 29 — a role a plugin brings (Accueil ← sas, Comptable ←
+// specs/plugins/plugins-phase-0-foundation.md rule 29 — a role a plugin brings (Accueil ← sas, Comptable ←
 // accounting-export) cannot be given while that plugin is not live: the client hides it (rule 16), the
 // server refuses it. Found by the bare-install E2E run: POST /api/users took `reception` on an
 // instance without the sas plugin.

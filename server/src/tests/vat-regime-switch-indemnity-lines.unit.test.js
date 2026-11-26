@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 16 and 26 with specs/reservation-refunds.md rule 48, reading of 2026-11-02
+// specs/accounting/vat-optional-mode.md rules 16 and 26 with specs/payments/reservation-refunds.md rule 48, reading of 2026-11-02
 // (review of #925). A switch re-rates the refund lines of the stays it moves, and its undo restores them; a line
 // given back from a cancellation indemnity (bucket `indemnity`) is not a sale and keeps its 0 % either way.
 

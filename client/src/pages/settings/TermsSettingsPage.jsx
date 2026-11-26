@@ -1,12 +1,12 @@
 /**
- * Paramètres → Conditions générales (specs/terms-acceptance-record.md §3.1, §6).
+ * Paramètres → Conditions générales (specs/reservations/terms-acceptance-record.md §3.1, §6).
  *
- * One tab per activity (GET /api/terms/activities: the lodging, then those a plugin declares, specs/gift-voucher-campaigns.md
+ * One tab per activity (GET /api/terms/activities: the lodging, then those a plugin declares, specs/gift-vouchers/gift-voucher-campaigns.md
  * rule 37) — each is its own draft and its own numbered versions. The CGV draft (Markdown FR + EN, rendered by the server), its publication as an immutable version
  * and the published versions, and the public site's address the CGV link is built on
- * (specs/plugins-phase-3a-online-payment.md rule 15). Every label, date and verdict (can publish? stale facts?) comes from
+ * (specs/plugins/plugins-phase-3a-online-payment.md rule 15). Every label, date and verdict (can publish? stale facts?) comes from
  * GET /api/terms. The online enforcement belongs to the website-booking plugin: its alerts and its
- * « Réservation en ligne » card fill the slot `terms.settings` (specs/plugins-phase-2-hosts.md rule 25).
+ * « Réservation en ligne » card fill the slot `terms.settings` (specs/plugins/plugins-phase-2-hosts.md rule 25).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';

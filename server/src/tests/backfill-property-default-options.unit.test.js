@@ -1,5 +1,5 @@
 // Backfill migration: applies property default options to existing reservations that lack them.
-// See specs/property-default-option-applicability.md §5.
+// See specs/options/property-default-option-applicability.md §5.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

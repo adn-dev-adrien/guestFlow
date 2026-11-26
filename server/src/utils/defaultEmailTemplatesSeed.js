@@ -1,6 +1,6 @@
 /**
  * Boot-time seed for the default email templates registry
- * (specs/email-automation.md §3 rule 6 + §5).
+ * (specs/emails/email-automation.md §3 rule 6 + §5).
  *
  * For each entry in `DEFAULT_TEMPLATES`, INSERT into `email_templates` iff no row with
  * that `stableKey` already exists. Operator edits to a previously-seeded row are NEVER
@@ -23,7 +23,7 @@ function ensureDefaultEmailTemplates(database, { logger = console } = {}) {
     }
 
     const find = database.prepare('SELECT id FROM email_templates WHERE stableKey = ?');
-    // Bilingual columns (specs/email-language-fr-en.md) are optional in minimal/legacy schemas — only
+    // Bilingual columns (specs/emails/email-language-fr-en.md) are optional in minimal/legacy schemas — only
     // insert subjectEn/bodyEn when the columns exist.
     const hasEnCols = cols.includes('subjectEn') && cols.includes('bodyEn');
     // The scheduling anchor column is optional in legacy/minimal schemas — only persist it when present

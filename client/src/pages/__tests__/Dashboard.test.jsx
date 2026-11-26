@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 /**
- * Dashboard — DS phase-5 sweep (specs/ds-sweep-planning.md §7):
- *  - (the KPI tiles left the home on 2026-10-19 — specs/shell-and-home-day-first.md rule 2, covered
+ * Dashboard — DS phase-5 sweep (specs/design-system/ds-sweep-planning.md §7):
+ *  - (the KPI tiles left the home on 2026-10-19 — specs/planning/shell-and-home-day-first.md rule 2, covered
  *    by Dashboard.day-first.test.jsx);
  *  - a rejected loader surfaces the retryable ErrorAlert (the page used to swallow fetch errors
  *    with `loading` stuck on a bare LinearProgress);
@@ -25,7 +25,7 @@ vi.mock('../../api', () => ({
   },
 }));
 
-// specs/reception-role-checkin-only.md — Dashboard branches on the current user's roles. Mock the
+// specs/sas/reception-role-checkin-only.md — Dashboard branches on the current user's roles. Mock the
 // auth hook (mutable so a test can flip to a reception-only session).
 const { mockAuth, navigateSpy } = vi.hoisted(() => ({
   mockAuth: { user: { roles: ['admin'] } },
@@ -54,7 +54,7 @@ function renderPage() {
   );
 }
 
-// What GET /api/planning/today answers (specs/dashboard-planning-scroll.md rule 1).
+// What GET /api/planning/today answers (specs/planning/dashboard-planning-scroll.md rule 1).
 const dayLists = ({ arrivals = [], departures = [], nextArrival = null } = {}) => ({
   today: localIsoToday(), arrivals, departures, nextArrival,
 });
@@ -84,9 +84,9 @@ test('the initial load shows the shared LoadingState (aria-busy)', async () => {
   await screen.findByText('Départs du jour');
 });
 
-// specs/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
+// specs/planning/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
 // collect at the door. A platform booking waiting for its post-stay payout used to be red daily.
-describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
+describe('« Paiements » column (specs/planning/dashboard-collection-alert.md)', () => {
   const today = localIsoToday();
   const base = {
     id: 7, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
@@ -127,7 +127,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
     expect(screen.getByText('Solde dû · Complément dû')).toBeInTheDocument();
   });
 
-  // specs/ds-components.md rule 25 — « Lit bébé ×1 », accent and multiplication sign included.
+  // specs/design-system/ds-components.md rule 25 — « Lit bébé ×1 », accent and multiplication sign included.
   test('a baby bed reads « Lit bébé ×1 »', async () => {
     api.getPlanningToday.mockReset().mockResolvedValue(dayLists({ arrivals: [{ ...base, babyBeds: 1 }] }));
     renderPage();
@@ -148,7 +148,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
   });
 });
 
-describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () => {
+describe('reception-only home (specs/sas/reception-role-checkin-only.md §3.3)', () => {
   const today = localIsoToday();
   const arrival = {
     id: 42, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
@@ -192,7 +192,7 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
 });
 
 test('the day lists run departures FIRST, arrivals second (issue #427)', async () => {
-  // specs/reception-role-checkin-only.md §3.3 / §6.1 — the day is handled in that order (departures
+  // specs/sas/reception-role-checkin-only.md §3.3 / §6.1 — the day is handled in that order (departures
   // in the morning, arrivals in the afternoon), so the first list is the one needed first.
   renderPage();
   const departures = await screen.findByText('Départs du jour');

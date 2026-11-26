@@ -1,11 +1,11 @@
 /**
  * IcalDateDriftAlert — Dashboard approval card for iCal-locked reservations whose source
- * platform has proposed new dates (specs/ical-sync-override-locked-dates.md §6.1).
+ * platform has proposed new dates (specs/platforms/ical-sync-override-locked-dates.md §6.1).
  *
  * Self-contained: fetches its own list on mount + on every route change, then renders one
  * `AttentionCard` listing every pending drift. Each card offers three actions:
  *   - "Approuver" (color="success") → applies the narrow date override on the reservation; onto nights another
- *     stay holds (`heldDates`, specs/payment-link-lifecycle.md rule 39) it asks first, naming those stays.
+ *     stay holds (`heldDates`, specs/payments/payment-link-lifecycle.md rule 39) it asks first, naming those stays.
  *   - "Voir la fiche"               → opens the reservation page without acknowledging.
  *   - ✕ (top-right)                 → ignores the proposal (rejects).
  *
@@ -62,7 +62,7 @@ export default function IcalDateDriftAlert({ attention }) {
 
   const handleApprove = useCallback(async (alert) => {
     if (!alert.reservationExists) return;
-    // specs/payment-link-lifecycle.md rule 39 — onto nights another stay holds: said first, the operator decides.
+    // specs/payments/payment-link-lifecycle.md rule 39 — onto nights another stay holds: said first, the operator decides.
     if (alert.heldDates) {
       const ok = await confirm({
         title: alert.heldDates.title,

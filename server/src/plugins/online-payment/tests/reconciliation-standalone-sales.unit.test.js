@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 20 — the card sales made outside any stay sit in the day's on-site
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 20 — the card sales made outside any stay sit in the day's on-site
 // card batch: counted first, named in the reason, never written on a fiche.
 const test = require('node:test');
 const assert = require('node:assert/strict');

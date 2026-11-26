@@ -8,7 +8,7 @@ const FIELD_REFUSALS = {
   ROLE_PLUGIN_INACTIVE: 'Module de ce rôle inactif.',
 };
 
-/** What a server refusal says under its field of the account dialog (specs/admin-account-management.md rule 20). */
+/** What a server refusal says under its field of the account dialog (specs/hosting/admin-account-management.md rule 20). */
 export default function fieldRefusalText(err) {
   return err.detail || FIELD_REFUSALS[err.error] || (err.message !== err.error && err.message) || 'Valeur refusée.';
 }

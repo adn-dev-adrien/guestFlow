@@ -1,13 +1,13 @@
 /**
  * PlatformPriceCard — « Prix plateformes » grid on the property tarif page
- * (specs/platform-price-from-commission.md, widened by specs/tariff-recipes/spec.md §3.6 rules 31-34).
+ * (specs/platforms/platform-price-from-commission.md, widened by specs/pricing/tariff-recipes.md §3.6 rules 31-34).
  *
  * One row per sales channel — the Direct row first (its displayed price covers the welcome pack after
  * the booking-engine fee), then the commissioned platforms — with, per tariff season, the whole-euro
  * price to configure on that channel, plus a « Personne supp. » column and, when a channel bills one, a
- * « Ménage / séjour » column (specs/tariff-recipe-platform-cleaning-fee.md). The commission % is shown
+ * « Ménage / séjour » column (specs/pricing/tariff-recipe-platform-cleaning-fee.md). The commission % is shown
  * read-only: it is global per channel and edited on Paramètres → Plateformes
- * (specs/settings-rationalization.md rule 19). All gross math is server-side; this only renders.
+ * (specs/settings/settings-rationalization.md rule 19). All gross math is server-side; this only renders.
  *
  * Props:
  *   propertyId  — number, required.
@@ -68,7 +68,7 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
 
   const { platforms, seasons } = data;
   const hasCommissioned = platforms.some((p) => !p.isDirect);
-  // specs/tariff-recipe-platform-cleaning-fee.md rule 10 — the column exists only when a channel bills one.
+  // specs/pricing/tariff-recipe-platform-cleaning-fee.md rule 10 — the column exists only when a channel bills one.
   const hasCleaningFee = platforms.some((p) => p.cleaningFee != null);
   const extraUnitLabel = seasons[0]?.extraGuestPriceUnit === 'per_night' ? 'Personne supp. / nuit' : 'Personne supp. / séjour';
 

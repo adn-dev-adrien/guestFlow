@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 62 (verification R44b N1, 2026-11-10) — a caisse-interne refund made
+// specs/payments/payment-schedule-and-cancellation.md rule 62 (verification R44b N1, 2026-11-10) — a caisse-interne refund made
 // before the cancel was read by the sum kept (rule 61): deleting it from the cancelled fiche would raise a sum the
 // notice already stated, so it is refused 409 REFUND_NETTED_BY_CANCELLATION and the figure holds.
 process.env.DB_PATH = ':memory:';

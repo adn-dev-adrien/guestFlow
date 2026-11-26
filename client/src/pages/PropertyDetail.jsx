@@ -5,7 +5,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 
-// A logement opened directly goes back to the list (specs/ui-review-2026-10-19-operations.md rule 26).
+// A logement opened directly goes back to the list (specs/design-system/ui-review-2026-10-19-operations.md rule 26).
 const PROPERTIES_LIST = '/properties';
 import PageActionBar from '../components/PageActionBar';
 import PageTabs from '../components/PageTabs';
@@ -35,7 +35,7 @@ const NEW_DEFAULTS = {
   singleBeds: 0, doubleBeds: 1,
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   depositEnabled: false,
-  // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
+  // A deposit nobody typed is no deposit (specs/emails/guest-email-texts-made-simple.md rule 28).
   defaultCautionAmount: 0,
   parkingDistanceMeters: 0, hasWifi: true,
   cleaningIncluded: 'options', towelsProvided: 'options', bedLinenProvided: 'options', poolSeasonMode: 'none', poolSeasonStart: '', poolSeasonEnd: '',
@@ -47,7 +47,7 @@ const NEW_DEFAULTS = {
   defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3,
 };
 
-// specs/settings-rationalization.md rule 21 — the property page is split into tabs; the tab lives in
+// specs/settings/settings-rationalization.md rule 21 — the property page is split into tabs; the tab lives in
 // `?tab=`. Every form field belongs to one tab, so a tab can show that it holds an unsaved change
 // (amber dot) or a field the server refused (red dot).
 export const PROPERTY_TABS = [
@@ -69,7 +69,7 @@ export const FIELD_TAB = {
   cleaningIncluded: 'sejour', towelsProvided: 'sejour', bedLinenProvided: 'sejour', poolSeasonStart: 'sejour', poolSeasonEnd: 'sejour', poolSeasonMode: 'sejour',
 };
 
-// specs/guest-email-texts-made-simple.md rule 28 — a fact the start assistant could not know shows
+// specs/emails/guest-email-texts-made-simple.md rule 28 — a fact the start assistant could not know shows
 // empty, and is sent only once answered: an untouched empty field leaves the emails silent on it.
 const PENDING_FIELDS = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
 const choiceOf = (flag) => (flag == null ? 'options' : String(Number(flag)));
@@ -135,7 +135,7 @@ export default function PropertyDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = getFromParam(location.search);
-  // Saves used to succeed SILENTLY on this page — toast the outcome (specs/ds-components.md §3.2).
+  // Saves used to succeed SILENTLY on this page — toast the outcome (specs/design-system/ds-components.md §3.2).
   const { showSuccess, showError } = useToast();
   const dirtyRef = useRef(false);
   const [navGuardOpen, setNavGuardOpen] = useState(false);
@@ -379,7 +379,7 @@ export default function PropertyDetail() {
     return () => document.removeEventListener('click', handler, true);
   }, []);
 
-  // Browser back/forward (specs/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
+  // Browser back/forward (specs/design-system/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
   // utils/backGuard.js asks this handler before the router moves. `dirtyRef` is cleared once the operator
   // chose to leave, so the back that follows passes.
   useEffect(() => {

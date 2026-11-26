@@ -1,17 +1,24 @@
-// specs/site-outside-resource-booking.md rule 32 — the purchase block: « Pour » is « Prénom » and « Nom » of the recipient, both required with their own inline refusal, 40 characters each, sent
+// specs/site/site-outside-resource-booking.md rule 32 — the purchase block: « Pour » is « Prénom » and « Nom » of the recipient, both required with their own inline refusal, 40 characters each, sent
 // as `recipientFirstName` and `recipientLastName`; the card preview names the first name only; a server refusal lands on its field.
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { loadBlock } from './wordpressBookingFixtures';
 
-const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js'];
+const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js', 'assets/voucher-card.js'];
 const OFFER = {
   available: true,
   brand: 'Domaine Solio',
   termsVersionId: 4,
   validityMonths: 18,
   ideas: [],
+  // The back of specs/gift-vouchers/gift-voucher-campaigns.md rule 66, reduced to what this suite reads: the card that names the first name only.
+  back: {
+    layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
+    texts: { title: 'BON CADEAU', recipient: 'Pour {name}', sender: 'de la part de {name}', codePlaceholder: 'XXXX', validUntil: '{date}', bullet: '•' },
+    companyName: 'Domaine Solio',
+  },
   campaigns: [{
     slug: 'sejour', kind: 'lodging', title: 'Bon cadeau', validityMonths: 18, minAmountCents: 2000, maxAmountCents: 200000, ideas: [], termsVersionId: 4,
+    back: { lineTemplate: '{amount}', validUntil: '' },
   }],
 };
 
@@ -73,7 +80,7 @@ test('the order carries both names, trimmed, and the preview card names the firs
   typeAmount();
   fireEvent.input(fields().first, { target: { value: ' Marie ' } });
   fireEvent.input(fields().last, { target: { value: 'Durand' } });
-  const card = document.body;
+  const card = document.querySelector('.gf-card');
   expect(card.textContent).toContain('Marie');
   expect(card.textContent).not.toContain('Durand');
   fillRest();

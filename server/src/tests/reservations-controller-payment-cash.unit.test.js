@@ -32,7 +32,7 @@ function buildController({ captures, prev = {} }) {
   const dbMock = { transaction: (fn) => (...a) => fn(...a), prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }) };
   const reservationsModelMock = new Proxy({}, { get: (_, k) => {
     if (k === 'getBasic') return () => ({ id: 1 });                 // exists → no 404
-    // Departed the day before the mocked today: specs/reservation-payment-ledger.md rule 68 (D20) collects the end of
+    // Departed the day before the mocked today: specs/payments/reservation-payment-ledger.md rule 68 (D20) collects the end of
     // stay only after the check-out.
     // date-literal-ok: compared with the mocked getTodayIsoDate only, never with the real clock.
     if (k === 'getRow') return () => ({ endDate: '2026-06-14', complementAmount: 50, endOfStayComplementAmount: 50,
@@ -104,18 +104,18 @@ test('updatePayment — toggling caisse interne OFF on a paid complement keeps i
   assert.equal(call.args[2], 0, 'cash cleared');
 });
 
-// ── specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 ─────────────────────────────────────
+// ── specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 8 ─────────────────────────────────────
 // The fiche shows ONE card for ONE collection when the complement was deferred to check-out, so the
 // single « payé » / « caisse interne » action must settle BOTH buckets server-side (the client sends
 // only the arrival fields). Guards against the card marking half the money collected.
 
-// A complement carries money: specs/reservation-payment-ledger.md rule 32 refuses to mark a 0 € bucket.
+// A complement carries money: specs/payments/reservation-payment-ledger.md rule 32 refuses to mark a 0 € bucket.
 const DEFERRED = { complementDeferredToCheckout: 1, endOfStayComplementAmount: 40, complementAmount: 24 };
 
 test('updatePayment — deferred: marking the complement paid also settles the end-of-stay bucket (same date)', () => {
   const captures = { calls: [] };
   const controller = buildController({ captures, prev: DEFERRED });
-  // The collection date is in the past of the mocked today (2026-06-15): specs/reservation-payment-ledger.md
+  // The collection date is in the past of the mocked today (2026-06-15): specs/payments/reservation-payment-ledger.md
   // rule 9 refuses a future one.
   const res = fakeRes();
   controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true, complementPaidDate: '2026-06-03' } }, res);

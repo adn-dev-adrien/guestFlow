@@ -1,6 +1,6 @@
 /**
  * How a platform's commission is booked, in one sentence the « Paiement plateforme » block prints
- * (specs/platform-host-statement-and-commission-vat.md rule 10):
+ * (specs/platforms/platform-host-statement-and-commission-vat.md rule 10):
  *   « 78,00 € TTC = 65,00 € HT + 13,00 € de TVA déductible · compte 62260500 »            (France)
  *   « 124,78 € · UE, TVA autoliquidée 24,96 € · compte 62260300 »                         (UE)
  *   « 61,00 € · sans TVA · compte 62260600 »                                              (sans TVA)

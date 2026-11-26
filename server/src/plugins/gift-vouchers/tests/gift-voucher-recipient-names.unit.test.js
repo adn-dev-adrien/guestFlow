@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 31-33 — the recipient of a voucher in two required fields: refused when empty or past 40 characters (with the field), stored apart while
+// specs/site/site-outside-resource-booking.md rules 31-33 — the recipient of a voucher in two required fields: refused when empty or past 40 characters (with the field), stored apart while
 // `recipientName` keeps the first name for every reader that prints it, opened to the session page as first and last name, searchable and shown by the operator, and the orders sold
 // before the split keep their name as the first name.
 process.env.DB_PATH = ':memory:';

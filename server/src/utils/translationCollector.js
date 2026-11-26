@@ -1,5 +1,5 @@
 /**
- * Collects what needs translating (specs/translation-catalogue.md rule 1).
+ * Collects what needs translating (specs/site/translation-catalogue.md rule 1).
  *
  * Nobody types an entry into the catalogue: creating an option puts it there, and this is the pass
  * that notices. It is the only place that decides what is translatable, so what the operator sees in

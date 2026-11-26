@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rule 29 — `guest_home_blocks` accepts the « Réseau » block: the CHECK is widened by
+// specs/guest-app/guest-app-home-automation.md rule 29 — `guest_home_blocks` accepts the « Réseau » block: the CHECK is widened by
 // rebuilding the table, and every saved block survives.
 const test = require('node:test');
 const assert = require('node:assert/strict');

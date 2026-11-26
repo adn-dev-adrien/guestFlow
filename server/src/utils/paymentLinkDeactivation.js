@@ -1,5 +1,5 @@
 /**
- * No abandoned link stays payable (specs/plugins-phase-3a-online-payment.md rules 7–9).
+ * No abandoned link stays payable (specs/plugins/plugins-phase-3a-online-payment.md rules 7–9).
  *
  * GuestFlow abandons a link when it cancels a stay and when it replaces a link whose amount went stale.
  * Marking the row `cancelled` used to be the whole story, and the link stayed payable at the provider:
@@ -60,7 +60,7 @@ async function assertNotPaid(link, provider) {
 /**
  * Replaces an open link: refuses when it is paid (before or while this runs), retires it only if it is
  * still open, then deactivates it at the provider. `deactivate(links)` defaults to `deactivateAbandonedLinks`.
- * `reason` is the `cancelReason`: a lapsed one (`validity`, specs/payment-link-lifecycle.md rule 8) makes the
+ * `reason` is the `cancelReason`: a lapsed one (`validity`, specs/payments/payment-link-lifecycle.md rule 8) makes the
  * link `expired`, any other withdraws it (`cancelled`); `operator` (rule 42) also ends it `now`. Throws `{ httpStatus, error, message }`.
  */
 async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = null, reason = null, now = new Date() }) {
@@ -76,7 +76,7 @@ async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = 
     return;
   }
   const outcome = await (deactivate || ((links) => deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider, now })))([retired]);
-  // specs/payment-link-lifecycle.md rule 18 — the provider refused to deactivate a lapsing link it reports
+  // specs/payments/payment-link-lifecycle.md rule 18 — the provider refused to deactivate a lapsing link it reports
   // paid: no new link. The refusal carries the payment, for the caller to book (paymentRequestService).
   const found = outcome && Array.isArray(outcome.paid) ? outcome.paid.find((p) => p.id === retired.id) : null;
   if (found) {
@@ -86,7 +86,7 @@ async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = 
 
 /**
  * Deactivate links already retired locally. A withdrawn link stays `cancelled`; a lapsed one stays
- * `expired` (specs/payment-link-lifecycle.md rule 1), its marker cleared once deactivated and its last look
+ * `expired` (specs/payments/payment-link-lifecycle.md rule 1), its marker cleared once deactivated and its last look
  * scheduled (rule 19: the payment was read before this deactivation, not after).
  * @param {object[]} links payment_links rows
  * @param {object} deps { paymentLinksModel, providerFor?, now? }
@@ -161,7 +161,7 @@ async function deactivateOpenLinksBeforeDelete(reservationIds, { paymentLinksMod
     if (!link.providerLinkId) { done.push(link); continue; }
     const provider = providerFor(link.provider || 'qonto');
     // No provider at all (plugin off): nothing can be asked now, the link is marked for the poll's retry
-    // and the delete goes on (specs/plugins-phase-3a-online-payment.md rule 8).
+    // and the delete goes on (specs/plugins/plugins-phase-3a-online-payment.md rule 8).
     if (!provider) { noProvider.push(link); continue; }
     try {
       await assertNotPaid(link, provider);

@@ -1,6 +1,6 @@
 // Known booking-platform colours (shared by the platform-colors endpoint and iCal source creation).
 // One hue per platform, each readable with white or ink text at 4.5:1 or more
-// (specs/calendar-property-parity.md rule 6).
+// (specs/planning/calendar-property-parity.md rule 6).
 // Read by a platform's slug, which anyone may name « constructor »: no prototype to find a function on.
 const KNOWN_PLATFORM_COLORS = Object.assign(Object.create(null), {
   direct: '#2F5D46',
@@ -19,7 +19,7 @@ const KNOWN_PLATFORM_COLORS = Object.assign(Object.create(null), {
 
 const DEFAULT_PLATFORM_COLOR = '#6E6A5E';
 
-// The palette before specs/calendar-property-parity.md rule 6. Rows written while it was the built-in one
+// The palette before specs/planning/calendar-property-parity.md rule 6. Rows written while it was the built-in one
 // (`ical_sources.platformColor` at creation) hold these values: they are the old DEFAULT, never an operator's
 // choice, so the boot backfill and the colour listing must not read them as a custom colour.
 const LEGACY_PLATFORM_COLORS = Object.assign(Object.create(null), {

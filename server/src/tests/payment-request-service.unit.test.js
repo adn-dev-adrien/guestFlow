@@ -1,5 +1,5 @@
 // paymentRequestService — the injectable core behind the payment-request HTTP handlers
-// (specs/online-payments-qonto.md §3.2/§3.4). All deps stubbed; no Qonto network, no prod DB.
+// (specs/payments/online-payments-qonto.md §3.2/§3.4). All deps stubbed; no Qonto network, no prod DB.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -44,7 +44,7 @@ function fakeLinksModel(db) {
 }
 
 // `createLink` keeps the Qonto client's answer shape; the provider stub adapts it the way
-// plugins/online-payment/provider.js does (specs/plugins-phase-3a-online-payment.md rule 4).
+// plugins/online-payment/provider.js does (specs/plugins/plugins-phase-3a-online-payment.md rule 4).
 function baseDeps(db, over = {}) {
   const deps = {
     database: db,
@@ -79,7 +79,7 @@ test('ensurePaymentLink: creates a link via createLink + persists it', async () 
 
 test('ensurePaymentLink: reuses an open link without calling createLink', async () => {
   const { db, devisId } = seed();
-  // specs/payment-link-lifecycle.md rule 8 — reused only while it has 24 hours left.
+  // specs/payments/payment-link-lifecycle.md rule 8 — reused only while it has 24 hours left.
   fakeLinksModel(db).create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_open', url: 'https://pay/open', status: 'open', expiresAt: new Date(Date.now() + 30 * 3600 * 1000).toISOString() });
   let createCalls = 0;
   const deps = baseDeps(db, { createLink: async () => { createCalls++; return {}; } });
@@ -138,7 +138,7 @@ test('sendPaymentRequest: unsupported type → 400 INVALID_TYPE (no link created
   let createCalls = 0;
   const deps = baseDeps(db, { createLink: async () => { createCalls++; return {}; } });
   // An explicit type nobody supports is refused, never quietly turned into another request
-  // (specs/deposit-blocks-the-dates.md rule 10).
+  // (specs/payments/deposit-blocks-the-dates.md rule 10).
   const { httpStatus, body } = await sendPaymentRequest(deps, devisId, 'tip');
   assert.equal(httpStatus, 400);
   assert.equal(body.error, 'INVALID_TYPE');
@@ -169,7 +169,7 @@ test('sendPaymentRequest: a validation throw from ensurePaymentLink bubbles (zer
     (e) => { assert.equal(e.httpStatus, 400); return true; });
 });
 
-// Enriched Qonto stay line — specs/qonto-payment-link-reference.md rules 3, 5, 6.
+// Enriched Qonto stay line — specs/payments/qonto-payment-link-reference.md rules 3, 5, 6.
 // The stay line's title/description are built from the reservation's OWN devisNumber, client and
 // property (rule 5); the tax line keeps its label (rule 3); the charged amount is unchanged (rule 6).
 test('ensurePaymentLink: stay line carries « Séjour <bien> — <réf> — <Prénom Nom> », tax line untouched, amount unchanged', async () => {
@@ -198,7 +198,7 @@ test('ensurePaymentLink: stay line carries « Séjour <bien> — <réf> — <Pr�
   assert.equal(sent.expectedTotalCents, 9000, 'rule 6: charged total unchanged by the label');
 });
 
-// specs/qonto-payment-link-reference.md rule 7 — a missing reference/property must not break the
+// specs/payments/qonto-payment-link-reference.md rule 7 — a missing reference/property must not break the
 // label nor the flow; the enrichment fails soft and the generic title is used.
 test('ensurePaymentLink: no devisNumber → stay line still enriched with what exists (rule 7)', async () => {
   const { db, devisId } = seed(); // devisNumber left NULL

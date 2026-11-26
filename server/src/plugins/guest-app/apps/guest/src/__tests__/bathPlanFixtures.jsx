@@ -1,4 +1,4 @@
-// Shared fixtures of the bath scheduling suites (specs/guest-app-bath-home-scheduling.md). Not a test file: the `bath` cards `/me`
+// Shared fixtures of the bath scheduling suites (specs/guest-app/guest-app-bath-home-scheduling.md). Not a test file: the `bath` cards `/me`
 // answers, the slots and blocks of one resource, and a quote that echoes the breakdown it is given.
 import { ME_STAY, SHOP, item } from './guestFixtures';
 

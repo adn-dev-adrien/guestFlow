@@ -1,0 +1,12 @@
+# Resources — bookable resources (bain nordique): hourly sessions, pricing, SAS scheduling, outside bookings
+
+Start with: `resources` (resource model, applicability pivot, safe delete). See also: `options/`, `sas/`, `linen/`, `gift-vouchers/`, `plugins/` (phase 3c hourly resources).
+
+- `resources` — Resources MVC: `resource_properties` pivot, per-property price/free minutes, delete impact with 409 `RESOURCE_IN_USE`. Code: `server/src/models/resourcesModel.js`, `server/src/controllers/resourcesController.js`.
+- `resource-hourly-scheduling` — Sessions scheduled from the fiche with start/end times, time-banded pricing (day/evening), 30-min steps, first hour whole. Code: `server/src/plugins/hourly-resources/hourlyPricing.js`, `server/src/plugins/hourly-resources/schedulingModel.js`.
+- `hourly-resource-quantity-and-sas-scheduling` — Hourly resources sold by the hour never vanish from the quote; scheduled in the arrival SAS « Planifier » step; heat-up and free minutes rules. Code: `server/src/plugins/hourly-resources/scheduler.js`, `client/src/plugins/hourly-resources/SasResourceSchedulingPage.jsx`.
+- `hourly-extra-hour-rates` — Banded hourly resources price the first hour and the following hours separately, per audience and band; replaces the percent table. Code: `server/src/plugins/hourly-resources/hourlyPricing.js`, `server/src/plugins/hourly-resources/bookingPricing.js`.
+- `resource-supplements-total-server-side` — Booking-dialog price and SAS evening supplement are computed by the server. Code: `server/src/plugins/hourly-resources/sessionQuote.js`, `client/src/plugins/hourly-resources/useResourceBookingPreview.js`.
+- `resource-booking-pricing-and-invoicing` — Resource bookings outside a stay: priced like a fiche, offered time, Qonto invoice and accounting journal. Code: `server/src/plugins/hourly-resources/bookingPricing.js`, `server/src/plugins/hourly-resources/invoicing.js`, `client/src/plugins/hourly-resources/ResourceBookingDialog.jsx`.
+- `resource-booking-client-picker` — « Client enregistré » picker ordered by stay (current/upcoming, then past) and searchable. Code: `client/src/plugins/hourly-resources/ResourceBookingDialog.jsx`.
+- `resource-ignition-task` — A « démarrer » Planning task the day before for a resource needing heat-up when a morning session exists. Code: `server/src/plugins/hourly-resources/availability.js`, `client/src/plugins/hourly-resources/planningTasks.js`.

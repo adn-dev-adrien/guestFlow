@@ -1,5 +1,5 @@
 /**
- * DevisPage — the origin badge (specs/site-english-version.md rule 19).
+ * DevisPage — the origin badge (specs/site/site-english-version.md rule 19).
  *
  * The badge says « Site internet », not « WordPress »: the operator cares which channel brought the
  * booking, not which software serves the pages.
@@ -41,7 +41,7 @@ vi.mock('../../components/DialogProvider', () => ({
 import api from '../../api';
 import DevisPage from '../DevisPage';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 const DEVIS = {

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 18 (amended 2026-10-28, audit finding M3) — a support
+// specs/hosting/hosting-h2-account-security.md rule 18 (amended 2026-10-28, audit finding M3) — a support
 // session cannot CHANGE the keypad code, the booking-notification recipient or the bank details printed
 // on a devis. The settings page sends its whole group, so a value left as it is does not count.
 

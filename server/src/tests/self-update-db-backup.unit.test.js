@@ -7,7 +7,7 @@ const Database = require('better-sqlite3');
 
 const { createPreUpdateBackup, rotateBackups, listBackups, backupFileName } = require('../utils/dbBackup');
 
-// specs/self-update-and-releases.md §3.D rule 26.
+// specs/hosting/self-update-and-releases.md §3.D rule 26.
 //
 // The rule this pins was paid for in production on 2026-08-19: the pre-deploy backup was a plain
 // `cp` of the main database file, the database runs in WAL mode, and the last transactions were

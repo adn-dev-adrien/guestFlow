@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rule 16 (audit R22-6a, 2026-11-05) — a collected arrival complement
+// specs/accounting/accounting-books-the-money-collected.md rule 16 (audit R22-6a, 2026-11-05) — a collected arrival complement
 // keeps the entry it was booked on: `reservations.complementPaidSplit`, stamped at the flip on every path. What the stay
 // gains afterwards goes to the end-of-stay entry (D9), and a cancelled stay gives back exactly what the entries hold.
 process.env.DB_PATH = ':memory:';

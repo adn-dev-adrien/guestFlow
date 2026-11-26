@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 10, 18, 25 (class E5) — the arrival SAS sells through the Articles head: the catalogue upsells and the
+// specs/pricing/pricing-components.md §3 rules 10, 18, 25 (class E5) — the arrival SAS sells through the Articles head: the catalogue upsells and the
 // sold breakfast / catering are priced by the head's read, to the cent the pre-refonte arithmetic gave; what the SAS wrote is a sale
 // of source `sas`, collected at arrival, that `saleDetail` shows with that source.
 process.env.DB_PATH = ':memory:';

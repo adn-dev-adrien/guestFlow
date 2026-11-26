@@ -1,4 +1,4 @@
-// specs/platform-host-statement-and-commission-vat.md rules 2, 10-12 — the editor renders what the server reads of the typed statement: its
+// specs/platforms/platform-host-statement-and-commission-vat.md rules 2, 10-12 — the editor renders what the server reads of the typed statement: its
 // lines, the option lines it adjusted, a refusal on its field (which blocks « Valider »), a commission-rate warning on the commission field.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13 and 85 — the lines of one article read as ONE entry in a guest e-mail: one title in the option and
+// specs/pricing/pricing-components.md §3 rules 13 and 85 — the lines of one article read as ONE entry in a guest e-mail: one title in the option and
 // resource lists, one itemised complement line (« 3 × 6,50 € », or « 1 × 6,50 € + 2 × 7 € » when the lines were sold at different prices).
 const test = require('node:test');
 const assert = require('node:assert/strict');

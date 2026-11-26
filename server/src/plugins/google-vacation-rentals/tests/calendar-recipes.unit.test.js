@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rules 4-9, §7 « Calendar » — the state the feed computes for
+// specs/site/google-vacation-rentals-feed.md rules 4-9, §7 « Calendar » — the state the feed computes for
 // the gîte and the tente priced by the SHIPPED recipes, on the real engine and the real schema: every
 // amount is the website's quote tax included, every refusal the engine's, every blocked or closed
 // night the website's own.

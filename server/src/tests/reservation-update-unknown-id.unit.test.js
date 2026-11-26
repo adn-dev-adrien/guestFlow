@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — PUT /reservations/:id on a stay that does not
+// specs/tech/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — PUT /reservations/:id on a stay that does not
 // exist reached the line inserts and failed on their foreign key: a 500 « Enregistrement impossible. ». It is now
 // refused first, 404 « Réservation non trouvée », with or without a valid body, nothing written.
 process.env.DB_PATH = ':memory:';

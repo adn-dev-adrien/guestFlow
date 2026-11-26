@@ -1,5 +1,5 @@
 /**
- * DEPARTURE CHARGE LINES — the departure SAS's charges as custom lines (specs/pricing-components.md §3 rule 90.2).
+ * DEPARTURE CHARGE LINES — the departure SAS's charges as custom lines (specs/pricing/pricing-components.md §3 rule 90.2).
  *
  * The charges a departure SAS bills (ménage, missing linen, extinguisher, and every other SAS-owned entry of the end-of-stay detail)
  * are rows of `reservation_custom_options` keyed `sasLineKey = 'departure:…'`, source `sas`, moment `departure`. They are NOT a sale

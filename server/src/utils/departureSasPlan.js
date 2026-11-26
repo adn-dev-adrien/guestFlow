@@ -1,5 +1,5 @@
 /**
- * The arithmetic of the departure SAS plan (specs/sas-departure-recap-server-side.md §3.1).
+ * The arithmetic of the departure SAS plan (specs/sas/sas-departure-recap-server-side.md §3.1).
  *
  * Pure functions on plain values, shared by the preview and the commit through
  * `reservationsModel.planDepartureSas`: how a stored end-of-stay line is told apart and keyed, how an
@@ -55,7 +55,7 @@ function classifyStoredLines(detail, pricedLabels, cleaningLabel) {
 }
 
 /**
- * A line as the detail stores it (specs/sas-offer-complement-lines.md §3.3 rule 9): an offered line is
+ * A line as the detail stores it (specs/sas/sas-offer-complement-lines.md §3.3 rule 9): an offered line is
  * worth 0 € but keeps its real total in `originalAmount`. The real total arrives in `amount`; the
  * fallback keeps the write idempotent for an already-stored offered row.
  */

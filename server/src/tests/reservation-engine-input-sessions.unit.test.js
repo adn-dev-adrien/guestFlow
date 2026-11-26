@@ -1,4 +1,4 @@
-// A replay keeps the hours placed (specs/plugins-phase-3c-hourly-resources.md rule 5).
+// A replay keeps the hours placed (specs/plugins/plugins-phase-3c-hourly-resources.md rule 5).
 //
 // `buildReservationEngineInput` re-prices a stored stay for finance, the contribution capture and the
 // Neat runner. It left the sessions out, so a replayed bath lost `scheduledHours` and read

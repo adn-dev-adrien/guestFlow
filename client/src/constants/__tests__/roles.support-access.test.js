@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 15 and 17 — Paramètres › Accès du support exists for an
+// specs/hosting/hosting-h2-account-security.md rules 15 and 17 — Paramètres › Accès du support exists for an
 // administrator of a managed instance only: the server says so in `/auth/me` (`supportAccessEnabled`).
 import { describe, expect, test } from 'vitest';
 import { canSeeRoute } from '../roles';

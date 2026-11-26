@@ -96,7 +96,7 @@ test('direct booking is UNCHANGED → tax stays in balance, complement = 0', () 
   assert.equal(q.touristTaxCollectedOnArrival, false);
   assert.equal(q.touristTaxTotal, 4.80);
   assert.equal(q.totalStayPrice, 204.80);
-  // specs/tourist-tax-on-solde.md — the acompte is 30% of the ACCOMMODATION only (200 → 60); the whole
+  // specs/tourist-tax/tourist-tax-on-solde.md — the acompte is 30% of the ACCOMMODATION only (200 → 60); the whole
   // tourist tax (4.80) rides on the solde: 140 accommodation remainder + 4.80 = 144.80.
   assert.equal(q.depositAmount, 60.00);
   assert.equal(q.balanceAmount, 144.80);
@@ -106,7 +106,7 @@ test('direct booking is UNCHANGED → tax stays in balance, complement = 0', () 
 });
 
 test('direct + manual deposit override → clamped to ACCOMMODATION, tax still 100% on solde', () => {
-  // specs/tourist-tax-on-solde.md — the operator overrides the acompte to 250€, but the accommodation
+  // specs/tourist-tax/tourist-tax-on-solde.md — the operator overrides the acompte to 250€, but the accommodation
   // pre-arrival is only 200€. The override is clamped to 200 (the tax never leaks into the acompte);
   // the balance then carries the full tax (4.80) on top of whatever accommodation is left (here 0).
   const db = createDb();
@@ -176,7 +176,7 @@ test('non-direct owner-collect with complementPaid → complement frozen to stor
 });
 
 test('owner-collect platform — net perçu EXCLUDES the on-arrival tourist tax (écart bug fix)', () => {
-  // specs/platform-payment-entry.md — for a platform that does NOT collect the tax (we charge it at
+  // specs/platforms/platform-payment-entry.md — for a platform that does NOT collect the tax (we charge it at
   // check-in → it lives in the complement), the platform settles only the PRE-ARRIVAL amount. The
   // « net perçu » must be `preArrival − commission`, NOT `totalStayPrice − commission`. Otherwise the
   // « Paiement plateforme » reconciliation always shows an écart equal to the tourist tax.

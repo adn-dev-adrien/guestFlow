@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { buildYearPlan } = require('../seasonPlan');
 const { validateRecipe } = require('../store');
 
-// specs/tariff-recipes/spec.md §3.3 rule 19bis — a minimum stay declared on a PERIOD survives the
+// specs/pricing/tariff-recipes.md §3.3 rule 19bis — a minimum stay declared on a PERIOD survives the
 // holiday modifier, even when it is lower than its season's. Found on the Gîte's 25 December: a
 // Très haute night (season minimum 4) declared with 2, which the modifier silently put back to 4.
 

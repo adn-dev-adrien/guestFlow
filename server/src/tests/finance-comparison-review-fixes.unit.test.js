@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-revpar-year-over-year.md §3 rules 21, 22 and 23 (review R3-5, R3-6, R3-7, R6-7 of
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 21, 22 and 23 (review R3-5, R3-6, R3-7, R6-7 of
 // 2026-11-06) — the notice names every reason months were left out, a tracking start on 29 February is
 // known a year later on 1 March (the pace's date too), and a first of the month reads « 1er ». Pure: today
 // is passed in.

@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md §3.B, §3.D, §3.G — linen & laundry as a plugin module: its planning
+// specs/plugins/plugins-phase-2-hosts.md §3.B, §3.D, §3.G — linen & laundry as a plugin module: its planning
 // endpoints and the shortage alert behind the plugin, the bed-linen alert computed only while it is
 // live, its erasure, and its settings copied from app_settings once.
 const { listenLocal } = require('../../../tests/listenLocal');
@@ -79,7 +79,7 @@ function fakeRes() {
 
 test.afterEach(() => registry.reset());
 
-test('specs/plugins-phase-2-hosts.md rule 4: the laundry planning endpoint answers 404 while linen is off; breakfast and the days stay core', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 4: the laundry planning endpoint answers 404 while linen is off; breakfast and the days stay core', async () => {
   const db = freshDb();
   const { app, plugins } = boot(db, { installed: [] });
   for (const url of ['/api/planning/laundry/days?from=2026-10-01&to=2026-10-14']) {
@@ -96,7 +96,7 @@ test('specs/plugins-phase-2-hosts.md rule 4: the laundry planning endpoint answe
   const laundry = await request(app, 'GET', '/api/planning/laundry/days?from=2026-10-01&to=2026-10-14');
   assert.equal(laundry.status, 200);
   assert.deepEqual(laundry.body, { days: {} });
-  // The two former endpoints are gone (specs/linen-laundry-days.md rule 13).
+  // The two former endpoints are gone (specs/linen/linen-laundry-days.md rule 13).
   assert.equal((await request(app, 'GET', '/api/planning/laundry?from=2026-10-01&to=2026-10-14')).status, 404);
   assert.equal((await request(app, 'GET', '/api/planning/linen-inventory')).status, 404);
   assert.equal((await request(app, 'GET', '/api/laundry/skips')).status, 200);
@@ -105,7 +105,7 @@ test('specs/plugins-phase-2-hosts.md rule 4: the laundry planning endpoint answe
   assert.doesNotMatch(src, /router\.\w+\('\/(laundry|linen)/);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 15: /api/laundry and the shortage alert (gap 1) answer 404 while linen is off', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 15: /api/laundry and the shortage alert (gap 1) answer 404 while linen is off', async () => {
   const db = freshDb();
   const { app, plugins } = boot(db, { installed: ['linen'] });
   plugins.setEnabled('linen', false);
@@ -120,7 +120,7 @@ test('specs/plugins-phase-2-hosts.md rule 15: /api/laundry and the shortage aler
   assert.doesNotMatch(fs.readFileSync(path.join(SRC, 'index.js'), 'utf8'), /\/api\/laundry/);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 15: the stock is read and written through /api/plugins/linen/settings, validated; the frozen laundry day is refused', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 15: the stock is read and written through /api/plugins/linen/settings, validated; the frozen laundry day is refused', () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel });
@@ -137,7 +137,7 @@ test('specs/plugins-phase-2-hosts.md rule 15: the stock is read and written thro
 
   res = fakeRes();
   controller.saveSettings({ params: { id: 'linen' }, body: { bedLinenStockDouble: 12, laundryWeekday: 4 } }, res);
-  // specs/linen-laundry-days.md rule 26 — the laundry day is frozen: refused, pointing to the schedule endpoint.
+  // specs/linen/linen-laundry-days.md rule 26 — the laundry day is frozen: refused, pointing to the schedule endpoint.
   assert.equal(res.statusCode, 400);
   assert.match(res.body.errors.laundryWeekday, /PUT \/api\/laundry\/schedule/);
 
@@ -147,7 +147,7 @@ test('specs/plugins-phase-2-hosts.md rule 15: the stock is read and written thro
   assert.equal(res.body.bedLinenStockDouble, '12');
 });
 
-test('specs/plugins-phase-2-hosts.md rule 17: the bed-linen alert is computed only while linen is live', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 17: the bed-linen alert is computed only while linen is live', () => {
   const db = freshDb();
   const plugins = buildPluginsModel(db);
   registry.reset();
@@ -166,12 +166,12 @@ test('specs/plugins-phase-2-hosts.md rule 17: the bed-linen alert is computed on
   assert.equal('bedLinenAlert' in reservations.getByIdWithDetails(1), false);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 18: describe() lists what an erasure takes and leaves out the zero counts', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 18: describe() lists what an erasure takes and leaves out the zero counts', () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel });
   // A new database: the copy wrote the column defaults, so only the settings line and the schedule's
-  // first version show (specs/linen-laundry-days.md rule 24).
+  // first version show (specs/linen/linen-laundry-days.md rule 24).
   let res = fakeRes();
   controller.list({}, res);
   let linen = res.body.find((p) => p.id === 'linen');
@@ -196,7 +196,7 @@ test('specs/plugins-phase-2-hosts.md rule 18: describe() lists what an erasure t
   assert.deepEqual(linen.data.map((l) => l.label), ['3 tournées sautées', '1 tournée supplémentaire', 'le rythme de blanchisserie']);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 18: the purge empties the laundry tables (schedule included) and the eight settings, and keeps the options and the beds', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 18: the purge empties the laundry tables (schedule included) and the eight settings, and keeps the options and the beds', async () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
   db.prepare("INSERT INTO options (id, title, countsAsBedLinen) VALUES (7, 'Linge de lit', 1)").run();
@@ -226,7 +226,7 @@ test('specs/plugins-phase-2-hosts.md rule 18: the purge empties the laundry tabl
   assert.equal(view.body.laundryWeekday, '2');
 });
 
-test('specs/plugins-phase-2-hosts.md rule 28: the eight settings are copied from app_settings once, byte for byte, empty values skipped', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 28: the eight settings are copied from app_settings once, byte for byte, empty values skipped', () => {
   const db = freshDb();
   db.prepare(`UPDATE app_settings SET laundryWeekday = 4, bedLinenStockSingle = 6, bedLinenStockDouble = 14,
     bedLinenStockBaby = 0, towelStockLarge = 20, towelStockMedium = 10, towelStockSmall = 12, towelStockBathMat = 3 WHERE id = 1`).run();
@@ -259,7 +259,7 @@ test('specs/plugins-phase-2-hosts.md rule 28: the eight settings are copied from
   assert.equal(legacy.prepare("SELECT COUNT(*) AS n FROM plugin_settings WHERE plugin_id = 'linen'").get().n, 0);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 29: a new database has no laundry table before linen is installed', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 29: a new database has no laundry table before linen is installed', () => {
   const db = freshDb();
   LAUNDRY_TABLES.forEach((t) => assert.equal(tableExists(db, t), false, t));
   const baseline = fs.readFileSync(path.join(SRC, 'database.js'), 'utf8');
@@ -273,7 +273,7 @@ test('specs/plugins-phase-2-hosts.md rule 29: a new database has no laundry tabl
   assert.equal(applyPluginSchema(db, 'linen'), 0);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 16: what is sold and booked stays core, and the erasure leaves it', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 16: what is sold and booked stays core, and the erasure leaves it', async () => {
   for (const table of ['options', 'property_option_bath_mats', 'linen_priced_items', 'reservations']) {
     assert.match(SCHEMA, new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`), table);
   }

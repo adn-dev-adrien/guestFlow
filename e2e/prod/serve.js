@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The production-build E2E harness (specs/plugins-phase-4-registry.md rule 19).
+// The production-build E2E harness (specs/plugins/plugins-phase-4-registry.md rule 19).
 //
 //   - the GuestFlow server serves the built client (client/dist) and loads every plugin from the
 //     packages of plugins-dist/, as a release does (GUESTFLOW_PLUGINS=packages);
@@ -76,9 +76,9 @@ function startServer() {
       GUESTFLOW_PLUGINS_DIST: DIST,
       GUESTFLOW_CLIENT_DIR: path.join(ROOT, 'client', 'dist'),
       GUESTFLOW_SUPERVISED: '1',
-      // specs/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
+      // specs/settings/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
       GUESTFLOW_SMTP_DETECT: 'off',
-      // specs/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync.
+      // specs/tech/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync.
       GUESTFLOW_DISABLE_OUTBOUND: '1',
       QONTO_API_BASE: 'http://127.0.0.1:9',
       QONTO_OAUTH_BASE: 'http://127.0.0.1:9',

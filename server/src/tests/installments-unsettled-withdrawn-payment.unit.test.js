@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 63 (audit R10-M1, 2026-10-31; Adrien's decision of 2026-10-31 on the review of
+// specs/payments/payment-link-lifecycle.md rule 63 (audit R10-M1, 2026-10-31; Adrien's decision of 2026-10-31 on the review of
 // #911) — once a stay has an installment plan, the only payment that can arrive is an échéance, booked on that échéance.
 // No plan is made or resized while an acompte / solde / séjour link is not known dead at the provider or carries a
 // payment to settle; an existing plan never hides the ledger row that settles one, which then offers the refund only.

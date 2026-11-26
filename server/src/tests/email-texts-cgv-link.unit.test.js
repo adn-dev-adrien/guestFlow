@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 36 — the CGV sentence is never printed ending on
+// specs/emails/guest-email-texts-made-simple.md rule 36 — the CGV sentence is never printed ending on
 // « ici : » and nothing. A template that prints {{cgvUrl}} outside its condition is wrapped once by the
 // upgrade (unchanged while the link exists), and « À compléter » lists it while there is no link.
 

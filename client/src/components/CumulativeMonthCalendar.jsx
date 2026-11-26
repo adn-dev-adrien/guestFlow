@@ -1,6 +1,6 @@
 /**
  * CumulativeMonthCalendar — one calendar cumulating EVERY logement
- * (specs/cumulative-month-calendar.md, amended by specs/calendar-property-parity.md). Each stay is a solid
+ * (specs/planning/cumulative-month-calendar.md, amended by specs/planning/calendar-property-parity.md). Each stay is a solid
  * bar in its platform colour spanning its days, split per week row; a stay that is over fades to a soft
  * tint with a stripe of that colour. Bars are **grouped by logement**: within a week the lanes are
  * organised per property, and a closure of one logement is a hatched bar in its logement's lane group
@@ -142,7 +142,7 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
                   data-date={day.date}
                   onClick={() => onCreateReservation && onCreateReservation(day.date)}
                   sx={{
-                    // Today is framed with a thicker primary border (specs/cumulative-month-calendar.md §6).
+                    // Today is framed with a thicker primary border (specs/planning/cumulative-month-calendar.md §6).
                     border: day.isToday ? '2px solid' : '1px solid',
                     borderColor: day.isToday ? 'primary.main' : 'divider',
                     borderRadius: 1,

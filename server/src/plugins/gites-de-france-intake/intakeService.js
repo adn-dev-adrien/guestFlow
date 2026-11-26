@@ -1,5 +1,5 @@
 /**
- * The intake pass and the operator's actions on an intake (specs/gites-de-france-mail-intake.md §3).
+ * The intake pass and the operator's actions on an intake (specs/platforms/gites-de-france-mail-intake.md §3).
  *
  *   read the mailbox → parse each new mail → match it to the iCal fiche → fill the fiche (untouched
  *   placeholder) or propose (fiche already edited) → wait for the rent when two rents fit the net.
@@ -63,7 +63,7 @@ function createIntakeService(deps) {
     return rentCandidates(booking.netRent, commissionPercent(reservation.platform));
   }
 
-  // Rules 1 and 19 of specs/platform-host-statement-and-commission-vat.md — « Location » is the rent, « Options » the supplements, the box the tax the
+  // Rules 1 and 19 of specs/platforms/platform-host-statement-and-commission-vat.md — « Location » is the rent, « Options » the supplements, the box the tax the
   // centrale collected and remits itself: the host amount is their sum, never the guest-paid total.
   function paymentPatch(booking, rent) {
     return {

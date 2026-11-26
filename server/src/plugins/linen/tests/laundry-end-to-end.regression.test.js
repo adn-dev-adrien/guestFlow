@@ -1,6 +1,6 @@
 /**
  * End-to-end regression tests for the weekly bed-linen tracking feature
- * (specs/weekly-bed-linen-tracking.md — §3.3, §3.5, §3.5.bis, §3.5.ter).
+ * (specs/linen/weekly-bed-linen-tracking.md — §3.3, §3.5, §3.5.bis, §3.5.ter).
  *
  * Each test wires:
  *   in-memory DB → laundryModel.buildModel(db) → planningController.buildController({ laundryModel, settingsModel })
@@ -26,7 +26,7 @@ const laundryModel = require('../laundryModel');
 const { buildController } = require('../planningController');
 const { constantSchedule, fakeScheduleModel } = require('./laundry-schedule-fixtures');
 
-// The pick-up also names the drop dates it comes from (specs/linen-laundry-days.md rule 11); these
+// The pick-up also names the drop dates it comes from (specs/linen/linen-laundry-days.md rule 11); these
 // pre-feature assertions are about the quantities.
 const counts = ({ fromTrips, ...quantities }) => quantities;
 
@@ -80,7 +80,7 @@ function makeStack({ laundryWeekday = 2, skippedDates = [], extraTrips = [] } = 
     listAll: () => ({}),
     sumForWindow: () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
   };
-  // Same isolation for extra trips (specs/laundry-extra-trip.md) — the fixture decides which exist.
+  // Same isolation for extra trips (specs/linen/laundry-extra-trip.md) — the fixture decides which exist.
   const laundryExtraTripsModel = { listAll: () => [...extraTrips] };
   const controller = buildController({
     laundryModel: model, laundryScheduleModel, laundryTripSkipsModel, laundryManualAdditionsModel, laundryExtraTripsModel,
@@ -90,7 +90,7 @@ function makeStack({ laundryWeekday = 2, skippedDates = [], extraTrips = [] } = 
 }
 
 // The cards of the Planning for a window, listed as `laundryDays` (date + card) the way the former summary
-// endpoint listed them — only the dates the server decides to draw (specs/linen-laundry-days.md rule 13).
+// endpoint listed them — only the dates the server decides to draw (specs/linen/linen-laundry-days.md rule 13).
 function callDays(controller, from, to, res) {
   controller.laundryDays({ query: { from, to } }, res);
   res.body = { laundryDays: Object.entries(res.body.days).map(([date, card]) => ({ date, ...card })) };
@@ -290,7 +290,7 @@ test('END-TO-END: kind=devis reservations are excluded from both bed and bathroo
 
   const res = makeRes();
   callDays(controller, '2026-06-09', '2026-06-09', res);
-  // Nothing counts, so there is nothing to draw on that Tuesday (specs/linen-laundry-days.md rule 13).
+  // Nothing counts, so there is nothing to draw on that Tuesday (specs/linen/linen-laundry-days.md rule 13).
   assert.deepEqual(res.body.laundryDays, []);
 });
 
@@ -314,7 +314,7 @@ test('END-TO-END: checkout on the START of the window goes to the PREVIOUS batch
   assert.equal(res.body.laundryDays[0].dropOff.singleBeds, 0);
 });
 
-// --- specs/laundry-counts-explicit-option-only.md §3.1 — the ticked option is the only signal ---
+// --- specs/linen/laundry-counts-explicit-option-only.md §3.1 — the ticked option is the only signal ---
 
 test('END-TO-END: property default of a VISIBLE option does NOT lift an unticked reservation', () => {
   // Reverses the 2026-06-03 §3.7 behaviour (Adrien's call, 2026-08-11): bed linen only became
@@ -338,7 +338,7 @@ test('END-TO-END: property default of a VISIBLE option does NOT lift an unticked
 
   const res = makeRes();
   callDays(controller, '2026-06-09', '2026-06-09', res);
-  // Nothing counts, so there is nothing to draw on that Tuesday (specs/linen-laundry-days.md rule 13).
+  // Nothing counts, so there is nothing to draw on that Tuesday (specs/linen/linen-laundry-days.md rule 13).
   assert.deepEqual(res.body.laundryDays, []);
 });
 
@@ -377,7 +377,7 @@ test('END-TO-END: explicit reservation_options row STILL wins over the property 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
-// specs/skip-laundry-trip.md §3.1 rule 6 — full-stack regression for the user-reported bug
+// specs/linen/skip-laundry-trip.md §3.1 rule 6 — full-stack regression for the user-reported bug
 // "la carte blanchisserie suivante ne change pas" (2026-06-05). Two reservations, one ends
 // in the pre-skip week, the other in the skip week. After marking the in-between trip as
 // skipped, the next non-skipped card must absorb BOTH reservations into À apporter.
@@ -438,7 +438,7 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
   });
 });
 
-// --- specs/laundry-extra-trip.md — an extra trip on a free date ---
+// --- specs/linen/laundry-extra-trip.md — an extra trip on a free date ---
 
 test('END-TO-END: an extra trip on Thursday between two Tuesdays — summary ledger and inventory engine agree', () => {
   const { simulateInventory } = require('../linenInventory');

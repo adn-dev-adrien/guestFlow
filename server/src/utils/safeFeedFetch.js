@@ -1,5 +1,5 @@
 /**
- * Bounded, public-only fetch of an operator-configured iCal feed (specs/ical-import-hardening.md rule 17).
+ * Bounded, public-only fetch of an operator-configured iCal feed (specs/platforms/ical-import-hardening.md rule 17).
  *
  * The URL is operator input, but the server reads it from inside the LAN, next to the database host and
  * the other containers: a feed URL must not be able to reach a loopback, private or link-local address,

@@ -1,6 +1,6 @@
 /**
  * Tells the open fiche which stays a write moved, for the writes that reach a stay from outside
- * `/api/reservations/:id` — a bank reconciliation, a payment poll (specs/reservation-fiche-concurrency.md
+ * `/api/reservations/:id` — a bank reconciliation, a payment poll (specs/reservations/reservation-fiche-concurrency.md
  * rule 8).
  *
  * The answer carries `X-Stay-Versions`: a JSON list of `{ id, before, after }`, one per stay THIS request

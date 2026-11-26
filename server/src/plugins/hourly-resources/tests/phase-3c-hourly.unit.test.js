@@ -1,4 +1,4 @@
-// The `hourly-resources` module (specs/plugins-phase-3c-hourly-resources.md rules 9–17, 25).
+// The `hourly-resources` module (specs/plugins/plugins-phase-3c-hourly-resources.md rules 9–17, 25).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,5 +1,5 @@
 /**
- * The intake pass and the operator's actions on an intake (specs/airbnb-mail-intake.md §3).
+ * The intake pass and the operator's actions on an intake (specs/platforms/airbnb-mail-intake.md §3).
  *
  *   read the mailbox → parse each new « Réservation confirmée » mail → match it to the iCal fiche of the
  *   listing's property → fill the fiche (untouched placeholder) or propose (fiche already edited).

@@ -1,5 +1,5 @@
 /**
- * PluginLoadBanner — says that the plugins could not be loaded (specs/plugins-phase-4-registry.md
+ * PluginLoadBanner — says that the plugins could not be loaded (specs/plugins/plugins-phase-4-registry.md
  * rule 18, review minor 8): when the list of plugin bundles could not be read, the app renders without
  * them; this banner keeps that from looking like a complete app, and offers a reload.
  * Plugin-specific; reads the runtime’s LOAD_STATE, set once before the app renders.

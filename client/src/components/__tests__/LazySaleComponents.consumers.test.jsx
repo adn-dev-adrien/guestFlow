@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t20 UI20-1) — every dialog that renders a sale block of the SDK starts the
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t20 UI20-1) — every dialog that renders a sale block of the SDK starts the
 // blocks' code when it opens (`useSaleComponentsReady(open)`) and shows its content only once that code is there, so no block lands under
 // content already drawn. The consumers are enumerated from the code: a new one fails here until it is added to the table.
 import fs from 'fs';

@@ -1,8 +1,8 @@
 /**
  * YearOverYearBadge — « ▲ +12 % vs N-1 · sur 6 mois comparables » from server figures
- * (specs/finance-dashboard-redesign.md rule 20). Renders nothing without a comparison. Generic.
+ * (specs/accounting/finance-dashboard-redesign.md rule 20). Renders nothing without a comparison. Generic.
  *
- * Report mode (specs/report-grammar.md rules 3–4) — switched on by `previous` or `showEmpty`:
+ * Report mode (specs/design-system/report-grammar.md rules 3–4) — switched on by `previous` or `showEmpty`:
  * « ↑ +21,3 % (N-1 : 15 210 €) », « ↓ −2,4 pt (N-1 : 55,1 %) » for a rate, and « — vs N-1 » when
  * there is no comparable last year (never « +∞ % »).
  *

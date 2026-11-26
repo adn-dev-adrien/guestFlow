@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 61 (audit R37-C-L2) — the quote's line labels and every refusal naming an article (its
+// specs/guest-app/guest-app.md rule 61 (audit R37-C-L2) — the quote's line labels and every refusal naming an article (its
 // quantity cap, the persons left of rule 55, a line the engine adds nothing for) read the article's title in the
 // request's language, as the shop shows it; the order stores the French catalogue title (stay-link notes). Stays
 // dated around today: the core reads its window on today.
@@ -81,7 +81,7 @@ test('rule 61: the persons left of rule 55 name the article in English', async (
   });
 });
 
-test('specs/pricing-components.md rule 85 (was guest-app rule 61): an article the fiche offers is quoted as a new billed line, in English too', async () => {
+test('specs/pricing/pricing-components.md rule 85 (was guest-app rule 61): an article the fiche offers is quoted as a new billed line, in English too', async () => {
   const stay = seedStay({ propertyId: 1 });
   const body = toUpdateBody(model.getByIdWithDetails(stay), new Set());
   const saved = ctl.performUpdate(stay, { ...body, options: [...(body.options || []), { optionId: WOOD, quantity: 1 }], offeredOptionIds: [WOOD] });

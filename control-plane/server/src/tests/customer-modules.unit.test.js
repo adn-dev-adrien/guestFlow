@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 10–14 — the « Modules » of a customer: what is allowed,
+// specs/plugins/plugin-operator-provisioning.md rules 10–14 — the « Modules » of a customer: what is allowed,
 // what the operator may switch, what each line says about the space.
 const test = require('node:test');
 const assert = require('node:assert/strict');

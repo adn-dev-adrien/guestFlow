@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — a lodging in the app, the direct stay's link and a session opened from it.
+// specs/plugins/plugin-removal-resilience.md rule 11 — a lodging in the app, the direct stay's link and a session opened from it.
 module.exports = {
   seed(db, { stays }) {
     const { propertyId, id } = stays.direct;

@@ -1,4 +1,4 @@
-// specs/direct-installments.md §3 — the rules of the installment plan: the euro split, the default dates,
+// specs/payments/direct-installments.md §3 — the rules of the installment plan: the euro split, the default dates,
 // the recompute before and after the first payment, the pinned amounts, the statuses, eligibility and the
 // date validation. The pure rules first, then the controller on an in-memory database.
 const test = require('node:test');

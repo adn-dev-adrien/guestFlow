@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md §3.3-§3.6 — the daily pass, the payment confirmation and the
+// specs/emails/guest-email-sequence.md §3.3-§3.6 — the daily pass, the payment confirmation and the
 // simulation, end to end on a real schema: one send per key whatever the path, nothing before the
 // start date, nothing written by a simulation.
 
@@ -35,7 +35,7 @@ function setup({ settings = settingsStub(), mail = mailer(), auto = true } = {})
 const J7_DUE = '2027-07-03';
 
 // rules 15 + 18 — the sequence sends only the mails whose template is « auto »
-// (specs/settings-rationalization.md rule 17b).
+// (specs/settings/settings-rationalization.md rule 17b).
 test('every sequence template « manual »: the pass sends nothing at all', async () => {
   const { db, deps, mail } = setup({ auto: false });
   seedReservation(db);

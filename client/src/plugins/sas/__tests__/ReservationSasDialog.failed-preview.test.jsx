@@ -1,5 +1,5 @@
-// specs/pricing-components.md rule 117 (reading 2026-11-18, loop t22 UI22-3), specs/sas-arrival-total-server-side.md rule 21,
-// specs/sas-departure-recap-server-side.md rule 20 — every SAS page that shows the preview's money says when that preview FAILED: the
+// specs/pricing/pricing-components.md rule 117 (reading 2026-11-18, loop t22 UI22-3), specs/sas/sas-arrival-total-server-side.md rule 21,
+// specs/sas/sas-departure-recap-server-side.md rule 20 — every SAS page that shows the preview's money says when that preview FAILED: the
 // reason and « Réessayer » (or the way back to the refusing step), never « — » for ever; the buttons that act on the amount wait for a
 // fresh answer; « Réessayer » brings the figures back and leaves the focus in the page, never on the document body.
 // The pages are enumerated from the code (`previewShown` of each end): a page added there fails here until it has its row.

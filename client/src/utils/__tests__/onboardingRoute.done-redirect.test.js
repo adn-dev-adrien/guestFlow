@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 46 (audit 2026-10-27) — once onboarding is done,
+// specs/plugins/plugins-phase-p-productisation.md rule 46 (audit 2026-10-27) — once onboarding is done,
 // `/demarrage` reached by accident goes home; reopening it from Réglages › Système still works.
 import { onboardingRoute } from '../onboardingRoute';
 

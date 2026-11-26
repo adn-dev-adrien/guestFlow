@@ -1,6 +1,6 @@
 /**
  * One-shot migration: move the `dates_unavailable_notice` template off the `start` anchor
- * (specs/self-update-and-releases.md rule 43, reading of 2026-11-01 — audit R11 console N1).
+ * (specs/hosting/self-update-and-releases.md rule 43, reading of 2026-11-01 — audit R11 console N1).
  *
  * v3.19.0's manual queue lists every enabled manual template anchored on `start` that it does not know, so after a
  * rollback the row seeded by the first boot of a later release would be offered for every stay on its arrival day.

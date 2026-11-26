@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 33 — the reader keeps small records, never the sender-written envelopes.
+// specs/platforms/airbnb-mail-intake.md rule 33 — the reader keeps small records, never the sender-written envelopes.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');

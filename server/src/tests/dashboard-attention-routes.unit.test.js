@@ -1,5 +1,5 @@
 /**
- * specs/shell-and-home-day-first.md rules 6, 8 — GET /api/dashboard/attention is an admin read, and
+ * specs/planning/shell-and-home-day-first.md rules 6, 8 — GET /api/dashboard/attention is an admin read, and
  * every core subject wired in routes/dashboard.js has a server summary and a client component.
  */
 const test = require('node:test');

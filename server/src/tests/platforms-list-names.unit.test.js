@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const platformsModel = require('../models/platformsModel');
 
-// specs/ical-platforms-in-dropdowns.md — `listNames()` is the single source the UI dropdowns read.
+// specs/platforms/ical-platforms-in-dropdowns.md — `listNames()` is the single source the UI dropdowns read.
 // It must:
 //   - include the built-in well-known platforms even on an empty DB (no regression: the dropdowns
 //     always offered Airbnb/Booking/… )

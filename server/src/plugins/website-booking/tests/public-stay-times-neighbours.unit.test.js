@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-api.md rule 24 (audit R24 public finding 1) — the visitor's own arrival and departure times are judged
+// specs/site/public-api.md rule 24 (audit R24 public finding 1) — the visitor's own arrival and departure times are judged
 // against the neighbouring stays as the back office judges them (`validateAvailability`: the cleaning gap, the night
 // before an early arrival, the night after a late departure). `/quote` and `/booking-requests` refuse with
 // 409 STAY_TIMES_UNAVAILABLE and one visitor sentence; nothing is stored. An early time with no neighbour is sold.
@@ -134,7 +134,7 @@ test('rule 24 — a departure at 18:00 the day before a neighbour arrives at 09:
   assert.equal((await quote(earlier)).body.data.available, true);
 });
 
-// Audit R24 verification L1 (specs/roostview-api-key.md rule 7) — the price watch sends no time and
+// Audit R24 verification L1 (specs/plugins/roostview-api-key.md rule 7) — the price watch sends no time and
 // reads prices only: its quote is not judged on the times, the site's still is.
 test('roostview-api-key rule 7, public-api rule 24 — Roostview’s quote is not judged on the times; the site’s same window is', async () => {
   const body = stay(inDays(296), ARRIVES_ELEVEN);

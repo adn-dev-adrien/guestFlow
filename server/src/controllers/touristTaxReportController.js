@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §4.3 — thin handlers of the tourist-tax report: parse the query → model → respond.
+// specs/tourist-tax/tourist-tax-report-v2.md §4.3 — thin handlers of the tourist-tax report: parse the query → model → respond.
 // Rule 28 (D-HC13) — a key sent twice, or as an object (`month[a]=`), is that key's 400: never read as absent, which
 // would widen a filter to « every logement » or « every status » without a word.
 
@@ -53,7 +53,7 @@ function getReportCsv(req, res) {
   return res.send(touristTaxReportCsv(result.data, view));
 }
 
-// specs/tourist-tax-report-v2.md rule 57 — « Marquer {logement} déclaré »: the logement of the path, the window of the query.
+// specs/tourist-tax/tourist-tax-report-v2.md rule 57 — « Marquer {logement} déclaré »: the logement of the path, the window of the query.
 function declareProperty(req, res) {
   const refused = shapeRefusal(req.query);
   if (refused) return res.status(400).json({ error: refused });

@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 11 (audit R4-1) — the devis editor sends the version it
+// specs/reservations/reservation-fiche-concurrency.md rule 11 (audit R4-1) — the devis editor sends the version it
 // loaded; on STALE_FICHE it opens the same three-way dialog as the reservation fiche, and « Enregistrer
 // quand même » is the one save that goes without the version.
 import React from 'react';

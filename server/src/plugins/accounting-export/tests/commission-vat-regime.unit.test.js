@@ -1,4 +1,4 @@
-// specs/platform-host-statement-and-commission-vat.md rules 13-18 — each platform carries the VAT regime of its commission: the entry the
+// specs/platforms/platform-host-statement-and-commission-vat.md rules 13-18 — each platform carries the VAT regime of its commission: the entry the
 // cabinet writes by hand (account of the regime, deductible or self-assessed VAT, VAT code on each line) comes out of the export with no
 // correction. The stays are the October ones of the review, entered as the cabinet's statements give them (figures measured in production).
 process.env.DB_PATH = ':memory:';

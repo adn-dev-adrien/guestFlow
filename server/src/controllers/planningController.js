@@ -1,8 +1,8 @@
 /**
  * Planning controller — aggregate endpoints of the home and the Planning page: the day lists, the days
  * of a window, the breakfast list and the option-card ticks. The laundry endpoints belong to the
- * `linen` plugin (specs/plugins-phase-2-hosts.md rule 4), the resource cards to `hourly-resources`
- * (specs/plugins-phase-3c-hourly-resources.md rule 10).
+ * `linen` plugin (specs/plugins/plugins-phase-2-hosts.md rule 4), the resource cards to `hourly-resources`
+ * (specs/plugins/plugins-phase-3c-hourly-resources.md rule 10).
  */
 
 const breakfastModel = require('../models/breakfastModel');
@@ -46,7 +46,7 @@ function buildController({
 
   return {
     /**
-     * GET /api/planning/today (specs/dashboard-planning-scroll.md rules 1–3): the home's day lists in
+     * GET /api/planning/today (specs/planning/dashboard-planning-scroll.md rules 1–3): the home's day lists in
      * one call — today's departures and arrivals and, when nobody arrives, the next arrival day.
      */
     today(req, res) {
@@ -109,7 +109,7 @@ function buildController({
      * GET /api/planning/breakfast?from=YYYY-MM-DD&to=YYYY-MM-DD
      *
      * Returns the per-day breakfast list for the requested window
-     * (specs/breakfast-option-and-planning-card.md §3 + §4).
+     * (specs/options/breakfast-option-and-planning-card.md §3 + §4).
      *
      * Payload shape:
      *   { breakfastByDate: {
@@ -141,7 +141,7 @@ function buildController({
     /**
      * POST /api/planning/option-cards/done
      * Body: { reservationId, optionId, lineId?, date, time, done } — `lineId` names the stored line when the stay holds several of one article (rule 85).
-     * Toggles the « préparé » flag of one occurrence (specs/option-planning-card.md §3.5).
+     * Toggles the « préparé » flag of one occurrence (specs/options/option-planning-card.md §3.5).
      */
     setOptionCardDone(req, res) {
       const body = req.body || {};
@@ -149,7 +149,7 @@ function buildController({
       const optionId = numeric(body.optionId);
       const date = asText(body.date);
       // A tick reads as INVALID_PAYMENT_FLAG does: `Boolean("false")` ticked the card
-      // (specs/hosting-h2-account-security.md rule 68).
+      // (specs/hosting/hosting-h2-account-security.md rule 68).
       if (!Number.isInteger(reservationId) || reservationId <= 0
         || !Number.isInteger(optionId) || optionId <= 0
         || (body.lineId != null && !(Number.isInteger(numeric(body.lineId)) && numeric(body.lineId) > 0))
@@ -162,7 +162,7 @@ function buildController({
         reservationId, optionId, lineId: body.lineId == null ? undefined : numeric(body.lineId), date, time: asText(body.time), done: Boolean(body.done),
       });
       // A breakfast served without chosen mornings has a card every morning but no stored occurrence:
-      // its flag is kept apart (specs/breakfast-option-planning-card.md, 2026-10-27 spec review).
+      // its flag is kept apart (specs/options/breakfast-option-planning-card.md, 2026-10-27 spec review).
       if (result && (result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND')) {
         const fallback = injectedBreakfastModel.setFallbackDone({ reservationId, optionId, date, done: Boolean(body.done) });
         if (fallback && !fallback.error) result = fallback;

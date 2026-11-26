@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rule 16 — the page bar publishes its bottom edge as
+// specs/planning/dashboard-planning-scroll.md rule 16 — the page bar publishes its bottom edge as
 // `--gf-page-bar-bottom` on the document root, and takes it away when it leaves.
 import React from 'react';
 import { render } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (loop t16 S16-3 b) and specs/accounting-books-the-money-collected.md rule 17 — the books
+// specs/pricing/pricing-components.md §3 rule 94 reading (loop t16 S16-3 b) and specs/accounting/accounting-books-the-money-collected.md rule 17 — the books
 // reviewer's round-17 probe `p17-retype` made permanent (stabilisation loop t17, 2026-11-18). A free line the solde paid, removed and typed
 // again under the same label in one fiche save, is a new row; what the books read does not move: each payment's allocations keep their total
 // and point at no line that is gone, the paid solde's journal entry is identical, the frozen receipt split of the past payment day is

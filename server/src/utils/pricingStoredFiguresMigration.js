@@ -1,5 +1,5 @@
 /**
- * PRICING STORED FIGURES — the stored columns a sale reads instead of re-running a unit (specs/pricing-components.md §3 rule 8;
+ * PRICING STORED FIGURES — the stored columns a sale reads instead of re-running a unit (specs/pricing/pricing-components.md §3 rule 8;
  * owner decision 2026-11-15: in 4.2.0, with a backfill of the existing stays).
  *
  *   F1  `reservations.storedExtraGuests`, `reservations.storedTouristTax` (TEXT, JSON, NULL = not stored): what EXTRA GUESTS and

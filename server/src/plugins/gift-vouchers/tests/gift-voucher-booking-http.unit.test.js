@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 36-39, end to end over HTTP: the real `/public/v1` mounts (key, limiters, routing) with the real
+// specs/gift-vouchers/gift-vouchers.md rules 36-39, end to end over HTTP: the real `/public/v1` mounts (key, limiters, routing) with the real
 // quote, booking-request and payment controllers, on the in-memory core database with the plugin live as a prepaid source.
 // A stay of 268 € (4 nights at 67 €), acompte 30 % = 80,40 €, solde 187,60 €.
 const test = require('node:test');

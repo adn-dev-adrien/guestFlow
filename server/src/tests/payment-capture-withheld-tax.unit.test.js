@@ -1,12 +1,12 @@
 // A platform booking whose tourist tax the platform withheld can be marked paid
-// (specs/platform-tourist-tax-out-of-the-commission.md rule 25).
+// (specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 25).
 //
 // The fiche prices the solde as « brut − taxe retenue », but `buildReservationEngineInput` never
 // selected `platformTouristTaxAmount`, so the contribution capture replayed the booking with the
 // tax back in the solde and refused the flip on its conservation invariant (409). Measured on a
 // copy of production on 2026-10-23: reservation 202609003 (Airbnb, 24 € withheld) and 11773
 // (Gîtes de France, 19,20 €) could not be marked paid from the fiche.
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 5): the brut is the host amount, tax out of it, and the box
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5): the brut is the host amount, tax out of it, and the box
 // only says what the platform kept — the replay still has to carry it, and the solde is the same.
 
 const test = require('node:test');

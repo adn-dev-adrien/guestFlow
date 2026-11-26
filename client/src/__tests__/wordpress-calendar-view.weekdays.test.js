@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 19 — the availability calendar block names the weekdays in the
+// specs/site/wordpress-plugin.md rule 19 — the availability calendar block names the weekdays in the
 // page's language (it printed « LUN MAR MER » under « October 2026 »), its arrows are named through
 // the catalogue, and each day reads in full with its state (rule 15).
 import { screen } from '@testing-library/react';

@@ -1,6 +1,6 @@
 /**
  * The « Suivi financier » submenu. The core's entries, then those plugin modules contribute to the
- * slot `finance.menu` (specs/plugins-phase-2-hosts.md rule 19), ranked by `order`. The sidebar, the
+ * slot `finance.menu` (specs/plugins/plugins-phase-2-hosts.md rule 19), ranked by `order`. The sidebar, the
  * parent's visibility and « is this a finance page? » all read this list.
  *
  * Entry: { key, path, label, order, roles? } — `roles` narrows who sees the entry; the route's own
@@ -15,10 +15,10 @@ export const COMPENSATIONS_PATH = '/finance/indemnites';
 
 const CORE_ENTRIES = [
   { key: 'overview', path: '/finance', label: 'Vue générale', order: 10 },
-  // specs/stay-profile.md rule 17 — right after « Vue générale ».
+  // specs/accounting/stay-profile.md rule 17 — right after « Vue générale ».
   { key: 'stay-profile', path: STAY_PROFILE_PATH, label: 'Profil des séjours', order: 15 },
   { key: 'tourist-tax', path: '/finance/tourist-tax', label: 'Taxe de séjour', order: 20 },
-  // specs/plugins-phase-2-hosts.md rule 21 — core, after « Taxe de séjour ».
+  // specs/plugins/plugins-phase-2-hosts.md rule 21 — core, after « Taxe de séjour ».
   { key: 'compensations', path: COMPENSATIONS_PATH, label: "Indemnités d'annulation", order: 30 },
 ];
 

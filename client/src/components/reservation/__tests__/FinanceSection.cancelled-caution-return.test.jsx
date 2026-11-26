@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — a caution the cancelled stay still holds is
+// specs/payments/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — a caution the cancelled stay still holds is
 // given back from the cancelled fiche: the server offers « Restituer » on its row, the fiche draws it outside the
 // disabled fieldset beside « + Nouveau remboursement », and a confirmed click sends `cautionReturned` alone.
 import { screen, within } from '@testing-library/react';

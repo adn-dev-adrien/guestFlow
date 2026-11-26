@@ -1,5 +1,5 @@
 /**
- * The operator's profile: the second factor (specs/control-plane-plans-and-access.md rule 31).
+ * The operator's profile: the second factor (specs/hosting/control-plane-plans-and-access.md rule 31).
  * Changing it takes the password; the new method takes effect once its code is typed, and its 10
  * backup codes are shown once.
  */

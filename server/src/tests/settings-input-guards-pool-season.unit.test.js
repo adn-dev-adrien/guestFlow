@@ -1,5 +1,5 @@
 // Review amendments: rules 46-47 — a lone bound is completed from the stored season; the pair is judged on change.
-// specs/settings-input-guards.md rules 22-27 — the pool season: off, all year, or a season.
+// specs/settings/settings-input-guards.md rules 22-27 — the pool season: off, all year, or a season.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

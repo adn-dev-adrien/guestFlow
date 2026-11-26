@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * run-scheduled-passes.js — one run of every pass the server schedules, for the removal matrix
- * (specs/plugin-removal-resilience.md rules 9, 17). Boots the plugins the way `index.js` does, then
+ * (specs/plugins/plugin-removal-resilience.md rules 9, 17). Boots the plugins the way `index.js` does, then
  * runs, once and in turn: the core passes (iCal sync, arrival/departure and breakfast pushes, email
  * auto-send, digests) and the job of every live plugin. A pass that throws is reported; none stops
  * the others.

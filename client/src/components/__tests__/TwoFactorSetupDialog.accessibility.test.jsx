@@ -1,5 +1,5 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
-// specs/hosting-h2-account-security.md rules 48, 57, 58 — a replacement counts « n sur 2 », says the
+// specs/hosting/hosting-h2-account-security.md rules 48, 57, 58 — a replacement counts « n sur 2 », says the
 // current app stays valid and offers « Oublier les appareils de confiance »; the check says
 // « Vérification… » and keeps the field focusable; focus lands on « Copier » at step 3 and on
 // « Recommencer » when the enrolment ended; the step is announced politely.

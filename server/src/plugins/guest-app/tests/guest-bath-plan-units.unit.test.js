@@ -1,4 +1,4 @@
-// specs/guest-app-bath-home-scheduling.md rules 1-5, 10 — the pure parts of the home's bath card: what the stay owns, the card's state
+// specs/guest-app/guest-app-bath-home-scheduling.md rules 1-5, 10 — the pure parts of the home's bath card: what the stay owns, the card's state
 // and words, the sessions to come, and the « à la suite » candidates.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 53 (verification R35b, finding 5) — the server refuses a book refund dated before the
+// specs/payments/reservation-refunds.md rule 53 (verification R35b, finding 5) — the server refuses a book refund dated before the
 // stay's last book payment (400 REFUND_BEFORE_PAYMENT); the dialog shows its message and stays open, nothing closed.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -9,7 +9,7 @@ const {
   fetchReleaseFeed,
 } = require('../utils/releaseClient');
 
-// specs/self-update-and-releases.md §3.B + §3.D rule 22.
+// specs/hosting/self-update-and-releases.md §3.B + §3.D rule 22.
 
 const HASH = 'a'.repeat(64);
 

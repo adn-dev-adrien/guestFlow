@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 70 and 6 — PLATFORM PAYMENT alone: the commission from a statement or from the
+// specs/pricing/pricing-components.md §3 rules 70 and 6 — PLATFORM PAYMENT alone: the commission from a statement or from the
 // rent, each commission clamped to its instalment, the net received, the gross / acompte-net / payout / cancellation
 // helpers. No DB, plain objects.
 const test = require('node:test');
@@ -10,7 +10,8 @@ const {
   commissionOf, clampCommissions, netReceived, acompteNet, grossOf, payoutWithPenalty, withheldOnCancellation,
 } = platformPayment;
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rule 8): the tax paid with the transfer ADDS to the host amount.
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rule 8): the tax paid with the transfer ADDS to the host amount.
+// The rule numbers below are those of specs/pricing/pricing-components.md.
 test('rule 70 — commissionOf(statement) = max(0, gross + tax paid − payout − acompte commission), null when a figure is missing', () => {
   assert.equal(commissionOf({ basis: 'statement', gross: 500, payout: 420, taxPaid: 20, acompteCommission: 10 }), 90);
   assert.equal(commissionOf({ gross: 500, payout: 600 }), 0);

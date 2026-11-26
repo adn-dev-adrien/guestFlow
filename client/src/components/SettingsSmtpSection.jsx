@@ -4,15 +4,15 @@
  * The SMTP transport GuestFlow sends every email with. The password uses MaskedTextField — the
  * cleartext only leaves the UI on save, and the server never returns it (only `passwordSet`).
  * The sending address, SMTP login and sender name are DERIVED unless overridden
- * (specs/settings-rationalization.md rule 12): each one is a DerivedValueField showing what it
+ * (specs/settings/settings-rationalization.md rule 12): each one is a DerivedValueField showing what it
  * falls back to (`values.derived`, computed by the server). No port field: it follows the security
  * mode (rule 11). The public URL moved to the Système page.
  *
- * On a hosted instance (specs/hosting-h1-fleet-runtime.md rule 19) the card opens on « Envoi par la
+ * On a hosted instance (specs/hosting/hosting-h1-fleet-runtime.md rule 19) the card opens on « Envoi par la
  * plateforme » — the server's `platform` block — and the SMTP fields fold behind « Utiliser mon
  * propre serveur ». A saved host always wins: the card then says « Serveur personnel », unfolded.
  *
- * specs/settings-rationalization.md rule 28 (UI/UX review 2026-10-18, decision 14): the operator
+ * specs/settings/settings-rationalization.md rule 28 (UI/UX review 2026-10-18, decision 14): the operator
  * types the address and the password; the server found from the address (`detection`) is said under
  * the password, and the server writes it at save. The server field, the login and the security fold
  * behind « Réglages avancés », opened when no provider was found. The test button says what it lacks.
@@ -119,7 +119,7 @@ export default function SettingsSmtpSection({
         disabled={disabled}
       />
 
-      {/* specs/plugins-phase-p-productisation.md rule 41 — the protocol names stay under « Avancé ». */}
+      {/* specs/plugins/plugins-phase-p-productisation.md rule 41 — the protocol names stay under « Avancé ». */}
       <AdvancedDetails label="Réglages avancés" defaultOpen={notFound} key={notFound ? 'open' : 'folded'}>
         <Stack spacing={2}>
           <TextField

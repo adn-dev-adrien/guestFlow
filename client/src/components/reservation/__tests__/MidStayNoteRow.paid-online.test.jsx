@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import MidStayNoteRow from '../MidStayNoteRow';
 
-// specs/guest-app.md rule 113 a (stabilisation loop t6, A6-2) — a note paid online is neither adjusted nor put back to the departure: the
+// specs/guest-app/guest-app.md rule 113 a (stabilisation loop t6, A6-2) — a note paid online is neither adjusted nor put back to the departure: the
 // server serves the lock (`midStayNoteLocks`), the row draws neither « Modifier la note » nor « Reporter au départ » and shows the reason.
 
 const NOTE = {

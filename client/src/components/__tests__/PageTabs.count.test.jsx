@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 6 — a tab can carry the size of its list (« Encaissements 40 »),
+ * specs/design-system/report-grammar.md §3 rule 6 — a tab can carry the size of its list (« Encaissements 40 »),
  * part of its accessible name; 0 is a count too.
  */
 import React from 'react';

@@ -1,4 +1,4 @@
-// The price-line contributor (specs/plugins-phase-3c-hourly-resources.md rules 1–4, 18, 26, 29).
+// The price-line contributor (specs/plugins/plugins-phase-3c-hourly-resources.md rules 1–4, 18, 26, 29).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

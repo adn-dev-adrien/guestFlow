@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 45 and 46 (audit R5 M1): an acompte ticked the day an old full link
+// specs/plugins/plugins-phase-3a-online-payment.md rules 45 and 46 (audit R5 M1): an acompte ticked the day an old full link
 // is paid is that link's own money even when the stay was re-priced meanwhile — whether the operator's tick
 // or the webhook comes first, the stay ends the same, and the alert reads the full amount.
 

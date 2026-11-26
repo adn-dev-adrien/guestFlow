@@ -46,7 +46,7 @@ const { createSupportController } = require('./controllers/supportController');
 
 // `qonto` replaces the Qonto facade in tests; the console itself builds it over its own settings,
 // with no environment fallback: Qonto is configured from the Paiements page only (rule 32).
-// The hosting (specs/hosting-h1-fleet-runtime.md) adds the host drivers, the shared releases and the
+// The hosting (specs/hosting/hosting-h1-fleet-runtime.md) adds the host drivers, the shared releases and the
 // fetch used by the health checks; the tests pass fakes, index.js builds them from the environment.
 const publicKeyOf = (key) => (key ? crypto.createPublicKey(key).export({ format: 'der', type: 'spki' }).toString('base64') : null);
 
@@ -90,7 +90,7 @@ function createContext({
     // The console's own database, copied every night (scheduler) — null on an in-memory database.
     consoleDbFile,
     consoleBackupDir: path.join(dataDir, 'backups'),
-    // specs/plugins-phase-4-registry.md P23 — the plugin registry, signed with the licence key.
+    // specs/plugins/plugins-phase-4-registry.md P23 — the plugin registry, signed with the licence key.
     registry: createRegistryStore({ db, dir: path.join(dataDir, 'registry'), privateKey: registryPrivateKey || privateKey, now }),
   };
 
@@ -161,9 +161,9 @@ function createContext({
     templates: createTemplatesController(ctx),
     login: createLoginController(ctx, customers),
     fleet: createFleetController(ctx, customers),
-    // specs/plugin-operator-provisioning.md — the modules the operator switches on per customer.
+    // specs/plugins/plugin-operator-provisioning.md — the modules the operator switches on per customer.
     modules: createCustomerModulesController(ctx, customers),
-    // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
+    // specs/hosting/hosting-h2-account-security.md rules 12-14 — support access with consent.
     support: createSupportController(ctx, customers),
     // GuestFlow's own Qonto settings handlers, over the console's settings (rule 32).
     qontoSettings: qontoSettingsController.createQontoSettingsController({

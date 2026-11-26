@@ -1,5 +1,5 @@
 /**
- * Setting the acompte or the solde from the payments ledger (specs/reservation-payment-ledger.md
+ * Setting the acompte or the solde from the payments ledger (specs/payments/reservation-payment-ledger.md
  * §3.3, rules 15-21). Decision 8 of the UI/UX review 2026-10-18: both amounts stay settable.
  *
  * The field only proposes; this module decides. It answers either a refusal in French (`reason`),
@@ -158,7 +158,7 @@ function evaluateLedgerEdit({ row, amount, quote, ledger, stored = {}, pastLocke
     };
   }
   if (mode !== 'price') return refuse('Ce montant ne se règle pas ici.');
-  // specs/reservation-payment-ledger.md rule 18, reading of 2026-11-06 (D21): the unlock no longer changes the price.
+  // specs/payments/reservation-payment-ledger.md rule 18, reading of 2026-11-06 (D21): the unlock no longer changes the price.
   if (pastLocked) return refuse('Séjour commencé : passer par « Réduction (%) ».');
   if (priceFrozen && value !== balanceNow) return refuse('Fiche déverrouillée : le prix final ne change pas.');
   if (typeof evaluate !== 'function') return refuse('Calcul impossible.');

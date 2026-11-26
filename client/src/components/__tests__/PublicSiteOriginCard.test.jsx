@@ -1,5 +1,5 @@
 /**
- * specs/plugins-phase-3a-online-payment.md rule 15 — the public site's address is saved from the CGV
+ * specs/plugins/plugins-phase-3a-online-payment.md rule 15 — the public site's address is saved from the CGV
  * page; the server validates it and its refusal shows under the field.
  */
 import React from 'react';

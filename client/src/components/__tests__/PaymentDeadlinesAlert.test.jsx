@@ -1,7 +1,7 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import { vi } from 'vitest';
 /**
- * « Échéances de paiement » dashboard card (specs/payment-schedule-and-cancellation.md §3.4 / §6).
+ * « Échéances de paiement » dashboard card (specs/payments/payment-schedule-and-cancellation.md §3.4 / §6).
  * Pins what the card renders per state, and that the three actions call the right endpoints — the
  * card decides nothing itself, so what is tested here is faithful rendering and wiring.
  */
@@ -25,7 +25,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
 
 const CANCEL_DUE = {
@@ -70,7 +70,7 @@ const DEPOSIT_OVERDUE = {
   remindType: 'deposit',
 };
 
-// specs/platform-payout-due-date.md §3.2 — the platform's transfer is late.
+// specs/platforms/platform-payout-due-date.md §3.2 — the platform's transfer is late.
 const PLATFORM_PAYOUT = {
   ...CANCEL_DUE,
   reservationId: 12,
@@ -93,7 +93,7 @@ const PLATFORM_PAYOUT = {
   remindType: null,
 };
 
-// specs/platform-payout-due-date.md §3.2bis — imported from a platform, amount never entered.
+// specs/platforms/platform-payout-due-date.md §3.2bis — imported from a platform, amount never entered.
 const AMOUNT_MISSING = {
   ...PLATFORM_PAYOUT,
   reservationId: 13,
@@ -163,7 +163,7 @@ test('« Reporter » snoozes for a week and reloads', async () => {
   expect(api.getPaymentDeadlines).toHaveBeenCalledTimes(2);
 });
 
-// specs/payment-schedule-and-cancellation.md rule 21 — l'annulation part de la LIGNE du tableau de
+// specs/payments/payment-schedule-and-cancellation.md rule 21 — l'annulation part de la LIGNE du tableau de
 // bord, et passe par le récapitulatif de la règle 22 avant d'être confirmée.
 test('cancelling goes through the confirmation dialog and its recap', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE] });
@@ -185,7 +185,7 @@ test('cancelling goes through the confirmation dialog and its recap', async () =
   }));
 });
 
-// specs/platform-payout-due-date.md rule 19
+// specs/platforms/platform-payout-due-date.md rule 19
 test('a late platform payout names the platform and offers no dunning, no cancellation', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [PLATFORM_PAYOUT] });
   renderCard();
@@ -207,7 +207,7 @@ test('a direct row keeps its « Relancer » button alongside a platform one', as
   expect(screen.getAllByRole('button', { name: 'Reporter' })).toHaveLength(2);
 });
 
-// specs/platform-payout-due-date.md rule 30
+// specs/platforms/platform-payout-due-date.md rule 30
 test('a booking whose amount was never entered asks for the data, and prints no figure', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [AMOUNT_MISSING] });
   renderCard();
@@ -265,7 +265,7 @@ test('a to-do past its deadline says how long the asking has waited, not that th
   expect(await screen.findByText(/Acompte jamais demandé — échéance dépassée de 4 jours/)).toBeInTheDocument();
 });
 
-test('the title, count and « N en retard · M à demander » are the server’s (specs/shell-and-home-day-first.md rule 6)', async () => {
+test('the title, count and « N en retard · M à demander » are the server’s (specs/planning/shell-and-home-day-first.md rule 6)', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE, DEPOSIT_TO_REQUEST] });
   renderCard();
 

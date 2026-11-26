@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 10, 11bis, 13, 51 — the home draws the lodging's tiles in its order, the gate tile only
+// specs/guest-app/guest-app.md rules 10, 11bis, 13, 51 — the home draws the lodging's tiles in its order, the gate tile only
 // while it can act, and the tab bar follows the same modules.
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

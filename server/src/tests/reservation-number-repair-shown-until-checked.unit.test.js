@@ -1,4 +1,4 @@
-// specs/reservation-number-and-search.md rule 15 — review 2026-10-18 (second pass), finding 4: the boot
+// specs/reservations/reservation-number-and-search.md rule 15 — review 2026-10-18 (second pass), finding 4: the boot
 // repair of rule 14 only wrote to the boot log, which the operator never reads, while a repaired ghost
 // keeps blocking its dates and leaves in the iCal export. The repair now stamps the stay, and the
 // dashboard lists it until the operator says « Vu ».

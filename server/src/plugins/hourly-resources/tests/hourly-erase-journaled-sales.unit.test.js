@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 21 and specs/plugins-phase-3c-hourly-resources.md rule 17
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 21 and specs/plugins/plugins-phase-3c-hourly-resources.md rule 17
 // (R35-P1) — the erase warning tells a sale of the accounting export from a « Payé » that is in no ledger: the erase
 // takes the first out of every month re-exported.
 const test = require('node:test');

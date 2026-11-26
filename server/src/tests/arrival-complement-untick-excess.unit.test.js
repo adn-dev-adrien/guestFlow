@@ -1,4 +1,4 @@
-// specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-06 (audit R26 L1, accepted) — un-ticking a paid
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-06 (audit R26 L1, accepted) — un-ticking a paid
 // arrival complement leaves the « Ajouté après l'encaissement du complément d'arrivée » excess on the end of stay until the next
 // save, which folds it back into the complement. The amount owed never moves, no euro is lost nor asked twice.
 process.env.DB_PATH = ':memory:';

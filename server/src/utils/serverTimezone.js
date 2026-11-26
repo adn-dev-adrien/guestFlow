@@ -1,5 +1,5 @@
 /**
- * Server time zone (specs/server-timezone.md).
+ * Server time zone (specs/hosting/server-timezone.md).
  *
  * GuestFlow's schedulers compare operator-entered wall-clock times — a check-in at `16:00`, the
  * `08:00` e-mail pass — against the process's LOCAL time (`Date#getHours`). That only lines up when

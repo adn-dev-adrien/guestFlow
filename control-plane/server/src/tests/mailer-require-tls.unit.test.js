@@ -1,4 +1,4 @@
-// specs/admin-account-management.md rule 16, reading of 2026-11-04 (audit R22, E22-2) — the console's mailer holds the
+// specs/hosting/admin-account-management.md rule 16, reading of 2026-11-04 (audit R22, E22-2) — the console's mailer holds the
 // same promise as the instance's: a login on 587 with no STARTTLS on offer sends no AUTH line and no mail.
 const test = require('node:test');
 const assert = require('node:assert/strict');

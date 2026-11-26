@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 44 — the guest notice sent without validation reads, in the history, the
+// specs/payments/payment-link-lifecycle.md rule 44 — the guest notice sent without validation reads, in the history, the
 // server's « Envoyé automatiquement (dates prises) »; any other send keeps « Envoyé ».
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,5 +1,5 @@
 /**
- * Exponential back-off for provider HTTP calls (specs/payment-polling-fair-use.md rules 6 and 9).
+ * Exponential back-off for provider HTTP calls (specs/payments/payment-polling-fair-use.md rules 6 and 9).
  *
  * `withRetry(fn, opts)` runs `fn(attempt)` and retries it when it throws an error whose `status` is
  * `429` or `5xx`, waiting `baseDelayMs × 2^(attempt-1)` between attempts — or the error's

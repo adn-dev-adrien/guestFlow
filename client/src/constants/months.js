@@ -4,7 +4,7 @@
  * (`?month=`), NOT the 0-based `Date.getMonth()`.
  *
  * Consumed by MonthYearPicker and SettingsFiscalYearSection
- * (specs/fiscal-year-and-nights-sold.md §6.1).
+ * (specs/accounting/fiscal-year-and-nights-sold.md §6.1).
  */
 
 export const MONTH_LABELS = [

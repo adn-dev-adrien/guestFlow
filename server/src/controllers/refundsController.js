@@ -1,5 +1,5 @@
 /**
- * Refunds controller — specs/reservation-refunds.md.
+ * Refunds controller — specs/payments/reservation-refunds.md.
  *
  * Orchestrates the « avoir » flow: read what the reservation actually billed, derive the still-
  * refundable lines, validate the operator's payload against the caps, persist, and hand back the
@@ -88,7 +88,7 @@ function createRefundsController(deps = {}) {
       ? cancelledRefundBudget({ collectedTtc: receivedTtc, prepaidTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
     const booked = stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel, installmentsModel }, reservation, vatRate) : null;
     const taxOnArrival = stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
-    // specs/mixed-method-payments.md rule 46 — the buckets paid with several methods, read for their share on each side.
+    // specs/payments/mixed-method-payments.md rule 46 — the buckets paid with several methods, read for their share on each side.
     const splitShares = stayDatabase ? bucketSharesOf(paymentSettlementsModel.buildModel(stayDatabase).listFor(reservationId), reservation) : null;
     const lineAllocations = stayDatabase ? lineAllocationsContext(stayDatabase, reservationId) : null;
     const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash, taxOnArrival, splitShares, lineAllocations });

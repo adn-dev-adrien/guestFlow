@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 55 (stabilisation loop t3, B3-1, B3-2; completes rules 41, 49, 50, 52, 53) and specs/pricing-components.md rules 72, 74,
+// specs/sas/outside-booking-sas.md rule 55 (stabilisation loop t3, B3-1, B3-2; completes rules 41, 49, 50, 52, 53) and specs/pricing/pricing-components.md rules 72, 74,
 // 75 — one money model for a sale document: every cent received sits on a line or on no line (the unallocated money, a link paid above the reste). The
 // unallocated money pays the lines still due before anything is owed back, its `linkSurplus` row follows it, and closing the row takes the money off the
 // document — « remboursé » as a refund on no line, « rien à rembourser » as a kept allocation (the tip) — so it never pays a line sold later. In every

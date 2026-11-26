@@ -1,5 +1,5 @@
 /**
- * The « Comptes » card of the Plan comptable page, as data (specs/settings-input-guards.md rules 32-34).
+ * The « Comptes » card of the Plan comptable page, as data (specs/settings/settings-input-guards.md rules 32-34).
  * Every account the plugin asks for sits in one of the labelled groups below; adding an account is one
  * line in the right group (and a label in PLAN_LABELS when it comes from the account plan).
  *
@@ -13,7 +13,7 @@
  * (a setting stored as '0' / '1').
  */
 
-// specs/plugins-phase-p-productisation.md rules 27–28 — the account plan, one field per role.
+// specs/plugins/plugins-phase-p-productisation.md rules 27–28 — the account plan, one field per role.
 export const PLAN_LABELS = {
   accommodationAccount: 'Hébergement',
   complementaryAccount: 'Prestations complémentaires',
@@ -26,7 +26,7 @@ export const PLAN_LABELS = {
   tipAccount: 'Pourboires',
   platformPenaltyAccount: 'Pénalités plateformes',
   journalCode: 'Code journal des ventes',
-  // specs/platform-host-statement-and-commission-vat.md rules 14-16 — the account of each regime of a commission, the self-assessed VAT, the codes.
+  // specs/platforms/platform-host-statement-and-commission-vat.md rules 14-16 — the account of each regime of a commission, the self-assessed VAT, the codes.
   commissionFrAccount: 'Plateformes France — TVA 20 % déductible',
   commissionEuAccount: 'Plateformes UE — autoliquidation',
   commissionNoVatAccount: 'Plateformes sans TVA, frais de paiement',

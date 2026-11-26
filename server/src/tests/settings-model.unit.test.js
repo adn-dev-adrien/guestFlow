@@ -118,7 +118,7 @@ test('settingsModel.upsert: refreshes updatedAt', () => {
   assert.notEqual(first, second);
 });
 
-// ----- SMTP wiring (specs/admin-account-management.md M3) -----
+// ----- SMTP wiring (specs/hosting/admin-account-management.md M3) -----
 
 test('settingsModel.read masks the SMTP password: smtpPasswordEncrypted gone, smtpPasswordSet boolean instead', () => {
   const { model } = freshModel();

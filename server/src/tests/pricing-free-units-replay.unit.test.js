@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 56 (audit 2026-10-27) — an option with free units (welcome
+// specs/pricing/tariff-recipes.md §3 rule 56 (audit 2026-10-27) — an option with free units (welcome
 // pack) keeps its value over every save: its stored total is net of the free units, so the replay
 // must not read « total ÷ units » as its unit price.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/upcoming-reservations-cards.md rule 9 (kept for the server day moving on, specs/dashboard-planning-
+// specs/planning/upcoming-reservations-cards.md rule 9 (kept for the server day moving on, specs/dashboard-planning-
 // scroll.md rule 7) — when an older load answers last, it must not paint over the newer one.
 import { vi } from 'vitest';
 import React from 'react';

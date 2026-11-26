@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md §4.1 — the fiche's save as a server-callable service:
+// specs/platforms/gites-de-france-mail-intake.md §4.1 — the fiche's save as a server-callable service:
 // `performUpdate` (the HTTP handler minus Express), `toUpdateBody` (stored reservation → the PUT body),
 // and `ctx.core.reservations.update` (both, for a plugin, refused on a started stay).
 const test = require('node:test');

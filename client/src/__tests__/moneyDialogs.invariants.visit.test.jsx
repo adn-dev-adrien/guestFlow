@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the arrival of an outside visit
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the arrival of an outside visit
 // (`ResourceArrivalDialog`, the mini SAS: its draft quote, the invoice question of the payment typed, the commit). The driver and the
 // invariants are in `moneyDialogsHarness.jsx`.
 import React from 'react';

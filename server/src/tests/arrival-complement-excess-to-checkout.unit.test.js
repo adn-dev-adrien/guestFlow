@@ -1,4 +1,4 @@
-// specs/mid-stay-extras-to-end-of-stay-complement.md rule 20 (audit 2026-10-27) — an extra routed to an
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20 (audit 2026-10-27) — an extra routed to an
 // arrival complement already collected is billed at check-out, so the buckets always add up.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -101,7 +101,7 @@ test('validateBic: rejects 7-char', () => assert.match(validateBic('BNPAFRP'), /
 test('validateBic: rejects 9-char', () => assert.match(validateBic('BNPAFRPPX'), /BIC/));
 
 // (validatePrivateKey / validateCalendarId removed with the Google OAuth rework —
-// specs/google-calendar-oauth-rework.md: no more manual service-account fields.)
+// specs/settings/google-calendar-oauth-rework.md: no more manual service-account fields.)
 
 // --- quote validity ---
 test('validateQuoteValidityDays: empty / null is valid (controller defaults)', () => {
@@ -119,7 +119,7 @@ test('validateQuoteValidityDays: 0, 366, non-int rejected', () => {
   assert.match(validateQuoteValidityDays(15.5), /entre 1 et 365/);
 });
 
-// SMTP-block validators (specs/admin-account-management.md M3).
+// SMTP-block validators (specs/hosting/admin-account-management.md M3).
 
 test('validatePublicUrl: empty/null pass; http(s) URLs pass; bad scheme + invalid → error', () => {
   assert.equal(validatePublicUrl(''), null);
@@ -130,7 +130,7 @@ test('validatePublicUrl: empty/null pass; http(s) URLs pass; bad scheme + invali
   assert.match(validatePublicUrl('not a url'), /URL invalide/);
 });
 
-// Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1).
+// Accounting closing month (specs/accounting/fiscal-year-and-nights-sold.md §3.1).
 test('validateFiscalYearEndMonth accepts 1..12; empty/null are a no-op (preserve semantics)', () => {
   for (let m = 1; m <= 12; m++) {
     assert.equal(validateFiscalYearEndMonth(m), null, `month ${m} should be valid`);

@@ -1,5 +1,5 @@
 /**
- * Enriched stay-line label for a Qonto payment link (specs/qonto-payment-link-reference.md).
+ * Enriched stay-line label for a Qonto payment link (specs/payments/qonto-payment-link-reference.md).
  *
  * Pure — everything it needs is passed in. Builds the title `Séjour <Bien> — <Réf> — <Prénom Nom>`
  * (rule 1, order property/reference/name, « — » separator) and a description

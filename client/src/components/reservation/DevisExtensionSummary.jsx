@@ -1,6 +1,6 @@
 /**
  * DevisExtensionSummary — what « prolonger » is about to change, shown in the confirmation BEFORE the
- * quote is re-issued (specs/ui-review-2026-10-19-operations.md rule 20): the new validity, the total
+ * quote is re-issued (specs/design-system/ui-review-2026-10-19-operations.md rule 20): the new validity, the total
  * and the schedule today versus after. Every figure is the server's preview
  * (`GET /api/devis/:id/extension`); nothing is computed here.
  *

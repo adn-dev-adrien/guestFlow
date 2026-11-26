@@ -11,7 +11,7 @@ const { globalFetch } = require('./icalFetchFixture');
 // an operator-declared establishment closure with a new reservation. The guard fires
 // `findCoveringClosure` on every event before any insert/update, and silently drops
 // the event when a closure covers its date range.
-// Narrowed at the 2026-10-27 audit (specs/lodgify-decommission.md §3 rule 17): only a NEW event whose
+// Narrowed at the 2026-10-27 audit (specs/platforms/lodgify-decommission.md §3 rule 17): only a NEW event whose
 // every night is closed is dropped; a partial overlap or a known stay moved onto a closure follows the
 // normal path, flagged — pinned by ical-closure-guard-scope.unit.test.js.
 

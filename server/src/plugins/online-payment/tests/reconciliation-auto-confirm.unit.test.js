@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 20–21 — after a read, the certain matches confirm
+// specs/accounting/reconciliation-assisted-matching.md rules 20–21 — after a read, the certain matches confirm
 // themselves, visibly and undoably; nothing else does. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');

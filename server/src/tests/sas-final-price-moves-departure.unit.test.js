@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 32 — the check-out's gifts on a recalled arrival complement (`offeredArrivalExtras`) move the
+// specs/sas/arrival-departure-sas.md rule 32 — the check-out's gifts on a recalled arrival complement (`offeredArrivalExtras`) move the
 // stored `finalPrice` like the check-in's: by exactly what the stay's lines stop (or start again) billing.
 
 const test = require('node:test');
@@ -56,7 +56,7 @@ function makeDb() {
     CREATE TABLE repair_amounts (id INTEGER PRIMARY KEY AUTOINCREMENT, repairKey TEXT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
   `);
-  // specs/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
+  // specs/payments/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
   db.exec('CREATE TABLE IF NOT EXISTS reservation_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, resourceId INTEGER, quantity REAL, unitPrice REAL, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0, inComplement INTEGER DEFAULT 0, acompteContribTtc REAL, soldeContribTtc REAL, sasArrivalOrigin INTEGER DEFAULT 0)');
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
   db.prepare('INSERT INTO reservations (id, propertyId, adults, finalPrice, complementAmount) VALUES (1, 7, 2, 647.8, 80)').run();

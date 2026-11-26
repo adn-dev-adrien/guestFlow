@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 46 and specs/payment-schedule-and-cancellation.md rule 32bis, readings of
+// specs/payments/reservation-refunds.md rule 46 and specs/payments/payment-schedule-and-cancellation.md rule 32bis, readings of
 // 2026-11-02 (audit R14-C1). The fiche's ledger showed a cancellation's `retained` avoir as « Remboursement ·
 // Rendu le 01/11 · retained »: money given back, and a raw English code. That money was kept as an indemnity.
 

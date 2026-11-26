@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 13 — the side menu reads the properties once and again after a
+// specs/tech/inte-performance.md rule 13 — the side menu reads the properties once and again after a
 // write, not on every page change.
 import React from 'react';
 import { screen, render, act, waitFor } from '@testing-library/react';

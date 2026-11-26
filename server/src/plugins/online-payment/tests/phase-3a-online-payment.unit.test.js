@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md §3.C, §3.E — Qonto becomes the online-payment plugin: it
+// specs/plugins/plugins-phase-3a-online-payment.md §3.C, §3.E — Qonto becomes the online-payment plugin: it
 // declares the payment provider, mounts its routes and its webhook at the URLs Qonto knows, runs the
 // poll as its job, keeps its settings in plugin_settings, and its erasure keeps every payment.
 const { listenLocal } = require('../../../tests/listenLocal');
@@ -99,7 +99,7 @@ test('rules 4, 10 — the module declares Qonto as the payment provider, ready o
 test('rules 11, 12 — the routes and the webhook answer at the URLs Qonto and the page know, only while live', { skip: skipWithout(['google-vacation-rentals']) }, async () => {
   const db = v38Db();
   const off = boot(db, { active: false });
-  assert.equal(loader.isWebhook('POST', '/payments/qonto/webhook'), false, 'a plugin that is not live exempts nothing (specs/plugins-phase-2-hosts.md rule 33)');
+  assert.equal(loader.isWebhook('POST', '/payments/qonto/webhook'), false, 'a plugin that is not live exempts nothing (specs/plugins/plugins-phase-2-hosts.md rule 33)');
   const inactive = await request(off.app, 'POST', '/api/payments/qonto/webhook', { data: { payment_link_id: 'x' } });
   assert.equal(inactive.status, 404);
   assert.equal(inactive.body.error, 'PLUGIN_INACTIVE');
@@ -186,7 +186,7 @@ test('rule 16 — deactivating is refused while a cancelled link is still payabl
   assert.equal(res.body.message, '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.');
 });
 
-test('specs/plugins-phase-3a-online-payment.md rule 21 — a new customer starts without the plugin: no provider, nothing to ask for', async () => {
+test('specs/plugins/plugins-phase-3a-online-payment.md rule 21 — a new customer starts without the plugin: no provider, nothing to ask for', async () => {
   const db = v38Db();
   boot(db, { installed: false });
   assert.equal(paymentProviders.active(), null);

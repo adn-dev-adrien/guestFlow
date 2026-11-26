@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const scheduler = require('../utils/emailAutoSendScheduler');
 
-// specs/no-automatic-email-without-approval.md §3 rule 2b + specs/settings-rationalization.md
+// specs/emails/no-automatic-email-without-approval.md §3 rule 2b + specs/settings/settings-rationalization.md
 // rule 17b — while no template is « auto », no timer is registered at all: templates ship « manual »,
 // and a feature nobody turned on must not tick. Switching a template to « auto » starts the timer AND
 // runs the day's pass, without a restart.

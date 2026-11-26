@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 85, 106 and specs/pricing-components.md rules 21, 31 (review defect D6, M5) — a card-paid order is netted wherever the arrival complement is read: the
+// specs/guest-app/guest-app.md rules 85, 106 and specs/pricing/pricing-components.md rules 21, 31 (review defect D6, M5) — a card-paid order is netted wherever the arrival complement is read: the
 // engine's quote, the sale detail's arrival bucket, the SAS step's « à percevoir »; a note order beside it keeps the complement for itself alone.
 const fx = require('./guestOrderFixtures');
 

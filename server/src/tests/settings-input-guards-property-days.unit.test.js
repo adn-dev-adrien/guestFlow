@@ -1,5 +1,5 @@
 // Review amendments: rule 45 — what is written is what was validated; absent keeps the stored value.
-// specs/settings-input-guards.md rules 9-14 — the three payment delays of a property.
+// specs/settings/settings-input-guards.md rules 9-14 — the three payment delays of a property.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

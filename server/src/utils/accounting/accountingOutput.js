@@ -1,5 +1,5 @@
 /**
- * AccountingOutput (specs/pricing-components.md §3 rule 63): the journal entries of a period, read from the read models only
+ * AccountingOutput (specs/pricing/pricing-components.md §3 rule 63): the journal entries of a period, read from the read models only
  * — the stays' stored money, the settlements, the installments, the refunds, the compensations, the penalties and the sales
  * made outside any stay. An exporter (`exporters/`) formats them; none recomputes a price or a VAT. Moved from the
  * accounting-export plugin, which keeps its routes, account plan, settings and read models (`accountingModel.js`).
@@ -136,14 +136,14 @@ function resolveCommissionConfig(row, commissionContext) {
 
 // Sales + refunds + cancellation compensations of the month, in one chronological stream. Neither a
 // refund nor a compensation is an encaissement, but both belong to the same journal at their own
-// date (specs/reservation-refunds.md §3.4 rule 21, specs/cancellation-compensation.md §3.3 rule 15).
+// date (specs/payments/reservation-refunds.md §3.4 rule 21, specs/payments/cancellation-compensation.md §3.3 rule 15).
 // Building the stream here means the CSV and the JSON preview can never drift apart.
 function journalEntries(params, accountingModel) {
   const sales = accountingModel.encaissementsByMonth(params);
   const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
   const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
   const penalties = accountingModel.platformPenaltiesByMonth ? accountingModel.platformPenaltiesByMonth(params) : [];
-  // specs/resource-booking-pricing-and-invoicing.md rule 21 — the sales made outside any stay.
+  // specs/resources/resource-booking-pricing-and-invoicing.md rule 21 — the sales made outside any stay.
   const standalone = accountingModel.standaloneSalesByMonth ? accountingModel.standaloneSalesByMonth(params) : [];
   return [...sales, ...refunds, ...compensations, ...penalties, ...standalone]
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
@@ -173,12 +173,12 @@ function createAccountingOutput({ accountPlan }) {
   //
   // Tourist tax never hits a revenue account. When the reservation routes the tax to complement
   // (`collectedOnArrival` OR `touristTaxInComplement = 1`) the complement carries it on the
-  // 46710000 pass-through; otherwise it rides entirely on the solde (specs/tourist-tax-on-solde.md).
+  // 46710000 pass-through; otherwise it rides entirely on the solde (specs/tourist-tax/tourist-tax-on-solde.md).
   //
   // Returns `null` when there is nothing to book (zero stored amount, or a contrib entry whose
   // buckets and tax are all zero).
   //
-  // specs/accounting-encaissement-effective-percent.md — money resolution:
+  // specs/accounting/accounting-encaissement-effective-percent.md — money resolution:
   //   - CA (`encaissementTtc`) = the STORED échéance amount × gross-up ratio. The ratio is 1 for
   //     every reservation written by the current engine (schedule sums to finalPrice + tax), so
   //     stored amounts pass through unscaled; it only grosses up the two historical shapes
@@ -192,7 +192,7 @@ function createAccountingOutput({ accountPlan }) {
   // callers (unit tests) inject it directly.
   // One installment collected → one encaissement, booked like the solde it stands for: the stored-money
   // split (a plan never captured per-line contribs), with the tourist tax shared out in proportion to the
-  // plan's scheduled total (the solde used to carry all of it). specs/direct-installments.md.
+  // plan's scheduled total (the solde used to carry all of it). specs/payments/direct-installments.md.
   function buildInstallmentEntry(row, installment, count, taxShare, perLineData, commissionContext, taxContext) {
     const amount = round2(Number(installment.amountCents) / 100);
     const standIn = {
@@ -201,14 +201,14 @@ function createAccountingOutput({ accountPlan }) {
       balanceAmount: amount,
       balancePaidDate: installment.paidDate,
       touristTaxTotal: taxShare,
-      // specs/platform-added-guests-tourist-tax.md rule 27 — the share already leaves the addition out: never taken off twice.
+      // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 27 — the share already leaves the addition out: never taken off twice.
       touristTaxAddedGuestsAmount: 0,
     };
     const entry = buildEntry(standIn, 'balance', { ...perLineData, hasContribs: false }, commissionContext, taxContext);
     if (!entry) return null;
     const frozen = parsePaidSplit(installment.paidSplit);
     if (!frozen) return { ...entry, kind: 'installment', installment: { number: installment.number, count } };
-    // specs/accounting-books-the-money-collected.md rule 14 — collected, so frozen: the split stored at
+    // specs/accounting/accounting-books-the-money-collected.md rule 14 — collected, so frozen: the split stored at
     // payment time is booked verbatim, whatever the fiche became since (rule 33 of the export spec).
     const vatRate = commissionContext && Number.isFinite(Number(commissionContext.vatRate)) ? Number(commissionContext.vatRate) : 10;
     return {
@@ -226,7 +226,7 @@ function createAccountingOutput({ accountPlan }) {
   }
 
   /**
-   * specs/mixed-method-payments.md rule 26 — what the split payments of a stay paid, so the ordinary emission
+   * specs/payments/mixed-method-payments.md rule 26 — what the split payments of a stay paid, so the ordinary emission
    * leaves those buckets, notes and installments to their settlements.
    */
   function splitTargetsOf(settlements) {
@@ -268,7 +268,7 @@ function createAccountingOutput({ accountPlan }) {
    */
   function bookedFigures(settlement, target) {
     const f = settlementFigures(settlement);
-    // A prepaid line is not an encaissement of this stay: its own sale was (specs/gift-vouchers.md rule 42).
+    // A prepaid line is not an encaissement of this stay: its own sale was (specs/gift-vouchers/gift-vouchers.md rule 42).
     const booksCents = f.collectedCents * target.receivedFactor;
     const bookedWaivedCents = f.bookedWaivedCents * target.waivedFactor;
     const base = target.currentCents;
@@ -327,7 +327,7 @@ function createAccountingOutput({ accountPlan }) {
     return scaled;
   }
 
-  // specs/mixed-method-payments.md rule 18 — the geste commercial of a settlement, booked like the single arrival
+  // specs/payments/mixed-method-payments.md rule 18 — the geste commercial of a settlement, booked like the single arrival
   // payment's réduction accordée (rabais on 70900000 at the stay's rate), at the settlement's date.
   function buildSettlementDiscountEntry(row, settlement, ttc, vatRate) {
     const rate = Number.isFinite(Number(vatRate)) ? Number(vatRate) : 10;
@@ -354,7 +354,7 @@ function createAccountingOutput({ accountPlan }) {
 
   /**
    * The two entries a single arrival payment can carry beyond its buckets
-   * (specs/arrival-payment-detail-and-adjustment.md §3.4).
+   * (specs/sas/arrival-payment-detail-and-adjustment.md §3.4).
    *
    * A **réduction accordée** is the operator giving up part of the accommodation at the door. The sale
    * entries keep their gross credits — the accommodation IS worth what it is worth — and the rebate
@@ -410,7 +410,7 @@ function createAccountingOutput({ accountPlan }) {
     return out;
   }
 
-  // specs/accounting-books-the-money-collected.md rule 12 (reading of 2026-11-11, Adrien) — the « Brut » of Comptabilité ›
+  // specs/accounting/accounting-books-the-money-collected.md rule 12 (reading of 2026-11-11, Adrien) — the « Brut » of Comptabilité ›
   // Plateformes is the PLATFORM's gross: what the platform billed the guest, as recorded on the fiche (`platformGrossAmount`,
   // else the older `clientGrossAmount`). Only when nothing is recorded does it fall back to the stay price WITHOUT the
   // complements paid on site (the tourist tax a complement carries is not part of that price). An own-channel stay (`direct`, or a platform counted as a direct sale) with nothing recorded has
@@ -433,7 +433,7 @@ function createAccountingOutput({ accountPlan }) {
     const touristTaxTotal = Number(row.touristTaxTotal || 0);
     const collectedOnArrival = Boolean(taxContext && taxContext.collectedOnArrival);
     const taxRoutedToComplement = collectedOnArrival || Number(row.touristTaxInComplement || 0) === 1;
-    // specs/per-platform-tourist-tax-three-way.md — case 1 "platform reverses the tax to us" is now a
+    // specs/tourist-tax/per-platform-tourist-tax-three-way.md — case 1 "platform reverses the tax to us" is now a
     // REAL charge stored in `row.touristTaxTotal` and scheduled in the balance (the platform pays it
     // with the settlement). So the standard tax-in-balance path books it on 46710000 with no special
     // casing: the offered case (platform remits to the commune itself) is the only one with tax = 0.
@@ -471,14 +471,14 @@ function createAccountingOutput({ accountPlan }) {
     //   - LEGACY fallback (no entered commission but a stored `clientGrossAmount` > net): keep the old
     //     gross-based recognition so already-booked platform reservations are unchanged.
     // Direct → gross === net (= finalPrice), no commission.
-    // specs/adjustable-complement-amounts.md §3.6 — the ventilation the fiche stored for an adjusted
+    // specs/sas/adjustable-complement-amounts.md §3.6 — the ventilation the fiche stored for an adjusted
     // arrival complement, read (never re-derived) further down, and used right below to keep the
     // gross-up ratio from reacting to the adjustment.
     const storedAllocation = parseComplementAllocation(row.complementAllocation);
     const adjustedComplementAuto = storedAllocation ? storedAllocation.auto : null;
 
     const platformIsNonDirect = String(row.platform || 'direct').toLowerCase() !== 'direct';
-    // specs/platform-per-echeance-commission.md — per-échéance platform commission: the acompte commission
+    // specs/platforms/platform-per-echeance-commission.md — per-échéance platform commission: the acompte commission
     // books on the deposit entry, the solde commission (`platformCommissionAmount`) on the balance entry.
     const acompteCommissionTtc = platformIsNonDirect ? round2(Math.max(0, Number(row.acompteCommissionAmount || 0))) : 0;
     const soldeCommissionTtc = platformIsNonDirect ? round2(Math.max(0, Number(row.platformCommissionAmount || 0))) : 0;
@@ -486,7 +486,7 @@ function createAccountingOutput({ accountPlan }) {
     const gross = legacyGrossUp(row, { finalPriceTtc, touristTaxTotal, enteredCommissionTtc, adjustedComplementAuto });
     const { commissionTtcTotal } = gross;
     let { grossRatio } = gross;
-    // specs/platform-per-echeance-commission.md — explicit per-échéance allocation: the operator-entered
+    // specs/platforms/platform-per-echeance-commission.md — explicit per-échéance allocation: the operator-entered
     // acompte commission rides on the deposit entry, the solde commission on the balance entry; the
     // complement carries none (on-site / host-billed). For a no-acompte platform the acompte commission is
     // 0 → the whole `platformCommissionAmount` lands on the solde (backward-compatible with the prior model).
@@ -542,7 +542,7 @@ function createAccountingOutput({ accountPlan }) {
     // the 46710000 pass-through, never a 70xxx revenue line.
     // The tourist-tax share of an adjusted complement is the one the FICHE ventilated against — the
     // floor guarantees the complement covers it, so the credits close on the announced amount.
-    // specs/accounting-books-the-money-collected.md rule 16 — the split a collected complement was stamped with, read as long
+    // specs/accounting/accounting-books-the-money-collected.md rule 16 — the split a collected complement was stamped with, read as long
     // as it adds up to the entry; the ratio's historical shapes and an operator's adjustment keep their own paths.
     const paidSplit = kind === 'complement' && !complementIsAdjusted && Math.abs(grossRatio - 1) < 1e-9 ? parseComplementPaidSplit(row, encaissementTtc) : null;
     const taxTtc = paidSplit
@@ -551,7 +551,7 @@ function createAccountingOutput({ accountPlan }) {
         ? round2(storedAllocation.tax)
         : computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc, soldeCaptureMatches(row, perLineData));
     const encaissementNetTtc = round2(encaissementTtc - (commissionLine ? commissionLine.ttc : 0));
-    // Single global sales VAT rate (specs/single-vat-rate.md) — same one the quote carried.
+    // Single global sales VAT rate (specs/accounting/single-vat-rate.md) — same one the quote carried.
     const vatRate = commissionContext && Number.isFinite(Number(commissionContext.vatRate))
       ? Number(commissionContext.vatRate)
       : 10;
@@ -570,7 +570,7 @@ function createAccountingOutput({ accountPlan }) {
       taxTtc: round2(taxTtc),
     };
 
-    // specs/adjustable-complement-amounts.md §3.6 rules 31 + 36 — an ADJUSTED arrival complement carries
+    // specs/sas/adjustable-complement-amounts.md §3.6 rules 31 + 36 — an ADJUSTED arrival complement carries
     // the ventilation the FICHE decided and stored. The export reads it verbatim: it never re-derives
     // the postes, and the only arithmetic left here is the TTC → HT + VAT split. That is what keeps
     // Σ credits equal to the adjusted debit by construction, instead of letting the difference fall on
@@ -614,7 +614,7 @@ function createAccountingOutput({ accountPlan }) {
     // the export engine multiplies by 1 and writes the values verbatim, the ≤ 2-cent residue
     // being absorbed on the last credit so Σ credits = CA.
     const ttcByBucket = hasContribs ? computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComplement) : null;
-    // specs/accounting-books-the-money-collected.md rule 11 — contribs frozen at payment time that no
+    // specs/accounting/accounting-books-the-money-collected.md rule 11 — contribs frozen at payment time that no
     // longer fit in the entry (the stay was reduced after it was paid: one guest fewer, breakfast cut)
     // would push the residue onto the last credit, the 46710000 tourist tax, as a negative line. Such an
     // entry is booked like one that never captured contribs: pro-rata of the lines as they stand now.
@@ -625,7 +625,7 @@ function createAccountingOutput({ accountPlan }) {
     const contribsOverflow = Boolean(ttcByBucket)
       && Math.abs(round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc)
         - round2(encaissementTtc)) > CONTRIB_RESIDUE_TOLERANCE_TTC;
-    // specs/accounting-books-the-money-collected.md rule 12 — contribs only describe an entry whose CA is
+    // specs/accounting/accounting-books-the-money-collected.md rule 12 — contribs only describe an entry whose CA is
     // the stored échéance (ratio 1, rule 10's premise). A historical shape grossed up to what the guest
     // paid (the `clientGrossAmount` era, réservation #13) captures its contribs from the stored NET solde
     // when it is ticked today: used as-is, the commission they leave out lands on the last credit, the
@@ -653,16 +653,16 @@ function createAccountingOutput({ accountPlan }) {
     }
 
     // ── Stored-money fallback (no per-line contribs) ────────────────────────
-    // specs/accounting-books-the-money-collected.md rules 5-7 — each encaissement credits ONLY the postes
+    // specs/accounting/accounting-books-the-money-collected.md rules 5-7 — each encaissement credits ONLY the postes
     // it actually covers, pro-rated within that destination. The former model scaled the WHOLE
     // reservation's buckets by `revenue / finalPrice`, so a solde that collected pure accommodation still
     // credited a slice of every option and resource on the fiche — including extras collected at arrival,
     // at checkout, or settled in caisse interne.
     // The split lives in the core (utils/storedMoneySplit): the cancellation reverses a legacy acompte on the very
-    // same postes (specs/payment-schedule-and-cancellation.md rule 55).
+    // same postes (specs/payments/payment-schedule-and-cancellation.md rule 55).
     const revenueTtc = Math.max(0, round2(encaissementTtc - taxTtc));
     const storedHere = storedMoneyCollected(kind, finalPriceTtc, perLineData);
-    // specs/platform-extra-guest-complement.md rule 10, reading of 2026-11-05 (audit R22-5) — the added guests' supplement is
+    // specs/platforms/platform-extra-guest-complement.md rule 10, reading of 2026-11-05 (audit R22-5) — the added guests' supplement is
     // stay revenue from its first entry, whatever was paid before it.
     const collectedHere = kind === 'complement'
       ? { ...storedHere, accommodation: round2(nz(row.extraGuestComplementSurcharge)) }
@@ -706,9 +706,9 @@ function createAccountingOutput({ accountPlan }) {
   // End-of-stay complement (departure SAS): a flat TTC amount outside the pricing engine — the SAS's own
   // lines (ménage, linge manquant) plus whatever was sold DURING the stay. Booked at the app general VAT
   // rate, collected on-site by the owner: no platform commission, no tourist tax
-  // (specs/cash-complement-and-endofstay-finance.md §3.1 + Q1). Returns null when there's nothing to book.
+  // (specs/sas/cash-complement-and-endofstay-finance.md §3.1 + Q1). Returns null when there's nothing to book.
   //
-  // specs/accounting-books-the-money-collected.md rule 8 — ventilated by stored detail line: a `res:*` key
+  // specs/accounting/accounting-books-the-money-collected.md rule 8 — ventilated by stored detail line: a `res:*` key
   // is a resource (70601000), everything else a prestation (70600010). Marchand's bain nordique, sold
   // mid-stay, was landing on the prestations account.
   function buildEndOfStayEntry(row, vatRate) {
@@ -754,7 +754,7 @@ function createAccountingOutput({ accountPlan }) {
     return { options: round2(ttc - resources), resources };
   }
 
-  // « Note en séjour » (specs/mid-stay-notes.md §3.4 rule 14): one punctual collection during the
+  // « Note en séjour » (specs/sas/mid-stay-notes.md §3.4 rule 14): one punctual collection during the
   // stay, booked exactly like the end-of-stay complement — flat TTC split at the app general VAT rate
   // on the « prestation complémentaire » revenue account, collected on site (no platform commission,
   // no tourist tax). One entry per note, at the note's own payment date.
@@ -788,7 +788,7 @@ function createAccountingOutput({ accountPlan }) {
     // Read the global commission config once per export run (settings + platforms).
     // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
     const commissionContext = readModels.commissionContext();
-    // A tip lands on the plan's tip account (specs/plugins-phase-p-productisation.md rule 27): its
+    // A tip lands on the plan's tip account (specs/plugins/plugins-phase-p-productisation.md rule 27): its
     // default is shared with the compensation account, so the entry names it.
     const tipAccount = String(readModels.tipAccount() || TIP_ACCOUNT);
     const inTipAccount = (entry) => (entry.kind === 'tip'
@@ -802,23 +802,23 @@ function createAccountingOutput({ accountPlan }) {
       const taxContext = readModels.taxContextOf(row);
       const entries = [];
       const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
-      // specs/mixed-method-payments.md rule 26 — what a split payment paid is booked by its settlements below,
+      // specs/payments/mixed-method-payments.md rule 26 — what a split payment paid is booked by its settlements below,
       // never a second time as a whole bucket, note or installment.
       const settlements = readModels.settlementsOf(row.id);
       const split = splitTargetsOf(settlements);
       // Cash-collected stay buckets are settled off the books → never emitted as an encaissement
-      // (specs/collect-stay-payment-at-check-in.md §3.4).
+      // (specs/sas/collect-stay-payment-at-check-in.md §3.4).
       if (inMonth(row.depositPaid, row.depositPaidDate) && Number(row.depositPaidCash || 0) === 0 && !split.buckets.has('deposit')) {
         entries.push(buildEntry(row, 'deposit', perLineData, rowContext, taxContext));
       }
       if (inMonth(row.balancePaid, row.balancePaidDate) && Number(row.balancePaidCash || 0) === 0 && !split.buckets.has('balance')) {
         entries.push(buildEntry(row, 'balance', perLineData, rowContext, taxContext));
       }
-      // One encaissement per installment collected in the month (specs/direct-installments.md): the plan
+      // One encaissement per installment collected in the month (specs/payments/direct-installments.md): the plan
       // replaces the acompte and the solde, so these are the pre-arrival money of such a stay.
       const plan = readModels.installmentsOf(row.id);
       // The tax shares are those of the whole plan, so they add up to the tax once every installment is in.
-      // specs/platform-added-guests-tourist-tax.md rule 27 — without the added guests' share: it rides the complement.
+      // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 27 — without the added guests' share: it rides the complement.
       const shares = plan.length
         ? taxShares(Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100), plan.map((i) => Number(i.amountCents)))
         : [];
@@ -836,12 +836,12 @@ function createAccountingOutput({ accountPlan }) {
         entries.push(buildEntry(row, 'complement', perLineData, rowContext, taxContext));
       }
       // End-of-stay complement (SAS): a flat TTC amount booked as a « prestation complémentaire »
-      // at the app general VAT rate (specs/cash-complement-and-endofstay-finance.md §3.1). Excluded
+      // at the app general VAT rate (specs/sas/cash-complement-and-endofstay-finance.md §3.1). Excluded
       // when paid in cash.
       if (inMonth(row.endOfStayComplementPaid, row.endOfStayComplementPaidDate) && Number(row.endOfStayComplementPaidCash || 0) === 0 && !split.buckets.has('endOfStayComplement')) {
         entries.push(buildEndOfStayEntry(row, rowContext.vatRate));
       }
-      // « Notes en séjour » (specs/mid-stay-notes.md §3.4 rule 14): one entry per SETTLED note, at
+      // « Notes en séjour » (specs/sas/mid-stay-notes.md §3.4 rule 14): one entry per SETTLED note, at
       // its own payment date — the note IS the real-world collection. Same flat-TTC shape as the
       // end-of-stay complement; caisse-interne notes stay off the books like the cash complements.
       for (const note of parseNotes(row.midStaySettledNotes)) {
@@ -850,7 +850,7 @@ function createAccountingOutput({ accountPlan }) {
         if (split.notes.has(String(note.id))) continue;
         entries.push(buildMidStayNoteEntry(row, note, rowContext.vatRate));
       }
-      // specs/mixed-method-payments.md rules 18, 26 — each settlement of the month: the entries of what it paid,
+      // specs/payments/mixed-method-payments.md rules 18, 26 — each settlement of the month: the entries of what it paid,
       // at its date, scaled to its share on the books (gross of its réduction), then the réduction itself.
       const partEntry = (part) => {
         if (part.kind === 'deposit' || part.kind === 'balance' || part.kind === 'complement') {
@@ -890,7 +890,7 @@ function createAccountingOutput({ accountPlan }) {
             entry.paymentGroup = { id, at: group.at, cash: group.cash === 1, total: group.total };
           }
         }
-        // specs/arrival-payment-detail-and-adjustment.md rules 24-27 — the adjustment of that
+        // specs/sas/arrival-payment-detail-and-adjustment.md rules 24-27 — the adjustment of that
         // payment, at ITS date. A caisse-interne group is off the books whole: its buckets emit
         // nothing, so neither may its réduction (it would credit back money the journal never
         // booked).

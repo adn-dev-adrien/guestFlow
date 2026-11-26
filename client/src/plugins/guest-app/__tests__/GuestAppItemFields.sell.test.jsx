@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 22, 23, 39 — the « Application clients » section of the option / resource editor: the sell
+// specs/guest-app/guest-app.md rules 22, 23, 39 — the « Application clients » section of the option / resource editor: the sell
 // switch (disabled with the server's reason), the presentation fields, and a save that writes only what changed.
 import { act, fireEvent, screen } from '@testing-library/react';
 import guestAppApi from '../guestAppApi';

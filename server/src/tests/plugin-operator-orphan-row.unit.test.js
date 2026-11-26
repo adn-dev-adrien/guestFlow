@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 39 — an installed plugin whose code is gone is outside the
+// specs/plugins/plugin-operator-provisioning.md rule 39 — an installed plugin whose code is gone is outside the
 // catalogue the reconciler walks: it is left as it is, and never breaks the pass.
 
 const test = require('node:test');

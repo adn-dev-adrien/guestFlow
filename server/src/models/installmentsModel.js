@@ -1,6 +1,6 @@
 /**
  * Installments model — sole DB access for `reservation_installments`
- * (specs/direct-installments.md §5).
+ * (specs/payments/direct-installments.md §5).
  *
  * One row per installment of a reservation's plan, amounts in cents. The stay's own row carries three
  * aggregates (`installmentsPaidAmount`, `installmentsUnpaidAmount`, `installmentsTarget`, in euros) that
@@ -59,7 +59,7 @@ function buildModel(database) {
     syncSettlements(reservationId);
   }
 
-  // specs/mixed-method-payments.md — an installment taken back or deleted takes its settlement with it. Built
+  // specs/payments/mixed-method-payments.md — an installment taken back or deleted takes its settlement with it. Built
   // once, on first use (the settlements model requires this database's schema to be migrated).
   let settlements = null;
   function syncSettlements(reservationId) {

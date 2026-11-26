@@ -1,9 +1,9 @@
 /**
- * Payment-deadline alert rows (specs/payment-schedule-and-cancellation.md §3.4).
+ * Payment-deadline alert rows (specs/payments/payment-schedule-and-cancellation.md §3.4).
  *
  * `computePaymentStatus` has been able to say « overdue » since day one, but no screen ever asked:
  * the dashboard's red « Paiements » cell is deliberately about door money only
- * (specs/dashboard-collection-alert.md rule 3), and the Finances page lists what is left to pay
+ * (specs/planning/dashboard-collection-alert.md rule 3), and the Finances page lists what is left to pay
  * without ever saying it is late. An unpaid direct booking could therefore reach its arrival date
  * without a single alert. This is the missing surface.
  *
@@ -18,11 +18,11 @@
  *   `balance_to_request`— the solde is due and the guest has never been asked for it;
  *   `balance_overdue`   — the solde is late, the cancellation deadline is not reached yet;
  *   `installment_overdue` — an installment of the plan is unpaid three days after its due date
- *                         (specs/direct-installments.md rule 22); no reminder, no cancellation;
+ *                         (specs/payments/direct-installments.md rule 22); no reminder, no cancellation;
  *   `deposit_to_request`— the acompte has never been asked for (from the booking day on);
  *   `deposit_overdue`   — the acompte is late;
  *   `platform_payout_overdue` — an OTA has not settled `payoutDueDays` after the guest left
- *                         (specs/platform-payout-due-date.md §3.2). Money owed by a PLATFORM, not by
+ *                         (specs/platforms/platform-payout-due-date.md §3.2). Money owed by a PLATFORM, not by
  *                         a guest: nothing to email, nothing to cancel — the stay already happened;
  *   `platform_amount_missing` — same deadline, but the booking carries no figures at all: the amount
  *                         was never entered, so there is nothing to chase and something to type
@@ -53,14 +53,14 @@ const SEVERITY_BY_STATE = {
   deposit_overdue: 'warning',
   // Deliberately NOT 'error' (rule §9): an OTA payout running a few days late is routine, and turning
   // the whole card red for it would blunt the red signal again — the very failure
-  // specs/dashboard-collection-alert.md was written to fix.
+  // specs/planning/dashboard-collection-alert.md was written to fix.
   platform_payout_overdue: 'warning',
   // A booking with no figures at all is a data-entry to-do, not a debt: same tone.
   platform_amount_missing: 'warning',
 };
 // Render order: the two red states first, then the late solde, then the late acompte, and last the
 // platform payout — money owed by a platform arrives eventually; money owed by a guest about to walk
-// in does not (specs/platform-payout-due-date.md rule 13).
+// in does not (specs/platforms/platform-payout-due-date.md rule 13).
 const STATE_RANK = [
   'unpaid_at_arrival', 'cancel_due', 'balance_to_request', 'balance_overdue', 'installment_overdue',
   'deposit_to_request', 'deposit_overdue', 'platform_payout_overdue', 'platform_amount_missing',
@@ -75,7 +75,7 @@ const MAX_DAYS_LATE_PLATFORM = 30; // platform — measured from the payout dead
 const clientNameOf = (row) => `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
 
 /**
- * A platform booking whose payout is late (specs/platform-payout-due-date.md §3.2).
+ * A platform booking whose payout is late (specs/platforms/platform-payout-due-date.md §3.2).
  *
  * Only the SOLDE can put such a reservation on the card: it is the platform's transfer. An unpaid
  * acompte on a platform that takes one is the platform's business too (rule 14), and neither
@@ -100,7 +100,7 @@ function buildPlatformPayoutRow(row, today) {
 
   const daysLate = Math.max(0, daysBetween(balanceDueDate, today) || 0);
 
-  // specs/platform-payout-due-date.md §3.2bis — the booking carries NO money at all: an iCal import
+  // specs/platforms/platform-payout-due-date.md §3.2bis — the booking carries NO money at all: an iCal import
   // writes `finalPrice = 0` and empty buckets, and the operator never entered the platform's figures.
   // Chasing a payout is meaningless here — we cannot even say how much is owed — so the row says what
   // is actually missing: the data entry. Same deadline as the payout (rule 27): until then, not
@@ -152,7 +152,7 @@ function buildPlatformPayoutRow(row, today) {
   // after the stay, so a window counted from `endDate` would barely leave it time to be seen.
   if (daysLate > MAX_DAYS_LATE_PLATFORM) return null;
 
-  // specs/finance-dashboard-redesign.md rule 41 — the platform owes its payout: the solde net of its
+  // specs/accounting/finance-dashboard-redesign.md rule 41 — the platform owes its payout: the solde net of its
   // commission, as the finance page counts it.
   const payout = round2(Math.max(0, balanceAmount - Number(row.platformCommissionAmount || 0) - Number(row.platformPenaltyAmount || 0)));
   // Rule 41 — nothing owed, nothing late.
@@ -181,7 +181,7 @@ function buildPaymentDeadlineRow(row = {}, today) {
 
   // A platform booking is settled by the platform AFTER the stay, so its solde is not the guest's
   // money and none of the guest-facing states below describe it. It gets its own row instead
-  // (specs/platform-payout-due-date.md §3.2), driven by the payout deadline the pricing engine and
+  // (specs/platforms/platform-payout-due-date.md §3.2), driven by the payout deadline the pricing engine and
   // the iCal import store on `balanceDueDate` = departure + the platform's payoutDueDays.
   if (!isDirectChannel(row.platform)) return buildPlatformPayoutRow(row, today);
 

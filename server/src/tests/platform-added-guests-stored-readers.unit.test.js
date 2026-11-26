@@ -1,4 +1,4 @@
-// specs/platform-added-guests-tourist-tax.md rule 18 — what reads a solde from its stored money leaves
+// specs/tourist-tax/platform-added-guests-tourist-tax.md rule 18 — what reads a solde from its stored money leaves
 // the addition out: the stored split of a failed capture, the booked solde of a cancelled stay; and the
 // stored summary of the fiche names it.
 

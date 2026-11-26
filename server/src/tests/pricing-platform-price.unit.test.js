@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 17, 50 and 70 — PLATFORM PRICE alone: the gross pin (accommodation = gross − extra
+// specs/pricing/pricing-components.md §3 rules 17, 50 and 70 — PLATFORM PRICE alone: the gross pin (accommodation = gross − extra
 // guests in the gross − lines inside the platform price − withheld / reversed tax, floored at 0, to the cent), the
 // display gross-up `grossFromNet` shared with the engine, the settings schema, and the pin against the engine's quote.
 const test = require('node:test');
@@ -10,7 +10,7 @@ const { settingsSchema } = platformPrice;
 
 const { resolvePlatformPrice, grossFromNet } = platformPrice;
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 3, 7): the gross is the host amount of the statement; the only
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 3, 7): the gross is the host amount of the statement; the only
 // tax term left is the signed gap between what the platform paid for the tax and GuestFlow's own, which goes into the accommodation.
 test('rule 17 — the accommodation is the gross less the terms the platform price already holds, plus the tax gap', () => {
   const { accommodation } = resolvePlatformPrice({

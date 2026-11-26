@@ -1,5 +1,5 @@
 // @ts-check
-// specs/email-client-language-and-fiche-polish.md — the email language lives on the CLIENT and drives
+// specs/emails/email-client-language-and-fiche-polish.md — the email language lives on the CLIENT and drives
 // every email for them. A client set to English gets reminder emails (body + composed strings) in English.
 // The email-language selector no longer appears on the reservation fiche.
 import { test, expect } from '../../fixtures/test.js';
@@ -28,8 +28,8 @@ test('a client set to English drives the J-2 preview to English; French clients 
   const frRes = await request.get(`/api/emails/preview?reservationId=${reservation.id}&templateId=${templateId}`);
   const fr = await frRes.json();
   expect(fr.lang).toBe('fr');
-  // specs/guest-email-sequence.md §6.1 — the J-2 of the guest sequence, in the neutral copy a new
-  // database ships (specs/plugins-phase-p-productisation.md rule 13).
+  // specs/emails/guest-email-sequence.md §6.1 — the J-2 of the guest sequence, in the neutral copy a new
+  // database ships (specs/plugins/plugins-phase-p-productisation.md rule 13).
   expect(fr.body).toMatch(/Dans deux jours, vous serez/);
   expect(fr.body).toMatch(new RegExp(`juillet ${FAR_YEAR}`));
 

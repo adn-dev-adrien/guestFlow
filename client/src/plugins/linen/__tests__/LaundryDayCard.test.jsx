@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import LaundryDayCard from '../LaundryDayCard';
 
 // Regression tests for the LaundryDayCard rendering rules
-// (specs/weekly-bed-linen-tracking.md rules 13, 13.bis, §6.1).
+// (specs/linen/weekly-bed-linen-tracking.md rules 13, 13.bis, §6.1).
 //
 // These pin the rules that would otherwise silently regress if anyone touches the formatTowels /
 // formatSheets helpers or the SideBlock fallback:
@@ -15,7 +15,7 @@ import LaundryDayCard from '../LaundryDayCard';
 
 const ZERO = { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 };
 
-// specs/linen-laundry-days.md rule 13 — the server decides which days carry a card; the card no longer
+// specs/linen/linen-laundry-days.md rule 13 — the server decides which days carry a card; the card no longer
 // hides itself when both sides are zero (the former weekly-bed-linen rule 13).
 test('draws the card it is given even when both sides are entirely zero', () => {
   render(<LaundryDayCard data={{ dropOff: ZERO, pickUp: ZERO }} />);

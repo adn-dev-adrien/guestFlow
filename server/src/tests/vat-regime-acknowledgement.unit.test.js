@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 24 and 31 — a switch that rewrites collected money or booked months
+// specs/accounting/vat-optional-mode.md rules 24 and 31 — a switch that rewrites collected money or booked months
 // asks for the acknowledgement whatever its scope (the server refuses without it, the preview says so),
 // and the fingerprint covers the source rates: a rate edited between preview and switch gives a 409.
 

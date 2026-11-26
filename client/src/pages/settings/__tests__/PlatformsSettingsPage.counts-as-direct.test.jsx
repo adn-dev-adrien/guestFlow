@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 19 — « Compté comme vente directe »: locked on for
+// specs/plugins/plugins-phase-p-productisation.md rule 19 — « Compté comme vente directe »: locked on for
 // `direct`, a switch for the others, sent with the save.
 import React from 'react';
 import { vi } from 'vitest';

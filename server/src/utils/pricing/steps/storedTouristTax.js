@@ -1,5 +1,5 @@
 /**
- * STEP storedTouristTax — TOURIST TAX as stored, for a sale (specs/pricing-components.md §3 rule 8).
+ * STEP storedTouristTax — TOURIST TAX as stored, for a sale (specs/pricing/pricing-components.md §3 rule 8).
  *
  * A sale on a stay reads the tax the stay was priced with (`reservations.storedTouristTax`: the total, its detail — base,
  * rate, unit amount —, where it is collected, the added guests' part) instead of running TOURIST TAX: no tax setting nor

@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 57 and 58 (audit r4, N-R4-2, decision of Adrien 2026-10-29: « Éteindre le
+// specs/plugins/plugins-phase-4-registry.md rules 57 and 58 (audit r4, N-R4-2, decision of Adrien 2026-10-29: « Éteindre le
 // dépendant ») — when a core update ships a manifest that makes an ACTIVE bundled plugin require a plugin that is
 // installed but OFF, the dependant is switched off at boot and the home says so; the requirement is never switched
 // on. A rollback to a version whose requirement is not installed is refused.

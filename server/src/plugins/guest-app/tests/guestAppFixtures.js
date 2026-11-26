@@ -1,4 +1,4 @@
-// Shared fixtures for the guest-app suites (specs/guest-app.md). Not a test file. Far-future dates on purpose:
+// Shared fixtures for the guest-app suites (specs/guest-app/guest-app.md). Not a test file. Far-future dates on purpose:
 // the clock is injected and nothing here is compared with today.
 
 const fs = require('fs');
@@ -40,7 +40,7 @@ function addStay(db, over = {}) {
     kind: 'reservation', reservationNumber: 'R-99-001', adults: 2, children: 1, teens: 0, babies: 0, platform: 'direct', checkInDone: 1, ...over,
   };
   // `checkInDone` defaults to the arrival marked: the shop and the orders of a stay session read where the core collects
-  // an order (specs/guest-app.md rule 67); the suites of the pre-arrival orders mark it off.
+  // an order (specs/guest-app/guest-app.md rule 67); the suites of the pre-arrival orders mark it off.
   return db.prepare(`
     INSERT INTO reservations (propertyId, clientId, startDate, endDate, checkInTime, checkOutTime, kind, reservationNumber, adults, children, teens, babies, platform, checkInDone)
     VALUES (@propertyId, @clientId, @startDate, @endDate, @checkInTime, @checkOutTime, @kind, @reservationNumber, @adults, @children, @teens, @babies, @platform, @checkInDone)

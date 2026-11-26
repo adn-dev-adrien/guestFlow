@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Creates an operator of the console (specs/control-plane-plans-and-access.md rule 31) — there is
+ * Creates an operator of the console (specs/hosting/control-plane-plans-and-access.md rule 31) — there is
  * no sign-up page.
  *
  *   CP_OPERATOR_PASSWORD='…' npm run create-operator -- --email adrien@adn-dev.fr --name "Adrien"

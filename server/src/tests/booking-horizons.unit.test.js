@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 51 (§3.O) — how far ahead the public may book is a setting, never a constant:
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 51 (§3.O) — how far ahead the public may book is a setting, never a constant:
 // the lodging's `bookingHorizonMonths` (12 by default, 1-36) replaces the 730 days of the public API; a resource
 // carries its own (3 by default, 1-24). The limit is « today + N months » computed here; the back-office is never bounded.
 const test = require('node:test');

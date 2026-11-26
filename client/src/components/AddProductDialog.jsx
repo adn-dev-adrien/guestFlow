@@ -1,5 +1,5 @@
 /**
- * AddProductDialog — « Ajouter un produit » on a stay that exists (specs/pricing-components.md §3 rules 27, 30).
+ * AddProductDialog — « Ajouter un produit » on a stay that exists (specs/pricing/pricing-components.md §3 rules 27, 30).
  *
  * Props: `open`, `onClose`, `reservationId`, `articles` (`[{ articleRef, label }]`, the catalogue the page already holds), `onSold(saleDetail)`.
  * The dialog asks the server for the price (`POST …/extras/quote`), shows the total and the moment the server gives, and sells at the
@@ -29,7 +29,7 @@ export default function AddProductDialog({ open, onClose, reservationId, article
 
   const requests = articleRef ? [{ articleRef, quantity: Number(quantity) }] : [];
   const valid = requests.length > 0 && Number(quantity) > 0;
-  // The money-dialog contract (specs/plugins-phase-1-sdk.md rule 58, loop t26): the price through the shared preview hook (latest request
+  // The money-dialog contract (specs/plugins/plugins-phase-1-sdk.md rule 58, loop t26): the price through the shared preview hook (latest request
   // only, a failure with its way out), « Ajouter » only on the answer for the product and quantity on screen.
   const fetcher = useCallback((body, options) => api.quoteExtraSale(reservationId, body, options), [reservationId]);
   const preview = useLatestPreview({

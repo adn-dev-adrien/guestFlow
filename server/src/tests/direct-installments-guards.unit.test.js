@@ -1,4 +1,4 @@
-// specs/direct-installments.md rules 17, 34-35, 39-43 — the guards around the money: a link paid at an old amount,
+// specs/payments/direct-installments.md rules 17, 34-35, 39-43 — the guards around the money: a link paid at an old amount,
 // the links a plan creation / removal / platform switch abandons, concurrency, the VAT basket, hand-queued
 // requests, the money templates' hard « never auto », and the boot migration on awkward rows.
 const test = require('node:test');

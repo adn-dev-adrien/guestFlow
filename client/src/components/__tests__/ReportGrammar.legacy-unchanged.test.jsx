@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 1 — the report grammar only ADDS optional props: an existing
+ * specs/design-system/report-grammar.md §3 rule 1 — the report grammar only ADDS optional props: an existing
  * consumer that passes none of them renders the very same markup as before lot 0. Each hash below was
  * recorded from the components as they stood on the integration branch (5437951d), before any change.
  */

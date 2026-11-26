@@ -1,5 +1,5 @@
 /**
- * The GuestFlow control plane — the operator console (specs/control-plane-plans-and-access.md).
+ * The GuestFlow control plane — the operator console (specs/hosting/control-plane-plans-and-access.md).
  *
  * Environment:
  *   CP_DATA_DIR              its database, the secrets key and the exports (default ./data)
@@ -16,7 +16,7 @@
  *   CP_PROXY_SECRET          the header Caddy adds; without it X-Forwarded-* are ignored (H1 rule 21);
  *                            required outside development/test
  *
- * Hosting (specs/hosting-h1-fleet-runtime.md; deploy/hosting/README.md lists the production values):
+ * Hosting (specs/hosting/hosting-h1-fleet-runtime.md; deploy/hosting/README.md lists the production values):
  *   CP_RELEASES_DIR          the shared releases, <dir>/<version> (default: <CP_INSTANCES_ROOT>/../releases)
  *   CP_PORT_RANGE            the instances' ports (default 4400-4499)
  *   CP_HEALTH_TIMEOUT_MS     the health check's limit (default 60000)

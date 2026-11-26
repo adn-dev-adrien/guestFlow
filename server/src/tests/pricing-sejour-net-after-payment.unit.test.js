@@ -1,4 +1,4 @@
-// specs/fiche-total-sejour-net-of-commission.md rule 11 (audit 2026-10-27) — « Total perçu / Vous
+// specs/platforms/fiche-total-sejour-net-of-commission.md rule 11 (audit 2026-10-27) — « Total perçu / Vous
 // percevez » counts a rise after payment once: the arrival complement owes it, the pre-arrival amount
 // must not count it a second time.
 const test = require('node:test');

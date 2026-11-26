@@ -1,5 +1,5 @@
 // @ts-check
-// specs/hourly-resource-quantity-and-sas-scheduling.md §7 — the reported bug, against the real app.
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §7 — the reported bug, against the real app.
 //
 // Enabling the « Bain nordique » on a devis showed the resource card but added NOTHING: no line in
 // the pricing panel and no change to the total. Two defects had to line up for that, and only a real

@@ -1,5 +1,5 @@
 // @ts-check
-// specs/reception-role-checkin-only.md — the « Accueil » account reaches ONLY the finance-free home
+// specs/sas/reception-role-checkin-only.md — the « Accueil » account reaches ONLY the finance-free home
 // and the Planning, and never receives a financial figure. That spec shipped without any E2E cover;
 // this is the browser-level guard for it (the unit tests only pin the middleware allowlist and the
 // serializer in isolation).
@@ -69,7 +69,7 @@ test('the reservation payload carries the door money but no revenue, balance or 
 });
 
 test('the SAS payload serves the same reception view as the fiche', async ({ request }) => {
-  // specs/reception-role-checkin-only.md rule 12 — the leak this pins: GET /reservations/:id/sas
+  // specs/sas/reception-role-checkin-only.md rule 12 — the leak this pins: GET /reservations/:id/sas
   // used to embed the RAW reservation (full finance + client PII) even for a reception-only
   // requester — only /reservations went through the serializer (fixed 2026-09-07).
   const property = await createProperty({ name: 'E2E accueil SAS', basePrice: 180 });

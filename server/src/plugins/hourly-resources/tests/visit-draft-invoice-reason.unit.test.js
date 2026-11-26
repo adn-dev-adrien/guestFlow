@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-5) — with a payment typed, the screens print the server's refusal `reason`
+// specs/sas/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-5) — with a payment typed, the screens print the server's refusal `reason`
 // under « Facture » and the « Caisse interne » caption from its `INTERNAL_CASH` code, never from the tenders: the draft answer marks its refusals
 // `silent` exactly like the stored visit's `invoiceable` (no Qonto, nothing the operator can act on → no reason shown).
 const test = require('node:test');

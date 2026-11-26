@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 26 (audit R40-RES-L1, 2026-11-10) — an id that passes the shape check but
+// specs/tech/reservations-backend-mvc.md rule 26 (audit R40-RES-L1, 2026-11-10) — an id that passes the shape check but
 // names no row is refused before it reaches a foreign-key INSERT (each was a 500 « Erreur interne du serveur »):
 // a devis naming an unknown client → 400 CLIENT_REQUIRED, as a stay; calculate-price and a calendar note on an
 // unknown logement → 404 « Logement non trouvé », as suggest-beds. Nothing is written.

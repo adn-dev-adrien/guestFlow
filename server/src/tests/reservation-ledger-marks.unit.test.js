@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md §3.2 — recording a movement from the ledger (rules 8-14): the
+// specs/payments/reservation-payment-ledger.md §3.2 — recording a movement from the ledger (rules 8-14): the
 // server validates every date, refuses a mark whose amount moved, keeps the caution in order, never
 // lets the save write a payment state, and undoes with a confirmation naming the date and the entry.
 
@@ -19,7 +19,7 @@ test('rule 8 — one action per due row; « Caisse interne » only on the comple
   const id = createStay();
   db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(id);
   const q = await liveQuote(id);
-  // specs/mixed-method-payments.md rule 21 — a markable row also offers « Plusieurs moyens » (`split`), never shown before
+  // specs/payments/mixed-method-payments.md rule 21 — a markable row also offers « Plusieurs moyens » (`split`), never shown before
   // the form is open: the action itself is unchanged.
   const { split: depositSplit, ...depositAction } = rowIn(q, 'deposit').action;
   const { split: balanceSplit, ...balanceAction } = rowIn(q, 'balance').action;
@@ -103,7 +103,7 @@ test('rule 12 — the caution follows the order of events', () => {
   assert.deepEqual([row.cautionReceived, row.cautionReturned, row.cautionReturnedDate], [1, 1, inDays(-74)]);
 });
 
-// specs/single-payment-from-the-fiche.md rule 11bis — extended to the caution columns.
+// specs/payments/single-payment-from-the-fiche.md rule 11bis — extended to the caution columns.
 test('rule 13 — the save never writes a payment state: forged caution columns are ignored', async () => {
   const id = createStay();
   const res = await save(id, { cautionReceived: true, cautionReceivedDate: inDays(-94), cautionReturned: true, cautionReturnedDate: inDays(-93) });

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 12 — whose reservation is open: an identity line on a
+// specs/design-system/ui-review-2026-10-19-operations.md rule 12 — whose reservation is open: an identity line on a
 // second row of the bar below lg, where the centred name is hidden.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

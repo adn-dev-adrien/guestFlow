@@ -1,4 +1,4 @@
-// The added guests' row — specs/platform-added-guests-tourist-tax.md rule 12: same stay as its main
+// The added guests' row — specs/tourist-tax/platform-added-guests-tourist-tax.md rule 12: same stay as its main
 // row, its own « Déclarée » tick, which leaves the main row alone.
 import { vi } from 'vitest';
 import React from 'react';
@@ -17,7 +17,7 @@ import api from '../../api';
 import TouristTaxPage from '../TouristTaxPage';
 import { reportOf } from './touristTaxReportFixtures';
 
-// The legacy-shaped fixtures below, sent as the report payload (specs/tourist-tax-report-v2.md §4.3).
+// The legacy-shaped fixtures below, sent as the report payload (specs/tourist-tax/tourist-tax-report-v2.md §4.3).
 const asReport = (d) => reportOf(d.reservations);
 
 const STAY = {

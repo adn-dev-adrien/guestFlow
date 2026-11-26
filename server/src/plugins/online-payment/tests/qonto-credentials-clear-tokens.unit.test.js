@@ -1,5 +1,5 @@
 // Changing the application must not leave an authorisation that belonged to another one.
-// See specs/qonto-settings-in-app.md §3 rule 15.
+// See specs/settings/qonto-settings-in-app.md §3 rule 15.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

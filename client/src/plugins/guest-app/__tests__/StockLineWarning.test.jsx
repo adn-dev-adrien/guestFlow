@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 37quater — « Stock : épuisé » under a line of the fiche, a warning that never blocks.
+// specs/guest-app/guest-app.md rule 37quater — « Stock : épuisé » under a line of the fiche, a warning that never blocks.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

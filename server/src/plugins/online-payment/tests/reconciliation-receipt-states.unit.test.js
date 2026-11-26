@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rules 19, 21, 22, 37 — one state per expected receipt.
+// specs/accounting/qonto-bank-reconciliation.md rules 19, 21, 22, 37 — one state per expected receipt.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { stateOfReceipt, fixText, isGap, GAP_STATES } = require('../reconciliation/receiptStates');

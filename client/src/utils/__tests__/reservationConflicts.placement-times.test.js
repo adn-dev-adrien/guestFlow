@@ -1,4 +1,4 @@
-// specs/edit-reservation-blocked-by-overlap.md rule 5 (spec review 2026-10-27) — a check-in / check-out
+// specs/reservations/edit-reservation-blocked-by-overlap.md rule 5 (spec review 2026-10-27) — a check-in / check-out
 // time change on an existing fiche is a placement change: the overlap check runs again.
 import { describe, it, expect } from 'vitest';
 import { isPlacementUnchanged } from '../reservationConflicts';

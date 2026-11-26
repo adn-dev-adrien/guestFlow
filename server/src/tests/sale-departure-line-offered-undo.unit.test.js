@@ -1,4 +1,4 @@
-// specs/pricing-components.md rules 20, 23, 25 and specs/mid-stay-extras-on-locked-fiche.md rule 6 (end-review verification V-5) — on a started stay
+// specs/pricing/pricing-components.md rules 20, 23, 25 and specs/sas/mid-stay-extras-on-locked-fiche.md rule 6 (end-review verification V-5) — on a started stay
 // a line sold for the departure and offered by mistake can be billed again or removed: it is not a line offered at arrival. Removing a line keeps
 // every other offered line offered, an automatic one the fiche's body does not name included; the lines offered at arrival stay frozen.
 process.env.DB_PATH = ':memory:';

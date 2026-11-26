@@ -1,5 +1,5 @@
 /**
- * OptionPropertyTable — « Logements et prix » of the option editor (specs/options-resources-ux.md
+ * OptionPropertyTable — « Logements et prix » of the option editor (specs/options/options-resources-ux.md
  * rule 14): one line per property with « Proposée » (the option's scope), « Prix » (the per-property
  * price; blank = the base price, shown as placeholder; 0 = free), « Inclus » (added to new reservations)
  * and « Offert » (included at 0 €, only once « Inclus »).

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 36, §5 T4/T5 (end review R1-5) — a rebuilt table keeps its AUTOINCREMENT counter as an INTEGER: the
+// specs/pricing/pricing-components.md §3 rule 36, §5 T4/T5 (end review R1-5) — a rebuilt table keeps its AUTOINCREMENT counter as an INTEGER: the
 // counter is bound as an integer, never stored as a REAL (`85.0`).
 process.env.DB_PATH = ':memory:';
 

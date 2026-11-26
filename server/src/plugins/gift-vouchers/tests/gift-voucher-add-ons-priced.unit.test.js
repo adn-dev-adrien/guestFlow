@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 64 — what can be added to a voucher is priced by the server: each add-on of the offer (and of « Utiliser un bon ») carries its unit label,
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 64 — what can be added to a voucher is priced by the server: each add-on of the offer (and of « Utiliser un bon ») carries its unit label,
 // whether its price is linear and the price of every quantity; the extra time carries the price of every step; the price request answers `extrasCents`. Every figure is the
 // engine's, the one the price request answers for the same choice, so a page reads it and multiplies nothing.
 process.env.DB_PATH = ':memory:';

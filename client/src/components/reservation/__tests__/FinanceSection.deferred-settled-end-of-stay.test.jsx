@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance as renderLedger, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/defer-arrival-complement-to-checkout.md rule 22 (audit R28-C-M1, 2026-11-08) — the merged card of a deferred
+// specs/sas/defer-arrival-complement-to-checkout.md rule 22 (audit R28-C-M1, 2026-11-08) — the merged card of a deferred
 // complement never carries an end of stay already settled: the server's block names the part it holds
 // (`checkoutComplement.endOfStayAmount`, 0 here), and the card's « Montant ajusté » reads that part, not the end of stay's
 // total, so a typed total lands whole on the arrival complement.

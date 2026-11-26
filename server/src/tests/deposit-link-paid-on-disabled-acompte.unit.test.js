@@ -1,4 +1,4 @@
-// specs/disable-deposit-per-reservation.md rule 12 and specs/plugins-phase-3a-online-payment.md rule 48
+// specs/payments/disable-deposit-per-reservation.md rule 12 and specs/plugins/plugins-phase-3a-online-payment.md rule 48
 // (audit R7 M1, 2026-10-30) — an acompte link paid after the stay was switched to « Sans acompte » (the
 // Qonto deactivation failed, or the guest paid in between) re-enables the acompte: the money is recorded
 // as the acompte, the ledger shows it, the journal books it, and the next save of the fiche keeps it.

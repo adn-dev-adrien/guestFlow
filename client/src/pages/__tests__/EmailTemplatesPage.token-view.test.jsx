@@ -1,4 +1,4 @@
-// specs/email-automation.md rules 16–18 — the full template editor shows each variable by its French
+// specs/emails/email-automation.md rules 16–18 — the full template editor shows each variable by its French
 // label, like « Textes des emails », and saves the raw token (rule 17); a refusal lands under its
 // field in those labels; « Quand » reads the server's label (rule 16); a pending email has its own
 // « Envoyer » button (rule 18).

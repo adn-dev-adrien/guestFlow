@@ -1,7 +1,7 @@
-// specs/hosting-h2-account-security.md rule 23 — a route that hands out, creates or rotates a secret is
+// specs/hosting/hosting-h2-account-security.md rule 23 — a route that hands out, creates or rotates a secret is
 // refused to a support session: the routes a plugin declares with `ctx.secretRoutes` (the gate
 // connector's keys here; the Booking script in booking-intake's own suite), and the core's iCal export
-// token rotation. specs/hosting-h2-account-security.md rule 31 — the plugin's declaration is the only
+// token rotation. specs/hosting/hosting-h2-account-security.md rule 31 — the plugin's declaration is the only
 // source of those routes: the core policy keeps no copy.
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');

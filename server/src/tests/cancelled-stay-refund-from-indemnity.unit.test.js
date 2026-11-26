@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 48 and specs/payment-schedule-and-cancellation.md rule 31, reading of
+// specs/payments/reservation-refunds.md rule 48 and specs/payments/payment-schedule-and-cancellation.md rule 31, reading of
 // 2026-11-02 (audit R14-M1, Adrien's decision « Réduire l'indemnité »). A cancellation moves the money it kept
 // out of 706 + VAT into the indemnity (75880000, 0 %). A manual refund on that stay used to be booked like the
 // refund of a live sale: it debited 706 and 4457 again — negative revenue and deductible VAT on money whose VAT

@@ -1,4 +1,4 @@
-// specs/per-property-option-prices.md rule 12 — the phone card of an option whose price differs by
+// specs/options/per-property-option-prices.md rule 12 — the phone card of an option whose price differs by
 // logement stays valid HTML: the price block and its caption lines never put a block inside a <p>
 // (React logs a DOM-nesting warning otherwise).
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 2 and 3 — the catalogue page renders the server's
+// specs/hosting/control-plane-plans-and-access.md rules 2 and 3 — the catalogue page renders the server's
 // matrix (own / inherited cells with their tooltip), sends each click to the server, and shows the
 // refusal of a click that would break the nesting.
 import React from 'react';

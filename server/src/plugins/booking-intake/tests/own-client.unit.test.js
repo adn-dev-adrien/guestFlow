@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rule 27 — the guest gets a client of their own. The iCal import gave
+// specs/platforms/booking-extranet-intake.md rule 27 — the guest gets a client of their own. The iCal import gave
 // one placeholder client to every stay of a feed (« Closed Not available » on Booking's), so filling a
 // fiche used to rename every other stay sharing it, e-mail included (review 2026-10-18, B1).
 const test = require('node:test');
@@ -74,7 +74,7 @@ function setup() {
   return { db, service, guestOf, fill };
 }
 
-test('specs/booking-extranet-intake.md rule 27: two stays sharing the placeholder client, filled in turn, each get their own guest', () => {
+test('specs/platforms/booking-extranet-intake.md rule 27: two stays sharing the placeholder client, filled in turn, each get their own guest', () => {
   const { fill, guestOf, db } = setup();
   assert.equal(fill(22307, DAVID).status, 'applied');
   assert.equal(guestOf(22307).email, DAVID.email);
@@ -86,7 +86,7 @@ test('specs/booking-extranet-intake.md rule 27: two stays sharing the placeholde
     { firstName: 'Closed', lastName: 'Not available', email: null }, 'the shared placeholder is never written');
 });
 
-test('specs/booking-extranet-intake.md rule 27: a shared client already carrying another guest’s e-mail counts as untouched', () => {
+test('specs/platforms/booking-extranet-intake.md rule 27: a shared client already carrying another guest’s e-mail counts as untouched', () => {
   const { db, fill, guestOf } = setup();
   db.prepare("UPDATE clients SET firstName = 'David', lastName = 'Roux', email = ? WHERE id = 140").run(DAVID.email);
   assert.equal(fill(22308, MIKE).status, 'applied');
@@ -94,7 +94,7 @@ test('specs/booking-extranet-intake.md rule 27: a shared client already carrying
   assert.equal(guestOf(22307).email, DAVID.email, 'the other stay is left as it was');
 });
 
-test('specs/booking-extranet-intake.md rule 27: « Appliquer » on a proposal relinks the fiche, never renames the other guest', () => {
+test('specs/platforms/booking-extranet-intake.md rule 27: « Appliquer » on a proposal relinks the fiche, never renames the other guest', () => {
   const { db, service, fill, guestOf } = setup();
   fill(22307, DAVID);
   db.prepare('UPDATE reservations SET clientId = (SELECT clientId FROM reservations WHERE id = 22307), platformGrossAmount = 1 WHERE id = 22308').run();
@@ -106,7 +106,7 @@ test('specs/booking-extranet-intake.md rule 27: « Appliquer » on a proposal re
   assert.deepEqual([guestOf(22307).firstName, guestOf(22307).email], ['David', DAVID.email]);
 });
 
-test('specs/booking-extranet-intake.md rule 27: a client found by e-mail that another stay uses is linked, not rewritten', () => {
+test('specs/platforms/booking-extranet-intake.md rule 27: a client found by e-mail that another stay uses is linked, not rewritten', () => {
   const { db, fill, guestOf } = setup();
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (200, 'Dave', 'Roux-Martin', ?)").run(DAVID.email);
   db.prepare("INSERT INTO reservations (id, propertyId, clientId, startDate, endDate) VALUES (21000, 1, 200, '2025-07-01', '2025-07-04')").run();

@@ -1,7 +1,7 @@
 /**
  * One-shot backfill: apply each property's DEFAULT options to its existing reservations.
  *
- * specs/property-default-option-applicability.md §5. A property default (`property_option_defaults`)
+ * specs/options/property-default-option-applicability.md §5. A property default (`property_option_defaults`)
  * means "auto-add this option on every reservation of that property". New reservations already get
  * it (devis/manual via the payload merge, iCal via its own insert), but reservations created before
  * the default existed (or before the iCal-default insert shipped) lack the row — so the in-card

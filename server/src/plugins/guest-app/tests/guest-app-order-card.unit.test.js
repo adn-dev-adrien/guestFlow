@@ -1,8 +1,8 @@
-// specs/guest-app.md rules 33, 35, 36, 38, 44 — « Payer maintenant » through the real routes and the core's money path
+// specs/guest-app/guest-app.md rules 33, 35, 36, 38, 44 — « Payer maintenant » through the real routes and the core's money path
 // with a fake provider: a `complement` link for the order's exact basket, the slots held while it lives, the payment
 // committing the order with its money on the ledger, the abandon, the expiry, and the late payment — committed when its
 // slots are still free, `paid_conflict` and « à rembourser » when they are not.
-// specs/guest-app-bath-home-scheduling.md rule 20 — a session placed from the home goes through this same `POST /orders`
+// specs/guest-app/guest-app-bath-home-scheduling.md rule 20 — a session placed from the home goes through this same `POST /orders`
 // resource line, so it is recorded as « Commande client #N » in the stay history like every order.
 const fx = require('./guestOrderFixtures');
 

@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 67 (audit R23 N8 withdrawn, 2026-11-05) — a complement un-ticked keeps its amount, so
+// specs/payments/reservation-payment-ledger.md rule 67 (audit R23 N8 withdrawn, 2026-11-05) — a complement un-ticked keeps its amount, so
 // a mis-click corrected by a re-tick rewrites no collected money. A stale amount after a forced line removal is accepted.
 process.env.DB_PATH = ':memory:';
 

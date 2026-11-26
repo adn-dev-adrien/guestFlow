@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t24), specs/outside-booking-sas.md rule 54 (reading 2026-11-18, loop t24) —
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t24), specs/sas/outside-booking-sas.md rule 54 (reading 2026-11-18, loop t24) —
 // on the nominal path a commit button keeps a stable label through a pending edit: it never falls back to a plainer wording (« Enregistrer »
 // instead of « Enregistrer et facturer ») while a newer answer is on its way. The root was a second question asked for a STALE pair — the
 // edited draft with the payment still typed against the older price — whose answer was a false refusal (« Les moyens font 50,00 € pour

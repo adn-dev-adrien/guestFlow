@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 22, 30, 34 and 49 (and reviews V1-4, V2-7) (reviews R1-10, R1-11, R5's register note) — the day of a
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 22, 30, 34 and 49 (and reviews V1-4, V2-7) (reviews R1-10, R1-11, R5's register note) — the day of a
 // tick as the server reads it, a long channel tag kept within its card, and the register's nights outside the window.
 import { vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/react';

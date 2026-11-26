@@ -11,7 +11,7 @@ const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 /** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it, so the date window never drops them. */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
-// specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 — a resource is occupied by standalone
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.5 — a resource is occupied by standalone
 // bookings AND by the sessions placed on reservations. `countConflicts` used to read only the former,
 // so a standalone booking could be created right on top of a guest's nordic-bath session (§1 defect 4).
 

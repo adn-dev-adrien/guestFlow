@@ -2,7 +2,7 @@ On reprend la sortie de Lodgify : il ne reste qu'Abritel/Vrbo.
 
 Lis d'abord, dans cet ordre :
   1. docs/rapports/2026-10-16-abritel-handover.md  (l'état mesuré et le reste à faire en 7 étapes)
-  2. specs/lodgify-decommission.md                 (les règles §3, le runbook §10, le journal §11)
+  2. specs/platforms/lodgify-decommission.md                 (les règles §3, le runbook §10, le journal §11)
   3. .claude/skills/platform-tariff-rollout/references/platforms.md  (pièges 1 à 33)
 
 Ces fichiers sont sur la branche docs/lodgify-decommission-booking (PR #687) ; le document de

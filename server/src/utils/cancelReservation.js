@@ -1,5 +1,5 @@
 /**
- * The cancellation transaction (specs/payment-schedule-and-cancellation.md §3.5 / §3.6).
+ * The cancellation transaction (specs/payments/payment-schedule-and-cancellation.md §3.5 / §3.6).
  *
  * Everything that must succeed or fail together, in one place, with every dependency injected so the
  * whole sequence is unit-testable against an in-memory database — no Qonto, no SMTP, no clock:
@@ -14,7 +14,7 @@
  *      VAT-free, both dated today;
  *   4. open payment links are cancelled — a dead stay must not stay payable. They are returned as
  *      `cancelledLinks`: deactivating them at the provider is network, so it happens after the commit
- *      (specs/plugins-phase-3a-online-payment.md rule 7).
+ *      (specs/plugins/plugins-phase-3a-online-payment.md rule 7).
  *
  * Amounts, échéances and paid flags are deliberately NOT touched: they are history now, and the
  * accounting reads still need them exactly as they were.
@@ -37,16 +37,16 @@ const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 
 const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
-// specs/direct-installments.md rule 46 — what the installments of a plan collected, and how the accounting booked
+// specs/payments/direct-installments.md rule 46 — what the installments of a plan collected, and how the accounting booked
 // each one: its tourist-tax share (rule 39) and its revenue per bucket, installment by installment.
 function installmentsRetainedOf(installmentsModel, database, id, row) {
   const plan = installmentsModel ? installmentsModel.listFor(id) : [];
   if (!plan.length) return null;
   // A plan is a direct sale: when the tax rides on the arrival complement, no installment carried it
   // (paymentsController.resolveInstallmentComponents, accountingModel.buildInstallmentEntry), so the
-  // avoir reverses none (specs/direct-installments.md rule 46).
+  // avoir reverses none (specs/payments/direct-installments.md rule 46).
   const taxOnArrival = Number(row.touristTaxInComplement) === 1;
-  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
   const taxCents = taxOnArrival ? 0 : Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100);
   const shares = taxShares(taxCents, plan.map((i) => Number(i.amountCents)));
   let amountCents = 0;
@@ -79,7 +79,7 @@ function installmentsRetainedOf(installmentsModel, database, id, row) {
 const describes = (buckets, amount) => Boolean(buckets)
   && Math.abs(round2(['accommodation', 'options', 'resources', 'touristTax'].reduce((total, bucket) => total + Number(buckets[bucket] || 0), 0)) - round2(amount)) <= 0.02;
 
-// specs/payment-schedule-and-cancellation.md rule 55 — the buckets the acompte was booked on: its contribs, or the
+// specs/payments/payment-schedule-and-cancellation.md rule 55 — the buckets the acompte was booked on: its contribs, or the
 // stored-money split the export credited for it (utils/storedMoneySplit), so the avoir of a legacy acompte reverses
 // the sub-accounts it was credited on.
 function depositBucketsOf(database, reservationsModel, row, vatRate) {
@@ -96,14 +96,14 @@ function saleCollectedOf(database, reservationsModel, row, vatRate) {
   const balance = Math.max(0, round2(row.balanceAmount));
   const contribs = reservationsModel.soldeContribBuckets(row.id);
   if (describes(contribs, balance)) return contribs;
-  // specs/platform-added-guests-tourist-tax.md rule 13 — the added guests' tax rode the complement, not this solde.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 13 — the added guests' tax rode the complement, not this solde.
   const tax = taxRidesTheComplement(database, row)
     ? 0
     : Math.min(Math.max(0, round2(Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0))), balance);
   return { ...storedMoneyBuckets(database, row, { kind: 'balance', revenueTtc: round2(balance - tax), vatRate }), touristTax: tax };
 }
 
-// specs/mixed-method-payments.md rule 57 (verification R35b, finding 1) — a solde paid with several methods put on the
+// specs/payments/mixed-method-payments.md rule 57 (verification R35b, finding 1) — a solde paid with several methods put on the
 // books only its book share, less its geste (`bucketSharesOf`, the reading `collectedByLine` takes): its caisse-interne
 // money and its geste never reached 706, so they absorb no book refund. Read whole, they did, and the acompte kept the
 // difference as a phantom 7588 indemnity. The geste comes off the accommodation, then the extras pro rata, the tax last
@@ -148,7 +148,7 @@ function withheldCommissionsOf(database, reservationsModel, row, vatRate) {
 }
 
 /**
- * specs/reservation-refunds.md rule 49 reading of 2026-11-02 — what the paid acompte and solde were booked on per
+ * specs/payments/reservation-refunds.md rule 49 reading of 2026-11-02 — what the paid acompte and solde were booked on per
  * bucket, read the way the cancellation reads them: the refund register of a cancelled stay caps its accommodation
  * and tax lines with it when no per-line contribs describe the money.
  */
@@ -241,14 +241,14 @@ function cancellationRefusalOf(row) {
     return { error: 'ALREADY_CANCELLED', status: 409, message: 'Cette réservation est déjà annulée.' };
   }
   // A platform booking follows the platform's own cancellation policy, through the iCal alert flow
-  // (specs/cancellation-compensation.md) — never this one.
+  // (specs/payments/cancellation-compensation.md) — never this one.
   if (!isDirectChannel(row.platform)) {
     return { error: 'PLATFORM_RESERVATION', status: 403, message: "Une réservation plateforme s'annule depuis l'alerte iCal, pas ici." };
   }
   return null;
 }
 
-// specs/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the figures a cancellation of `row` books, read
+// specs/payments/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the figures a cancellation of `row` books, read
 // once: `cancelReservation` writes them and `cancellationPreview` shows them, so the confirm dialog can never announce
 // another sum than the one stored.
 function cancellationFiguresOf(deps, row, { today = null, vatRate = 0, reason = '' } = {}) {

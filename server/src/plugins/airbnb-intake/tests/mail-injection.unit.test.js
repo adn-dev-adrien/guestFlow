@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rules 24–26 (audit 2026-10-28, findings F1, F2, F7) — the guest's own text inside
+// specs/platforms/airbnb-mail-intake.md rules 24–26 (audit 2026-10-28, findings F1, F2, F7) — the guest's own text inside
 // a genuine mail never decides the code, the dates, the listing, the party or the amounts; a lookalike host is no
 // Airbnb link; an oversized or hostile mail costs milliseconds.
 const test = require('node:test');

@@ -1,6 +1,6 @@
 /**
  * What happens the moment a Qonto authorisation succeeds.
- * See specs/settings-one-save-and-automatic-webhook.md §3 rule 14.
+ * See specs/settings/settings-one-save-and-automatic-webhook.md §3 rule 14.
  *
  * The defect this covers was found on 2026-09-15, during the production switch: the operator saved
  * the production credentials, authorised at Qonto, came back — and read « échec de connexion ». The

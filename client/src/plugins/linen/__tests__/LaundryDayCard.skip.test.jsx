@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import LaundryDayCard from '../LaundryDayCard';
 
-// specs/skip-laundry-trip.md §3.3 + §7.2 — UI coverage for the skip toggle on the laundry
+// specs/linen/skip-laundry-trip.md §3.3 + §7.2 — UI coverage for the skip toggle on the laundry
 // day card. Pins:
 //   - Non-skipped: 3 detail blocks + IconButton with the "Marquer ce voyage…non réalisé" label.
 //   - Skipped: muted caption + IconButton with the "Marquer ce voyage…réalisé" label.

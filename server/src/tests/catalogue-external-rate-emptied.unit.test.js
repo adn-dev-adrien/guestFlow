@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 11, specs/pricing-components.md rule 53 (loop t2 UI2-8) — a class's external rate the operator emptied is refused with the field named,
+// specs/sas/outside-booking-sas.md rule 11, specs/pricing/pricing-components.md rule 53 (loop t2 UI2-8) — a class's external rate the operator emptied is refused with the field named,
 // never ignored: the save used to answer 200 and keep the old rate, and the form reopened with it. A rate not sent keeps the stored one.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

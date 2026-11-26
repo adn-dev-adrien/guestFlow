@@ -1,5 +1,5 @@
 /**
- * cashNoteExcess — the part of a stay's freed note money that cash notes took (specs/pricing-components.md rule 106 b, stabilisation loop t6 B6-2).
+ * cashNoteExcess — the part of a stay's freed note money that cash notes took (specs/pricing/pricing-components.md rule 106 b, stabilisation loop t6 B6-2).
  * A cash note is money the caisse interne holds, never booked (`books 0`): its refund goes back the same way so it writes no avoir for money the
  * journal never held (refundMeansOf, Adrien 2026-10-29).
  *

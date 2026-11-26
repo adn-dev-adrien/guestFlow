@@ -1,4 +1,4 @@
-// specs/pricing-components.md rules 23, 105, 107 (stabilisation loop t6, S6-4) — the arrival commit is judged like the fiche: offering on the recap a
+// specs/pricing/pricing-components.md rules 23, 105, 107 (stabilisation loop t6, S6-4) — the arrival commit is judged like the fiche: offering on the recap a
 // line the guest already paid answers 409 OVERPAID; the dialog asks « Offrir · X à rembourser » and commits again with `forceOverpayment`, or
 // keeps the line (« Garder ») and commits nothing. Loop t7 UI7-2 / UI7-3 (rule 107 d): « Garder » puts the paid line the 409 names
 // (`overpaymentKeys`) back to billed, so the recap asks its price again and « Valider » does not ask the same question twice; the departure

@@ -85,7 +85,7 @@ textarea{width:100%;min-height:170px;font:13px/1.5 ui-monospace,Menlo,monospace;
 <body>
 <main>
 <h1>Retour de la comptable : séjours plateforme et commissions</h1>
-<p class="lead">Mail du cabinet ANC2 du 26/11/2026 sur l’export d’octobre, vérifié sur la prod : elle a raison sur tous les points. Deuxième tour, avec tes décisions intégrées. Spec : <span class="mono">specs/platform-host-statement-and-commission-vat.md</span>.</p>
+<p class="lead">Mail du cabinet ANC2 du 26/11/2026 sur l’export d’octobre, vérifié sur la prod : elle a raison sur tous les points. Deuxième tour, avec tes décisions intégrées. Spec : <span class="mono">specs/platforms/platform-host-statement-and-commission-vat.md</span>.</p>
 
 <h2>Le constat (vérifié en prod)</h2>
 <div class="grid2">
@@ -381,7 +381,7 @@ function drawQuestions() {
   summary();
 }
 function summary() {
-  const lines = ['Arbitrages (2e tour) — specs/platform-host-statement-and-commission-vat.md'];
+  const lines = ['Arbitrages (2e tour) — specs/platforms/platform-host-statement-and-commission-vat.md'];
   for (const q of QUESTIONS) { const v = document.querySelector(`input[name=${q.id}]:checked`).value; const o = q.opts.find((x) => x[0] === v); lines.push(`${q.id} ${q.title} : ${v} — ${o[1].replace(' (Recommandé)', '')}`); }
   $('summary').value = lines.join('\n');
 }

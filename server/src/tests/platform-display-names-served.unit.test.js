@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md rule 12 — the platform colours payload carries the display
+// specs/platforms/platform-settings-relay-and-review.md rule 12 — the platform colours payload carries the display
 // name of every platform, the same one the server's own labels use (platformDisplay), so the client's
 // chips never print the stored key « GitesDeFrance » (audit 2026-10-27).
 const path = require('path');

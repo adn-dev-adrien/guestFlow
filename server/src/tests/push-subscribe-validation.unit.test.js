@@ -1,4 +1,4 @@
-// specs/pwa-push-notifications.md rule 15 (audit R22, E22-5) — the subscription is judged when it arrives: strings of a
+// specs/guest-app/pwa-push-notifications.md rule 15 (audit R22, E22-5) — the subscription is judged when it arrives: strings of a
 // bounded length, an https endpoint on the default port, no private literal nor localhost, p256dh 65 bytes and auth
 // 16 bytes in base64url. No allow-list of push hosts, it would break a new browser. A stored row is never re-judged.
 const test = require('node:test');

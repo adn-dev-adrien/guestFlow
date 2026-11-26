@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 22-23 — what the operator is told, on the shared push channel `online-sales` and by e-mail: a voucher a customer paid (never one the team
+// specs/site/site-outside-resource-booking.md rules 22-23 — what the operator is told, on the shared push channel `online-sales` and by e-mail: a voucher a customer paid (never one the team
 // issued), every session booked from the website with or without a voucher, a paid session that could not be booked. The texts are built from the voucher and the resource, never a
 // literal activity; the e-mail goes out whether or not the push toggle is on.
 const path = require('path');

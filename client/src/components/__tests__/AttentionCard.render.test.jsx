@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rules 13–14 — one component draws every dashboard subject, with the
+// specs/planning/shell-and-home-day-first.md rules 13–14 — one component draws every dashboard subject, with the
 // server's words, and the palette's `text` tokens read at AA on their soft backgrounds.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

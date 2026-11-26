@@ -1,6 +1,6 @@
 /**
  * Solio's wording on in-memory stay facts — what `productisation_v1` writes into Solio's database
- * (specs/plugins-phase-p-productisation.md rule 24), built from the same constants. Not a test file:
+ * (specs/plugins/plugins-phase-p-productisation.md rule 24), built from the same constants. Not a test file:
  * the suites that check Solio's sentences import it instead of a database.
  */
 

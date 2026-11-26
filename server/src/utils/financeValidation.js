@@ -82,7 +82,7 @@ const STAY_MONEY_FIELDS = [
 
 /**
  * The money of a stay or devis write, one list for the quote, the create, the update and the devis:
- * the preview refuses what the save refuses (specs/reservations-backend-mvc.md rule 19).
+ * the preview refuses what the save refuses (specs/tech/reservations-backend-mvc.md rule 19).
  */
 function validateStayFinance(body, stored = null) {
   const fields = { discountPercent: { value: body?.discountPercent, kind: 'percentage' } };
@@ -90,7 +90,7 @@ function validateStayFinance(body, stored = null) {
   return validateFinanceInputs(fields, stored);
 }
 
-// The refusal the operator reads (specs/editable-deposit-amount.md rule 9): French text in `error`, the
+// The refusal the operator reads (specs/payments/editable-deposit-amount.md rule 9): French text in `error`, the
 // machine code kept in `code` for callers that branch on it.
 const FINANCE_ERROR_MESSAGES = {
   [ERROR_NOT_A_NUMBER]: 'Montant invalide : saisir un nombre.',

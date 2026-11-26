@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rule 30 — two sessions of a stay on the same hour of a
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 30 — two sessions of a stay on the same hour of a
 // resource that exists once are a double booking. The fiche used to save them (review 2026-10-18,
 // F4: « Bain nordique ×2h », both on ven. 13 nov. 11:00–12:00); the save is now refused, as the arrival
 // SAS already refuses an overlapping block.

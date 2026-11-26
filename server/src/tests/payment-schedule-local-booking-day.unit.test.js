@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 54 — the payment schedule reads the booking day on the
+// specs/payments/payment-schedule-and-cancellation.md rule 54 — the payment schedule reads the booking day on the
 // operator's calendar, like the VAT regime and « today ». `createdAt` is a UTC timestamp: between 00:00
 // and 01:00 / 02:00 in Paris its first ten characters are still yesterday, so the schedule computed on
 // create (local day) flipped at the first unchanged re-save (UTC day). The clock is frozen at

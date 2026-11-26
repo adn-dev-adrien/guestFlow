@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md §4.1 — what the plugin needed from the core, generic and without the word « voucher »: the public API guard
+// specs/gift-vouchers/gift-vouchers.md §4.1 — what the plugin needed from the core, generic and without the word « voucher »: the public API guard
 // chain and the proof of work shared through the SDK, an e-mail outside a stay, the embedded PDF faces, the payment methods.
 const test = require('node:test');
 const assert = require('node:assert/strict');

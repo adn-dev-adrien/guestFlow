@@ -1,4 +1,4 @@
-// specs/single-payment-from-the-fiche.md rule 11bis — a fiche save may never un-pay a bucket.
+// specs/payments/single-payment-from-the-fiche.md rule 11bis — a fiche save may never un-pay a bucket.
 //
 // The bug this pins, measured in production on réservation 22281 (2026-08-31): the operator opens a
 // fiche, clicks « Encaisser en une fois » — the server settles the solde and the complément de fin de
@@ -20,7 +20,7 @@ const Module = require('module');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function withMocks(modules, fn) {
@@ -126,7 +126,7 @@ function staleBody(over = {}) {
     complementPaid: false,
     complementPaidDate: '',
     // The stubbed quote prices the stay at 0 € while the stored row is paid: confirmed, so the
-    // trop-perçu guard (specs/reservation-refunds.md rule 34) lets the save reach the flags under test.
+    // trop-perçu guard (specs/payments/reservation-refunds.md rule 34) lets the save reach the flags under test.
     forceOverpayment: true,
     ...over,
   };
@@ -173,7 +173,7 @@ test('a save cannot PAY a bucket either — the flags are simply not its busines
 });
 
 test('disabling the deposit still force-zeroes it — the one flag this save owns', () => {
-  // specs/disable-deposit-per-reservation.md: the toggle IS a form field, and turning it on must
+  // specs/payments/disable-deposit-per-reservation.md: the toggle IS a form field, and turning it on must
   // clear a deposit that was flagged paid, or the accounting re-emits a phantom entry.
   const { captures } = runUpdate(
     staleBody({ depositDisabled: true }),

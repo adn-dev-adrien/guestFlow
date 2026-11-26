@@ -19,7 +19,7 @@ router.post('/', handlePhotoUpload, ctrl.create);
 router.put('/:id', handlePhotoUpload, ctrl.update);
 router.delete('/:id', ctrl.remove);
 
-// Arrival facts of the guest emails (specs/guest-email-texts-made-simple.md rules 1–2).
+// Arrival facts of the guest emails (specs/emails/guest-email-texts-made-simple.md rules 1–2).
 router.get('/:id/arrival-facts', arrivalFacts.get);
 router.put('/:id/arrival-facts', arrivalFacts.save);
 
@@ -39,16 +39,16 @@ router.delete('/:id/documents/:docId', ctrl.deleteDocument);
 // Property ↔ options linkage
 router.put('/:id/options', ctrl.setOptions);
 
-// Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7).
+// Per-property option DEFAULTS (specs/linen/weekly-bed-linen-tracking.md §3.7).
 router.get('/:id/option-defaults', optionDefaults.listForProperty);
 router.put('/:id/option-defaults/:optionId', optionDefaults.setForProperty);
 router.delete('/:id/option-defaults/:optionId', optionDefaults.unsetForProperty);
 
 // Welcome pack applied by the reservation form on own-channel bookings
-// (specs/welcome-pack-auto-options.md §4.3).
+// (specs/options/welcome-pack-auto-options.md §4.3).
 router.get('/:id/welcome-pack', welcomePack.forProperty);
 
-// Merged platform list for a property (specs/platforms-and-ical-rework.md §4.3): every platform +
+// Merged platform list for a property (specs/platforms/platforms-and-ical-rework.md §4.3): every platform +
 // this property's iCal-source config + the global colour.
 router.get('/:id/platforms', ical.listPlatforms);
 

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23, 104, 105, 107 and 109, specs/sas-offer-complement-lines.md §4.3 (stabilisation loop t7, S7-1,
+// specs/pricing/pricing-components.md §3 rules 23, 104, 105, 107 and 109, specs/sas/sas-offer-complement-lines.md §4.3 (stabilisation loop t7, S7-1,
 // 2026-11-16) — « Offert » unticked at the arrival SAS on a line the guest paid by card follows the fiche's way back: the line is billed again,
 // its note pays it again, so the obligation the offer opened closes; and the credit the offer gave to a solde not yet paid is asked again.
 // Before: the commit re-billed the line and left the obligation open (the fiche invited a refund of money that pays a billed line), or left

@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 52 (audit r3, N-0) — a plugin never reads its own manifest with a
+// specs/plugins/plugins-phase-4-registry.md rule 52 (audit r3, N-0) — a plugin never reads its own manifest with a
 // relative `require`: in a built package the code sits under `server/` and `manifest.json` at the root. The
 // two mail intakes are built, loaded from the extracted package layout, and asked for their fiche block.
 const { listenLocal } = require('./listenLocal');

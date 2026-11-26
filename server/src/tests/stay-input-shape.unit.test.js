@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 20 (audit R22-4) — the shape of a stay's fields, on preview, create, update,
+// specs/tech/reservations-backend-mvc.md rule 20 (audit R22-4) — the shape of a stay's fields, on preview, create, update,
 // devis create/update, suggest-beds and devis status. The numbers stay with utils/lineInputBounds.js (rule 15).
 const test = require('node:test');
 const assert = require('node:assert/strict');

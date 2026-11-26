@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import BulkConfirmDialog from '../BulkConfirmDialog';
 
-// specs/reconciliation-assisted-matching.md rules 12–13 — « Tout confirmer » states what it writes from the
+// specs/accounting/reconciliation-assisted-matching.md rules 12–13 — « Tout confirmer » states what it writes from the
 // server's summary; the « à vérifier » checkbox only switches between two server-computed sets.
 
 const BULK = {

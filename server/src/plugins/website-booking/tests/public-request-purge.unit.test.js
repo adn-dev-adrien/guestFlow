@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rule 10 — a website request nobody acted on is deleted 30
+// specs/site/public-request-abuse-and-grouping.md rule 10 — a website request nobody acted on is deleted 30
 // days after its creation, with its CGV acceptance and the client created for it when nothing else
 // names that client; one the operator opened, sent, edited or that has a payment link stays. A
 // retired number is never handed out again.

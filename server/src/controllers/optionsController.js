@@ -9,7 +9,7 @@ const { scopePayload, withStoredScope } = require('../utils/optionPayloadScope')
 const { buildCatalogueView, buildArchivedItems } = require('../utils/optionCatalogueView');
 const { emitPricingChanged } = require('../utils/pricingChanged');
 
-// The early-arrival / late-departure options are edited on each property (specs/settings-rationalization.md
+// The early-arrival / late-departure options are edited on each property (specs/settings/settings-rationalization.md
 // rule 15): the catalogue view (`GET /catalogue-view`) leaves them out; the plain list gets them all.
 const PROPERTY_EDITED_AUTO_OPTIONS = ['early_check_in', 'late_check_out'];
 
@@ -19,7 +19,7 @@ function list(req, res) {
   return res.json(model.list());
 }
 
-// specs/options-resources-ux.md rules 2-7, 26 — the catalogue grouped, priced and annotated for the screen.
+// specs/options/options-resources-ux.md rules 2-7, 26 — the catalogue grouped, priced and annotated for the screen.
 function catalogueView(req, res) {
   const properties = propertiesModel.list();
   const raw = req.query && req.query.propertyId;
@@ -38,7 +38,7 @@ function getOne(req, res) {
   return res.json(option);
 }
 
-// specs/plugins-phase-3b-neat.md rule 21 — no option becomes the cancellation insurance while no plugin
+// specs/plugins/plugins-phase-3b-neat.md rule 21 — no option becomes the cancellation insurance while no plugin
 // offers it.
 function insuranceFlagRefused(req, res) {
   if (!req.body || !req.body.isCancellationInsurance || insuranceOffered()) return false;
@@ -46,7 +46,7 @@ function insuranceFlagRefused(req, res) {
   return true;
 }
 
-// specs/options-resources-ux.md rule 16 — a write the editor's checks would have stopped.
+// specs/options/options-resources-ux.md rule 16 — a write the editor's checks would have stopped.
 // It judges the payload the model will store — what concerns a property outside the scope is dropped
 // first (rule 15), so an invisible, switched-off line can never block a save.
 function validationRefused(req, res, stored = null) {
@@ -75,7 +75,7 @@ function update(req, res) {
   if (validationRefused(req, res, stored)) return undefined;
   const result = model.update(req.params.id, req.body);
   externalFields.persist('option', req.params.id, req.body);
-  // A default option of a property is part of its website quote (specs/google-vacation-rentals-feed.md
+  // A default option of a property is part of its website quote (specs/site/google-vacation-rentals-feed.md
   // rule 12): the shared catalogue moves every property.
   emitPricingChanged(null, 'options');
   return res.json(result);

@@ -1,5 +1,5 @@
 /**
- * BackupCodesPanel — a list of single-use codes shown once (specs/hosting-h2-account-security.md
+ * BackupCodesPanel — a list of single-use codes shown once (specs/hosting/hosting-h2-account-security.md
  * rule 45): the codes in two columns (one below 360 px), « Copier », « Télécharger » and a box
  * « Codes enregistrés en lieu sûr ». Copying or downloading ticks the box; `onSavedChange(bool)` tells
  * the parent, which keeps its « Terminé » disabled until it is true. Generic: any « shown once » list

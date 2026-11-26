@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rule 15 — per-line contribs drive an entry only when
+// specs/accounting/accounting-books-the-money-collected.md rule 15 — per-line contribs drive an entry only when
 // they ADD UP to it. Audit 2026-10-28 (finding 1): contribs below the encaissement passed rule 11's
 // one-directional guard and the gap fell on the last credit, the VAT line — #13 (October 2026) booked
 // 44571100 C265,38 on 641,82 of revenue, #22298 (September 2026) C37,13 on 177,00.

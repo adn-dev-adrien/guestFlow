@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rule 21 (audit 2026-10-28, F9) — an event with an impossible day or an absurd
+// specs/platforms/ical-import-hardening.md rule 21 (audit 2026-10-28, F9) — an event with an impossible day or an absurd
 // range never reaches the sync engine.
 const test = require('node:test');
 const assert = require('node:assert/strict');

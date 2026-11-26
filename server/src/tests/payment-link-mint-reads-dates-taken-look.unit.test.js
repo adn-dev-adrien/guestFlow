@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 58, reading of 2026-11-01 (audit R11 money R11-L1). A link withdrawn because
+// specs/payments/payment-link-lifecycle.md rule 58, reading of 2026-11-01 (audit R11 money R11-L1). A link withdrawn because
 // its dates were taken owes rule 19's last look too (rule 64), for a payment in flight at its deactivation. Once the
 // stay is on free nights again, a new acompte / solde / séjour request reads that link before any mint: paid → booked
 // as rule 33 books it (no confirmation) and refused 409 LINK_ALREADY_PAID; a payment still in flight (or an answer

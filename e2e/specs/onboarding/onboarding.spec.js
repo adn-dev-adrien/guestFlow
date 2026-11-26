@@ -1,5 +1,5 @@
 // @ts-check
-// specs/plugins-phase-p-productisation.md §3.D rules 20–23 — the start assistant, end to end: an
+// specs/plugins/plugins-phase-p-productisation.md §3.D rules 20–23 — the start assistant, end to end: an
 // admin with the assistant open lands on it, goes through the five steps, the server refuses an
 // invalid step, and the dashboard opens; an instance with properties gets none from it.
 //
@@ -47,7 +47,7 @@ test('an admin goes through the five steps and lands on the dashboard', async ({
   await expect(page.getByLabel('Nom du logement')).toHaveCount(0);
   await page.getByRole('button', { name: 'Suivant' }).click();
 
-  // Step 3 — three questions (specs/plugins-phase-p-productisation.md rule 43); every plugin is
+  // Step 3 — three questions (specs/plugins/plugins-phase-p-productisation.md rule 43); every plugin is
   // active in the suite's database, so each question is settled: on, disabled, and says where it changes.
   await expect(page.getByText('Étape 3 sur 5')).toBeVisible();
   await expect(page.getByRole('switch')).toHaveCount(3);

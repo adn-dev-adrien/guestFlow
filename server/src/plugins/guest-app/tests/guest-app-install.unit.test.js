@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 52, 53 (§6.1) — the installable app: its manifest carries the studio's app name and the
+// specs/guest-app/guest-app.md rules 52, 53 (§6.1) — the installable app: its manifest carries the studio's app name and the
 // fir-green theme, readable before any session and revalidated on each read; and the night register, decided by the
 // server from sunset to sunrise at the estate, so every device of a stay switches at the same moment.
 const test = require('node:test');

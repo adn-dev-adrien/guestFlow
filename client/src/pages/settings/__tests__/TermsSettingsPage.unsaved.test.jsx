@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 42 — the CGV draft is guarded like any other form: leaving asks, a saved
+// specs/design-system/ui-review-2026-10-19-operations.md rule 42 — the CGV draft is guarded like any other form: leaving asks, a saved
 // draft does not, and the guard waits for the page to know what is stored.
 import React from 'react';
 import { vi } from 'vitest';

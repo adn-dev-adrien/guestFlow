@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 122 d (stabilisation loop t9, A9-1, 2026-11-16; completes rules 23, 104, 106) — a beer paid by card (30 €)
+// specs/pricing/pricing-components.md §3 rule 122 d (stabilisation loop t9, A9-1, 2026-11-16; completes rules 23, 104, 106) — a beer paid by card (30 €)
 // and offered on the fiche, its 30 € owed back; then the arrival SAS sells a 12 € basket, which the rule-104 credit pays with that money. The
 // obligation shrinks to what the stay still holds beyond its total (18 €), as the fiche's save trims it, and the recap's « Déjà réglé » line
 // explains the complement it asks. Before: owed 30 € AND the basket paid by the same money (12 € given twice), the recap's lines summing to

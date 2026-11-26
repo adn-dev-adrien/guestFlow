@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 14 — the WordPress settings ask for the URL and the key, and derive
+// specs/site/wordpress-plugin.md rule 14 — the WordPress settings ask for the URL and the key, and derive
 // the rest: the property is picked by name from GuestFlow's list, the booking and CGV pages are found by
 // their content or created, a reverse proxy on the local network is trusted without being listed, and
 // the connection is tested on arrival. Rule 18: the test names a website booking switched off in

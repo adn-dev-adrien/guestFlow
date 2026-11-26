@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) — a sale outside a stay has no fiche to wait on
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) — a sale outside a stay has no fiche to wait on
 // and, without a client, no name besides its label: the line prints the server's wording and heading, never a doubled label.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

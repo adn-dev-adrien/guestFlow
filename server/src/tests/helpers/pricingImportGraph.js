@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 2 and 43 — the judgement of the import graph of `utils/pricing/`, free of any
+// specs/pricing/pricing-components.md §3 rules 2 and 43 — the judgement of the import graph of `utils/pricing/`, free of any
 // file system access of its own: `readFile(absolutePath)` returns the source or `undefined`, so the rules are proved on
 // synthetic trees (mutants) by `pricing-import-graph-mutants.unit.test.js` and run on the real tree by
 // `pricing-import-graph.unit.test.js`.

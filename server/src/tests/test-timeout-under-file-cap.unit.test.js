@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 15 (audit R36-S4) — `npm test` runs one process per file and its --test-timeout also
+// specs/tech/server-test-isolation.md rule 15 (audit R36-S4) — `npm test` runs one process per file and its --test-timeout also
 // cuts the whole file: a test's own `{ timeout }` above it is dead. No server test asks for more than the cap, and the
 // per-field fuzz is split so that each part runs well under it.
 const test = require('node:test');

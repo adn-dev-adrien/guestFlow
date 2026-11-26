@@ -1,5 +1,5 @@
 /**
- * EmailSettingsPage — social links of the J+1 e-mail (specs/settings-input-guards.md rules 35, 37, 42):
+ * EmailSettingsPage — social links of the J+1 e-mail (specs/settings/settings-input-guards.md rules 35, 37, 42):
  * the list is saved as `emails.socialLinks`, the legacy `instagramUrl` is never sent back by the
  * page, and a server refusal lands under its row.
  */

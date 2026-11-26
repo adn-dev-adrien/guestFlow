@@ -1,6 +1,6 @@
 /**
  * One-shot cleanup of the deadline a 0 € acompte still carries —
- * specs/disable-deposit-per-reservation.md rules 2, 10 and 11 (spec review of 2026-10-27).
+ * specs/payments/disable-deposit-per-reservation.md rules 2, 10 and 11 (spec review of 2026-10-27).
  *
  * Before rule 10, switching the acompte off (on the fiche or with the property switch) kept the date
  * the fiche posted back, so production holds reservations with `depositAmount = 0` and a

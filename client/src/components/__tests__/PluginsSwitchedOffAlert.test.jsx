@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 58 — the home line of a plugin switched off at a core update.
+// specs/plugins/plugins-phase-4-registry.md rule 58 — the home line of a plugin switched off at a core update.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 25, 33, 35, 36, 37quater and §4.3 — the money of a card order kept whole: a card order
+// specs/guest-app/guest-app.md rules 25, 33, 35, 36, 37quater and §4.3 — the money of a card order kept whole: a card order
 // awaiting its payment reserves nothing (reading of 2026-11-13), the fiche is never billed beyond what was paid (a price
 // raised meanwhile is a conflict, a price lowered flags the gap « à rembourser »), a payment finds the units left at that moment, an abandoned order is never committed, the return page does not call the provider on every
 // poll, a replayed `Idempotency-Key` answers the first order, and the link bills exactly the quoted total.

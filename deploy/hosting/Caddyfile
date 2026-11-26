@@ -1,4 +1,4 @@
-# GuestFlow host — Caddy (specs/hosting-h1-fleet-runtime.md H-D2).
+# GuestFlow host — Caddy (specs/hosting/hosting-h1-fleet-runtime.md H-D2).
 #
 # bootstrap-host.sh copies this file to /etc/caddy/Caddyfile and replaces __DOMAIN__ and
 # __ACME_EMAIL__. The console writes one file per customer address into /etc/caddy/sites/ — a

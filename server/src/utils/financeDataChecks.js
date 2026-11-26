@@ -1,5 +1,5 @@
 /**
- * The « À vérifier » panel of the Suivi financier (specs/finance-data-checks.md). Pure: the catalogue of
+ * The « À vérifier » panel of the Suivi financier (specs/accounting/finance-data-checks.md). Pure: the catalogue of
  * checks (key, severity, French label and hint), the cap on the listed items, and the labels of a listed
  * stay or month. The model decides WHICH stays and months a check holds; this file only shapes them.
  */

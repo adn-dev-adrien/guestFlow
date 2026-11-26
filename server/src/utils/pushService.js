@@ -1,5 +1,5 @@
 /**
- * Web Push fan-out (specs/pwa-push-notifications.md §3.3 + §3.4).
+ * Web Push fan-out (specs/guest-app/pwa-push-notifications.md §3.3 + §3.4).
  *
  * `sendToPref(prefKey, payload)` pushes `payload` to every (user, device) subscription whose user has the
  * `prefKey` preference ON. `sendToUser(userId, payload)` pushes to all of one user's own devices,

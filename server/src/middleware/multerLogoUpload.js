@@ -1,5 +1,5 @@
 /**
- * Multer middleware for the company-logo upload endpoint (specs/settings.md rule 8).
+ * Multer middleware for the company-logo upload endpoint (specs/settings/settings.md rule 8).
  *
  * - Held in memory: the controller writes `company-logo.<ext>` only once the first bytes are judged, so a
  *   refused file never replaces the stored logo.

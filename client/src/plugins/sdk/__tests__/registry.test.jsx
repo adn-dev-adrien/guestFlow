@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rules 2-3 and 13-15 — the client side of the plugin contract: the
+// specs/plugins/plugins-phase-1-sdk.md rules 2-3 and 13-15 — the client side of the plugin contract: the
 // module list, isolation, slots, contributed routes and menu entries.
 import React from 'react';
 import fs from 'fs';
@@ -20,11 +20,11 @@ const SRC = path.resolve(__dirname, '../../..');
 
 beforeEach(() => enabled.clear());
 
-// specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds accounting-export, linen, sas, website-booking;
-// phase 3 online-payment, neat (specs/plugins-phase-3b-neat.md rule 15) and hourly-resources
-// (specs/plugins-phase-3c-hourly-resources.md rule 24); then gites-de-france-intake
-// (specs/gites-de-france-mail-intake.md), booking-intake (specs/booking-extranet-intake.md) and
-// airbnb-intake (specs/airbnb-mail-intake.md), google-vacation-rentals (specs/google-vacation-rentals-feed.md).
+// specs/plugins/plugins-phase-2-hosts.md rule 1 — phase 2 adds accounting-export, linen, sas, website-booking;
+// phase 3 online-payment, neat (specs/plugins/plugins-phase-3b-neat.md rule 15) and hourly-resources
+// (specs/plugins/plugins-phase-3c-hourly-resources.md rule 24); then gites-de-france-intake
+// (specs/platforms/gites-de-france-mail-intake.md), booking-intake (specs/platforms/booking-extranet-intake.md) and
+// airbnb-intake (specs/platforms/airbnb-mail-intake.md), google-vacation-rentals (specs/site/google-vacation-rentals-feed.md).
 test('rule 2: the modules are listed once, one per shipped folder', () => {
   expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual(shippedPlugins());
 });
@@ -39,7 +39,7 @@ function readTree(dir, acc = {}) {
 }
 
 // Rule 3 — a plugin file imports its folder, the SDK or npm; the core imports only the module list
-// and the SDK — and, since specs/plugins-phase-4-registry.md rule 18, the host side of the bundles
+// and the SDK — and, since specs/plugins/plugins-phase-4-registry.md rule 18, the host side of the bundles
 // (`runtime.js` loads them, `runtimeModules.js` is the list a production build reads, `hostModules.js`
 // what the bundles take from the app — rule 26).
 const HOST_FILES = ['sdk', 'index', 'runtime', 'runtimeModules', 'hostModules'];

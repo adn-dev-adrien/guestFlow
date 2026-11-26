@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 49 (audit R34-M-L1) — the months a VAT regime switch says it rewrites
+// specs/payments/mixed-method-payments.md rule 49 (audit R34-M-L1) — the months a VAT regime switch says it rewrites
 // (vat-optional-mode rule 17) include those where a split payment booked a settlement only: a reste collected later is
 // booked in its own month. A settlement entirely in the caisse interne books nothing and adds no month.
 process.env.DB_PATH = ':memory:';
@@ -30,7 +30,7 @@ function soldeWithReste() {
   return { id, part };
 }
 
-test('specs/mixed-method-payments.md rule 49 — the month a reste was collected in is a month the switch rewrites', () => {
+test('specs/payments/mixed-method-payments.md rule 49 — the month a reste was collected in is a month the switch rewrites', () => {
   const { id, part } = soldeWithReste();
   settlementsModel.insert({
     reservationId: id, targetKind: 'bucket', targetKey: 'balance', paidDate: TODAY, dueCents: 10000,
@@ -39,7 +39,7 @@ test('specs/mixed-method-payments.md rule 49 — the month a reste was collected
   assert.deepEqual(monthsOfPayments(db, [id]), [month(FIRST), month(TODAY)]);
 });
 
-test('specs/mixed-method-payments.md rule 49 — a reste collected in the caisse interne books no month', () => {
+test('specs/payments/mixed-method-payments.md rule 49 — a reste collected in the caisse interne books no month', () => {
   const { id, part } = soldeWithReste();
   settlementsModel.insert({
     reservationId: id, targetKind: 'bucket', targetKey: 'balance', paidDate: TODAY, dueCents: 10000,

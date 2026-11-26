@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 35 — a night of a logement is sold once, however many
+// specs/accounting/finance-dashboard-redesign.md rule 35 — a night of a logement is sold once, however many
 // stays cover it (an iCal duplicate of a platform booking, a fiche entered twice); revenue per night
 // divides by the nights of the stays that carry an amount; the stays with 0 € on the books are named
 // (mega review #5, M1: Gîte October 29 % for 5 distinct nights out of 31).

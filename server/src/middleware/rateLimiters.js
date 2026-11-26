@@ -36,7 +36,7 @@ const loginLimiter = rateLimit({
 const ONE_HOUR = 60 * 60 * 1000;
 
 /**
- * Public limiters count per website VISITOR, not per caller (specs/terms-acceptance-record.md rule 24):
+ * Public limiters count per website VISITOR, not per caller (specs/reservations/terms-acceptance-record.md rule 24):
  * every public call comes from the one WordPress host, so keying on `req.ip` capped the whole site at
  * the per-visitor budget. `req.visitor` is set by plugins/website-booking/visitorContext.js AFTER the API-key check,
  * so the relayed address is only ever honoured for the authenticated proxy.
@@ -45,11 +45,11 @@ function publicVisitorKey(req) {
   return ipKeyGenerator(req.visitor?.ip || req.ip);
 }
 
-// specs/site-english-version.md rule 8: only the message follows the visitor's language.
+// specs/site/site-english-version.md rule 8: only the message follows the visitor's language.
 const tooMany = (messageKey) => (req) => ({ error: { code: 'TOO_MANY_REQUESTS', message: errorMessage(langOf(req), messageKey) } });
 
 /**
- * Public API limiters (specs/public-api.md §3 rule 9). The public surface is consumed by a single
+ * Public API limiters (specs/site/public-api.md §3 rule 9). The public surface is consumed by a single
  * trusted proxy, so the limits are intentionally tighter than the admin SPA's `apiLimiter`.
  *
  * - publicApiLimiter: broad protection across all `/public/v1` routes (default 600 / 15 min / visitor).
@@ -75,7 +75,7 @@ const bookingRequestLimiter = rateLimit({
   max: Number(process.env.BOOKING_REQUEST_RATELIMIT_MAX) || 5,
   standardHeaders: true,
   legacyHeaders: false,
-  // D18 (specs/public-api.md rule 9): a form refused for its input stored nothing and gives its hit back.
+  // D18 (specs/site/public-api.md rule 9): a form refused for its input stored nothing and gives its hit back.
   skipFailedRequests: true,
   requestWasSuccessful: (req, res) => res.statusCode !== 422,
   message: tooMany('tooManyBookingRequests'),
@@ -98,7 +98,7 @@ const paymentStartLimiter = rateLimit({
 });
 
 /**
- * Payment-status poll limiter (specs/public-online-payment.md §7, resolves §9 Q3). GET /status is a
+ * Payment-status poll limiter (specs/site/public-online-payment.md §7, resolves §9 Q3). GET /status is a
  * read that also drives external Qonto calls + a devis→reservation conversion when a link is paid, so
  * it must be capped tighter than the broad public limiter to prevent a Qonto-quota / cost DoS. A legit
  * success page polls every 3 s for ~1 min (≈20 hits) then stops, so the default 120 / 5 min / IP leaves

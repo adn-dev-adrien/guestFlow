@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 37-38 — the core terms (CGV) are one document per activity: the migration keeps every row as
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 37-38 — the core terms (CGV) are one document per activity: the migration keeps every row as
 // `lodging`; each activity has its own draft and its own numbering; the public read takes `?activity=`; an acceptance names its subject
 // (reservation, voucher order, outside booking) and channel, `reservationId` being optional; the refusal codes are unchanged; the seeded
 // draft of a plugin's activity is written once and never published.

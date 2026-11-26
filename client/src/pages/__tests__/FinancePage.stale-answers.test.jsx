@@ -1,4 +1,4 @@
-// Audit R5 (2026-10-30), specs/ui-review-2026-10-19-operations.md rule 39 — the Suivi financier drops the answers of requests that were superseded: a late
+// Audit R5 (2026-10-30), specs/design-system/ui-review-2026-10-19-operations.md rule 39 — the Suivi financier drops the answers of requests that were superseded: a late
 // detail answer for a tile already left never reaches the panel of the open tile (it used to crash
 // ChannelsTable), and a late dashboard answer for a logement already left never replaces the page.
 import React from 'react';

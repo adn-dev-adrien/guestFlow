@@ -1,5 +1,5 @@
 /**
- * OptionEditorPanel — the option editor, in a SidePanel (specs/options-resources-ux.md rules 12-17).
+ * OptionEditorPanel — the option editor, in a SidePanel (specs/options/options-resources-ux.md rules 12-17).
  *
  * Sections, in order: Général, Logements et prix, Planning (manual options), Visibilité, then the
  * type-specific blocks of the options that carry them (Petit-déjeuner, Linge, Tapis de bain,

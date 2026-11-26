@@ -1,4 +1,4 @@
-// Payment polling fair use (specs/payment-polling-fair-use.md rules 1, 2, 3, 4, 5, 10): expired links
+// Payment polling fair use (specs/payments/payment-polling-fair-use.md rules 1, 2, 3, 4, 5, 10): expired links
 // retired without a provider call, `markPaid` accepting `expired`, the age-decaying cadence persisted in
 // `lastPolledAt`, the status call skipped when the expiry is known, and `force` for human requests.
 // Includes the production zero-date expiry (`0001-01-01T00:00:00Z`), which must mean "no known expiry".
@@ -40,7 +40,7 @@ function addLink(db, links, reservationId, { qontoId, createdAgoMs = 0, expiresA
   return row.id;
 }
 
-// A payment-provider stub (specs/plugins-phase-3a-online-payment.md rule 4) recording every call, in
+// A payment-provider stub (specs/plugins/plugins-phase-3a-online-payment.md rule 4) recording every call, in
 // order, as [endpoint, remote id].
 function countingQonto({ paid = false, linkStatus = 'open' } = {}) {
   const calls = [];
@@ -67,7 +67,7 @@ const pollDeps = (db, links, qonto, extra = {}) => ({
 
 const statusOf = (db, id) => db.prepare('SELECT status FROM payment_links WHERE id = ?').get(id).status;
 
-// Amended by specs/payment-link-lifecycle.md rule 17: the expiry is decided without a call, the
+// Amended by specs/payments/payment-link-lifecycle.md rule 17: the expiry is decided without a call, the
 // deactivation then costs one, and the payment is read after it (rule 18).
 test('rule 1: an open link past its expiresAt lapses without a provider call to decide it, is then deactivated, and its reservation is untouched', async () => {
   const { db, links, devisId } = seed();

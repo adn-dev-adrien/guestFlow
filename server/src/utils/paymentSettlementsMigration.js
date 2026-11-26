@@ -1,5 +1,5 @@
 /**
- * Schema of the split payments (specs/mixed-method-payments.md §5). Idempotent and additive: two new
+ * Schema of the split payments (specs/payments/mixed-method-payments.md §5). Idempotent and additive: two new
  * tables, and the four per-reservation aggregates every reader of the stay's money takes from the row it
  * already loads (the installments' pattern). Existing payments have no settlement and read as before.
  */
@@ -34,7 +34,7 @@ const SETTLEMENTS_DDL = `
   CREATE INDEX IF NOT EXISTS idx_payment_tenders_settlement ON payment_tenders(settlementId);
 `;
 
-// SDK 2.33.0 — the tender lines of a plugin's prepaid instrument (specs/mixed-method-payments.md rules 60-63): `method` gains
+// SDK 2.33.0 — the tender lines of a plugin's prepaid instrument (specs/payments/mixed-method-payments.md rules 60-63): `method` gains
 // `'prepaid'` and the line carries the plugin's `source`, its own `ref` and the `label` it was given. SQLite cannot widen a CHECK
 // in place, so a table written before is rebuilt inside one transaction (create new, copy every row and value, swap). Idempotent:
 // a table whose CHECK already allows `'prepaid'` is left alone. Returns the number of rows carried over, or null.

@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 14 (amended 2026-10-18) — the dashboard line of a fiche whose
+// specs/platforms/gites-de-france-mail-intake.md rule 14 (amended 2026-10-18) — the dashboard line of a fiche whose
 // rent is still to choose says so and opens the fiche.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -15,7 +15,7 @@ vi.mock('../../sdk', async () => ({
 
 import IntakeAlert from '../IntakeAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'gdf-intake', severity: 'todo', count: 1, title: 'Mails Gîtes de France à vérifier', detail: '1 mail' };
 
 test('rule 14: a rent to choose is listed with a link to the fiche', async () => {

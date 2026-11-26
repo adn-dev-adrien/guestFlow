@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 1, 4, 9, 22 — the stay link is kept on the device and exchanged again when the server
+// specs/guest-app/guest-app.md rules 1, 4, 9, 22 — the stay link is kept on the device and exchanged again when the server
 // says the session is dead; a link the server no longer knows is forgotten; an inactive plugin says so.
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

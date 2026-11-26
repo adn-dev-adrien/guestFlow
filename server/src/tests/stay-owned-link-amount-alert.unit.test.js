@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 47 (audit R6 N1): an open link owned by the stay itself, paid after
+// specs/plugins/plugins-phase-3a-online-payment.md rule 47 (audit R6 N1): an open link owned by the stay itself, paid after
 // a `performUpdate` re-price, is booked at what was received (ledger rule 47) AND raises the « autre montant »
 // alert with no confirmation, exactly like the devis-owned twin (public-online-payment rule 14).
 

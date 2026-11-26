@@ -1,5 +1,5 @@
 /**
- * The CGV acceptance line of a fiche's Client block (specs/terms-acceptance-record.md rules 21-22).
+ * The CGV acceptance line of a fiche's Client block (specs/reservations/terms-acceptance-record.md rules 21-22).
  *
  * Pure renderer of the server block `{ termsAcceptanceState, termsAcceptance }`:
  *   - 'recorded'       → « CGV v3 acceptées le 21/09/2026 à 14:32:07 » + « Détails » (dialog with the
@@ -11,7 +11,7 @@
  *   block: { termsAcceptanceState, termsAcceptance } | null
  *
  * `ActivityTermsAcceptanceLines` (named export) renders `block.activityAcceptances` — the acceptances of the
- * other activities' terms recorded on the reservation (specs/gift-voucher-campaigns.md rule 37), one line each,
+ * other activities' terms recorded on the reservation (specs/gift-vouchers/gift-voucher-campaigns.md rule 37), one line each,
  * with the activity label and the channel it was accepted on. They do not depend on the website plugin.
  */
 import React, { useState } from 'react';

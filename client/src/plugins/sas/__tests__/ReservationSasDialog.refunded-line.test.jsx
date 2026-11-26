@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 108 (stabilisation loop t7, D7-1) — an offered paid line whose money a refund gave back cannot be put back:
+// specs/pricing/pricing-components.md rule 108 (stabilisation loop t7, D7-1) — an offered paid line whose money a refund gave back cannot be put back:
 // the recap line the server marks `offerLocked` stays offered on the recap with no « ✓ Offert » toggle; another offered line keeps its toggle.
 import { screen } from '@testing-library/react';
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rule 1 — the plugin is catalogued from its manifest, is not installed on a
+// specs/platforms/booking-extranet-intake.md rule 1 — the plugin is catalogued from its manifest, is not installed on a
 // fresh database, keeps the state a v3.10.0 database gave it, registers its tables, routes and settings, and
 // leaves a base installation untouched until it is switched on.
 const test = require('node:test');
@@ -30,7 +30,7 @@ function freshDb() {
   return db;
 }
 
-test('specs/booking-extranet-intake.md rule 1: the plugin is in the catalogue, from its own manifest', () => {
+test('specs/platforms/booking-extranet-intake.md rule 1: the plugin is in the catalogue, from its own manifest', () => {
   const entry = findPlugin('booking-intake');
   assert.ok(entry);
   assert.ok(PLUGIN_IDS.includes('booking-intake'));
@@ -40,13 +40,13 @@ test('specs/booking-extranet-intake.md rule 1: the plugin is in the catalogue, f
   assert.ok(manifest.changelog[manifest.version].length > 0, 'French lines for the shipped version');
 });
 
-test('specs/booking-extranet-intake.md rule 1: a fresh database installs nothing — the plugin waits on the Plugins page', () => {
+test('specs/platforms/booking-extranet-intake.md rule 1: a fresh database installs nothing — the plugin waits on the Plugins page', () => {
   const db = freshDb();
   seedBuiltinPlugins(db);
   assert.equal(buildPluginsModel(db).get('booking-intake'), null);
 });
 
-test('specs/booking-extranet-intake.md rule 1: a database that ran the minimal engine of v3.10.0 keeps its two intake choices, and gets the other plugins active', () => {
+test('specs/platforms/booking-extranet-intake.md rule 1: a database that ran the minimal engine of v3.10.0 keeps its two intake choices, and gets the other plugins active', () => {
   const db = freshDb();
   db.prepare("INSERT INTO properties (name) VALUES ('La Granja')").run();
   // What master v3.10.0 left: its own seed ledgers, the two intake rows, `builtin` source.
@@ -75,7 +75,7 @@ function boot(db, { installed = true } = {}) {
   return { plugins, settingsModel, record: registry.get('booking-intake') };
 }
 
-test('specs/booking-extranet-intake.md rule 1: registered, it declares both mounts, its settings and its tables — and a base installation has none of them', () => {
+test('specs/platforms/booking-extranet-intake.md rule 1: registered, it declares both mounts, its settings and its tables — and a base installation has none of them', () => {
   const base = freshDb();
   boot(base, { installed: false });
   assert.equal(base.prepare("SELECT 1 FROM sqlite_master WHERE name = 'booking_intakes'").get(), undefined);
@@ -89,7 +89,7 @@ test('specs/booking-extranet-intake.md rule 1: registered, it declares both moun
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'booking_dismissals'").get());
 });
 
-test('specs/booking-extranet-intake.md rule 1: not live until activated, and the public door is a public mount outside /api', () => {
+test('specs/platforms/booking-extranet-intake.md rule 1: not live until activated, and the public door is a public mount outside /api', () => {
   const db = freshDb();
   const { plugins, record } = boot(db);
   plugins.setEnabled('booking-intake', false);
@@ -99,7 +99,7 @@ test('specs/booking-extranet-intake.md rule 1: not live until activated, and the
   assert.ok(record.mounts.filter((m) => m.public).every((m) => m.path.startsWith('/public/')));
 });
 
-test('specs/booking-extranet-intake.md rule 12: the settings refuse a hotel map that is not what the plugin reads', () => {
+test('specs/platforms/booking-extranet-intake.md rule 12: the settings refuse a hotel map that is not what the plugin reads', () => {
   const db = freshDb();
   // Rule 38 (audit R42-EXT-L2 class) — the map names a logement.
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte')").run();
@@ -111,7 +111,7 @@ test('specs/booking-extranet-intake.md rule 12: the settings refuse a hotel map 
   assert.match(check('hotelIds', 'nope'), /chiffres/);
 });
 
-test('specs/booking-extranet-intake.md rule 2: the secret is stored encrypted and the HTTP view only says whether it is set', () => {
+test('specs/platforms/booking-extranet-intake.md rule 2: the secret is stored encrypted and the HTTP view only says whether it is set', () => {
   const db = freshDb();
   const { settingsModel, record } = boot(db);
   assert.deepEqual(settingsModel.httpView('booking-intake', record.settings), { hotelIds: '{}', keySet: false });

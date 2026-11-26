@@ -1,5 +1,5 @@
 /**
- * ClientDirectoryRow — one client of the Clients directory (specs/clients-upcoming-past-directory.md
+ * ClientDirectoryRow — one client of the Clients directory (specs/clients/clients-upcoming-past-directory.md
  * rules 14, 15, 18, 22). Renders what the server shaped: initials, name, `whenLabel`, the qualifying
  * stay (property · dates · nights · platform), « N séjours », and the e-mail / phone as links.
  *

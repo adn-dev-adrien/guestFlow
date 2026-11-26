@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 72, 88 — a stay cancelled, superseded or deleted cancels its guest orders: status `cancelled`, stock and
+// specs/guest-app/guest-app.md rules 72, 88 — a stay cancelled, superseded or deleted cancels its guest orders: status `cancelled`, stock and
 // holds released, out of « À préparer »; a card-paid one is owed back from the cancellation's refund dialog (rule 110 b).
 const fx = require('./guestOrderFixtures');
 

@@ -1,6 +1,6 @@
 /**
  * Minimal semantic-version helpers for the self-update engine
- * (specs/self-update-and-releases.md §3.A rule 2, §3.B rule 13).
+ * (specs/hosting/self-update-and-releases.md §3.A rule 2, §3.B rule 13).
  *
  * GuestFlow releases are strictly `MAJOR.MINOR.PATCH` — no pre-release, no build metadata. Anything
  * else is refused rather than coerced: a version string that reaches this module ends up in a

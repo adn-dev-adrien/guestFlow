@@ -1,6 +1,6 @@
-// specs/control-plane-plans-and-access.md rule 31 — the console login: the password, then the second
+// specs/hosting/control-plane-plans-and-access.md rule 31 — the console login: the password, then the second
 // factor the operator chose, or a backup code; a lockout sends back to the first step. The code field is
-// the instance's (specs/hosting-h2-account-security.md rules 32–34): sent at the 6th digit, never before.
+// the instance's (specs/hosting/hosting-h2-account-security.md rules 32–34): sent at the 6th digit, never before.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

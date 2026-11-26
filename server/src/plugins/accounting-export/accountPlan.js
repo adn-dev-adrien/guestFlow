@@ -1,7 +1,7 @@
 /**
  * Accounting constants — the bridge between GuestFlow's revenue buckets and the accountant's chart of
  * accounts. Single source of truth for account numbers, bucket → account mapping, and the auxiliary
- * client-account format. See specs/accountant-accounting-export.md §3.4.
+ * client-account format. See specs/accounting/accountant-accounting-export.md §3.4.
  *
  * Turnover basis (decided 2026-05-29): the accounting lines (70xxx + TVA) sit on the **net** (the
  * `finalPrice` the owner receives). For platform-sourced bookings, the gross (what the guest paid the
@@ -38,13 +38,13 @@ const DEFAULT_COMMISSION_ACCOUNT = '622600';
 // le taux (default 20 %) est configuré globalement dans Settings (vatRateCommission).
 const VAT_DEDUCTIBLE_COMMISSION_ACCOUNT = '44566000';
 
-// specs/cancellation-compensation.md §3.3 rule 16. Compte crédité quand une plateforme verse une
+// specs/payments/cancellation-compensation.md §3.3 rule 16. Compte crédité quand une plateforme verse une
 // indemnité pour un séjour annulé : un produit divers de gestion courante, PAS du chiffre d'affaires
 // hébergement (aucune nuitée n'a été vendue). Fallback quand le réglage global est vide; le taux de
 // TVA associé (0 % par défaut = hors champ) vit dans app_settings.vatRateCancellationCompensation.
 const DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT = '75880000';
 
-// specs/arrival-payment-detail-and-adjustment.md §3.4 rule 24. Compte PCG des « rabais, remises et
+// specs/sas/arrival-payment-detail-and-adjustment.md §3.4 rule 24. Compte PCG des « rabais, remises et
 // ristournes accordés par l'entreprise » : une réduction consentie au client à la porte est une
 // DIMINUTION du produit, pas un produit plus petit. L'hébergement reste crédité au brut et la remise
 // porte sa propre ligne — c'est ce que l'opérateur doit pouvoir relire dans le journal.
@@ -54,14 +54,14 @@ const DISCOUNT_ACCOUNT = '70900000';
 // courante, hors TVA. Même compte que l'indemnité d'annulation, pour la même raison.
 const TIP_ACCOUNT = DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT;
 
-// specs/reconciliation-assisted-matching.md rule 28 — what a platform keeps on a payout besides its
+// specs/accounting/reconciliation-assisted-matching.md rule 28 — what a platform keeps on a payout besides its
 // commission and the tourist tax (host cancellation fee, relocation costs…): autres charges de gestion
 // courante. A PLACEHOLDER until the accountant gives the number: editable in the Plan comptable.
 const PLATFORM_PENALTY_ACCOUNT = '658000';
 
 // Well-known commission accounts the accountant uses. Adrien's accountant gave these by
 // email 2026-06-04; new platforms get a generic `622600` fallback until the operator
-// configures the right number on `/comptabilite/plateformes`. Since 2026-11-26 (specs/platform-host-statement-and-commission-vat.md
+// configures the right number on `/comptabilite/plateformes`. Since 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md
 // rule 18) the labels are the cabinet's: the account follows the VAT regime of the platform's commission, not the platform's name.
 const COMMISSION_ACCOUNT_LABELS = {
   '622600':   'Frais commission générique',
@@ -71,7 +71,7 @@ const COMMISSION_ACCOUNT_LABELS = {
   '62260600': 'Commissions et frais sans TVA',
 };
 
-// specs/platform-host-statement-and-commission-vat.md rules 13-15 — the VAT regime of a platform's commission: `fr_vat` (a French platform,
+// specs/platforms/platform-host-statement-and-commission-vat.md rules 13-15 — the VAT regime of a platform's commission: `fr_vat` (a French platform,
 // 20 % VAT deductible: HT + `44566000`), `eu_reverse_charge` (an EU platform: the full amount, VAT self-assessed in the export) and `no_vat`
 // (the full amount). Each regime names the plan role of the account it proposes.
 const COMMISSION_REGIMES = Object.freeze(['fr_vat', 'eu_reverse_charge', 'no_vat']);
@@ -138,7 +138,7 @@ const BUCKET_TO_ACCOUNT = {
 
 // Refund (« avoir ») buckets → account. Same three revenue accounts as a sale, plus the tourist-tax
 // pass-through: giving back a tax the guest paid us reverses the 46710000 line, never a 70xxx one
-// (specs/reservation-refunds.md §3.4 rule 22).
+// (specs/payments/reservation-refunds.md §3.4 rule 22).
 const REFUND_BUCKET_TO_ACCOUNT = {
   ...BUCKET_TO_ACCOUNT,
   touristTax: PASS_THROUGH_ACCOUNTS.TOURIST_TAX,
@@ -164,7 +164,7 @@ function buildClientAccount(lastName, { chars = CLIENT_ACCOUNT_NAME_CHARS } = {}
   return `C${cleaned.slice(0, chars)}`;
 }
 
-// specs/plugins-phase-p-productisation.md rules 27–29 — the numbers an accountant may change, as
+// specs/plugins/plugins-phase-p-productisation.md rules 27–29 — the numbers an accountant may change, as
 // settings of this plugin, with today's constants as defaults. The engine below keeps writing the
 // default numbers; `planMapper` turns them into the plan's when the rows are produced, so the CSV is
 // byte-identical while the plan is untouched. Tips are not mapped: their default is the compensation

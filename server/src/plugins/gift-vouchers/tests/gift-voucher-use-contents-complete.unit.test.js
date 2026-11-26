@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rule 30 — the session page builds no line of its own: every option and every add-on a voucher holds, with its quantity, is in the opening
+// specs/site/site-outside-resource-booking.md rule 30 — the session page builds no line of its own: every option and every add-on a voucher holds, with its quantity, is in the opening
 // answer's `contents` (drawn at 0 € before any slot) and in the quote's `included` (drawn at 0 € once a slot is chosen).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

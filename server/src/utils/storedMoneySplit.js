@@ -1,6 +1,6 @@
 /**
- * The stored-money split of an encaissement (specs/accounting-books-the-money-collected.md rules 5-7), shared by
- * the accounting export and the cancellation (specs/payment-schedule-and-cancellation.md rule 55).
+ * The stored-money split of an encaissement (specs/accounting/accounting-books-the-money-collected.md rules 5-7), shared by
+ * the accounting export and the cancellation (specs/payments/payment-schedule-and-cancellation.md rule 55).
  *
  * An acompte or a solde paid before the per-line contribs existed (or whose contribs do not describe it) is booked
  * on the postes it covers, pro rata within its destination: the accommodation and the extras collected before
@@ -37,7 +37,7 @@ function buildPerLineData(database, row) {
     FROM reservation_resources WHERE reservationId = ?
   `).all(row.id);
 
-  // specs/accounting-books-the-money-collected.md rule 17 (D11) — a paid line since removed still holds what its entries
+  // specs/accounting/accounting-books-the-money-collected.md rule 17 (D11) — a paid line since removed still holds what its entries
   // booked: it reads as a line billed 0 €, so it weighs on no total and no destination.
   const removed = parseRemovedLineContribs(row.removedLineContribs).map((entry) => ({
     totalPrice: 0, offered: 0, inComplement: 0, acompteContribTtc: entry.acompteContribTtc, soldeContribTtc: entry.soldeContribTtc, bucket: entry.bucket,
@@ -62,7 +62,7 @@ function buildPerLineData(database, row) {
   const resourcesCurrentTotal = resourceLines.reduce((s, l) => s + nz(l.totalPrice), 0);
   const accommodationTtcCurrent = Math.max(0, round2(Number(row.finalPrice || 0) - optionsCurrentTotal - resourcesCurrentTotal));
 
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 16 — the part of a line sold DURING
+  // specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 16 — the part of a line sold DURING
   // the stay is billed by the flat `endOfStayComplement` entry, so it must leave the `complement`
   // entry: otherwise that entry credits option revenue its (frozen) debit doesn't carry.
   const midStay = resolveMidStaySplit(
@@ -87,7 +87,7 @@ function buildPerLineData(database, row) {
   };
 }
 
-// Where each billed line is COLLECTED (specs/accounting-books-the-money-collected.md rule 5). One line
+// Where each billed line is COLLECTED (specs/accounting/accounting-books-the-money-collected.md rule 5). One line
 // belongs to exactly one encaissement: pre-arrival (acompte + solde), arrival complement, or — for the
 // share sold during the stay — the flat end-of-stay complement, which bills it separately.
 //

@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 19 (D23, audit R33-M-L1) — the live quote of a devis not saved yet is asked as
+// specs/payments/deposit-blocks-the-dates.md rule 19 (D23, audit R33-M-L1) — the live quote of a devis not saved yet is asked as
 // a devis (`kind: 'devis'`), so the server prices it with the validity date its create writes: the summary's deadlines
 // are the ones « Enregistrer » stores. A saved devis sends its id instead, a reservation sends neither.
 // One case per call site (audit R33 N2): the opening and live quote, the change of logement, « Actualiser tarifs »

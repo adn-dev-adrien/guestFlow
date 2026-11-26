@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rules 16-17 + specs/self-update-and-releases.md rule 39 — the two columns of
+// specs/accounting/accounting-books-the-money-collected.md rules 16-17 + specs/hosting/self-update-and-releases.md rule 39 — the two columns of
 // a booked entry and the trigger that clears a split live in schema.sql (a fresh install), reach an upgraded database once
 // each, are nullable, and an older release's writes on the migrated table run untouched.
 

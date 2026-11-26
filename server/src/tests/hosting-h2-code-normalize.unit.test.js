@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 35 — the server reads a code the way it was typed or
+// specs/hosting/hosting-h2-account-security.md rule 35 — the server reads a code the way it was typed or
 // pasted: « 123 456 » or « 123-456 » is the 6-digit code, a backup code without its dash or with
 // spaces is that backup code. Shared with the console (utils/totp.js through utils/gf.js).
 

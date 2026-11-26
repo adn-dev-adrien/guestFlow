@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 18, 20, 21 — a lapsed link the provider refuses to deactivate keeps
+// specs/payments/payment-link-lifecycle.md rules 18, 20, 21 — a lapsed link the provider refuses to deactivate keeps
 // its marker and is retried at every pass; after 24 hours of failures the admin is told once, in the
 // plugins-phase-3a rule 9 wording; a rate limit stops the pass and the rest waits.
 

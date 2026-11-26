@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 51 — the lodging's booking horizon is saved through the settings' own `booking` group:
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 51 — the lodging's booking horizon is saved through the settings' own `booking` group:
 // a refused value writes nothing and answers on its own field, a cleared field keeps the stored months, a valid one is stored as an integer.
 const test = require('node:test');
 const assert = require('node:assert/strict');

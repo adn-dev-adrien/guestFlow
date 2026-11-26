@@ -31,17 +31,17 @@ function consoleRoutes(ctx) {
   router.post('/customers/:id/plan', (req, res) => res.json(customers.changePlan(req.params.id, body(req), who(req))));
   router.post('/customers/:id/deprovision', async (req, res) => res.json(await billing.deprovision(req.params.id, body(req), who(req))));
   router.post('/customers/:id/reactivate', async (req, res) => res.json(await customers.reactivate(req.params.id, who(req))));
-  // specs/hosting-h1-fleet-runtime.md rules 24, 29.
+  // specs/hosting/hosting-h1-fleet-runtime.md rules 24, 29.
   router.post('/customers/:id/invitation', async (req, res) => res.json(await customers.resendInvitation(req.params.id, who(req))));
   router.post('/customers/:id/reset-access', async (req, res) => res.json(await customers.resetAccess(req.params.id, who(req))));
   router.post('/customers/:id/restart-process', async (req, res) => res.json(await customers.restartProcess(req.params.id, who(req))));
   router.post('/customers/:id/cancel-erase', (req, res) => res.json(customers.cancelErase(req.params.id, who(req))));
   router.post('/customers/:id/erase', async (req, res) => res.json(await customers.eraseNow(req.params.id, body(req), who(req))));
-  // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
+  // specs/hosting/hosting-h2-account-security.md rules 12-14 — support access with consent.
   router.get('/customers/:id/support', (req, res) => res.json(ctx.controllers.support.state(req.params.id)));
   router.post('/customers/:id/support/request', (req, res) => res.json(ctx.controllers.support.request(req.params.id, body(req), who(req))));
   router.post('/customers/:id/support/link', (req, res) => res.json(ctx.controllers.support.link(req.params.id, who(req))));
-  // specs/plugin-operator-provisioning.md rules 10–14 — the customer's modules.
+  // specs/plugins/plugin-operator-provisioning.md rules 10–14 — the customer's modules.
   router.get('/customers/:id/modules', (req, res) => res.json(ctx.controllers.modules.view(req.params.id)));
   router.post('/customers/:id/modules/retry', (req, res) => res.json(ctx.controllers.modules.retry(req.params.id, who(req))));
   router.post('/customers/:id/modules/:pluginId/erase', (req, res) => res.json(ctx.controllers.modules.erase(req.params.id, req.params.pluginId, body(req).confirmSlug, who(req), body(req).action)));

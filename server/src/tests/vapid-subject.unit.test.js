@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 18 — the VAPID subject: the environment, then the
+// specs/plugins/plugins-phase-p-productisation.md rule 18 — the VAPID subject: the environment, then the
 // setting, then the company email, then the SMTP sender; with none, push stays off.
 
 const test = require('node:test');

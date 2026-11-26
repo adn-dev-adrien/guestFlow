@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 22 — an hourly-resources plugin erased then reinstalled does not hand out a booking id a sale still cites.
+// specs/plugins/plugin-removal-resilience.md rule 22 — an hourly-resources plugin erased then reinstalled does not hand out a booking id a sale still cites.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

@@ -8,13 +8,13 @@ const propertiesModel = require('../models/propertiesModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 const { computeDateRangeAssignment } = propertiesModel.__test;
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 
-// specs/pricing-min-nights-per-range.md — calendar season painting. `computeDateRangeAssignment`
+// specs/pricing/pricing-min-nights-per-range.md — calendar season painting. `computeDateRangeAssignment`
 // carves a selected period out of every season and (re)attaches it to a target season (existing/new)
 // with its own minimum-nights, splitting the covering season and deleting one emptied by the carve.
 

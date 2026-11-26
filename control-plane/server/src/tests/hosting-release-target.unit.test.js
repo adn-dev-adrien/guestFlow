@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 28 — a release that an update had to roll back, and that no
+// specs/hosting/hosting-h1-fleet-runtime.md rule 28 — a release that an update had to roll back, and that no
 // instance runs, reads « En échec » on the Versions page and is never the default target: the
 // default is the newest release that did not fail.
 

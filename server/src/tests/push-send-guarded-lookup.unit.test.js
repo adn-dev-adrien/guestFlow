@@ -1,4 +1,4 @@
-// specs/pwa-push-notifications.md rule 15, reading of 2026-11-05 (audit R23, E23-7) — a name is judged where it is
+// specs/guest-app/pwa-push-notifications.md rule 15, reading of 2026-11-05 (audit R23, E23-7) — a name is judged where it is
 // dialled: a stored endpoint whose name answers a private address opens no connection, with the real web-push. The name
 // is forced to a loopback listener through the resolver; the iCal dev switch does not apply.
 const test = require('node:test');

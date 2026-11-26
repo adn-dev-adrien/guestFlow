@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 36, 75, 97 (loop t1 D-1, D-5, D-6) — the S9 backfill of the refund register reads the links once: a link the live
+// specs/pricing/pricing-components.md §3 rules 36, 75, 97 (loop t1 D-1, D-5, D-6) — the S9 backfill of the refund register reads the links once: a link the live
 // register already holds (any origin) gets no second row, a link with no stay is skipped without failing the boot, and the sale link is no stay's to settle.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

@@ -1,13 +1,13 @@
 /**
  * SettingsSystemUpdateSection — « Système et mises à jour » in Réglages
- * (specs/self-update-and-releases.md §6.4).
+ * (specs/hosting/self-update-and-releases.md §6.4).
  *
  * The permanent home of the feature: the installed version, when GitHub was last polled, what is
  * published, and the outcome of the last few updates. The dashboard alert is the notification; this
  * is the place you come back to.
  *
  * Composed from the shared StatusCard / SummaryItem / StatusBadge trio — no Settings-specific card.
- * On a hosted instance (specs/hosting-h1-fleet-runtime.md rule 9) it only shows the version.
+ * On a hosted instance (specs/hosting/hosting-h1-fleet-runtime.md rule 9) it only shows the version.
  */
 import React, { useState } from 'react';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
@@ -47,7 +47,7 @@ export default function SettingsSystemUpdateSection() {
   if (loading && !info) return null;
   if (!info) return <ErrorAlert message={error || 'Impossible de lire la version installée.'} />;
 
-  // specs/hosting-h1-fleet-runtime.md rule 9 — a hosted instance shows its version and nothing to press.
+  // specs/hosting/hosting-h1-fleet-runtime.md rule 9 — a hosted instance shows its version and nothing to press.
   if (info.managed) {
     return (
       <StatusCard

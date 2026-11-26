@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 24, 31 — a platform credit below the expected payout offers
+// specs/accounting/reconciliation-assisted-matching.md rules 24, 31 — a platform credit below the expected payout offers
 // « Déclarer une pénalité » with the gap; once declared, the expected bank amount is net of the penalties,
 // the gap clears with no further step, and a confirmation writes payout = credit + acompte net + penalties.
 // Fictional data only.

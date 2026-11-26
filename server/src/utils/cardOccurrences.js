@@ -3,10 +3,10 @@
  *
  * A card option (`options.showsPlanningCard = 1`) is billed by the MOMENTS it is served on once they
  * are placed: `quantity = number of occurrences`, `billedUnits = occurrences × persons`
- * (specs/option-planning-card.md §3.4). Before that it is billed on the portions it was sold at and
+ * (specs/options/option-planning-card.md §3.4). Before that it is billed on the portions it was sold at and
  * flagged « à planifier » — an empty grid never removes it
- * (specs/unscheduled-card-option.md). The reservation form owns that grid in the browser; the
- * arrival SAS now sells the same options (specs/sas-breakfast-and-catering-upsell.md), so the
+ * (specs/options/unscheduled-card-option.md). The reservation form owns that grid in the browser; the
+ * arrival SAS now sells the same options (specs/sas/sas-breakfast-and-catering-upsell.md), so the
  * candidate grid and its presence rules must exist server-side too — the wizard sends the chosen
  * moments and the server re-derives quantity, units and price (CLAUDE.md §6.0).
  *
@@ -81,7 +81,7 @@ function isPresent(date, time, startDate, endDate, checkInTime, checkOutTime) {
 
 // Effective time of a candidate, or null when the guest can't attend it. EXCEPTION — breakfast is
 // still served the DEPARTURE morning even when its hour falls after check-out: the occurrence is
-// kept, retimed to 30 min before departure (specs/option-planning-card.md §3.2).
+// kept, retimed to 30 min before departure (specs/options/option-planning-card.md §3.2).
 function seedTime(option, date, time, startDate, endDate, checkInTime, checkOutTime) {
   const t = String(time || '');
   if (option?.autoOptionType === 'breakfast' && date === endDate && checkOutTime && t && t > String(checkOutTime)) {

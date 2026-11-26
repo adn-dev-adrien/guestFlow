@@ -1,4 +1,4 @@
-// specs/force-item-to-complement.md rule 18 (spec review 2026-10-27) — a stay created with a line
+// specs/sas/force-item-to-complement.md rule 18 (spec review 2026-10-27) — a stay created with a line
 // routed to the complement stores that complement, and the boot repair restores the rows that lost it.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

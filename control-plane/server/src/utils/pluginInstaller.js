@@ -1,5 +1,5 @@
 /**
- * Pushing a plugin version from the console's registry to an instance (specs/hosting-h1-fleet-runtime.md
+ * Pushing a plugin version from the console's registry to an instance (specs/hosting/hosting-h1-fleet-runtime.md
  * rule 11). The fleet updater calls it with the instance stopped and its database snapshotted:
  *
  *   install(inst, id, version)  runs the instance's own `server/scripts/switch-plugin-package.js`, of

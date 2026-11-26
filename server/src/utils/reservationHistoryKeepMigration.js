@@ -1,5 +1,5 @@
 /**
- * The stay's history outlives the stay (specs/ical-cancellation-approval.md rules 11 and 14).
+ * The stay's history outlives the stay (specs/platforms/ical-cancellation-approval.md rules 11 and 14).
  *
  * `reservation_history.reservationId` used to be declared `REFERENCES reservations(id) ON DELETE CASCADE`,
  * so approving an iCal cancellation — which writes the « Suppression iCal approuvée » row and then

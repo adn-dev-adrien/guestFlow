@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 45 and §7 (`stay-clock-single-source`) — no module but the stay clock decides a stay phase
+// specs/pricing/pricing-components.md §3 rule 45 and §7 (`stay-clock-single-source`) — no module but the stay clock decides a stay phase
 // or a collection moment by comparing dates. The scan is the `dates` guard of `no-duplicate-formulas` (`helpers/formulaGuards.js`):
 // today's call sites wait in its allow-list, each with the PR that moves it behind `stayClock*`. Here the list is held to the
 // table of the rule: every listed file is a row of that table. PR C moved every site behind the stay clock but the guest app's
@@ -11,7 +11,7 @@ const { GUARDS, plugin } = require('./helpers/formulaGuards');
 
 const SRC = path.join(__dirname, '..');
 const allowed = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'no-duplicate-formulas', 'dates.json'), 'utf8'));
-const spec = fs.readFileSync(path.join(SRC, '..', '..', 'specs', 'pricing-components.md'), 'utf8');
+const spec = fs.readFileSync(path.join(SRC, '..', '..', 'specs', 'pricing', 'pricing-components.md'), 'utf8');
 const table = spec.slice(spec.indexOf('45. **No other module compares dates'), spec.indexOf('46. **The clock decides the default'));
 
 test('rule 45: the stay clock files are the only home of the date guard', () => {

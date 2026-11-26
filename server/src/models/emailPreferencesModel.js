@@ -1,6 +1,6 @@
 /**
  * Guest email preferences — the unsubscribe token and state of a client
- * (specs/guest-email-sequence.md §3.2 rule 9, §4.3).
+ * (specs/emails/guest-email-sequence.md §3.2 rule 9, §4.3).
  *
  * The token is a per-client random capability (same generator and constant-time comparison as the
  * public devis token), minted lazily the first time a season email is rendered for that client.

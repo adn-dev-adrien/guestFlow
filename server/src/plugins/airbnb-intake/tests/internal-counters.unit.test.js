@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 34 — the unread counters are internal settings (refused by the PUT, hidden from the GET).
+// specs/plugins/plugins-phase-1-sdk.md rule 34 — the unread counters are internal settings (refused by the PUT, hidden from the GET).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

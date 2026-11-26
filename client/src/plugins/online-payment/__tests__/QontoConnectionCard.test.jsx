@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
-// specs/settings-one-save-and-automatic-webhook.md §3 rules 6, 12, 13 — « Application Qonto » and
+// specs/settings/settings-one-save-and-automatic-webhook.md §3 rules 6, 12, 13 — « Application Qonto » and
 // « Connexion bancaire (Qonto) » became one card: the redirect URI first, the credentials, the date
 // of the last verification, then two actions that wait for the page to be saved.
 
@@ -127,7 +127,7 @@ test('rule 1: editing a field reports the change to the page instead of keeping 
   expect(onChange).toHaveBeenCalledWith('clientId', 'guestflow-prod-8a22');
 });
 
-// The diagnosis the server computed is what the operator reads (specs/qonto-settings-in-app.md §3).
+// The diagnosis the server computed is what the operator reads (specs/settings/qonto-settings-in-app.md §3).
 test('the test result takes precedence over the stored health', () => {
   renderCard({
     testResult: {
@@ -153,7 +153,7 @@ test('the staging token appears only when the environment is the sandbox', () =>
   expect(screen.getAllByText('Jeton bac à sable').length).toBeGreaterThan(0);
 });
 
-// specs/plugins-phase-3a-online-payment.md rule 15 — the public site's address left this card for the
+// specs/plugins/plugins-phase-3a-online-payment.md rule 15 — the public site's address left this card for the
 // CGV page: it is a core setting, kept when the plugin goes.
 test('phase 3a rule 15: the card has no public site address field any more', () => {
   renderCard();

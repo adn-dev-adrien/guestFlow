@@ -1,5 +1,5 @@
 /**
- * specs/plugins-phase-3b-neat.md rule 14 + specs/neat-cancellation-insurance-subscription.md rule 9 —
+ * specs/plugins/plugins-phase-3b-neat.md rule 14 + specs/plugins/neat-cancellation-insurance-subscription.md rule 9 —
  * one subscription pass at a time, even across a purge. The purge drops the plugin's controller while
  * a pass may still be running; the controller rebuilt for the next kick must see that pass's lock,
  * or two passes would price and subscribe the same jobs concurrently.

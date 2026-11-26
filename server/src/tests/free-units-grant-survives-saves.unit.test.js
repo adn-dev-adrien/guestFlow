@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 66 (adversarial review of the 2026-10-27 spec-review fixes) —
+// specs/pricing/tariff-recipes.md §3 rule 66 (adversarial review of the 2026-10-27 spec-review fixes) —
 // the free units a stay was GRANTED survive every save: removing the option, lowering its quantity or
 // moving the stay to a platform for a while must not erase the grant, and re-adding the option must
 // not bill it. Driven through the real reservations controller.

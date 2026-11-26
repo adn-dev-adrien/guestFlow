@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// specs/pricing-components.md §3 rule 34 — hashes every money reader for every reservation, devis and month of a COPY of
+// specs/pricing/pricing-components.md §3 rule 34 — hashes every money reader for every reservation, devis and month of a COPY of
 // a real database, so a refactor can be proved to change nothing. It extends `scripts/vat-regime-golden-prod.mjs`
 // (which keeps working unchanged: its artefacts — quotes, fiche, devis PDF, payment-link baskets of every bucket and
 // installment, accounting journal and CSV rows of every month, finance views, tourist-tax report, cancellation of
@@ -183,7 +183,7 @@ if (outValues) fs.writeFileSync(outValues, `${JSON.stringify(Object.fromEntries(
 
 // A migration that adds a column changes every payload that spreads a whole row (`SELECT *`) in the hashes, not in any
 // figure. `--compare-values` judges the captured VALUES of a baseline taken on the code before the migration, ignoring the
-// keys the current code adds: what is left is a figure that moved (specs/pricing-components.md rule 81).
+// keys the current code adds: what is left is a figure that moved (specs/pricing/pricing-components.md rule 81).
 const againstValues = flag('--compare-values');
 if (againstValues) {
   const { valueDifferences } = require(path.join(root, 'scripts/price-gate/replayExpect.js'));

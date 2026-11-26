@@ -1,6 +1,6 @@
 /**
  * One-shot migration: non-card lines move from a base quantity to a stored typed count
- * (specs/non-card-option-served-persons.md rules 14-16 and 19).
+ * (specs/options/non-card-option-served-persons.md rules 14-16 and 19).
  *
  * Before, 3 people typed for a party of 5 were stored as `quantity = 0.6`, which billed 3.6 once the
  * party became 6. Such a line now carries `cardPersons = 3` (`cardNights` for a per-night option) and

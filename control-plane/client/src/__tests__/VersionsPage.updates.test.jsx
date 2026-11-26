@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 8 and 10 — « Versions »: the releases installed on the
+// specs/hosting/hosting-h1-fleet-runtime.md rules 8 and 10 — « Versions »: the releases installed on the
 // host and the instances on each, the published one to install, an update of the fleet or of a
 // selection (a customer page preselects its customer), followed one instance at a time, with the
 // rolled back one shown.

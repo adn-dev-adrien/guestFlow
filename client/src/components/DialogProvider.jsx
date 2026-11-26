@@ -1,5 +1,5 @@
 /**
- * DialogProvider — app-wide imperative dialogs + toasts (specs/ds-components.md §3.2).
+ * DialogProvider — app-wide imperative dialogs + toasts (specs/design-system/ds-components.md §3.2).
  *
  *   const { confirm, alert, openForm } = useAppDialogs();
  *     confirm(options)  → Promise<boolean>   ConfirmDialog (options: title, message, details, confirmLabel,

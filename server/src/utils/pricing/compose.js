@@ -1,5 +1,5 @@
 /**
- * COMPOSE — the `stayQuote` pipeline plus `shape()` to the quote the callers read (specs/pricing-components.md §3 rule 4).
+ * COMPOSE — the `stayQuote` pipeline plus `shape()` to the quote the callers read (specs/pricing/pricing-components.md §3 rule 4).
  *
  * Contract: `compose(input)` takes the engine input as the loader completed it (`models/pricingInputModel.js`), runs
  * `stayQuote` and shapes the resulting context into the 137-key quote `calculateReservationQuote` has always returned —
@@ -57,7 +57,7 @@ function shape(ctx) {
     requiredMinNights,
     minNightsRules,
     minNightsBreached,
-    // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum.
+    // specs/pricing/tariff-recipes.md §3.4 rule 20bis — maximum stay, mirror of the minimum.
     requiredMaxNights,
     maxNightsRules,
     maxNightsBreached,
@@ -76,7 +76,7 @@ function shape(ctx) {
     baseAccommodationPrice: roundMoney(baseAccommodationPrice),
     includedGuests,
     extraGuestUnitPrice,
-    // specs/tariff-recipes/spec.md §3.6 — the unit + Σ of per-night ratios (e.g. 2,4 for a 3-night
+    // specs/pricing/tariff-recipes.md §3.6 — the unit + Σ of per-night ratios (e.g. 2,4 for a 3-night
     // stay at 1 + 0,7 + 0,7) so the client renders « 27 €/nuit × 2 pers. × 3 nuits » without math.
     extraGuestPriceUnit,
     extraGuestNightlyRatioTotal: extraGuestCalc.ratioTotal,
@@ -107,7 +107,7 @@ function shape(ctx) {
     engineFinalPrice,
     priceOverridden,
     depositAmount: resolvedDepositAmount,
-    // specs/reservation-payment-ledger.md rule 16 — the percentage acompte, so the ledger can say
+    // specs/payments/reservation-payment-ledger.md rule 16 — the percentage acompte, so the ledger can say
     // « Montant fixé · calcul auto X » under a frozen one without computing it.
     autoDepositAmount,
     balanceAmount: resolvedBalanceAmount,
@@ -119,7 +119,7 @@ function shape(ctx) {
     complementCollectedExcessTtc: complementCollectedExcess,
     // What the complement carries on its own (forced lines + tax + the gap), whatever was collected or adjusted.
     complementRoutedAmount: rawComplement,
-    // specs/adjustable-complement-amounts.md §3.6 — what the engine produces on its own, so the fiche
+    // specs/sas/adjustable-complement-amounts.md §3.6 — what the engine produces on its own, so the fiche
     // can print « Calcul auto (X €) » under the adjustment field and ventilate the adjusted amount
     // over the postes the auto complement is actually made of.
     complementAmountAuto: autoComplementAmount,
@@ -131,7 +131,7 @@ function shape(ctx) {
     ...touristTaxBreakdown,
     touristTaxOriginalTotal: originalTouristTax(touristTaxBreakdown),
     touristTaxTotal,
-    // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff context this quote was built with,
+    // specs/pricing/tariff-recipes.md §3.2 rule 12bis — the tariff context this quote was built with,
     // ready to be stored on the reservation so a later edit replays it instead of today's recipe.
     tariffSnapshot: {
       includedGuests,
@@ -172,7 +172,7 @@ function shape(ctx) {
         ),
       },
     },
-    // specs/tourist-tax-included-services-deduction.md §4.3 — the accommodation the tax is computed
+    // specs/tourist-tax/tourist-tax-included-services-deduction.md §4.3 — the accommodation the tax is computed
     // on, plus the two halves it comes from, so the summary can render « Base : X − Y de prestations
     // comprises » without subtracting them back (wrong whenever the base was floored at 0).
     touristTaxBaseAccommodation: taxBaseAccommodation,
@@ -183,7 +183,7 @@ function shape(ctx) {
       ? roundMoney(Math.max(0, taxAccommodationPaid - extraGuestInBrutSurcharge))
       : taxBaseBeforeDeduction,
     touristTaxIncludedInRateDeduction,
-    // specs/tourist-tax-matches-the-office-calculation.md — the accommodation the guest paid before
+    // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md — the accommodation the guest paid before
     // the two deductions (rules 2-3), whether the fiche is frozen (rule 12), and the inconsistent-brut
     // flag (rule 16). The fiche and the declaration render them; neither recomputes anything.
     touristTaxAccommodationPaid: taxAccommodationPaid,
@@ -198,54 +198,54 @@ function shape(ctx) {
     // the dedicated PricingSummary caption.
     touristTaxReversedByPlatform,
     touristTaxInComplement: isTouristTaxForcedToComplement,
-    // specs/platform-added-guests-tourist-tax.md §4.3.
+    // specs/tourist-tax/platform-added-guests-tourist-tax.md §4.3.
     touristTaxAddedGuestsAmount,
     touristTaxAddedGuestsAdults,
     platformPaidAdults: platformGrossPin != null && platformPaidAdults != null ? Number(platformPaidAdults) : null,
     platformPaidOccupants: platformGrossPin != null && platformPaidAdults != null ? resolvedPlatformPaidOccupants : null,
     forcedItemsTotal,
-    // specs/mid-stay-extras-to-end-of-stay-complement.md — what was sold during the stay: the total
+    // specs/sas/mid-stay-extras-to-end-of-stay-complement.md — what was sold during the stay: the total
     // the engine carved out of the other buckets, and the ready-to-store end-of-stay detail lines.
     midStayExtrasTotal: midStayTotal,
     midStayExtrasLines: midStayLinesWithExcess,
-    // specs/mid-stay-notes.md — already collected through a note vs still due at check-out.
+    // specs/sas/mid-stay-notes.md — already collected through a note vs still due at check-out.
     midStaySettledTotal: midStaySettledAll,
     midStayRemainingTotal: midStayRemainingDue,
     endOfStayComplementTotal,
-    // specs/reservation-refunds.md — surfaced so the fiche can show the « Remboursements » line.
+    // specs/payments/reservation-refunds.md — surfaced so the fiche can show the « Remboursements » line.
     refundsTotal: resolvedRefundsTotal,
     // Echoed so the summary can print its own row for each, like « Remboursements » above.
     arrivalPaymentReduction: resolvedArrivalReduction,
     arrivalPaymentTip: resolvedArrivalTip,
     complementSplit,
     preArrivalAmount,
-    // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
+    // specs/tourist-tax/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
     // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
     accommodationPreArrival,
-    // Assiette of a `percent_of_stay` option (specs/cancellation-insurance.md §3.1 rule 3). Returned
+    // Assiette of a `percent_of_stay` option (specs/payments/cancellation-insurance.md §3.1 rule 3). Returned
     // so the public quote can price the insurance PREVIEW with the same helper as the billed line.
     cancellationInsuranceBase,
     totalStayPrice,
-    // specs/fiche-total-sejour-net-of-commission.md — the « total du séjour » shown on the fiche
+    // specs/platforms/fiche-total-sejour-net-of-commission.md — the « total du séjour » shown on the fiche
     // (and, later, in the finance displays) = net perçu + compléments. Net of the platform commission.
     sejourNetTotal,
-    // specs/platform-commission-line.md — operator-entered platform commission + the resulting net
+    // specs/platforms/platform-commission-line.md — operator-entered platform commission + the resulting net
     // for the « total séjour − commission = net perçu » summary block. Commission 0 (direct / none) →
     // platformNetReceivedAmount null, the summary shows the single « Total du séjour TTC » line.
     platformCommissionAmount,
-    // specs/platform-per-echeance-commission.md — the acompte commission + the total (acompte + solde).
+    // specs/platforms/platform-per-echeance-commission.md — the acompte commission + the total (acompte + solde).
     acompteCommissionAmount,
     totalPlatformCommission,
     platformNetReceivedAmount,
-    // specs/platform-deposit-toggle.md — echo whether THIS platform takes an acompte, so the fiche
+    // specs/platforms/platform-deposit-toggle.md — echo whether THIS platform takes an acompte, so the fiche
     // shows the acompte block (vs the « pas d'acompte » message) for a platform reservation.
     platformTakesDeposit: platformIsNonDirect && Boolean(platformTakesDeposit),
-    // specs/plugins-phase-p-productisation.md rule 45 — whether this stay is a platform SALE (a channel
+    // specs/plugins/plugins-phase-p-productisation.md rule 45 — whether this stay is a platform SALE (a channel
     // counted as direct is not), so the fiche never decides it from the platform's name.
     platformSale: channel.platformSale,
-    // specs/platform-payment-entry.md — echo the brut (pins finalPrice) so the client repopulates the field.
+    // specs/platforms/platform-payment-entry.md — echo the brut (pins finalPrice) so the client repopulates the field.
     platformGrossAmount: platformGrossPin,
-    // specs/platform-tourist-tax-out-of-the-commission.md rule 9 — the amount actually withheld, or
+    // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 9 — the amount actually withheld, or
     // null when the box is empty / the mode isn't « collecte ET reverse ». Distinct from
     // `touristTaxOriginalTotal`, which stays the engine's OWN estimate: the fiche displays the
     // withheld one and falls back to the estimate, « Reprendre le calcul » offers the estimate.
@@ -272,13 +272,13 @@ function shape(ctx) {
     totalNetPrice,
     totalVatAmount,
   };
-  // specs/ui-review-2026-10-19-operations.md rule 10 — the figure the fiche's total bar leads with.
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 10 — the figure the fiche's total bar leads with.
   quote.headline = quoteHeadline(quote, { isPlatform: channel.platformSale });
   quote.summaryCascade = summaryCascade(quote);
   return quote;
 }
 
-// The finished quote of a stay with no night (specs/pricing-components.md §3 rule 4): the nights step halts the run, the
+// The finished quote of a stay with no night (specs/pricing/pricing-components.md §3 rule 4): the nights step halts the run, the
 // short quote is shaped here from what the loader and the settings gave.
 function haltedQuote({ property, settings, vatRate, vatRegime }) {
   return {

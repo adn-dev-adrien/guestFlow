@@ -1,4 +1,4 @@
-// specs/tourist-tax-matches-the-office-calculation.md rule 17 (spec review 2026-10-27) — a tourist tax
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 17 (spec review 2026-10-27) — a tourist tax
 // already collected is pinned by the SAVE exactly like by the preview: a later rate change, or a guest
 // added after the money came in, never rewrites what the guest paid.
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 23 — the « Rapprochement bancaire » settings of the plugin:
+// specs/accounting/qonto-bank-reconciliation.md rule 23 — the « Rapprochement bancaire » settings of the plugin:
 // what the generic settings endpoint accepts, and what only the reader may write.
 const test = require('node:test');
 const assert = require('node:assert/strict');

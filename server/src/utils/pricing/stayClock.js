@@ -1,5 +1,5 @@
 /**
- * STAY CLOCK — has this stay started, is it over? (specs/pricing-components.md §3 rules 20, 44.)
+ * STAY CLOCK — has this stay started, is it over? (specs/pricing/pricing-components.md §3 rules 20, 44.)
  *
  * Contract: `phaseOf({ arrivalDate, departureDate, checkInTime, checkOutTime, arrivalValidated }, now)` answers on the
  * Europe/Paris clock:
@@ -115,7 +115,7 @@ const dayReached = (day, todayIso) => String(todayIso).slice(0, 10) >= String(da
 const dayPassed = (day, todayIso) => String(todayIso).slice(0, 10) > String(day).slice(0, 10);
 
 /**
- * Has the fiche's stay started? — specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 1.
+ * Has the fiche's stay started? — specs/sas/lock-at-arrival-time-and-arrival-complement-lines.md rule 1.
  * The fiche locks from here, not from midnight of the arrival day: a day before today, or the arrival day once its
  * `checkInTime` has passed (no or an unreadable `checkInTime` → from 00:00; « 9:00 », « 09h00 » and « 16h » are read), or
  * earlier once the arrival was marked (the check-in box or the completed arrival SAS: the guest is standing there).
@@ -144,7 +144,7 @@ function parseIsoDay(dateIso) {
 }
 
 /**
- * Where `now` stands against the reception window of a SAS dated `dateIso` (specs/reception-sas-today-only.md §3.1): it
+ * Where `now` stands against the reception window of a SAS dated `dateIso` (specs/sas/reception-sas-today-only.md §3.1): it
  * opens at D 00:00 and closes at D+1 04:00. 'unusable' for a date nobody can read (fail-closed), 'future', 'open', 'past'.
  */
 function sasWindowState(dateIso, now) {
@@ -155,7 +155,7 @@ function sasWindowState(dateIso, now) {
   return now < end ? 'open' : 'past';
 }
 
-// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('stayClock', scope).
+// specs/pricing/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('stayClock', scope).
 const settingsSchema = [
   { key: 'defaultCheckIn', type: 'string', default: '15:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },
   { key: 'defaultCheckOut', type: 'string', default: '10:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },

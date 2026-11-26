@@ -1,5 +1,5 @@
 /**
- * The day it is on the server's clock (specs/finance-dashboard-redesign.md rule 37).
+ * The day it is on the server's clock (specs/accounting/finance-dashboard-redesign.md rule 37).
  *
  * The process runs in the accommodations' time zone (utils/serverTimezone.js sets `TZ`, Europe/Paris
  * by default), so the local calendar day is the operator's day. `toISOString()` is the UTC one: between
@@ -31,7 +31,7 @@ function localNow(now = new Date()) {
 
 /**
  * Whether a stay is over: its departure day is behind us, or it is today and the check-out time has passed
- * (specs/calendar-property-parity.md rule 3). A stay with no check-out time ends at its day's end.
+ * (specs/planning/calendar-property-parity.md rule 3). A stay with no check-out time ends at its day's end.
  */
 function stayHasEnded({ endDate, checkOutTime }, today, nowTime) {
   if (!endDate) return false;

@@ -55,7 +55,7 @@ export default function CalendarPage() {
   const { showSuccess, showError } = useToast();
   const [searchParams] = useSearchParams();
   // The day dots and their legend come from plugin modules — the school-holiday zones
-  // (specs/plugins-phase-1-sdk.md rule 13).
+  // (specs/plugins/plugins-phase-1-sdk.md rule 13).
   const { markersFor, legend: markerLegend } = useDayMarkers();
   const navigate = useNavigate();
 
@@ -99,14 +99,14 @@ export default function CalendarPage() {
   // One month of one logement: the shared calendar read (stays + closures), its notes, its devis
   // (a cosmetic overlay: a failure degrades silently) and its occupied dates. Occupied dates are an
   // ANTI-OVERBOOKING input (drag-select guards) — a failure must surface as a failed month, not silently
-  // allow selecting an actually-blocked range (specs/ds-sweep-planning.md rule 9).
+  // allow selecting an actually-blocked range (specs/design-system/ds-sweep-planning.md rule 9).
   const loadPropertyMonth = useCallback(async (year, month, signal) => {
     const { from, to } = monthGridRange(year, month);
     const [calendar, notes, devis, occupied] = await Promise.all([
       api.getCalendar({ from, to, propertyId: selectedProp, signal }),
       api.getCalendarNotes(selectedProp, from, to),
       api.getDevis({ propertyId: selectedProp, from, to }).catch(() => []),
-      // specs/establishment-closures.md rule 20 — the endpoint's `to` is exclusive: the grid's last cell included.
+      // specs/pricing/establishment-closures.md rule 20 — the endpoint's `to` is exclusive: the grid's last cell included.
       api.getOccupiedDates(selectedProp, from, shiftDate(to, 1)),
     ]);
     return {
@@ -405,9 +405,9 @@ export default function CalendarPage() {
     />
   ));
 
-  // Property filter — bar `center` on sm+, a full-width strip under the bar on xs (specs/ds-sweep-planning.md
+  // Property filter — bar `center` on sm+, a full-width strip under the bar on xs (specs/design-system/ds-sweep-planning.md
   // rule 3). « Tous » is the all-logements calendar; with three logements or fewer it is a segmented
-  // control, past that a select (specs/ui-review-2026-10-19-operations.md rule 16).
+  // control, past that a select (specs/design-system/ui-review-2026-10-19-operations.md rule 16).
   const renderPropertyPicker = () => (
     <SegmentedSelect
       label="Logement"

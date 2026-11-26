@@ -1,7 +1,7 @@
 /**
- * SettingsSystemUpdateSection on a hosted instance — specs/hosting-h1-fleet-runtime.md rule 9: the
+ * SettingsSystemUpdateSection on a hosted instance — specs/hosting/hosting-h1-fleet-runtime.md rule 9: the
  * version and « Mises à jour gérées par l’hébergeur », nothing to press. A self-hosted install keeps
- * its buttons (specs/self-update-and-releases.md §6.4, covered by SettingsSystemUpdateSection.test.jsx).
+ * its buttons (specs/hosting/self-update-and-releases.md §6.4, covered by SettingsSystemUpdateSection.test.jsx).
  */
 
 import React from 'react';

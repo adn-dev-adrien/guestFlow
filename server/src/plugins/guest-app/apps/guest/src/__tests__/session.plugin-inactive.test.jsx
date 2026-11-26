@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 63 (audit R37-C-L1) — the plugin switched off while a guest has the app open: any read
+// specs/guest-app/guest-app.md rule 63 (audit R37-C-L1) — the plugin switched off while a guest has the app open: any read
 // answered 404 `PLUGIN_INACTIVE` (the loader's bare code) shows the « app unavailable » screen, in the guest's
 // language, never the raw code under « Réessayer ». `gate-access` switched off (`/gate` names that plugin) leaves the
 // app open.

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 122 (stabilisation loop t9, S9-2, 2026-11-16; completes rules 104, 118) — a stay priced before 4.2.0 whose
+// specs/pricing/pricing-components.md §3 rule 122 (stabilisation loop t9, S9-2, 2026-11-16; completes rules 104, 118) — a stay priced before 4.2.0 whose
 // open arrival complement the engine of today sets above the stored one (stay 14: the engine prices it 50 € higher than it was sold). The note
 // credit of a paid line never lands on that unstored part: it goes to the end-of-stay remainder, the solde, the acompte, as the arrival SAS's
 // offer does. Before: the line API answered 409 OVERPAID, and forced, owed the 30 € back while the remainder still asked them in full; a line

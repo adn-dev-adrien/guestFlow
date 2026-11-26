@@ -1,6 +1,6 @@
-// specs/wordpress-plugin.md rules 16, 25 and 27 — with online payment on, a payment that fails leaves one
+// specs/site/wordpress-plugin.md rules 16, 25 and 27 — with online payment on, a payment that fails leaves one
 // request, and trying again pays for that same devis instead of creating another. Also
-// specs/public-online-payment.md rule 12: while GuestFlow says no payment provider is connected
+// specs/site/public-online-payment.md rule 12: while GuestFlow says no payment provider is connected
 // (`payment.onlineReady: false`), the button sends a plain request.
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

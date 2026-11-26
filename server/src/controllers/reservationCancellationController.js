@@ -1,5 +1,5 @@
 /**
- * Cancelling a stay — HTTP layer (specs/payment-schedule-and-cancellation.md §3.5).
+ * Cancelling a stay — HTTP layer (specs/payments/payment-schedule-and-cancellation.md §3.5).
  *
  * The dashboard proposes the cancellation once an unpaid solde has passed its deadline, and the
  * reservation page offers it too; the operator confirms. Nothing here ever fires on its own — the
@@ -30,7 +30,7 @@ const { deactivateAbandonedLinks } = require('../utils/paymentLinkDeactivation')
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { ENGLISH_VERSION_MISSING } = require('../utils/emailTemplateLanguage');
 
-// specs/email-language-fr-en.md rule 12 — a notice asked for and not sent is told to the operator.
+// specs/emails/email-language-fr-en.md rule 12 — a notice asked for and not sent is told to the operator.
 const NOTICE_NOT_SENT = Object.freeze({
   [ENGLISH_VERSION_MISSING]: 'version anglaise manquante',
   'no-template': 'modèle désactivé',
@@ -42,7 +42,7 @@ function cancellationNoticeWarning(reason) {
 
 const cancellationDeps = () => ({ database: db, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel });
 
-// specs/payment-schedule-and-cancellation.md rule 60 — what cancelling stay `id` now would keep and write off, from the
+// specs/payments/payment-schedule-and-cancellation.md rule 60 — what cancelling stay `id` now would keep and write off, from the
 // very figures `cancel` writes; the refusal the cancel would answer otherwise.
 function previewFor(id) {
   return cancellationPreview(cancellationDeps(), id, { today: getTodayIsoDate(), vatRate: vatRegimeModel.rateForRow(db, { id }) });
@@ -74,7 +74,7 @@ async function cancel(req, res) {
   });
   if (result.error) return res.status(result.status).json({ error: result.message, code: result.error });
 
-  // specs/plugins-phase-3a-online-payment.md rules 7, 9 — the stay is cancelled whatever the provider
+  // specs/plugins/plugins-phase-3a-online-payment.md rules 7, 9 — the stay is cancelled whatever the provider
   // answers; a link it could not deactivate is retried by the poll and named to the operator.
   const { notDeactivated } = await deactivateAbandonedLinks(result.cancelledLinks, { paymentLinksModel });
   const providerLabel = (require('../utils/paymentProviders').declared() || {}).label || 'le prestataire de paiement';

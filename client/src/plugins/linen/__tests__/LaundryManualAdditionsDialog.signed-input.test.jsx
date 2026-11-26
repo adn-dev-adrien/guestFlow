@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import LaundryManualAdditionsDialog, { parseSignedCount } from '../LaundryManualAdditionsDialog';
 
-// specs/laundry-manual-removals.md rule 9 and specs/laundry-bath-mat.md rule 13 — a count typed with
+// specs/linen/laundry-manual-removals.md rule 9 and specs/linen/laundry-bath-mat.md rule 13 — a count typed with
 // its sign keeps it, and the bath mats have their own stepper (mega review #5, M4: « -3 » saved +3, and
 // the mats the card counts could not be added).
 
@@ -47,7 +47,7 @@ test('rule 9 — a lone « - » left on blur settles back to 0', () => {
   expect(field).toHaveValue('0');
 });
 
-// specs/laundry-bath-mat.md rule 13
+// specs/linen/laundry-bath-mat.md rule 13
 test('rule 13 — the « Tapis » stepper adds bath mats to the line', () => {
   const onSave = vi.fn();
   render(<LaundryManualAdditionsDialog open date="2026-10-27" current={ZERO} onSave={onSave} onClose={() => {}} />);

@@ -1,5 +1,5 @@
 /**
- * specs/booking-pace.md — the « Réservations à venir, à date » card renders the server's sentence, its
+ * specs/pricing/booking-pace.md — the « Réservations à venir, à date » card renders the server's sentence, its
  * notice and pickup, switches metric through the API, and its tooltip / écart read like the mock-up.
  * Recharts draws nothing in jsdom, so the tooltip and the écart helper are rendered directly.
  */

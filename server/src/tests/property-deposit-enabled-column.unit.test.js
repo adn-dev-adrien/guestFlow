@@ -1,5 +1,5 @@
-// Per-property « Acompte » switch round-trip (specs/property-deposit-switch.md rule 1, widening
-// specs/public-online-deposit.md §3 rule 1). FormData sends booleans as strings, so the model must
+// Per-property « Acompte » switch round-trip (specs/payments/property-deposit-switch.md rule 1, widening
+// specs/site/public-online-deposit.md §3 rule 1). FormData sends booleans as strings, so the model must
 // coerce depositEnabled to a 0/1 bit.
 
 const test = require('node:test');
@@ -40,7 +40,7 @@ test('update coerces string/boolean/number forms to a 0/1 bit', async () => {
   assert.equal(readBit(db, id), 0);
   await model.update(id, { name: 'Gite', depositEnabled: 1 });
   assert.equal(readBit(db, id), 1);
-  // specs/settings-input-guards.md rule 61 (audit R25-DB-1 sweep) — omitted keeps the stored bit.
+  // specs/settings/settings-input-guards.md rule 61 (audit R25-DB-1 sweep) — omitted keeps the stored bit.
   await model.update(id, { name: 'Gite' });
   assert.equal(readBit(db, id), 1);
   await model.update(id, { name: 'Gite', depositEnabled: false });

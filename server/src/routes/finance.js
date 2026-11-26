@@ -7,7 +7,7 @@ router.get('/dashboard', ctrl.getDashboard);
 router.get('/dashboard/detail/:tile', ctrl.getDashboardDetail);
 router.get('/incoming', ctrl.getIncoming);
 router.get('/stay-profile', stayProfile.getStayProfile);
-// specs/finance-data-checks.md — the « À vérifier » panel of the exercise.
+// specs/accounting/finance-data-checks.md — the « À vérifier » panel of the exercise.
 router.get('/data-checks', require('../controllers/financeDataChecksController').getDataChecks);
 router.get('/pace', ctrl.getPace);
 router.get('/pace/:month', ctrl.getPaceMonth);

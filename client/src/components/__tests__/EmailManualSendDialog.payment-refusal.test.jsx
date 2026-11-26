@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 60 (review of #906) — the preview of a request already known to be refused
+// specs/payments/payment-link-lifecycle.md rule 60 (review of #906) — the preview of a request already known to be refused
 // (platform stay, closed nights, payment to settle) carries the server's `refusal`: the dialog shows its message in
 // an info alert and « Envoyer » stays disabled. Without a refusal, nothing changes.
 import React from 'react';

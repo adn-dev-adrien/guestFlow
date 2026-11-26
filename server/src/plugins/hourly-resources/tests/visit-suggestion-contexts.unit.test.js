@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 37 — the plugin supplies the CONTEXTS of the kind `resource` to the generic « Proposés à l'arrivée » lists: the resources sold by the hour
+// specs/sas/outside-booking-sas.md rule 37 — the plugin supplies the CONTEXTS of the kind `resource` to the generic « Proposés à l'arrivée » lists: the resources sold by the hour
 // and placed on a planning, listed when asked, in name order; the per-resource list itself is the core's `suggested_articles` rows, never a setting of this plugin.
 const test = require('node:test');
 const assert = require('node:assert/strict');

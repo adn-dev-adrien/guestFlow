@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 32, 35 (review of PR #720) — whatever is typed or
+// specs/hosting/hosting-h2-account-security.md rules 32, 35 (review of PR #720) — whatever is typed or
 // pasted, the field keeps the code inside it, so the 6th digit (or a whole backup code) always sends:
 // no input leaves the user with nothing sent and nothing said.
 import React, { useState } from 'react';

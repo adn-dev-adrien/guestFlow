@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 26 — Solio sees no difference. The six sequence emails,
+// specs/plugins/plugins-phase-p-productisation.md rule 26 — Solio sees no difference. The six sequence emails,
 // French and English, for six Solio stays, rendered through the real preview path. The expected
 // output was captured on the code before phase P; `GOLDEN_UPDATE=1` rewrites it, which is only ever
 // legitimate on that code.

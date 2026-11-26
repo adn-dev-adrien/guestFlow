@@ -1,4 +1,4 @@
-// specs/clients-upcoming-past-directory.md — the Clients page read: bucket per client, the stay that
+// specs/clients/clients-upcoming-past-directory.md — the Clients page read: bucket per client, the stay that
 // qualifies it, the per-bucket counts of the search, and the ordering. All server-side (issue #19).
 
 const { todayIso: localTodayIso } = require('../utils/localDate');

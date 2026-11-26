@@ -1,5 +1,5 @@
 /**
- * STORED LINES — the readers of what a reservation stores about its extra lines (specs/pricing-components.md §3 rules 2, 72).
+ * STORED LINES — the readers of what a reservation stores about its extra lines (specs/pricing/pricing-components.md §3 rules 2, 72).
  *
  * Contract: `extraLineKey(line)` is the stable key of an extra line (`opt:<id>`, `res:<id>`, `custom:<label>`; a later sale of one article
  * carries its own `lineKey` = `line:<table>:<lineId>`, rule 85, and that is the key — see `lineKeys.js`);
@@ -32,7 +32,7 @@ function extraLineKey(line) {
 }
 
 /**
- * « Notes en séjour » register (specs/mid-stay-notes.md §3.1) — the history of what was actually
+ * « Notes en séjour » register (specs/sas/mid-stay-notes.md §3.1) — the history of what was actually
  * COLLECTED during the stay. A note exists only once settled; a sale left for check-out simply stays
  * in the end-of-stay remainder.
  */

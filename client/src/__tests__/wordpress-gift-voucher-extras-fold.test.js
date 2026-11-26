@@ -1,10 +1,10 @@
-// specs/gift-voucher-campaigns.md rule 64 — the extra time and the add-ons sit in one fold « Ajouter au bon », closed by default; its head says what is inside and, once
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 64 — the extra time and the add-ons sit in one fold « Ajouter au bon », closed by default; its head says what is inside and, once
 // something is chosen, the names and the server's `extrasCents`; each line shows the price the server gives for its quantity, read in the `prices` arrays, never multiplied;
 // at the maximum the « + » is disabled and the line says so. The same fold serves the purchase block and « Utiliser un bon cadeau ».
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { loadBlock } from './wordpressBookingFixtures';
 
-const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js'];
+const ASSETS = ['assets/voucher-code.js', 'assets/voucher-parts.js', 'assets/voucher-card.js'];
 
 // Deliberately not multiples of the unit: a page that multiplied would show another figure.
 const DRINK_PRICES = [650, 1280, 1850, 2400, 2950].map((cents, i) => ({ qty: i + 1, cents }));

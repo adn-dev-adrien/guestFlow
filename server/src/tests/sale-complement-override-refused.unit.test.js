@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 30 (end-review verification V-7) — a stay whose arrival complement was typed by hand keeps that figure, so money a
+// specs/pricing/pricing-components.md rule 30 (end-review verification V-7) — a stay whose arrival complement was typed by hand keeps that figure, so money a
 // gesture would move in the arrival complement lands in no bucket. Before the arrival such a sale, and any change of an arrival line (offer, discount,
 // removal, a move in or out of the arrival), is refused 409 COMPLEMENT_OVERRIDDEN and writes nothing; without the hand-typed figure it goes through.
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 30 (and 22) — a clearing-account client that comes from a sale
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 30 (and 22) — a clearing-account client that comes from a sale
 // outside a stay has `reservationId` null: no link to a fiche, a React key of its own, no collision between two sales.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

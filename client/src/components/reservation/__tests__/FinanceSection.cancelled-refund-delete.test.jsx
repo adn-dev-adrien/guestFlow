@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rule 25 and specs/reservation-refunds.md rule 6, readings of 2026-11-02 (audit
+// specs/planning/calendar-property-parity.md rule 25 and specs/payments/reservation-refunds.md rule 6, readings of 2026-11-02 (audit
 // R15-C1) — a cancelled fiche is a disabled fieldset, yet a refund made after the cancellation can be deleted: the
 // server offers « Supprimer » on that row only, and the fiche draws it outside the fieldset, beside « + Nouveau
 // remboursement ». The « Acompte conservé » row, which the server gives no action, offers nothing.

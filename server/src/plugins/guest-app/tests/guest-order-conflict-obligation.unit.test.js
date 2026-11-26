@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 35, 36, 88 and specs/pricing-components.md rule 75 — a paid order that can no longer be honoured (a price that rose, a slot gone,
+// specs/guest-app/guest-app.md rules 35, 36, 88 and specs/pricing/pricing-components.md rule 75 — a paid order that can no longer be honoured (a price that rose, a slot gone,
 // an abandoned order, a stay cancelled) opens ONE refund obligation of origin `orderConflict`, for what was paid; `flagBasketRefund` and `deferredCents` are gone.
 const fx = require('./guestOrderFixtures');
 

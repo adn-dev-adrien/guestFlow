@@ -1,5 +1,5 @@
 /**
- * specs/ui-review-2026-10-19-operations.md rule 37 — the default-hour field of a single-slot grid has
+ * specs/design-system/ui-review-2026-10-19-operations.md rule 37 — the default-hour field of a single-slot grid has
  * an accessible name; a multi-slot grid keeps its « Créneau N » labels.
  */
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 1–3 — one way to record a stay payment. A deposit ticked
+// specs/plugins/plugins-phase-3a-online-payment.md rules 1–3 — one way to record a stay payment. A deposit ticked
 // by hand and the same deposit received through a provider's link leave the same rows: flag, date,
 // contribs captured, the SAS's hold on the bucket released.
 
@@ -100,7 +100,7 @@ test('rule 1 — a failed capture ticks nothing by hand, but never loses money a
   assert.deepEqual(result.captureFailed, ['balance']);
   const row = moneyRow(db, online);
   assert.equal(row.balancePaid, 1, 'the guest paid: the stay says so');
-  // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde recorded before its acompte has no
+  // specs/payments/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde recorded before its acompte has no
   // earlier entry to flip: it takes the stored split at once, so no later save can rewrite it.
   assert.equal(row.depositPaid, 0);
   assert.notEqual(row.accommodationSoldeContribTtc, null, 'the stored split of this very order');
@@ -130,7 +130,7 @@ test('rule 3 — a payment that lands on a cancelled stay records nothing on it'
   assert.equal(moneyRow(db, id).depositPaid, 0);
 });
 
-// Since specs/plugins-phase-3b-neat.md rule 9 the event is the only follow-up: Neat listens to it.
+// Since specs/plugins/plugins-phase-3b-neat.md rule 9 the event is the only follow-up: Neat listens to it.
 test('rules 2–3 — a recorded payment emits reservation.paid once', () => {
   const db = seed();
   const id = addStay(db);

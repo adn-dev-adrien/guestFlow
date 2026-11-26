@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 37 and 41 — the turnover collected during the calendar year: each
+// specs/accounting/vat-optional-mode.md rules 37 and 41 — the turnover collected during the calendar year: each
 // payment on its own date, gross of the platform commission, without tourist tax (nor VAT under a taxed
 // period), caisse interne left out, and last year beside it.
 

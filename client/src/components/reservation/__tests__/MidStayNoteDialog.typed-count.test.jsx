@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 13 — the note's quantity field is the fiche's: a number of
+// specs/options/non-card-option-served-persons.md rule 13 — the note's quantity field is the fiche's: a number of
 // people or nights is carried as typed, counts as an addition, and « Annuler » puts it back.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

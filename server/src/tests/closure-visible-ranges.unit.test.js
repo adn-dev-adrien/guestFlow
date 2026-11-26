@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const propertiesModel = require('../models/propertiesModel');
 
-// specs/tariff-recipes/spec.md §3.4 rules 25bis-25ter — the closed days are hidden from the SEASON
+// specs/pricing/tariff-recipes.md §3.4 rules 25bis-25ter — the closed days are hidden from the SEASON
 // DISPLAY only. The stored ranges keep their full span, so moving a closure re-reveals them; and the
 // seasons come back ordered by the earliest date they actually cover.
 

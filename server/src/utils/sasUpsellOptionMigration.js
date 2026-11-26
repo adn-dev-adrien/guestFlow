@@ -2,7 +2,7 @@
  * One-shot migration: the arrival SAS's « Ménage » / « Linge de toilette » upsells move from custom
  * lines to the real catalogue option.
  *
- * specs/sas-upsells-activate-catalogue-option.md §3.4. Until now `commitArrivalSas` wrote both
+ * specs/sas/sas-upsells-activate-catalogue-option.md §3.4. Until now `commitArrivalSas` wrote both
  * upsells as `reservation_custom_options` rows (French label, `sasArrivalOrigin = 1`). A custom line
  * is invisible to the laundry + linen-stock aggregators, which count bath linen through
  * `reservation_options → options WHERE countsAsBathroomLinen = 1` (laundryModel / linenInventory), so

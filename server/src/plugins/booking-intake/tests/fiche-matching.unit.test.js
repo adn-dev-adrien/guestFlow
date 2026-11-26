@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rules 33–34 (audit 2026-10-28, F6 and F8) — the fiche a Booking page fills
+// specs/platforms/booking-extranet-intake.md rules 33–34 (audit 2026-10-28, F6 and F8) — the fiche a Booking page fills
 // is the one Booking could have created (not cancelled, Booking's canal), several candidates are refused, and
 // the e-mail read on the page is one address.
 const test = require('node:test');

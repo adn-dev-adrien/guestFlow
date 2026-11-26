@@ -1,4 +1,4 @@
-// Platforms & iCal rework (specs/platforms-and-ical-rework.md). Four concerns:
+// Platforms & iCal rework (specs/platforms/platforms-and-ical-rework.md). Four concerns:
 //   1. platformsModel global colour — setColor/getColor/colorMap (custom → built-in → grey; a colour
 //      equal to the built-in clears the override) + listForProperty merges every platform with the
 //      property's source config + global colour.
@@ -6,7 +6,7 @@
 //      empty-URL sources; createSource upserts one row per (property, platform); the per-property
 //      `disabled` flag persists (it no longer hides stays).
 //   3. reservationsModel.list({propertyId}) KEEPS a disabled-platform reservation — rule 10's display
-//      filter was superseded by specs/calendar-property-parity.md rule 2 — and getOccupiedReservations
+//      filter was superseded by specs/planning/calendar-property-parity.md rule 2 — and getOccupiedReservations
 //      (availability) counts it as before.
 //   4. The calendar colour endpoint (propertiesModel.getPlatformColors) is backed by platforms.color.
 

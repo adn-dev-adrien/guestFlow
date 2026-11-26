@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 43 and 66 — the dashboard card « Dates prises »: the server's rows, told or not,
+// specs/payments/payment-link-lifecycle.md rules 43 and 66 — the dashboard card « Dates prises »: the server's rows, told or not,
 // the stay that took the dates as a link, « Ouvrir » opens the stay, « Vu » takes the row off; nothing at all when the
 // list is empty or unreadable.
 import React from 'react';

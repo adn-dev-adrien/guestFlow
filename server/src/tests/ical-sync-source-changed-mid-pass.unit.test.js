@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rule 20 (audit R6-1) — a pass already in flight must not apply a feed to a
+// specs/platforms/ical-import-hardening.md rule 20 (audit R6-1) — a pass already in flight must not apply a feed to a
 // source the operator has stopped, deleted or re-pointed since the pass read its rows.
 const test = require('node:test');
 const assert = require('node:assert/strict');

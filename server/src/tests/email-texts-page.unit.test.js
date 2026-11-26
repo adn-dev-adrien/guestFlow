@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.C rule 9 — one page, one section per email in send order,
+// specs/emails/guest-email-texts-made-simple.md §3.C rule 9 — one page, one section per email in send order,
 // each holding only the sentences of that email (subject, stay texts, mentions, the property's hook
 // and its own texts), written through one key space and one transaction.
 

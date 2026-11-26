@@ -1,4 +1,4 @@
-// specs/pricing-components.md rules 16, 31, 39 (end review R3-6) — the « Remise » chip shows the line's discount total as the server summed it;
+// specs/pricing/pricing-components.md rules 16, 31, 39 (end review R3-6) — the « Remise » chip shows the line's discount total as the server summed it;
 // the screen adds nothing.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

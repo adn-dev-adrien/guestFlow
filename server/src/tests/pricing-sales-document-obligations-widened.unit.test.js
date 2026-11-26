@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 97 (loop t1 B-1, migration) — a `standalone_sale_obligations` table created before the `lineLowered` origin is rebuilt once
+// specs/pricing/pricing-components.md rule 97 (loop t1 B-1, migration) — a `standalone_sale_obligations` table created before the `lineLowered` origin is rebuilt once
 // with the wider CHECK: its rows and ids are kept, a second run changes nothing.
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');

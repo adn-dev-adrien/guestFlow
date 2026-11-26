@@ -1,4 +1,4 @@
-// specs/tariff-recipe-platform-cleaning-fee.md rule 10 — the « Ménage / séjour » column appears only
+// specs/pricing/tariff-recipe-platform-cleaning-fee.md rule 10 — the « Ménage / séjour » column appears only
 // when a channel bills a cleaning fee; a channel without one reads « — ».
 import React from 'react';
 import { render as rtlRender, screen } from '@testing-library/react';

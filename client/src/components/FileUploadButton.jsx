@@ -1,6 +1,6 @@
 /**
  * FileUploadButton — pick a TEXT file and hand its contents to a caller: text only (UTF-8, else
- * Windows-1252 — specs/guest-email-texts-made-simple.md rule 23), never for binaries or backups.
+ * Windows-1252 — specs/emails/guest-email-texts-made-simple.md rule 23), never for binaries or backups.
  *
  * Props:
  *   label:      string                       button text

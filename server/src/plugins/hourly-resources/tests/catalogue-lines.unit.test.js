@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 19 — what the hourly plugin adds to a resource's card.
+// specs/options/options-resources-ux.md rule 19 — what the hourly plugin adds to a resource's card.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md — a save that moved no pricing input keeps the stay as it was
+// specs/reservations/reservation-save-keeps-pricing.md — a save that moved no pricing input keeps the stay as it was
 // priced. Client audit 2026-10-28 (finding 1): pressing « Enregistrer » on an untouched fiche rewrote
 // finalPrice / balanceAmount of closed stays (#22212: 297,61 -> 300,27; #22282: 905 -> 901,82 and a
 // tourist tax 0 -> 19,20), re-inserted the custom options under new ids, re-stamped the snapshots and

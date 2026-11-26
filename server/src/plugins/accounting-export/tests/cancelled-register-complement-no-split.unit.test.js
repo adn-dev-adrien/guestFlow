@@ -1,8 +1,8 @@
-// specs/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a complement collected before
+// specs/payments/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a complement collected before
 // `complementPaidSplit` existed has none: the register reads it from the stay. Every production complement of today is in
 // that case, so the readings stamped stays never reach are pinned here: the auditor's scenarios with the split NULLed before
 // the cancellation.
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 4): the brut is the host amount — the 600,00 guest total
 // with its 7,20 of reversed tax inside is a brut of 592,80 and a box of 7,20; the stay, its buckets and its entries are the same.
 process.env.DB_PATH = ':memory:';
 

@@ -6,14 +6,14 @@ const { grossFromNet } = require('../utils/pricing');
 const { create: createPlatformsModel } = require('../models/platformsModel');
 const { buildModel: buildPropertiesModel } = require('../models/propertiesModel');
 
-// specs/platform-price-from-commission.md — gross-up of a season net price by a platform commission %,
-// widened by specs/tariff-recipes/spec.md §3.6 items 31-34: whole-euro ceiling (a price to DISPLAY,
+// specs/platforms/platform-price-from-commission.md — gross-up of a season net price by a platform commission %,
+// widened by specs/pricing/tariff-recipes.md §3.6 items 31-34: whole-euro ceiling (a price to DISPLAY,
 // not to bill), a direct row whose price covers the welcome pack after the booking-engine fee, and a
 // per-channel extra-guest column.
 
 // ── grossFromNet (pure) ──────────────────────────────────────────────────────
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('grossFromNet: euro_up default — gross = ceil((net + fixedCost) / (1 − c/100))', () => {

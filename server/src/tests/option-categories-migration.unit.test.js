@@ -1,4 +1,4 @@
-// specs/option-categories.md §5.3 — the one-shot backfill of the pre-existing catalogue options.
+// specs/options/option-categories.md §5.3 — the one-shot backfill of the pre-existing catalogue options.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

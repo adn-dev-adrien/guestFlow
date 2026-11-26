@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 1–7 — the console provisions, stops, restarts, renames and
+// specs/hosting/hosting-h1-fleet-runtime.md rules 1–7 — the console provisions, stops, restarts, renames and
 // erases an instance through the drivers: the ten steps in order, each idempotent, a failure that
 // stops the sequence and « Reprendre » that resumes it without duplicating anything, the ports, and
 // no step left to tick by hand.

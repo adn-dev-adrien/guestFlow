@@ -1,5 +1,5 @@
 /**
- * Recording a payment split over several methods (specs/mixed-method-payments.md §3.4-§3.6) — the one place
+ * Recording a payment split over several methods (specs/payments/mixed-method-payments.md §3.4-§3.6) — the one place
  * that writes a settlement, shared by the fiche's endpoints and the SAS plugin.
  *
  * The ordinary gesture (a bucket marked paid, the single arrival payment, a note settled, an installment
@@ -228,7 +228,7 @@ function reconciledRefusal(reservationId, settlementId) {
   return hasBankLines(reservationId, [`settlement-${settlementId}`]) ? RECONCILED : null;
 }
 
-// specs/reservation-refunds.md rule 52 — what stays on the books never drops below the book refunds: the one take-back guard of
+// specs/payments/reservation-refunds.md rule 52 — what stays on the books never drops below the book refunds: the one take-back guard of
 // REFUNDS, judged on the collected amount before and after the correction (cents).
 function refundRefusal(reservationId, collectedBefore) {
   const row = getRow(reservationId);

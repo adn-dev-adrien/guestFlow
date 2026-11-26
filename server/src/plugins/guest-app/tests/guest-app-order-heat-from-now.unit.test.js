@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 79 (audit of the J-7 branch, item 7 / M22) — the order judges the bath's heat-up from NOW, exactly as the picker
+// specs/guest-app/guest-app.md rule 79 (audit of the J-7 branch, item 7 / M22) — the order judges the bath's heat-up from NOW, exactly as the picker
 // offered it: a slot the picker listed (the arrival day's first hour, a week ahead, a 4 h heat-up) is accepted by the quote, the order and
 // the card payment's re-check, never refused as « heating » because the check-in was taken as the start of the heating.
 const fx = require('./guestOrderFixtures');

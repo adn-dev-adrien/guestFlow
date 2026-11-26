@@ -1,4 +1,4 @@
-// specs/public-api.md rule 14 (2026-10-27 audit) — no catalogue option sells at a negative price: a
+// specs/site/public-api.md rule 14 (2026-10-27 audit) — no catalogue option sells at a negative price: a
 // reduction is a price adjustment or a refund. The admin API refuses one, in French.
 const test = require('node:test');
 const assert = require('node:assert/strict');

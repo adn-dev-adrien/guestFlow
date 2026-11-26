@@ -1,6 +1,6 @@
-// The evening supplement in the arrival recap — specs/hourly-resource-quantity-and-sas-scheduling.md
+// The evening supplement in the arrival recap — specs/resources/hourly-resource-quantity-and-sas-scheduling.md
 // §3.6 rules 26, 32, through the step the hourly-resources plugin contributes
-// (specs/plugins-phase-3c-hourly-resources.md rules 6–7, 12, 27).
+// (specs/plugins/plugins-phase-3c-hourly-resources.md rules 6–7, 12, 27).
 //
 // One file per subject (CLAUDE.md §9). Fixtures used by more than one subject live in ./sasFixtures.
 import { screen, waitFor } from '@testing-library/react';
@@ -24,7 +24,7 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
 });
 
@@ -81,7 +81,7 @@ test('rule 32: a re-opened SAS shows the supplement once and never sends it back
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  expect(arg.keptLines).toEqual([]); // specs/sas-arrival-total-server-side.md rule 7
+  expect(arg.keptLines).toEqual([]); // specs/sas/sas-arrival-total-server-side.md rule 7
   expect(arg.linenItems).toEqual([]);
   expect(arg.pluginSteps).toEqual({}, 'the step did not run: the stored hours stay as they are');
 });

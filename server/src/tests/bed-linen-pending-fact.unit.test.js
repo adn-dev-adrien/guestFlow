@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 28 (2026-10-18) — the bed linen is a fact like the
+// specs/emails/guest-email-texts-made-simple.md rule 28 (2026-10-18) — the bed linen is a fact like the
 // towels: after the start assistant nothing is said of it (no « pensez à prendre draps » from the
 // option created at install) until the owner answers, on the property page or in « Vos emails ».
 

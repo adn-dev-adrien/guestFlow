@@ -2,7 +2,7 @@
 
 Read before any UI work. Self-sufficient: it replaces the `apple-design` and `impeccable` skills on this
 repo (don't load them). Values live in `client/src/theme.js` (wins on conflict); component catalogue in
-`specs/design-system-reference.md` §6; `PageActionBar` contract, responsive and component-reuse rules
+`specs/design-system/design-system-reference.md` §6; `PageActionBar` contract, responsive and component-reuse rules
 in `CLAUDE.md` §7 — not repeated here.
 
 ## Direction

@@ -1,4 +1,4 @@
-// specs/platform-host-statement-and-commission-vat.md rule 4 — the stored brut of every platform stay becomes the host amount, and every
+// specs/platforms/platform-host-statement-and-commission-vat.md rule 4 — the stored brut of every platform stay becomes the host amount, and every
 // stored price stays to the cent: the tax a brut held comes out of it (mode platform: the box; mode platform_reversed: the reversed tax).
 const test = require('node:test');
 const assert = require('node:assert/strict');

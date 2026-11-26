@@ -1,5 +1,5 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §3.2 rules 9-11 — the subscription worker.
+ * specs/plugins/neat-cancellation-insurance-subscription.md §3.2 rules 9-11 — the subscription worker.
  *
  * price → subscribe flow and its dto, externalId idempotency (adoption), the backoff ladder, the
  * « à corriger » 400 label, the push on first failure + 24 h throttle, and staging/production

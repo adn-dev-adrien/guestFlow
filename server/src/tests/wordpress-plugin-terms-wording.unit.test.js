@@ -1,5 +1,5 @@
 /**
- * specs/terms-acceptance-record.md rules 10 and 12 — the terms checkbox names the document, not its
+ * specs/reservations/terms-acceptance-record.md rules 10 and 12 — the terms checkbox names the document, not its
  * version number, and the version is still recorded.
  *
  * Until 2026-09-25 the funnel read « … conditions générales de location (version 1). ». The number is

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-revpar-year-over-year.md §3 rule 12 — the monthly occupancy of « Tous les logements »
+// specs/accounting/finance-revpar-year-over-year.md §3 rule 12 — the monthly occupancy of « Tous les logements »
 // (or the selected one), this year and last year month by month, null where not comparable.
 // The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
 // will pass), on the day these figures were written against.

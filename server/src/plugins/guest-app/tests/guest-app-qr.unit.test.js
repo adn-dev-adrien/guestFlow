@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 3 — « Régénérer le code QR » issues a new lodging code and the old one is dead at once (it
+// specs/guest-app/guest-app.md rule 3 — « Régénérer le code QR » issues a new lodging code and the old one is dead at once (it
 // answers like an unknown code); rule 48 — the A4 poster of the current code is served as a PDF; rule 11quater — a
 // lodging off has no QR code. The code never travels in the JSON.
 const test = require('node:test');

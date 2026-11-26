@@ -6,7 +6,7 @@ const upcomingModel = require('../models/upcomingReservationsModel');
 const { groupArrivalsByDay, frenchDayLabel } = require('../utils/upcomingArrivals');
 const { buildController } = require('../controllers/upcomingReservationsController');
 
-// specs/upcoming-reservations-cards.md rule 6 — « Réservations à venir » is ONE call: the server lists
+// specs/planning/upcoming-reservations-cards.md rule 6 — « Réservations à venir » is ONE call: the server lists
 // the arrivals from today on, details each one and groups them by day, labelled and counted. The page
 // used to send one request per stay and could exhaust the API rate limit (review #8, m-9).
 

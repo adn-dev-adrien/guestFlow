@@ -1,9 +1,9 @@
-// specs/reservation-payment-ledger.md §3.5 — payment links on the ledger rows and what an amount change
+// specs/payments/reservation-payment-ledger.md §3.5 — payment links on the ledger rows and what an amount change
 // does to them (rules 28-31; §9 Q3 decided 2026-10-19: retire at save, « Renvoyer la demande » on the
 // still-due row, a late payment of the old link still recorded at its real amount). A fake provider
 // stands in for Qonto: nothing leaves the process.
 //
-// The same behaviour, from the online-payment side: specs/plugins-phase-3a-online-payment.md rule 26.
+// The same behaviour, from the online-payment side: specs/plugins/plugins-phase-3a-online-payment.md rule 26.
 
 process.env.DB_PATH = ':memory:';
 
@@ -19,7 +19,7 @@ const { formatEuros: eur } = require('../utils/reservationLedger');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 /** A day as the ledger prints it: « jj/mm », with the year when it is not the stay's (reservation-payment-ledger rule 4). */
 const ledgerDay = (iso, stayStart) => (iso.slice(0, 4) === stayStart.slice(0, 4) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : iso.split('-').reverse().join('/'));
@@ -110,7 +110,7 @@ test('rule 29 — provider down: retired locally with the remote-deactivation ma
 
 test('rule 29 — every link type maps to its row amount: deposit, balance, full, complement', () => {
   const row = { depositAmount: 90, balanceAmount: 217.2, finalPrice: 300, complementAmount: 24 };
-  // A full link charges acompte + solde (specs/deposit-blocks-the-dates.md rule 18), never finalPrice.
+  // A full link charges acompte + solde (specs/payments/deposit-blocks-the-dates.md rule 18), never finalPrice.
   assert.deepEqual(['deposit', 'balance', 'full', 'complement'].map((t) => linkAmountCents(t, row)), [9000, 21720, 30720, 2400]);
   const links = [
     { id: 1, type: 'deposit', status: 'open', amountCents: 9000 },

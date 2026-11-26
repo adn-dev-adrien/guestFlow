@@ -1,5 +1,5 @@
 /**
- * ReauthDialog — asks the credentials again before a sensitive change (specs/hosting-h2-account-security.md
+ * ReauthDialog — asks the credentials again before a sensitive change (specs/hosting/hosting-h2-account-security.md
  * rule 47): « Mot de passe (confirmation) », and when `needsCode` a current one-time code — the
  * authenticator app's or a backup code (`OneTimeCodeField` with `allowBackup`), or, with `onSendCode`,
  * a code sent by email on « Recevoir un code ». Generic: any action that must re-ask the credentials.

@@ -1,5 +1,5 @@
 /**
- * assets/voucher-code.js agrees with the server's code module (specs/gift-vouchers.md rules 30, 34): on
+ * assets/voucher-code.js agrees with the server's code module (specs/gift-vouchers/gift-vouchers.md rules 30, 34): on
  * 1000 generated codes, and on EVERY single-character substitution of one code. The two files are
  * a port of each other; this is what keeps them one.
  *

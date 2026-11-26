@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 37 — a voucher order accepts the CURRENT terms of its campaign's activity (the lodging terms for a lodging campaign, the resource's for
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 37 — a voucher order accepts the CURRENT terms of its campaign's activity (the lodging terms for a lodging campaign, the resource's for
 // a composed one) through the core's record, with the visitor's address and agent; a bath cannot be sold before its terms are published; the operator's payment link records
 // the acceptance at the payment, channel « lien de paiement »; the acceptances an order recorded in its own columns move into the core's record.
 process.env.DB_PATH = ':memory:';
@@ -84,7 +84,7 @@ test('a lodging campaign asks the lodging terms; with none published it asks not
   });
 });
 
-test('specs/gift-voucher-campaigns.md rule 60 — a bath cannot be sold before its terms are published: the order is refused with a sentence, the offer leaves the campaign out, the lodging campaign stays', () => withShop({ lodging: 4 }, async ({ place, db, server }) => {
+test('specs/gift-vouchers/gift-voucher-campaigns.md rule 60 — a bath cannot be sold before its terms are published: the order is refused with a sentence, the offer leaves the campaign out, the lodging campaign stays', () => withShop({ lodging: 4 }, async ({ place, db, server }) => {
   const res = await place({ termsVersionId: 9 });
   assert.deepEqual([res.status, res.body.error.code], [409, 'TERMS_UNPUBLISHED']);
   assert.equal(res.body.error.message, 'Ce bon ne peut pas encore être vendu : les conditions de l’activité ne sont pas encore publiées.');

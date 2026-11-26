@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 62 — a right password met by the code mail limit (429
+// specs/hosting/hosting-h2-account-security.md rule 62 — a right password met by the code mail limit (429
 // RESEND_TOO_SOON / TOO_MANY_SENDS) does not count toward the per-IP login failure limiter; a wrong
 // password still does.
 

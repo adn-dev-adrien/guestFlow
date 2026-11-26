@@ -12,7 +12,7 @@ vi.mock('../../api', () => ({ default: { getCalendar: vi.fn() } }));
 import api from '../../api';
 import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
 
-// specs/cumulative-month-calendar.md §6 — on mobile the month renders as a readable agenda list
+// specs/planning/cumulative-month-calendar.md §6 — on mobile the month renders as a readable agenda list
 // (one row per reservation: logement, client, date range) instead of the wide 7-column grid.
 describe('CumulativeMonthCalendar — mobile agenda', () => {
   beforeEach(() => { vi.clearAllMocks(); });

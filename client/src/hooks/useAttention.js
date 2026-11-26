@@ -1,5 +1,5 @@
 /**
- * The home's attention payload (specs/shell-and-home-day-first.md §3.B): `{ pinned, items, total,
+ * The home's attention payload (specs/planning/shell-and-home-day-first.md §3.B): `{ pinned, items, total,
  * unavailable, unavailableLabel, declared, loaded }`, counted and ordered by the server. Read on mount and again after every write the app makes
  * (rule 11), so a subject whose last item was handled leaves the box. `enabled: false` (reception)
  * makes no call at all.

@@ -137,7 +137,7 @@ test('the 3 encaissement amounts sum back to the total stay price (deposit + bal
   db.close();
 });
 
-// specs/force-extras-complement-on-platform.md — prod regression fix (2026-06-08): on a non-direct
+// specs/sas/force-extras-complement-on-platform.md — prod regression fix (2026-06-08): on a non-direct
 // platform reservation (incl. iCal imports), an option whose payload carries NO inComplement flag
 // (the UI hides the toggle) must STILL be forced into the Complément bucket by the engine — so
 // complementAmount reflects it and it never leaks into the deposit/balance split.

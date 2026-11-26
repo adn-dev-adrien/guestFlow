@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rule 30 — a connection that cannot be read is said, with « Réessayer »,
+// specs/plugins/plugins-phase-2-hosts.md rule 30 — a connection that cannot be read is said, with « Réessayer »,
 // never an empty « Site » tab; a support session reads the server's refusal, without a retry.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

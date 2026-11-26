@@ -1,4 +1,4 @@
-// specs/admin-account-management.md rule 16, reading of 2026-11-04 (audit R22, E22-2) — « STARTTLS » is a promise: with
+// specs/hosting/admin-account-management.md rule 16, reading of 2026-11-04 (audit R22, E22-2) — « STARTTLS » is a promise: with
 // a login on a non-implicit-TLS transport the upgrade is required. A server that does not offer it (or an on-path
 // attacker who strips the EHLO line) gets no AUTH line, and the send fails. A relay without a login keeps working.
 const test = require('node:test');

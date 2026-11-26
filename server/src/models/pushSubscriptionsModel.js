@@ -1,9 +1,9 @@
 /**
- * Push subscriptions + per-user push preferences (specs/pwa-push-notifications.md §5).
+ * Push subscriptions + per-user push preferences (specs/guest-app/pwa-push-notifications.md §5).
  *
  * `push_subscriptions` holds one row per (user, device) browser subscription. `user_push_prefs` holds
  * the per-user toggles of the core channels (newReservation / arrivals / departures / breakfast);
- * `user_push_channel_prefs` those of the channels plugins declare (specs/platform-settings-relay-and-review.md
+ * `user_push_channel_prefs` those of the channels plugins declare (specs/platforms/platform-settings-relay-and-review.md
  * rule 8), one row per (user, channel). Every toggle defaults ON while the user has no row yet.
  *
  * Factory `create(db)` (+ a default bound to the production DB), mirroring the other models.
@@ -17,7 +17,7 @@ const PREF_KEYS = ['newReservation', 'arrivals', 'departures', 'breakfast'];
 const DEFAULT_PREFS = { newReservation: true, arrivals: true, departures: true, breakfast: true };
 // A plugin channel key, as `ctx.pushChannel` accepts it.
 const CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
-// specs/pwa-push-notifications.md rule 13 — a device receives guest data only while its owner is an
+// specs/guest-app/pwa-push-notifications.md rule 13 — a device receives guest data only while its owner is an
 // active, non-support administrator.
 const ELIGIBLE_OWNER = `
   JOIN users u ON u.id = s.userId AND u.isActive = 1 AND u.isSupportAccount = 0
@@ -54,7 +54,7 @@ const isBase64UrlOfBytes = (value, bytes) => typeof value === 'string'
   && /^[A-Za-z0-9_-]+={0,2}$/.test(value)
   && Buffer.from(value, 'base64url').length === bytes;
 
-// specs/pwa-push-notifications.md rule 15. Judged at the door only: a stored row is not re-judged.
+// specs/guest-app/pwa-push-notifications.md rule 15. Judged at the door only: a stored row is not re-judged.
 function isAcceptableSubscription(subscription) {
   const keys = subscription && subscription.keys;
   return Boolean(keys)

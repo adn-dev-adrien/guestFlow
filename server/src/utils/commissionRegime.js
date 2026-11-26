@@ -1,5 +1,5 @@
 /**
- * The VAT regime of a platform's commission (specs/platform-host-statement-and-commission-vat.md rule 13): `fr_vat` — a French
+ * The VAT regime of a platform's commission (specs/platforms/platform-host-statement-and-commission-vat.md rule 13): `fr_vat` — a French
  * platform, 20 % VAT deductible; `eu_reverse_charge` — an EU platform, the full amount and VAT self-assessed; `no_vat` — the full amount.
  * It replaces the « TVA déductible » box (`platforms.hasVatOnCommission`, kept in step for one release).
  */

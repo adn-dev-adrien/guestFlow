@@ -1,4 +1,4 @@
-// specs/per-property-default-options.md rule 11 — while a logement switch reads the new context, the quote and the
+// specs/options/per-property-default-options.md rule 11 — while a logement switch reads the new context, the quote and the
 // occupancy, the fiche takes no input: an option ticked in that gap would be cleared by the switch's own reset.
 import React from 'react';
 import { vi } from 'vitest';

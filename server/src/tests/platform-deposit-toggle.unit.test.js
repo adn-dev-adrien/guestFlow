@@ -8,7 +8,7 @@ const accountingModel = optionalPlugin(() => require('../plugins/accounting-expo
 const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
 const { entryToRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 
-// specs/platform-deposit-toggle.md — a platform flagged « acompte = Oui » uses the normal acompte/solde
+// specs/platforms/platform-deposit-toggle.md — a platform flagged « acompte = Oui » uses the normal acompte/solde
 // split (of the NET pre-arrival = pre-arrival − commission); « Non » (default) keeps the legacy
 // single-payment behaviour. Accounting splits the commission pro rata across acompte + solde.
 
@@ -69,7 +69,7 @@ test('platform « Oui » splits the pre-arrival into acompte/solde (no commissio
   db.close();
 });
 
-// specs/platform-per-echeance-commission.md — the acompte/solde split the GROSS pre-arrival; the
+// specs/platforms/platform-per-echeance-commission.md — the acompte/solde split the GROSS pre-arrival; the
 // commission is per-échéance (acompte + solde) and tracked separately. Net perçu = total − Σ commission.
 test('platform « Oui » with per-échéance commissions: gross split, net perçu = total − (acompte+solde)', () => {
   const db = createDb();
@@ -106,7 +106,7 @@ test('depositDisabled wins over a « Oui » platform (no acompte)', () => {
 
 // ── Accounting ────────────────────────────────────────────────────────────────
 // buildEntry(row, kind, perLineData, commissionContext, taxContext) — quote-free since
-// specs/accounting-encaissement-effective-percent.md (buckets from stored row money).
+// specs/accounting/accounting-encaissement-effective-percent.md (buckets from stored row money).
 const commissionContext = {
   defaultAccount: '622600', vatRateCommission: 20,
   platformByName: new Map([['airbnb', { name: 'Airbnb', commissionAccountNumber: '62260300', hasVatOnCommission: 0 }]]),

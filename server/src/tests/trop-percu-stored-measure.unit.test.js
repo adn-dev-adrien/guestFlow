@@ -1,5 +1,5 @@
-// specs/pricing-components.md §3 rules 74 and 76 — the poste split of an excess reads the lines and the payments that name them.
-// specs/reservation-save-keeps-pricing.md rules 8-11 and 15 — round 2 of the money audit (C, D, E, F): the trop-perçu
+// specs/pricing/pricing-components.md §3 rules 74 and 76 — the poste split of an excess reads the lines and the payments that name them.
+// specs/reservations/reservation-save-keeps-pricing.md rules 8-11 and 15 — round 2 of the money audit (C, D, E, F): the trop-perçu
 // of a stored stay is measured against the STORED price and what was collected, so a confirmed one survives a
 // reload (#22306: 2 301,60 paid, then -10 % = 176,30) and engine drift is never one (#14); the live ledger
 // reports the change relative to the stored figure; the 409 carries the refund means; the detail line of a

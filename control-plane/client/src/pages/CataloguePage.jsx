@@ -1,5 +1,5 @@
 /**
- * The catalogue editor (specs/control-plane-plans-and-access.md rules 1–6, §6): the plan × plugin
+ * The catalogue editor (specs/hosting/control-plane-plans-and-access.md rules 1–6, §6): the plan × plugin
  * matrix, the prices and quotas, the add-ons, and the versions. Each click goes through the server,
  * which applies the nesting or refuses it; saving first shows whom the change affects, and asks for
  * a reason.

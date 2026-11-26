@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 25-27 and the edge case « booking moved after the arrival » — lowering a paid line goes through REFUNDS only (409 `LINE_PAID`,
+// specs/sas/outside-booking-sas.md rules 25-27 and the edge case « booking moved after the arrival » — lowering a paid line goes through REFUNDS only (409 `LINE_PAID`,
 // then the administrator's confirmation, « à rembourser » from `refundOwedCents`); deleting an unpaid visit cancels its document, one holding money stays;
 // « Client absent » retires the unpaid lines and keeps the money; a moved booking re-prices its session only while it is unpaid.
 // Deleting, paying and moving a booking whose money is on a document: resource-booking-pricing-and-invoicing rule 52.

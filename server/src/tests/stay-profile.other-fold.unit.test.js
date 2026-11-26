@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/stay-profile.md §3 rules 29 and 30 (verification V5-3, V5-11) — past five channels the tail
+// specs/accounting/stay-profile.md §3 rules 29 and 30 (verification V5-3, V5-11) — past five channels the tail
 // folds into one « Autres » row, shares still add up to 100; the exercise served is always one of the
 // selector's options.
 const { freshDb, insert, TODAY } = require('./financeDashboardFixture');

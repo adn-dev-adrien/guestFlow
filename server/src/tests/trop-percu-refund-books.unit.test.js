@@ -1,9 +1,9 @@
-// specs/reservation-refunds.md rule 36 — a trop-perçu is counted once. Final review 2026-10-18, N1:
+// specs/payments/reservation-refunds.md rule 36 — a trop-perçu is counted once. Final review 2026-10-18, N1:
 // stay paid 465,60 €, reduced from 6 to 2 adults, then « Enregistrer et rembourser » with the 110,40 €
 // the dialog proposed. The save had lowered the paid solde to 355,20 € AND the refund took 110,40 € off
 // again: journal, « Encaissé » and « Total perçu » all read 244,80 €, and 46710000 went to −7,20 €.
 // The paid solde now keeps what it collected; the refund is the only reduction. The journal side is
-// specs/accountant-accounting-export.md rule 34.
+// specs/accounting/accountant-accounting-export.md rule 34.
 
 process.env.DB_PATH = ':memory:';
 

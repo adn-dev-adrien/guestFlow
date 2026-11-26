@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 47, 48, 50 and 54 — verification of 2026-11-06 (V2-2, V2-3, V2-5) on the real
+// specs/accounting/accounting-synthesis.md §3 rules 47, 48, 50 and 54 — verification of 2026-11-06 (V2-2, V2-3, V2-5) on the real
 // schema through the plugin's routes: the series says when nothing was collected; the app's own download header
 // stamps the last export where Fetch Metadata is not sent, a cross-site request never does; the tourist tax of a
 // window ahead reads « Mois à venir : rien à déclarer. ». D-HC16: a repeated `fiscalYear` is a 400.

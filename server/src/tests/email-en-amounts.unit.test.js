@@ -1,4 +1,4 @@
-// specs/email-language-fr-en.md rule 8 — an English email writes every amount « €963.39 », like the
+// specs/emails/email-language-fr-en.md rule 8 — an English email writes every amount « €963.39 », like the
 // prices of its stay texts; French keeps « 963,39 € ».
 
 const test = require('node:test');

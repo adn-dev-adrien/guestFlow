@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// specs/finance-dashboard-redesign.md rule 37 — « today » is the operator's calendar day (the
+// specs/accounting/finance-dashboard-redesign.md rule 37 — « today » is the operator's calendar day (the
 // process's time zone), never the UTC one: at 01:56 CEST on 18 Oct the finance page said « au 17 oct. »
 // (mega review #5, m1).
 const { localIsoDate, todayIso } = require('../utils/localDate');

@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 42 — the refund dialog opened from a 409 OVERPAID takes the means the
+// specs/payments/reservation-refunds.md rule 42 — the refund dialog opened from a 409 OVERPAID takes the means the
 // server announced (caisse interne when the excess sits on a complement collected off the books).
 import React from 'react';
 import { vi } from 'vitest';

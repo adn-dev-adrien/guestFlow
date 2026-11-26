@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 56 — GitHub refuses a release body above 125,000 characters (the 4.0.0 section
+// specs/hosting/self-update-and-releases.md rule 56 — GitHub refuses a release body above 125,000 characters (the 4.0.0 section
 // folded to 408,000). `--check-digest`, which the release workflow's verify job runs, fails on a section over the limit,
 // measuring the body exactly as the workflow's awk extracts it; the preview and `--release` warn.
 const test = require('node:test');

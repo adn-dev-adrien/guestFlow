@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 16, 22, 23 — the plugin runs the lifecycle pass every 15 minutes, as
+// specs/payments/payment-link-lifecycle.md rules 16, 22, 23 — the plugin runs the lifecycle pass every 15 minutes, as
 // its own job `payment-link-lifecycle`, never while a poll pass runs (one shared in-progress flag), and not at
 // all while Qonto is not connected. No provider is reached: the passes are stubs.
 
@@ -99,7 +99,7 @@ test('rule 16 — what the job moved and where a rate limit stopped it is logged
   assert.deepEqual(log.lines, [['info', '2 link(s) lapsed or withdrawn'], ['warn', 'lifecycle pass stopped by rate-limit; the rest wait for the next run']]);
 });
 
-// specs/plugins-phase-1-sdk.md rule 35 — the pass reaches the plugin as a core module name of SDK 2.18.0.
+// specs/plugins/plugins-phase-1-sdk.md rule 35 — the pass reaches the plugin as a core module name of SDK 2.18.0.
 // The floor rose to 2.20.0 with the reconciliation start date (audit R20-P1): 2.18 at least, never below.
 test('plugins-phase-1-sdk rule 35 — `paymentPollRunner.runLinkLifecycle` is in the contract, and the plugin asks for SDK 2.18 at least', () => {
   assert.equal(typeof sdk.coreModule('paymentPollRunner').runLinkLifecycle, 'function');

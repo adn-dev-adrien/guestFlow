@@ -1,4 +1,4 @@
-// specs/caution-live-from-property.md — the caution amount a reservation displays is LIVE from the
+// specs/payments/caution-live-from-property.md — the caution amount a reservation displays is LIVE from the
 // property's current `defaultCautionAmount` until the caution is received, then FROZEN to the amount
 // actually collected. These tests cover the pure resolver + the `list()` read path. The freeze-on-receipt
 // write is covered by sas-commit.unit.test.js (commitArrivalSas), and markPayment mirrors that same SQL.

@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 63 (review of #911) — a creation or a resize refused 409 may have withdrawn the
+// specs/payments/payment-link-lifecycle.md rule 63 (review of #911) — a creation or a resize refused 409 may have withdrawn the
 // stay's acompte / solde links first: the card says why and the fiche re-reads its money (ledger, links, card).
 // Another failure only says so.
 import { render, screen, waitFor } from '@testing-library/react';

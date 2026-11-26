@@ -1,16 +1,16 @@
 /**
  * AccountPage — « Mon compte » at `/mon-compte`, reachable by every role from the bottom of the
- * sidebar (specs/settings-rationalization.md rule 6). Split out of the former « Gestion
+ * sidebar (specs/settings/settings-rationalization.md rule 6). Split out of the former « Gestion
  * utilisateur » page, which now holds only the admin user table (Paramètres → Utilisateurs).
  *
  * Two sections:
  *   - « Mes informations » — the user edits their own identity (PUT /api/users/me; roles are never
  *     writable there — the server ignores them).
  *     A changed email first asks the password (and the current code of a second step) in a
- *     ReauthDialog (specs/hosting-h2-account-security.md rule 59).
+ *     ReauthDialog (specs/hosting/hosting-h2-account-security.md rule 59).
  *   - « Mon mot de passe » — ChangePasswordForm. On a forced first-login change the server destroys
  *     the session and the page redirects to /login?reason=password-changed.
- *   - « Validation en deux étapes » — TwoFactorSection (specs/hosting-h2-account-security.md rules 6, 38–53);
+ *   - « Validation en deux étapes » — TwoFactorSection (specs/hosting/hosting-h2-account-security.md rules 6, 38–53);
  *     `?activer=deux-etapes` opens its activation (rule 51) and is removed from the address.
  *
  * A support session borrows an account it must not touch: neither password nor second step

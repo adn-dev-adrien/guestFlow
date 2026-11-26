@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
  * seed-e2e.js — deterministic user bootstrap for the Playwright suite
- * (specs/e2e-playwright-smoke-suite.md §3.1 rule 5, §4.1).
+ * (specs/tech/e2e-playwright-smoke-suite.md §3.1 rule 5, §4.1).
  *
  *   E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… DB_PATH=/tmp/x.db node server/scripts/seed-e2e.js
  *
  * Inserts two users with `mustChangePassword=0` so the E2E suite can log in directly via the API
  * without first navigating the change-password flow:
  *   - the **admin** every spec inherits through `e2e/.auth/admin.json`;
- *   - a **reception** account (specs/reception-role-checkin-only.md,
- *     specs/reception-sas-today-only.md) for the specs that assert the « Accueil » confinement and
+ *   - a **reception** account (specs/sas/reception-role-checkin-only.md,
+ *     specs/sas/reception-sas-today-only.md) for the specs that assert the « Accueil » confinement and
  *     the day-window SAS locks — they opt in via their own storageState.
  * It also installs every built-in plugin, active: the suite starts from an empty database, which
- * GuestFlow treats as a new customer with no plugin (specs/plugins-phase-0-foundation.md rule 11),
+ * GuestFlow treats as a new customer with no plugin (specs/plugins/plugins-phase-0-foundation.md rule 11),
  * while the specs describe the Solio configuration. The plugin specs switch them off themselves.
  * The `force-password-change` spec uses the standard `reset-admin.js` script against the default
  * admin instead — this seed leaves the default admin path intact.
@@ -54,7 +54,7 @@ function run() {
   seedUser({
     email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD, firstName: 'E2E', lastName: 'Admin', roles: ['admin'],
   });
-  // The « Accueil » role comes with the sas plugin (specs/plugins-phase-0-foundation.md rule 29): the
+  // The « Accueil » role comes with the sas plugin (specs/plugins/plugins-phase-0-foundation.md rule 29): the
   // bare-install suite (rule 28) has no such account, as a new customer has none.
   if (process.env.E2E_SEED_PLUGINS !== 'none') {
     seedUser({
@@ -62,17 +62,17 @@ function run() {
     });
   }
   // E2E_SEED_PLUGINS (comma list) leaves the others available — the production-build suite installs
-  // some from its test registry (specs/plugins-phase-4-registry.md rule 19); `none` installs nothing, the
-  // new customer of the bare-install suite (specs/plugins-phase-0-foundation.md rule 28). Default: all.
+  // some from its test registry (specs/plugins/plugins-phase-4-registry.md rule 19); `none` installs nothing, the
+  // new customer of the bare-install suite (specs/plugins/plugins-phase-0-foundation.md rule 28). Default: all.
   const wanted = process.env.E2E_SEED_PLUGINS ? process.env.E2E_SEED_PLUGINS.split(',').map((s) => s.trim()) : PLUGIN_IDS;
   const ids = PLUGIN_IDS.filter((id) => wanted.includes(id));
   const install = db.prepare("INSERT INTO plugins (id, enabled, source) VALUES (?, 1, 'bundled') ON CONFLICT(id) DO UPDATE SET enabled = 1");
   ids.forEach((id) => install.run(id));
-  // The tables of the plugin modules exist once a plugin is installed (specs/plugins-phase-1-sdk.md
+  // The tables of the plugin modules exist once a plugin is installed (specs/plugins/plugins-phase-1-sdk.md
   // rule 6); the server may have booted before this seed, so create them here, as an install does.
   require('../src/plugins').filter((mod) => ids.includes(mod.id)).forEach((mod) => applyPluginSchema(db, mod.id));
   console.log(`[seed-e2e] ${ids.length} built-in plugin(s) installed and active.`);
-  // The start assistant is done (specs/plugins-phase-p-productisation.md rule 20): the suite tests the
+  // The start assistant is done (specs/plugins/plugins-phase-p-productisation.md rule 20): the suite tests the
   // app, and e2e/specs/onboarding opens the assistant on its own.
   db.prepare("UPDATE app_settings SET onboardingCompletedAt = datetime('now') WHERE onboardingCompletedAt IS NULL").run();
   return 0;

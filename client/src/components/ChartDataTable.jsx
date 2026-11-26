@@ -1,6 +1,6 @@
 /**
  * ChartDataTable — a chart's data as an accessible table, the « Voir en tableau » view
- * (specs/report-grammar.md rule 11): one row per category, one column per series, the same values the
+ * (specs/design-system/report-grammar.md rule 11): one row per category, one column per series, the same values the
  * chart draws, « — » for a missing one. Generic: any category × series chart.
  *
  * Props:

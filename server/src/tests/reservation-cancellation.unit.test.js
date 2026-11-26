@@ -1,4 +1,4 @@
-// Cancelling a stay (specs/payment-schedule-and-cancellation.md §3.5 / §3.6), end to end against the
+// Cancelling a stay (specs/payments/payment-schedule-and-cancellation.md §3.5 / §3.6), end to end against the
 // real schema: the audit entry, the `kind` flip that frees the dates, the requalification pair, and
 // the payment links that stop being payable.
 
@@ -48,7 +48,7 @@ function seed({ depositPaid = 1, platform = 'direct', balancePaid = 0 } = {}) {
 const cancel = (deps, overrides = {}) =>
   cancelReservation(deps, 10, { today: TODAY, vatRate: 10, reason: 'Solde jamais réglé', ...overrides });
 
-// specs/payment-schedule-and-cancellation.md rule 23
+// specs/payments/payment-schedule-and-cancellation.md rule 23
 test('the stay leaves kind=reservation, stamped with when, why and by whom', () => {
   const { db, deps } = seed();
   const out = cancel(deps, { cancelledBy: 7 });
@@ -63,7 +63,7 @@ test('the stay leaves kind=reservation, stamped with when, why and by whom', () 
   db.close();
 });
 
-// specs/payment-schedule-and-cancellation.md rule 24
+// specs/payments/payment-schedule-and-cancellation.md rule 24
 test('the dates go back on sale — the availability check accepts them again', () => {
   const { db, deps } = seed();
   const model = deps.reservationsModel;
@@ -109,7 +109,7 @@ test('a collected acompte is requalified: an avoir plus a banked indemnity', () 
   db.close();
 });
 
-// specs/payment-schedule-and-cancellation.md rule 32bis
+// specs/payments/payment-schedule-and-cancellation.md rule 32bis
 test('the requalification avoir is not a refund to the guest — no money went back', () => {
   const { db, deps } = seed();
   cancel(deps);
@@ -120,7 +120,7 @@ test('the requalification avoir is not a refund to the guest — no money went b
   db.close();
 });
 
-// specs/payment-schedule-and-cancellation.md rule 48 — nothing collected reads `unpaid_deposit`.
+// specs/payments/payment-schedule-and-cancellation.md rule 48 — nothing collected reads `unpaid_deposit`.
 test('an acompte never collected requalifies nothing (rule 27)', () => {
   const { db, deps } = seed({ depositPaid: 0 });
   const out = cancel(deps);
@@ -160,7 +160,7 @@ test('open payment links are cancelled — a dead stay must not stay payable', (
   db.close();
 });
 
-// specs/payment-schedule-and-cancellation.md rule 28
+// specs/payments/payment-schedule-and-cancellation.md rule 28
 test('cancelling twice is refused, and the second call changes nothing', () => {
   const { db, deps } = seed();
   cancel(deps);

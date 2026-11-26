@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 50 — a stored UTC timestamp read as a day is read on the
+// specs/accounting/finance-dashboard-redesign.md rule 50 — a stored UTC timestamp read as a day is read on the
 // operator's calendar day (`vatRegime.bookingDayOf`), like « today » (rule 37). A row created at 00:30 in
 // Paris carries `2026-10-30 23:30:00`: its first ten characters are the day before.
 process.env.TZ = 'Europe/Paris';

@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 11 — on the instance side of a plugin push: the console runs
+// specs/hosting/hosting-h1-fleet-runtime.md rule 11 — on the instance side of a plugin push: the console runs
 // the instance's own `scripts/switch-plugin-package.js` on a package of its registry (same checks as
 // a download, then the row and `current`), `--sync` follows the row again after a rollback, and the
 // health check asks `pluginHealth` whether the pushed version loaded.

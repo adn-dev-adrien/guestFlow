@@ -1,5 +1,5 @@
 /**
- * Saisie Booking (specs/booking-extranet-intake.md). Booking sends no recap and its extranet sits behind
+ * Saisie Booking (specs/platforms/booking-extranet-intake.md). Booking sends no recap and its extranet sits behind
  * the operator's password and 2FA, so a userscript in the operator's own browser hands the reservation page
  * to GuestFlow, which fills the matching iCal fiche. GuestFlow never holds a Booking credential and never
  * logs in on the operator's behalf.
@@ -31,7 +31,7 @@ const todayIso = () => {
 function register(ctx) {
   ctx.migrations([{ name: 'booking_intakes_tables_v1', up: (db) => db.exec(TABLE_SQL) }]);
 
-  // specs/booking-extranet-intake.md rule 38 (audit R42-EXT-L2 class) — a key names a logement of the core, or one already stored (a deleted
+  // specs/platforms/booking-extranet-intake.md rule 38 (audit R42-EXT-L2 class) — a key names a logement of the core, or one already stored (a deleted
   // logement's line never blocks a save). A phantom key bypassed the « nothing tied yet » skip and tied a logement
   // created later to a listing nobody chose.
   const unknownLogementKey = (raw) => {
@@ -87,7 +87,7 @@ function register(ctx) {
     today: todayIso(),
   });
 
-  // The home's « À traiter » (specs/shell-and-home-day-first.md rule 9): the same list as the cards.
+  // The home's « À traiter » (specs/planning/shell-and-home-day-first.md rule 9): the same list as the cards.
   const listPendingHandler = (req, res) => res.json(pending());
   const { summarizeUrgent, summarizeLater } = require('./attention');
   ctx.attention({ key: 'booking-intake-urgent', rank: 40, handler: listPendingHandler, summarize: summarizeUrgent });
@@ -116,7 +116,7 @@ function register(ctx) {
     regenerateSecret: () => ctx.settings.set('key', newSecret()),
   }));
   // Rule 26 — the script carries the secret, and these three create, hand out or rotate it: a support
-  // session is refused them (specs/hosting-h2-account-security.md rule 23).
+  // session is refused them (specs/hosting/hosting-h2-account-security.md rule 23).
   ctx.secretRoutes([
     { method: 'GET', re: /^\/booking-intake\/userscript\.user\.js$/ },
     { method: '*', re: /^\/booking-intake\/secret(\/regenerate)?$/ },

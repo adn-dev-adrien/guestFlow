@@ -1,5 +1,5 @@
 /**
- * Latin-1 text for the accountant's CSV (specs/accountant-accounting-export.md rule 31).
+ * Latin-1 text for the accountant's CSV (specs/accounting/accountant-accounting-export.md rule 31).
  *
  * The export is ISO-8859-1 (rule 16): `Buffer.from(text, 'latin1')` keeps only the low byte of a
  * character outside that range, so « ’ » (U+2019, typed by every iPhone in O’Neil) became the control

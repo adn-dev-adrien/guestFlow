@@ -1,6 +1,6 @@
 /**
  * ChoiceCardStrip — a horizontally scrollable row of selectable cards, one of them selected: a filter
- * that also shows a figure per option (specs/finance-dashboard-redesign.md rule 12 — the logements
+ * that also shows a figure per option (specs/accounting/finance-dashboard-redesign.md rule 12 — the logements
  * strip). Generic: any « pick one of N, each with its number » filter.
  *
  * Props:

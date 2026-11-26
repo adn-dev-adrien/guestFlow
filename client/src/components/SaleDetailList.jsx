@@ -1,5 +1,5 @@
 /**
- * SaleDetailList — the lines a stay sold, as the server's `saleDetail` payload gives them (specs/pricing-components.md §3 rule 31).
+ * SaleDetailList — the lines a stay sold, as the server's `saleDetail` payload gives them (specs/pricing/pricing-components.md §3 rule 31).
  *
  * Props: `detail` (the payload: `lines[]`, `groups[]`, `buckets`, `totals`, `credits[]` — rule 104's « Déjà réglé (…) » money, each `{ ref, label,
  * totalCents (< 0) }`, drawn read-only after the lines; `totals.dueCents` is what the stay still asks, credits already off), `onChangeMoment(line, collectAt)` (optional: shows a « moment » menu on

@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { ensureDefaultBreakfastOption } = require('../utils/breakfastSeed');
 
-// specs/breakfast-option-and-planning-card.md §3 rule 1 + §7.1.
+// specs/options/breakfast-option-and-planning-card.md §3 rule 1 + §7.1.
 // Plain :memory: fixture covering only the `options` table — the seed touches nothing
 // else. Mirrors the structure of `bed-linen-seed.unit.test.js`.
 

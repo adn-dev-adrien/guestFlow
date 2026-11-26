@@ -1,6 +1,6 @@
 /**
  * Provenance check of a release's `server/package-lock.json`, run before any `npm ci`
- * (specs/self-update-and-releases.md rule 40). `--ignore-scripts` does not stop a git dependency's
+ * (specs/hosting/self-update-and-releases.md rule 40). `--ignore-scripts` does not stop a git dependency's
  * `prepare`; a lockfile in which every entry comes from the public npm registry with an integrity hash
  * does, with no exemption (an `inBundle` entry is checked like any other). A release carrying an
  * `npm-shrinkwrap.json`, an `.npmrc` or its own `.install-home` is refused outright.

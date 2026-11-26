@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rule 4 — an empty list takes one line; a list with items shows them.
+// specs/planning/dashboard-planning-scroll.md rule 4 — an empty list takes one line; a list with items shows them.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 28, specs/gites-de-france-mail-intake.md rule 26 (audit 2026-10-28, F8) —
+// specs/plugins/plugins-phase-1-sdk.md rule 28, specs/platforms/gites-de-france-mail-intake.md rule 26 (audit 2026-10-28, F8) —
 // a client created by a plugin goes through the client dialog's validation (one e-mail address, a phone of a
 // sane shape), and an unverified mail never attaches a stay to a client who already holds its address.
 const test = require('node:test');

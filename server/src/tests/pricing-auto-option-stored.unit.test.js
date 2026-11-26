@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 20, 74 and 82 — an automatic option (« Arrivée anticipée ») that a stay never stored:
+// specs/pricing/pricing-components.md §3 rules 20, 74 and 82 — an automatic option (« Arrivée anticipée ») that a stay never stored:
 // a stay whose departure is over is not billed it after the fact, a current or future stay is billed it at its price (unless the
 // operator offered it) and the next save stores the line, whose fixed price is then the one it was sold at.
 

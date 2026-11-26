@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rules 4–7 — reading the booking mail and solving the gross rent.
+// specs/platforms/gites-de-france-mail-intake.md rules 4–7 — reading the booking mail and solving the gross rent.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

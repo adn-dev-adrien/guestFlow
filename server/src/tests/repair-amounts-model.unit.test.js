@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../models/repairAmountsModel');
 
-// specs/extinguisher-seal-and-repair-amounts.md — operator-managed « Tarifs facturables » repair list.
+// specs/options/extinguisher-seal-and-repair-amounts.md — operator-managed « Tarifs facturables » repair list.
 // Keyed rows (repairKey) are protected; the extinguisher seal is always re-seeded on save.
 
 function freshModel({ seed = true } = {}) {

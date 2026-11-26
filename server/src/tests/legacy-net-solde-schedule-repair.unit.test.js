@@ -1,5 +1,5 @@
 /**
- * Réparation de l'échéancier « solde = net » — specs/legacy-net-solde-schedule-repair.md.
+ * Réparation de l'échéancier « solde = net » — specs/accounting/legacy-net-solde-schedule-repair.md.
  *
  * Le bug de production (réservation #7, Gîtes de France) : le solde stocké valait 903 € — le virement
  * réellement reçu — alors que la commission de 91 € était elle aussi enregistrée. Tout lecteur qui

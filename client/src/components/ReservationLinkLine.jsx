@@ -1,6 +1,6 @@
 /**
  * ReservationLinkLine — the identity line of a row about ONE reservation, drawn as a link to its fiche
- * (specs/mobile-dashboard-exercise-cash.md rule 5). Used by every subject of the home that lists reservations
+ * (specs/planning/mobile-dashboard-exercise-cash.md rule 5). Used by every subject of the home that lists reservations
  * and exposed to plugins through the SDK, so they do not re-implement it.
  *
  * Props:

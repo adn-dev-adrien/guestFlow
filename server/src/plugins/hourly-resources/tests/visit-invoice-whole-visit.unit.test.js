@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 31 (reading of 2026-11-15, owner) with rule 34 — a visit whose session was paid on the booking before its document
+// specs/sas/outside-booking-sas.md rule 31 (reading of 2026-11-15, owner) with rule 34 — a visit whose session was paid on the booking before its document
 // and whose drinks or extras are on that document gets ONE invoice covering the whole visit: the session's parts and every money line of the document,
 // issued once everything is settled. A visit with no document — or a document holding no money of its own — keeps the booking's invoice exactly.
 const test = require('node:test');

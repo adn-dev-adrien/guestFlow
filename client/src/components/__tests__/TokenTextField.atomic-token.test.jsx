@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 27 — a variable is one unit: Backspace after it or
+// specs/emails/guest-email-texts-made-simple.md rule 27 — a variable is one unit: Backspace after it or
 // Delete before it removes all of it, the caret inside it selects all of it, and a refusal is shown in
 // the brackets the field shows. No half-variable can be left for the guest to read.
 import React, { useState } from 'react';

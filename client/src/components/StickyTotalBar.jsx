@@ -1,6 +1,6 @@
 /**
  * StickyTotalBar — a total pinned to the bottom of the screen on narrow layouts, opening the full
- * detail in a bottom sheet (specs/ui-review-2026-10-19-operations.md rule 11).
+ * detail in a bottom sheet (specs/design-system/ui-review-2026-10-19-operations.md rule 11).
  *
  * Renders a ready-made figure — never computes one. Shown only below `showBelow`; from there up the
  * page is expected to keep its detail in view by itself (a sticky side column). The figure
@@ -20,7 +20,7 @@
  *                                    container — the page padding — so it sits flush with the screen
  *                                    edges and the bottom, even scrolled to the end
  *
- * Safe areas (specs/mobile-dashboard-exercise-cash.md rules 1-2): the bar's figures stay 16 px (or the
+ * Safe areas (specs/planning/mobile-dashboard-exercise-cash.md rules 1-2): the bar's figures stay 16 px (or the
  * page padding when larger) from the sides and clear of the screen's rounded corners and the home
  * indicator (`env(safe-area-inset-*)`, 0 where the device has none).
  */

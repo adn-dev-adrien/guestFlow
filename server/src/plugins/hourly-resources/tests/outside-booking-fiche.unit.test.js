@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 53 — the fiche of an outside booking: the client, the session, each line of the sale with what paid it, the payments, the terms accepted, how the
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 53 — the fiche of an outside booking: the client, the session, each line of the sale with what paid it, the payments, the terms accepted, how the
 // visit went, and the journal of every event newest first — created (by whom, from which channel), slot held, paid, prepaid tender applied, terms accepted, moved, arrival, option not
 // taken, no-show. It names no voucher: a line paid in advance reads the words its instrument gave.
 process.env.DB_PATH = ':memory:';

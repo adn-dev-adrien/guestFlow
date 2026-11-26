@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.D rules 20–23 — the start assistant: five steps, the
+// specs/plugins/plugins-phase-p-productisation.md §3.D rules 20–23 — the start assistant: five steps, the
 // server's refusal kept on its step, a failed plugin named, « Plus tard », the mobile layout.
 import React from 'react';
 import { vi } from 'vitest';

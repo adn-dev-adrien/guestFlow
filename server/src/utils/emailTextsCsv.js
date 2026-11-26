@@ -1,5 +1,5 @@
 /**
- * The guest email texts as one spreadsheet file (specs/guest-email-texts-made-simple.md rules 16–18).
+ * The guest email texts as one spreadsheet file (specs/emails/guest-email-texts-made-simple.md rules 16–18).
  *
  * Pure: rows in, CSV out; CSV in, rows out; rows against the current texts, a plan out. The parser
  * and its forgiving shape rules (BOM, CRLF, `;` or `,`, quoted newlines) are the translation

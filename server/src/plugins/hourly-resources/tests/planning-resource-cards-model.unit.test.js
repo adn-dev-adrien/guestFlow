@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../planningCardsModel');
 
-// specs/resource-hourly-scheduling.md §3.4 — one planning card per session of a showsPlanningCard resource.
+// specs/resources/resource-hourly-scheduling.md §3.4 — one planning card per session of a showsPlanningCard resource.
 function makeDb() {
   const db = new Database(':memory:');
   db.exec(`

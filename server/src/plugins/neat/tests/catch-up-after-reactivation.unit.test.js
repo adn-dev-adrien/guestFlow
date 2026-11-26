@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 17 — a stay that qualified for the insurance while the plugin was
+// specs/plugins/plugin-removal-resilience.md rule 17 — a stay that qualified for the insurance while the plugin was
 // off (a deposit paid, a quote accepted) fired no event it could hear; the next pass subscribes it.
 
 const test = require('node:test');

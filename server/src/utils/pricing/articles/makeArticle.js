@@ -1,5 +1,5 @@
 /**
- * Article instances (specs/pricing-components.md §3 rule 47) — factory: an article is configuration, not code.
+ * Article instances (specs/pricing/pricing-components.md §3 rule 47) — factory: an article is configuration, not code.
  *
  * Contract: `makeArticle(catalogueRow, { kind })` → a frozen `{ ref, family, config }`. `kind` is 'option' (default) or
  * 'resource'. Today's `priceType` values map one to one to families:

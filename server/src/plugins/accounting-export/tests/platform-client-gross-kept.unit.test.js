@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rule 4, reading of 2026-11-05 (audit R22-1 of the reservations slice) —
+// specs/accounting/accounting-books-the-money-collected.md rule 4, reading of 2026-11-05 (audit R22-1 of the reservations slice) —
 // a save on a non-direct stay keeps `clientGrossAmount` unless the body carries a number: no client sends the retired
 // field, and the export still books legacy stays from it. A closed month never moves.
 process.env.DB_PATH = ':memory:';

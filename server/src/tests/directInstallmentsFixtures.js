@@ -1,4 +1,4 @@
-// Shared fixtures of the direct-installments suites (specs/direct-installments.md §7): the production
+// Shared fixtures of the direct-installments suites (specs/payments/direct-installments.md §7): the production
 // baseline schema on an in-memory database, one property, one client, and helpers to place a stay and a
 // plan on it. Not a test file — the suites import it, so none of them re-runs another.
 

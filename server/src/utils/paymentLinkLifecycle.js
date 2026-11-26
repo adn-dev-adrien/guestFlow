@@ -1,5 +1,5 @@
 /**
- * The life of a payment link once minted (specs/payment-link-lifecycle.md §3.C, §3.D, §3.F).
+ * The life of a payment link once minted (specs/payments/payment-link-lifecycle.md §3.C, §3.D, §3.F).
  *
  * Database only, never a provider call: what the provider must then be asked (deactivate, read the
  * payment) is the poll runner's (`paymentPollRunner.runLinkLifecycle`, rule 18). `now` is injected;

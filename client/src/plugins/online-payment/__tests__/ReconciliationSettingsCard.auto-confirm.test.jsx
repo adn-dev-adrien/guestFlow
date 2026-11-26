@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import DialogProvider from '../../../components/DialogProvider';
 import ReconciliationSettingsCard from '../ReconciliationSettingsCard';
 
-// specs/reconciliation-assisted-matching.md rule 20 — the switch « Confirmer automatiquement les
+// specs/accounting/reconciliation-assisted-matching.md rule 20 — the switch « Confirmer automatiquement les
 // correspondances sûres », on by default, saved with the other reconciliation settings.
 
 vi.mock('../../../api', () => ({

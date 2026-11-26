@@ -1,5 +1,5 @@
 /**
- * EmailSettingsPage — one email address, typed once (specs/settings-rationalization.md rule 12).
+ * EmailSettingsPage — one email address, typed once (specs/settings/settings-rationalization.md rule 12).
  *
  * The sending address, the SMTP login and the sender name show what they fall back to (server
  * `smtp.derived`) until the operator overrides them; an override is sent as the only change, and
@@ -59,7 +59,7 @@ function renderPage() {
 
 test('rule 12: the derived sending address, login and name are shown with their source', async () => {
   renderPage();
-  // The fields render before the settings land in them (specs/server-test-isolation.md rule 11).
+  // The fields render before the settings land in them (specs/tech/server-test-isolation.md rule 11).
   await waitFor(() => expect(screen.getByLabelText("Adresse d'envoi")).toHaveValue('contact@solio.fr'));
   expect(screen.getByLabelText('Identifiant du serveur')).toHaveValue('contact@solio.fr');
   expect(screen.getByLabelText('Nom affiché')).toHaveValue('Domaine Solio');

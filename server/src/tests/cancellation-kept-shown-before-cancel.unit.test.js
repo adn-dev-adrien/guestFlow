@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 60, reading of 2026-11-10 (audits R45-C-L1 = R45-RES-L2) — on an
+// specs/payments/payment-schedule-and-cancellation.md rule 60, reading of 2026-11-10 (audits R45-C-L1 = R45-RES-L2) — on an
 // acompte collected in the caisse interne, the cancel dialog read « Conservé en indemnité : 0,00 € » while the notice
 // it sends told the guest « la somme de 180 € déjà versée reste acquise ». The preview now answers the sum the notice
 // states (`keptFromGuest`, rule 61), the very figure the cancel stores, and the dashboard's cancel_due row carries it.

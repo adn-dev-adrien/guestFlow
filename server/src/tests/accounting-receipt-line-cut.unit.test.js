@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 51, 61, 62, 63 — owner 2026-11-15 « Brancher quand même », read with « éviter de toucher les anciens
+// specs/pricing/pricing-components.md §3 rules 51, 61, 62, 63 — owner 2026-11-15 « Brancher quand même », read with « éviter de toucher les anciens
 // séjours »: on a stay booked once 4.2.0 is installed, each receipt is allocated to its families and to the VAT classes of the stay's
 // sale lines, and cut ONCE per (class, rate) group by `vatOf`; the commission's VAT is the VAT component's cut; an avoir is cut by
 // `vatOf` per (bucket, rate) group. A stay booked before keeps the entry exactly as built (its months were exported with it).

@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rules 16 and 20 — CI validates the shipped graph (a requirement that is
+// specs/plugins/plugin-dependencies.md rules 16 and 20 — CI validates the shipped graph (a requirement that is
 // not shipped, a self-requirement, a range the shipped version breaks, a cycle), and the shipped graph
 // holds the one edge rule 20 adds.
 const test = require('node:test');

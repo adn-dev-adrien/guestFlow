@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote, computePercentOfStayAmount } = require('../utils/pricing');
 
-// specs/cancellation-insurance.md §3.1 — the generic `percent_of_stay` price type. `options.price`
+// specs/payments/cancellation-insurance.md §3.1 — the generic `percent_of_stay` price type. `options.price`
 // holds a PERCENTAGE and the assiette is the ACCOMMODATION only: the nights actually charged (after
 // a discount or a manual override) plus the extra-guest surcharge. Options, resources and the taxe
 // de séjour are excluded — including the insurance itself, so it can never insure its own premium.
@@ -183,7 +183,7 @@ test('a percentage option also flagged « carte planning » is still priced from
   db.close();
 });
 
-// specs/cancellation-insurance.md §3.1 rule 5bis — the insurance is sold BY THE NIGHT by default:
+// specs/payments/cancellation-insurance.md §3.1 rule 5bis — the insurance is sold BY THE NIGHT by default:
 // the operator sets a euro amount per night in Réglages → Options and the engine bills it for
 // every night of the stay, as one yes/no line.
 

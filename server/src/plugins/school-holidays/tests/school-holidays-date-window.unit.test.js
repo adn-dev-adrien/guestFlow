@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13 (past reading of 2026-11-02) on the school holidays — a period is
+// specs/tech/reservations-backend-mvc.md rule 13 (past reading of 2026-11-02) on the school holidays — a period is
 // entered on real days from today − 5 years to today + 5 years; a date the row already stores (an imported
 // period) is not re-judged.
 const test = require('node:test');

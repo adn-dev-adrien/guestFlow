@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 14 (reading of 2026-11-03, audit R21, E21-1) — « Appliquer » writes once. A second
+// specs/platforms/airbnb-mail-intake.md rule 14 (reading of 2026-11-03, audit R21, E21-1) — « Appliquer » writes once. A second
 // POST on an applied intake (second tab, lost response) writes nothing and answers the status; a dismissed intake is
 // refused; `proposed` and `error` still run. Real in-memory database, real reservations controller, real
 // `ctx.core.reservations.update`, real intake service.

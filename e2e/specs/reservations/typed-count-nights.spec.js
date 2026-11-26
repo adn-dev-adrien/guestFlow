@@ -1,5 +1,5 @@
 // @ts-check
-// specs/non-card-option-served-persons.md rules 8, 9, 19, 20 and 26 — the two price types the party-change spec
+// specs/options/non-card-option-served-persons.md rules 8, 9, 19, 20 and 26 — the two price types the party-change spec
 // leaves out, against the real app: a number of nights typed stays that number when the stay moves and the field
 // turns red; a per-person-per-night line shows its nights and follows party and stay while nobody types on it.
 import { test, expect } from '@playwright/test';

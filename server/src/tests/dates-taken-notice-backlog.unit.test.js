@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 64 — the guest notice ships after the withdrawals it follows: a stay whose link
+// specs/payments/payment-link-lifecycle.md rule 64 — the guest notice ships after the withdrawals it follows: a stay whose link
 // was withdrawn for taken dates before this version is seeded `not-sent` / `upgrade` once (the card only), so the
 // notice pass never mails its guest; a row already there is kept; a second boot does nothing. Made-up stays.
 

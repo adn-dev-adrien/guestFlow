@@ -1,5 +1,5 @@
 /**
- * specs/adjustable-complement-amounts.md §3.3 — ajustement du complément de fin de séjour.
+ * specs/sas/adjustable-complement-amounts.md §3.3 — ajustement du complément de fin de séjour.
  * L'invariant vérifié partout : `endOfStayComplementAmount` reste EXACTEMENT la somme de
  * `endOfStayComplementDetail`, ligne « Ajustement » comprise (et elle peut être négative).
  */
@@ -81,7 +81,7 @@ function makeDb() {
 }
 const stored = (db) => db.prepare('SELECT endOfStayComplementAmount AS amount, endOfStayComplementDetail AS detail FROM reservations WHERE id = 1').get();
 
-// specs/adjustable-complement-amounts.md rule 17 — l'invariant du bucket : `endOfStayComplementAmount`
+// specs/sas/adjustable-complement-amounts.md rule 17 — l'invariant du bucket : `endOfStayComplementAmount`
 // est EXACTEMENT la somme de son détail, ligne « Ajustement » comprise.
 test('règle 20 — l\'ajustement passe par le point d\'écriture unique : amount == Σ détail', () => {
   const db = makeDb();

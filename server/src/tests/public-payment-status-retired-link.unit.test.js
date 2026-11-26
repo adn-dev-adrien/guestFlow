@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 33 — the public /status of a converted devis settles a link
+// specs/plugins/plugins-phase-3a-online-payment.md rule 33 — the public /status of a converted devis settles a link
 // GuestFlow retired but the guest paid anyway, so the double payment is flagged at once.
 
 process.env.DB_PATH = ':memory:';

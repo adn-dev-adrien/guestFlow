@@ -1,6 +1,6 @@
 /**
  * Pure resolver for what the arrival SAS must write on ONE stay bucket (acompte or solde) when the
- * guest settles the stay at the door — specs/collect-stay-payment-at-check-in.md §3.3.
+ * guest settles the stay at the door — specs/sas/collect-stay-payment-at-check-in.md §3.3.
  *
  * The SAS only ever owns what it collected itself: the `*PaidAtArrival` marker is what tells a
  * re-opened SAS which buckets its own « Pas maintenant » may undo, and what protects an acompte

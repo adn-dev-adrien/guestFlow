@@ -1,5 +1,5 @@
 /**
- * TenderLines — one amount paid with several methods (specs/mixed-method-payments.md §3.3, §6): one line per
+ * TenderLines — one amount paid with several methods (specs/payments/mixed-method-payments.md §3.3, §6): one line per
  * method (method · amount · « Caisse interne » on cash), the last untyped line showing what remains, a meter,
  * and — when the lines fall short — the choice of what becomes of the amount not received.
  *
@@ -33,7 +33,7 @@
  *                    a cash line then starts on the books
  *   noCaisse:        boolean — no « Caisse interne » switch (rule 44: an installment)
  *   shortfallKinds:  ['due', 'waived'] — which choices the shortfall block offers; the outside visit passes ['due'] (« Geste commercial » is an offered line there,
- *                    specs/outside-booking-sas.md rule 17). The server refuses the others whatever the screen shows.
+ *                    specs/sas/outside-booking-sas.md rule 17). The server refuses the others whatever the screen shows.
  *
  * An untyped last line left at 0 (the others cover the amount) is not a line: it is not sent and blocks nothing.
  */

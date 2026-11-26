@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 18, 19 and 23 (audit R21-S5) — a recompute rebuilds every line from
+// specs/options/non-card-option-served-persons.md rules 18, 19 and 23 (audit R21-S5) — a recompute rebuilds every line from
 // the quote: the typed nights, the figure a drifted line bills and the typed-against tags must survive it.
 import { expect, test } from 'vitest';
 import { applyQuoteToForm } from '../applyQuoteToForm';

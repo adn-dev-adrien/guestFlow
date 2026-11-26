@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 16 and 39 — the fixed amount of a stay discount is persisted beside its target
+// specs/pricing/pricing-components.md §3 rules 16 and 39 — the fixed amount of a stay discount is persisted beside its target
 // (`reservations.discountAmountCents`, nullable): written by a save, journaled, read back by the stored-stay replay.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 61 (audit of 2026-10-28, finding L1) — an unknown email
+// specs/hosting/hosting-h2-account-security.md rule 61 (audit of 2026-10-28, finding L1) — an unknown email
 // costs the same password hash as a known one, so the time of a login does not tell whether an
 // account exists.
 

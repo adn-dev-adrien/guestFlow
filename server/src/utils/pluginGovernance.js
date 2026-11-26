@@ -1,5 +1,5 @@
 /**
- * Who manages the plugins of this space (specs/plugin-operator-provisioning.md rules 1, 2, 15, 21).
+ * Who manages the plugins of this space (specs/plugins/plugin-operator-provisioning.md rules 1, 2, 15, 21).
  * Pure: the environment and the licence reader are passed in.
  *
  *   operatorManaged({ env, licence })  true when the hosting sets GUESTFLOW_MANAGED=1 or the licence

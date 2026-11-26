@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.D — the start assistant. Admin-only through the role guard.
+// specs/plugins/plugins-phase-p-productisation.md §3.D — the start assistant. Admin-only through the role guard.
 const router = require('express').Router();
 const { buildController } = require('../controllers/onboardingController');
 

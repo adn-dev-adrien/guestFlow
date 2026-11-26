@@ -1,5 +1,5 @@
 /**
- * The limit on a password typed to confirm a sensitive action (specs/hosting-h2-account-security.md
+ * The limit on a password typed to confirm a sensitive action (specs/hosting/hosting-h2-account-security.md
  * rule 49): 5 wrong passwords within 15 minutes lock every route that asks for it — the second step's
  * activation, disabling and new backup codes, and the password change — for 15 minutes, per account.
  * One guard is shared by all of them, so none is a way around another.

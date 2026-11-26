@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rule 11 — a counter of the page is a filter, computed by the
+// specs/accounting/reconciliation-assisted-matching.md rule 11 — a counter of the page is a filter, computed by the
 // server. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');

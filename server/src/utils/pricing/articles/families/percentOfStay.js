@@ -1,6 +1,6 @@
 /**
  * Article family `percentOfStay` — a percentage of the accommodation actually charged: the cancellation insurance
- * (specs/pricing-components.md §3 rule 47; specs/cancellation-insurance.md §3.1 rules 2-5).
+ * (specs/pricing/pricing-components.md §3 rule 47; specs/payments/cancellation-insurance.md §3.1 rules 2-5).
  *
  * Contract: `{ id, configSchema, validate, price, describe }`. `price` returns the unit price IS the computed amount
  * (`ctx.cancellationInsuranceBase` is the assiette resolved by the engine), the quantity is forced to 1 by the head
@@ -12,7 +12,7 @@ const { roundMoney } = require('../../money');
 const kit = require('../familyKit');
 
 /**
- * Amount of a `percent_of_stay` option (specs/cancellation-insurance.md §3.1 rules 2-4).
+ * Amount of a `percent_of_stay` option (specs/payments/cancellation-insurance.md §3.1 rules 2-4).
  *
  * `percent` is what `options.price` holds for that price type (4 = 4 %), clamped to 0-100 so a
  * corrupt row can never bill more than the stay itself. `base` is the assiette resolved by the

@@ -1,5 +1,5 @@
 /**
- * The releases installed on the host (specs/hosting-h1-fleet-runtime.md rule 8, H-D4): each
+ * The releases installed on the host (specs/hosting/hosting-h1-fleet-runtime.md rule 8, H-D4): each
  * version is downloaded once with its `SHA256SUMS`, verified, unpacked to `<releases>/<version>/`
  * and given its dependencies there; every instance on that version shares the directory.
  *

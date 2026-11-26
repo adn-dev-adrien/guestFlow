@@ -1,5 +1,5 @@
-// specs/pricing-components.md §3 rule 76 — the one trop-perçu formula (Σ allocations − the stay's total − the free lines given back).
-// specs/reservation-refunds.md rule 34 — a stay reduced below what the guest already paid is a
+// specs/pricing/pricing-components.md §3 rule 76 — the one trop-perçu formula (Σ allocations − the stay's total − the free lines given back).
+// specs/payments/reservation-refunds.md rule 34 — a stay reduced below what the guest already paid is a
 // trop-perçu: the save says so with the amount the server computed, and the fiche offers the refund.
 // Review 2026-10-18, F3: reservation 22296 had 798,20 € received online and a solde lowered to 665 €,
 // with nothing on the fiche to say so.

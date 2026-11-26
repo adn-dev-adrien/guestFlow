@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/server-test-isolation.md rule 23 (reading of
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t22 A22-1) and specs/tech/server-test-isolation.md rule 23 (reading of
 // 2026-11-18, loop t23 UI23-1) — before EVERY test, the code of the four SDK sale blocks (`components/LazySaleComponents.jsx`) is
 // forgotten and its next import arrives SALE_CHUNK_DELAY ms late (default 25), as a chunk fetched over the network does. The dialogs
 // that render them wait for that code (`useSaleComponentsReady`) and keep their actions disabled meanwhile, so a test that acts before

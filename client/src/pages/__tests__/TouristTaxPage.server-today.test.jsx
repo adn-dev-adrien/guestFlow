@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rule 32 (reviews R1-03, R4-7, R6-4) — the month the page opens on, and the
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rule 32 (reviews R1-03, R4-7, R6-4) — the month the page opens on, and the
 // month of an « À vérifier » link, are judged from the server's day once it is known, never from the device's.
 // The device clock is pinned here, and the server's day mocked apart from it.
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t14, S14-3, 2026-11-17) — the price preview routes a stored stay's lines
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t14, S14-3, 2026-11-17) — the price preview routes a stored stay's lines
 // as its save does: on the stored payment flags (never the request's) and, on a locked fiche, through the window's pins. Before, a fiche
 // posting a stale « solde non payé » previewed a new line in the paid solde that the save put in the arrival complement, and a started stay
 // previewed a line moved to the complement that the save kept where it was stored.

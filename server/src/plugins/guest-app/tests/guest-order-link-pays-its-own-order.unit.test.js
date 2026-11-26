@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 35-36, 85 and specs/plugin-removal-resilience.md rules 22, 23 (loop t2 D2-2) — a card link pays the order it was issued for and no other:
+// specs/guest-app/guest-app.md rules 35-36, 85 and specs/plugins/plugin-removal-resilience.md rules 22, 23 (loop t2 D2-2) — a card link pays the order it was issued for and no other:
 // an order wearing the id the link names (an id reused after an erase) is never sold with that money, which is owed back; the order's own link still sells it.
 const fx = require('./guestOrderFixtures');
 

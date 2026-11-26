@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 1, 2, 6 and 7 — NIGHTS alone: seasons by date range, progressive nights,
+// specs/pricing/pricing-components.md §3 rules 1, 2, 6 and 7 — NIGHTS alone: seasons by date range, progressive nights,
 // min / max nights per range, unpriced nights, the locked-nights merge, ISO day arithmetic. No DB, plain objects.
 const test = require('node:test');
 const assert = require('node:assert/strict');

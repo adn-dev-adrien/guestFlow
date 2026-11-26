@@ -1,6 +1,6 @@
-// specs/booking-extranet-intake.md rules 25-26 — the secret is created by an explicit POST, never by
+// specs/platforms/booking-extranet-intake.md rules 25-26 — the secret is created by an explicit POST, never by
 // the GET that serves the script; and the three routes that create, hand out or rotate it are refused
-// to a support session (specs/hosting-h2-account-security.md rule 23).
+// to a support session (specs/hosting/hosting-h2-account-security.md rule 23).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -54,7 +54,7 @@ async function serve(record) {
   return { base, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-test('specs/booking-extranet-intake.md rule 25: the GET of the script writes nothing; POST /secret creates the secret once', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 25: the GET of the script writes nothing; POST /secret creates the secret once', async () => {
   coreDb.prepare("UPDATE app_settings SET publicUrl = 'https://guestflow.example' WHERE id = 1").run();
   const { settingsModel, record } = boot();
   const s = await serve(record);
@@ -80,7 +80,7 @@ test('specs/booking-extranet-intake.md rule 25: the GET of the script writes not
   await s.close();
 });
 
-test('specs/booking-extranet-intake.md rule 26: a support session is refused the script and the secret routes, any case, any trailing slash', () => {
+test('specs/platforms/booking-extranet-intake.md rule 26: a support session is refused the script and the secret routes, any case, any trailing slash', () => {
   boot();
   for (const [method, p] of [
     ['GET', '/booking-intake/userscript.user.js'],

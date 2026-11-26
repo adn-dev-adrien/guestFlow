@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 19, 21, 29, 74 — a sale collected at once (cash, terminal, card) is written, then settled as one
+// specs/pricing/pricing-components.md §3 rules 19, 21, 29, 74 — a sale collected at once (cash, terminal, card) is written, then settled as one
 // mid-stay note naming its lines: the line reads « Payée », the allocations follow, the departure complement owes nothing for it.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

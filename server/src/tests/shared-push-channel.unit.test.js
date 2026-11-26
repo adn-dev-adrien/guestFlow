@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 22, 24 — a push channel several plugins may declare: every declaration carries the same key and label and `shared: true`; the toggle is
+// specs/site/site-outside-resource-booking.md rules 22, 24 — a push channel several plugins may declare: every declaration carries the same key and label and `shared: true`; the toggle is
 // listed once while any declaring plugin is live; a mismatched label or a declaration that is not shared is refused; a non-shared key stays unique.
 const path = require('path');
 const os = require('os');

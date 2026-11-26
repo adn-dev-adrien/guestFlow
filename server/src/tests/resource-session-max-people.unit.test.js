@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rule 25 — `resources.sessionMaxPeople`, the most people in one session booked from the website: set on the resource, NULL for every
+// specs/site/site-outside-resource-booking.md rule 25 — `resources.sessionMaxPeople`, the most people in one session booked from the website: set on the resource, NULL for every
 // existing row (the stepper then allows 20), a whole number from 1 to 100 on its own field, a value already stored not judged again.
 const test = require('node:test');
 const assert = require('node:assert/strict');

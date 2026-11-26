@@ -1,5 +1,5 @@
 /**
- * The franchise-threshold follow-up of the Suivi financier (specs/vat-optional-mode.md rules 35-44).
+ * The franchise-threshold follow-up of the Suivi financier (specs/accounting/vat-optional-mode.md rules 35-44).
  *
  * Read-only: it composes the payments ledger of « Encaissé » (financeDashboardModel.paymentsLedger),
  * the stay's own tourist-tax share (financeModel `htAmount`) and the expected dates of the unpaid

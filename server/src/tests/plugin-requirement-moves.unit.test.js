@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 59 (audit r5, N-R5-1) — an update or a rollback of a REQUIREMENT is held
+// specs/plugins/plugins-phase-4-registry.md rule 59 (audit r5, N-R5-1) — an update or a rollback of a REQUIREMENT is held
 // to the ranges its active dependants declare, on the card, on the endpoints and in update-all.
 const test = require('node:test');
 const assert = require('node:assert/strict');

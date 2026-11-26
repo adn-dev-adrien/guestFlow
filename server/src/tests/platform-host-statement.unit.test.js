@@ -1,4 +1,4 @@
-// specs/platform-host-statement-and-commission-vat.md rules 1-12 — the statement of a platform stay is typed as the HOST's
+// specs/platforms/platform-host-statement-and-commission-vat.md rules 1-12 — the statement of a platform stay is typed as the HOST's
 // figures (location, options, the tax box by mode); the engine prices from them, the commission is read off them.
 // The stays are the ones of the accountant's October review, with the figures measured in production on 2026-11-26.
 const test = require('node:test');

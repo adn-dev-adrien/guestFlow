@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 /**
- * TouristTaxPage — specs/ds-sweep-finance.md rule 23: the amount declared to the commune is printed to the cent
- * (mega review #5, M5: 5,95 € showed « 6 € », 52,44 € showed « 52 € »). Since specs/tourist-tax-report-v2.md
+ * TouristTaxPage — specs/design-system/ds-sweep-finance.md rule 23: the amount declared to the commune is printed to the cent
+ * (mega review #5, M5: 5,95 € showed « 6 € », 52,44 € showed « 52 € »). Since specs/tourist-tax/tourist-tax-report-v2.md
  * rule 20 the figure is the « À reverser » total of the sticky bar, which replaced the tiles.
  */
 

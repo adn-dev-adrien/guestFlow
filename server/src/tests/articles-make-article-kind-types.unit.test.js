@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 47 (reading of L6) — `makeArticle` reads the family only within the kind's own price types.
+// specs/pricing/pricing-components.md §3 rule 47 (reading of L6) — `makeArticle` reads the family only within the kind's own price types.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { makeArticle } = require('../utils/pricing/articles/makeArticle');

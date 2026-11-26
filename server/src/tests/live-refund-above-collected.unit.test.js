@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 50 (D10, audit R22-7, 2026-11-05) — a live stay refuses a book refund above what it
+// specs/payments/reservation-refunds.md rule 50 (D10, audit R22-7, 2026-11-05) — a live stay refuses a book refund above what it
 // collected, as a cancelled stay does. The caisse interne is off the books and judged apart.
 process.env.DB_PATH = ':memory:';
 

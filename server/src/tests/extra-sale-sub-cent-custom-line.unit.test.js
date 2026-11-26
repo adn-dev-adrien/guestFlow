@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 25, reading 2026-11-18 (loop t18 O18-1) — a custom line of the line API is judged by the engine's own
+// specs/pricing/pricing-components.md §3 rule 25, reading 2026-11-18 (loop t18 O18-1) — a custom line of the line API is judged by the engine's own
 // priced-line predicate (`isPricedCustomLine`: a label and at least one cent). Before, `customRequest` took any `amount > 0`: 0.004 € answered
 // 200 « totalCents 0 », wrote no line (the engine drops it) and still left a « Vente : Ligne complétée » history entry. Every amount of the table
 // is played through both entry points that parse a custom request (`quote`, `sell`), before and during the stay: the sale is accepted exactly

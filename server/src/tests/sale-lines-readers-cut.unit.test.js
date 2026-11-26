@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 31, 61, 63, 67, 91 — owner reading of 2026-11-15 (« éviter de toucher les anciens séjours ou les
+// specs/pricing/pricing-components.md §3 rules 31, 61, 63, 67, 91 — owner reading of 2026-11-15 (« éviter de toucher les anciens séjours ou les
 // séjours déjà réservés »): the sale-line readers serve the stays booked once 4.2.0 is installed. `reservations.readsSaleLines` is 0 on
 // every row the migration finds and on any row written without it, 1 on a stay or a devis the application creates.
 process.env.DB_PATH = ':memory:';

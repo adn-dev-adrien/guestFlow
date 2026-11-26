@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 38, 41, 43 (R35-EXT-1, R35-M-L2, R35-M-L5) — an invoice Qonto
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 38, 41, 43 (R35-EXT-1, R35-M-L2, R35-M-L5) — an invoice Qonto
 // numbered is stored even when « marquer payée » fails, and the watch job marks it later; a registered client is sent with
 // his record's address; a « Payé » without a method is refused for what it is. The real issuer and Qonto client run over a
 // stubbed fetch: no socket.

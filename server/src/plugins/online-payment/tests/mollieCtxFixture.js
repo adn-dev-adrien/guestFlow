@@ -1,4 +1,4 @@
-// A capturing `ctx` for `mountReconciliation` (specs/mollie-rolling-reserve-and-incoming-payments.md): what the plugin
+// A capturing `ctx` for `mountReconciliation` (specs/payments/mollie-rolling-reserve-and-incoming-payments.md): what the plugin
 // declares to the core, on the app's own test database, with settings kept in a Map. No Qonto, no Mollie.
 const { db } = require('./reconciliationFixture');
 

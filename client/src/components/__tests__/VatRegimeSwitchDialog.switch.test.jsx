@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md §6.2 — the switch dialog: the inputs of a switch, the server's preview
+// specs/accounting/vat-optional-mode.md §6.2 — the switch dialog: the inputs of a switch, the server's preview
 // (re-asked after each edit), the refusals it words, the acknowledgement of a correction, the stale
 // preview (409), the direction back to VAT, and the full-screen layout on a phone.
 import React from 'react';
@@ -177,6 +177,6 @@ test('a regime already in place (422) is not a dead end: a notice, and the page\
   const preview = vi.fn().mockRejectedValue(refusal({ regime: 'Régime déjà en vigueur' }));
   const { onStale } = draw({ preview });
   expect(await screen.findByText('Le régime a changé entre-temps. Écran mis à jour.')).toBeInTheDocument();
-  // onStale runs in a passive effect, flushed after the commit that shows the notice (specs/server-test-isolation.md rule 11).
+  // onStale runs in a passive effect, flushed after the commit that shows the notice (specs/tech/server-test-isolation.md rule 11).
   await waitFor(() => expect(onStale).toHaveBeenCalled());
 });

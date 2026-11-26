@@ -54,7 +54,7 @@ test('toPublicOption strips linen/towel internals; tiers only for progressive', 
   });
   assert.deepEqual(Object.keys(o).sort(), ['alwaysVisible', 'category', 'description', 'id', 'isCancellationInsurance', 'price', 'priceType', 'priceUnitLabel', 'quantityLabel', 'showsPlanningCard', 'title', 'titleEn']);
   assert.equal(o.alwaysVisible, false); // opt-in pin, off unless the operator sets it
-  assert.equal(o.category, ''); // ungrouped when the column is absent/empty (specs/option-categories.md)
+  assert.equal(o.category, ''); // ungrouped when the column is absent/empty (specs/options/option-categories.md)
   assert.equal(o.showsPlanningCard, false); // not set on this option
   // Backend-owned labels (source of truth) — non-planning per_person_per_night.
   assert.equal(o.priceUnitLabel, 'par personne et par nuit');
@@ -64,7 +64,7 @@ test('toPublicOption strips linen/towel internals; tiers only for progressive', 
   assert.equal('progressiveTiers' in o, false); // not a progressive priceType
 
   // Per-person planning-card option: billed by PORTION on the site → portion labels from the
-  // backend (specs/site-meal-portions.md rule 6). A breakfast says so; any other meal counts covers.
+  // backend (specs/site/site-meal-portions.md rule 6). A breakfast says so; any other meal counts covers.
   const planning = toPublicOption({
     id: 6, title: 'Petit déjeuner', priceType: 'per_person_per_night', price: 8, showsPlanningCard: 1, autoOptionType: 'breakfast',
   });
@@ -113,17 +113,17 @@ test('toPublicResource keeps id/name/price/priceType; strips stock & slot intern
   const r = toPublicResource({
     id: 3, name: 'Bain nordique', note: 'Détente sous les étoiles', priceType: 'per_hour', price: 55,
     // `freeMinutes` DOES reach the visitor, but as a sentence rather than a number
-    // (specs/wp-booking-widget-redesign.md rule 23). The rest must not leak:
+    // (specs/site/wp-booking-widget-redesign.md rule 23). The rest must not leak:
     quantity: 2, isComplex: 1, freeMinutes: 90, openDays: '[1,2,3]', slotDuration: 60, basePrice: 50,
   });
   assert.deepEqual(r, {
-    // `nameEn` is exposed since specs/site-english-version.md §3 rule 5 — the column existed and was
+    // `nameEn` is exposed since specs/site/site-english-version.md §3 rule 5 — the column existed and was
     // seeded, but the projection dropped it, so options had an English title and resources did not.
     id: 3, name: 'Bain nordique', nameEn: null, description: 'Détente sous les étoiles',
     priceType: 'per_hour', price: 55,
     priceUnitLabel: 'par heure', quantityLabel: "Nombre d'heures", showsSchedulingNote: true,
     freeLabel: '1 h 30 offerte par séjour',
-    // specs/translation-catalogue.md rule 22 — the site keys on this flag rather than on the name,
+    // specs/site/translation-catalogue.md rule 22 — the site keys on this flag rather than on the name,
     // which the catalogue translates. False here: a nordic bath is not a cot.
     isBabyBed: false,
   });
@@ -195,7 +195,7 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
   assert.equal(keys.includes('totalVatAmount'), false);
   assert.equal(keys.includes('engineFinalPrice'), false);
 
-  // Deposit mode: the Acompte/Solde blocks ARE included (specs/public-online-deposit.md).
+  // Deposit mode: the Acompte/Solde blocks ARE included (specs/site/public-online-deposit.md).
   const qDep = toPublicQuote(engineQuote, { available: true, startDate: '2026-07-20', endDate: '2026-07-27', paymentMode: 'deposit' });
   assert.equal(qDep.payment.mode, 'deposit');
   assert.equal(qDep.deposit.amount, 309.9);

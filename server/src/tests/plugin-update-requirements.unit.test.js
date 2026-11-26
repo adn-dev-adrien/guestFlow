@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 55 and 56 (audit r4, N-R4-2) — an update, update-all, rollback and the
+// specs/plugins/plugins-phase-4-registry.md rules 55 and 56 (audit r4, N-R4-2) — an update, update-all, rollback and the
 // bundled-row sync at a core update are held to the requirement checks install and activate enforce (rules 37, 38
 // and plugin-dependencies rule 5), and an installed cycle can be dismantled by uninstalling its members.
 const test = require('node:test');

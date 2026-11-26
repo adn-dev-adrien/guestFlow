@@ -1,5 +1,5 @@
 /**
- * Pricing input loader — the one place the quote of a stay reads the database (specs/pricing-components.md §3 rules 1, 11).
+ * Pricing input loader — the one place the quote of a stay reads the database (specs/pricing/pricing-components.md §3 rules 1, 11).
  *
  * Contract: `load(input)` takes the engine input (the caller's `db` among it) and returns either the engine's refusal
  * `{ error, status }` (unknown lodging) or the same input completed with what the pure pipeline needs and used to fetch
@@ -43,11 +43,11 @@ function load(input) {
     return { error: 'Logement non trouvé', status: 404 };
   }
 
-  // Single global VAT rate (specs/single-vat-rate.md §4.1). The three quote keys
+  // Single global VAT rate (specs/accounting/single-vat-rate.md §4.1). The three quote keys
   // (vatPercentageAccommodation / Options / Resources) below keep their names but all carry
   // the same value, so downstream readers (devisPdf, accountingModel, PricingSummary)
   // continue working without a wider rename.
-  // One VAT rate per sale, the one of the regime it was sold under (specs/vat-optional-mode.md rule 8):
+  // One VAT rate per sale, the one of the regime it was sold under (specs/accounting/vat-optional-mode.md rule 8):
   // a stored stay keeps its period, a new stay or a devis is priced under the regime in force today.
   const vatRegime = vatRegimeModel.forRow(db, {
     id: bookingId, kind: quoteKind, createdAt: bookingDate, startDate, newSale: !(Number(bookingId) > 0),
@@ -76,7 +76,7 @@ function load(input) {
   const lockedResourceLines = input.storedStaySale && Array.isArray(input.lockedResourceLines)
     ? input.lockedResourceLines.map((line) => ({ ...line, soldFrozen: true }))
     : input.lockedResourceLines;
-  // specs/per-property-default-options.md — options that are a property DEFAULT configured « offered »
+  // specs/options/per-property-default-options.md — options that are a property DEFAULT configured « offered »
   // (`property_option_defaults.offered = 1`) are INCLUDED in the night rate, not a one-off geste
   // commercial. When such a line is offered we tag it `includedInRate` so the summary renders « Comprise »
   // (at 0 €) instead of « Offert ». Guarded for minimal test DBs without the table.
@@ -89,7 +89,7 @@ function load(input) {
       );
     } catch { return new Set(); }
   })();
-  // specs/baby-bed-supplement.md §3.3 — resolved ONCE, from the database: a booking already stored
+  // specs/options/baby-bed-supplement.md §3.3 — resolved ONCE, from the database: a booking already stored
   // with cots and no supplement line was sold before the supplement existed and bills 0 cot forever.
   const babyBedOption = findBabyBedOption(Array.from(optionsById.values()));
   const billableBabyBeds = resolveBillableBabyBeds({

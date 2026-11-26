@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 5 — a test file that never ends fails on its timeout instead of
+// specs/tech/server-test-isolation.md rule 5 — a test file that never ends fails on its timeout instead of
 // hanging the job until the CI cancels it without naming it. Node 22 applies `--test-timeout` to each
 // FILE, Node 24 (CI) to each TEST; the exit watchdog ends the child that a timed-out test leaves holding an
 // open handle. `--test-force-exit` did that job until audit R9 M-1 caught it ending files before their last

@@ -1,4 +1,4 @@
-// French copy of the « Synthèse » and « Encaissements » tabs (specs/accounting-synthesis.md §6). Impersonal,
+// French copy of the « Synthèse » and « Encaissements » tabs (specs/accounting/accounting-synthesis.md §6). Impersonal,
 // short. Every figure comes from the server; this file only names things.
 
 export const TABS = { synthese: 'Synthèse', encaissements: 'Encaissements', ecritures: 'Écritures' };
@@ -55,7 +55,7 @@ export const VAT_PANEL = {
   byAccount: 'Par compte',
   note: 'TVA exigible à l’encaissement : les sommes encaissées sur la période, pas les séjours facturés.',
   deductible: 'TVA déductible sur les commissions, non déduite ici',
-  // specs/platform-host-statement-and-commission-vat.md rule 15 — the VAT assessed by us on the EU platforms' commissions: due and deductible for the same amount.
+  // specs/platforms/platform-host-statement-and-commission-vat.md rule 15 — the VAT assessed by us on the EU platforms' commissions: due and deductible for the same amount.
   selfAssessed: 'TVA autoliquidée sur les commissions des plateformes UE',
   selfAssessedDue: 'due',
   selfAssessedDeductible: 'déductible',

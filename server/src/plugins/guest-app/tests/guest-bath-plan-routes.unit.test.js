@@ -1,4 +1,4 @@
-// specs/guest-app-bath-home-scheduling.md rules 1-7, 10, 15, 17-18 — the home's bath card, the « à la suite » blocks and the quote's
+// specs/guest-app/guest-app-bath-home-scheduling.md rules 1-7, 10, 15, 17-18 — the home's bath card, the « à la suite » blocks and the quote's
 // breakdown, through the real routes (the stays start in five days: rule 7, the card from J-7) and the plugin hourly-resources' own scheduler. The grid of these cases: 30 € in the day, 40 € from
 // 19:00, one hour offered on La Granja.
 const fx = require('./guestOrderFixtures');

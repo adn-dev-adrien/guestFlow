@@ -1,5 +1,5 @@
 /**
- * Push routes (specs/pwa-push-notifications.md §4.3). Mounted under /api/push (auth-required via the
+ * Push routes (specs/guest-app/pwa-push-notifications.md §4.3). Mounted under /api/push (auth-required via the
  * global requireAuth in index.js).
  */
 

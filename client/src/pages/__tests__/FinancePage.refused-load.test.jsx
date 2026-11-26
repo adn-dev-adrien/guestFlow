@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 51, reading of 2026-11-03 (audit R20-C1) — no window the server refuses is a
+// specs/accounting/finance-dashboard-redesign.md rule 51, reading of 2026-11-03 (audit R20-C1) — no window the server refuses is a
 // dead end. A custom date that is not a real day (5-digit year, 30 February) or a single date is refused before any
 // request, the selector shown; any other refusal of the server (a month outside the exercise, an unknown period or
 // logement) keeps the period selector under the error, so the window is fixed in place, not through the sidebar.

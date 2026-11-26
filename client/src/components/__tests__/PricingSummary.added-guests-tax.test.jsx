@@ -1,4 +1,4 @@
-// Tourist tax of added guests — specs/platform-added-guests-tourist-tax.md rule 14.
+// Tourist tax of added guests — specs/tourist-tax/platform-added-guests-tourist-tax.md rule 14.
 // Its own line, in the complement, never offered: a debt to the commune.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

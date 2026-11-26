@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 114 (stabilisation loop t8, UI8-5) — a custom line carries the server's own key (`key`, `extraLineKey`)
+// specs/pricing/pricing-components.md §3 rule 114 (stabilisation loop t8, UI8-5) — a custom line carries the server's own key (`key`, `extraLineKey`)
 // on the fiche's live quote (`calculate-price`; the engine's quote itself stays key for key, rule 4) and on the stored summary, so the
 // fiche matches `refundedLoweredLines` on it and never rebuilds a key from a label.
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 4, 15-20, 22 — what is left to pay is SETTLEMENT's answer, never the screen's; a partial payment needs « Reste à percevoir », an over-payment is
+// specs/sas/outside-booking-sas.md rules 4, 15-20, 22 — what is left to pay is SETTLEMENT's answer, never the screen's; a partial payment needs « Reste à percevoir », an over-payment is
 // refused with nothing written, a payment is allocated to the lines in sale order (the session first), several payments are several allocation sets, and the
 // booking dialog's payment of a visit is a payment of its document, and a reste can be billed by a payment link minted from the visit (no e-mail by itself).
 // The booking's money on a document: resource-booking-pricing-and-invoicing rule 52. The link asked from the visit: payment-link-lifecycle rule 69.

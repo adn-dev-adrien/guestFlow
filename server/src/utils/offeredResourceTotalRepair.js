@@ -1,6 +1,6 @@
 /**
  * One-shot repair of the resource lines an offering used to leave at full price —
- * specs/devis-offered-resource-parity.md §3 rule 5.
+ * specs/devis/devis-offered-resource-parity.md §3 rule 5.
  *
  * `bookingLinesModel.insertResourceLine` stored `rr.totalPrice || unitPrice * qty`, so the engine's
  * legitimate `totalPrice = 0` on an offered line was read as « no total supplied » and the resource was

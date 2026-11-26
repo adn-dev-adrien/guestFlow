@@ -1,4 +1,4 @@
-// The plugin modules of a production build (specs/plugins-phase-4-registry.md rules 18, P27): filled
+// The plugin modules of a production build (specs/plugins/plugins-phase-4-registry.md rules 18, P27): filled
 // by `runtime.js` from each active plugin's own bundle before the app renders. The build redirects
 // every import of `plugins/index.js` here (vite.config.js), so the core reads one list either way.
 const PLUGIN_MODULES = [];

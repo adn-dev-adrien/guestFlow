@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 22 — the id counter of a recreated plugin table restarts above every id a core row still cites.
+// specs/plugins/plugin-removal-resilience.md rule 22 — the id counter of a recreated plugin table restarts above every id a core row still cites.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

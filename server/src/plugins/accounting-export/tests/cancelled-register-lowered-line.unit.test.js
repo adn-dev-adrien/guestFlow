@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-4) — on a cancelled stay a line's ceiling is
+// specs/payments/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-4) — on a cancelled stay a line's ceiling is
 // max(billed, collected): money collected on a line lowered after payment can go back on that line, and the stay cap
 // leaves a cancelled stay alone (REFUND_EXCEEDS_COLLECTED rules there). Replays of the auditor's item5 and p6 probes.
 process.env.DB_PATH = ':memory:';

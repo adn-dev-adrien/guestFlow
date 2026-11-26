@@ -1,4 +1,4 @@
-// specs/single-payment-from-the-fiche.md rules 9 + 4 — ce que l'encaissement unique écrit dans
+// specs/payments/single-payment-from-the-fiche.md rules 9 + 4 — ce que l'encaissement unique écrit dans
 // l'historique de la fiche, et qui a le droit de l'écrire.
 //
 // Pourquoi ce fichier existe : la dissolution d'un groupe laisse une trace depuis le 2026-08-31
@@ -89,7 +89,7 @@ function settle(body, opts = {}) {
   return { captures, res };
 }
 
-// specs/single-payment-from-the-fiche.md rule 9 — le montant, le moyen ET les échéances couvertes.
+// specs/payments/single-payment-from-the-fiche.md rule 9 — le montant, le moyen ET les échéances couvertes.
 // Les trois : sans le moyen on ne sait pas si c'est en banque, sans les échéances on ne sait pas ce
 // que le client a soldé.
 test('encaisser en une fois écrit une ligne qui dit tout ce qui a été encaissé', () => {
@@ -110,7 +110,7 @@ test('la caisse interne se nomme dans l’historique, elle ne se devine pas', ()
   assert.match(captures.history[0].toText, /caisse interne le 30\/08\/2026/);
 });
 
-// specs/single-payment-from-the-fiche.md rule 10 — l'annulation laisse sa propre trace : un
+// specs/payments/single-payment-from-the-fiche.md rule 10 — l'annulation laisse sa propre trace : un
 // encaissement qui disparaît sans un mot est ce qui a coûté quatre releases en août.
 test('annuler le paiement écrit ce qui a été défait', () => {
   const { captures } = settle({ mode: 'undo' }, {
@@ -127,7 +127,7 @@ test('un encaissement qui ne porte sur rien n’écrit pas de ligne', () => {
   assert.equal(captures.history, undefined);
 });
 
-// specs/single-payment-from-the-fiche.md rule 4 — la réception ne voit jamais les montants du
+// specs/payments/single-payment-from-the-fiche.md rule 4 — la réception ne voit jamais les montants du
 // séjour, donc elle ne les encaisse pas non plus. Le refus est côté SERVEUR : cacher le bouton ne
 // serait qu'un décor.
 test('un compte réception ne peut pas encaisser le séjour', () => {

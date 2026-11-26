@@ -1,13 +1,13 @@
 /**
  * PeriodSelector — pick the window a page reads: the whole exercise, one of its months, or a custom
- * du / au (specs/finance-dashboard-redesign.md rules 1-2). Generic: any page scoped by an exercise
+ * du / au (specs/accounting/finance-dashboard-redesign.md rules 1-2). Generic: any page scoped by an exercise
  * (tourist tax, accounting) can reuse it.
  *
  * A custom window whose start is after its end, with a missing date or one that is not a real day (a 5-digit year), wider than MAX_CUSTOM_WINDOW_DAYS
  * or ending past the date horizon (rule 51), is refused right here with the same message the server
  * gives: the page keeps its previous window until both dates are valid.
  *
- * Optional quarter and year kinds (specs/tourist-tax-report-v2.md rule 18): pass `kinds` to choose and order the
+ * Optional quarter and year kinds (specs/tourist-tax/tourist-tax-report-v2.md rule 18): pass `kinds` to choose and order the
  * segments, and the server's `quarters` / `years` options. Without `kinds` the selector is the exercise one above.
  *
  * Props:

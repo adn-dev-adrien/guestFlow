@@ -1,4 +1,4 @@
-// specs/platform-host-statement-and-commission-vat.md rule 2 on the statement written AFTER the payout (the usual Gîtes de France case):
+// specs/platforms/platform-host-statement-and-commission-vat.md rule 2 on the statement written AFTER the payout (the usual Gîtes de France case):
 // the option lines follow « Options (relevé) » there too, in the correction's own transaction; the one refusal stays.
 process.env.DB_PATH = ':memory:';
 

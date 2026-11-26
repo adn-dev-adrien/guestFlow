@@ -1,4 +1,4 @@
-// specs/terms-acceptance-record.md rule 29 — a website request is a devis, and converting it inserts a
+// specs/reservations/terms-acceptance-record.md rule 29 — a website request is a devis, and converting it inserts a
 // new reservation row. The acceptance stays on the devis (append-only, rule 19); the stay reads it from
 // there: the fiche block, `{{cgvUrl}}`, and the devis cannot be deleted while it carries that proof.
 const test = require('node:test');

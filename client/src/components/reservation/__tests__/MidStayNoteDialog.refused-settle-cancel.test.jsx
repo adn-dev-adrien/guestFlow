@@ -1,4 +1,4 @@
-// specs/mid-stay-notes.md rule 24 reading R31-C-L1 (2026-11-08) — a settlement is refused only after the fiche was saved,
+// specs/sas/mid-stay-notes.md rule 24 reading R31-C-L1 (2026-11-08) — a settlement is refused only after the fiche was saved,
 // so the stored state is the new opening: « Annuler » after a refusal must not take a saved sale back out of the form.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

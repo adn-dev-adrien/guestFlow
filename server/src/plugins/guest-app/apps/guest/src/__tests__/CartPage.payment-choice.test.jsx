@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 32, 33, 35, 37quater, 41bis — the cart's total is the quote, the payment choice follows
+// specs/guest-app/guest-app.md rules 32, 33, 35, 37quater, 41bis — the cart's total is the quote, the payment choice follows
 // what the server allows, the button carries the total, pickup mode asks « récupérer ».
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

@@ -1,4 +1,4 @@
-// The shaping of « À vérifier » (pure): specs/finance-data-checks.md §3 rules 2, 3 and 4.
+// The shaping of « À vérifier » (pure): specs/accounting/finance-data-checks.md §3 rules 2, 3 and 4.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const shape = require('../utils/financeDataChecks');

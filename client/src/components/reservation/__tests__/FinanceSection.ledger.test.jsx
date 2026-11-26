@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md — the payments ledger on the fiche: marks through the inline
+// specs/payments/reservation-payment-ledger.md — the payments ledger on the fiche: marks through the inline
 // form and the page's save-first pipeline (rules 8-10), refusals in place (rule 9), the caution order
 // (rule 12), undo with a confirmation naming the date (rule 14), amount editing through the server
 // (rules 15, 19, 21), the platform statement and transfer (rules 25-26), links (rule 28).

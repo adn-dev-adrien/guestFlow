@@ -6,7 +6,7 @@
  * without creating a cycle (ExtrasSection → OptionRow → ExtrasSection).
  */
 
-// Tooltip text shared by every "Compl." toggle (specs/force-item-to-complement.md §6.4).
+// Tooltip text shared by every "Compl." toggle (specs/sas/force-item-to-complement.md §6.4).
 export const COMPLEMENT_TOOLTIP = 'Cette ligne sera comptabilisée intégralement dans le Complément à percevoir, jamais dans l\'acompte ou le solde.';
 
 export const PRICE_TYPE_LABELS = {
@@ -15,7 +15,7 @@ export const PRICE_TYPE_LABELS = {
   per_night: 'par jour',
   per_person_per_night: 'par pers./jour',
   per_hour: 'par heure',
-  // specs/cancellation-insurance.md §3.1 — the unit price of such a line IS the amount, computed
+  // specs/payments/cancellation-insurance.md §3.1 — the unit price of such a line IS the amount, computed
   // server-side from the accommodation of the stay.
   percent_of_stay: 'du séjour',
   free: 'gratuit',

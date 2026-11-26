@@ -1,4 +1,4 @@
-// specs/platform-host-statement-and-commission-vat.md — the findings of the review and of the production-shadow replay (2026-11-26).
+// specs/platforms/platform-host-statement-and-commission-vat.md — the findings of the review and of the production-shadow replay (2026-11-26).
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');

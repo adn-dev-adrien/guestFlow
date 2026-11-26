@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 102 d as completed by rule 103 (stabilisation loop t3, T3-2, 2026-11-16) — at an open arrival (the check-in hour
+// specs/pricing/pricing-components.md §3 rule 102 d as completed by rule 103 (stabilisation loop t3, T3-2, 2026-11-16) — at an open arrival (the check-in hour
 // passed, the arrival not validated, its complement not collected) an unpaid arrival line offered at the door by mistake is billed again, discounted
 // and removed there: every gesture answers 200 and the arrival complement follows (45 → 0 → 45 → 35 → 0 → 35 → 0). Stays booked 20 days ahead
 // (`saleRound1Fixtures`, check-in 15:00).

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13, 30, 74, 93 (owner 2026-11-15, end review R2-1 and R2-2) — a sale, an offer, a removal or a move of a line
+// specs/pricing/pricing-components.md §3 rules 13, 30, 74, 93 (owner 2026-11-15, end review R2-1 and R2-2) — a sale, an offer, a removal or a move of a line
 // moves the stay by that line only: the stay's other stored figures (price, nights, tax, balance, deposit, stay lines) never follow the engine of today,
 // even on a stay stored at figures that engine no longer reproduces; the quote is what is written. A sold line is kept when its article is no longer
 // offered at the lodging, and a started stay keeps taking sales; a NEW line of such an article is refused.

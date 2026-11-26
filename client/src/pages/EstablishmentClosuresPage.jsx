@@ -39,7 +39,7 @@ function dayjsToIso(d) {
 
 const ALL_PROPERTIES = 'ALL';
 
-// specs/payment-link-lifecycle.md rules 40, 41, 49 — the headlines of the dialog's conflict lines.
+// specs/payments/payment-link-lifecycle.md rules 40, 41, 49 — the headlines of the dialog's conflict lines.
 const CONFLICT_TITLES = {
   reservations: 'Réservation sur ces dates : fermeture impossible.',
   requests: 'Demande de paiement en cours sur ces dates.',

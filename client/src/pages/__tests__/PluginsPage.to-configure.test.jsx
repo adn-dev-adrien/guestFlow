@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md rule 25 — « À configurer (n) » keeps only the plugins that lack
+// specs/plugins/plugins-phase-0-foundation.md rule 25 — « À configurer (n) » keeps only the plugins that lack
 // something (n is the server's count); « Configurer » opens the plugin's settings place.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

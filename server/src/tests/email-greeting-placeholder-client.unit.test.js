@@ -1,4 +1,4 @@
-// specs/email-automation.md rule 19 — an iCal placeholder client is greeted neutrally. Final review
+// specs/emails/email-automation.md rule 19 — an iCal placeholder client is greeted neutrally. Final review
 // 2026-10-18, N5: the placeholder « Ical Airbnb » of 22281 read « Bonjour Ical, » / « Hello Ical, »
 // in 24 previews.
 

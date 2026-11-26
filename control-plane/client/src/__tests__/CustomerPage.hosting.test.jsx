@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 1, 2 and 14 — the customer page follows a running creation
+// specs/hosting/hosting-h1-fleet-runtime.md rules 1, 2 and 14 — the customer page follows a running creation
 // live, offers « Reprendre » on a failed step, shows the instance's measures, and restores to a date
 // within the window the server gives (refused before a date is chosen).
 import React from 'react';

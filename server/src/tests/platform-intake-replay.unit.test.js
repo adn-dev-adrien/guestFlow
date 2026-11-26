@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 71 (with rule 68) — the automatic platform intakes keep writing the same stay.
+// specs/pricing/pricing-components.md §3 rule 71 (with rule 68) — the automatic platform intakes keep writing the same stay.
 // Each stored intake of the snapshot (Booking, Airbnb: `fixtures/price-gate/intakes.json`, guest identity replaced by
 // placeholders) is replayed on its fixture platform stay through the plugin's own plan -> patch -> save (the SDK
 // `reservations.update`, the fiche's save), the day before the stay starts; the stored row, the lines and the figures

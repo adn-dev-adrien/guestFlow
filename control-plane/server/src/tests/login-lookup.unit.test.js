@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 24 and 25 — the lookup: none, one, several spaces; a
+// specs/hosting/control-plane-plans-and-access.md rules 24 and 25 — the lookup: none, one, several spaces; a
 // suspended space still a match; case and spaces ignored; the answer carries names and addresses.
 
 const test = require('node:test');
@@ -44,7 +44,7 @@ test('rule 24 — a suspended space is still a match, and the redirect carries t
   }
 });
 
-// specs/control-plane-plans-and-access.md rule 41 (audit 2026-10-28, L2): a customer's recorded contact
+// specs/hosting/control-plane-plans-and-access.md rule 41 (audit 2026-10-28, L2): a customer's recorded contact
 // address is listed for that customer only; another space declaring it among its users does not claim it.
 test('rule 41 — a space cannot list itself next to another customer\'s contact address', async () => {
   const h = makeContext({ at: '2026-10-01T08:00:00Z' });

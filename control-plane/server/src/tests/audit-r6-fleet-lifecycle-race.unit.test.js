@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 37 — a customer deprovisioned or erased after a fleet update
+// specs/hosting/hosting-h1-fleet-runtime.md rule 37 — a customer deprovisioned or erased after a fleet update
 // started is skipped by it, and the deprovision export / the erasure run inside the customer's
 // sequence lock, never alongside a snapshot or a rollback (audit R6 F1).
 

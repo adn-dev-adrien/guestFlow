@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 6, 16 and 17 — the card tells every settlement still cooling
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 6, 16 and 17 — the card tells every settlement still cooling
 // down; a network failure stops the pass instead of cooling every reference down; the refund refresh rotates; a stale
 // settlement no credit names never blocks a re-read. No network: fakes only.
 const test = require('node:test');

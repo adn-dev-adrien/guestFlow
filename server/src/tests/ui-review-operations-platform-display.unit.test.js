@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 15 — one source for a platform's display name: the
+// specs/design-system/ui-review-2026-10-19-operations.md rule 15 — one source for a platform's display name: the
 // server, with the reservation list.
 const test = require('node:test');
 const assert = require('node:assert/strict');

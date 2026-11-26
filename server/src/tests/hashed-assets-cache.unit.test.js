@@ -7,7 +7,7 @@ const path = require('node:path');
 const express = require('express');
 const hashedAssets = require('../middleware/hashedAssets');
 
-// specs/inte-performance.md rule 7 — a content-hashed file is cached for a year; the page that names
+// specs/tech/inte-performance.md rule 7 — a content-hashed file is cached for a year; the page that names
 // it (index.html) is still revalidated.
 
 async function withClient(run) {

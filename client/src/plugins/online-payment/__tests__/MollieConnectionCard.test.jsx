@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 14-15, 17 — the optional « Compte Mollie » card: a masked
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 14-15, 17 — the optional « Compte Mollie » card: a masked
 // token, the profile id, « Tester » and the last read. A refusal (a token that does not start with access_) is the
 // SERVER's answer, shown on the field with nothing saved; the token is never shown back.
 import React from 'react';

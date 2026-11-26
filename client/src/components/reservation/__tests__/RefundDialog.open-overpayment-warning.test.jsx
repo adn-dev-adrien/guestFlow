@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import RefundDialog from '../RefundDialog';
 
-// specs/reservation-refunds.md rule 44 — « + Nouveau remboursement » warns while a trop-perçu is open, and
+// specs/payments/reservation-refunds.md rule 44 — « + Nouveau remboursement » warns while a trop-perçu is open, and
 // offers to refund it instead; a dialog already opened on the trop-perçu does not warn.
 
 const LINES = [

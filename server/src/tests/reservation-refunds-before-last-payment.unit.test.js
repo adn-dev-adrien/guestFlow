@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 53 (verification R35b, finding 5) — a book refund dated before the stay's last book
+// specs/payments/reservation-refunds.md rule 53 (verification R35b, finding 5) — a book refund dated before the stay's last book
 // payment is refused (400 REFUND_BEFORE_PAYMENT) before anything is written: the refund closing a stay's books reads
 // the encaissements up to its own date, so a refund dated before the money it gives back left 706 / 709 open. The caisse
 // interne is off the books: neither its payments nor its refunds are judged.

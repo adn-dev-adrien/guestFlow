@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.G rule 21 — the start assistant's step « Vos emails »:
+// specs/emails/guest-email-texts-made-simple.md §3.G rule 21 — the start assistant's step « Vos emails »:
 // phone and sender name pre-filled, the article as a choice, the arrival facts of the first property,
 // every field skippable, and the J-2 of a sample stay as its preview.
 

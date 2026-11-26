@@ -1,5 +1,5 @@
 /**
- * FoldedDayList — a titled list that takes one line when it is empty (specs/dashboard-planning-scroll.md
+ * FoldedDayList — a titled list that takes one line when it is empty (specs/planning/dashboard-planning-scroll.md
  * rule 4): the title and a muted sentence side by side, no table, no card, nothing to unfold. With
  * items it renders its children under the title.
  *

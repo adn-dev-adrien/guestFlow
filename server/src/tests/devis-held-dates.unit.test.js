@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 46 (§9 Q13) — a devis is never written on nights a stay holds: created there
+// specs/payments/payment-link-lifecycle.md rule 46 (§9 Q13) — a devis is never written on nights a stay holds: created there
 // or moved there (dates or logement), it is refused 409 DATES_HELD « Dates déjà réservées : devis non enregistré. »
 // with the stays that block, ConflictList-shaped. Other edits of a devis already there pass; an unpaid row refuses
 // nothing. Rule 48 (§9 Q15): a devis whose nights were taken since stays as it is, marked « Dates prises ».

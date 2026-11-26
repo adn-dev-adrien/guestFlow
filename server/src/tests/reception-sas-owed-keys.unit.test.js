@@ -1,4 +1,4 @@
-// specs/reception-role-checkin-only.md rule 18, reading of 2026-11-16 (stabilisation loop t9, A9-3 / A9-4) — while a `lineLowered`
+// specs/sas/reception-role-checkin-only.md rule 18, reading of 2026-11-16 (stabilisation loop t9, A9-3 / A9-4) — while a `lineLowered`
 // obligation is open, every offered paid line is locked offered for reception, read from the stored line whatever the draft; a reception
 // commit that bills one again is refused 409 LINE_OWED naming the locked lines' recap keys (`owedKeys`, no amount), and the same commit with
 // those keys put back goes through. Before: a draft read before the admin offered the line saw it billed with no button, and every « Valider »

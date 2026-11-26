@@ -1,4 +1,4 @@
-// specs/cumulative-month-calendar.md rule 13 — the view opened on today's row keeps that row under the sticky
+// specs/planning/cumulative-month-calendar.md rule 13 — the view opened on today's row keeps that row under the sticky
 // header while the months load and grow, a row that only appears with its month's data is still reached, and
 // the first scroll that moves the row hands the scroll back.
 import React from 'react';

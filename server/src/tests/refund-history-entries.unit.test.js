@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 72 (S12) — a refund made and a refund deleted are entries of the stay's history, with the
+// specs/pricing/pricing-components.md §3 rule 72 (S12) — a refund made and a refund deleted are entries of the stay's history, with the
 // amount and the means, never a name.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

@@ -1,6 +1,6 @@
 /**
  * RECEIPT LINE SPLITS — the sale lines a stay's receipts of one day are cut over, frozen when the money is taken
- * (specs/pricing-components.md §3 rule 99, stabilisation loop t1 B-4; completes rule 63 as amended by R2-5).
+ * (specs/pricing/pricing-components.md §3 rule 99, stabilisation loop t1 B-4; completes rule 63 as amended by R2-5).
  *
  * The VAT cut of a receipt on a stay the sale-line readers serve weighs the VAT classes of a family by the stay's sale lines
  * (`receiptLineCut.cutReceipt`). Read from the CURRENT lines, a paid line removed or offered later would re-cut a month already

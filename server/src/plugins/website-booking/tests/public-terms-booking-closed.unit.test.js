@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 21 — `GET /public/v1/terms` with nothing published says whether a
+// specs/site/wordpress-plugin.md rule 21 — `GET /public/v1/terms` with nothing published says whether a
 // request would be refused (`details[0].bookingClosed`, the CGV requirement), so the site replaces the
 // form instead of letting the visitor fill it. The code and status stay `503 TERMS_NOT_CONFIGURED`.
 const test = require('node:test');

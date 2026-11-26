@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.F rules 27–29 — the account plan as settings of the
+// specs/plugins/plugins-phase-p-productisation.md §3.F rules 27–29 — the account plan as settings of the
 // export: today's numbers by default, validated, the CSV byte-identical with the defaults, and every
 // line on the plan's numbers once changed.
 
@@ -50,7 +50,7 @@ test('rule 27: the defaults are today\'s constants', () => {
     discountAccount: DISCOUNT_ACCOUNT,
     tipAccount: TIP_ACCOUNT,
     platformPenaltyAccount: '658000',
-    // Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 14-16): the account each commission regime proposes, the two
+    // Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 14-16): the account each commission regime proposes, the two
     // accounts of the EU self-assessment and its switch, the VAT codes of the CSV's last column.
     commissionFrAccount: '62260500',
     commissionEuAccount: '62260300',

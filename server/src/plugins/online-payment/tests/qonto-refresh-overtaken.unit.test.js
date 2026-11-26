@@ -1,4 +1,4 @@
-// specs/qonto-settings-in-app.md rule 19 (audit R23, E23-4) — a refresh in flight stores nothing once the token it
+// specs/settings/qonto-settings-in-app.md rule 19 (audit R23, E23-4) — a refresh in flight stores nothing once the token it
 // refreshed is no longer the stored one: it used to bring back a connection built on the old application's tokens over
 // new credentials, or over a new consent. Injected client, no network.
 const test = require('node:test');

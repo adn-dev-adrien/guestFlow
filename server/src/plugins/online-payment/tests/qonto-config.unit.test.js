@@ -1,5 +1,5 @@
 // The effective Qonto configuration: stored settings over environment variables.
-// See specs/qonto-settings-in-app.md §3 rules 2, 4, 5, 8.
+// See specs/settings/qonto-settings-in-app.md §3 rules 2, 4, 5, 8.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -96,7 +96,7 @@ test('rule 8: stored values are trimmed, and origins lose their trailing slash',
     clientId: '  cid_padded \n',
     clientSecret: '\tsecret_padded  ',
   });
-  // The origin is a core setting since specs/plugins-phase-3a-online-payment.md rule 15.
+  // The origin is a core setting since specs/plugins/plugins-phase-3a-online-payment.md rule 15.
   core.storePublicSiteOrigin('https://site.example/// ');
   const config = resolveQontoConfig({ settings, env: {} });
   assert.equal(config.clientId, 'cid_padded');

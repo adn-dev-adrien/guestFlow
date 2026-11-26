@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rule 24 — the boot line that announces the API key names no path: the
+// specs/plugins/plugins-phase-2-hosts.md rule 24 — the boot line that announces the API key names no path: the
 // file is server/.env.local only while GUESTFLOW_LOCAL_ENV does not move it (review 2026-10-18, n1).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -31,8 +31,8 @@ test('rule 24: the key is created at boot and the log line does not claim server
   } finally {
     localEnv.getOrCreateSecret = original;
   }
-  // specs/roostview-api-key.md rule 1 — Roostview's read-only key is created beside it, and the key
-  // that signs the proof-of-work challenges (specs/public-request-abuse-and-grouping.md rule 1).
+  // specs/plugins/roostview-api-key.md rule 1 — Roostview's read-only key is created beside it, and the key
+  // that signs the proof-of-work challenges (specs/site/public-request-abuse-and-grouping.md rule 1).
   assert.deepEqual(created, ['PUBLIC_API_KEY', 'ROOSTVIEW_API_KEY', 'PUBLIC_REQUEST_CHALLENGE_SECRET']);
   assert.equal(infos.length, 2);
   assert.match(infos[0], /PUBLIC_API_KEY ready/);

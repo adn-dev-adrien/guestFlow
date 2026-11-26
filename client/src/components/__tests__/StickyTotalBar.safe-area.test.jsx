@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rules 1-2 — the sticky total keeps its figures clear of the rounded corners and the home
+// specs/planning/mobile-dashboard-exercise-cash.md rules 1-2 — the sticky total keeps its figures clear of the rounded corners and the home
 // indicator: padding from `env(safe-area-inset-*)`, never under 16 px on the sides, unchanged where the device has no inset.
 import React from 'react';
 import { render } from '@testing-library/react';

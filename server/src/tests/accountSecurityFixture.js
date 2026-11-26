@@ -1,4 +1,4 @@
-// Shared fixture of the hosting-h2 suites (specs/hosting-h2-account-security.md): an in-memory
+// Shared fixture of the hosting-h2 suites (specs/hosting/hosting-h2-account-security.md): an in-memory
 // database with the users tables and the account-security schema, the real models over it, a clock,
 // a mail outbox and fake HTTP objects. Not a test file: each suite imports it.
 

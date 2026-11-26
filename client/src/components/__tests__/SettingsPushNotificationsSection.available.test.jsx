@@ -1,4 +1,4 @@
-// specs/plugins-phase-3b-neat.md rules 13, 17, specs/platform-settings-relay-and-review.md rule 8 — the
+// specs/plugins/plugins-phase-3b-neat.md rules 13, 17, specs/platforms/platform-settings-relay-and-review.md rule 8 — the
 // push toggles are the server's `channels`, labels included: a plugin's only while it is live, and the
 // card renders whatever label the plugin declared.
 import React from 'react';

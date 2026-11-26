@@ -1,5 +1,5 @@
 /**
- * CGV rendering (specs/terms-acceptance-record.md §3.1).
+ * CGV rendering (specs/reservations/terms-acceptance-record.md §3.1).
  *
  * Escape-first Markdown subset: every character of the source is HTML-escaped BEFORE any tag is
  * produced, so no HTML written by the operator can ever reach the site. Supported: `##`/`###`

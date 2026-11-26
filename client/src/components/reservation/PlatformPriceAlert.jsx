@@ -1,6 +1,6 @@
 /**
  * PlatformPriceAlert — the one alert of the pricing summary: a platform stay sold far from the
- * « Prix plateformes » grid of its channel (specs/reservation-payment-ledger.md rules 58-63).
+ * « Prix plateformes » grid of its channel (specs/payments/reservation-payment-ledger.md rules 58-63).
  *
  * « Voir la grille » goes through the page's unsaved-changes guard (`window.__guestflowBeforeNavigate`) like a
  * sidebar link, lands on the « Prix plateformes » card and brings the operator back to the fiche.

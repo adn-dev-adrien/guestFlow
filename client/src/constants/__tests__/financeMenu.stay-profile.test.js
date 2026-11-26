@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rule 17 — « Profil des séjours » sits right after « Vue générale » in the
+// specs/accounting/stay-profile.md §3 rule 17 — « Profil des séjours » sits right after « Vue générale » in the
 // « Suivi financier » menu, admin only, like the dashboard.
 import { financeMenu } from '../financeMenu';
 import { ROUTE_ROLES } from '../roles';

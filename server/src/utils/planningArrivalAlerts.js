@@ -1,5 +1,5 @@
 /**
- * Planning cleaning alerts (specs/planning-arrival-alerts.md §3 rules 1–3 and 7–10).
+ * Planning cleaning alerts (specs/planning/planning-arrival-alerts.md §3 rules 1–3 and 7–10).
  *
  * Pure: given every stay around the window (including stays that started BEFORE it — a guest already
  * in the house leaving the day the next one arrives is the common case) and the properties' cleaning

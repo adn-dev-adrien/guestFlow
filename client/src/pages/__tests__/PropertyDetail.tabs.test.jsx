@@ -1,4 +1,4 @@
-// PropertyDetail — the tabs (specs/settings-rationalization.md rules 21, 23a): the tab lives in
+// PropertyDetail — the tabs (specs/settings/settings-rationalization.md rules 21, 23a): the tab lives in
 // `?tab=`, a tab holding an unsaved change shows an amber dot, a field refused by the server shows
 // its message, lights its tab in red and brings that tab forward.
 
@@ -18,7 +18,7 @@ vi.mock('../../api', () => ({
   default: {
     getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
     getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(),
-    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
+    // The « Arrivée » block is part of the page (specs/emails/guest-email-texts-made-simple.md rule 35).
     getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
     savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})), updateProperty: vi.fn(), createProperty: vi.fn(), deleteProperty: vi.fn(),
     getPropertyPlatforms: vi.fn(), getPlatformSettings: vi.fn(), createOption: vi.fn(), updateOption: vi.fn(),
@@ -30,7 +30,7 @@ import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
 import { LIMITS } from '../../components/property/__tests__/propertyLimitsFixtures';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 const PROPERTY = {

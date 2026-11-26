@@ -1,5 +1,5 @@
 /**
- * Translation catalogue routes (specs/translation-catalogue.md §4.3). Thin — delegates to
+ * Translation catalogue routes (specs/site/translation-catalogue.md §4.3). Thin — delegates to
  * translationsController. Mounted at /api/translations behind the standard session guard.
  *
  * The import takes the CSV as a raw text body rather than a multipart upload: it is one text file,

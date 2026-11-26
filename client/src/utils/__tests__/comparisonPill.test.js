@@ -1,4 +1,4 @@
-// specs/finance-revpar-year-over-year.md §3 rules 16, 24 and 27 — a server metric becomes the pill's props: its
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 16, 24 and 27 — a server metric becomes the pill's props: its
 // change and unit as sent, last year's value formatted, « — vs N-1 » (change null) when it does not compare.
 import { comparisonPill, rateOneDecimal, perNightAmount } from '../comparisonPill';
 

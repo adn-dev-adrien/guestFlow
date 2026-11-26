@@ -1,6 +1,6 @@
 /**
  * usePostalCodeCities — the communes of a French postcode, for a city field picked from a list
- * (specs/resource-booking-pricing-and-invoicing.md rule 27). Generic: used by the clients directory, the fiche's new-client
+ * (specs/resources/resource-booking-pricing-and-invoicing.md rule 27). Generic: used by the clients directory, the fiche's new-client
  * dialog and the billing address of a resource booking.
  *
  * From 2 digits on, asks geo.api.gouv.fr (debounced 250 ms, the previous request aborted), narrowed by what the city field

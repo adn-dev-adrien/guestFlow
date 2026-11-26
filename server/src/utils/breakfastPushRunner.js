@@ -1,5 +1,5 @@
 /**
- * Breakfast push pass (specs/sas-breakfast-bread-and-push.md rules 7-9).
+ * Breakfast push pass (specs/sas/sas-breakfast-bread-and-push.md rules 7-9).
  *
  * Pure + injectable, mirroring `arrivalDeparturePushRunner`. For the current local day it takes
  * the breakfast planning items (breakfastModel.breakfastByDate), finds the ones whose

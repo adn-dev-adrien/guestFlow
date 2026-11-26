@@ -1,4 +1,4 @@
-// specs/school-holidays.md rule 27 — with GUESTFLOW_DISABLE_OUTBOUND=1 under NODE_ENV=test (the E2E
+// specs/pricing/school-holidays.md rule 27 — with GUESTFLOW_DISABLE_OUTBOUND=1 under NODE_ENV=test (the E2E
 // servers) neither the scheduled sync nor the sync of a fresh install calls data.education.gouv.fr; a
 // production instance carrying the flag by mistake still syncs.
 const test = require('node:test');

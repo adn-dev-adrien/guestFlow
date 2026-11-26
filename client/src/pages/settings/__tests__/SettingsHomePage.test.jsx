@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rules 24–27 (UI/UX review 2026-10-18, proposal 20, decision 12) —
+// specs/settings/settings-rationalization.md rules 24–27 (UI/UX review 2026-10-18, proposal 20, decision 12) —
 // `/settings` is the summary: four groups, one row per page with the server's state line, a search
 // that understands wifi / iban / smtp / 2fa, and an empty state that suggests words.
 import React from 'react';

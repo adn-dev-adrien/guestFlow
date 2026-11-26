@@ -1,5 +1,5 @@
 // @ts-check
-// specs/non-card-option-served-persons.md rule 25 — the whole path against the real app: a number typed
+// specs/options/non-card-option-served-persons.md rule 25 — the whole path against the real app: a number typed
 // on a non-card option stays that number when the party changes, the field turns red, retyping another
 // wrong number leaves it red, the save asks, and the circular arrows apply the new value.
 import { test, expect } from '@playwright/test';

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import RefundDialog from '../RefundDialog';
 import { vi } from 'vitest';
 
-// specs/reservation-refunds.md rule 46 — l'argent qu'une annulation a requalifié en indemnité n'a jamais été
+// specs/payments/reservation-refunds.md rule 46 — l'argent qu'une annulation a requalifié en indemnité n'a jamais été
 // rendu : la ligne l'annonce « requalifié », pas « déjà remboursé ».
 
 const LINES = [

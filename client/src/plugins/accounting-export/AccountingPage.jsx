@@ -23,11 +23,11 @@ import MollieClearingCard from './MollieClearingCard';
 import SynthesisPeriodBar from './SynthesisPeriodBar';
 import { TABS } from './synthesisCopy';
 
-// specs/accounting-synthesis.md rule 23 — the synthesis's period in the URL, beside the journal's own month.
+// specs/accounting/accounting-synthesis.md rule 23 — the synthesis's period in the URL, beside the journal's own month.
 const PERIOD_PARAMS = { period: 'p', month: 'sm', quarter: 'sq', fiscalYear: 'sfy', from: 'sfrom', to: 'sto' };
 const TAB_KEYS = Object.keys(TABS);
 
-// The core page « Indemnités d'annulation » (specs/plugins-phase-2-hosts.md rule 21).
+// The core page « Indemnités d'annulation » (specs/plugins/plugins-phase-2-hosts.md rule 21).
 const COMPENSATIONS_PATH = '/finance/indemnites';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
@@ -40,7 +40,7 @@ const LINE_STYLES = {
   tax_pass_through: { label: 'Taxe', color: 'secondary' },
   other:   { label: 'Autre',   color: 'default' },
 };
-// Soft tinted row background from the line's semantic color (specs/ds-sweep-finance.md §3.10).
+// Soft tinted row background from the line's semantic color (specs/design-system/ds-sweep-finance.md §3.10).
 const lineBg = (color) => (t) => (color === 'default'
   ? alpha(t.palette.grey[500], 0.08)
   : alpha(t.palette[color].main, 0.08));
@@ -128,7 +128,7 @@ export default function AccountingPage() {
   const [salesLoading, setSalesLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   // Load failures stay persistent (ErrorAlert + retry); the CSV-download failure toasts
-  // (specs/ds-sweep-finance.md §3.8).
+  // (specs/design-system/ds-sweep-finance.md §3.8).
   const [loadError, setLoadError] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
   const { showError } = useToast();
@@ -250,7 +250,7 @@ export default function AccountingPage() {
               {sales && sales.totals.entriesCount > 0 && (
                 <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   {/* « écritures » plutôt qu'« encaissements » : le journal mêle désormais les
-                      encaissements et les avoirs (specs/reservation-refunds.md §3.4). */}
+                      encaissements et les avoirs (specs/payments/reservation-refunds.md §3.4). */}
                   <Chip size="small" label={`${sales.totals.entriesCount} écriture${sales.totals.entriesCount > 1 ? 's' : ''}`} />
                   <StatusBadge
                     status={sales.totals.allBalanced ? 'success' : 'error'}
@@ -262,7 +262,7 @@ export default function AccountingPage() {
               )}
             </Stack>
 
-            {/* specs/reservation-payment-ledger.md rule 43 — entries with no revenue and no VAT. */}
+            {/* specs/payments/reservation-payment-ledger.md rule 43 — entries with no revenue and no VAT. */}
             {!salesLoading && sales && (sales.totals.taxOnlyEntries || []).length > 0 && (
               <Alert severity="warning" sx={{ mb: 1.5 }}>
                 {sales.totals.taxOnlyEntries.length === 1 ? 'Une écriture porte' : `${sales.totals.taxOnlyEntries.length} écritures portent`} tout
@@ -280,7 +280,7 @@ export default function AccountingPage() {
             {!salesLoading && sales && sales.entries.length > 0 && (
               <Stack spacing={2}>
                 {groupEntries(sales.entries).map((block) => (block.group ? (
-                  /* specs/single-payment-at-check-in.md §3.3 rule 13 — one collection, one card. The
+                  /* specs/payments/single-payment-at-check-in.md §3.3 rule 13 — one collection, one card. The
                      ventilation underneath is untouched: each bucket keeps its own balanced journal,
                      its own account and its own VAT. */
                   <Box key={block.key} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: { xs: 1, sm: 1.5 } }}>
@@ -316,13 +316,13 @@ export default function AccountingPage() {
           </CardContent>
         </Card>
 
-        {/* specs/mollie-rolling-reserve-and-incoming-payments.md rules 30-31 — null without a live Mollie journal. */}
+        {/* specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 30-31 — null without a live Mollie journal. */}
         {!salesLoading && sales && sales.mollie && (
           <MollieClearingCard mollie={sales.mollie} canOpenReservation={canOpenReservation} onOpenReservation={(id) => navigate(`/reservations/${id}`)} />
         )}
 
         {/* The compensations have their own core page; the journal above still carries their
-            entries (specs/plugins-phase-2-hosts.md rule 21). */}
+            entries (specs/plugins/plugins-phase-2-hosts.md rule 21). */}
         <Box sx={{ mt: -1.5, mb: 3, textAlign: { xs: 'left', sm: 'right' } }}>
           <Link component={RouterLink} to={COMPENSATIONS_PATH} variant="body2">
             Indemnités d&apos;annulation →
@@ -400,7 +400,7 @@ export default function AccountingPage() {
 }
 
 /**
- * Une ligne du tableau « Encaissements du mois » (specs/single-payment-at-check-in.md §3.3 rule 13).
+ * Une ligne du tableau « Encaissements du mois » (specs/payments/single-payment-at-check-in.md §3.3 rule 13).
  *
  * Une collecte = une ligne. Quand elle réunit plusieurs échéances, la ligne porte le TOTAL réellement
  * encaissé — le montant qu'on retrouve sur le relevé bancaire — une puce « Paiement unique », et se
@@ -471,7 +471,7 @@ function EncaissementRow({ block, canOpenReservation, onOpen }) {
 // and the platform info if non-direct. The body is a balanced mini-journal coloured by line type.
 
 /**
- * specs/single-payment-at-check-in.md §3.3 rule 13 — fold the entries that were ONE collection into
+ * specs/payments/single-payment-at-check-in.md §3.3 rule 13 — fold the entries that were ONE collection into
  * one block, in place, without reordering anything else. A group of one falls back to a plain card:
  * a lone entry is an ordinary payment, and framing it would announce a grouping that isn't one.
  */
@@ -498,7 +498,7 @@ export function groupEntries(entries) {
 }
 
 /**
- * specs/single-payment-at-check-in.md §3.3 rule 13 — le tableau des encaissements montre UNE ligne par
+ * specs/payments/single-payment-at-check-in.md §3.3 rule 13 — le tableau des encaissements montre UNE ligne par
  * collecte, pas une par échéance.
  *
  * Écrit dans la spec dès la v2.9.0 mais jamais construit : le tableau listait deux encaissements pour
@@ -527,15 +527,15 @@ export function groupPreviewRows(rows) {
 const KIND_LABELS = {
   deposit: 'Acompte', balance: 'Solde', complement: 'Complément',
   endOfStayComplement: 'Complément fin de séjour', midStayComplement: 'Prestations en séjour',
-  // specs/reservation-refunds.md §3.4 rule 25 — an avoir: same journal, sides mirrored.
+  // specs/payments/reservation-refunds.md §3.4 rule 25 — an avoir: same journal, sides mirrored.
   refund: 'Remboursement',
-  // specs/cancellation-compensation.md §6.3 — money in, but for a stay that never happened.
+  // specs/payments/cancellation-compensation.md §6.3 — money in, but for a stay that never happened.
   compensation: "Indemnité d'annulation",
-  // specs/arrival-payment-detail-and-adjustment.md §3.4 — les deux faces de « ce que le client a
+  // specs/sas/arrival-payment-detail-and-adjustment.md §3.4 — les deux faces de « ce que le client a
   // vraiment remis » pour un paiement unique : une remise consentie à la porte, ou un pourboire.
   discount: 'Rabais accordé',
   tip: 'Pourboire',
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — what Mollie owes / has paid, through its clearing account.
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28 — what Mollie owes / has paid, through its clearing account.
   mollie: 'Mollie',
 };
 
@@ -581,7 +581,7 @@ const MONO_AMOUNT_SX = { fontFamily: 'monospace', fontVariantNumeric: 'tabular-n
 
 /**
  * The journal lines on a phone: one stacked row per line, the amount always in view on the right
- * (specs/ds-components.md rule 23). The five-column table needs ~470 px and the card clips it.
+ * (specs/design-system/ds-components.md rule 23). The five-column table needs ~470 px and the card clips it.
  */
 function JournalLinesCompact({ entry }) {
   return (
@@ -642,7 +642,7 @@ export function JournalEntryCard({ entry, canOpenReservation = false }) {
   // A compensation outlived its reservation (approving the cancellation deleted it), so the client
   // name must NOT link to a reservation page that would 404.
   const isCompensation = entry.direction === 'compensation';
-  // specs/arrival-payment-detail-and-adjustment.md §3.4 — ni l'une ni l'autre ne couvre une part du
+  // specs/sas/arrival-payment-detail-and-adjustment.md §3.4 — ni l'une ni l'autre ne couvre une part du
   // séjour : la remise en retire, le pourboire s'y ajoute sans rien vendre. Les deux sortent donc du
   // libellé « N % du séjour », qui n'aurait aucun sens sur elles.
   const isDiscount = entry.direction === 'discount';

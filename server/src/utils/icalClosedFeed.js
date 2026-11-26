@@ -1,5 +1,5 @@
 /**
- * Feeds that mark every stay « CLOSED - Not available » (specs/lodgify-decommission.md §3 rule 16).
+ * Feeds that mark every stay « CLOSED - Not available » (specs/platforms/lodgify-decommission.md §3 rule 16).
  *
  * Booking.com's iCal export gives every taken night that summary, real reservations included, so the
  * parser must keep those events and the sync must treat them as nameless stays (echo filter, exact-date

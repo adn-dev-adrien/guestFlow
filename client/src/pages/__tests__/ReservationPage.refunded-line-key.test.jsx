@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 108 (loop t8 UI8-5) — the fiche matches the server's refundedLoweredLines on the key the server
+// specs/pricing/pricing-components.md rule 108 (loop t8 UI8-5) — the fiche matches the server's refundedLoweredLines on the key the server
 // serves on the custom line (`key`), never on a key it rebuilds from the line's label.
 import React from 'react';
 import { vi } from 'vitest';

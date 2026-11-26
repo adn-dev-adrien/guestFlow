@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rules 9–10 — reading A: the withheld tax is what Airbnb keeps, and the
+// specs/platforms/airbnb-mail-intake.md rules 9–10 — reading A: the withheld tax is what Airbnb keeps, and the
 // commission is then Airbnb's host fee exactly. Measured on réservations 202610003 and 202609003.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,7 +11,7 @@ const REVERSES = (figures) => computePlatformCommission(figures);
 const KEEPS = ({ touristTax, ...figures }) => computePlatformCommission(figures);
 const paymentBlock = (booking, options) => block(booking, { platform: 'Airbnb', platformCommission: options.mode === 'platform_reversed' ? REVERSES : KEEPS, ...options });
 
-// Amended 2026-11-26 (specs/platform-host-statement-and-commission-vat.md rules 1, 5, 20): the block is the host side of « Vous gagnez ».
+// Amended 2026-11-26 (specs/platforms/platform-host-statement-and-commission-vat.md rules 1, 5, 20): the block is the host side of « Vous gagnez ».
 // Toussaint (#22326) and Fraisse (#22291), figures measured in production.
 const LOUIS = { roomFees: 1598, adjustments: -443.4, cleaningFee: 0, payout: 1028.44, guestTaxes: 81.66, hostTaxes: 52.8, hostFee: 178.96 };
 const NICOLAS = { roomFees: 725, adjustments: 0, cleaningFee: 80, payout: 704.22, guestTaxes: 63.87, hostTaxes: 24, hostFee: 124.78 };
@@ -44,7 +44,7 @@ test('rule 10: in `owner` mode the box stays empty', () => {
   assert.equal(r.block.platformGrossAmount, 1154.6);
 });
 
-test('specs/pricing-components.md rule 70 — the commission is the core\'s PLATFORM PAYMENT (SDK platformCommission), never worked out here', () => {
+test('specs/pricing/pricing-components.md rule 70 — the commission is the core\'s PLATFORM PAYMENT (SDK platformCommission), never worked out here', () => {
   const seen = [];
   const spy = (figures) => { seen.push(figures); return computePlatformCommission(figures); };
   assert.equal(block(LOUIS, { mode: 'platform_reversed', platform: 'Airbnb', platformCommission: spy }).ok, true);

@@ -1,5 +1,5 @@
 /**
- * What stands on the nights of a proposed closure (specs/payment-link-lifecycle.md rules 40, 41, 49),
+ * What stands on the nights of a proposed closure (specs/payments/payment-link-lifecycle.md rules 40, 41, 49),
  * shaped for the closure dialog: one `{ label, detail, url }` line per stay or request, ready to print.
  *
  *   closureConflicts(model, { propertyId, startDate, endDate })

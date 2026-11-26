@@ -1,0 +1,580 @@
+# Arrival & departure SAS (guided check-in / check-out wizard)
+
+| Field | Value |
+|---|---|
+| **Status** | Implemented |
+| **Branch** | `feature/arrival-departure-sas` _(user-managed)_ |
+| **Created** | 2026-06-12 |
+| **Author** | Adrien |
+| **Related PR** | (link once opened) |
+
+---
+
+> **Reviewed 2026-11-26 (spec reorganization).** The SAS is now the `sas` plugin: routes and read side in `server/src/plugins/sas/` (`controller.js`, `arrivalRecap.js`, `departureRecap.js`, `sasAudit.js`), dialog in `client/src/plugins/sas/`; the commit stays in core (`reservationsModel.commitArrivalSas` / `commitDepartureSas`). Paths in §4 below are the original map.
+
+## 1. Context
+
+On the Planning, each arrival shows a `ReservationCard` and each departure a `DepartureMiniRow`. Today a
+click navigates to the full reservation page. At check-in / check-out the operator has a mental checklist
+(collect the caution, review options, check the bed linen, handle cleaning, collect the complement, return
+the caution…). Nothing guides them through it, and the money to collect on arrival / departure is easy to
+forget.
+
+The operator wants a **SAS** ("airlock"): clicking a planning card opens a **sequence of single-purpose
+popup pages**, each covering one thing to handle, with a **Quitter** button on every page to abort back to
+the planning. Decisions are accumulated and **committed once at the final summary**.
+
+## 2. Goal
+
+From the Planning, the operator runs a guided **arrival SAS** (and a **departure SAS**) that walks through
+every relevant step for that reservation, computes what's still to collect, and — on a single final
+confirmation — records the caution status and the complement(s) on the reservation.
+
+## 3. Functional rules
+
+### 3.0 Launch & shell
+1. **Launch model (revised 2026-06-18).** The **card body is clickable → opens the reservation fiche**
+   (like the option / breakfast / resource cards), and there is **no longer a separate « Ouvrir la
+   réservation » icon**. The only on-card button is the **SAS launcher** (`ChecklistIcon`, → arrival
+   resp. departure SAS), rendered as a **large icon** (40 px) for an easy mobile tap target; it
+   `stopPropagation`s so it doesn't also open the fiche. _(History: 2026-06-13 introduced two explicit
+   buttons + a non-clickable card, superseding an earlier whole-card-opens-SAS model; this 2026-06-18
+   change makes the card open the fiche and keeps only the enlarged SAS button.)_
+   - **Placement (decision 2026-06-14):** the two buttons sit **top-right** on tablet/desktop (`sm+`);
+     on **mobile** (`xs`) they move to a **dedicated row at the bottom of the card, right-aligned**, so
+     the « Prêt » / « Effectué » chip no longer pushes them off-frame. Rendered once (a `useMediaQuery`
+     branch, not a CSS `display` toggle) so there is no duplicate button in the DOM.
+   - **A finished SAS stays re-openable**: when `arrivalSasDoneAt` (resp. `departureSasDoneAt`) is set,
+     the SAS button shows a green ✓ (`CheckCircleIcon`) but **stays clickable** (tooltip « Revoir /
+     modifier le check-in/check-out »); clicking re-opens the wizard pre-filled with the prior data
+     (specs/sas/reopen-completed-sas.md, 2026-06-15 — superseded the 2026-06-13 disabled-lock).
+   - **The client name is a link** → opens the client fiche (`/clients?clientId=…`). Everything else on
+     the tile is inert. The full reservation page also stays reachable via a discreet
+     **« Ouvrir la fiche »** link in the SAS header once the SAS is open.
+2. The SAS is a **stepper of pages** (MUI Dialog, `fullScreen` on mobile). Every page has **Quitter** (abort
+   → back to planning, **nothing written**) and a forward action. Non-applicable pages are **skipped**.
+   **Visual shell (refonte 2026-06-15, see §6):** a mode-coloured header band (arrivée = orange chaleureux,
+   départ = ardoise) carrying the step icon + short title + a progress bar « Étape X/Y » + a ✕ that *is* the
+   Quitter; a large centred step icon + large heading in the body; big, colour-coded action buttons pinned at
+   the bottom; a « ‹ » **« Précédent »** arrow (from the 2nd page on) goes back one page. The **single commit
+   at the recap is unchanged** — going back / forward writes nothing until « Valider et terminer ». (The
+   former forward-only rule was relaxed to allow going back — specs/options/extinguisher-seal-and-repair-amounts.md
+   §3.2 rule 7.)
+   _Reading of 2026-11-18 (stabilisation loop t22, owner decision: lost focus is a defect on every path):_ every page change,
+   forward or back, puts the focus on the new page's short title in the band (`tabIndex -1`, no outline, `data-step` = the
+   page key) whenever the focus was lost or sat on the band or the footer. Before, the control that moved the wizard was
+   often gone (focus on the document body: « Commencer », « Suivant » to the stay page, « Précédent » on the first page),
+   or React kept the same footer button for the next page with another meaning (« Non » of the keys became « Non » of the
+   extinguisher, « Suivant » became « Valider et terminer »: a second Enter answered or committed a page never read). The
+   « Quantités ≠ personnes » confirmation hands the focus to the title when it leaves (`ConfirmDialog` prop `onExited`).
+   Measured in Chromium on stay 22303 (2026-11-11 copy, 1280 / 390 px): arrival 16 transitions (with the resource
+   scheduling plugin page), departure 12, every one on the new title. Client `ReservationSasDialog.step-focus` (1: the
+   pages read from the footer's `case` keys, both walks forward and back in one test, every page visited — one test so the
+   coverage never depends on the order; the stay page's settlement is chosen once its buttons are enabled, `stayPageReady`).
+3. **All writes happen once**, at the final **« Valider et terminer »** of the recap page (decision: write at
+   final validation). Quitting before then changes nothing. (One server commit endpoint per SAS.)
+4. State accumulated during the SAS (caution decision, selected missing linen elements, cleaning-added flag)
+   lives in client memory until the commit.
+
+### 3.1 Arrival SAS — pages (in order, each conditional)
+5. **Récap séjour (intro, always).** Client, logement (+ plateforme), dates + heures d'arrivée/départ, nombre
+   de personnes, bed config. Button **Commencer**.
+5.bis **Code portail (only if a portal code is configured).** Shows the access/gate code to give to the
+   client (global setting `portalCode`, §3.5). Informational. Button **Suivant**.
+6. **Caution (only if `cautionAmount > 0` AND not `cautionReceived`).** Shows the caution amount; hidden as
+   soon as the caution is received, including when reopening a completed SAS (specs/sas/sas-hide-settled-steps.md §3).
+   Buttons:
+   - **Fait** → marks the caution to be validated on commit (`cautionReceived=1`, `cautionReceivedDate=today`).
+   - **Reporté** → defer; this page is **re-shown right before the recap** (rule 11).
+7. **Options réservées (only if the reservation has ≥ 1 option/resource).** Read-only list of the options +
+   resources selected for the stay (title + qty). Button **Suivant**.
+8. **Linge de lit (only if the reservation has a bed-linen alert, reusing the planning card flag
+   `bedLinenAlert`).** Two sub-cases:
+   - **capacity mismatch** → *« Vérifier les draps avec le client (le linge prévu ne couvre pas le nombre de
+     personnes). »* Buttons **OK** (→ next page) / **Pas OK** (→ rule 9).
+   - **no linen taken** → *« Le client n'a pas pris le linge de lit. »* Same **OK / Pas OK**.
+   - Never shown for linen-by-default properties (the flag is already null there).
+9. **Éléments de linge manquants (only when rule 8 = « Pas OK »).** Lists the operator-defined priced
+   **bed-linen** elements (`category='bed'`: taie d'oreiller, housse de couette, sur-matelas, drap-housse, …)
+   from **Réglages → Blanchisserie** (§3.4). The operator ticks the missing elements and sets a **quantity**
+   per element. Each selected line `(label, qty × price)` is **accumulated into the arrival complement**
+   (committed at the recap). Button **Suivant**.
+10. **Ménage (only if the cleaning is NOT already included).**
+    - **Cleaning included** (reservation has the cleaning option `autoOptionType='cleaning'`, or it's a
+      property default) → **no ménage page**; the client reminder (« vaisselle faite et rangée, poubelles
+      vidées ») is carried to the recap instead (rule 12, specs/sas/sas-hide-settled-steps.md §3) — never on
+      an Airbnb stay (specs/platforms/airbnb-no-checkout-chores.md).
+      **Exception (2026-08-03):** when the only reason it is « included » is the SAS's own row
+      (`sasArrivalOrigin = 1`), the page **stays visible, pre-selected « ajouté »**, so the operator can undo
+      it — see [sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md) §3.2.
+    - **Cleaning not included** → *« Le ménage n'a pas été pris. Tarif ménage pour ce logement : X €. »*
+      Buttons **Ajouter le ménage** / **Non merci** (→ next). **« Ajouter le ménage » activates the
+      CATALOGUE option** (`autoOptionType='cleaning'`, `inComplement = 1`, `sasArrivalOrigin = 1`), priced by
+      the engine — **not** a custom line (revised 2026-08-03, same spec).
+10.bis **Linge de toilette (only if the reservation did NOT take the `bathroom_linen` option).** Upsell,
+    priced **per person** by the engine (specs/linen/sas-bath-linen-upsell.md). *« Le client n'a pas pris le linge
+    de toilette. Tarif : X € (N pers × Y €). »* Two buttons, mirroring the ménage step: **Ajouter le linge de
+    toilette** (→ activates the **catalogue** `bathroom_linen` option, `inComplement = 1`,
+    `sasArrivalOrigin = 1`, priced by the engine — so the laundry and the linen stock finally count the
+    towels, revised 2026-08-03) / **Non merci** (→ next). **No payment
+    question here** — the whole complement (bath linen included) is settled on the recap
+    (CB/Chèque · Payé en liquide · En fin de séjour — « Plus tard » when the stay is settled in the
+    same payment, specs/sas/sas-recap-payment-buttons.md rule 1 note of 2026-10-27). Skipped when bath linen is already taken or no priced
+    `bathroom_linen` option exists.
+10.ter **Petit déjeuner — vente (only if the reservation did NOT take the breakfast option).** Offer page
+    (tarif + how many mornings the stay allows) with **Ajouter le petit déjeuner** / **Non merci**; adding it
+    opens **« Quels matins ? »** — the same occurrence grid as the fiche, all mornings pre-checked, with the
+    fiche's quantity caption — then **chains the existing composition page** (drinks/food), pre-filled with
+    the defaults of a never-committed check-in. See
+    [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) §3.1.
+10.quater **Restauration (only if the property has sellable « Restauration » options left).** Ask page
+    (**Oui, proposer** / **Non merci**) then the catalogue: moments grid for a card option (*Le repas des
+    trappeurs*), switch + stepper pre-filled with the type multiplier for the others (planches). Same spec
+    §3.2. Both steps write **catalogue options** (`inComplement = 1`, `sasArrivalOrigin = 1`, with their
+    `cardOccurrences`), settled on the recap with the rest of the complement — or routed to the end-of-stay
+    complement when the arrival complement is already collected (§3.4 there).
+11. **Caution reportée (only if rule 6 = « Reporté »).** ~~Re-shows the caution page once more before the recap.~~ **Removed 2026-11-12** (manual trial of 4.0.0: the page came back just before the summary after the operator had deferred it): the caution is asked once, on its own page; a deferral goes straight on, the recap says « Caution non perçue : reportée au départ. » (rule 31).
+12. **Récapitulatif (always).** Shows the **arrival complement to collect** = **existing `complementAmount`**
+    (before the SAS) **+** the items added during the SAS (linen elements, cleaning, bath linen, breakfast and
+    catering sold at check-in), **with the full detail
+    line by line**. Also shows the caution status (Fait / non traité) — after « Reporter au départ »
+    the recap reads « Caution non perçue : reportée au départ. », and after « Non » « Aucune caution pour ce séjour. » (it showed nothing until the
+    2026-10-27 spec review; `ReservationSasDialog.caution-deferred.test.jsx`). When the cleaning is included, shows the
+    client reminder « vaisselle faite et rangée, poubelles vidées » (moved here from the hidden ménage page,
+    specs/sas/sas-hide-settled-steps.md §3), except on an Airbnb stay (specs/platforms/airbnb-no-checkout-chores.md). Buttons **Valider et terminer** (commit) / **Quitter**.
+
+### 3.2 Departure SAS — pages (in order, each conditional)
+13. **Récap séjour (intro, always).** Client, logement, dates, heure de départ. Button **Commencer**.
+14. **Ménage de fin de séjour (only if the cleaning is NOT already sold).** *« Le ménage de fin de séjour
+    a-t-il été fait correctement ? »* Buttons **OK** / **Pas OK**. **Pas OK** → the **end-of-stay
+    complement** gets the property's cleaning price added (§3.3).
+    **Hidden (2026-08-03) when `cleaning.included` is true** — booked cleaning option, « Ménage » line
+    added at check-in, or property default: the host does the cleaning, so there is nothing to assess and
+    **nothing can be billed** (the server drops the line whatever the client sends). The recap then reads
+    « Ménage déjà réglé — aucune facturation de fin de séjour. » See
+    [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.1.
+14.bis **Serviettes / draps manquants (always).** *« Les serviettes et les draps sont-ils tous là ? »* (worded « Des serviettes ou des draps sont-ils manquants ? » until the 2026-10-27 audit — rule 28)
+    Buttons **Non** (→ rule 14.ter) / **Oui** (→ next).
+14.ter **Éléments manquants (only when 14.bis = « Non », something is missing).** Lists **all** priced Blanchisserie items (bed +
+    towel categories) with a **quantity** picker; `Σ (qty × price)` is **added to the end-of-stay
+    complement** (§3.3). Button **Suivant**.
+15. **Réception des clés (always).** *« Avez-vous récupéré les clés ? »* Buttons **Oui** / **Non** (a
+    checklist gate — no DB write; **Non** just leaves a visible reminder on the recap). Button **Suivant**.
+16. **Caution à rendre (only if `cautionAmount > 0` AND `cautionReceived` AND not `cautionReturned`).**
+    *« Rendre la caution de X €. »* Buttons **Rendue** (→ `cautionReturned=1`, `cautionReturnedDate=today` on
+    commit) / **Dégât / litige** (→ not returned, left for manual handling — decision: no retained amount).
+17. **Récapitulatif fin de séjour (only if the end-of-stay complement ≠ 0, else a short closing page).**
+    Shows the **end-of-stay complement** with its detail (cleaning + missing linen/towels), the caution
+    status, and the keys reminder if « Non ». **Valider et terminer** (commit) / **Quitter**.
+
+### 3.3 Complements
+30. **Arrival complement** = the reservation's existing `complementAmount` **plus** the SAS-added items
+    (linen elements + ménage + linge de toilette). **Two storages since 2026-08-03**
+    ([sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md)): the ménage and
+    the linge de toilette activate their **catalogue option** (`reservation_options`, `inComplement = 1`,
+    `sasArrivalOrigin = 1`) so the laundry/stock aggregators see them; the **linen elements** — which come
+    from Blanchisserie, not from the catalogue — stay `reservation_custom_options` with
+    `inComplement=1` and the reservation is re-priced (the engine recomputes `complementAmount`), so the
+    detail is durable + visible on the reservation and in the J-1 email breakdown.
+18. **End-of-stay complement** is a **separate, dedicated amount** (decision 2026-06-12), stored on the
+    reservation (`endOfStayComplementAmount` + paid flag + detail). It does **not** touch the arrival
+    `complementAmount`. The departure SAS sets it = **cleaning price** (ménage « Pas OK ») **+** the
+    **missing linen/towels** selected at rule 14.ter. The **arrival** SAS can also add a line here — the
+    **bath-linen deferred to check-out** (rule 10.bis, `source='arrivalBathLinen'`, specs/linen/sas-bath-linen-upsell.md).
+    Such arrival-added lines are **displayed + counted + preserved** by the departure recap/commit (they are
+    not silently dropped when the departure SAS rebuilds the detail).
+18.bis **Deferred arrival complement (2026-08-03).** Choosing **« En fin de séjour »** on the arrival
+    recap records `complementDeferredToCheckout = 1`. The two amounts stay separate in the DB, but every
+    operator view then presents **one single « Complément de fin de séjour »** = arrival complement +
+    end-of-stay complement, with one detail list, one total and one « payé » action (which settles both).
+    See [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.2.
+19. Both complements round to 2 decimals and never go negative.
+19.bis **Recap detail with quantities + prices (2026-06-18).** When there is a complement to settle, the
+    recap lists **each line** — the pre-existing in-complément extras (options / resources / custom, with
+    their quantity + unit price), the SAS-added items, and the end-of-stay lines — formatted
+    « libellé : qté × prix unitaire = total » (just « libellé : total » when qty ≤ 1), instead of a lump
+    « Déjà dû ». Applies to both the arrival and the departure recap. Display-only (totals unchanged).
+
+### 3.4 Priced linen items (Réglages → Blanchisserie)
+20. The **« Stock blanchisserie »** settings page + menu entry is **renamed « Blanchisserie »** (route
+    unchanged). It gains **two editable, reorderable tables** of priced items `{ label, price }`, stored in
+    one `linen_priced_items` table with a `category` column:
+    - **Éléments de linge de lit** (`category='bed'`): taie d'oreiller, housse de couette, sur-matelas,
+      drap-housse, … — used by the **arrival** linen page (rule 9).
+    - **Serviettes** (`category='towel'`): the operator adds the towel variants they want (serviette de bain,
+      de toilette, drap de plage, …) with a price each.
+    Both categories are listed at the **departure** missing-items page (rule 14.ter). Add / edit / remove /
+    reorder per table. Persisted server-side.
+
+### 3.5 Portal / access code
+21. A **single global `portalCode`** (the domain's gate code) is configured in **Réglages** (general
+    settings). The arrival SAS rule 5.bis shows it; empty → that page is skipped. (Decision 2026-06-12:
+    global, per the operator's « dans les settings » — see §9 if it should later become per-property.)
+21.bis. **`portalCode` must round-trip through `GET /api/settings`** so the Réglages « Code portail »
+    field is **populated on page load**, not just writable. (Fix 2026-07-01: `settingsResponse.shapeResponse`
+    omitted `portalCode` from the `company` block, so the field always rendered empty even when a code was
+    saved. Guarded by a non-regression test in `tests/settings-response.unit.test.js`.)
+
+### 3.6 Completing a SAS validates the planning coche + dashboard status (2026-07-01)
+22. **Going all the way through a SAS validates the matching status flags** — the point of finishing the
+    airlock is that the operator no longer has to tick the checkboxes by hand.
+    - **Arrival commit** sets `checkInReady = 1` **and** `checkInDone = 1`. `checkInReady` is both the
+      **planning arrival coche** (« Prêt ») and the dashboard **« Prêt »** column; `checkInDone` is the
+      dashboard **« Arrivé »** column. So finishing the arrival SAS validates the planning coche AND the
+      dashboard « Prêt » + « Arrivé » for that reservation.
+    - **Departure commit** sets `checkOutDone = 1` — the **planning departure coche** = dashboard **« Parti »**.
+    - **Forward-only, idempotent, never auto-unticked.** Each commit sets the flag(s) to 1; a re-opened +
+      re-committed SAS (specs/sas/reopen-completed-sas.md) re-affirms them. The commit never sets a flag back to
+      0, so the operator's manual tick/untick on the planning or dashboard remains authoritative between SAS
+      runs. (Unlike the caution / complement markers, these are not tri-state — completing the SAS is an
+      unambiguous « done ».)
+
+**Edge cases:**
+- Caution already received → no caution page on arrival, even when reopening a completed SAS
+  (specs/sas/sas-hide-settled-steps.md §3); caution-return page on departure only if received.
+- Reservation with no options, linen fine, cleaning included → arrival SAS = intro + (caution?) + recap
+  (complement = pre-existing only; the ménage reminder rides on the recap, no dedicated ménage page).
+- `complementPaid=1` on arrival: adding items still records them; the recap warns the arrival complement was
+  already marked paid (so the operator knows to collect the delta manually). (Open question §9.)
+- Quitter at any point → no DB change (state was in memory only).
+- A property with no cleaning option / no price configured → the « ajouter le ménage » action is disabled
+  with a hint to set the price in the options.
+
+### 3.7 A SAS commit feeds the reservation history (2026-08-03)
+
+24. **Both SAS write into « Historique des modifications ».** A check-in / check-out is a reservation edit
+    like any other — and the one where the most money changes hands — so it must leave a trace. The
+    controller snapshots the reservation **before** and **after** the commit and stores the labeled diff
+    through the existing `model.addHistoryEntry`, with a dedicated `eventType`:
+    `sas_arrival` (« SAS arrivée ») and `sas_departure` (« SAS départ »).
+25. **What is tracked** (`utils/sasAudit.js`, French texts resolved server-side): caution reçue /
+    restituée, ménage et linge de toilette pris ou retirés, éléments de linge facturés, complément à
+    percevoir + encaissement + report en fin de séjour, complément de fin de séjour + son détail,
+    composition et heure du petit déjeuner, note pour le départ, état de l'extincteur à l'arrivée et au
+    départ, **prestations vendues au check-in** (titre × unités, montant, et « — 1 × 2 pers. servies »
+    quand les couverts d'une option à carte ne sont pas toute la tablée —
+    [card-option-served-persons.md](../options/card-option-served-persons.md) §3.3 rule 15).
+    Only fields that actually moved appear — a step the operator skipped writes nothing.
+26. **Never blocks the commit.** The history is written after the money is committed and inside a
+    try/catch: a failure there is logged, never surfaced as a failed check-in.
+27. **A commit that changed nothing writes no entry** (same contract as the fiche's `update`).
+
+28. **« Oui » never changes side** (2026-10-27 audit). Every yes/no page of the departure reads
+    « Non | Oui » (or « Pas OK | OK »), the reassuring answer filled and last. The missing-items
+    question is asked the positive way round — « Les serviettes et les draps sont-ils tous là ? »,
+    « Oui » = nothing missing, « Non » opens the missing-items page — because « Des serviettes ou des
+    draps sont-ils manquants ? » put a filled « Non » on the right and « Oui » on the left, the reverse
+    of the keys page that follows (rule 14.bis keeps its behaviour, only its wording turns).
+
+29. **A linen element keeps its count** (fixed at the 2026-10-27 spec review). The arrival SAS writes
+    a missing linen element as a custom line; the row stored the total only (« Taie d'oreiller »
+    × 2 at 3,30 € = one 6,60 € row), so the planning card and every reader showed « ×1 ».
+    `reservation_custom_options.quantity` (default 1) now keeps the count: the reservation payload
+    gives such a line `quantity` / `billedUnits` = the count and `unitPrice` = amount ÷ count; a
+    fiche save carries the count over with the SAS marker; a reopened SAS seeds its counters from it
+    instead of dividing the amount by a price that may have changed. Existing SAS rows are backfilled
+    once (`sas_custom_line_quantity_v1`) when their amount is an exact multiple of the priced item of
+    the same label. Pinned by `tests/sas-custom-line-quantity.unit.test.js`.
+31. **« Non » on the caution page: no caution is taken for this stay** (2026-11-12, manual trial of 4.0.0; rule numbers
+    are identities, added at the end). The caution page answers three ways, in this order in the footer: « Non » (outlined
+    error), « Reporter au départ » (neutral), « Caution perçue » (filled, last). « Non » is stored as a marker,
+    `reservations.cautionWaived` (0/1, additive migration), not as an amount: the caution stays live from the property until
+    received ([caution-live-from-property.md](../payments/caution-live-from-property.md)), and `resolveEffectiveCaution` reads **0** while
+    the marker is set and no caution is held. That one function feeds every reader — the fiche's ledger (the existing
+    `caution` row « Sans objet », reservation-payment-ledger rule 74, built from the same effective amount in the
+    controller's `ledgerFor`), the planning card and the home (no « Caution à percevoir »), the guest e-mails (no
+    `cautionNotReceived`), and the departure SAS, whose « Retour caution » step needs a caution received, so it never
+    appears. The commit takes `cautionWaived` (tri-state like `cautionReceived`: undefined = the page was not shown, the marker
+    stays); it is refused as an invalid tick when not a boolean (rule 72 of the ledger spec), ignored while a caution is held,
+    and **cleared whenever a caution is received** (SAS « Caution perçue » or the fiche). A reopened SAS shows the page again
+    pre-answered « Non » (the property amount is served as `propertyDefaultCautionAmount`, also for reception) so the answer
+    can be changed. The history says « Aucune caution pour ce séjour : non → oui ». Pinned by `tests/sas-caution-waived.unit.test.js` and
+    `ReservationSasDialog.caution-answers.test.jsx`.
+32. **A run's sales and gifts move `finalPrice`** (2026-11-12, verification of the manual trial of 4.0.0). `commitArrivalSas`
+    never updated the stored `finalPrice`, so after a breakfast or a meal sold at the door the fiche fell to the stored summary
+    with a wrong « Prix hébergement » (stay 22308: 217,80 € instead of 504,00 €) and the refund dialog (`utils/refunds.js`)
+    reused it. The commit (and the check-out's gifts, `offeredArrivalExtras`) now reads what the stay's lines bill (options,
+    resources, non-offered custom lines) before and after its writes, inside the same transaction, and moves `finalPrice` by
+    the difference (`billedLinesOf` / `moveFinalPriceBy`); a run that sells and gives nothing moves nothing; a minimal schema
+    without the column has nothing to move. Test: `tests/sas-final-price-moves.unit.test.js`.
+33. **Reading of 2026-11-12 (accepted, no code):** a stay answered « Non » (rule 31) whose logement's caution later becomes 0
+    still opens the caution page, reading 0,00 € — the answer stays changeable.
+    > **Sans test** — a reading recorded, no behaviour added.
+34. **Reopening a check-in whose complement it collected never bills its sales twice** (2026-11-12, verification of the manual
+    trial of 4.0.0). Walking through a reopened SAS with the same answers re-sent the already-collected breakfast / meal as
+    `sales`; the frozen-complement branch of `commitArrivalSas` wrote the whole of them into the end-of-stay complement
+    (0 → 350 €) and the recap warned « encaisser le supplément (350,00 €) manuellement ». Now that branch (and the plan's
+    `supplementOutsideComplement`) routes to the end-of-stay complement only what a sale bills **beyond what the collected
+    complement already holds for its key** (`collectedHoldByKey`: the stored amount of the SAS-origin row, less what an earlier
+    run already routed to the end-of-stay detail for that key). A fully covered key adds nothing and stays in the arrival
+    baseline; a quantity **raised** adds only the difference; a quantity **lowered** writes nothing negative (the money collected
+    stays collected, no refund is made here); a **new** key is billed in full. The check-out SAS writes no sale, so it has no
+    equivalent branch. Test: `tests/sas-reopen-collected-sale.unit.test.js`.
+    *Rule 32, completed:* the added guests' surcharge counts among the billed lines, so « Offrir » on « Voyageurs ajoutés » (check-in
+    recap or check-out gifts) moves `finalPrice` too (`sas-final-price-moves-departure.unit.test.js`).
+35. **On a collected arrival complement, everything the run adds rides the end-of-stay complement, and the recap says exactly that
+    amount** (2026-11-12, final verification of the manual trial of 4.0.0; completes rule 34). Two defects remained on a collected
+    complement: (a) the recap re-announced money already routed to the end-of-stay complement (52 €, 100 €; on stay 22308, 35 € already
+    collected) on every unchanged re-run; (b) it announced the linge de toilette (80 €), the ménage and the custom items (linen
+    pieces, a plugin's evening supplement) which the commit dropped — nothing billed, booked or counted for the laundry. Decision:
+    route them **exactly like the sales**. `commitArrivalSas` writes their rows (the towels are counted for the laundry), and per key
+    (`opt:<id>` or `custom:<label>`) only what the line bills **beyond what the collected complement holds** goes to the
+    end-of-stay complement (`collectedHoldByKey`: the stored amount of the SAS-origin rows, options and custom lines, less what the
+    end-of-stay detail already carries for the key); `finalPrice` moves by the lines' difference (rule 32), so the stored summary
+    stays true. The plan's `supplementOutsideComplement` is the same computation (`sasLinesAfter` → `frozenRouting`): **the
+    announced amount equals what this commit adds to the end-of-stay complement** — an unchanged re-run announces nothing, a raised
+    line announces only the difference, a lowered or dropped line announces nothing (and takes its routed money back out). The
+    recap line no longer asks to collect by hand: « Ajouté au complément de fin de séjour : X € ». It supersedes the « encaisser le
+    supplément manuellement » warning of `sas-arrival-total-server-side.md`, `sas-upsells-activate-catalogue-option.md` and
+    `sas-bath-linen-upsell.md`. A run that adds money to an end-of-stay complement collected elsewhere is still refused (rule 17 of
+    `sas-breakfast-and-catering-upsell.md`); a sale put back after being dropped, the collected end of stay still holding its amount,
+    adds nothing and is accepted (reading of R26 LOW 2). Tests: `tests/sas-reopen-collected-sale.unit.test.js` (rule 35),
+    `tests/sas-commit.unit.test.js` (frozen item, ménage and linge de toilette), `ReservationSasDialog.collected-supplement.test.jsx`.
+36. **The hold of a collected complement is its collection entry; removing money from a collected end-of-stay complement is
+    refused** (2026-11-12, last verification round; completes rules 34-35). (a) `collectedHoldByKey` reads what the collected
+    complement holds per key from its own entry (`complementPaidSplit.lines`, cents per `extraLineKey`, stamped at collection and
+    immutable), the SAS-origin rows less the routed money only as the fallback for a legacy row without the entry — so a sale
+    lowered or dropped on a reopen and then put back is never billed again (trapper meal on stay 22308: +25 €, not +275 €). (b)
+    When the end-of-stay complement is collected — wherever it was collected, the departure SAS included (for the check-in, an
+    end-of-stay complement collected at the departure SAS is just as frozen) — a run that would make the end-of-stay money of a
+    SAS-origin key shrink (a line dropped or lowered whose money sits in it) is refused, preview and commit, with the family of
+    rule 17 of `sas-breakfast-and-catering-upsell.md` — 409 `END_OF_STAY_ALREADY_COLLECTED`, « Complément de fin de séjour déjà
+    encaissé : le décocher sur la fiche avant de retirer une prestation. », nothing written (`finalPrice` included); the dialog
+    prints it like the rule-17 refusal. The sale put back after a drop is therefore unreachable. Tests:
+    `tests/sas-reopen-collected-sale.unit.test.js` (raised / lowered, put back), `tests/sas-collected-end-of-stay-growth.unit.test.js`
+    (drop and lower refused, same sale passes; growth and shrink refused when collected at the departure SAS).
+
+---
+
+## 4. Architecture
+
+> **Fat backend, thin frontend.** The SAS *page applicability*, the *cleaning price for the property*, the
+> *bed-linen alert*, the *priced linen elements*, and the *complement recompute* are all resolved
+> server-side. The client renders the stepper and holds in-memory selections until the single commit call.
+
+### 4.1 Server side (`server/src/`)
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `database.js` | `database.js` | T | Migrations: `linen_priced_items` table; `reservations.endOfStayComplementAmount` / `endOfStayComplementPaid` / `endOfStayComplementPaidDate` / `endOfStayComplementDetail` (idempotent ADD COLUMN). |
+| `models/` | `models/linenItemsModel.js` | C | CRUD for `linen_priced_items` (list / replace-all). |
+| `utils/` | `utils/sasCustomLineQuantityMigration.js` | C | _(2026-10-27, rule 29)_ `reservation_custom_options.quantity` + the one-shot backfill of existing SAS lines, called from `database.js`. |
+| `models/` | `models/bookingLinesModel.js` | T | _(2026-10-27, rule 29)_ a fiche save carries a SAS line's count over with its marker. |
+| `models/` | `models/reservationsModel.js` | T | Reuse `getByIdWithDetails`; add `commitArrivalSas` / `commitDepartureSas` (caution flags, insert custom options inComplement + re-price for arrival; set end-of-stay complement for departure). |
+| `controllers/` | `controllers/reservationsController.js` (or new `sasController.js`) | C/T | `getSasData(id, mode)` assembles the SAS payload (applicable pages + data: caution, options list, bedLinenAlert, cleaning included? + property cleaning price, existing complement, linen elements). `commitArrivalSas` / `commitDepartureSas`. |
+| `utils/` | `utils/bedLinenAdequacy.js` | REUSE | Same `bedLinenAlert` already used by the planning card. |
+| `utils/` | `utils/pricing.js` | REUSE | Re-price on arrival commit so `complementAmount` reflects the added inComplement items. |
+| `controllers/` | `controllers/settingsController.js` + `models/settingsModel.js` | T | Add `portalCode` to the settings columns; wire the linen-items CRUD (dedicated route) for the Blanchisserie page. |
+| `routes/` | `routes/reservations.js`, `routes/settings.js` (or `linenItems.js`) | T | `GET /reservations/:id/sas?mode=arrival|departure`, `POST /reservations/:id/sas/arrival`, `POST /reservations/:id/sas/departure`; `GET/PUT /settings/linen-items`. |
+
+### 4.2 Client side (`client/src/`)
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `components/` | `components/sas/ReservationSasDialog.js` | C | The stepper shell (Dialog, Quitter, « Ouvrir la fiche », progress); drives the page sequence from the server payload. Mode `arrival` / `departure`. |
+| `components/` | `components/sas/*Page.js` | C | One small component per page: `SasIntroPage`, `SasCautionPage`, `SasOptionsPage`, `SasLinenPage`, `SasLinenItemsPage`, `SasCleaningPage`, `SasRecapPage` (+ departure `SasDepartureCleaningPage`, `SasCautionReturnPage`, `SasDepartureRecapPage`). Kept feature-local under `components/sas/`. |
+| `pages/` | `pages/PlanningPage.js` | T | Card/row click opens the SAS dialog (arrival vs departure) instead of navigating; refresh the planning row after commit. |
+| `components/` | `ReservationCard.js`, `DepartureMiniRow.js` | T | `onOpen` now opens the SAS (handler swap in the parent). |
+| `pages/` | `pages/LinenStockPage.js` | T | Renamed « Blanchisserie »; add the two priced-items editors (bed elements + towels), add/remove/reorder. |
+| `pages/` | `pages/SettingsPage.js` | T | Add a **Code portail** field (general settings). |
+| `App.js` | `App.js` | T | Menu label « Stock blanchisserie » → « Blanchisserie ». |
+| `api.js` | `api.js` | T | `getReservationSas`, `commitArrivalSas`, `commitDepartureSas`, `getLinenItems`, `updateLinenItems`. |
+
+**Component reuse declaration:**
+
+| Category | Components | Notes |
+|---|---|---|
+| **Consumed (existing generic)** | `FormDialog` patterns, MUI `Dialog`/`Stepper`/`Chip`, `ConfirmDialog` | Reused. |
+| **Created (new generic-ish)** | `ReservationSasDialog` + per-page components under `components/sas/` | Feature-local; the dialog shell could later be generalised but is kept specific for now. |
+
+### 4.3 API contract
+
+| Method | Endpoint | Request | Response | Notes |
+|---|---|---|---|---|
+| GET | `/api/reservations/:id/sas?mode=arrival\|departure` | — | `{ mode, reservation:{…}, pages:[…], portalCode, caution:{amount,received,returned}, options:[…], bedLinenAlert, cleaning:{included, price}, existingComplement, endOfStayComplement, linenItems:[{id,label,price,category}] }` | Server decides which pages apply + supplies their data. |
+| POST | `/api/reservations/:id/sas/arrival` | `{ cautionReceived:bool, complementItems:[{label, amount}] }` | `{ ok, complementAmount }` | Single commit: caution + custom options inComplement + re-price. |
+| POST | `/api/reservations/:id/sas/departure` | `{ cautionReturned:bool, endOfStayComplementAmount, endOfStayComplementDetail }` | `{ ok }` | Single commit: caution-return + end-of-stay complement. |
+| GET | `/api/settings/linen-items` | — | `[{ id, label, price, category, sortOrder }]` | Priced items (bed + towel). |
+| PUT | `/api/settings/linen-items` | `[{ label, price, category }]` | `[…]` | Replace-all (both categories). |
+
+---
+
+## 5. Data model
+
+- **New table `linen_priced_items`** (idempotent):
+  ```sql
+  CREATE TABLE IF NOT EXISTS linen_priced_items (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    label     TEXT NOT NULL,
+    price     REAL NOT NULL DEFAULT 0,
+    category  TEXT NOT NULL DEFAULT 'bed',   -- 'bed' | 'towel'
+    sortOrder INTEGER NOT NULL DEFAULT 0
+  );
+  ```
+- **`app_settings.portalCode TEXT DEFAULT ''`** — the domain gate code (idempotent ADD COLUMN), edited on
+  the general Réglages page.
+- **`reservations` new columns** (idempotent ADD COLUMN, default 0/null): `endOfStayComplementAmount REAL
+  NOT NULL DEFAULT 0`, `endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0`, `endOfStayComplementPaidDate
+  TEXT`, `endOfStayComplementDetail TEXT` (JSON/text breakdown for display).
+- **`reservations.cautionWaived INTEGER NOT NULL DEFAULT 0`** (2026-11-12, rule 31) — « Non » on the caution page.
+- **`reservations` SAS-done markers** (idempotent ADD COLUMN, default null): `arrivalSasDoneAt TEXT`,
+  `departureSasDoneAt TEXT` — set / refreshed to `datetime('now')` by the respective commit; drive the
+  green-✓ state of the planning SAS buttons. The button stays clickable so a finished SAS can be
+  re-opened + re-edited (specs/sas/reopen-completed-sas.md; superseded the 2026-06-13 disabled-lock).
+- Arrival complement items reuse `reservation_custom_options` (`inComplement=1`, plus `sasArrivalOrigin=1`
+  since 2026-06-15 so a re-opened SAS can REPLACE them without double-charging — specs/sas/reopen-completed-sas.md).
+- **Planning coche + dashboard status flags** (pre-existing columns, no migration): `checkInReady`,
+  `checkInDone`, `checkOutDone` (all `INTEGER DEFAULT 0`). §3.6 rule 22 — the arrival commit sets
+  `checkInReady = 1` + `checkInDone = 1`, the departure commit sets `checkOutDone = 1` (set-only, never
+  cleared by the commit).
+
+**Data impact:** purely additive. Existing reservations get `endOfStayComplementAmount = 0`. No recompute of
+existing reservations needed.
+
+## 6. UI / UX
+
+- **Guided coloured shell (refonte 2026-06-15 — direction « bandeau coloré + guidé », mobile-first).**
+  - **Header band**, full-width, **mode-coloured**: arrivée = orange chaleureux (orange/`warning` tones),
+    départ = ardoise (blue-grey), white text. Shows the **current step icon** + a short **step title**
+    (e.g. « MÉNAGE »), the **client + logement** on a second line, a **✕** on the right that **is the
+    Quitter** (closes, writes nothing), and a thin **progress bar + « Étape X/Y »** (index in `activeKeys`).
+    A discreet **« Ouvrir la fiche »** action stays in the band.
+  - **Body**: a **large centred step icon** (~56–64 px), a **large heading** (`h5`, the step's question /
+    title), supporting text at `body1` (bigger than before), then the step's interactive content
+    (steppers / fields / chips) with generous spacing and padding (`p: { xs: 2, sm: 3 }`).
+  - **Intro page (mobile redesign 2026-06-15)**: leads with the **property photo** (same image as Réglages
+    → logement, served via `reservation.propertyPhoto`), then the **property name centred**, the **client
+    name centred, in blue, larger, wrapping onto 2 lines** if it doesn't fit, the **platform badge styled
+    exactly like the planning** (outlined box, `getPlatformColor` border + text, `formatPlatformLabel`),
+    then **arrival + departure rows in the planning format** (coloured ARRIVÉE / DÉPART chip + date + time
+    pill, left-aligned) and a **people icon + count**. The big centred step icon is suppressed on the intro
+    (the photo leads).
+  - **Footer — yes/no answer colour code (2026-06-15)**: each yes/no page renders its two buttons via the
+    shared `AnswerButtons` — the **reassuring** answer is **white-on-blue** and sits **on top** (mobile
+    `column-reverse` → last child on top), the **problem** answer is **black-on-red** below. Mapping by
+    *meaning*, not literal Oui/Non: linge **OK** / serviettes-draps **Non** / clés **Oui** / extincteur
+    **Oui** (plomb présent) / retour caution **Rendue** / caution **Fait** = blue; their counterparts
+    (Pas OK / Oui / Non / Non / Dégât-litige / Reporté) = red. Navigation buttons (Commencer / Suivant /
+    Valider et terminer) stay primary blue. The arrival **« ménage »** upsell (Non merci / Ajouter le
+    ménage) is **not** a yes/no safety question → kept **neutral** (Ajouter = primary blue, Non merci
+    discreet). Buttons full-width + stacked on `xs`, side-by-side on `sm+`, touch targets ≥ 48 px;
+    « Valider et terminer » keeps its commit spinner.
+    **Amended 2026-10-19** (specs/design-system/ui-review-2026-10-19-operations.md rules 1-2, decision 5 of the UI/UX
+    review): the footer now stacks in reading order, so the reassuring answer — filled — sits at the
+    **bottom**, under the thumb (right from `sm`); its counterpart is a **neutral** tonal button, never
+    black on red. « Dégât / litige » alone stays red, as an outlined error button. The caution reads
+    « Caution perçue » / « Reporter au départ », and the header « N sur M » (rule 3 of that spec).
+  - **Extincteur** is now a yes/no page (**Oui** = plomb présent = blue / **Non** = manquant = red),
+    replacing the former in-body Switch; clicking advances immediately. At departure the body keeps a static
+    hint that an absent seal adds the configured amount to the end-of-stay (the charge lands in the recap).
+  - **iOS PWA wake fix (2026-06-15)**: the dialog sets `disableEnforceFocus` / `disableRestoreFocus`. On an
+    installed iOS PWA the page is frozen on screen-lock / app-switch; on resume MUI's focus trap could keep
+    stealing focus and leave the answer buttons unresponsive — relaxing the trap restores interactivity.
+  - **Mobile unresponsive-buttons fix (2026-06-18)**: the same focus trap still occasionally grabbed focus
+    on open / re-render on mobile Safari, so « Suivant » / answer taps did nothing then a burst registered
+    and skipped steps (random per step, sometimes blocking at « Commencer »). Adding `disableAutoFocus`
+    (the trio `disableAutoFocus` + `disableEnforceFocus` + `disableRestoreFocus`) fully relinquishes MUI's
+    focus management so taps stay reliable. The wizard needs no auto-focus.
+  - **Per-step icons** (MUI): intro = MeetingRoom (arrivée) / Logout (départ) ; portail = Dialpad ;
+    caution / report = Savings ; options = RoomService ; petit-déj = FreeBreakfast ; linge / linenItems =
+    KingBed ; ménage = CleaningServices ; serviettes manquantes = DryCleaning ; clés = VpnKey ; retour
+    caution = Savings ; récap = FactCheck. The breakfast drink steppers keep their café / thé / chocolat icons.
+- **Responsive**: `fullScreen` on `xs`; one action per row, full-width buttons on mobile; comfortable
+  centered dialog on `md+`. Touch targets ≥ 44px.
+- **Money**: amounts shown via the French currency format; the recap lists each line (label + amount) then
+  the total to collect, distinguishing **« déjà dû »** (pre-existing complement) from **« ajouté »** (SAS).
+- **Settlement (recap)**: the complement is settled via a single-select set of **buttons** (not checkboxes) —
+  **CB / Chèque** (encaissé, compta), **Payé en liquide** (caisse interne, hors compta), and — arrival only —
+  **En fin de séjour** (leave unpaid → recalled at check-out), **pre-selected on arrival** so validating the
+  SAS without touching the buttons visibly means « encaissé au check-out ». The departure recap shows the same
+  buttons without « En fin de séjour », none pre-selected. See specs/sas/sas-recap-payment-buttons.md. When the
+  recap settles the stay and the complement in one payment, the third button reads « Plus tard »
+  (2026-10-27 spec review).
+- **Blanchisserie page**: existing stock fields kept; a new « Tarifs des éléments de linge » table below,
+  with add-row / edit / delete / drag-reorder, saved with the page.
+- **States**: loading while fetching the SAS payload; error → retry; empty linen-items list → the « Pas OK »
+  path shows a hint to configure prices in Blanchisserie.
+
+## 7. Test plan
+
+### Server unit tests (`tests/sas-commit.unit.test.js`, +14)
+- [x] `linenItemsModel`: replace-all drops empty labels, re-numbers per category, list ordered.
+- [x] `getCleaningPriceForProperty`: per-property override wins over base; null when no cleaning option.
+- [x] `commitArrivalSas`: caution received set; linen + cleaning items inserted as custom options
+      `inComplement=1`; `complementAmount` = previous + added; frozen when `complementPaid`; zero/blank
+      items ignored.
+- [x] `commitDepartureSas`: caution returned set on « Rendue », untouched on « litige »; end-of-stay
+      complement amount + detail stored.
+- [x] **§3.6 status flags (+6, 2026-07-01):** arrival commit validates `checkInReady` + `checkInDone`
+      (planning coche + dashboard « Prêt »/« Arrivé ») and leaves `checkOutDone` untouched; a re-committed
+      arrival re-affirms the flags (never auto-untick); departure commit validates `checkOutDone` (planning
+      coche / dashboard « Parti ») and leaves the arrival flags untouched.
+- [x] Full server suite 1926 green; migrations verified on a DB copy.
+
+### Client IHM tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.js`, +3)
+- [x] Arrival full flow: caution « Fait », linen « Pas OK » **reveals** the priced-items page (regression
+      for the async-navigation bug), cleaning added → recap total → `commitArrivalSas` called with the
+      exact `{ cautionReceived, complementItems }` payload.
+- [x] Arrival linen « OK » **skips** the priced-items page.
+- [x] Departure: cleaning page shows « ménage fait correctement ? OK/Pas OK » (regression — it used to
+      render the arrival UI), missing/keys flow, recap, `commitDepartureSas` payload.
+- [x] **Refonte 2026-06-15** (direction « bandeau coloré + guidé ») is **visual-only**: the 7 vitest cases
+      above stay green unchanged (same step strings, button labels and commit payloads); client build green.
+      The footer « Quitter » moved into the band ✕; the redundant in-body « Petit déjeuner » heading was
+      dropped (the band title carries it) so `findByText('Petit déjeuner')` still resolves to one node.
+- [x] **Mobile refinements 2026-06-15** (intro redesign + yes/no colour code + extinguisher Oui/Non + iOS
+      wake fix): a new vitest case asserts the intro renders the property photo + centred client name +
+      ARRIVÉE/DÉPART chips + people count; the extinguisher walkthroughs now click **Oui** (présent) /
+      **Non** (manquant) instead of a Switch + Suivant, and the departure-seal billing test answers
+      **Non** (the charge surfaces in the recap, not the body). 10 vitest cases green; full client suite
+      green; server suite green (the `getByIdWithDetails` photo field is additive).
+
+### Planning-tile launch tests (vitest, `ReservationCard.test.js` + `DepartureMiniRow.test.js`)
+- [x] « Ouvrir la réservation » button → `onOpenReservation(id)`; SAS button → `onOpenSas(id)`.
+- [x] SAS button shows a green ✓ when `arrivalSasDoneAt` / `departureSasDoneAt` is set but **stays
+      clickable** to re-open + re-edit the SAS (specs/sas/reopen-completed-sas.md; was a disabled no-op
+      until 2026-06-15).
+- [x] Client name link → `onOpenClient(clientId)`; toggling the ready/done checkbox fires no open handler;
+      with all handlers omitted the tile is read-only (no action buttons, plain-text client name).
+
+### E2E (Playwright smoke)
+- [x] `auth/sidebar-navigation.spec.js` + `linen/stock-roundtrip.spec.js` updated for the « Stock
+      blanchisserie » → « Blanchisserie » heading rename (they asserted the old title — caused the smoke
+      failure).
+
+### Manual UI verification (done live in the browser 2026-06-12)
+- [x] Arrival + departure SAS run end-to-end; commits verified in the DB (then reverted). Two bugs found
+      and fixed during this pass (async navigation skip + departure cleaning UI).
+- [ ] Arrival SAS happy path (caution unpaid + linen mismatch + cleaning not included): each page appears,
+      recap totals = existing + added, commit writes caution + custom options, planning refreshes.
+- [ ] « Reporté » caution re-appears before the recap.
+- [ ] Quitter mid-SAS writes nothing.
+- [ ] Departure SAS: ménage « Pas OK » adds the cleaning price to the end-of-stay complement; caution
+      « Rendue » marks returned.
+- [ ] Blanchisserie: add/edit linen element prices; they appear in the arrival linen-items page.
+- [ ] Mobile (`xs`): full-screen stepper, buttons stacked.
+
+- **2026-10-27 audit (rule 28):** `ReservationSasDialog.answer-positions.test.jsx` (1 test); the
+  departure suites answer the reworded question with « Oui ».
+
+## 8. Out of scope
+
+- Payment capture / online payment of the complements (the SAS records what's due; collection is manual).
+- Editing arbitrary reservation fields from the SAS (only caution + complement items).
+- A retained-amount workflow on caution damage (decision: « Rendue / litige » only).
+- History/audit of SAS runs beyond the resulting reservation writes.
+
+## 9. Open questions
+
+Resolved during scoping (2026-06-12):
+- **Arrival complement already `complementPaid=1`** → record the delta + warn (do not unfreeze/re-collect).
+- **Cleaning "included"** = reservation cleaning option **OR** property-default cleaning (both count).
+- **Departure extras** → only **keys received** (rule 15) + **missing serviettes/draps** (rules 14.bis/ter);
+  no other extras.
+- **Portal code** → a **single global** `portalCode` in Réglages (per « dans les settings »). If the gîtes
+  ever need distinct gate codes, move it to a per-property field (small change) — flag if so.
+
+## Amendment 2026-11-12 (manual trial of 4.0.0) — a focused note field clears what is above it
+
+The note field of the check-in recap sits one step lower under the divider (`mt: 1`): its shrunk label overhangs the
+field's top by half a line, and a focused field draws its label and outline on top of the line or title just above it.

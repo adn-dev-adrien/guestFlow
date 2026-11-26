@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 29 — `quantity` stays 1 on a typed line, so the readers
+// specs/options/non-card-option-served-persons.md rule 29 — `quantity` stays 1 on a typed line, so the readers
 // that print a count print the figure the server sends: the people served or the nights, as the fiche's
 // field reads them. Driven through the real engine, model and schema.
 

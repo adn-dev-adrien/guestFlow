@@ -1,4 +1,4 @@
-// specs/clients.md rule 14 — review 2026-10-18 (second pass), finding 3: a couple or a family often
+// specs/clients/clients.md rule 14 — review 2026-10-18 (second pass), finding 3: a couple or a family often
 // shares one phone, compared on its last 9 digits, and the fiche could only « Utiliser ce client ». The
 // fiche now sends `allowDuplicate` with the typed client when « Créer quand même » is chosen.
 
@@ -19,7 +19,7 @@ db.prepare("INSERT INTO properties (id, name, maxGuests) VALUES (1, 'Gîte', 8)"
 db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 100)").run();
 const known = clientsModel.insert({ firstName: 'Camille', lastName: 'Revue', phone: '06 12 34 56 78' });
 
-/** `YYYY-MM-DD`, `days` after today (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const stay = (over = {}) => ({

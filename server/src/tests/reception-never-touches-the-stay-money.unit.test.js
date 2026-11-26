@@ -1,4 +1,4 @@
-// specs/collect-stay-payment-at-check-in.md §3.6 — le rôle réception ne voit jamais l'argent du
+// specs/sas/collect-stay-payment-at-check-in.md §3.6 — le rôle réception ne voit jamais l'argent du
 // séjour, et n'en écrit jamais.
 //
 // Trois règles portant sur ce que voit et ce qu'écrit un compte de réception n'avaient **aucun test**
@@ -17,7 +17,7 @@ const { toReceptionSasCommit, toReceptionReservationView } = require('../utils/r
 const sasController = optionalPlugin(() => require('../plugins/sas/controller'));
 const buildStayPayment = sasController.__test && sasController.__test.buildStayPayment;
 
-// specs/collect-stay-payment-at-check-in.md rule 25 — fail-closed sur l'écriture : `stayPaid` et
+// specs/sas/collect-stay-payment-at-check-in.md rule 25 — fail-closed sur l'écriture : `stayPaid` et
 // `stayPaidCash` venant d'un compte réception sont retirés, jamais honorés.
 test('un commit de réception perd les champs qui règlent le séjour', () => {
   const body = {
@@ -52,7 +52,7 @@ test('un corps vide ou absent ne fait pas tomber le commit', () => {
   assert.deepEqual(toReceptionSasCommit(null), {});
 });
 
-// specs/collect-stay-payment-at-check-in.md rules 7 + 24 — côté LECTURE : aucun montant du séjour
+// specs/sas/collect-stay-payment-at-check-in.md rules 7 + 24 — côté LECTURE : aucun montant du séjour
 // n'est servi. La règle est tenue par une liste blanche, pas par une liste noire : un champ d'argent
 // ajouté demain reste dehors par défaut, ce qui est le bon sens de la sécurité.
 test('la fiche servie à la réception ne porte aucun montant du séjour', () => {
@@ -76,7 +76,7 @@ test('la fiche servie à la réception ne porte aucun montant du séjour', () =>
   }
 });
 
-// specs/collect-stay-payment-at-check-in.md rule 7 — l'étape « Séjour à régler » n'est pas
+// specs/sas/collect-stay-payment-at-check-in.md rule 7 — l'étape « Séjour à régler » n'est pas
 // applicable : le serveur répond « non », il ne se contente pas de cacher un bouton côté écran.
 test('l’étape de règlement du séjour n’est jamais applicable pour la réception', { skip: skipWithout(['sas']) }, () => {
   const stay = { depositAmount: 0, balanceAmount: 400, balancePaid: 0 };

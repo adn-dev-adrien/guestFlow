@@ -1,5 +1,5 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §3.2 rule 17 — Neat calls are bounded by one budget
+ * specs/plugins/neat-cancellation-insurance-subscription.md §3.2 rule 17 — Neat calls are bounded by one budget
  * per call, a client and its token are reused, and an outage opens a 60 s breaker (round-6 audit N6, D1). Uses a local HTTP server that accepts the
  * connection and never answers.
  */

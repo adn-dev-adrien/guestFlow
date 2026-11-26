@@ -1,5 +1,5 @@
 // @ts-check
-// The toggle sweep (specs/plugin-removal-resilience.md rules 15-17): on one production server with every
+// The toggle sweep (specs/plugins/plugin-removal-resilience.md rules 15-17): on one production server with every
 // plugin, each plugin — with the ones requiring it — is deactivated, reactivated, uninstalled keeping its
 // data, reinstalled, uninstalled and purged, and reinstalled again, through the real API, restarting the
 // server where a plugin must really stop being loaded. After every move the core pages render, and the

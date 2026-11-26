@@ -1,5 +1,5 @@
 /**
- * specs/reservation-save-keeps-pricing.md rule 20 — a save that prices without the stored snapshot (« Utiliser les
+ * specs/reservations/reservation-save-keeps-pricing.md rule 20 — a save that prices without the stored snapshot (« Utiliser les
  * tarifs actuels », a change of logement) still knows what each catalogue line collected: a contrib is money
  * received, not a price. Copied onto the quote's lines by option or resource id, never onto a line forced to the
  * complement; a custom line already carries its own (rule 19). No figure of the quote depends on them.

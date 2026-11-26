@@ -4,12 +4,12 @@
  * a normal paid line). Idempotent: a default already present in the payload is left untouched.
  *
  * Single source of truth so the public live quote, the booking-request devis and the admin devis all
- * apply property defaults IDENTICALLY (specs/public-api.md, devis §3.3 rules 11–13). Pure: the caller
+ * apply property defaults IDENTICALLY (specs/site/public-api.md, devis §3.3 rules 11–13). Pure: the caller
  * injects `defaultsModel` (with `listForProperty(propertyId)` → [{ optionId, offered }]).
  *
  * A default is added with quantity 1, unless the caller's `quantityFor(optionId)` says otherwise:
  * on the public flow a per-person card option counts PORTIONS, so its default is one per guest —
- * what it billed back when the quantity meant séances (specs/site-meal-portions.md rule 5).
+ * what it billed back when the quantity meant séances (specs/site/site-meal-portions.md rule 5).
  */
 function mergePropertyDefaultsIntoPayload(payload, propertyId, defaultsModel, { quantityFor } = {}) {
   const defaults = defaultsModel.listForProperty(propertyId);
@@ -38,11 +38,11 @@ function mergePropertyDefaultsIntoPayload(payload, propertyId, defaultsModel, { 
  * The option ids an update must put back: property defaults marked « offered » (the services
  * included in the rate) that the booking ALREADY carries and whose payload dropped them.
  *
- * specs/tourist-tax-included-services-deduction.md rules 4-5 — an included service is not optional:
+ * specs/tourist-tax/tourist-tax-included-services-deduction.md rules 4-5 — an included service is not optional:
  * the fiche locks its Switch ON and the server refuses to drop it, so two identical stays always
  * declare the same tourist-tax base. Restricted to what the booking already carries on purpose: an
  * existing reservation must never GAIN an option it did not have
- * (specs/reservation-option-immutability.md rules 3-4). Pure: the caller injects `defaultsModel`
+ * (specs/reservations/reservation-option-immutability.md rules 3-4). Pure: the caller injects `defaultsModel`
  * (with `listForProperty(propertyId)` → [{ optionId, offered }]) and the two id lists.
  */
 function carriedOfferedDefaultsToRestore({ propertyId, carriedOptionIds, submittedOptionIds, defaultsModel }) {

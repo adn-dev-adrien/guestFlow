@@ -1,6 +1,6 @@
 /**
  * NewReservationsAlert — Dashboard notification card listing every reservation created during the
- * last 24 hours, whatever its origin (specs/dashboard-ical-new-reservations.md).
+ * last 24 hours, whatever its origin (specs/planning/dashboard-ical-new-reservations.md).
  *
  * Self-contained: fetches its own list on mount and every 5 minutes, so a reservation leaves the
  * card at the end of its 24 hours without a reload. Renders one `AttentionCard` with one

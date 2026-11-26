@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 10–12, 14, 22 — the details an operator feels: a refusal
+// specs/plugins/plugin-operator-provisioning.md rules 10–12, 14, 22 — the details an operator feels: a refusal
 // and a failure read red, only the failed part of the header; a stale wait is a warning; the switch
 // keeps its focus while it saves and has a 44 px target; the erase dialog takes the slug at once and
 // Enter confirms; the folded group does not animate under « reduce motion ».

@@ -1,4 +1,4 @@
-// The write routes each plugin mounts, by plugin id (specs/hosting-h2-account-security.md rule 68, census; reading of
+// The write routes each plugin mounts, by plugin id (specs/hosting/hosting-h2-account-security.md rule 68, census; reading of
 // 2026-11-05, audit R24-S1). A tree without a plugin holds none of its routes, so the census drops that plugin's
 // exemptions and baseline rows instead of calling them stale. route-census.unit.test.js holds this list equal to what each
 // plugin of the tree registers: a plugin route added, moved or removed changes it here.

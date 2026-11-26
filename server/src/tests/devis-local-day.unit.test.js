@@ -1,4 +1,4 @@
-// specs/devis-pdf-and-tourist-tax-fixes.md rule 23 and specs/devis-extras-parity-and-price-lock.md
+// specs/devis/devis-pdf-and-tourist-tax-fixes.md rule 23 and specs/devis/devis-extras-parity-and-price-lock.md
 // rule 21 — a devis reads « today » and its creation day in the operator's time zone, like the rest
 // of the server. The clock is frozen at 2026-10-30T23:30Z: 31/10 00:30 in Paris, still 30/10 in UTC.
 process.env.TZ = 'Europe/Paris';

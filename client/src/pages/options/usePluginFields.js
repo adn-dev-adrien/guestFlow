@@ -1,6 +1,6 @@
 /**
  * usePluginFields — what live plugins add to an option or resource editor (slots `options.fields` and
- * `resources.fields`, specs/plugins-phase-1-sdk.md rule 13).
+ * `resources.fields`, specs/plugins/plugins-phase-1-sdk.md rule 13).
  *
  * A contribution is `{ key, Component, appliesTo?(draft), section? }`:
  *   - without `section`, it edits the draft itself (`onChange(patch)` merges into the host's form, the host's

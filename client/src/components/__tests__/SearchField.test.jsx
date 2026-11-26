@@ -1,4 +1,4 @@
-// SearchField — generic contract (specs/options-resources-ux.md §4.2): labelled, 16 px, clear button, Escape.
+// SearchField — generic contract (specs/options/options-resources-ux.md §4.2): labelled, 16 px, clear button, Escape.
 import React, { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

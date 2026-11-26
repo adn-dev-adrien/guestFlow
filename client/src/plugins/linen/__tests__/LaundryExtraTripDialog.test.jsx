@@ -7,7 +7,7 @@ vi.mock('../../../api', () => ({ default: { previewLaundryExtraTrip: (...args) =
 
 import LaundryExtraTripDialog from '../LaundryExtraTripDialog';
 
-// specs/laundry-extra-trip.md §3.5 rule 18 + §6 — the create / edit dialog of an extra trip. The
+// specs/linen/laundry-extra-trip.md §3.5 rule 18 + §6 — the create / edit dialog of an extra trip. The
 // preview is a server call (mocked here); the dialog only renders it and sends back the choice.
 
 const BLOCK = (over = {}) => ({

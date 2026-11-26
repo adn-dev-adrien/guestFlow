@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md §3 rule 56 and specs/stay-profile.md §3 rule 28 — the dashboard's
+// specs/accounting/finance-dashboard-redesign.md §3 rule 56 and specs/accounting/stay-profile.md §3 rule 28 — the dashboard's
 // revenue of the nights and the stay profile's basket leave out the SAME tourist tax: the one
 // financeModel.withTouristTaxInTotal places inside each stay's total (utils/stayTouristTaxInTotal.js).
 // Integration of 2026-11-06: the two lots had each kept their own reading.

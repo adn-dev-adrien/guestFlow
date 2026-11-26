@@ -1,5 +1,5 @@
 /**
- * PLATFORM PAYMENT — what a platform pays out (specs/pricing-components.md §3 rules 70 and 6).
+ * PLATFORM PAYMENT — what a platform pays out (specs/pricing/pricing-components.md §3 rules 70 and 6).
  *
  * Contract: `commissionOf({ basis: 'statement' | 'rentOnly', ... })` the commission of a platform stay from its
  * statement figures or from the rent alone; `clampCommissions(...)` each stored commission clamped to its instalment
@@ -15,7 +15,7 @@
 const { roundMoney } = require('./money');
 
 /**
- * The tourist tax a platform pays us WITH its transfer (specs/platform-host-statement-and-commission-vat.md rules 5, 8):
+ * The tourist tax a platform pays us WITH its transfer (specs/platforms/platform-host-statement-and-commission-vat.md rules 5, 8):
  * the box of the statement in mode `platform_reversed`, nothing in any other mode (`platform`: the tax the platform
  * kept is out of the books; `owner` and direct: no box).
  */
@@ -71,11 +71,11 @@ function clampCommissions({
   channel, solde: platformCommissionAmountInput, acompte: acompteCommissionAmountInput, installmentPlan, preArrivalAmount,
   balanceAmount: resolvedBalanceAmount, depositAmount: resolvedDepositAmount,
 }) {
-  // specs/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
+  // specs/platforms/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
   // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
   // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
   // so the summary shows the single « Total du séjour TTC » line).
-  // specs/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
+  // specs/platforms/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
   // Both ≥ 0, non-direct only. The acompte/solde AMOUNTS are gross (what the guest pays); the commissions
   // are tracked separately and booked on the platform account per échéance. Net perçu = total − Σ.
   // Rule 3 + edge case — each commission is clamped to ITS échéance (net cash ≥ 0): a 100 € commission
@@ -103,7 +103,7 @@ function netReceived({ preArrivalAmount, totalPlatformCommission }) {
   // for owner-collect platforms — `touristTaxCollectedOnArrival` — plus any on-site extras) is collected
   // by US at check-in, never by the platform. Using `totalStayPrice` over-counted the platform's payout by
   // exactly the complement, so the « Paiement plateforme » reconciliation always showed an écart equal to
-  // the tourist tax (specs/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
+  // the tourist tax (specs/platforms/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
   // right bucket, so for tax-collecting platforms (tax in the balance, complement = 0) the value is
   // unchanged (= totalStayPrice − commission).
   const platformNetReceivedAmount = totalPlatformCommission > 0
@@ -119,7 +119,7 @@ const acompteNet = (row) => (Number(row.depositDisabled || 0) === 1 || !(Number(
   ? 0 : Math.max(0, roundSafe(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0))));
 
 // `taxPaid` (`taxPaidWithPayout`) is the tax the platform pays WITH its transfer: the money it settles is the host amount plus it (rule 8 of
-// specs/platform-host-statement-and-commission-vat.md). The fallback (no host amount typed) is the stored schedule, which holds it already.
+// specs/platforms/platform-host-statement-and-commission-vat.md). The fallback (no host amount typed) is the stored schedule, which holds it already.
 const grossOf = (row, taxPaid = 0) => (present(row.platformGrossAmount)
   ? roundSafe(Number(row.platformGrossAmount) + Math.max(0, Number(taxPaid) || 0))
   : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
@@ -142,7 +142,7 @@ const totalCommission = (acompte, solde) => roundSafe(Number(acompte) + Number(s
 /** The pre-arrival amount a stored row carries (acompte + solde). */
 const storedPreArrival = (row) => roundSafe(asNumber(row.depositAmount) + asNumber(row.balanceAmount));
 
-/** The net a stored row stands for (specs/platform-statement-after-payout.md rule 4): its pre-arrival amount less both commissions. */
+/** The net a stored row stands for (specs/platforms/platform-statement-after-payout.md rule 4): its pre-arrival amount less both commissions. */
 const storedNet = (row) => roundSafe(storedPreArrival(row) - totalCommission(asNumber(row.acompteCommissionAmount), asNumber(row.platformCommissionAmount)));
 
 /** The payout the platform made, penalty it kept included. */

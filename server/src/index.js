@@ -1,6 +1,6 @@
 // FIRST, before anything reads the clock: the schedulers compare operator-entered wall-clock times
 // (a 16:00 check-in, the 08:00 e-mail pass) against this process's LOCAL time, so the process must
-// run in the accommodations' zone — the production host's clock is UTC (specs/server-timezone.md).
+// run in the accommodations' zone — the production host's clock is UTC (specs/hosting/server-timezone.md).
 const { applyServerTimezone } = require('./utils/serverTimezone');
 const serverTimezone = applyServerTimezone().timezone;
 
@@ -27,10 +27,10 @@ const { buildServer } = require('./utils/httpsBootstrap');
 loadLocalEnv();
 const SqliteStore = require('better-sqlite3-session-store')(session);
 const db = require('./database');
-// specs/plugins-phase-1-sdk.md — plugin modules declare their routes, tables, jobs and handlers here;
+// specs/plugins/plugins-phase-1-sdk.md — plugin modules declare their routes, tables, jobs and handlers here;
 // a module that throws is marked failed and the boot goes on (rule 4).
 const pluginLoader = require('./plugins/loader');
-// specs/plugins-phase-4-registry.md rules 14, 17, 19 — a release loads each installed plugin from its
+// specs/plugins/plugins-phase-4-registry.md rules 14, 17, 19 — a release loads each installed plugin from its
 // package; a development tree registers the source folders.
 const pluginHost = require('./plugins/host');
 pluginHost.boot({
@@ -66,14 +66,14 @@ const commitShaShort = commitSha ? commitSha.slice(0, 7) : null;
 const app = express();
 // `trust proxy` MUST match the real deployment. X-Forwarded-For is believed only when TRUST_PROXY_HOPS
 // is set to the exact number of trusted hops (Caddy in front: 1) — unset, no hop is trusted, so a direct
-// caller cannot spoof its address past the IP rate limiters (specs/public-online-payment.md §7). With
+// caller cannot spoof its address past the IP rate limiters (specs/site/public-online-payment.md §7). With
 // GUESTFLOW_PROXY_SECRET also set, forwarded headers count only on requests carrying Caddy's secret;
 // hops without that secret are spoofable by whoever reaches this port directly (boot warning below).
 const proxyTrust = require('./utils/proxySecret').proxyTrust();
 if (proxyTrust.warning) console.warn(`[security] ${proxyTrust.warning}`);
 app.set('trust proxy', proxyTrust.hops);
 // Behind the hosting's proxy, forwarded headers count only when Caddy's secret header comes with them
-// (specs/hosting-h1-fleet-runtime.md rule 21). Unset: nothing changes.
+// (specs/hosting/hosting-h1-fleet-runtime.md rule 21). Unset: nothing changes.
 app.use(require('./utils/proxySecret').proxySecretGuard(process.env.GUESTFLOW_PROXY_SECRET));
 
 // HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built
@@ -112,7 +112,7 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // auth) from eating the Pi's RAM via a multi-MB body. 256 KB leaves headroom for future
 // growth without inviting abuse. Spotted in the 2026-06-01 security audit (finding M1).
 // Capture the raw request bytes so a plugin's webhook (Qonto) can verify its HMAC signature against the
-// exact payload (the parsed body can't be re-serialised byte-for-byte). specs/public-online-payment.md §3bis.
+// exact payload (the parsed body can't be re-serialised byte-for-byte). specs/site/public-online-payment.md §3bis.
 app.use(express.json({
   limit: '256kb',
   verify: (req, _res, buf) => { req.rawBody = buf; },
@@ -138,7 +138,7 @@ try {
   logErrorMarker(`Encryption migration failed: ${err.message}`);
 }
 
-// specs/deposit-blocks-the-dates.md rules 20 and 25 — every boot, idempotent: an open devis whose columns disagree with its
+// specs/payments/deposit-blocks-the-dates.md rules 20 and 25 — every boot, idempotent: an open devis whose columns disagree with its
 // read (an acompte left inside the D23 window, a solde date before a delay change, no validity date) is re-stored.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {
@@ -147,7 +147,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   } catch (err) {
     logErrorMarker(`Devis single-payment re-store failed: ${err.message}`);
   }
-  // specs/mixed-method-payments.md rule 48 (audit R34-DB-L1) — every boot, idempotent: a split payment whose target was taken
+  // specs/payments/mixed-method-payments.md rule 48 (audit R34-DB-L1) — every boot, idempotent: a split payment whose target was taken
   // back by a release that knew nothing of settlements (a rollback, then a roll-forward) is dropped, the aggregates refreshed.
   try {
     const dropped = require('./models/paymentSettlementsModel').syncAll();
@@ -157,7 +157,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
-// specs/pricing-components.md rule 78 — once, after the models can load: the refunds each requalification avoir netted.
+// specs/pricing/pricing-components.md rule 78 — once, after the models can load: the refunds each requalification avoir netted.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {
     const nettings = require('./utils/pricingLinesMigration').backfillRefundNettings(db);
@@ -198,7 +198,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
-// specs/platform-host-statement-and-commission-vat.md rule 4 — once, after the engine can load: the brut of every platform stay becomes the
+// specs/platforms/platform-host-statement-and-commission-vat.md rule 4 — once, after the engine can load: the brut of every platform stay becomes the
 // host amount of the statement (tourist tax out of it), so that every stored price, schedule, tax and entry stays to the cent.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {
@@ -244,7 +244,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
-// VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
+// VAPID keypair for Web Push (specs/guest-app/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
 require('./utils/vapid').ensureVapid(require('./models/settingsModel').read());
@@ -259,23 +259,23 @@ try {
 }
 app.use('/uploads', express.static(require('./utils/instancePaths').uploadsDir()));
 
-// specs/plugins-phase-4-registry.md rule 18 — the client bundle of each loaded plugin, immutable, and
+// specs/plugins/plugins-phase-4-registry.md rule 18 — the client bundle of each loaded plugin, immutable, and
 // the list the browser imports before rendering. Outside /api and its guards: the bundles hold no
 // data, and the list is read before the login so a signed-in session never needs a reload.
 app.get('/plugin-assets/entries.json', (req, res) => res.set('Cache-Control', 'no-store').json(pluginHost.clientEntries()));
 app.use('/plugin-assets/:id/:key', pluginHost.assetsMiddleware(express));
 
-// Public API (specs/public-api.md) — `/public/v1/*`, a SEPARATE tree from the internal `/api/*`
+// Public API (specs/site/public-api.md) — `/public/v1/*`, a SEPARATE tree from the internal `/api/*`
 // admin API: it never passes through the `/api` session guard below, so that guard can neither
 // expose nor block it. Every prefix belongs to a plugin module, each with its own key: the WordPress
 // site's (website-booking) and the Sowel connector's (gate-access, /public/v1/gate). Each answers 404
-// PLUGIN_INACTIVE while its plugin is off (specs/plugins-phase-0-foundation.md rule 15): the
+// PLUGIN_INACTIVE while its plugin is off (specs/plugins/plugins-phase-0-foundation.md rule 15): the
 // WordPress site then shows its "unavailable" state, and Sowel stops receiving keys.
 pluginLoader.mountPublic(app);
 // No tree catches /public/v1 any more: a path no plugin owns gets a JSON 404, never the SPA.
 app.use('/public/v1', (req, res) => require('./controllers/public/publicHttp').publicTreeNotFound(req, res));
 
-// Guest email preferences (specs/guest-email-sequence.md §4.3) — the unsubscribe link of the season
+// Guest email preferences (specs/emails/guest-email-sequence.md §4.3) — the unsubscribe link of the season
 // emails. Public by nature (a guest opens it from an email): no session, no API key, own limiter.
 app.use('/preferences', require('./routes/emailPreferences'));
 
@@ -285,7 +285,7 @@ app.use('/api', (req, res, next) => {
   return apiLimiter(req, res, next);
 });
 
-// A write under /api must come from GuestFlow's own pages (specs/plugins-phase-4-registry.md rule 31):
+// A write under /api must come from GuestFlow's own pages (specs/plugins/plugins-phase-4-registry.md rule 31):
 // a cross-site form or script cannot ride an administrator's session. Plugin webhooks are exempt. Off
 // only with GUESTFLOW_DEV=1, which the development scripts alone set: the Vite proxy rewrites the host.
 const enforceSameOrigin = process.env.GUESTFLOW_DEV !== '1';
@@ -299,11 +299,11 @@ app.use('/api', require('./middleware/sameOriginWrites').createSameOriginWrites(
 app.use('/api/auth/login', loginLimiter);
 
 // A support session lives only while its access is open, cannot touch the account it borrows, and
-// leaves a trace of every write (specs/hosting-h2-account-security.md rules 14-16). Before every
+// leaves a trace of every write (specs/hosting/hosting-h2-account-security.md rules 14-16). Before every
 // /api router, the auth routes included.
 app.use('/api', require('./middleware/supportAudit').createSupportAudit({
   controller: require('./utils/accountSecurityServices').supportAccess,
-  // specs/plugin-operator-provisioning.md rule 30 — the hidden plugin lifecycle is not the audit's to answer.
+  // specs/plugins/plugin-operator-provisioning.md rule 30 — the hidden plugin lifecycle is not the audit's to answer.
   isHidden: require('./middleware/requireSelfManagedPlugins').isHidden,
 }));
 
@@ -317,7 +317,7 @@ app.use('/api', (req, res, next) => {
   if (req.path === '/version') return next();
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
   // A plugin's webhook is a server-to-server call (no session) the plugin authenticates itself — the
-  // Qonto one by its HMAC signature (specs/plugins-phase-3a-online-payment.md rule 12).
+  // Qonto one by its HMAC signature (specs/plugins/plugins-phase-3a-online-payment.md rule 12).
   if (pluginLoader.isWebhook(req.method, req.path)) return next();
   return requireAuth(req, res, next);
 });
@@ -332,7 +332,7 @@ app.use('/api', (req, res, next) => {
   return enforceRoleAccess(req, res, next);
 });
 
-// An unpaid instance is read-only (specs/control-plane-plans-and-access.md rule 14). Inert on an
+// An unpaid instance is read-only (specs/hosting/control-plane-plans-and-access.md rule 14). Inert on an
 // install that has no licence and is not managed by the hosting (rule 29).
 app.use('/api', enforceSubscription());
 
@@ -363,34 +363,34 @@ app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/planning', require('./routes/planning'));
 app.use('/api/today', require('./routes/today'));
 app.use('/api/dashboard', require('./routes/dashboard'));
-// specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
+// specs/emails/email-automation.md — template library + send / preview / pending / acknowledge / history.
 app.use('/api/email-templates', require('./routes/emailTemplates'));
 app.use('/api/emails', require('./middleware/stayVersionsTrail').stayVersionsTrail());
 app.use('/api/emails',          require('./routes/emails'));
 app.use('/api/email-sequence',  require('./routes/emailSequence'));
-// specs/plugins-phase-p-productisation.md — the wording of the guest emails as data. Admin-only.
+// specs/plugins/plugins-phase-p-productisation.md — the wording of the guest emails as data. Admin-only.
 app.use('/api/stay-texts',      require('./routes/stayTexts'));
 app.use('/api/email-texts',     require('./routes/emailTexts'));
 app.use('/api/email-readiness', require('./routes/emailReadiness'));
 app.use('/api/email-mentions',  require('./routes/emailMentions'));
 app.use('/api/onboarding',      require('./routes/onboarding'));
-// specs/self-update-and-releases.md — version probe + self-update control. Admin-only: the role
+// specs/hosting/self-update-and-releases.md — version probe + self-update control. Admin-only: the role
 // guard above is deny-by-default for every non-admin role, so no allowlist entry is needed.
 app.use('/api/system', require('./routes/system'));
-// specs/terms-acceptance-record.md — the CGV the operator writes and publishes. Admin-only.
+// specs/reservations/terms-acceptance-record.md — the CGV the operator writes and publishes. Admin-only.
 app.use('/api/terms', require('./routes/terms'));
-// specs/plugins-phase-0-foundation.md — the Plugins page. Admin-only through the same role guard.
+// specs/plugins/plugins-phase-0-foundation.md — the Plugins page. Admin-only through the same role guard.
 app.use('/api/plugins', require('./routes/plugins'));
-// specs/control-plane-plans-and-access.md — the subscription banner. Admin-only through the role guard.
+// specs/hosting/control-plane-plans-and-access.md — the subscription banner. Admin-only through the role guard.
 app.use('/api/subscription', require('./routes/subscription'));
-// specs/hosting-h2-account-security.md rules 12-17 — Accès du support. Admin-only through the role guard.
+// specs/hosting/hosting-h2-account-security.md rules 12-17 — Accès du support. Admin-only through the role guard.
 app.use('/api/support-access', require('./routes/supportAccess'));
-// The routes of plugin modules (specs/plugins-phase-1-sdk.md rule 5): same URLs as before the move,
+// The routes of plugin modules (specs/plugins/plugins-phase-1-sdk.md rule 5): same URLs as before the move,
 // each behind requirePlugin.
 pluginLoader.mountApi(app);
 
 // When this process started — not when the request came: the Plugins page and the E2E harness wait
-// for it to change to know the restart happened (specs/plugins-phase-4-registry.md rule 13).
+// for it to change to know the restart happened (specs/plugins/plugins-phase-4-registry.md rule 13).
 const PROCESS_STARTED_AT = new Date().toISOString();
 
 app.get('/api/version', require('./controllers/versionController').buildVersionHandler({
@@ -416,7 +416,7 @@ const dynamicFavicon = buildFaviconHandler({
   settingsModel: settingsModelForFavicon,
   uploadsDir: faviconUploadsDir,
 });
-// specs/plugins-phase-1-sdk.md rule 48 — the web apps plugins serve themselves (the guest app on its own host, the
+// specs/plugins/plugins-phase-1-sdk.md rule 48 — the web apps plugins serve themselves (the guest app on its own host, the
 // booklet studio at /studio), before the favicon and the GuestFlow client claim every remaining path.
 pluginLoader.mountWebApps(app);
 app.get(['/favicon.ico', '/favicon.svg'], dynamicFavicon);
@@ -440,7 +440,7 @@ app.use('/api', (req, res) => {
 });
 
 // Global error handler — LAST, and four arguments (that signature is what makes it an error
-// middleware). Added with express 5 (specs/express-5-upgrade.md §3 rule 4): v5 forwards a REJECTED
+// middleware). Added with express 5 (specs/tech/express-5-upgrade.md §3 rule 4): v5 forwards a REJECTED
 // promise from an async handler here, where v4 let it escape as an `unhandledRejection` and left the
 // request hanging with no response at all. Without this, such an error would now get express's
 // default HTML handler on a JSON API.
@@ -450,8 +450,8 @@ app.use('/api', (req, res) => {
 // eslint-disable-next-line no-unused-vars -- `next` is required for express to see this as an error handler
 app.use((err, req, res, next) => {
   // A body the JSON parser refuses is the caller's mistake, not a crash: a 400 that says so, not an
-  // « Erreur interne » logged as unhandled (specs/express-5-upgrade.md rules 7, 9). The same for a wrong JSON type
-  // nothing refused first (specs/hosting-h2-account-security.md rule 68): it runs after every route's own check.
+  // « Erreur interne » logged as unhandled (specs/tech/express-5-upgrade.md rules 7, 9). The same for a wrong JSON type
+  // nothing refused first (specs/hosting/hosting-h2-account-security.md rule 68): it runs after every route's own check.
   const refusal = bodyParserRefusal(err) || requestRefusal(err);
   if (refusal && !res.headersSent) return answerBodyRefusal(req, res, refusal);
   console.error(`[unhandled] ${req.method} ${req.originalUrl}`, err);
@@ -467,7 +467,7 @@ const PORT = process.env.PORT || 4000;
 let serverHandle;
 let serverProtocol = 'http';
 try {
-  // Behind the hosting's proxy (specs/hosting-h1-fleet-runtime.md H-D2) TLS ends at Caddy: the
+  // Behind the hosting's proxy (specs/hosting/hosting-h1-fleet-runtime.md H-D2) TLS ends at Caddy: the
   // headers and cookies stay HTTPS-grade, the listener is plain HTTP on 127.0.0.1.
   const built = buildServer({ httpsEnabled: httpsEnabled && process.env.GUESTFLOW_TLS_UPSTREAM !== '1', app });
   serverHandle = built.server;
@@ -487,7 +487,7 @@ const server = serverHandle.listen(...listenArgs, () => {
   console.log(`[boot] GuestFlow API on ${serverProtocol}://localhost:${PORT} (NODE_ENV=${env}, DB=${db.dbPath}${commitSuffix})`);
   logErrorMarker(`=== SERVER BOOT COMPLETE (${serverProtocol}, port ${PORT}) ===`);
 
-  // specs/self-update-and-releases.md §3.E rule 30 — stamp which version actually came up (the swap
+  // specs/hosting/self-update-and-releases.md §3.E rule 30 — stamp which version actually came up (the swap
   // helper reads this back to prove the update took effect), close out a finished update and prune
   // old releases. Must run before the scheduled tasks so the first version check sees clean state.
   require('./controllers/systemController').initOnBoot();

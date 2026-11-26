@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 4, 9, 41, 42, 54 — what the back-office screens read from the server: a campaign with its one-line contents and its two permanent paths,
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 4, 9, 41, 42, 54 — what the back-office screens read from the server: a campaign with its one-line contents and its two permanent paths,
 // the catalogue's following-hours sentence, the offer with the means of payment, the voucher list with its contents, campaign, use and the filters by campaign and kind, the detail
 // with its frozen contents lines and the amount a cancellation would refund.
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/integrations-tab-per-plugin.md rule 10 — a plugin disabled during the session takes its card's
+// specs/plugins/integrations-tab-per-plugin.md rule 10 — a plugin disabled during the session takes its card's
 // draft with it: the page stops being « modified » once no drawn card has a draft.
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

@@ -1,6 +1,6 @@
 /**
  * LINE ROW TARGET — the SQL that addresses ONE stored line when a writer knows an article, not a line
- * (specs/pricing-components.md §3 rule 85: the line tables have no article key, a stay may hold two rows of one article).
+ * (specs/pricing/pricing-components.md §3 rule 85: the line tables have no article key, a stay may hold two rows of one article).
  *
  * `articleRowWhere(db, table, articleColumn, { sasFirst })` is a WHERE clause binding `(reservationId, articleId)` in that order, in place of
  * `reservationId = ? AND optionId = ?`. It matches the article's FIRST line (the lowest `lineId`, the one every legacy key names); with

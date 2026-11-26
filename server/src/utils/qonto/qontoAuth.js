@@ -1,5 +1,5 @@
 /**
- * Qonto token manager (specs/online-payments-qonto.md §4.1).
+ * Qonto token manager (specs/payments/online-payments-qonto.md §4.1).
  *
  * Returns a valid OAuth access token for API calls: reuses the stored access token while it's still
  * fresh, otherwise refreshes it via the refresh token and persists the new pair. The OAuth tokens
@@ -15,7 +15,7 @@ const { buildQontoClient } = require('./qontoClient');
 // Refresh a little before the real expiry so an in-flight call never races the boundary.
 const REFRESH_SKEW_MS = 60 * 1000;
 
-// The refresh running for each refresh token (specs/qonto-settings-in-app.md rule 18). A provider may treat a
+// The refresh running for each refresh token (specs/settings/qonto-settings-in-app.md rule 18). A provider may treat a
 // second use of a rotated token as theft and revoke the whole family, so concurrent callers share one call.
 const refreshesInFlight = new Map();
 

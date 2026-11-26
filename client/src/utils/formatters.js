@@ -1,5 +1,5 @@
 /**
- * Shared display formatters (specs/design-system.md §3.7) — the ONLY place client code formats money
+ * Shared display formatters (specs/design-system/design-system.md §3.7) — the ONLY place client code formats money
  * and dates for display. Role-based: pick the named role, never re-implement locally.
  *
  *   formatCurrency         12,50 € / 1 234,50 €   — rows, totals, any exact amount
@@ -26,7 +26,7 @@ export function formatCurrency(n) {
 }
 
 // An amount inside an editable field: two decimals, a comma, no grouping and no « € », so the text
-// reads as money and still parses back (specs/reservation-price-arithmetic.md rule 10).
+// reads as money and still parses back (specs/reservations/reservation-price-arithmetic.md rule 10).
 export function formatAmountInput(n) {
   if (n == null || n === '') return '';
   const num = Number(n);
@@ -89,7 +89,7 @@ export function displayDateTime(iso) {
   return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-/** « 3 textes », « 1 texte »: the count and the word, an « s » from two (specs/inte-performance.md rule 9). */
+/** « 3 textes », « 1 texte »: the count and the word, an « s » from two (specs/tech/inte-performance.md rule 9). */
 export function plural(n, word) {
   return `${n} ${word}${n > 1 ? 's' : ''}`;
 }

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 78 and specs/payment-schedule-and-cancellation.md — the figures of a cancellation are
+// specs/pricing/pricing-components.md §3 rule 78 and specs/payments/payment-schedule-and-cancellation.md — the figures of a cancellation are
 // stored with it: `cancellationKeptCents` / `cancellationIndemnityCents` on the stay, the refunds the avoir netted in
 // `refund_nettings`, the refund a received compensation paired with. The notice reads the column.
 process.env.DB_PATH = ':memory:';

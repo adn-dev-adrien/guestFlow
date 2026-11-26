@@ -12,7 +12,7 @@ const { phaseLabel, errorMessage } = require('../constants/updatePhases');
 
 const { buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage } = controller.__test;
 
-// specs/self-update-and-releases.md §4.3 and rule 51 (reading of 2026-11-01): every payload is built
+// specs/hosting/self-update-and-releases.md §4.3 and rule 51 (reading of 2026-11-01): every payload is built
 // from the environment the test passes, never from the shell's. The client renders these payloads as-is: no version
 // comparison, no status mapping, no French string built in React.
 

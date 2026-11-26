@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 21, 72, 74 and specs/outside-booking-sas.md rules 15, 19, 41 — SETTLEMENT and REFUNDS take a sale document: the remaining amount,
+// specs/pricing/pricing-components.md §3 rules 21, 72, 74 and specs/sas/outside-booking-sas.md rules 15, 19, 41 — SETTLEMENT and REFUNDS take a sale document: the remaining amount,
 // the allocation of a payment on the lines in sale order (session first), a surplus filed on no line, and the trop-perçu REFUNDS reads.
 const test = require('node:test');
 const assert = require('node:assert/strict');

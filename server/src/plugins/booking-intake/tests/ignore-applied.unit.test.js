@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rule 39 (audit R42 plugins, 2026-11-10) — « Ignorer » answers a proposal only, as
+// specs/platforms/booking-extranet-intake.md rule 39 (audit R42 plugins, 2026-11-10) — « Ignorer » answers a proposal only, as
 // « Appliquer » does. A stale second tab used to turn an applied intake into « ignoré » and drop the fiche's « Rempli
 // depuis l'extranet » banner. Already applied or ignored → 409, unknown → 404, nothing changed.
 const test = require('node:test');

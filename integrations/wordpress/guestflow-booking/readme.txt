@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.24.0
+Stable tag: 1.25.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,11 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.25.0 =
+* Bons cadeaux : la page d’achat montre le bon tel que le client le recevra. La carte se retourne (Recto / Verso, « Agrandir ») : au verso, le logo, le QR code, le contenu du bon, le nom, le mot, le code et la validité, dessinés comme le PDF, avec ses polices. Elle se retourne seule quand on écrit dans « Pour », « De la part de » ou « Un mot ». L’étiquette grise sous « Payer » disparaît.
+* Après le paiement, la même carte montre le verso avec le vrai code et le vrai QR code ; « Imprimer » imprime les deux faces côte à côte au format du bon (105 × 148 mm).
+* La carte reste visible à côté du formulaire pendant la saisie sur grand écran.
 
 = 1.24.0 =
 * Réserver une séance : la phrase sur les 15 minutes sous le bouton disparaît (le créneau reste gardé 15 minutes pendant le paiement) ; tant qu'aucun horaire n'est choisi, le récapitulatif dit « Choisissez un horaire », en rouge après un appui sur le bouton sans horaire.

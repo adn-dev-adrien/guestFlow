@@ -1,5 +1,5 @@
 /**
- * SuggestedArticlesStep — the generic « Proposés à l'arrivée » step of a SAS (specs/outside-booking-sas.md rules 35-38): the articles suggested for a sale context as one-tap chips,
+ * SuggestedArticlesStep — the generic « Proposés à l'arrivée » step of a SAS (specs/sas/outside-booking-sas.md rules 35-38): the articles suggested for a sale context as one-tap chips,
  * an « Autre article » search, the added lines below with a quantity stepper, « Offrir » and « Retirer », and the server's refusals under their line.
  *
  * Generic and prop-driven: it knows no resource, stay, drink or plugin. It renders what the server answered and tells its parent what the operator did; it adds, prices and

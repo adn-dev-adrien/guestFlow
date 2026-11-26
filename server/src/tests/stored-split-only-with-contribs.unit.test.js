@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 46 — the stored-amount split (rule 37) is written only on a
+// specs/payments/reservation-payment-ledger.md rule 46 — the stored-amount split (rule 37) is written only on a
 // reservation that already carries a contribution. On one that has none (an older stay whose acompte
 // was recorded before contributions existed), it would be the FIRST contribution: the export, which
 // picks its path per reservation, would then read the earlier acompte entry as 0 and drop it — out of

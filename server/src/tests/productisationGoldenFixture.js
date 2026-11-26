@@ -1,5 +1,5 @@
 /**
- * The Solio-shaped database of the golden test (specs/plugins-phase-p-productisation.md rule 26).
+ * The Solio-shaped database of the golden test (specs/plugins/plugins-phase-p-productisation.md rule 26).
  * Not a test file.
  *
  * Every row a guest email reads is written here, with fixed ids, so the fixture never depends on
@@ -121,7 +121,7 @@ function buildSolioDb() {
   insert(db, 'properties', {
     id: GRANJA, name: 'La Granja', nameArticle: 'à', maxGuests: 6, doubleBeds: 2, singleBeds: 2,
     hasFilterCoffeeMaker: 1, hasWifi: 1, parkingDistanceMeters: 0, emailHook: 'Chaque matin, le soleil s\'y lève sur la vallée.',
-    // The season the upgrade copies from app_settings (specs/guest-email-texts-made-simple.md rule 34).
+    // The season the upgrade copies from app_settings (specs/emails/guest-email-texts-made-simple.md rule 34).
     poolSeasonStart: '06-15', poolSeasonEnd: '08-31',
   });
   insert(db, 'properties', {
@@ -176,7 +176,7 @@ function buildSolioDb() {
   db.prepare("DELETE FROM migrations WHERE name = 'productisation_v1'").run();
   require('../utils/productisationMigration').runProductisationMigration(db, { env: {} });
   require('../utils/platformNameFormat').refreshDirectChannels(db);
-  // specs/platform-settings-relay-and-review.md rule 6 — Solio's platforms carry the review wordings the
+  // specs/platforms/platform-settings-relay-and-review.md rule 6 — Solio's platforms carry the review wordings the
   // code used to know by name: the same upgrade, on the platforms its stays name.
   const addPlatform = db.prepare('INSERT OR IGNORE INTO platforms (name) VALUES (?)');
   db.prepare("SELECT DISTINCT platform FROM reservations WHERE platform IS NOT NULL AND platform != ''").all()

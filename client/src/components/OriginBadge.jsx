@@ -1,5 +1,5 @@
 /**
- * OriginBadge — where a booking came from, as the server labels it (specs/site-traffic-analytics.md
+ * OriginBadge — where a booking came from, as the server labels it (specs/site/site-traffic-analytics.md
  * rule 19): « Réseaux sociaux · Instagram », « Campagne · lancement-2026 », « Origine inconnue »…
  * Renders nothing without a label. On a phone the label is cut with an ellipsis; the tooltip keeps
  * the full text and the raw detail (landing page, UTM parameters, referrer).

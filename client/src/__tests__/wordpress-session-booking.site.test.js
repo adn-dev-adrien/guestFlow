@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 18-20 — the pieces of the connector around the tunnel: the alias block draws the same tunnel, the permanent link `/utiliser` leads to the page that holds
+// specs/site/site-outside-resource-booking.md rules 18-20 — the pieces of the connector around the tunnel: the alias block draws the same tunnel, the permanent link `/utiliser` leads to the page that holds
 // either block, the purchase page links to it (and only when a page holds it), and the voucher card stands straight.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,7 +49,7 @@ test('rule 18 — `/<base>/utiliser` leads to the page holding either block, wha
 });
 
 test('rule 19 — the purchase page links to the session page below the form, and only when a page holds the block', async () => {
-  const GV = ['assets/voucher-code.js', 'assets/voucher-parts.js'];
+  const GV = ['assets/voucher-code.js', 'assets/voucher-parts.js', 'assets/voucher-card.js'];
   const campaign = {
     available: true,
     campaigns: [{
@@ -70,16 +70,16 @@ test('rule 19 — the purchase page links to the session page below the form, an
   expect(screen.queryByText('Réserver votre séance')).toBeNull();
 });
 
-test('rule 20 — the voucher card stands straight: no rotation in the rule or the keyframes, the entrance keeps its fade and rise, and none under reduced motion', () => {
+test('rule 20 — the voucher card stands straight: no rotation in the rule or the keyframes, the entrance keeps its fade and rise, and none under reduced motion (the turn of specs/gift-vouchers/gift-voucher-campaigns.md rule 66 is the only rotation)', () => {
   const css = read('assets/style.css');
-  const rule = css.split('\n').find((line) => line.startsWith('.gf-gv-front {'));
+  const rule = css.split('\n').find((line) => line.startsWith('.gf-card {'));
   expect(rule).toBeTruthy();
   expect(rule).not.toMatch(/rotate/);
   expect(rule).toContain('animation: gf-gv-front-in');
   const keyframes = css.split('\n').find((line) => line.startsWith('@keyframes gf-gv-front-in'));
   expect(keyframes).not.toMatch(/rotate/);
   expect(keyframes).toMatch(/opacity: 0; transform: translateY\(10px\)/);
-  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.gf-gv-front \{ animation: none; \} \}/);
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.gf-card \{ animation: none; \}/);
 });
 
 test('rule 2 — the tunnel’s layout: two columns with a sticky recap from 900 px of block width, one column and, on a phone, a sticky bar below', () => {

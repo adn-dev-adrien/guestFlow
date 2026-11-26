@@ -46,7 +46,7 @@ function parseEndOfStayDetail(detail) {
 
 /**
  * ArrivalPaymentCard — le paiement unique de l'arrivée, détaillé
- * (specs/arrival-payment-detail-and-adjustment.md §3.1-§3.2).
+ * (specs/sas/arrival-payment-detail-and-adjustment.md §3.1-§3.2).
  *
  * Le groupe dit QUELS SEAUX une même collecte a couverts ; cette carte dit ce que le client a payé :
  * les nuits, le linge, le repas, la taxe de séjour, puis le total. Les lignes viennent du serveur
@@ -155,7 +155,7 @@ function ArrivalPaymentCard({ payment, busy, error, readOnly, onCommitTotal, onU
             sx={{ maxWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' }, ...AMOUNT_FIELD_SX }}
           />
         )}
-        {/* specs/single-payment-from-the-fiche.md rule 10 — undoing releases exactly the buckets the
+        {/* specs/payments/single-payment-from-the-fiche.md rule 10 — undoing releases exactly the buckets the
             group named; one paid outside it is never touched. */}
         <Button
           size="small"
@@ -176,10 +176,10 @@ function ArrivalPaymentCard({ payment, busy, error, readOnly, onCommitTotal, onU
 
 /**
  * ComplementDetail — what sits under a complement row of the ledger, folded under « Détail »
- * (specs/reservation-payment-ledger.md rule 22, §9 Q5): the itemised lines, the operator's adjusted
+ * (specs/payments/reservation-payment-ledger.md rule 22, §9 Q5): the itemised lines, the operator's adjusted
  * amount with its accounting split, and an optional `extra` node (« Percevoir en fin de séjour »).
  * Marking it perceived is the row's own action now. Shared by the arrival, end-of-stay and merged
- * complements (specs/defer-arrival-complement-to-checkout.md §3.2), so they can never drift apart.
+ * complements (specs/sas/defer-arrival-complement-to-checkout.md §3.2), so they can never drift apart.
  *
  * Props: `lines` ([{ label, amount }]), the adjustment (`overrideValue`, `onOverrideCommit`,
  * `autoAmount`, `allocation`, `floor`, `adjustDisabledReason`) and `extra`.
@@ -211,7 +211,7 @@ function ComplementDetail({
       )}
       {adjustable && (
         <Box>
-          {/* specs/adjustable-complement-amounts.md §3.1 — le montant annoncé au client l'emporte sur
+          {/* specs/sas/adjustable-complement-amounts.md §3.1 — le montant annoncé au client l'emporte sur
               le calcul, même après encaissement. Vider le champ rend la main au moteur. */}
           <Tooltip title={adjustDisabledReason} disableHoverListener={!adjustDisabledReason}>
             <span>
@@ -246,7 +246,7 @@ function ComplementDetail({
   );
 }
 
-// What the PATCH flips for each ledger row (specs/reservation-payment-ledger.md rules 8, 14).
+// What the PATCH flips for each ledger row (specs/payments/reservation-payment-ledger.md rules 8, 14).
 const MARK_FIELDS = {
   deposit: { flag: 'depositPaid', date: 'depositPaidDate' },
   balance: { flag: 'balancePaid', date: 'balancePaidDate' },
@@ -263,7 +263,7 @@ const EDITOR_LABELS = { deposit: "Montant de l'acompte (€)", balance: 'Montant
 
 /**
  * Finance card: the price block (« Prix hébergement brut / ajusté ») and the payments ledger
- * (specs/reservation-payment-ledger.md). Every row, state, amount, action and refusal comes from the
+ * (specs/payments/reservation-payment-ledger.md). Every row, state, amount, action and refusal comes from the
  * server (`ledger`); this component keeps only which panel is open and the drafts. Reads everything
  * from the reservation form context — no props.
  */
@@ -271,7 +271,7 @@ const DEPOSIT_DISABLED_LOCK_REASONS = {
   'collected-by-link': 'Acompte perçu par un lien de paiement : remboursement pour l’annuler.',
 };
 
-// specs/force-item-to-complement.md rule 20.
+// specs/sas/force-item-to-complement.md rule 20.
 const TAX_IN_COMPLEMENT_LOCK_REASONS = {
   'collected-on-solde': 'Taxe encaissée avec le solde : décocher le solde d’abord.',
   'collected-on-acompte': 'Taxe encaissée avec l’acompte : décocher l’acompte d’abord.',
@@ -290,15 +290,15 @@ export default function FinanceSection() {
     refundOverpaymentLines = [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
     // A cancelled fiche is a disabled fieldset, yet a refund is still its legitimate write
-    // (specs/calendar-property-parity.md rule 25): the button goes through a portal to a node outside it.
+    // (specs/planning/calendar-property-parity.md rule 25): the button goes through a portal to a node outside it.
     refundHost = null,
-    // specs/payment-link-lifecycle.md rule 56 (O2) — on a closed fiche, where « Marquer remboursé » is drawn instead.
+    // specs/payments/payment-link-lifecycle.md rule 56 (O2) — on a closed fiche, where « Marquer remboursé » is drawn instead.
     closedActionsHost = null,
-    // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
+    // specs/payments/reservation-payment-ledger.md — the ledger and its three server round-trips.
     ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink, previewStatementDraft,
-    // specs/direct-installments.md — the plan of a direct reservation and its setter.
+    // specs/payments/direct-installments.md — the plan of a direct reservation and its setter.
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
-    // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
+    // specs/payments/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
     depositDisabledLockedReason = null,
     // guest-app rule 113 a — the notes paid online, which the row neither adjusts nor puts back: { [noteId]: reason }, from the server.
     midStayNoteLocks = {},
@@ -312,7 +312,7 @@ export default function FinanceSection() {
   const [arrivalPayDate, setArrivalPayDate] = useState(todayStr());
   const [arrivalPayBusy, setArrivalPayBusy] = useState(false);
   const [arrivalPayError, setArrivalPayError] = useState('');
-  // specs/mixed-method-payments.md rules 21-22 — « Plusieurs moyens » on the single payment, closed by default.
+  // specs/payments/mixed-method-payments.md rules 21-22 — « Plusieurs moyens » on the single payment, closed by default.
   const [arrivalSplitOpen, setArrivalSplitOpen] = useState(false);
   const [arrivalTenders, setArrivalTenders] = useState(null);
   // Rules 17, 20, 41 — the inline form under a recorded split payment: { rowKey, kind: 'modify' | 'remainder', settlementId?, target? }.
@@ -328,14 +328,14 @@ export default function FinanceSection() {
     return next;
   });
 
-  // specs/defer-arrival-complement-to-checkout.md §3.2 — the merged block lives on the live quote.
+  // specs/sas/defer-arrival-complement-to-checkout.md §3.2 — the merged block lives on the live quote.
   const checkoutComplement = pricingQuote?.checkoutComplement || form.checkoutComplement || null;
   const complementDeferred = Boolean(checkoutComplement?.deferred)
     && Number(checkoutComplement?.amount || 0) > 0;
   const complementAdjustment = form.complementAdjustment || { floor: 0, accommodation: 0, tax: 0, allocation: null };
   const arrivalAdjusted = form.complementAmountOverride !== '' && form.complementAmountOverride != null;
   const arrivalAutoAmount = Number(pricingQuote?.complementAmountAuto || 0);
-  // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — the live quote's itemisation while
+  // specs/sas/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — the live quote's itemisation while
   // the fiche is being edited, the stored one otherwise; both are shaped by the server.
   const arrivalComplementLines = pricingQuote?.complementDetailLines ?? (form.arrivalComplementLines || []);
   const endOfStayLiveTotal = pricingQuote?.endOfStayComplementTotal;
@@ -374,7 +374,7 @@ export default function FinanceSection() {
     ? Math.round((Number(form.complementAmountOverride) + mergedEndOfStay) * 100) / 100
     : '';
 
-  // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour ».
+  // specs/sas/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour ».
   const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const deferAccess = complementDeferralAccess({
     editingReservationId,
@@ -439,7 +439,7 @@ export default function FinanceSection() {
     </Box>
   ) : null;
 
-  // specs/plugins-phase-p-productisation.md rule 45 — the server's answer, never the platform's name.
+  // specs/plugins/plugins-phase-p-productisation.md rule 45 — the server's answer, never the platform's name.
   const isPlatform = Boolean(isPlatformSale);
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
   const showMidStayNotes = Boolean(midStayNote?.visible);
@@ -586,7 +586,7 @@ export default function FinanceSection() {
     const mode = row.amountEdit?.mode;
     // Review of #727 (M1) — on a past, locked fiche the amounts and the split are read-only; only the
     // marks stay. The complement detail still unfolds.
-    // specs/platform-statement-after-payout.md rule 1 — the platform's statement stays open on a locked fiche.
+    // specs/platforms/platform-statement-after-payout.md rule 1 — the platform's statement stays open on a locked fiche.
     if (isReservationLocked && mode !== 'complement' && !(mode === 'statement' && row.amountEdit?.correctable)) { setPanel({ key: row.key, kind: 'locked', reason: LOCKED_AMOUNT_REASON }); return; }
     if (mode === 'complement') { toggleFold(row.key); return; }
     if (mode === 'statement') { setPanel({ key: row.key, kind: 'statement' }); return; }
@@ -614,7 +614,7 @@ export default function FinanceSection() {
   const submitMark = async (row, { date, cash, payout, commission, tenders, shortfall }) => {
     const fields = MARK_FIELDS[row.key];
     const body = { [fields.flag]: true, [fields.date]: date };
-    // specs/mixed-method-payments.md rules 1-10 — the lines replace the caisse-interne switch.
+    // specs/payments/mixed-method-payments.md rules 1-10 — the lines replace the caisse-interne switch.
     if (tenders) {
       const res = await markFromLedger({
         ...body, expectedAmountCents: row.action.split.dueCents, tenders, ...(shortfall ? { shortfall } : {}),
@@ -648,7 +648,7 @@ export default function FinanceSection() {
     } catch (err) { showError(err?.message || 'Suppression impossible.'); }
   };
 
-  // specs/payment-link-lifecycle.md rule 42 — the server words the confirmation; the page withdraws and re-reads.
+  // specs/payments/payment-link-lifecycle.md rule 42 — the server words the confirmation; the page withdraws and re-reads.
   const askWithdraw = async (withdraw) => {
     const ok = await confirm({
       title: withdraw.confirmTitle,
@@ -688,7 +688,7 @@ export default function FinanceSection() {
     </>
   );
 
-  // specs/mixed-method-payments.md rules 17, 20 — a correction or a reste goes straight to the server, then the
+  // specs/payments/mixed-method-payments.md rules 17, 20 — a correction or a reste goes straight to the server, then the
   // fiche re-reads its money like after any other payment.
   const runSplit = async (call) => {
     try {
@@ -949,7 +949,7 @@ export default function FinanceSection() {
       );
     }
     if (panel.kind === 'statement') {
-      // specs/platform-statement-after-payout.md rules 5, 11 — a received payout or a locked fiche writes the
+      // specs/platforms/platform-statement-after-payout.md rules 5, 11 — a received payout or a locked fiche writes the
       // statement at once through its own PATCH; otherwise it is a draft saved with the fiche, as before.
       const received = row.amountEdit?.received || null;
       const writesNow = Boolean(editingReservationId) && Boolean(row.amountEdit?.correctable) && (Boolean(received) || isReservationLocked);
@@ -1000,10 +1000,10 @@ export default function FinanceSection() {
   const toSettle = closedActionsHost && settlePaymentLink
     ? rows.flatMap((r) => [r.detail?.link, ...(r.detail?.otherLinks || [])]).filter((l) => l && l.settle && l.settle.refunded)
     : [];
-  // specs/calendar-property-parity.md rule 25 reading of 2026-11-02 — so is the deletion of a refund made after the
+  // specs/planning/calendar-property-parity.md rule 25 reading of 2026-11-02 — so is the deletion of a refund made after the
   // cancellation; its row in the ledger, inside the fieldset, shows no button. A duplicate set aside takes no refund.
   const toDelete = closedActionsHost && refundHost ? rows.filter((r) => r.action && r.action.kind === 'deleteRefund') : [];
-  // specs/payment-schedule-and-cancellation.md rule 59 — so is the return of a caution the cancelled stay still holds.
+  // specs/payments/payment-schedule-and-cancellation.md rule 59 — so is the return of a caution the cancelled stay still holds.
   const toReturn = closedActionsHost && refundHost ? rows.filter((r) => r.key === 'cautionReturned' && r.action && r.action.kind === 'mark') : [];
   const drawnOutside = [...toDelete, ...toReturn];
   const ledgerRows = drawnOutside.length > 0 ? rows.map((r) => (drawnOutside.includes(r) ? { ...r, action: null } : r)) : rows;
@@ -1131,7 +1131,7 @@ export default function FinanceSection() {
                       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
                         Prix hébergement ajusté
                       </Typography>
-                      {/* Accepts arithmetic (specs/reservation-price-arithmetic.md). */}
+                      {/* Accepts arithmetic (specs/reservations/reservation-price-arithmetic.md). */}
                       <ArithmeticTextField
                         label="Prix ajusté"
                         value={form.customPrice}
@@ -1184,14 +1184,14 @@ export default function FinanceSection() {
 
             <Divider />
 
-            {/* specs/plugins-phase-1-sdk.md rule 58 (I4) — a focus region: a payment form that closes or goes busy under the focus leaves it here. */}
+            {/* specs/plugins/plugins-phase-1-sdk.md rule 58 (I4) — a focus region: a payment form that closes or goes busy under the focus leaves it here. */}
             <FocusKeeper>
               <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>Paiements</Typography>
 
-              {/* specs/single-payment-from-the-fiche.md §3.1 — several buckets still to collect: offer
+              {/* specs/payments/single-payment-from-the-fiche.md §3.1 — several buckets still to collect: offer
                   to record them as the ONE payment the guest made. */}
               {form.arrivalPayment?.collectible && !isReservationLocked && fichePristine && (
-                // specs/plugins-phase-1-sdk.md rule 58 (I4) — a focus region: « Encaisser » going busy leaves the focus in the block.
+                // specs/plugins/plugins-phase-1-sdk.md rule 58 (I4) — a focus region: « Encaisser » going busy leaves the focus in the block.
                 <FocusKeeper sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     Encaisser en une fois : {formatCurrency(form.arrivalPayment.collectible.total)}
@@ -1297,7 +1297,7 @@ export default function FinanceSection() {
                           checked={Boolean(form.depositDisabled)}
                           onChange={(e) => updateForm({
                             depositDisabled: e.target.checked,
-                            // specs/disable-deposit-per-reservation.md — the server enforces the same.
+                            // specs/payments/disable-deposit-per-reservation.md — the server enforces the same.
                             ...(e.target.checked ? { depositPaid: false, depositPaidDate: '' } : {}),
                           })}
                           // disable-deposit-per-reservation.md rule 14 — a lock never freezes the switch ON: it may be unticked, never ticked.
@@ -1357,7 +1357,7 @@ export default function FinanceSection() {
             pendingLines={pendingMidStayLines}
             onSettle={({ checkedKeys, opening }, cash, split = null) => saveThenSettle(() => api.markPayment(editingReservationId, {
               settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
-              // specs/mixed-method-payments.md rule 1 — the note's lines, checked against its total by the server.
+              // specs/payments/mixed-method-payments.md rule 1 — the note's lines, checked against its total by the server.
               ...(split ? { expectedAmountCents: split.expectedAmountCents, tenders: split.tenders, ...(split.shortfall ? { shortfall: split.shortfall } : {}) } : {}),
             }))}
             onSellOnly={saveThenSellOnly}
@@ -1386,7 +1386,7 @@ export default function FinanceSection() {
   );
 }
 
-// The methods the server listed on any markable row (specs/mixed-method-payments.md rule 4); TenderLines falls
+// The methods the server listed on any markable row (specs/payments/mixed-method-payments.md rule 4); TenderLines falls
 // back to its own copy when none is at hand.
 function splitMethodsOf(rows) {
   const row = (rows || []).find((r) => r && r.action && r.action.split && Array.isArray(r.action.split.methods));

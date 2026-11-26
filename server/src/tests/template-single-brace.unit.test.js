@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 27 (2026-10-18) — a known variable in one pair of
+// specs/emails/guest-email-texts-made-simple.md rule 27 (2026-10-18) — a known variable in one pair of
 // braces, « {clientFirstName} », is refused: the renderer would send it as it is.
 
 const test = require('node:test');

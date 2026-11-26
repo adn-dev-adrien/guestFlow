@@ -2,7 +2,7 @@ import { usePlugin } from '../hooks/usePlugins';
 
 /**
  * PluginGate — renders its children only while a plugin is active
- * (specs/plugins-phase-0-foundation.md rule 16). An inactive plugin leaves no trace: no placeholder,
+ * (specs/plugins/plugins-phase-0-foundation.md rule 16). An inactive plugin leaves no trace: no placeholder,
  * no empty box, and — because the children are not mounted — none of their API calls.
  *
  * Props:

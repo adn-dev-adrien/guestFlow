@@ -1,4 +1,4 @@
-// specs/force-item-to-complement.md rule 20, reading of 2026-11-05 — the « + compl. » chip of the tourist tax does not
+// specs/sas/force-item-to-complement.md rule 20, reading of 2026-11-05 — the « + compl. » chip of the tourist tax does not
 // go round the greyed switch: while the server's reason holds, it reads and does not toggle.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

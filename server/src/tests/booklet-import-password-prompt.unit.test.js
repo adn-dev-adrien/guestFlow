@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 64 (audit R37-EXT-2) — the booklet import script reads the operator's password without
+// specs/guest-app/guest-app.md rule 64 (audit R37-EXT-2) — the booklet import script reads the operator's password without
 // echoing it: on a terminal the typed keys never reach the output, only the question does; the script's login asks the
 // password through that prompt. A plain question (the 2FA code) still echoes, which is why the password has its own.
 const test = require('node:test');
@@ -8,7 +8,7 @@ const path = require('node:path');
 const { PassThrough, Writable } = require('node:stream');
 const { pathToFileURL } = require('node:url');
 
-const DIR = path.join(__dirname, '..', '..', '..', 'specs', 'guest-app-livret');
+const DIR = path.join(__dirname, '..', '..', '..', 'scripts', 'guest-app-livret');
 const prompts = () => import(pathToFileURL(path.join(DIR, 'prompt.mjs')).href);
 
 /** A terminal: raw keys in, everything written out captured. */

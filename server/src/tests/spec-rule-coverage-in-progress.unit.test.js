@@ -1,4 +1,4 @@
-// specs/spec-rule-coverage.md rule 18 — a spec delivered over several PRs: « In progress » counts as delivered
+// specs/tech/spec-rule-coverage.md rule 18 — a spec delivered over several PRs: « In progress » counts as delivered
 // for code, a `> **Pending** — <PR>` line defers a rule's test, and Pending dies with the In progress status.
 const test = require('node:test');
 const assert = require('node:assert/strict');

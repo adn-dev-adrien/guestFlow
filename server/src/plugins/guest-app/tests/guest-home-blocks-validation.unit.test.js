@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 14, 28, 29 — what Studio may save: every refusal, all at once, by field.
+// specs/guest-app/guest-app-home-automation.md rules 14, 28, 29 — what Studio may save: every refusal, all at once, by field.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

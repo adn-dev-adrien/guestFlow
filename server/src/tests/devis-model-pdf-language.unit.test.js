@@ -1,5 +1,5 @@
 // Persistence + validation of the `pdfLanguage` column on devis rows.
-// See specs/devis-english-language.md §3 rule 1 + §4.3, and rule 12 — the devis row alone decides the
+// See specs/devis/devis-english-language.md §3 rule 1 + §4.3, and rule 12 — the devis row alone decides the
 // language of its PDF (an update that omits `pdfLanguage` preserves it).
 //
 // Schema mirrors `tests/devis-model-create.unit.test.js` (same pricing tables the engine reads),
@@ -13,7 +13,7 @@ const devisModel = require('../models/devisModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const DDL = `
@@ -140,7 +140,7 @@ test('findById: surfaces pdfLanguage on the returned row', () => {
 });
 
 test('findById: surfaces option.titleEn + resource.nameEn so the PDF can read them', () => {
-  // Since specs/translation-catalogue.md the English comes from the catalogue, not from a column on
+  // Since specs/site/translation-catalogue.md the English comes from the catalogue, not from a column on
   // the row. The field keeps its name so the PDF renderer is untouched — this test proves the source
   // changed and the contract did not.
   const { model, db } = freshModel();

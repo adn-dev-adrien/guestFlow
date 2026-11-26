@@ -1,5 +1,5 @@
 /**
- * Email identity — one address typed once (specs/settings-rationalization.md rule 12).
+ * Email identity — one address typed once (specs/settings/settings-rationalization.md rule 12).
  *
  * The « Email de contact » of Établissement is the source. Every other address or name GuestFlow
  * sends with falls back to it unless the operator overrode it:

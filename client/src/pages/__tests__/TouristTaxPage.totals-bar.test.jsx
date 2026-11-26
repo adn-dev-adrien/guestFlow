@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 20, 21 and 56 — the bottom banner shows the server's totals as they are:
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 20, 21 and 56 — the bottom banner shows the server's totals as they are:
 // « À reverser » (what remains) in large type with « sur … au total », « Déjà déclaré », what the platforms remit and its
 // stays count, the other counts as pills; a tick is followed by a read of the report, so the banner moves by the server's
 // figures, never by a sum made here.

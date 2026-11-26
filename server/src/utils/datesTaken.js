@@ -1,5 +1,5 @@
 /**
- * Nights held by another stay (specs/payment-link-lifecycle.md rules 10, 11, 37, 39, 46, 48).
+ * Nights held by another stay (specs/payments/payment-link-lifecycle.md rules 10, 11, 37, 39, 46, 48).
  *
  *   heldOverlaps(database, { propertyId, startDate, endDate, excludeIds })
  *       → the stays that hold their dates (stayMoney.holdsDates) and block a night of [startDate, endDate),

@@ -1,5 +1,5 @@
 /**
- * The host alerts (specs/hosting-h1-fleet-runtime.md rules 16–17): opened by the probe or the weekly
+ * The host alerts (specs/hosting/hosting-h1-fleet-runtime.md rules 16–17): opened by the probe or the weekly
  * restore, shown with the console's other alerts, emailed to the operators once — then again every
  * 24 h while they stay open, never every minute — and closed by themselves when the condition clears.
  */

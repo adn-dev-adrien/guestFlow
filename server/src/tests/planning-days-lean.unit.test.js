@@ -6,7 +6,7 @@ const planningDaysModel = require('../models/planningDaysModel');
 const { buildController } = require('../controllers/planningController');
 const { toArrivalCard, toDepartureRow, toOccupancyRow, CARD_FIELDS, DEPARTURE_FIELDS, OCCUPANCY_FIELDS } = require('../utils/upcomingArrivals');
 
-// specs/inte-performance.md rules 20 and 22 — what the Planning page and the fiche read of a stay, not
+// specs/tech/inte-performance.md rules 20 and 22 — what the Planning page and the fiche read of a stay, not
 // the whole fiche (about 5.8 kB per stay, 60 columns and three joined lists).
 
 const FICHE = {

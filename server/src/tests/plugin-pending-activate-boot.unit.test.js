@@ -1,11 +1,11 @@
-// specs/plugins-phase-4-registry.md rule 45 (audit round 2, N3) — the activation hooks a restart-needing
+// specs/plugins/plugins-phase-4-registry.md rule 45 (audit round 2, N3) — the activation hooks a restart-needing
 // dependency plan owes run at the boot that follows, in the production order (register, record the live
 // set, then the pending hooks): for a requirement switched on by the plan AND for one installed live in it.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['website-booking', 'google-vacation-rentals'])) return;
 const h = require('./pluginPackagesFixture');

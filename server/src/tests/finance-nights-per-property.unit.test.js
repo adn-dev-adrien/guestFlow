@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/fiscal-year-and-nights-sold.md §3.3 — nights SOLD per logement, on the same windows and the
+// specs/accounting/fiscal-year-and-nights-sold.md §3.3 — nights SOLD per logement, on the same windows and the
 // same attribution as the money, so « X € » and « N nuits » on a card always describe the same set.
 const financeModel = require('../models/financeModel');
 
@@ -11,7 +11,7 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
-    -- specs/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
+    -- specs/site/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
     requestOrigin TEXT, attributionChannel TEXT, devisStatus TEXT, createdAt TEXT,
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
@@ -69,7 +69,7 @@ test('nights are counted per logement over the period, zero-seeded and sorted li
 });
 
 test('nights ignore a tourist-tax refund — that deduction belongs to the declaration, not to occupancy', () => {
-  // specs/fiscal-year-and-nights-sold.md §3.3 rule 12 vs specs/reservation-refunds.md §3.5.
+  // specs/accounting/fiscal-year-and-nights-sold.md §3.3 rule 12 vs specs/payments/reservation-refunds.md §3.5.
   const { db, model } = freshModel();
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-10), endDate: iso(-6), depositAmount: 400 }); // 4 nuits
   db.prepare("INSERT INTO reservation_refunds (id, reservationId, totalTtc, method) VALUES (1, 1, 60, 'transfer')").run();

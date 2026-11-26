@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 4, 5, 43-44 (§4.1) — the dateless quote of an hourly resource, asked of the core's sale with `session: { band, minutes,
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 4, 5, 43-44 (§4.1) — the dateless quote of an hourly resource, asked of the core's sale with `session: { band, minutes,
 // rankOffsetMinutes }`: the external rate of the band, the rate of the following hours, whole slots, the outside VAT of the resource's class. A quote only:
 // `sell` keeps refusing a session (it is booked from the planning). Generic: the code under test names no consumer.
 process.env.DB_PATH = ':memory:';

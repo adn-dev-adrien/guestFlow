@@ -1,5 +1,5 @@
 /**
- * EmailPreviewPane — a rendered email as the guest reads it (specs/guest-email-texts-made-simple.md
+ * EmailPreviewPane — a rendered email as the guest reads it (specs/emails/guest-email-texts-made-simple.md
  * rules 13–15, 41). Generic: it renders what the server rendered and owns no rule.
  *
  * With `segments` (rule 45, UI/UX review 2026-10-18 decision 13), each sentence the server tagged with

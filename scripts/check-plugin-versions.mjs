@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * A plugin whose files changed carries a new version (specs/plugins-phase-4-registry.md P26, rules 23, 28).
+ * A plugin whose files changed carries a new version (specs/plugins/plugins-phase-4-registry.md P26, rules 23, 28).
  *
  *   node scripts/check-plugin-versions.mjs            # the release's `verify` job: fails when a plugin
  *                                                      # changed since the previous tag and kept its version
@@ -27,7 +27,7 @@
  * core modules a server plugin reaches through `coreModule()` lose nothing unless the SDK's major
  * version moves (rule 35), and that the `requires` of the shipped manifests form a sound graph:
  * every requirement is shipped, at a version its range accepts, with no cycle
- * (specs/plugin-dependencies.md rule 16).
+ * (specs/plugins/plugin-dependencies.md rule 16).
  *
  * "Changed" means a file of `server/src/plugins/<id>/` or `client/src/plugins/<id>/` differs from the
  * previous tag, tests excepted (a test changes no package) — or a file of the core client a web app of the plugin
@@ -295,7 +295,7 @@ function main() {
   const unsound = requirementViolations(shipped);
   if (unsound.length) {
     unsound.forEach((message) => process.stderr.write(`✗ ${message}\n`));
-    process.stderr.write('\nFix the `requires` of the manifest(s) above (specs/plugin-dependencies.md rule 16).\n');
+    process.stderr.write('\nFix the `requires` of the manifest(s) above (specs/plugins/plugin-dependencies.md rule 16).\n');
     return 1;
   }
   const readOr = (file) => { try { return fs.readFileSync(path.join(ROOT, file), 'utf8'); } catch { return null; } };
@@ -305,7 +305,7 @@ function main() {
   if (refused.length) {
     refused.forEach((message) => process.stderr.write(`✗ ${message}\n`));
     process.stderr.write(`\nGuestFlow ${coreVersion} (SDK ${sdkVersion}) would refuse these bundled plugins at boot: fix their ranges in a\n`
-      + 'pull request (specs/plugins-phase-4-registry.md rule 62).\n');
+      + 'pull request (specs/plugins/plugins-phase-4-registry.md rule 62).\n');
     return 1;
   }
   const base = at('--base') || previousTag();

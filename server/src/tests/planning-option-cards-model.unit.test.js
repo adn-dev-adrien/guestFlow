@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../models/planningOptionCardsModel');
 
-// specs/option-planning-card.md §3.3 + §4.1 — cardsInRange emits one card per stored occurrence
+// specs/options/option-planning-card.md §3.3 + §4.1 — cardsInRange emits one card per stored occurrence
 // whose date ∈ [from, to], for showsPlanningCard options on real reservations (devis excluded).
 
 const DDL = `
@@ -147,7 +147,7 @@ test('setOccurrenceDone returns an error for an unknown occurrence', () => {
   db.close();
 });
 
-// specs/card-option-served-persons.md §3.4 rule 18 — the cook must read the covers actually sold.
+// specs/options/card-option-served-persons.md §3.4 rule 18 — the cook must read the covers actually sold.
 
 test('a reduced number of covers rides on the card', () => {
   const db = freshDb();

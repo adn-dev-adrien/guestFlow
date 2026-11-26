@@ -1,10 +1,10 @@
 /**
- * Uniform public HTTP envelope (specs/public-api.md §4.3).
+ * Uniform public HTTP envelope (specs/site/public-api.md §4.3).
  *   success → { data: <payload> }
  *   error   → { error: { code, message, details? } }
  * `message` stays generic/non-fingerprinting; `code` is a stable machine string.
  *
- * Language (specs/site-english-version.md §3 rules 1 and 8): `code` never moves — it is what a
+ * Language (specs/site/site-english-version.md §3 rules 1 and 8): `code` never moves — it is what a
  * consumer branches on — only `message` follows the caller's language.
  */
 
@@ -64,7 +64,7 @@ const PUBLIC_TREE = /^\/public\//i;
 
 /**
  * The answer to a body the parser refused (utils/bodyParserRefusal): the public tree keeps its envelope
- * (specs/public-api.md rule 22), the internal API its flat shape (specs/express-5-upgrade.md rule 7).
+ * (specs/site/public-api.md rule 22), the internal API its flat shape (specs/tech/express-5-upgrade.md rule 7).
  */
 function answerBodyRefusal(req, res, refusal) {
   if (PUBLIC_TREE.test(req.originalUrl)) return failT(res, req, refusal.status, refusal.body.code, refusal.messageKey);

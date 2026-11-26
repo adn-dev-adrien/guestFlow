@@ -1,5 +1,5 @@
 /**
- * Whether a stay carries money, and whether it holds its dates (specs/payment-link-lifecycle.md rules 31, 37).
+ * Whether a stay carries money, and whether it holds its dates (specs/payments/payment-link-lifecycle.md rules 31, 37).
  *
  *   carriesMoneySql(database, alias)  → a SQL predicate on the row `alias`: money recorded on it or on a devis
  *                                       converted into it (rule 31), shared with supersededDuplicates

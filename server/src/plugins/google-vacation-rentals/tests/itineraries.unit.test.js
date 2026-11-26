@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rules 4 and 8 — what is priced: arrivals over the horizon,
+// specs/site/google-vacation-rentals-feed.md rules 4 and 8 — what is priced: arrivals over the horizon,
 // lengths up to maxLos and never past the horizon, party sizes only where the total can change.
 const test = require('node:test');
 const assert = require('node:assert/strict');

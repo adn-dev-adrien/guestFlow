@@ -1,9 +1,9 @@
 /**
- * Sales made outside any stay (specs/resource-booking-pricing-and-invoicing.md rules 20-21). A plugin lists them with
+ * Sales made outside any stay (specs/resources/resource-booking-pricing-and-invoicing.md rules 20-21). A plugin lists them with
  * `ctx.standaloneSales`; the journal and the card-batch reconciliation read them here, from every live plugin, and
  * never require the selling plugin.
  *
- * The core lists its own documents beside the plugins' (a standalone sale of `standalone_sales`, specs/pricing-components.md rules 63, 74): one sale per
+ * The core lists its own documents beside the plugins' (a standalone sale of `standalone_sales`, specs/pricing/pricing-components.md rules 63, 74): one sale per
  * document and payment day, built by `accounting/standaloneDocuments.js`; it never requires a plugin and works with every plugin off.
  *
  * Sale shape: { key, date ('YYYY-MM-DD', the payment day), totalCents, booksCents (total minus caisse interne),

@@ -15,7 +15,7 @@ const { ACCOMMODATION_KEY, PLAN_BUCKET_LINES, STORED_SPLIT_ROUNDING_TTC, TOURIST
 const { roundMoneyOrZero: round2 } = require('../money');
 
 /**
- * specs/reservation-refunds.md rule 49 reading of 2026-11-02 — what each line of a stay collected, TTC, keyed like
+ * specs/payments/reservation-refunds.md rule 49 reading of 2026-11-02 — what each line of a stay collected, TTC, keyed like
  * `refundable`: the paid acompte's and solde's contribs, plus a paid arrival complement's share (the lines
  * it collects whole, and the growth of the others). The tax share an older acompte captured was booked on its
  * accommodation, and moves to the tax with the solde (accountingModel's reclass). Without contribs that add up to
@@ -30,7 +30,7 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
   return lineAllocations ? namedByAllocations(out, { options, resources, cash, lineAllocations }) : out;
 }
 
-// specs/pricing-components.md §3 rules 21, 74 (pass 4): where payment allocations NAME a line, that line collected what they
+// specs/pricing/pricing-components.md §3 rules 21, 74 (pass 4): where payment allocations NAME a line, that line collected what they
 // say, when every payment row of the stay names a line; a stay with a stay-level row keeps the stored-money reading above.
 const refOfLine = (line) => {
   if (line.lineId == null) return null;
@@ -71,7 +71,7 @@ function collectedFromStoredMoney({ reservation, options, resources, booked, cas
   const nz = (value) => (value == null ? 0 : Number(value));
   // Rule 48 reading of 2026-11-02 (audit R15-L1) — the book money, or (`cash`) what the caisse interne collected.
   const paid = (flag, cashFlag) => Number(row[flag]) === 1 && (Number(row[cashFlag] || 0) === 1) === Boolean(cash);
-  // specs/mixed-method-payments.md rule 46 — a bucket paid with several methods, partly on the books: each reading
+  // specs/payments/mixed-method-payments.md rule 46 — a bucket paid with several methods, partly on the books: each reading
   // holds its share of it (`paymentTenders.bucketSharesOf`), never the whole bucket.
   const shareOf = (bucket, flag, cashFlag) => {
     const split = splitShares && splitShares[bucket];
@@ -194,7 +194,7 @@ function collectedFromStoredMoney({ reservation, options, resources, booked, cas
 
 const hasSplitShares = (splitShares) => Boolean(splitShares) && Object.keys(splitShares).length > 0;
 
-// specs/mixed-method-payments.md rule 52 (audit R34 NEW-3) — the geste commercial of a split payment, its lines read gross
+// specs/payments/mixed-method-payments.md rule 52 (audit R34 NEW-3) — the geste commercial of a split payment, its lines read gross
 // (`bucketSharesOf`), comes off the accommodation, as the export books it on 70900000. Rule 54 (verification R34b-2): a geste
 // the accommodation cannot hold (a complement paid before the solde) comes off the other lines for the rest, the extras
 // pro rata, the tax last, so no line answers for more than it collected.
@@ -248,7 +248,7 @@ function collectedAfterArrival(row, splitShares = null) {
     out.set(key, { label: (known && known.label) || label, amount: round2((known ? known.amount : 0) + amount) });
   };
   if (Number(row.endOfStayComplementPaid) === 1 && !Number(row.endOfStayComplementPaidCash || 0)) {
-    // specs/mixed-method-payments.md rule 46 — paid with several methods: only its share on the books.
+    // specs/payments/mixed-method-payments.md rule 46 — paid with several methods: only its share on the books.
     const split = splitShares && splitShares.endOfStayComplement;
     const share = split ? split.books : 1;
     for (const line of parseDetail(row.endOfStayComplementDetail)) if (line) add(line.key, line.label, round2(share * (Number(line.amount) || 0)));

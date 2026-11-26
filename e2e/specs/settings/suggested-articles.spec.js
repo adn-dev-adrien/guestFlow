@@ -1,5 +1,5 @@
 // @ts-check
-// specs/outside-booking-sas.md rule 37 — Options & ressources › « Proposés à l'arrivée » at 1280 and 390 px: one card per resource sold by the hour, an article added from the catalogue,
+// specs/sas/outside-booking-sas.md rule 37 — Options & ressources › « Proposés à l'arrivée » at 1280 and 390 px: one card per resource sold by the hour, an article added from the catalogue,
 // reordered with ↑ / ↓, saved with the bar's « Enregistrer »; the server holds the list in that order; no sideways scroll.
 // Reading 2026-11-16 (loop t4 UI4-1, smoke rule 19): a disabled « Enregistrer » is not a save signal (it flips with `saving`, before the PUT
 // is answered) — the test waits for the PUT's answer, then reads the server back with its own API budget, polling.

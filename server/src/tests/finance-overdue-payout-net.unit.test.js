@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 41 — a late platform payout is counted at what the
+// specs/accounting/finance-dashboard-redesign.md rule 41 — a late platform payout is counted at what the
 // platform owes: the solde net of its commission, the figure « À encaisser » counts too. Final review
 // 2026-10-18, N2: « En retard » showed GdF 11 at 1 933,52 € and Abracadaroom 22275 at 720,82 € while
 // their fiches recorded payouts of 1 545 € and 573,77 €.

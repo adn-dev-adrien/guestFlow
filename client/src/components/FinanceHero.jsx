@@ -1,5 +1,5 @@
 /**
- * FinanceHero — the light card at the top of the Suivi financier (specs/finance-dashboard-redesign.md
+ * FinanceHero — the light card at the top of the Suivi financier (specs/accounting/finance-dashboard-redesign.md
  * §3.2): the window's revenue, its comparison with last year, the goal bar, six figures no tile
  * repeats and the cumulative curve, graduated on the calendar by `hero.axis`. Until the first month of
  * the exercise is over (`hero.curveCompact`, rule 46) the curve stays, 56 px high instead of 120: no
@@ -13,9 +13,9 @@
  *   propertyName?: string
  *   fiscalYearLabel: string
  *   format:        { amount, perNight?, percent, date } presentational formatters (`perNight`: the per-night
- *                  amounts, to the cent under 100 €, specs/finance-revpar-year-over-year.md rule 24)
+ *                  amounts, to the cent under 100 €, specs/accounting/finance-revpar-year-over-year.md rule 24)
  *   comparisons?:  { nights, occupancy, revenuePerNight, revPar } — each the year-over-year pill props
- *                  (`utils/comparisonPill`), drawn under its figure (specs/finance-revpar-year-over-year.md rule 16)
+ *                  (`utils/comparisonPill`), drawn under its figure (specs/accounting/finance-revpar-year-over-year.md rule 16)
  *   definitions?:  { nights, occupancy, revenuePerNight, revPar, openNights } — the « i » of each figure
  */
 import React from 'react';
@@ -40,12 +40,12 @@ export function CurveTooltip({ active, payload, format }) {
   );
 }
 
-// The light card (specs/finance-dashboard-redesign.md rule 52, Adrien 2026-11-05, supersedes the ink
+// The light card (specs/accounting/finance-dashboard-redesign.md rule 52, Adrien 2026-11-05, supersedes the ink
 // banner of rule 31): white, a fir rule on top, the page's own text colours and chart tokens.
 const CURVE_HEIGHT = 120;
 const CURVE_HEIGHT_COMPACT = 56;
 
-// `note` (specs/finance-revpar-year-over-year.md rule 20) — a word after the label: the open nights name
+// `note` (specs/accounting/finance-revpar-year-over-year.md rule 20) — a word after the label: the open nights name
 // the occupied ones, so that the rate reads as their ratio.
 function Figure({ value, label, note, info, pill }) {
   return (
@@ -68,7 +68,7 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
   const dash = '—';
   const perNight = format.perNight || format.amount;
   const labels = new Map(hero.axis.map((t) => [t.x, t.label]));
-  // specs/report-grammar.md rule 40 — the month ticks are evenly spaced at every width: every Nth from
+  // specs/design-system/report-grammar.md rule 40 — the month ticks are evenly spaced at every width: every Nth from
   // the first, N from the curve's measured width (never Recharts' collision pass, which drops months
   // unevenly).
   const theme = useTheme();
@@ -95,7 +95,7 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
             {format.amount(hero.revenue)}
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
-            {/* specs/finance-dashboard-redesign.md rule 58 (D-HC20) — the span is said once, by the notice under the card. */}
+            {/* specs/accounting/finance-dashboard-redesign.md rule 58 (D-HC20) — the span is said once, by the notice under the card. */}
             {hero.yoy && <YearOverYearBadge change={hero.yoy.change} />}
             <Box component="span" sx={{ color: 'text.secondary' }}>{showHt ? `${format.amount(hero.revenueHt)} HT · ` : ''}net de commissions · {hero.stays} séjour{hero.stays > 1 ? 's' : ''}</Box>
           </Box>

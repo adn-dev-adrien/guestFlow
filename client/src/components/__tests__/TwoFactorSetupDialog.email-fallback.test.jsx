@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 44, 54 — the email code is the fallback under the app of a FIRST
+// specs/hosting/hosting-h2-account-security.md rules 44, 54 — the email code is the fallback under the app of a FIRST
 // activation: the link only exists when the instance can send mail, switching shows the masked address and
 // a countdown on « Renvoyer le code », sends the enrolment's token and no password, « Utiliser plutôt une
 // appli » goes back to a new secret, and an expired enrolment ends cleanly instead of asking a password.

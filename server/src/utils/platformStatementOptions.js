@@ -1,5 +1,5 @@
 /**
- * Rule 2 of specs/platform-host-statement-and-commission-vat.md applied to an engine input: the fiche's option lines follow
+ * Rule 2 of specs/platforms/platform-host-statement-and-commission-vat.md applied to an engine input: the fiche's option lines follow
  * « Options (relevé) ». The quote, the preview and the save call it before they price, so all three show and store the lines
  * the statement implies.
  */

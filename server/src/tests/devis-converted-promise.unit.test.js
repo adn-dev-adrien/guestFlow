@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rules 21 and 22, specs/payment-schedule-and-cancellation.md rule 57 (audit R34-RES-L1,
+// specs/payments/deposit-blocks-the-dates.md rules 21 and 22, specs/payments/payment-schedule-and-cancellation.md rule 57 (audit R34-RES-L1,
 // R34-RES-L2). The reservation converted from a devis reads its promise on the devis row (D23 conversion):
 // - L1: deleting that devis while its stay exists dropped the promise in silence — the next priced save of the stay
 //   took an acompte the guest was never asked for, and an earlier deadline. The delete is now refused.

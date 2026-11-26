@@ -1,4 +1,4 @@
-// specs/settings.md — the caption under a Paramètres page title says when the SETTINGS were saved. « Dernière mise à
+// specs/settings/settings.md — the caption under a Paramètres page title says when the SETTINGS were saved. « Dernière mise à
 // jour » read as the software's own update on Système, right above « Système et mises à jour » (shadow trial of 4.0.0).
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -8,7 +8,7 @@ router.post('/logout', c.logout);
 router.get('/me', c.me);
 router.post('/change-password', c.changePassword);
 
-// specs/hosting-h2-account-security.md — public: what the login page offers, the forgotten password
+// specs/hosting/hosting-h2-account-security.md — public: what the login page offers, the forgotten password
 // (rules 1–5), the second step of a pending login (rules 7–8), the support sign-in link (rule 14).
 router.get('/options', c.options);
 router.post('/forgot', c.forgotPassword);
