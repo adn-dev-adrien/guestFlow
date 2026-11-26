@@ -1102,4 +1102,7 @@ docker run --rm --network host \
 
 ## License
 
+Proprietary, source available, all rights reserved: the code may be read, not used, copied, modified or
+distributed, for any purpose, commercial or not, without written permission. Versions up to v4.5.0 were
+released under the AGPL v3. The WordPress plugins under `integrations/wordpress/` stay GPLv2 or later.
 See the [LICENSE](LICENSE) file.

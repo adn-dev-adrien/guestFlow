@@ -1,0 +1,1 @@
+- GuestFlow is no longer released under the AGPL v3: from this version on, the code is proprietary and source available, all rights reserved — it may be read, not used, copied, modified or distributed, commercially or not, without written permission. Versions up to v4.5.0 keep the AGPL v3; the WordPress plugins stay GPLv2 or later.
