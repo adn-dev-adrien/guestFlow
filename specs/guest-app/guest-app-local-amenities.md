@@ -39,7 +39,9 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 ### 3.A The page
 
 1. **Module `places`, tile « Pratique ».** A new module of `guest-app.md` rule 11bis, key `places`, label
-   « Pratique » (EN « Essentials »), **on** by default, placed right after `soliomap`.
+   « Pratique » (EN « Essentials »), **on** by default, placed right after `soliomap`. A lodging whose stored list predates the module gets it
+   there too: `readModules` inserts each missing key right after the nearest preceding key of the default list that the stored list
+   holds (at the start when none), on, never at the end.
    Prerequisite: at least one published place. Open to every mode (stay, pre-arrival, visitor): nothing in it is
    private. An off module answers 404 `MODULE_OFF` like the others.
 2. **Map first.** The page opens on a map (OpenStreetMap tiles) centred to show the estate and every published
@@ -141,7 +143,7 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | plugin | `migrations.js` | T | Table `guest_app_places` (§5) |
-| plugin | `modules.js` | T | Module `places`, default on after `soliomap`, prerequisite `publishedPlaces > 0`, every mode |
+| plugin | `modules.js` | T | Module `places`, default on after `soliomap` (and for a stored list that lacks it: after the nearest preceding module it holds), prerequisite `publishedPlaces > 0`, every mode |
 | plugin | `places.js` | C | Pure: validation (rule 16), Google Maps link parsing, 15 km check, drive-time label, open state from weekly hours at Paris time, the three GPS links, server order, the guest payload and the Studio's grouped list |
 | plugin | `placeCategories.js` | C | The closed set of rule 10 with its FR / EN labels, no dependency (the booklet's button target and `places.js` both read it) |
 | models | `placesModel.js` | C | Prepared statements: list (published / all), get, insert, update, delete, count published |
@@ -256,7 +258,7 @@ None open.
 - Q5 Distance: drive minutes entered per place in the Studio, not a computed distance (rule 12).
 - Q6 Opening view: the map (rule 2).
 - Q7 « Me localiser »: yes, on demand, position kept on the phone (rule 8).
-- Built (2026-11-26): the places live in `guest_app_places` with no seed (rule 17); the existing lodgings get the module at the end of their stored list, on.
+- Built (2026-11-26): the places live in `guest_app_places` with no seed (rule 17).
 - Q8 Extra categories: La Poste, Distributeur de billets, Carburant et recharge (rule 10). Doctor: no.
 
 ## 10. Implementation progress

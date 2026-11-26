@@ -53,17 +53,27 @@ const PREREQUISITES = Object.freeze({
 const defaultModules = () => MODULES.map(({ key, on }, order) => ({ key, on, order }));
 
 /**
- * The stored list, whole and in order. A key the stored list does not name (a module added by a later
- * version) comes last, with its default state; a key it names that no longer exists is dropped.
+ * The stored list, whole and in order. A key the stored list does not name (a module added by a later version) takes its
+ * default state and sits right after the nearest key before it in `MODULES` that the list holds (first when none does) —
+ * `places` lands after `soliomap` (specs/guest-app/guest-app-local-amenities.md rule 1); a key it names that no longer
+ * exists is dropped.
  */
 function readModules(stored) {
   if (!Array.isArray(stored)) return defaultModules();
-  const known = stored
+  const list = stored
     .filter((m) => m && MODULE_KEYS.includes(m.key))
     .sort((a, b) => Number(a.order) - Number(b.order))
     .map((m) => ({ key: m.key, on: Boolean(m.on) }));
-  const missing = MODULES.filter(({ key }) => !known.some((m) => m.key === key)).map(({ key, on }) => ({ key, on }));
-  return [...known, ...missing].map((m, order) => ({ ...m, order }));
+  MODULES.forEach(({ key, on }, index) => {
+    if (list.some((m) => m.key === key)) return;
+    let at = 0;
+    for (let before = index - 1; before >= 0; before -= 1) {
+      const found = list.findIndex((m) => m.key === MODULES[before].key);
+      if (found >= 0) { at = found + 1; break; }
+    }
+    list.splice(at, 0, { key, on });
+  });
+  return list.map((m, order) => ({ ...m, order }));
 }
 
 // Rule 11bis — a shortcut into another module's pages exists only while that module is shown: the bath's

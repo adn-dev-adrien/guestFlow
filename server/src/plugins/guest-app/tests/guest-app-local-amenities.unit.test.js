@@ -234,6 +234,20 @@ test(`${SPEC} rule 2: the guest app's policy lets the map's tiles in as images, 
   assert.doesNotMatch(studioCsp().replace(/img-src[^;]*/, ''), /openstreetmap/);
 });
 
+test(`${SPEC} rule 1: a lodging whose stored list predates a module gets it right after the nearest module before it, not at the end`, () => {
+  const { MODULE_KEYS, readModules } = require('../modules');
+  const keys = (stored) => readModules(stored).map((m) => m.key);
+  const without = (...gone) => MODULE_KEYS.filter((k) => !gone.includes(k)).map((key, order) => ({ key, on: true, order }));
+  assert.deepEqual(keys(without('places')), MODULE_KEYS, 'places lands after soliomap');
+  assert.deepEqual(keys(without('home', 'places')), MODULE_KEYS, 'places after soliomap, home at the end');
+  const swapped = without('places').reverse().map((m, order) => ({ ...m, order }));
+  const reordered = keys(swapped);
+  assert.equal(reordered[reordered.indexOf('soliomap') + 1], 'places', 'follows the operator\'s own order');
+  const places = readModules(without('places')).find((m) => m.key === 'places');
+  assert.deepEqual({ on: places.on }, { on: true }, 'its default state');
+  assert.deepEqual(readModules(without('places')).map((m) => m.order), MODULE_KEYS.map((_, i) => i));
+});
+
 test(`${SPEC} rule 8: « Me localiser » — the guest app's answers open geolocation to their own origin, the studio's keep the core's denial`, async () => {
   const fs = require('fs');
   const os = require('os');
