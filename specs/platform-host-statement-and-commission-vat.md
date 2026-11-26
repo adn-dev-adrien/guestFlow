@@ -283,7 +283,7 @@ Plateformes*: « Régime de TVA » select replaces the box; cards on phone.
 - GdF / Airbnb / Booking intakes from their recorded fixtures (19–21).
 
 ### Counts (2026-11-26)
-Server: `platform-host-statement` 19, `platform-host-statement-migration` 4, `platform-host-statement-preview` 5, `commission-vat-regime` 10 (plugin), intakes amended in their own suites; full suite 14 992 tests. Client: `PlatformStatementEditor.host-statement` 4; full suite 4 930 tests. Build green.
+Server: `platform-host-statement` 19, `platform-host-statement-migration` 4, `platform-host-statement-preview` 5, `commission-vat-regime` 10 (plugin), intakes amended in their own suites; `platform-host-statement-review-fixes` 10, `platform-statement-options-after-payout` 3; full suite 15 005 tests (the rule-62 plugin check passes once the work is committed). Client: `PlatformStatementEditor.host-statement` 5; full suite 4 931 tests. Build green.
 
 ### Manual UI verification
 - Fiche Airbnb and GdF at ≤600, ~900, ≥1200: typing, refusal + fix, « Calculer », save.
