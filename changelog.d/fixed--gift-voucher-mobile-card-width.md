@@ -1,2 +1,0 @@
-- **Gift voucher card on a phone:** the card preview on the « Offrir un bon cadeau » page is as wide as the form (up to 420 px) instead of 180 px (WordPress plugin `guestflow-booking` 1.26.1).
-- **Gift voucher card frame:** the card's root class is now `gf-vcard`, so a site theme's generic `.gf-card` frame (white box, padding, shadow) no longer applies to it.
