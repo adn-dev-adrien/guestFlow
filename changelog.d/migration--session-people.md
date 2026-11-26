@@ -1,1 +1,0 @@
-- **Migration — session people and website orders.** `resources.sessionMaxPeople` (INTEGER, NULL) and `resource_bookings.people` (INTEGER, NULL) are added, `gift_voucher_uses.people` too, and the plugin table `resource_session_orders` is created empty; every existing row keeps NULL, nothing is rewritten. To set `sessionMaxPeople` to 8 for the nordic bath in production.

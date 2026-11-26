@@ -1,1 +1,0 @@
-- **The voucher card stands straight on the purchase page** (spec `site-outside-resource-booking.md` rule 20, connector 1.23.0). The 1° tilt is gone; the entrance keeps its fade and rise, and none under reduced motion.
