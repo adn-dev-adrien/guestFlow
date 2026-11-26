@@ -809,8 +809,11 @@ Rules are identities: a rule is never renumbered, new rules are appended
       campaign is chosen. The control stays usable at any time. On a narrow block (< 600 px, a phone) the
       card is above the form, out of sight while typing: it does not turn by itself there; a « Voir le verso
       du bon » link under « Un mot » turns it and scrolls back to it.
-    - **Wide block, sticky card** (choices 3, 4). The block is set to « Large » (`align: wide`, already
-      supported) on the « Offrir un bon cadeau » page: from 900 px of block the card column is 400 px, so
+    - **Wide block, sticky card** (choices 3, 4). The block needs about 1 100 px of room on the « Offrir un
+      bon cadeau » page. The block's own « Large » setting (`align: wide`) is not enough on that page: it
+      sits in a theme group, and the group's `gf-section-narrow` class caps it at 820 px. So both pages,
+      FR 682 and EN 688, put the block in a plain `gf-section` group, 1 140 px wide, about 1 096 px of
+      content; the change was made on 2026-11-26 and checked on the live site. From 900 px of block the card column is 400 px, so
       the back's body text reads at about 11 px; between 600 and 900 px it is 34 % of the block as before.
       From 600 px the card column is sticky, under the theme's fixed header
       (`top: var(--gf-sticky-top, 96px)`; supersedes rule 62's « not sticky »). « Agrandir » opens the card
