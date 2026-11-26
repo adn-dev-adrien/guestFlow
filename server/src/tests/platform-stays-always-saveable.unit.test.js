@@ -84,9 +84,10 @@ test(`${SPEC} rule 8 — a direct save that moves neither dates, property nor pa
 });
 
 test(`${SPEC} rule 8 — « moved » is read against the stored row`, () => {
+  // date-literal-ok: stayMovement only compares two rows; nothing here is compared with today.
   const stored = { propertyId: 1, startDate: '2030-01-01', endDate: '2030-01-04', adults: 2, children: 0, teens: 0, babies: 0 };
   assert.deepEqual(stayMovement(stored, { ...stored, adults: '2' }), NOTHING_MOVED);
-  assert.equal(stayMovement(stored, { ...stored, endDate: '2030-01-05' }).datesMoved, true);
+  assert.equal(stayMovement(stored, { ...stored, endDate: '2030-01-05' }).datesMoved, true); // date-literal-ok: compared with the stored row only
   assert.equal(stayMovement(stored, { ...stored, propertyId: 2 }).propertyMoved, true);
   assert.equal(stayMovement(stored, { ...stored, babies: 1 }).partyMoved, true);
   assert.deepEqual(stayMovement(null, stored), ALL_MOVED, 'a creation moves everything');
