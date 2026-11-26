@@ -40,6 +40,7 @@
  "hl.departure": "Demain",
  "hl.gatePreparing": "La tuile Portail s’activera dès que votre accès sera prêt.",
  "tile.preparing": "Accès en préparation",
+ "tile.row": "Raccourcis",
  "wifi.network": "Réseau",
  "wifi.password": "Mot de passe",
  "wifi.qr": "QR code pour rejoindre le wifi",

@@ -123,7 +123,7 @@ export default function HomePage() {
   const tilesBlock = !tiles.length ? null : manyTiles && !layout.wide ? (
     <TileCarousel items={tiles} renderItem={renderTile} />
   ) : (
-    <div className={`tiles n${tiles.length}${manyTiles ? ' many' : ''}`} style={manyTiles ? { '--n': tiles.length } : undefined}>
+    <div className={`tiles n${tiles.length}${manyTiles ? ' many' : ''}`} style={manyTiles ? { '--n': tiles.length, '--cols': Math.ceil(tiles.length / 2) } : undefined}>
       {tiles.map((tile) => renderTile(tile))}
     </div>
   );

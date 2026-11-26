@@ -402,10 +402,12 @@ summary::-webkit-details-marker{display:none}
 .app:not(.desk) .tiles.n4 .tile,.app:not(.desk) .tiles.n2 .tile,.app:not(.desk) .tiles.n5 .tile:nth-child(n+4){min-height:104px}
 .app:not(.desk) .tiles{grid-auto-rows:1fr}
 /* More than six tiles (specs/guest-app/guest-app-local-amenities.md rules 20-23): an endless full-bleed row under 900 px, one line from 900 px. */
-.app:not(.desk) .tiles.loop{display:grid;grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:calc((100% - 3 * 9px) / 3.6);grid-auto-rows:auto;padding:18px 0 4px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;position:relative}
+.app:not(.desk) .tiles.loop{display:grid;grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:calc((100% - 3 * 9px) / var(--visible-cols,3.6));grid-auto-rows:auto;padding:18px env(safe-area-inset-right) 4px env(safe-area-inset-left);scroll-padding-inline:env(safe-area-inset-left) env(safe-area-inset-right);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;position:relative}
 .tiles.loop::-webkit-scrollbar{display:none}
 .app:not(.desk) .tiles.loop .tile{grid-column:auto;scroll-snap-align:center}
-.app.wide .tiles.many{grid-template-columns:repeat(var(--n),minmax(0,1fr))}
+.app.wide:not(.desk) .tiles.many{grid-template-columns:repeat(var(--cols),minmax(0,1fr))}
+.app.wide:not(.desk) .tiles.many .tile{min-height:64px}
+.app.wide.desk .tiles.many{grid-template-columns:repeat(var(--n),minmax(0,1fr))}
 .app.wide .tiles.many .tile{grid-column:auto}
 .app.wide.desk .tiles.n5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .app.wide.desk .tiles.n4{grid-template-columns:repeat(4,minmax(0,1fr))}

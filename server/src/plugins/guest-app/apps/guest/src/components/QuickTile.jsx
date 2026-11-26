@@ -3,7 +3,7 @@
  * cannot act yet (the gate before Sowel's key) is drawn but not a button, with its reason.
  *
  * Props: `icon`, `label`, `external`, `disabled` (not yet known), `disabledReason`, `onClick`, and the DOM props
- * of a repeat in the endless row (`aria-hidden`, `tabIndex`, `inert`, see TileCarousel), passed through.
+ * of a repeat in the endless row (`aria-hidden`, `tabIndex`, see TileCarousel), passed through.
  */
 import Icon from './Icon';
 

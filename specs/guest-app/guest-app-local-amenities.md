@@ -151,7 +151,7 @@ The `places` tile makes a stay home show seven tiles by default (nine with `home
     the left, and a part of the last tile shows on the left edge and a part of the next one on the right edge:
     three whole tiles and two partial ones on a phone.
 22. **One tile, one stop for assistive technology.** The endless row repeats the tiles for display only: the
-    repeats are hidden from screen readers and skipped by the keyboard, so each module is announced and reached
+    repeats are hidden from screen readers and skipped by the keyboard (but stay tappable), so each module is announced and reached
     once; a tile that takes the focus is scrolled into view. `prefers-reduced-motion` changes nothing (the motion
     is the guest's own finger).
 23. **From 900 px: no carousel.** From 900 px to 1 199 px (two-pane home, the tiles' column about 370 px wide):
@@ -264,7 +264,7 @@ the pane. Touch targets ≥ 44 px (map controls included). `prefers-reduced-moti
 - Guest client — `apps/guest/src/__tests__/PlacesPage.filters.test.jsx` (12): chips, empty category hidden, deep-link category, list, offline list, home tile,
   button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesPage.freshness.test.jsx` (5): a state is hidden past its `until` or without network (the week's table stays), refetched when an `until` passes and on return to the foreground; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
   tiles and their referrer policy, redraw on zoom only, estate marker, grouping bubble, fan-out, « Me localiser »; `PlacesMap.grouping.test.js` (4): pure grouping and the palette's contrast;
-  `sw.offline.test.js` (+2): `/places` cached like the booklet; `TileCarousel.endless.test.jsx` (9, rules 19-23, layout sizes mocked in jsdom): up to six tiles keep the grid, more than six under 900 px draw three copies, the repeats are `aria-hidden` / `inert` / out of the tab order (each module once), the 2nd tile of the middle copy is centred on arrival, the row jumps by one copy only once the scroll has settled (`scrollend`, else 120 ms after the last scroll), focus scrolls the tile into view, from 900 px one line of `n` columns.
+  `sw.offline.test.js` (+2): `/places` cached like the booklet; `TileCarousel.endless.test.jsx` (18, rules 19-23, layout sizes mocked in jsdom): up to six tiles keep the grid; more than six under 900 px draw five copies, only the middle one reachable (repeats `aria-hidden`, out of the tab order, still tappable), the row is a labelled `group`; the 2nd tile of the middle copy is centred on arrival and the column formula shows three whole + two partial tiles; the row jumps by whole copies only once the scroll has settled (`scrollend`, else 120 ms after the last scroll), never while a finger is down; a new list or a width change re-centres, a height change does not; focus scrolls the tile into view (`nearest`); safe-area padding; 900-1199 px two lines of `ceil(n / 2)` columns, from 1200 px one line of `n` columns.
 - Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx` (14): the list and the server's wording, « À revérifier », the switch, delete, refusals shown under their field, the week sent as minutes, Monday copied to Tuesday–Saturday, 23:59 kept at 1439 and midnight at 1440, closed sets from the server, the estate position; `ButtonEditor.places.test.jsx` (1): the button's categories come from the server.
 - Manual: iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night.
 
@@ -299,7 +299,7 @@ Done 2026-11-26 on `feature/guest-app-local-amenities-map`:
 - Server: table, module, `places.js`, model, controller, routes, button target, CSP, setting, plugin 1.6.0 — 37 tests.
 - Guest app: page, map (Leaflet, lazy chunk), sheet with GPS chooser, offline cache, tile, button target — 37 tests (+2 in `sw.offline.test.js`).
 - Studio: Réglages › Pratique, dialog, button editor target — 15 tests.
-- Home tiles beyond six (§3.E, rules 19-23): `components/TileCarousel.jsx` (three copies, recentring after the scroll settles, `ResizeObserver` re-measure), `QuickTile` passes the repeats' DOM props through, `HomePage` picks grid / carousel / one line, CSS `.tiles.loop` and `.tiles.many` — 9 tests. Manual check left to Adrien: swipe on a real iPhone.
+- Home tiles beyond six (§3.E, rules 19-23): `components/TileCarousel.jsx` (five copies, recentring by whole copies once the scroll has settled and no finger is down, `ResizeObserver` re-measure on width changes, fractional measures, safe-area padding), `QuickTile` passes the repeats' DOM props through (repeats are not `inert`, so a tap on one opens its module), `HomePage` picks grid / carousel / two lines / one line (`--cols`, `--n`), CSS `.tiles.loop` and `.tiles.many`, i18n `tile.row` — 18 tests. Manual check left to Adrien: swipe on a real iPhone.
 Review fixes 2026-11-26: geolocation opened on the guest build's answers (rule 8), tile referrer (rule 2), module slotted after `soliomap`
 for existing lodgings (rule 1), `open.until` and stale-state handling (rule 13), closed sets and labels served to the Studio, hours at
 midnight, phone, name type, Monday copy.
