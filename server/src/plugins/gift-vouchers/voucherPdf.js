@@ -13,21 +13,62 @@ const code = require('./code');
 const rules = require('./voucherRules');
 const { contentLines } = require('./contentsText');
 
+/**
+ * Rule 66 — every dimension of the voucher's back, written once: the PDF draws from it and the website sends it as is, so its HTML copy of the back cannot drift from the
+ * PDF without a test failing. Millimetres on the A6 trim (105 × 148), sizes and small gaps in points, `lines` the most lines a text may take.
+ */
+const BACK_LAYOUT = Object.freeze({
+  trimMm: Object.freeze({ width: 105, height: 148 }),
+  safeMm: 5,
+  legalStripMm: 5,
+  qrMm: 23,
+  logoMm: 12,
+  footerLineMm: 4,
+  qrGapMm: 3,
+  afterQrMm: 3,
+  afterItemsMm: 1.5,
+  afterMessageMm: 2,
+  // pdfkit's line pitch for the faces, in ems: the page sets its lines at the same pitch.
+  lineHeight: Object.freeze({ sans: 1.326, serif: 1.371 }),
+  pt: Object.freeze({
+    logoGap: 8, logoName: 13, title: 20, titleSpacing: 2, titleGap: 4, ruleHalf: 20, ruleStroke: 0.6, ruleGap: 8, heading: 10, headingGap: 4, scan: 8.5, scanGap: 3, link: 8.5,
+    includes: 9.5, includesGap: 2, item: 8.5, itemGap: 1, parties: 9.5, partiesGap: 1, message: 8.5, messageGap: 1, codeLabel: 7.5, codeLabelGap: 1, code: 15,
+    codeGap: 3, codeSpacing: 0.5, valid: 9, footer: 8, legal: 7,
+  }),
+  lines: Object.freeze({
+    logoName: 2, scan: 3, link: 3, items: 7, itemText: 2, parties: 2, message: 4,
+  }),
+});
+
 const MM = 72 / 25.4;
 const mm = (n) => n * MM;
-const TRIM = Object.freeze({ width: mm(105), height: mm(148) });
+const TRIM = Object.freeze({ width: mm(BACK_LAYOUT.trimMm.width), height: mm(BACK_LAYOUT.trimMm.height) });
 const BLEED = mm(3);
-const SAFE = mm(5);
+const SAFE = mm(BACK_LAYOUT.safeMm);
 const SLUG = mm(5);
 const MARK_LENGTH = mm(4);
 const LEGAL_MENTION = 'Ne pas jeter sur la voie publique.';
+/** Rule 66 — the fixed words of the voucher's back, French as the PDF is: the website writes these and nothing else of its own. `{…}` is filled by the page with what the buyer typed. */
+const BACK_TEXTS = Object.freeze({
+  title: 'BON CADEAU',
+  howTo: 'Pour l’utiliser',
+  scan: 'Scannez pour réserver votre cadeau ou suivez ce lien :',
+  includes: 'Votre bon comprend :',
+  bullet: '•',
+  recipient: 'Pour {name}',
+  sender: 'de la part de {name}',
+  codeLabel: 'Votre code',
+  codePlaceholder: 'XXXX-XXXX-XXXX-XXXX',
+  validUntil: 'Valable jusqu’au {date}',
+  legal: LEGAL_MENTION,
+});
 const INK = '#1f2a24';
 const MUTED = '#5c665f';
 const LINE = '#c9cfc9';
 const GUIDE = '#dfe3df';
-const QR_SIZE = mm(23);
+const QR_SIZE = mm(BACK_LAYOUT.qrMm);
 // The strip along the right edge that the vertical legal mention occupies, inside the safe area.
-const LEGAL_STRIP = mm(5);
+const LEGAL_STRIP = mm(BACK_LAYOUT.legalStripMm);
 const CODE_BOX_HEIGHT = mm(24);
 const STEPS = Object.freeze([
   'Scannez pour choisir la formule',
@@ -167,20 +208,21 @@ function createPen(sheet, F) {
 /** The top of both backs: the logo, or the company's name when there is no logo. */
 function drawHeader(pen, { company, F }) {
   const { doc } = pen;
-  const height = mm(12);
+  const height = mm(BACK_LAYOUT.logoMm);
+  const { pt } = BACK_LAYOUT;
   if (company.logo) {
     try {
       doc.image(company.logo, pen.left, pen.state.y, {
         fit: [pen.width, height], align: 'center', valign: 'center',
       });
-      pen.state.y += height + 8;
+      pen.state.y += height + pt.logoGap;
       return;
     } catch {
       // a logo pdfkit cannot read leaves the name instead
     }
   }
   pen.write(company.name, {
-    font: F.serif, size: 13, align: 'center', maxLines: 2, gap: 8, color: MUTED,
+    font: F.serif, size: pt.logoName, align: 'center', maxLines: BACK_LAYOUT.lines.logoName, gap: pt.logoGap, color: MUTED,
   });
 }
 
@@ -199,7 +241,7 @@ function drawQr(doc, modules, x, y, size) {
 /** Rule 50 — the legal mention, turned a quarter along the right edge, inside the safe area. */
 function drawLegalMention(sheet, F) {
   const { doc, safe } = sheet;
-  const size = 7;
+  const size = BACK_LAYOUT.pt.legal;
   doc.font(F.regular).fontSize(size).fillColor(MUTED);
   const length = doc.widthOfString(LEGAL_MENTION);
   const cx = safe.right - LEGAL_STRIP / 2;
@@ -211,18 +253,18 @@ function drawLegalMention(sheet, F) {
 
 /** Rule 50 — company name and town, then the website, centred at the foot of the back. */
 function drawFooter(pen, { company, F }) {
-  const lineHeight = mm(4);
+  const lineHeight = mm(BACK_LAYOUT.footerLineMm);
   const bottom = pen.safe.bottom;
   const identity = [company.name, company.town].filter(Boolean).join(' · ');
   const wasY = pen.state.y;
   pen.state.y = bottom - 2 * lineHeight;
   pen.write(identity, {
-    font: F.bold, size: 8, align: 'center', color: INK, maxLines: 1, stay: true,
+    font: F.bold, size: BACK_LAYOUT.pt.footer, align: 'center', color: INK, maxLines: 1, stay: true,
   });
   pen.state.y = bottom - lineHeight;
   if (company.website) {
     pen.write(shortLink(company.website), {
-      font: F.regular, size: 8, align: 'center', color: MUTED, maxLines: 1, stay: true,
+      font: F.regular, size: BACK_LAYOUT.pt.footer, align: 'center', color: MUTED, maxLines: 1, stay: true,
     });
   }
   pen.state.y = wasY;
@@ -231,8 +273,9 @@ function drawFooter(pen, { company, F }) {
 function drawRule(pen) {
   const { doc } = pen;
   const center = pen.left + pen.width / 2;
-  doc.save().lineWidth(0.6).strokeColor(LINE).moveTo(center - 20, pen.state.y).lineTo(center + 20, pen.state.y).stroke().restore();
-  pen.state.y += 8;
+  const { ruleHalf, ruleStroke, ruleGap } = BACK_LAYOUT.pt;
+  doc.save().lineWidth(ruleStroke).strokeColor(LINE).moveTo(center - ruleHalf, pen.state.y).lineTo(center + ruleHalf, pen.state.y).stroke().restore();
+  pen.state.y += ruleGap;
 }
 
 function drawVoucherBack(sheet, {
@@ -241,50 +284,55 @@ function drawVoucherBack(sheet, {
   sheet.doc.addPage({ size: [sheet.width, sheet.height], margin: 0 });
   const pen = createPen(sheet, F);
   const { doc, state } = pen;
+  const { pt, lines: most } = BACK_LAYOUT;
+  const say = (template, values) => Object.entries(values).reduce((text, [key, value]) => text.replace(`{${key}}`, () => value), template);
   drawHeader(pen, { company, F });
-  pen.write('BON CADEAU', {
-    font: F.serif, size: 20, align: 'center', gap: 4, spacing: 2,
+  pen.write(BACK_TEXTS.title, {
+    font: F.serif, size: pt.title, align: 'center', gap: pt.titleGap, spacing: pt.titleSpacing,
   });
   drawRule(pen);
-  pen.write('Pour l’utiliser', {
-    font: F.bold, size: 10, gap: 4,
+  pen.write(BACK_TEXTS.howTo, {
+    font: F.bold, size: pt.heading, gap: pt.headingGap,
   });
   const qrTop = state.y;
   drawQr(doc, qrModules(url), pen.left, qrTop, QR_SIZE);
-  const sideX = pen.left + QR_SIZE + mm(3);
+  const sideX = pen.left + QR_SIZE + mm(BACK_LAYOUT.qrGapMm);
   const sideW = pen.right - sideX;
   state.y = qrTop;
-  pen.write('Scannez pour réserver votre cadeau ou suivez ce lien :', {
-    font: F.regular, size: 8.5, x: sideX, w: sideW, maxLines: 3, gap: 3,
+  pen.write(BACK_TEXTS.scan, {
+    font: F.regular, size: pt.scan, x: sideX, w: sideW, maxLines: most.scan, gap: pt.scanGap,
   });
   pen.write(link, {
-    font: F.bold, size: 8.5, x: sideX, w: sideW, maxLines: 3,
+    font: F.bold, size: pt.link, x: sideX, w: sideW, maxLines: most.link,
   });
-  state.y = Math.max(state.y, qrTop + QR_SIZE) + mm(3);
+  state.y = Math.max(state.y, qrTop + QR_SIZE) + mm(BACK_LAYOUT.afterQrMm);
 
-  pen.write('Votre bon comprend :', {
-    font: F.bold, size: 9.5, gap: 2,
+  pen.write(BACK_TEXTS.includes, {
+    font: F.bold, size: pt.includes, gap: pt.includesGap,
   });
-  contentLines(voucher).slice(0, 7).forEach((line) => {
-    pen.write(`• ${line}`, {
-      font: F.regular, size: 8.5, color: INK, maxLines: 2, gap: 1,
+  contentLines(voucher).slice(0, most.items).forEach((line) => {
+    pen.write(`${BACK_TEXTS.bullet} ${line}`, {
+      font: F.regular, size: pt.item, color: INK, maxLines: most.itemText, gap: pt.itemGap,
     });
   });
-  state.y += mm(1.5);
+  state.y += mm(BACK_LAYOUT.afterItemsMm);
 
-  const parties = [voucher.recipientName && `Pour ${voucher.recipientName}`, voucher.senderName && `de la part de ${voucher.senderName}`].filter(Boolean).join(' ');
-  if (parties) pen.write(parties, { font: F.bold, size: 9.5, maxLines: 2, gap: 1 });
-  if (voucher.message) pen.write(voucher.message, { font: F.italic, size: 8.5, maxLines: 4, gap: 1 });
-  state.y += mm(2);
+  const parties = [
+    voucher.recipientName && say(BACK_TEXTS.recipient, { name: voucher.recipientName }),
+    voucher.senderName && say(BACK_TEXTS.sender, { name: voucher.senderName }),
+  ].filter(Boolean).join(' ');
+  if (parties) pen.write(parties, { font: F.bold, size: pt.parties, maxLines: most.parties, gap: pt.partiesGap });
+  if (voucher.message) pen.write(voucher.message, { font: F.italic, size: pt.message, maxLines: most.message, gap: pt.messageGap });
+  state.y += mm(BACK_LAYOUT.afterMessageMm);
 
-  pen.write('Votre code', {
-    font: F.regular, size: 7.5, color: MUTED, align: 'center', gap: 1,
+  pen.write(BACK_TEXTS.codeLabel, {
+    font: F.regular, size: pt.codeLabel, color: MUTED, align: 'center', gap: pt.codeLabelGap,
   });
   pen.write(code.format(voucher.code), {
-    font: F.bold, size: 15, align: 'center', gap: 3, spacing: 0.5,
+    font: F.bold, size: pt.code, align: 'center', gap: pt.codeGap, spacing: pt.codeSpacing,
   });
-  pen.write(`Valable jusqu’au ${rules.formatFrDate(voucher.expiresOn)}`, {
-    font: F.regular, size: 9, align: 'center',
+  pen.write(say(BACK_TEXTS.validUntil, { date: rules.formatFrDate(voucher.expiresOn) }), {
+    font: F.regular, size: pt.valid, align: 'center',
   });
   drawFooter(pen, { company, F });
   drawLegalMention(sheet, F);
@@ -407,5 +455,5 @@ async function renderMerchantCardPdf({
 }
 
 module.exports = {
-  renderVoucherPdf, renderMerchantCardPdf, redeemUrl, offerUrl, shortLink, fitLines, CODE_BOX_HEIGHT, LEGAL_MENTION, STEPS,
+  renderVoucherPdf, renderMerchantCardPdf, redeemUrl, offerUrl, shortLink, fitLines, CODE_BOX_HEIGHT, LEGAL_MENTION, STEPS, BACK_LAYOUT, BACK_TEXTS,
 };

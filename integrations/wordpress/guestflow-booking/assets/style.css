@@ -418,23 +418,9 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .gf-block .gf-gv-actions .gf-btn, .gf-block .gf-gv-actions .gf-btn.gf-btn-alt { margin: 0; flex: 1 1 11rem; }
 .gf-gv-after p { line-height: 1.5; }
-.gf-gv-aside { min-width: 0; }
-.gf-gv-ticket { position: relative; container-type: inline-size; background: var(--gfb-surface); border: 1px solid var(--gfb-border); border-radius: 6px; padding: 1.5rem 1.4rem 1.2rem; box-shadow: 0 8px 22px color-mix(in srgb, var(--gfb-ink) 10%, transparent); }
-.gf-gv-ticket::before { content: ""; position: absolute; inset: 6px; border: 1px solid var(--gfb-border); border-radius: 3px; pointer-events: none; }
-.gf-gv-brand { font-size: .85rem; letter-spacing: .2em; text-transform: uppercase; color: var(--gfb-muted); overflow-wrap: anywhere; }
-.gf-gv-ticket-title { margin-top: .6rem; font-size: clamp(1.5rem, 9cqi, 2.3rem); line-height: 1.05; font-weight: 600; }
-.gf-gv-amount { margin: .5rem 0 .9rem; font-size: clamp(2.4rem, 15cqi, 4rem); line-height: 1; font-weight: 600; color: var(--gfb-fill-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.gf-gv-who { margin: 0; overflow-wrap: anywhere; }
-.gf-gv-who b { font-weight: 700; }
-.gf-gv-say { margin: .8rem 0 0; font-style: italic; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; }
-.gf-gv-foot { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px dashed var(--gfb-border); }
 .gf-gv-lbl { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--gfb-muted); }
 .gf-gv-code { margin: .15rem 0 .6rem; font: 600 clamp(.95rem, 5.2cqi, 1.25rem) ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .04em; overflow-wrap: anywhere; }
-.gf-gv-code.is-wait { font: inherit; font-size: .95rem; letter-spacing: 0; font-weight: 400; color: var(--gfb-muted); }
-.gf-gv-small { margin: 0; font-size: .8rem; line-height: 1.4; color: var(--gfb-muted); }
 @container gf-gv (min-width: 640px) {
-  .gf-gv-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2.25rem; }
-  .gf-gv-aside { position: sticky; top: 1rem; }
   .gf-block .gf-gv .gf-btn.gf-gv-pay { width: auto; min-width: 14rem; justify-self: start; }
 }
 @media (hover: hover) and (pointer: fine) {
@@ -463,7 +449,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-offer-detail { color: var(--gfb-muted); font-size: .9rem; }
 .gf-gv-offer-price { font-weight: 600; color: var(--gfb-fill); font-variant-numeric: tabular-nums; }
 /* The campaign's front, read from GuestFlow (specs/gift-voucher-campaigns.md rule 62): a small whole card on each offer, the
-   card at the head of the form — above the title in one column, a column beside the form from 600 px of block. Not sticky: a theme's fixed header would cover it. */
+   card at the head of the form (rule 66: the card that turns) — above the title in one column, a sticky column beside the form from 600 px of block. */
 .gf-gv-offer-text { display: grid; gap: .15rem; min-width: 0; }
 .gf-gv-offer.has-thumb { grid-template-columns: 60px minmax(0, 1fr); align-items: center; column-gap: .9rem; padding-left: .7rem; }
 .gf-gv-offer-thumb { display: block; width: 60px; height: auto; aspect-ratio: 105 / 148; object-fit: cover; border-radius: 5px; background: var(--gfb-border); box-shadow: 0 2px 6px color-mix(in srgb, var(--gfb-ink) 18%, transparent); }
@@ -471,15 +457,114 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-main { min-width: 0; }
 .gf-gv-uselink { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; margin-top: 1rem; padding: .75rem .9rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: var(--gfb-surface); }
 .gf-gv-uselink a { min-height: 44px; display: inline-flex; align-items: center; color: var(--gfb-fill); font-weight: 600; text-underline-offset: 3px; }
-.gf-gv-front { display: block; justify-self: center; width: min(78%, 320px); height: auto; aspect-ratio: 105 / 148; object-fit: cover; border-radius: 10px; background: var(--gfb-border); box-shadow: 0 14px 34px color-mix(in srgb, var(--gfb-ink) 22%, transparent); animation: gf-gv-front-in .45s cubic-bezier(.2, .8, .2, 1); }
+/* The printed card's own colours (the PDF's), declared once: the back keeps them whatever the site's accent is. The zoom lives in <body>, outside the block. */
+:where(.gf-block, .gf-card-zoom, .gf-card-sheet) { --gfc-ink: #1f2a24; --gfc-muted: #5c665f; --gfc-line: #c9cfc9; --gfc-wait: #a9b0aa; --gfc-plain: #f4f1ea; --gfc-veil: rgba(20, 20, 18, .72); --gfc-chip: rgba(39, 37, 31, .6); --gfc-lift: rgba(0, 0, 0, .14); }
+/* ── Rule 66 — the voucher card that turns: its front (rule 62) and its back, drawn in millimetres as GuestFlow's PDF draws it ──────────────
+   Fonts: the PDF's own faces, Latin subsets (assets/fonts, SIL OFL). The back's sizes are CSS custom properties set from the layout GuestFlow sends
+   (--m-* millimetres, --p-* points, --l-* lines), so the page holds no dimension of its own. */
+@font-face { font-family: "GF Card Serif"; src: url(fonts/SourceSerif4-Semibold.latin.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "GF Card Sans"; src: url(fonts/SourceSans3-Regular.latin.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "GF Card Sans"; src: url(fonts/SourceSans3-Semibold.latin.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "GF Card Sans"; src: url(fonts/SourceSans3-It.latin.woff2) format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+
+.gf-card-col { min-width: 0; width: min(74%, 300px); justify-self: center; }
+.gf-card { display: grid; justify-items: center; gap: .6rem; width: 100%; animation: gf-gv-front-in .45s cubic-bezier(.2, .8, .2, 1); }
 @keyframes gf-gv-front-in { from { opacity: 0; transform: translateY(10px); } }
+.gf-card-flip { width: 100%; perspective: 1600px; }
+.gf-card-flip.is-zoomable { cursor: zoom-in; }
+.gf-card-inner { position: relative; width: 100%; aspect-ratio: 105 / 148; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2, .8, .2, 1); }
+.gf-card-flip.is-back .gf-card-inner { transform: rotateY(180deg); }
+.gf-card-face { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; background: #fff; box-shadow: 0 14px 34px color-mix(in srgb, var(--gfb-ink, var(--gfc-ink)) 22%, transparent); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.gf-card-backface { transform: rotateY(180deg); }
+.gf-card-front { container-type: inline-size; background: var(--gfb-border, var(--gfc-line)); }
+.gf-card-front-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gf-card-front.is-plain { background: var(--gfc-plain); display: grid; place-items: center; padding: 5cqw; }
+.gf-card-plain-name { font: 600 7.4cqw/1.2 "GF Card Serif", Georgia, serif; color: var(--gfc-ink); text-align: center; overflow-wrap: anywhere; }
+.gf-card-a6 { position: absolute; inset: 0; container-type: inline-size; }
+.gf-card-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .25rem .75rem; }
+.gf-card-seg { display: inline-flex; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--gfb-ink, var(--gfc-ink)) 8%, #fff); }
+.gf-block .gf-card-seg button { min-height: 44px; min-width: 44px; margin: 0; padding: 0 1rem; border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: var(--gfb-ink, var(--gfc-ink)); font: inherit; font-size: .9rem; cursor: pointer; }
+.gf-block .gf-card-seg button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 3px var(--gfc-lift); font-weight: 600; }
+.gf-block .gf-card-zoom-btn { min-height: 44px; min-width: 44px; margin: 0; padding: 0 .5rem; border: 0; background: none; box-shadow: none; color: var(--gfb-muted, var(--gfc-muted)); font: inherit; font-size: .88rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.gf-card-seg button:focus-visible, .gf-card-zoom-btn:focus-visible, .gf-gv-peek:focus-visible, .gf-card-flip:focus-visible { outline: 2px solid var(--gfb-fill, var(--gfc-ink)); outline-offset: 2px; }
+.gf-gv-peek { display: none; min-height: 44px; margin: 0; padding: 0; border: 0; background: none; color: var(--gfb-fill, var(--gfc-ink)); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; justify-self: start; }
+.gf-card-sheet { display: none; }
+@container gf-gv (max-width: 599.98px) { .gf-gv-peek { display: inline-flex; align-items: center; } }
 @container gf-gv (min-width: 600px) {
-  .gf-gv-lead.has-front { grid-template-columns: minmax(220px, 34%) minmax(0, 1fr); gap: 2.5rem; align-items: start; }
-  .gf-gv-lead.has-front .gf-gv-front { width: 100%; }
-  .gf-gv-lead.has-front .gf-gv-two { grid-template-columns: minmax(0, 1fr); }
-  .gf-gv-lead.has-front .gf-gv-aside { position: static; }
+  .gf-gv-lead.has-card { grid-template-columns: minmax(220px, 34%) minmax(0, 1fr); gap: 2.5rem; align-items: start; }
+  .gf-gv-lead.has-card > .gf-card-col { width: 100%; align-self: stretch; }
+  .gf-gv-lead.has-card .gf-card { position: sticky; top: var(--gf-sticky-top, 96px); }
 }
-@media (prefers-reduced-motion: reduce) { .gf-gv-front { animation: none; } }
+@container gf-gv (min-width: 900px) { .gf-gv-lead.has-card { grid-template-columns: 400px minmax(0, 1fr); } }
+.gf-gv-codebox { padding: 1rem 1.2rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: var(--gfb-surface); }
+@media (prefers-reduced-motion: reduce) {
+  .gf-card { animation: none; }
+  .gf-card-inner { transition: none; transform: none !important; }
+  .gf-card-face { transition: opacity .2s; backface-visibility: visible; -webkit-backface-visibility: visible; }
+  .gf-card-backface { transform: none; }
+  .gf-card-flip:not(.is-back) .gf-card-backface, .gf-card-flip.is-back .gf-card-front { opacity: 0; pointer-events: none; }
+}
+
+/* The zoom: the same card, larger, over the page (appended to <body>: a container's layout containment would pin a fixed layer to the block). */
+.gf-card-zoom { position: fixed; inset: 0; z-index: 100000; display: grid; place-items: center; padding: 24px; background: var(--gfc-veil); }
+.gf-card-zoom-box { width: min(460px, 86vw, calc((100vh - 120px) * 105 / 148)); display: grid; justify-items: center; gap: 14px; }
+.gf-card-zoom-box .gf-card-flip { cursor: pointer; }
+.gf-card-zoom-close { min-height: 44px; min-width: 44px; padding: 0 22px; border: 0; border-radius: 99px; background: #fff; color: var(--gfc-ink); font: 600 15px/1 system-ui, -apple-system, sans-serif; cursor: pointer; }
+.gf-card-zoom-close:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) { .gf-card-zoom { animation: gf-card-zoom-in .25s ease; } }
+@keyframes gf-card-zoom-in { from { opacity: 0; } }
+
+/* The back. 1 mm = the card's width / 105, 1 pt = 0.35278 mm. */
+.gf-verso { --mm: calc(100cqw / var(--m-trim, 105)); --pt: calc(var(--mm) * .35278); position: absolute; inset: 0; background: #fff; color: var(--gfc-ink); font-family: "GF Card Sans", system-ui, sans-serif; font-weight: 400; font-style: normal; text-align: left; text-transform: none; letter-spacing: normal; }
+.gf-verso *, .gf-verso *::before, .gf-verso *::after { box-sizing: border-box; margin: 0; padding: 0; text-transform: none; }
+.gf-verso [hidden] { display: none !important; }
+.gf-verso .gf-v-t { line-height: var(--lh-sans); overflow-wrap: anywhere; font-style: normal; }
+.gf-verso .gf-v-clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.gf-v-safe { position: absolute; left: calc(var(--m-safe) * var(--mm)); top: calc(var(--m-safe) * var(--mm)); right: calc((var(--m-safe) + var(--m-legal-strip)) * var(--mm)); bottom: calc(var(--m-safe) * var(--mm)); display: flex; flex-direction: column; }
+.gf-v-logo { flex: none; display: flex; align-items: center; justify-content: center; height: calc(var(--m-logo) * var(--mm)); margin-bottom: calc(var(--p-logo-gap) * var(--pt)); }
+.gf-v-logo img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.gf-v-logo.is-name { height: auto; font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-logo-name) * var(--pt)); color: var(--gfc-muted); text-align: center; }
+.gf-v-logo.is-name .gf-v-t { line-height: var(--lh-serif); -webkit-line-clamp: var(--l-logo-name); }
+.gf-v-title { font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-title) * var(--pt)); line-height: var(--lh-serif); letter-spacing: calc(var(--p-title-spacing) * var(--pt)); text-align: center; margin-bottom: calc(var(--p-title-gap) * var(--pt)); }
+.gf-v-rule { flex: none; width: calc(var(--p-rule-half) * 2 * var(--pt)); margin: 0 auto calc(var(--p-rule-gap) * var(--pt)); border-top: calc(var(--p-rule-stroke) * var(--pt)) solid var(--gfc-line); }
+.gf-v-how { font-weight: 600; font-size: calc(var(--p-heading) * var(--pt)); margin-bottom: calc(var(--p-heading-gap) * var(--pt)); }
+.gf-v-qrrow { flex: none; display: flex; align-items: flex-start; gap: calc(var(--m-qr-gap) * var(--mm)); margin-bottom: calc(var(--m-after-qr) * var(--mm)); }
+.gf-v-qr { flex: none; width: calc(var(--m-qr) * var(--mm)); height: calc(var(--m-qr) * var(--mm)); background: #fff; }
+.gf-v-qr svg { display: block; width: 100%; height: 100%; }
+.gf-v-side { flex: 1; min-width: 0; }
+.gf-v-scan { font-size: calc(var(--p-scan) * var(--pt)); margin-bottom: calc(var(--p-scan-gap) * var(--pt)); -webkit-line-clamp: var(--l-scan); }
+.gf-v-link { font-weight: 600; font-size: calc(var(--p-link) * var(--pt)); -webkit-line-clamp: var(--l-link); }
+.gf-v-includes { font-weight: 600; font-size: calc(var(--p-includes) * var(--pt)); margin-bottom: calc(var(--p-includes-gap) * var(--pt)); }
+.gf-v-items { margin-bottom: calc(var(--m-after-items) * var(--mm)); }
+.gf-v-item { font-size: calc(var(--p-item) * var(--pt)); margin-bottom: calc(var(--p-item-gap) * var(--pt)); -webkit-line-clamp: var(--l-item-text); }
+.gf-v-parties { font-weight: 600; font-size: calc(var(--p-parties) * var(--pt)); margin-bottom: calc(var(--p-parties-gap) * var(--pt)); -webkit-line-clamp: var(--l-parties); }
+.gf-v-message { font-style: italic; font-size: calc(var(--p-message) * var(--pt)); margin-bottom: calc(var(--p-message-gap) * var(--pt)); -webkit-line-clamp: var(--l-message); }
+.gf-verso .gf-v-message { font-style: italic; }
+.gf-v-zone { margin-top: calc(var(--m-after-message) * var(--mm)); text-align: center; }
+.gf-v-code-label { font-size: calc(var(--p-code-label) * var(--pt)); color: var(--gfc-muted); margin-bottom: calc(var(--p-code-label-gap) * var(--pt)); }
+.gf-v-code { font-weight: 600; font-size: calc(var(--p-code) * var(--pt)); letter-spacing: calc(var(--p-code-spacing) * var(--pt)); margin-bottom: calc(var(--p-code-gap) * var(--pt)); overflow-wrap: normal; }
+.gf-v-code.is-wait { color: var(--gfc-wait); }
+.gf-v-code-sub { font-size: calc(7 * var(--pt)); color: var(--gfc-muted); margin: calc(-2 * var(--pt)) 0 calc(2 * var(--pt)); }
+.gf-v-valid { font-size: calc(var(--p-valid) * var(--pt)); }
+.gf-v-foot { position: absolute; left: calc(var(--m-safe) * var(--mm)); right: calc((var(--m-safe) + var(--m-legal-strip)) * var(--mm)); bottom: calc(var(--m-safe) * var(--mm)); text-align: center; font-size: calc(var(--p-footer) * var(--pt)); }
+.gf-v-foot .gf-v-t { line-height: calc(var(--m-footer-line) * var(--mm)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gf-v-identity { font-weight: 600; }
+.gf-v-site { color: var(--gfc-muted); }
+.gf-v-legal { position: absolute; right: calc(var(--m-safe) * var(--mm)); top: 50%; width: calc(var(--m-legal-strip) * var(--mm)); height: 0; }
+.gf-v-legal .gf-v-t { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%) rotate(90deg); white-space: nowrap; font-size: calc(var(--p-legal) * var(--pt)); color: var(--gfc-muted); }
+.gf-v-pill { position: absolute; z-index: 1; top: calc(3 * var(--mm)); right: calc(3 * var(--mm)); padding: calc(1 * var(--mm)) calc(1.6 * var(--mm)); border-radius: 99px; background: var(--gfc-chip); color: #fff; font: 600 calc(6.5 * var(--pt))/1 "GF Card Sans", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Printing the voucher page prints the voucher, nothing else. The card's print() lays a sheet on <body> (both faces side by side, 105 × 148 mm each) and sets the page to
+   210 × 148 mm for that print only; everything else on the page is left out, so no blank page follows. Without a card the box holding the code is printed by hiding the rest. */
+@media print {
+  body.gf-gv-printing * { visibility: hidden; }
+  body.gf-gv-printing .gf-gv-printzone, body.gf-gv-printing .gf-gv-printzone * { visibility: visible; }
+  body.gf-gv-printing .gf-gv-printzone { position: absolute; left: 0; top: 0; width: 100%; }
+  body.gf-gv-printing-sheet > :not(.gf-card-sheet) { display: none !important; }
+  body.gf-gv-printing-sheet { margin: 0; }
+  body.gf-gv-printing-sheet .gf-card-sheet { display: flex; position: static; width: 210mm; height: 148mm; margin: 0; padding: 0; }
+  .gf-card-sheet .gf-card-face.is-sheet { position: relative; inset: auto; flex: none; width: 105mm; height: 148mm; border-radius: 0; box-shadow: none; transform: none; opacity: 1; backface-visibility: visible; -webkit-backface-visibility: visible; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 /* Rule 63 — the offer switcher heading an open campaign (specs/gift-voucher-offer-switcher.html). */
 .gf-gv-switch { margin: 0 0 1.4rem; }
 .gf-gv-switch-label { margin: 0 0 .6rem; font-size: .7rem; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; color: var(--gfb-fill-strong); }
@@ -506,7 +591,6 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
   .gf-gv-switch-opt:active { transform: none; }
 }
 .gf-gv-items { margin: 0 0 .6rem; padding-left: 1.1rem; display: grid; gap: .2rem; }
-.gf-gv-heading { font-size: clamp(1.5rem, 8cqi, 2.2rem); }
 .gf-gv-compose { display: grid; gap: .6rem; }
 .gf-gv-compose-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .35rem 0; border-top: 1px solid var(--gfb-border); }
 .gf-gv-compose-label { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
@@ -650,10 +734,4 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 @media (prefers-reduced-motion: reduce) {
   .gf-gv-offer, .gf-sb-slot { transition: background-color .15s ease; }
   .gf-gv-offer:active, .gf-sb-slot:active { transform: none; }
-}
-/* Printing the voucher page prints the voucher, nothing else. */
-@media print {
-  body.gf-gv-printing * { visibility: hidden; }
-  body.gf-gv-printing .gf-gv-printzone, body.gf-gv-printing .gf-gv-printzone * { visibility: visible; }
-  body.gf-gv-printing .gf-gv-printzone { position: absolute; left: 0; top: 0; width: 100%; }
 }

@@ -26,9 +26,12 @@ function createSiteVisual({ campaigns, visuals, filesDir }) {
     return { versionId: version.id, width: WEB_WIDTH, height: Math.round((version.height * WEB_WIDTH) / version.width) };
   }
 
+  /** Rule 66 — the web picture of any front's bytes (the voucher's frozen front too): EXIF applied, 720 px wide at most. */
+  const webPicture = (bytes) => sharp(bytes).rotate().resize({ width: WEB_WIDTH, withoutEnlargement: true }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+
   async function pictureOf(version) {
     if (pictures.has(version.id)) return pictures.get(version.id);
-    const buffer = await sharp(images.read(filesDir(), version.path)).rotate().resize({ width: WEB_WIDTH, withoutEnlargement: true }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+    const buffer = await webPicture(images.read(filesDir(), version.path));
     if (pictures.size >= KEPT_PICTURES) pictures.delete(pictures.keys().next().value);
     pictures.set(version.id, buffer);
     return buffer;
@@ -47,7 +50,7 @@ function createSiteVisual({ campaigns, visuals, filesDir }) {
     return { buffer, current: String(versionId) === String(version.id) };
   }
 
-  return { describe, image };
+  return { describe, image, webPicture };
 }
 
 module.exports = { createSiteVisual, WEB_WIDTH };

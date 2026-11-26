@@ -17,6 +17,7 @@ const createCampaignsModel = require('./models/campaignsModel');
 const { createCatalogueView } = require('./catalogueView');
 const { createOfferService } = require('./offerService');
 const { createSiteVisual } = require('./siteVisual');
+const { createCardBack } = require('./cardBack');
 const { createCheckLimits } = require('./rateLimiters');
 const { createProof } = require('./proof');
 const { createReceipt } = require('./receipt');
@@ -182,7 +183,11 @@ function buildGiftVouchersApi({
   });
   const offer = buildPublicOrdersController({
     offerService, terms, available: onlineSaleAvailable, brand: companyName, respond, orders, vouchers, proof, pepper, ipOf, payments, siteOrigin,
-    decrypt, documents, campaigns, siteVisual: createSiteVisual({ campaigns, visuals, filesDir }), pageUrl, now,
+    decrypt, documents, campaigns, siteVisual: createSiteVisual({ campaigns, visuals, filesDir }),
+    cardBack: createCardBack({
+      company, linkBase, baseContents: offerService.baseContents, now,
+    }),
+    pageUrl, now,
   });
 
   return {

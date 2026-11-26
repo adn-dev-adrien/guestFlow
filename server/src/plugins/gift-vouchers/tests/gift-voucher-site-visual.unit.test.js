@@ -87,7 +87,7 @@ test('rule 62 — WordPress proxies the front with its cache header, and the blo
   const proxy = read('includes/class-gf-rest-proxy.php');
   assert.match(proxy, /'\/gift-vouchers\/campaigns\/\(\?P<slug>\[a-z0-9\]\+\(\?:-\[a-z0-9\]\+\)\*\)\/visual'/);
   assert.match(proxy, /strpos\(\$cache, 'immutable'\) !== false \? 'public, max-age=31536000, immutable' : 'no-store'/);
-  assert.match(read('includes/class-gf-api-client.php'), /\['application\/pdf', 'image\/jpeg'\]/);
+  assert.match(read('includes/class-gf-api-client.php'), /\['application\/pdf', 'image\/jpeg', 'image\/png'\]/);
   const view = read('blocks/gift-voucher/view.js');
   assert.match(view, /'\/gift-vouchers\/campaigns\/' \+ encodeURIComponent\(campaign\.slug\) \+ '\/visual\?v=' \+ encodeURIComponent\(visual\.versionId\)/);
   assert.match(view, /img\.addEventListener\('error'/);
