@@ -6,13 +6,21 @@
  */
 function readInstallmentSummary(db, reservationId) {
   if (!db || !reservationId || Number(reservationId) <= 0) return null;
+  // `amountEdited` is the pin of rule 9a; a schema that predates it has no pinned installment, hence no closed plan.
+  const read = (floating) => db.prepare(`
+    SELECT COUNT(*) AS count,
+           COALESCE(SUM(amountCents), 0) AS scheduledCents,
+           COALESCE(SUM(CASE WHEN paid = 1 THEN amountCents ELSE 0 END), 0) AS paidCents,
+           COALESCE(SUM(CASE WHEN paid = 0 THEN 1 ELSE 0 END), 0) AS unpaidCount,
+           ${floating} AS floatingCount
+      FROM reservation_installments WHERE reservationId = ?`).get(Number(reservationId));
   let row;
   try {
-    row = db.prepare(`
-      SELECT COUNT(*) AS count,
-             COALESCE(SUM(amountCents), 0) AS scheduledCents,
-             COALESCE(SUM(CASE WHEN paid = 1 THEN amountCents ELSE 0 END), 0) AS paidCents
-        FROM reservation_installments WHERE reservationId = ?`).get(Number(reservationId));
+    try {
+      row = read('COALESCE(SUM(CASE WHEN paid = 0 AND COALESCE(amountEdited, 0) = 0 THEN 1 ELSE 0 END), 0)');
+    } catch {
+      row = read('COALESCE(SUM(CASE WHEN paid = 0 THEN 1 ELSE 0 END), 0)');
+    }
   } catch {
     return null;
   }
@@ -22,6 +30,8 @@ function readInstallmentSummary(db, reservationId) {
     scheduled: row.scheduledCents / 100,
     paid: row.paidCents / 100,
     allPaid: row.paidCents === row.scheduledCents,
+    // Rule 53 — some installment is unpaid and none of them adjusts: what the plan does not cover is paid at the arrival.
+    closed: row.unpaidCount > 0 && row.floatingCount === 0,
   };
 }
 

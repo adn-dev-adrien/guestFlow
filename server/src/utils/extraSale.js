@@ -38,7 +38,7 @@
 const {
   storedBody, optionRows, mergeOrderLines, personsRefusal, remainderByKey, deltaOf,
 } = require('./stayOrderLines');
-const { toCents } = require('./pricing/money');
+const { toCents, roundMoneyOrZero } = require('./pricing/money');
 const { extraLineKey, numberedLabel, settledByKey, isPricedCustomLine } = require('./pricing/storedLines');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
@@ -557,6 +557,20 @@ function saleDetailOfAt(reservationId, now = new Date()) {
 
 // Rule 91 — the arrival complement the guest e-mails list, read from the sale detail: `{ amount, paid, detail }` like
 // `buildArrivalComplementDetail`, which stays the reading of a stay the engine cannot quote (null here).
+// specs/payments/direct-installments.md rule 58 — what the plan's installments do not cover is not an anonymous « Complément d'arrivée »: it
+// takes its own line out of the adjustment, so the e-mails and the SAS name it the same way.
+function withInstallmentRest(lines, row) {
+  const at = lines.findIndex((line) => line.kind === 'remainder');
+  if (at < 0) return lines;
+  const rest = require('./installmentPlan').restOfPlan(row, lines[at].amount);
+  if (!(rest > 0)) return lines;
+  const { INSTALLMENT_REST_LABEL } = require('./pricing/settlement');
+  const left = roundMoneyOrZero(lines[at].amount - rest);
+  const restLine = { kind: 'installmentRest', label: INSTALLMENT_REST_LABEL, qty: 1, unitPrice: rest, amount: rest };
+  const remainder = left > 0.01 ? [{ ...lines[at], unitPrice: left, amount: left }] : [];
+  return [...lines.slice(0, at), restLine, ...remainder, ...lines.slice(at + 1)];
+}
+
 function arrivalComplementDetailOfAt(reservationId, now = new Date()) {
   const detail = saleDetailOf(reservationId, now);
   if (!detail) return null;
@@ -566,7 +580,7 @@ function arrivalComplementDetailOfAt(reservationId, now = new Date()) {
   return {
     amount: detail.buckets.arrival / 100,
     paid,
-    detail: arrivalComplementLines(detail, { addedGuestsTaxLabel: ADDED_GUESTS_TAX_LABEL, complementPaid: paid === 1 }),
+    detail: withInstallmentRest(arrivalComplementLines(detail, { addedGuestsTaxLabel: ADDED_GUESTS_TAX_LABEL, complementPaid: paid === 1 }), row),
   };
 }
 
@@ -775,6 +789,7 @@ const unmarkArrival = atMoment(unmarkArrivalAt);
 const arrivalOpenAt = atMoment(arrivalOpenAtAt);
 
 module.exports = {
+  __test: { withInstallmentRest },
   quote, sell, changeLine, removeLine, collectionOf, saleDetailOf, arrivalComplementDetailOf, departureSalesOf, paidSalesOf, parseRequests, unmarkArrival,
   arrivalOpenAt,
 };
