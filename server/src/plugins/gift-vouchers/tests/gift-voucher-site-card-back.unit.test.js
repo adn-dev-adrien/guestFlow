@@ -57,7 +57,7 @@ const svgOf = (url) => QRCode.toString(url, { type: 'svg', errorCorrectionLevel:
 async function buy(site, slug, extra = {}) {
   const ip = `10.0.6.${Math.floor(Math.random() * 200) + 2}`;
   const placed = await site('POST', '/orders', {
-    slug, recipientName: 'Marie', senderName: 'Paul', email: 'paul@example.test', language: 'fr', termsVersionId: slug === 'bain-jour' ? 9 : 4, ...extra, ...sale.solvedProof({ ip }),
+    slug, recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', email: 'paul@example.test', language: 'fr', termsVersionId: slug === 'bain-jour' ? 9 : 4, ...extra, ...sale.solvedProof({ ip }),
   }, ip);
   assert.equal(placed.status, 201, JSON.stringify(placed.body));
   const { orderId, token } = placed.body.data;
@@ -185,7 +185,7 @@ test('rule 66 — « Valable jusqu\'au » is the PDF\'s own string: its template
 test('rule 66 — the status says whether the voucher has a frozen front; the front is served by order id and token, as the 720 px web picture, never kept', () => withServer(async (site, raw) => {
   const ip = '10.0.6.200';
   const placed = await site('POST', '/orders', {
-    slug: bath.slug, email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...sale.solvedProof({ ip }),
+    slug: bath.slug, recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...sale.solvedProof({ ip }),
   }, ip);
   const { orderId, token } = placed.body.data;
   const { amountCents } = api.orders.find(orderId);
@@ -205,7 +205,7 @@ test('rule 66 — a voucher with no frozen front says so and answers 404, for th
   const { voucher } = await buy(site, lodging.slug, { amountCents: 15000 });
   assert.equal(voucher.back.front, false);
   const placed = await site('POST', '/orders', {
-    slug: lodging.slug, amountCents: 3000, email: 'a@example.test', language: 'fr', termsVersionId: 4, ...sale.solvedProof({ ip: '10.0.6.201' }),
+    slug: lodging.slug, amountCents: 3000, recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'a@example.test', language: 'fr', termsVersionId: 4, ...sale.solvedProof({ ip: '10.0.6.201' }),
   }, '10.0.6.201');
   const { orderId, token } = placed.body.data;
   api.orderPaid({ ref: String(orderId), linkId: 901, amountCents: api.orders.find(orderId).amountCents });
