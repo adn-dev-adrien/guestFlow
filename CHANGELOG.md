@@ -4,6 +4,23 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-11-26
+
+### Summary
+- Un séjour vendu par une plateforme s'enregistre toujours : durée, jours d'arrivée et capacité hors règle deviennent une simple information.
+- Le délai d'annulation après l'échéance du solde commence à 1 jour : 0 jour est refusé.
+- Site : la carte du bon cadeau prend toute la largeur du formulaire sur téléphone (connecteur WordPress 1.26.1 à installer).
+- Site : Safari ne place plus le curseur dans le champ du code de bon au chargement de « Réserver une séance ».
+
+### Changed
+- Property « Paiement & caution »: the cancellation delay after the solde's due date now starts at **1 day** (0 is refused, « Entre 1 et 60 jours. »), so a stay is never proposed for cancellation on the very day its solde falls due (spec `settings-input-guards.md` rule 10, 2026-11-26).
+- **Reservations**: a stay sold by a platform (any channel but direct, Lodgify included) is always saveable: the minimum and maximum nights, the changeover days and the guest capacity no longer block it. The « Séjour » section states the broken rule as an information line (`quote.stayRuleNotes`), and overlap, beds, resources and the past-stay lock still refuse. A save that moves neither the dates, the property nor the party never re-judges those rules, whatever the channel; a direct stay that moves them keeps the « Forcer l'enregistrement » dialog. See `specs/reservations/platform-stays-always-saveable.md`.
+
+### Fixed
+- **Gift voucher card on a phone:** the card preview on the « Offrir un bon cadeau » page is as wide as the form (up to 420 px) instead of 180 px (WordPress plugin `guestflow-booking` 1.26.1).
+- **Gift voucher card frame:** the card's root class is now `gf-vcard`, so a site theme's generic `.gf-card` frame (white box, padding, shadow) no longer applies to it.
+- **Session block — no stolen focus** (spec `site-outside-resource-booking.md` §3.I rule 38). Safari no longer leaves the cursor in the gift voucher code field of « Réserver une séance » on page load (connector 1.26.1).
+
 ## [4.6.0] - 2026-11-26
 
 ### Summary
