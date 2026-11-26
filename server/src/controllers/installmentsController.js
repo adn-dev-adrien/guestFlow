@@ -6,7 +6,7 @@
  * dependency is injected so the whole behaviour is testable on an in-memory database.
  *
  * Handlers (mounted by routes/reservations.js):
- *   put      PUT    /:id/installments                       { count } | { dates } | { amounts }
+ *   put      PUT    /:id/installments                       { count } | { dates } | { amounts } | { installmentId, releaseAmount: true }
  *   remove   DELETE /:id/installments
  *   markPaid POST   /:id/installments/:installmentId/payment { paidDate, method }
  * Helpers for the rest of the core:
@@ -57,8 +57,12 @@ function buildController({
 
   const contextOf = (row) => ({ today: todayOf(), startDate: row.startDate, balanceDaysBefore: balanceDaysOf(row) });
 
-  const collected = (row) => [row.depositPaid, row.balancePaid, row.depositPaidCash, row.balancePaidCash]
-    .some((flag) => Number(flag || 0) === 1);
+  // Rule 60 — the acompte collected beside a plan is fine; a collected solde (or a full payment, which collects both) leaves
+  // nothing to split.
+  const soldeCollected = (row) => [row.balancePaid, row.balancePaidCash].some((flag) => Number(flag || 0) === 1);
+
+  // Rules 4, 60 — what the plan covers: the pre-arrival amount less the acompte already collected.
+  const targetOf = (row, quote) => Math.max(0, Math.round(Number(quote.preArrivalAmount || 0) * 100) - plan.collectedDepositCents(row));
 
   // specs/payment-link-lifecycle.md rule 63 (Adrien, 2026-10-31) — once a plan exists, the only payment that can
   // arrive is an échéance. So no plan is made or resized while an acompte / solde / séjour link of the stay is not
@@ -82,7 +86,7 @@ function buildController({
       return { eligible: false, canCreate: false, reason: 'Pas d’échéancier sur une réservation de plateforme.' };
     }
     if (rows.length > 0) return { eligible: true, canCreate: false, reason: null };
-    if (collected(row)) {
+    if (soldeCollected(row)) {
       return { eligible: true, canCreate: false, reason: 'Un paiement est déjà enregistré sur ce séjour.' };
     }
     const blocker = planBlocker(row, { creating: true });
@@ -102,6 +106,27 @@ function buildController({
     return byInstallment;
   }
 
+  // Rule 57 (reading of 2026-11-26) — the rest of a closed plan already collected with the arrival complement, in cents: asked
+  // again by no gesture of the plan.
+  const REST_COLLECTED = 'Le reste de l’échéancier a déjà été encaissé à l’arrivée.';
+  function collectedRestCents(row, rows) {
+    if (rows.length === 0 || !(Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1)) return 0;
+    if (!plan.isClosed(rows)) return 0;
+    const scheduled = rows.reduce((sum, r) => sum + Number(r.amountCents || 0), 0);
+    return Math.max(0, Math.round(Number(row.installmentsTarget || 0) * 100) - scheduled);
+  }
+
+  // Rule 60 — the acompte collected before the plan, as the read-only paid row of the card.
+  function depositOf(row) {
+    const cents = plan.collectedDepositCents(row);
+    if (cents <= 0 || installmentsModel.listFor(row.id).length === 0) return null;
+    return {
+      amount: cents / 100,
+      paidDate: row.depositPaidDate || null,
+      method: Number(row.depositPaidCash || 0) === 1 ? 'cash' : null,
+    };
+  }
+
   function planFor(reservationId) {
     const row = stay(reservationId);
     if (!row) return null;
@@ -114,6 +139,8 @@ function buildController({
       ...contextOf(row),
       linkByInstallment: linksOf(rows),
       canRequest: providerReady(),
+      deposit: depositOf(row),
+      restCollected: collectedRestCents(row, rows) > 0,
     });
   }
 
@@ -127,6 +154,18 @@ function buildController({
       UPDATE reservations
          SET depositAmount = ?, balanceAmount = ?, depositDueDate = ?, balanceDueDate = ?, updatedAt = datetime('now')
        WHERE id = ?`).run(quote.depositAmount, quote.balanceAmount, quote.depositDueDate || null, quote.balanceDueDate || null, Number(reservationId));
+    restampComplement(row, quote);
+  }
+
+  // Rules 54, 57 — what a closed plan does not cover reaches the arrival complement with the write that closed it (and
+  // leaves it with the one that re-opened it), not with the next save of the fiche. A collected complement or the operator's
+  // own amount stays as it is.
+  function restampComplement(row, quote) {
+    if (typeof quote.complementAmount !== 'number') return;
+    if (Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1) return;
+    if (row.complementAmountOverride != null && row.complementAmountOverride !== '') return;
+    database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?")
+      .run(quote.complementAmount, Number(row.id));
   }
 
   async function retireLinksOf(reservationId, installmentIds) {
@@ -177,8 +216,9 @@ function buildController({
     const creating = rows.length === 0;
     const eligibility = eligibilityOf(row, rows);
     if (!eligibility.eligible) return fail(409, 'INSTALLMENTS_NOT_ALLOWED', eligibility.reason);
-    const locked = (current, currentRows) => currentRows.some((r) => Number(r.paid) === 1) || collected(current);
+    const locked = (current, currentRows) => currentRows.some((r) => Number(r.paid) === 1) || soldeCollected(current);
     if (locked(row, rows)) return fail(409, 'INSTALLMENTS_LOCKED', 'Un paiement est enregistré : le nombre d’échéances est figé.');
+    if (collectedRestCents(row, rows) > 0) return fail(409, 'REST_COLLECTED', REST_COLLECTED);
     const blocker = creating ? eligibility.blocker : planBlocker(row, { creating });
     if (blocker) return fail(blocker.status, blocker.error, blocker.message);
     const stalePaid = await paidLinkRefusal(creating
@@ -193,7 +233,7 @@ function buildController({
     }
     const quote = quoteOf(row);
     if (!quote || quote.error) return fail(409, 'QUOTE_UNAVAILABLE', 'Le total du séjour est introuvable.');
-    const targetCents = Math.round(Number(quote.preArrivalAmount || 0) * 100);
+    const targetCents = targetOf(row, quote);
     const amounts = plan.splitEuros(targetCents, count);
     if (!amounts) return fail(400, 'TOTAL_TOO_LOW', `Total trop faible pour ${count} échéances.`);
     const dates = plan.defaultDates(context, count);
@@ -210,7 +250,7 @@ function buildController({
 
     installmentsModel.replacePlan(row.id, dates.map((dueDate, i) => ({ number: i + 1, dueDate, amountCents: amounts[i] })), targetCents);
     await retireLinksOf(row.id, rows.map((r) => r.id));
-    if (creating) restampBuckets(row.id);
+    restampBuckets(row.id);
     return null;
   }
 
@@ -244,7 +284,11 @@ function buildController({
       const basis = frozen
         ? current.reduce((sum, r) => sum + r.amountCents, 0)
         : Math.round(Number(row.installmentsTarget || 0) * 100);
-      const checked = plan.validateAmount({ installments: current, index, amountEuros: item.amount, targetCents: basis });
+      // Rule 57 (reading of 2026-11-26) — the ceiling of rule 55 leaves out the rest the arrival complement collected.
+      const stayCents = Math.round(Number(row.installmentsTarget || 0) * 100) - collectedRestCents(row, current);
+      const checked = plan.validateAmount({
+        installments: current, index, amountEuros: item.amount, targetCents: basis, stayCents,
+      });
       if (checked.error) return fail(400, 'INVALID_AMOUNT', checked.error, { field: 'amount', installmentId: current[index].id });
       const shares = plan.spreadCents(checked.rest, checked.others.length, { minLast: plan.MIN_SHARE_CENTS });
       database.transaction(() => {
@@ -252,6 +296,24 @@ function buildController({
         installmentsModel.applyAmounts(row.id, new Map(checked.others.map((o, k) => [o.number, shares[k]])), {});
       }).immediate();
     }
+    return null;
+  }
+
+  // Rule 57 — the last unpaid installment of a closed plan adjusts again: its pin goes, it takes the shortfall back.
+  function applyRelease(row, rows, installmentId) {
+    const target = rows.find((r) => r.id === Number(installmentId));
+    if (!target) return fail(404, 'INSTALLMENT_NOT_FOUND', 'Échéance introuvable.');
+    if (Number(target.paid) === 1) return fail(400, 'INSTALLMENT_PAID', `Échéance ${target.number} : déjà payée.`, { installmentId: target.id });
+    if (collectedRestCents(row, rows) > 0) return fail(409, 'REST_COLLECTED', REST_COLLECTED, { installmentId: target.id });
+    const lastUnpaid = [...rows].reverse().find((r) => Number(r.paid) !== 1);
+    if (target.id !== lastUnpaid.id || Number(target.amountEdited || 0) !== 1) {
+      return fail(409, 'INSTALLMENT_NOT_RELEASABLE', `Échéance ${target.number} : rien à ajuster automatiquement.`, { installmentId: target.id });
+    }
+    database.transaction(() => {
+      installmentsModel.updateRow(target.id, { amountEdited: 0 });
+      const result = plan.rebalance({ installments: installmentsModel.listFor(row.id), targetCents: Math.round(Number(row.installmentsTarget || 0) * 100) });
+      installmentsModel.applyAmounts(row.id, result.amounts, { clearPins: result.clearPins, unpin: result.unpin, added: result.added });
+    }).immediate();
     return null;
   }
 
@@ -273,10 +335,16 @@ function buildController({
       if (!eligibility.eligible || rows.length === 0) return res.status(409).json({ error: 'INSTALLMENTS_NOT_ALLOWED', message: eligibility.reason || 'Pas d’échéancier sur cette réservation.' });
       refusal = Array.isArray(body.dates) ? applyDates(row, rows, body.dates) : applyAmounts(row, rows, body.amounts);
       if (!refusal && Array.isArray(body.amounts)) await retireChangedLinks(id);
+    } else if (body.releaseAmount === true && body.installmentId !== undefined) {
+      const eligibility = eligibilityOf(row, rows);
+      if (!eligibility.eligible || rows.length === 0) return res.status(409).json({ error: 'INSTALLMENTS_NOT_ALLOWED', message: eligibility.reason || 'Pas d’échéancier sur cette réservation.' });
+      refusal = applyRelease(row, rows, body.installmentId);
+      if (!refusal) await retireChangedLinks(id);
     } else {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Nombre, dates ou montants attendus.' });
     }
     if (refusal) return res.status(refusal.status).json(refusal.body);
+    if (body.count === undefined && !Array.isArray(body.dates)) restampBuckets(id);
     return res.json({ installmentPlan: planFor(id) });
   }
 
@@ -289,6 +357,7 @@ function buildController({
     if (rows.some((r) => Number(r.paid) === 1)) {
       return res.status(409).json({ error: 'INSTALLMENTS_LOCKED', message: 'Un paiement est enregistré : l’échéancier ne peut plus être supprimé.' });
     }
+    if (collectedRestCents(row, rows) > 0) return res.status(409).json({ error: 'REST_COLLECTED', message: REST_COLLECTED });
     const stalePaid = await paidLinkRefusal(openLinksOf(id, ['installment']));
     if (stalePaid) return res.status(stalePaid.status).json(stalePaid.body);
     installmentsModel.deletePlan(id);
@@ -358,7 +427,7 @@ function buildController({
       return;
     }
     syncAfterTotalChange(database, reservationId, {
-      targetCents: Math.round(Number(quote.preArrivalAmount || 0) * 100),
+      targetCents: targetOf(row, quote),
       startDate: row.startDate,
     });
   }
@@ -372,7 +441,7 @@ function buildController({
   function planClaimOf(reservationId, quote, platform) {
     const rows = installmentsModel.listFor(reservationId);
     if (rows.length === 0 || !isDirectChannel(platform)) return 0;
-    const { amounts } = plan.rebalance({ installments: rows, targetCents: Math.round(Number(quote.preArrivalAmount || 0) * 100) });
+    const { amounts } = plan.rebalance({ installments: rows, targetCents: targetOf(stay(reservationId), quote) });
     const cents = rows.filter((r) => Number(r.paid) !== 1)
       .reduce((sum, r) => sum + amounts.get(r.number) - Number(r.amountCents), 0);
     return cents / 100;

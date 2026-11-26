@@ -150,13 +150,15 @@ const STAY = {
   selectedOptions: [], customOptions: [], selectedResources: [], discountPercent: 0, customPrice: '', bookingDate: '2026-10-01', bookingId: 42,
 };
 
-test('rule 35 — an acompte or a solde already collected is kept: the plan is ignored rather than zeroing paid money', () => {
+test('rules 35, 60 — a collected acompte is kept beside the plan (the plan replaces the solde only); a collected solde ignores the plan', () => {
   const db = engineDb();
   const withPlan = calculateReservationQuote({ ...STAY, db, depositPaid: false, balancePaid: false });
   assert.deepEqual([withPlan.depositAmount, withPlan.balanceAmount], [0, 0]);
   const paid = calculateReservationQuote({ ...STAY, db, depositPaid: true, depositAmount: 90, balancePaid: false });
-  assert.equal(paid.depositAmount, 90);
-  assert.equal(paid.balanceAmount, 210);
+  assert.equal(paid.depositAmount, 90, 'the collected acompte keeps its amount');
+  assert.equal(paid.balanceAmount, 0, 'rule 60: the installments stand for the solde');
+  const solde = calculateReservationQuote({ ...STAY, db, depositPaid: true, depositAmount: 90, balancePaid: true, balanceAmount: 210 });
+  assert.deepEqual([solde.depositAmount, solde.balanceAmount], [90, 210], 'a collected solde is never zeroed by a plan');
 });
 
 test('rule 35 — « Marquer acompte / solde perçu » is refused on a stay that has a plan', () => {

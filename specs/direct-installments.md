@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented · rules 53–60 **Approved** (2026-11-26) |
 | **Branch** | `feature/direct-installments` (from `inte/plugins`) |
 | **Created** | 2026-10-27 |
 | **Author** | Adrien |
@@ -99,6 +99,7 @@ its due date, after the operator validates it.
     non-pinned installment. Rules 7 and 8 respect pins: a recalculation moves only non-pinned
     installments, and a rise is spread over the unpaid non-pinned ones (the last unpaid if none
     other is left). Changing the count (rule 12) clears every pin.
+    *Superseded in part by rule 53:* the last unpaid installment can be typed and pinned too.
 
 **Dates**
 
@@ -332,6 +333,78 @@ its due date, after the operator validates it.
     in the same render (unless its refusal is still shown), not in an effect run afterwards. *Why:* on a loaded CI runner
     the effect ran after the next keystrokes and overwrote them, so « 250.5 » typed after « 250,50 » was posted as
     « 250,50250.5 »; and an Enter followed by leaving the field posted the same amount twice.
+
+**The last installment can be typed too — the rest is paid at the door** (2026-11-26, **Approved**, Adrien's
+request: « il faut qu'on puisse setter même la dernière échéance, et ce qui manque est à payer en complément
+d'arrivée, attention à bien le faire apparaître dans le SAS »). Rule 9a is read again: the last unpaid
+installment is no longer the one that always adjusts.
+
+53. **Every unpaid installment's amount can be typed**, the last unpaid one included, in whole euros, ≥ 1 €.
+    When the typed installment is the last unpaid one, or when it leaves no non-pinned installment, the plan is
+    **closed** (`closed` in the payload): nothing in it adjusts any more.
+    *Reading (implementation, 2026-11-26):* « closed » is exactly « some installment is unpaid and every unpaid one
+    is pinned » (`utils/installmentPlan.js` `isClosed`, `closed` of `installmentSummary` for the engine). Typing the
+    last unpaid installment pins it but, while an earlier unpaid one is not pinned, that one still adjusts and takes the
+    rest: the plan stays open and carries no shortfall. Rule 9a's « the last unpaid installment is never pinned and
+    always adjusts » no longer holds (it is the point of this rule); the payload's `canRelease` is true on the last
+    unpaid installment whenever it is pinned. Released after a payment, the last installment takes the shortfall back as
+    a rise (rule 8). An older plan whose last unpaid installment was pinned while a later one was paid reads as closed.
+54. **What a closed plan does not cover is paid at the arrival.** `shortfall = preArrivalAmount − Σ installments`
+    (> 0) goes to the **arrival complement at once** — from the save, not only once every installment is paid
+    (rule 8). It is the engine's existing auto-gap (`autoGapBetweenDepositAndBalance` already subtracts
+    `installmentPlan.scheduled`), shown without waiting for `preArrivalSettled` when the plan is closed.
+55. **A closed plan never holds more than the stay.** A typed amount that would bring Σ installments above the
+    pre-arrival amount is refused (`400`): « Échéance N : dépasse le séjour de X € (Y € au plus). ».
+56. **A price change on a closed plan moves the complement, never an installment.** A rise adds to the
+    shortfall. A drop lowers it; a drop beyond it — the plan would hold more than the stay — follows rule 8's
+    drop: before any payment the last unpaid installment is released and adjusts again (rule 7); after a
+    payment nothing moves and the ledger shows « Échéancier au-dessus du séjour : X € ».
+57. **Re-opening the plan.** The last unpaid row of a closed plan carries « Ajuster automatiquement »: it
+    clears that installment's pin, it takes the shortfall back, the complement loses it. Changing the count
+    (rule 12) clears every pin as before.
+    *Reading of 2026-11-26:* once the arrival complement holding the rest is **collected** and the plan is closed with a rest,
+    that rest is never asked again: release (`canRelease` false, `restCollected` true in the payload), a change of count
+    and the removal of the plan are refused (`409`, « Le reste de l'échéancier a déjà été encaissé à l'arrivée. »), and
+    the ceiling of rule 55 for a typed amount becomes `target − the rest collected`. The stored headline
+    (`quoteHeadline.storedPlanCarries`) counts a closed plan for what it schedules, like the engine. A payment recorded at
+    another amount (rule 28) restamps the stored complement from the engine. The collected acompte keeps its paid row
+    on the ledger (first, no undo beside a plan).
+58. **The rest is visible everywhere the arrival complement is.** The plan card ends with « Reste à régler à
+    l'arrivée : X € ». The arrival complement's « Détail » (`buildArrivalComplementDetail`, the source shared by the
+    fiche, the SAS and the emails) carries a line **« Reste de l'échéancier »**; the SAS arrival step shows the
+    unpaid installments (rule 36) **and** the complement with that line, and settling the complement there
+    collects it like any arrival complement. The J-2 / arrival emails list it through the same detail.
+59. **Accounting.** The rest is stay money collected with the complement: the complement allocation books it
+    pro rata of the stay buckets like today's auto-gap (`complementAllocation`). The tourist tax stays on the
+    installments (rule 39, shares over the plan's scheduled total) unless it already rides the complement.
+60. **A plan on a stay whose acompte is already collected** (2026-11-26, **Approved**, Adrien: « il faut aussi qu'on
+    puisse activer le paiement en plusieurs fois même sur une résa qui a déjà un paiement de saisie »). Rule 2 is
+    read again: the plan can be created or resized while **no installment** is collected; a collected acompte
+    no longer forbids it. The acompte keeps its paid row, its amount, its date and its accounting entry (rule 35:
+    a collected bucket is never zeroed); the plan splits **what is left before arrival**
+    (`preArrivalAmount − acompte collected`) and replaces the solde only. Rules 53–59 apply to that amount.
+    Still refused: a collected solde or full payment (nothing left to split), an acompte link paid but not yet
+    settled at the provider (rule 35's 409). Removing the plan gives the solde back, the acompte untouched.
+
+*Choices of 2026-11-26* (summary page [2026-11-26-installment-last-amount-to-arrival-complement.html](../docs/specs/2026-11-26-installment-last-amount-to-arrival-complement.html)):
+the line is « Reste de l'échéancier »; a rise on a closed plan goes to the arrival complement; an amount above the
+stay is refused; the SAS shows two blocks (installments due, then the complement with its line); with a collected
+acompte the plan splits what is left and the acompte stays apart.
+
+*Code map of rules 53–60:*
+- `utils/installmentPlan.js` (T) — `floatingOf` / `validateAmount` / `rebalance` accept a pinned last installment;
+  `closed`, `shortfallCents`, `lastUnpaid.canRelease` in the payload; rule 55 refusal; rule 56 drop releases the last pin.
+- `controllers/installmentsController.js` (T) — eligibility of rule 60 (collected acompte allowed, solde / full
+  refused); plan target = pre-arrival amount − collected acompte; release action (rule 57).
+- `routes/reservations.js` (T) — `PUT /:id/installments` accepts `{ installmentId, releaseAmount: true }` (rule 57).
+- `utils/pricing/schedule.js` (T) — the auto-gap of a closed plan reaches the arrival complement without waiting
+  for `preArrivalSettled` (rule 54); a collected acompte beside a plan keeps its bucket (rule 60).
+- `models/reservationsModel.js` `buildArrivalComplementDetail` / `utils/arrivalPaymentDetail.js` (T) — the
+  « Reste de l'échéancier » line (rule 58), summing with the rest to the complement.
+- `utils/complementAllocation.js` (T) — the line books pro rata of the stay buckets (rule 59).
+- `plugins/sas/controller.js` + SAS client (T) — installments block and complement block with its line (rule 58).
+- Client `components/reservation/InstallmentPlanCard.jsx` (T) — last amount editable, « Ajuster automatiquement »,
+  footer « Reste à régler à l'arrivée », the collected acompte as a read-only paid row (rule 60). Renders only.
 
 ---
 
@@ -578,6 +651,7 @@ Checked 2026-10-27 in the browser (dev server on an E2E-seeded database, 1280, 1
 
 - Q: Should the operator be able to type an installment's amount by hand (e.g. 500 € first, the rest spread)?
   - A: **Resolved 2026-10-27** — yes, on unpaid installments except the last unpaid one (rule 9a).
+  - A: **Revised 2026-11-26** — the last unpaid one too; what the plan does not cover goes to the arrival complement (rules 53–60).
 - Q: « En retard » threshold?
   - A: **Resolved 2026-10-27** — 3 days after the due date (rule 14).
 - Q: When the plan is frozen and the total drops, should the gap be applied to the last unpaid installment on an explicit click (« Réduire la dernière échéance »)?

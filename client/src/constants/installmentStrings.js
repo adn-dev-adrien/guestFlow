@@ -23,6 +23,7 @@ export const INSTALLMENT_NAME = (number) => `Échéance ${number}`;
 export const DATE_LABEL = (number) => `Date de l’échéance ${number}`;
 export const AMOUNT_LABEL = (number) => `Montant de l’échéance ${number}`;
 export const PINNED_MARK = 'fixé';
+export const ACTION_RELEASE = 'Ajuster automatiquement';
 export const ADDED_MARK = (amount) => `+${amount} ajoutés`;
 
 export const ACTION_SEND = 'Envoyer la demande';
@@ -40,6 +41,10 @@ export const PAY_METHODS = [
 export const GAP_LABEL = 'Échéancier au-dessus du séjour';
 export const GAP_HELP = 'Les montants restent figés ; à régler au registre (remboursement ou geste).';
 export const FOOTER_TOTAL = 'Total séjour';
+export const FOOTER_TOTAL_PLAN = 'Total échéancier';
+export const FOOTER_ARRIVAL_REST = 'Reste à régler à l’arrivée :';
+export const DEPOSIT_NAME = 'Acompte';
+export const DEPOSIT_PAID = (date) => `Payé le ${date}`;
 export const FOOTER_PAID = 'Payé';
 export const FOOTER_REMAINING = 'Reste';
 

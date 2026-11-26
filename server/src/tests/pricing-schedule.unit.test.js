@@ -165,7 +165,11 @@ test('rule 48 — the schedule step reads the ledger under the conditions the pl
   assert.equal(step.apply(ctxOf({ policy: { bookingId: 12 } })).installmentPlan.scheduled, 1040);
   assert.deepEqual(reads, [['installments', 12]]);
   reads.length = 0;
-  assert.equal(step.apply(ctxOf({ policy: { bookingId: 12 }, receipts: { depositPaid: 1, depositAmount: 300 } })).installmentPlan, null);
+  // Rule 60 of direct-installments — an acompte collected beside a plan: the plan is read, the collected acompte stays.
+  assert.equal(step.apply(ctxOf({ policy: { bookingId: 12 }, receipts: { depositPaid: 1, depositAmount: 300 } })).installmentPlan.scheduled, 1040);
+  assert.deepEqual(reads, [['receipts', 12], ['installments', 12]]);
+  reads.length = 0;
+  assert.equal(step.apply(ctxOf({ policy: { bookingId: 12 }, receipts: { balancePaid: 1, balanceAmount: 300 } })).installmentPlan, null);
   assert.deepEqual(reads, [['receipts', 12]]);
   reads.length = 0;
   assert.equal(step.apply(ctxOf({ policy: { bookingId: 12, platform: 'booking', channel: channelOf('platform') } })).installmentPlan, null);

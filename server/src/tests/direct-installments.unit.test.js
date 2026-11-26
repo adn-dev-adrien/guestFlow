@@ -111,7 +111,7 @@ test('rule 9a — an amount with cents is accepted, the cents go to the rest', (
   assert.deepEqual(plan.spreadCents(checked.rest, checked.others.length), [37500, 37575]);
 });
 
-test('rule 9a — refused: under 1 €, unreadable, the last unpaid, or no euro left for the others', () => {
+test('rule 9a — refused: under 1 €, unreadable, or no euro left for the others', () => {
   const rows = [row(1, 33400), row(2, 33400), row(3, 33350)];
   const refuse = (index, amountEuros) => plan.validateAmount({ installments: rows, index, amountEuros, targetCents: 100150 }).error;
   assert.match(refuse(0, 0), /au moins 1 €/);
@@ -120,7 +120,7 @@ test('rule 9a — refused: under 1 €, unreadable, the last unpaid, or no euro 
   assert.equal(refuse(0, 1), undefined);
   assert.match(refuse(0, ''), /illisible/);
   assert.match(refuse(0, '1,000,50'), /illisible/);
-  assert.match(refuse(2, 100), /dernière échéance/);
+  assert.equal(refuse(2, 100), undefined, 'rule 53: the last unpaid installment can be typed too');
   assert.equal(refuse(0, 1000), "Laisse moins de 1 € à l'échéance 3.");
   assert.equal(refuse(0, 999), undefined, '2 € are left for two installments: 1 € each');
 });
@@ -241,9 +241,9 @@ test('rule 1 — a platform marked « countsAsDirect » (Lodgify-recorded stay) 
   assert.equal(created.body.installmentPlan.eligible, true);
 });
 
-test('rules 2, 30 — nothing may have been collected: money already in refuses the plan (eligible, canCreate false, reason)', async () => {
+test('rules 2, 30, 60 — a collected solde refuses the plan (eligible, canCreate false, reason); a collected acompte alone does not', async () => {
   const h = createHarness();
-  h.db.prepare('UPDATE reservations SET depositPaid = 1 WHERE id = ?').run(h.reservationId);
+  h.db.prepare('UPDATE reservations SET balancePaid = 1 WHERE id = ?').run(h.reservationId);
   const refused = await createPlan(h);
   assert.equal(refused.status, 409);
   const payload = h.controller.planFor(h.reservationId);
@@ -302,16 +302,14 @@ test('rule 11 — an invalid date is refused with 400 and the previous value is 
 test('rule 9a — a typed amount pins the installment, the others follow; a refused one changes nothing', async () => {
   const h = createHarness();
   await createPlan(h);
-  const [first, , last] = h.installmentsModel.listFor(h.reservationId);
+  const [first] = h.installmentsModel.listFor(h.reservationId);
   const typed = await call(h.controller.put, { params: { id: h.reservationId }, body: { amounts: [{ id: first.id, amount: 500 }] } });
   assert.equal(typed.status, 200);
   const installments = typed.body.installmentPlan.installments;
   assert.deepEqual(installments.map((i) => i.amount), [500, 251, 250.5]);
   assert.deepEqual(installments.map((i) => i.amountEdited), [true, false, false]);
-  assert.equal(installments[2].amountEditable, false, 'the last unpaid installment adjusts, it is never typed');
+  assert.equal(installments[2].amountEditable, true, 'rule 53: the last unpaid installment can be typed too');
 
-  const refusedLast = await call(h.controller.put, { params: { id: h.reservationId }, body: { amounts: [{ id: last.id, amount: 100 }] } });
-  assert.equal(refusedLast.status, 400);
   const refusedTooMuch = await call(h.controller.put, { params: { id: h.reservationId }, body: { amounts: [{ id: installments[1].id, amount: 600 }] } });
   assert.equal(refusedTooMuch.status, 400);
   assert.equal(refusedTooMuch.body.message, "Laisse moins de 1 € à l'échéance 3.");

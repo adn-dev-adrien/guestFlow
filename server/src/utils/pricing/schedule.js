@@ -255,9 +255,10 @@ function planSchedule({
   // pre-arrival amount (`preArrivalAmount`) is handed to the plan, which the caller rebalances after the
   // save. Read by the saved booking's id; a booking that does not exist yet has no plan, and neither does
   // one on a platform (rule 1: a switch away from the own channels ends the plan with the save).
-  // A bucket already collected is never zeroed (rule 35): such a stay keeps its acompte / solde.
+  // A bucket already collected is never zeroed (rule 35): such a stay keeps its acompte / solde. Rule 60 — an acompte
+  // collected before the plan keeps its row, its amount and its entry: the plan replaces the solde only.
   if (installmentPlan) {
-    resolvedDepositAmount = 0;
+    if (!depositPaid) resolvedDepositAmount = 0;
     resolvedBalanceAmount = 0;
   }
 
@@ -325,7 +326,9 @@ function planSchedule({
   const noDepositGap = balancePaid && !paidSoldeFollowsStatement && noDepositToShare && Number(balanceAmount) > 0;
   // Rule 8 — a rise on a plan whose installments are all paid goes to the arrival complement, exactly as
   // when acompte and solde are both paid.
-  const preArrivalSettled = ((depositPaid || noDepositGap || soldeBeforeAcompte) && balancePaid) || Boolean(installmentPlan && installmentPlan.allPaid);
+  // Rules 53-54 — and so does a closed plan: what it does not cover is paid at the arrival, from the save on.
+  const preArrivalSettled = ((depositPaid || noDepositGap || soldeBeforeAcompte) && balancePaid)
+    || Boolean(installmentPlan && (installmentPlan.allPaid || installmentPlan.closed));
   // What the arrival complement would ask for if it were not collected yet.
   let liveComplementAmount;
   if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || complementForcedItemsTotal > 0
@@ -338,6 +341,8 @@ function planSchedule({
     liveComplementAmount = preArrivalSettled ? autoGapBetweenDepositAndBalance : 0;
   }
   let resolvedComplementAmount = complementPaid ? roundMoney(complementAmount) : liveComplementAmount;
+  // Rule 58 — the part of the complement the plan leaves to the arrival, named « Reste de l'échéancier ».
+  const installmentRest = installmentPlan && preArrivalSettled ? autoGapBetweenDepositAndBalance : 0;
   const complementOverridden = complementAmountOverride !== null && complementAmountOverride !== undefined
     && complementAmountOverride !== '' && Number.isFinite(Number(complementAmountOverride));
   // specs/reservation-save-keeps-pricing.md rule 4 — a collected complement stays at what was collected
@@ -369,7 +374,8 @@ function planSchedule({
   // complement the operator adjusted (his amount is the decision), nor once the end-of-stay complement is
   // collected too (its lines are frozen). Reading of 2026-11-05 (audit R23 N1): a plan never sets `balancePaid`, so all
   // its installments paid is the same proof.
-  const bucketsAgreed = paidSoldeCaptured || Boolean(installmentPlan && installmentPlan.allPaid);
+  // Rule 54: a closed plan's shortfall is just as settled a figure.
+  const bucketsAgreed = paidSoldeCaptured || Boolean(installmentPlan && (installmentPlan.allPaid || installmentPlan.closed));
   const routedToComplement = roundMoney(complementForcedItemsTotal + taxInComplement
     + (bucketsAgreed && preArrivalSettled ? autoGapBetweenDepositAndBalance : 0));
   const arrivalComplementExcess = complementPaid && !complementOverridden && !endOfStayComplementSettled
@@ -488,6 +494,7 @@ function planSchedule({
     endOfStayComplementAutoTotal,
     endOfStayComplementTotal,
     installmentPlan,
+    installmentRest,
     isTouristTaxForcedToComplement,
     midStayLinesWithExcess: creditedLines,
     midStayRemainingDue,

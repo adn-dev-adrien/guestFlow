@@ -11,7 +11,7 @@ const step = {
   id: 'settlement',
   requires: [
     'complementCollected', 'complementDeferredToCheckout', 'complementPaid', 'endOfStayComplementTotal',
-    'extraGuestComplementCount', 'extraGuestComplementSurcharge', 'finalOptionLines',
+    'extraGuestComplementCount', 'extraGuestComplementSurcharge', 'finalOptionLines', 'installmentRest',
     'isTouristTaxCollectedOnArrival', 'isTouristTaxForcedToComplement', 'midStayExtras', 'midStaySettledAll',
     'resolvedComplementAmount', 'resourceLines', 'taxInComplement',
   ],
@@ -19,7 +19,7 @@ const step = {
   apply(ctx) {
     const {
       complementCollected, complementDeferredToCheckout, complementPaid, endOfStayComplementTotal,
-      extraGuestComplementCount, extraGuestComplementSurcharge, finalOptionLines,
+      extraGuestComplementCount, extraGuestComplementSurcharge, finalOptionLines, installmentRest,
       isTouristTaxCollectedOnArrival, isTouristTaxForcedToComplement, midStayExtras, midStaySettledAll,
       resolvedComplementAmount, resourceLines, taxInComplement,
     } = ctx;
@@ -30,7 +30,7 @@ const step = {
       },
       stayLevel: {
         resolvedComplementAmount, taxInComplement, isTouristTaxCollectedOnArrival, isTouristTaxForcedToComplement,
-        midStaySettledAll, endOfStayComplementTotal,
+        midStaySettledAll, endOfStayComplementTotal, installmentRest,
       },
       receipts: { complementPaid, complementCollected, complementDeferredToCheckout },
     });

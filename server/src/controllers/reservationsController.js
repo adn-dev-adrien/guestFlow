@@ -2927,7 +2927,14 @@ function applyUpdate(req, res, pastUnlocked, {
   const writePricedLines = () => {
     // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total. A line gesture that leaves the plan where it stands
     // writes no instalment row (pricing-components rule 93).
-    const planCents = () => db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+    // Rule 60 — beside a collected acompte the plan plus the acompte make the pre-arrival amount; rule 54 — a closed plan holds its
+    // own installments and leaves the rest to the arrival complement: what it stands for is the target it was last made for.
+    const planCents = () => {
+      const scheduled = db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ?').get(id).cents;
+      const stay = db.prepare('SELECT depositPaid, depositPaidCash, depositAmount, installmentsTarget FROM reservations WHERE id = ?').get(id) || {};
+      return Math.max(scheduled, Math.round(Number(stay.installmentsTarget || 0) * 100))
+        + require('../utils/installmentPlan').collectedDepositCents(stay);
+    };
     if (!(saleBase && Math.round(Number(quote.preArrivalAmount || 0) * 100) === planCents())) installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.

@@ -6,8 +6,9 @@
  *
  *   splitEuros / spreadCents  rule 6   whole-euro shares, the last one carries the cents
  *   defaultDates              rule 10  first = today, last = the usual solde date, the rest evenly spaced
- *   rebalance                 rules 7-9a  recompute before the first payment, frozen spread after it
- *   validateDate/Amount       rules 9a, 11
+ *   rebalance                 rules 7-9a, 53-56  recompute before the first payment, frozen spread after it
+ *   validateDate/Amount       rules 9a, 11, 53, 55
+ *   isClosed / collectedDepositCents  rules 53, 60
  *   statusOf                  rule 14
  *   buildPlanPayload          the `installmentPlan` object of the fiche payload (§4.3)
  */
@@ -16,6 +17,7 @@ const { daysBetween } = require('./paymentSchedule');
 const { addDaysToIsoDate } = require('./devisHelpers');
 const { bookingDayOf } = require('./vatRegime');
 const { dateBeyondHorizon, isRealIsoDay } = require('./stayDates');
+const { roundMoneyOrZero } = require('./pricing/money');
 
 const MIN_COUNT = 2;
 const MAX_COUNT = 12;
@@ -80,20 +82,41 @@ const sumCents = (list) => list.reduce((sum, i) => sum + Number(i.amountCents ||
 const isPaid = (i) => Number(i.paid || 0) === 1;
 const isPinned = (i) => Number(i.amountEdited || 0) === 1;
 
-// The unpaid installments whose amount follows the total: every unpaid one that is not pinned, and
-// always the last unpaid (rule 9a — it is never pinned and always adjusts).
+// The unpaid installments whose amount follows the total: the ones that are not pinned. Since rule 53
+// the last unpaid one is no exception: pinned too, it stops adjusting.
 function floatingOf(installments) {
-  const unpaid = installments.filter((i) => !isPaid(i));
-  const last = unpaid[unpaid.length - 1];
-  return unpaid.filter((i) => i === last || !isPinned(i));
+  return installments.filter((i) => !isPaid(i) && !isPinned(i));
+}
+
+// Rule 53 — a plan is closed when it still owes installments and none of them adjusts any more: what it
+// does not cover is paid at the arrival (rule 54).
+function isClosed(installments) {
+  return installments.some((i) => !isPaid(i)) && floatingOf(installments).length === 0;
+}
+
+// Rule 58 — what the plan's installments do not cover, read from the stay's row (rule 23 aggregates), capped at `room`: what
+// the arrival complement holds beyond its other lines. 0 when nothing is left.
+function restOfPlan(row, room) {
+  const money = roundMoneyOrZero;
+  const shortfall = money(Number(row.installmentsTarget || 0) - Number(row.installmentsPaidAmount || 0) - Number(row.installmentsUnpaidAmount || 0));
+  const rest = Math.min(room, shortfall);
+  return rest > 0.01 ? money(rest) : 0;
+}
+
+// Rule 60 — the acompte collected before the plan was made (cash included): it keeps its own bucket, the plan
+// splits what is left of the pre-arrival amount.
+function collectedDepositCents(stay) {
+  const collected = Number(stay.depositPaid || 0) === 1 || Number(stay.depositPaidCash || 0) === 1;
+  return collected ? Math.max(0, Math.round(Number(stay.depositAmount || 0) * 100)) : 0;
 }
 
 /**
- * Rules 7, 8, 9, 9a — the amounts after the reservation total (`targetCents`, the pre-arrival amount)
- * changed.
+ * Rules 7, 8, 9, 9a, 53, 56 — the amounts after the reservation total (`targetCents`, what the plan covers:
+ * the pre-arrival amount less a collected acompte) changed. A closed plan never moves an installment on a
+ * rise or a drop the shortfall absorbs; a drop beyond it, before any payment, releases the last unpaid pin.
  *
  * @param {{ number:number, amountCents:number, paid:number, amountEdited:number }[]} installments
- * @returns {{ amounts: Map<number, number>, clearPins: boolean, gapCents: number, added: Map<number, number>, frozen: boolean }}
+ * @returns {{ amounts: Map<number, number>, clearPins: boolean, unpin: number[], gapCents: number, added: Map<number, number>, frozen: boolean }}
  *   `amounts` maps number → new amount (every installment); `added` the part a rise brought to each
  *   unpaid installment; `gapCents` what the frozen plan holds above the stay (rule 8, drop).
  */
@@ -103,13 +126,20 @@ function rebalance({ installments, targetCents }) {
   const frozen = installments.some(isPaid);
   const unpaid = installments.filter((i) => !isPaid(i));
   let clearPins = false;
+  const unpin = [];
 
   if (unpaid.length === 0) {
-    return { amounts, clearPins, gapCents: Math.max(0, sumCents(installments) - targetCents), added, frozen };
+    return { amounts, clearPins, unpin, gapCents: Math.max(0, sumCents(installments) - targetCents), added, frozen };
   }
 
   if (!frozen) {
     let floating = floatingOf(installments);
+    if (floating.length === 0) {
+      // Rule 56 — closed: the complement carries a rise and a drop it can absorb; a plan above the stay frees its last pin.
+      if (sumCents(installments) <= targetCents) return { amounts, clearPins, unpin, gapCents: 0, added, frozen };
+      floating = [unpaid[unpaid.length - 1]];
+      unpin.push(floating[0].number);
+    }
     let pinnedSum = unpaid.filter((i) => !floating.includes(i)).reduce((s, i) => s + Number(i.amountCents), 0);
     // A price drop can leave the pinned amounts with no room: they are released rather than starving the rest.
     if (targetCents - pinnedSum < MIN_SHARE_CENTS * floating.length) {
@@ -118,7 +148,7 @@ function rebalance({ installments, targetCents }) {
       pinnedSum = 0;
     }
     spreadCents(targetCents - pinnedSum, floating.length, { minLast: MIN_SHARE_CENTS }).forEach((cents, k) => amounts.set(floating[k].number, cents));
-    return { amounts, clearPins, gapCents: 0, added, frozen };
+    return { amounts, clearPins, unpin, gapCents: 0, added, frozen };
   }
 
   const delta = targetCents - sumCents(installments);
@@ -129,9 +159,9 @@ function rebalance({ installments, targetCents }) {
       amounts.set(number, amounts.get(number) + cents);
       added.set(number, cents);
     });
-    return { amounts, clearPins, gapCents: 0, added, frozen };
+    return { amounts, clearPins, unpin, gapCents: 0, added, frozen };
   }
-  return { amounts, clearPins, gapCents: -delta, added, frozen };
+  return { amounts, clearPins, unpin, gapCents: -delta, added, frozen };
 }
 
 const dateMessage = (number, text) => `Échéance ${number} : ${text}`;
@@ -159,8 +189,10 @@ function validateDate({ installments, index, dueDate, today, startDate }) {
   return null;
 }
 
-// Rule 9a — an amount typed by hand, cents allowed and at least 1 €, on an unpaid installment other than the last unpaid.
-function validateAmount({ installments, index, amountEuros, targetCents }) {
+// Rules 9a, 53, 55 — an amount typed by hand, cents allowed and at least 1 €, on an unpaid installment. `targetCents` is
+// what the typed amount is shared out of (the plan's own total once it is frozen); `stayCents` what the stay asks of the
+// plan, the ceiling of rule 55 when no installment is left to adjust.
+function validateAmount({ installments, index, amountEuros, targetCents, stayCents = targetCents }) {
   const target = installments[index];
   const cents = Math.round(Number(amountEuros) * 100);
   if (amountEuros === '' || amountEuros === null || amountEuros === undefined || !Number.isFinite(Number(amountEuros))) {
@@ -168,16 +200,22 @@ function validateAmount({ installments, index, amountEuros, targetCents }) {
   }
   if (cents < MIN_SHARE_CENTS) return { error: 'Montant d’au moins 1 € attendu.' };
   if (isPaid(target)) return { error: dateMessage(target.number, 'déjà payée.') };
-  const unpaid = installments.filter((i) => !isPaid(i));
-  const lastUnpaid = unpaid[unpaid.length - 1];
-  if (target === lastUnpaid) return { error: dateMessage(target.number, "la dernière échéance s'ajuste toute seule.") };
-  const others = unpaid.filter((i) => i !== target && (i === lastUnpaid || !isPinned(i)));
-  const fixed = installments.filter((i) => i !== target && (isPaid(i) || (isPinned(i) && i !== lastUnpaid)));
+  const others = floatingOf(installments).filter((i) => i !== target);
+  const fixed = installments.filter((i) => i !== target && !others.includes(i));
   const rest = targetCents - sumCents(fixed) - cents;
+  if (others.length === 0) {
+    // Rule 55 — nothing adjusts any more: the plan may not hold more than the stay (nor more than it held already).
+    const after = sumCents(fixed) + cents;
+    if (after > stayCents && after > sumCents(installments)) {
+      const room = stayCents - sumCents(fixed);
+      return { error: dateMessage(target.number, `dépasse le séjour de ${eurosText(after - stayCents)} (${eurosText(room)} au plus).`) };
+    }
+    return { cents, rest: 0, others, closes: true };
+  }
   if (rest < MIN_SHARE_CENTS * others.length) {
     return { error: `Laisse moins de 1 € à l'échéance ${others[others.length - 1].number}.` };
   }
-  return { cents, rest, others };
+  return { cents, rest, others, closes: false };
 }
 
 // Rule 39 — the tourist tax rides every installment in proportion to its amount; the last installment takes
@@ -222,7 +260,7 @@ function statusLabel(installment, status) {
  * The `installmentPlan` payload (§4.3). `eligibility` is `{ eligible, canCreate, reason }` decided by the
  * controller (rules 1-2); `linkByInstallment` maps an installment id to its open payment link.
  */
-function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, startDate, balanceDaysBefore, linkByInstallment = new Map(), canRequest = false }) {
+function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, startDate, balanceDaysBefore, linkByInstallment = new Map(), canRequest = false, deposit = null, restCollected = false }) {
   const base = {
     eligible: Boolean(eligibility.eligible),
     canCreate: Boolean(eligibility.canCreate),
@@ -239,6 +277,10 @@ function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, star
     canRequest: Boolean(canRequest),
     arrivalDate: String(startDate || '').slice(0, 10) || null,
     settled: false,
+    closed: false,
+    restCollected: false,
+    arrivalRest: 0,
+    deposit: null,
     installments: [],
   };
   if (!eligibility.eligible) return base;
@@ -254,6 +296,7 @@ function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, star
   const scheduled = sumCents(rows);
   // Rule 33 — the stay is covered by what was collected: the rest of the plan is not due.
   const settled = targetCents > 0 && paidCents >= targetCents && unpaid.length > 0;
+  const closed = isClosed(rows);
   return {
     ...base,
     countLocked: frozen,
@@ -265,6 +308,12 @@ function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, star
     settled,
     canRequest: Boolean(canRequest) && !settled,
     gap: frozen ? Math.max(0, scheduled - targetCents) / 100 : 0,
+    // Rules 54, 58 — what a closed plan leaves to the arrival complement, the server's figure the card prints.
+    closed,
+    restCollected,
+    arrivalRest: closed && !settled ? Math.max(0, targetCents - scheduled) / 100 : 0,
+    // Rule 60 — the acompte collected before the plan, shown as a paid row beside it.
+    deposit,
     installments: rows.map((row) => {
       const status = statusOf(row, today);
       const link = linkByInstallment.get(row.id) || null;
@@ -276,7 +325,8 @@ function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, star
         status,
         statusLabel: statusLabel(row, status),
         editable: !isPaid(row),
-        amountEditable: !isPaid(row) && row !== lastUnpaid,
+        amountEditable: !isPaid(row),
+        canRelease: row === lastUnpaid && isPinned(row) && !restCollected,
         amountEdited: isPinned(row) && !isPaid(row),
         dateEdited: Number(row.dateEdited || 0) === 1 && !isPaid(row),
         added: Number(row.addedCents || 0) / 100,
@@ -305,7 +355,7 @@ function requestContext(installment, rows) {
 
 module.exports = {
   MIN_COUNT, MAX_COUNT, LATE_AFTER_DAYS, MIN_SHARE_CENTS,
-  spreadCents, splitEuros, taxShares, lastDueDate, maxCountFor, defaultDates, floatingOf,
+  spreadCents, splitEuros, taxShares, lastDueDate, maxCountFor, defaultDates, floatingOf, isClosed, collectedDepositCents, restOfPlan,
   rebalance, validateDate, validateAmount, statusOf, statusLabel, buildPlanPayload, requestContext,
   euros: eurosText, frDate,
 };
