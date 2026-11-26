@@ -26,7 +26,7 @@ const { api, db, sent } = shop;
 const checked = campaignRules.validateCampaign(fx.bathCampaign(ids), fx.rulesContext(api));
 const bath = api.campaigns.find(api.campaigns.insert(checked.value));
 const parties = {
-  recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr',
+  recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr',
 };
 
 const sell = (request = { slug: bath.slug }, over = {}) => {
@@ -109,7 +109,7 @@ test('rule 9: the link base is the setting’s — the QR code and the printed l
 });
 
 test('rule 13, 50: worst-case texts — 40 W, 200 characters with no space, a long company name — stay inside the safe area on both cards', async () => {
-  const voucher = sell({ slug: bath.slug }, { parties: { recipientName: 'W'.repeat(40), senderName: 'W'.repeat(40), message: 'x'.repeat(200) } });
+  const voucher = sell({ slug: bath.slug }, { parties: { recipientFirstName: 'W'.repeat(40), recipientLastName: 'W'.repeat(40), senderName: 'W'.repeat(40), message: 'x'.repeat(200) } });
   const { calls, result } = await recorded(() => api.documents.voucherPdf(voucher));
   assert.equal(pages(result), 2);
   assertInsideSafeArea(calls);

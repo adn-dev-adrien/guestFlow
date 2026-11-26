@@ -1,0 +1,1 @@
+- **Migration — the recipient of a voucher in two fields.** `gift_voucher_orders` gains `recipientFirstName` and `recipientLastName` (TEXT NOT NULL DEFAULT ''); each existing order takes its `recipientName` as its first name and keeps an empty last name, `recipientName` stays readable as the first name, nothing is lost or reprinted differently.

@@ -216,7 +216,7 @@ test('rules 10, 14 — with a voucher the page asks the redemption: the covered 
   expect(tags).toEqual({ '10:00': 'Inclus dans le bon', '19:00': 'Inclus dans le bon', '20:00': '+ 20 € · soirée' });
   fireEvent.click(await slotButton('10:00'));
   await waitFor(() => expect(document.querySelector('.gf-summary').textContent).toContain('Rien à payer'));
-  expect(flat(document.querySelector('.gf-summary').textContent)).toContain('Inclus');
+  expect(flat(document.querySelector('.gf-summary').textContent)).toContain('Bain nordique · 1 h0 €inclus dans le bon');
   expect(flat(barButton().textContent)).toBe('Confirmer la réservation');
   fillWho();
   fireEvent.click(barButton());

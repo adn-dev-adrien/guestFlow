@@ -57,7 +57,7 @@ function VoucherCards({ items, selectedId, onSelect }) {
               </Stack>
               <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{[v.campaignName, v.contentsText].filter(Boolean).join(' · ')}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
-                {[v.senderName, v.recipientName].filter(Boolean).join(' → ') || v.buyerEmail || '—'}
+                {[v.senderName, v.recipientLabel].filter(Boolean).join(' → ') || v.buyerEmail || '—'}
               </Typography>
               <Stack direction="row" sx={{ mt: 0.5, justifyContent: 'space-between' }}>
                 <Typography variant="body2">{`${formatCents(v.balanceCents)} / ${formatCents(v.amountCents)}`}</Typography>
@@ -103,7 +103,7 @@ function VoucherTable({
               {!compact && <TableCell>{v.campaignName || '—'}</TableCell>}
               {!compact && <TableCell>{v.contentsText}</TableCell>}
               {!compact && <TableCell>{v.senderName || '—'}</TableCell>}
-              {!compact && <TableCell>{v.recipientName || '—'}</TableCell>}
+              {!compact && <TableCell>{v.recipientLabel || '—'}</TableCell>}
               {!compact && <TableCell>{formatDay(v.issuedAt)}</TableCell>}
               <TableCell><StateBadge state={v.state} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{`${formatCents(v.balanceCents)} / ${formatCents(v.amountCents)}`}</TableCell>

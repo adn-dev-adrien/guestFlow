@@ -133,9 +133,9 @@ test('a one-shot composition takes the same path as a campaign: same price as th
 });
 
 test('the parties of an order are judged once, for both sides: texts, language, e-mail — a link needs the e-mail', () => {
-  const parties = (body, emailRequired = false) => api.offerService.partiesOf(body, { emailRequired });
-  assert.deepEqual(parties({ recipientName: ' Marie ', senderName: 'Paul', email: ' paul@example.test ' }).value, {
-    recipientName: 'Marie', senderName: 'Paul', message: '', email: 'paul@example.test', language: 'fr',
+  const parties = (body, emailRequired = false) => api.offerService.partiesOf({ recipientFirstName: 'Marie', recipientLastName: 'Durand', ...body }, { emailRequired });
+  assert.deepEqual(parties({ recipientFirstName: ' Marie ', senderName: 'Paul', email: ' paul@example.test ' }).value, {
+    recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', message: '', email: 'paul@example.test', language: 'fr',
   });
   assert.equal(parties({ language: 'en' }).value.language, 'en');
   assert.deepEqual(parties({}, true), { ok: false, code: 'EMAIL_INVALID' });
@@ -144,5 +144,5 @@ test('the parties of an order are judged once, for both sides: texts, language, 
   assert.deepEqual(parties({ senderName: 'x'.repeat(41) }), { ok: false, code: 'FIELD_INVALID' });
   assert.deepEqual(parties({ message: 'x'.repeat(201) }), { ok: false, code: 'FIELD_INVALID' });
   assert.deepEqual(parties({ language: 'de' }), { ok: false, code: 'FIELD_INVALID' });
-  assert.deepEqual(parties({ recipientName: 12 }), { ok: false, code: 'FIELD_INVALID' });
+  assert.deepEqual(parties({ recipientFirstName: 12 }), { ok: false, code: 'FIELD_INVALID', field: 'recipientFirstName' });
 });

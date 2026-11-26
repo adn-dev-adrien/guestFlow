@@ -101,7 +101,7 @@ test('rules 9, 11 — the recap names each part with its band, every amount is t
   expect(summary).toContain('20:00 – 21:00 · soirée');
   expect(summary).toContain('113,00 €');
   expect(summary).toContain('2 pers.');
-  expect(summary).toContain('Le créneau vous est réservé 15 minutes');
+  expect(summary).not.toContain('Le créneau vous est réservé');
   expect(flat(bar().textContent)).toContain('113,00 €');
   expect(flat(barButton().textContent)).toBe('Payer 113,00 €');
   fireEvent.click(screen.getByLabelText('Ajouter : Planche apéro'));

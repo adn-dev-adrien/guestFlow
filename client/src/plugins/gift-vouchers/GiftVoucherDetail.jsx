@@ -92,7 +92,7 @@ export default function GiftVoucherDetail({ voucher, onChange, onClose }) {
         <SummaryItem label={T.expiry} value={formatDay(voucher.expiresOn)} />
         {voucher.vat ? <SummaryItem label={T.vat} value={`${String(voucher.vat.ratePercent).replace('.', ',')} % · ${formatCents(voucher.vat.vatCents)} (HT ${formatCents(voucher.vat.htCents)})`} /> : null}
         <SummaryItem label={T.from} value={voucher.senderName || '—'} />
-        <SummaryItem label={T.to} value={voucher.recipientName || '—'} />
+        <SummaryItem label={T.to} value={voucher.recipientLabel || '—'} />
         <SummaryItem label={T.email} value={voucher.buyerEmail || '—'} />
         {voucher.message ? <SummaryItem label={T.message} value={voucher.message} /> : null}
         {voucher.unusedCents > 0 ? (

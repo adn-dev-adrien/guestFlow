@@ -35,7 +35,7 @@ api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids, {
 const DAY = '2026-11-16'; // date-literal-ok: the suite runs on its own clock, never the real today
 const voucherOf = (slug) => {
   const out = api.offerService.issueDirect({
-    request: { slug }, parties: { recipientName: 'Léa', senderName: 'Paul', message: '', email: '', language: 'fr' }, outcome: 'paid', paymentMethod: 'cash', actor: 'user:7',
+    request: { slug }, parties: { recipientFirstName: 'Léa', recipientLastName: 'Martin', senderName: 'Paul', message: '', email: '', language: 'fr' }, outcome: 'paid', paymentMethod: 'cash', actor: 'user:7',
   });
   assert.equal(out.ok, true, JSON.stringify(out));
   return { id: out.voucherId, code: sdk.coreModule('encryption').safeDecrypt(api.vouchers.find(out.voucherId).codeEncrypted).value };

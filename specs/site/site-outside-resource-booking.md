@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented (§3.G, the recap and the voucher prefill, added and implemented 2026-11-26) |
 | **Branch** | `feature/outside-resource-booking-site` |
 | **Created** | 2026-11-25 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Mock-up** | `site-outside-resource-booking.html` (folded into this spec, deleted 2026-11-26) |
+| **Mock-up** | `site-outside-resource-booking.html` (folded into this spec, deleted 2026-11-26) · §3.G: [`docs/specs/2026-11-26-session-booking-voucher-prefill.html`](../../docs/specs/2026-11-26-session-booking-voucher-prefill.html) |
 
 ---
 
@@ -162,6 +162,40 @@ online in full or with a gift voucher code — with the operator told, by push a
     in GuestFlow (the operator may fill it on the fiche).
 27. **`resource_bookings` channel `site`** is used for the bookings of rule 12; voucher bookings keep `mon-bain`.
 
+### 3.G The recap before a slot, and a voucher that fills the form (amendment 2026-11-26)
+
+Asked by Adrien on 2026-11-26 after the page went live: the visitor read a hold notice they cannot act on, a recap that said
+nothing until a slot was chosen, and had to type again what the giver already gave.
+
+28. **No hold notice.** The line « Le créneau vous est réservé 15 minutes pendant le paiement. » under the button is removed
+    (`sbHold`). The 15-minute hold of rules 12 and 14 is unchanged; only its notice goes.
+29. **« Choisissez un horaire ».** While no slot is chosen, the recap's date line — which said « Le récapitulatif apparaît dès
+    qu'un créneau est choisi. » (`sbSummaryEmpty`) — says « Choisissez un horaire », in the muted text colour. It turns red (the
+    connector's error colour) once the visitor presses the button (in-flow or sticky bar) without a slot, and back to muted when a
+    slot is chosen or the activity, duration or voucher changes. The red is announced (`role="status"` region already in place).
+30. **A voucher's contents at 0 €, at once.** As soon as a resource voucher is accepted, the recap lists, before any slot, every
+    line of the voucher's `contents` from `POST /gift-vouchers/use` (the session with its band, included minutes and any extra time
+    given; every option and every add-on of the voucher, with its quantity), each priced « 0 € » with « inclus dans le bon » under
+    it in the success colour. Once a slot is chosen, the quote's `included` lines are drawn the same way (« 0 € » + « inclus dans
+    le bon », replacing the bare « Inclus »); the supplement and the extras keep their amounts. The page builds no line of its own:
+    a held option or add-on missing from `contents` or from `included` is a server defect, and a server test asserts that every
+    option and add-on of a voucher appears in both, with its quantity.
+31. **The form filled from the voucher.** The duration and the activity follow the voucher (unchanged). The contact's first name
+    and last name are filled from the recipient's first and last names stored on the voucher (rule 32), only into empty fields,
+    never over what the visitor typed. Never the e-mail or the phone: the voucher holds the giver's e-mail, not the recipient's.
+    The voucher holds no party size: « Personnes » is not filled. « Retirer » the voucher clears a filled name only if the visitor
+    left it untouched. A voucher issued before rule 32 (no last name) fills nothing.
+32. **The recipient in two fields.** Where a voucher is ordered — the site's purchase block (`guestflow/gift-voucher`, every
+    campaign kind) and « Nouveau bon » in GuestFlow — « Pour » becomes « Prénom » and « Nom » of the recipient, **both required**,
+    40 characters each, refused by the server when empty (`RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`, with
+    their `field`). They are stored separately on the order (`recipientFirstName`, `recipientLastName`). **The recipient's first
+    name alone** is printed on the voucher PDF, in the e-mails and in the tunnel (« Pour Marie »); GuestFlow's voucher list and
+    detail show « Prénom Nom », and the list search covers both. Amends `specs/gift-vouchers/gift-voucher-campaigns.md` rules 18 and 41. The public order path still accepts the legacy single `recipientName` (taken as the first name, last name empty, optional as before) from connectors before 1.24.0, so the release stays a minor under CLAUDE.md §5.6; « Nouveau bon » and any request carrying the new fields get the two-required rule. The operator's list search also matches the full « Prénom Nom ».
+33. **Data.** `gift_voucher_orders` gains `recipientFirstName` and `recipientLastName` (TEXT NOT NULL DEFAULT ''), added by a
+    gift-vouchers plugin migration. Existing rows: `recipientFirstName` takes the old `recipientName`, `recipientLastName` stays
+    empty — nothing lost, the printed name unchanged. `recipientName` stays readable as that first name for every reader that
+    prints it (PDF, mails, notices), so no reader changes meaning. No voucher had been sold in production on 2026-11-26.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -180,7 +214,11 @@ online in full or with a gift voucher code — with the operator told, by push a
 | plugin | `plugins/hourly-resources/outsideOffer.js` | T | `limits({ resourceId })`; `bookOutside` returns `announce()` when called inside a transaction (SDK 2.35.0) |
 | plugin | `plugins/gift-vouchers/useService.js` | T | `people`, first/last name, `dueCents` and `evening` per slot (the session is announced by the plugin that books it); « Paiement à rembourser » on a remainder it cannot honour |
 | plugin | `plugins/gift-vouchers/voucherNotices.js` / `orderPaid.js` | C / T | The texts of a voucher sold; the notification on a customer-paid voucher |
-| plugin | `plugins/gift-vouchers/index.js` / `migrations.js` / `models/usesModel.js` | T | Declares `online-sales` shared and the notifier; `gift_voucher_uses.people` |
+| plugin | `plugins/gift-vouchers/index.js` / `migrations.js` / `models/usesModel.js` | T | Declares `online-sales` shared and the notifier; `gift_voucher_uses.people`; migration `gift_voucher_recipient_names_v4` (rule 33) |
+| plugin | `plugins/gift-vouchers/offerService.js` | T | `partiesOf`: both recipient names required, 40 characters, `RECIPIENT_*_REQUIRED` with their `field`; stores `recipientFirstName`, `recipientLastName` and `recipientName` = first name (rules 32-33) |
+| plugin | `plugins/gift-vouchers/models/ordersModel.js` / `vouchersModel.js` | T | Write and read the two names |
+| plugin | `plugins/gift-vouchers/useService.js` | T | `open` answers `recipientFirstName`, `recipientLastName` (and `recipientName`, the first name); `contents` and the quote's `included` list every option and add-on held, with its quantity (rule 30) |
+| plugin | `plugins/gift-vouchers/controllers/adminController.js` / `publicOrdersController.js` | T | Refusals with their `field`; the list and detail carry both names and `recipientLabel` (« Prénom Nom »), the search reads both |
 | sdk | `plugins/sdk/createContext.js` | T | `pushChannel({ shared })` (rule 24); SDK 2.35.0 (`version.js`, `coreModules.json`, `coreModuleHistory.json`: `notificationService.notifyOperator`) |
 | utils | `utils/pushChannels.js` | T | Lists a shared channel once |
 | utils | `utils/notificationService.js` | T | `notifyOperator({ channel, title, body, url, subject, lines })`: push + e-mail, one-line sanitising as today |
@@ -194,6 +232,8 @@ online in full or with a gift voucher code — with the operator told, by push a
 | page | `pages/options/ResourceEditorPanel.jsx` / `resourceForm.js` | T | « Personnes par séance au plus » (`sessionMaxPeople`) under the external-sale fields, for a resource shown on the planning and sold outside a stay |
 | plugin page | `hourly-resources/OutsideBookingPage.jsx` (« Passage ») | T | Shows `people` in the session block and corrects it in place |
 | plugin page | `hourly-resources/ResourcePlanningPage.jsx` | T | The booking tooltip names the people |
+| plugin page | `gift-vouchers/NewVoucherPage.jsx`, `giftVoucherTexts.js` | T | « Pour » becomes « Prénom » and « Nom », required, each refusal on its field (rule 32) |
+| plugin page | `gift-vouchers/GiftVouchersPage.jsx`, `GiftVoucherDetail.jsx` | T | Show the server's `recipientLabel` |
 
 Reused: `ExternalSaleFields`, existing fiche components. No new generic component.
 
@@ -201,13 +241,13 @@ Reused: `ExternalSaleFields`, existing fiche components. No new generic componen
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `blocks/session-booking/{block.json,render.php,view.js}` | C | The tunnel of rules 1-17; reuses the calendar (`gf-cal-*`), summary (`gf-summary`), bar (`gf-bar`), fold (`GF.voucherExtrasFold`) and field styles |
+| `blocks/session-booking/{block.json,render.php,view.js}` | C | The tunnel of rules 1-17; reuses the calendar (`gf-cal-*`), summary (`gf-summary`), bar (`gf-bar`), fold (`GF.voucherExtrasFold`) and field styles; rules 28-31: no hold notice, « Choisissez un horaire », the voucher's lines at « 0 € · inclus dans le bon », the names prefilled |
 | `blocks/gift-voucher-use/*` | T | Alias rendering the session tunnel (rule 18); its own `view.js` is removed, the alias runs the session block's script |
-| `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19), from the runtime's `sessionPageUrl` |
+| `blocks/gift-voucher/view.js` | T | « Vous avez reçu un bon cadeau ? » link (rule 19), from the runtime's `sessionPageUrl`; « Prénom » / « Nom » of the recipient, both required, the card preview naming the first name only (rule 32) |
 | `assets/voucher-parts.js` | T | `voucherExtrasFold` takes a `title` and a `foot` |
-| `includes/class-gf-blocks.php` / `class-gf-settings.php` | T | The block, its French strings, `sessionPageUrl`; the page holding either block is « the use page » |
+| `includes/class-gf-blocks.php` / `class-gf-settings.php` | T | The block, its French strings, `sessionPageUrl`; the page holding either block is « the use page »; connector 1.24.0 (`sbHold` and `sbIncludedShort` removed, `sbIncludedIn`, `gvFirstName`, `gvLastName` added) |
 | `assets/style.css` | T | No rotation on `.gf-gv-front` (rule 20); session tunnel styles on the existing tokens |
-| `includes/class-gf-rest-proxy.php` | T | Proxies `/sessions/*` |
+| `includes/class-gf-rest-proxy.php` | T | Proxies `/sessions/*`; forwards `recipientFirstName` and `recipientLastName` of an order |
 | `includes/class-gf-redirects.php` | T | `/utiliser` → page holding either block |
 | `includes/class-gf-shortcodes.php` | T | `[guestflow_session_booking]` |
 
@@ -224,9 +264,13 @@ All POST except where noted; refusals `{ code, message }` with French messages.
 - `PATCH /api/resource-bookings/:id/people { people }` (admin) → `{ ok, people }`
 - Gift-voucher `use/*` endpoints: `slots` gains `dueCents` and `evening` per slot, `confirm` gains `people`, `firstName`, `lastName`
   (`name` kept for older connectors).
+- §3.G: `POST /gift-vouchers/use` also answers `recipientFirstName` and `recipientLastName` (`recipientName` stays the first name);
+  `POST /gift-vouchers/orders` and `POST /api/gift-vouchers` take `recipientFirstName` and `recipientLastName` in place of `recipientName`, both required (the public orders endpoint still accepts the legacy `recipientName` alone, as the first name, from connectors ≤ 1.23.0)
+  (`RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`, with `field` in the public `details` and in the admin body); the admin list items and the detail carry
+  both names and `recipientLabel`.
 
 Refusal codes: `RESOURCE_UNAVAILABLE`, `SLOT_TAKEN`, `BEYOND_HORIZON`, `SESSION_*` (from `quoteSession`), `PEOPLE_INVALID`,
-`EMAIL_INVALID`, `PHONE_INVALID`, `NAME_REQUIRED`, `TERMS_*`, `PROOF_INVALID`, `RATE_LIMITED`.
+`EMAIL_INVALID`, `PHONE_INVALID`, `NAME_REQUIRED`, `TERMS_*`, `PROOF_INVALID`, `RATE_LIMITED`; voucher orders: `RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED`.
 
 ## 5. Data model
 
@@ -234,8 +278,9 @@ Refusal codes: `RESOURCE_UNAVAILABLE`, `SLOT_TAKEN`, `BEYOND_HORIZON`, `SESSION_
 - `resource_bookings.people INTEGER NULL` — plugin migration, NULL for every existing row.
 - `resource_session_orders` — plugin migration, starts empty: the sessions ordered on the website and their 15 minutes (`held` / `booked` / `lapsed` / `refund_owed`), keyed by an unguessable `ref`.
 - `gift_voucher_uses.people INTEGER NULL`, `.ref TEXT` (unique, random) and `.recap TEXT` — plugin migrations, NULL for every existing use.
+- `gift_voucher_orders.recipientFirstName`, `.recipientLastName` TEXT NOT NULL DEFAULT '' — plugin migration `gift_voucher_recipient_names_v4` (rule 33): each existing order takes its `recipientName` as first name, last name empty.
 - Payment basket source `outsideSession` (sale link `ref` = the order's `ref`; the slot hold is `site-session:<ref>`).
-- No data rewritten. CHANGELOG `Migration` fragment for the columns and the table.
+- No data rewritten except the first-name copy of rule 33. CHANGELOG `Migration` fragments for the columns and the table.
 
 ## 6. UI / UX
 
@@ -261,6 +306,13 @@ sticky, in-flow button hidden. Texts French, short, impersonal.
   one, one for each site booking, texts without a literal activity.
 - `tests/shared-push-channel.unit.test.js`: shared declaration listed once; mismatched label refused; non-shared still unique.
 
+**§3.G, implemented 2026-11-26** — server: `gift-vouchers/tests/gift-voucher-recipient-names.unit.test.js` (6: both names required with their field, 40 characters,
+trimming, storage with `recipientName` = first name, `open` payload, the backfill migration and its idempotence, « Nouveau bon » refusals, list search and detail) and
+`gift-voucher-use-contents-complete.unit.test.js` (2: every option and add-on held, with its quantity, in `contents` and in the quote's `included`); the
+existing voucher suites were moved to the two-field body. Client: `wordpress-session-booking.voucher-prefill.test.js` (10: no hold notice, « Choisissez un horaire »
+muted / red / muted again, the voucher's lines at 0 € before and after a slot, the prefill rules), `wordpress-gift-voucher.recipient-names.test.js` (4),
+`NewVoucherPage.recipient-names.test.jsx` (3).
+
 **WordPress:** PHP lint; block JS checked in the browser on a dev site.
 
 **Manual (browser, dev copy):** book a 2-hour session 19:00–21:00 and check the recap parts; pay through the Qonto sandbox and land on
@@ -283,6 +335,10 @@ in full online · one push line « Bons cadeaux et séances en ligne » covering
 nordique » + footer + purchase-page links · notify only customer-paid vouchers · push **and** e-mail · each hour of a session billed
 at its band, the evening part due even with a day voucher.
 
+_Resolved 2026-11-26 (Adrien, chat):_ « Choisissez un horaire » muted then red on a press without a slot · voucher lines « 0 € » +
+« inclus dans le bon » · recipient first and last names entered separately at purchase, both required, stored in GuestFlow,
+used to fill the booking · the printed voucher, e-mails and tunnel name the recipient by first name only.
+
 ## 10. Implementation progress
 
 - [x] Server: shared push channel, `notifyOperator`, columns
@@ -291,6 +347,7 @@ at its band, the evening part due even with a day voucher.
 - [x] Client: `sessionMaxPeople`, `people` on the fiche
 - [x] WordPress: session block, alias, purchase link, straight card, proxy, redirect
 - [x] Tests, CHANGELOG fragments, plugin/connector versions
+- [x] §3.G (2026-11-26): recap before a slot, voucher lines at 0 €, names prefilled, recipient in two fields — connector 1.24.0, gift-vouchers 1.7.0
 
 Deviations from the first draft, all written above: the notification links open `/passages/<id>` and `/bons-cadeaux?bon=<id>` (the pages that exist);
 `sessionMaxPeople` is a core column; the people are corrected through their own `PATCH` so no price moves; a settled voucher is named from its tender's label

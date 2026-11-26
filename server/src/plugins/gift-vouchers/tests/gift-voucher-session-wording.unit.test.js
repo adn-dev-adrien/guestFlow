@@ -42,7 +42,7 @@ test('rule 17 — the price of a bath voucher names its band, never the hours it
 test('rule 21 — after the payment, a bath voucher is drawn by its title and contents, read from the voucher', () => withServer(async (site) => {
   const ip = '10.0.3.2';
   const placed = await site('POST', '/orders', {
-    slug: bath.slug, recipientName: 'Marie', senderName: 'Paul', email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...sale.solvedProof({ ip }),
+    slug: bath.slug, recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...sale.solvedProof({ ip }),
   }, ip);
   assert.equal(placed.status, 201, JSON.stringify(placed.body));
   const { orderId, token } = placed.body.data;

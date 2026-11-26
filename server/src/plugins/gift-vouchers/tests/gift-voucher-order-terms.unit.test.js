@@ -36,7 +36,7 @@ async function withShop(versions, fn) {
     visitors += 1;
     const ip = `10.0.2.${visitors}`;
     return server.call('POST', '/public/v1/gift-vouchers/orders', {
-      slug: bath.slug, recipientName: 'Marie', senderName: 'Paul', email: 'paul@example.test', language: 'fr', ...body, ...sale.solvedProof({ ip }),
+      slug: bath.slug, recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', email: 'paul@example.test', language: 'fr', ...body, ...sale.solvedProof({ ip }),
     }, { 'x-test-ip': ip });
   };
   try { await fn({ ...shop, terms, bath, server, place }); } finally { await server.close(); }
@@ -55,7 +55,7 @@ test('a composed campaign asks the resource terms: not sent is TERMS_NOT_ACCEPTE
 
 test('the current version of the campaign’s activity is recorded through the core: activity, order, channel « site », the visitor’s address and agent', () => withShop({ lodging: 4, resource: 9 }, async ({ place, db, terms, server }) => {
   const res = await server.call('POST', '/public/v1/gift-vouchers/orders', {
-    slug: 'bain-jour', email: 'paul@example.test', termsVersionId: 9, ...sale.solvedProof({ ip: '10.0.3.1' }),
+    slug: 'bain-jour', recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'paul@example.test', termsVersionId: 9, ...sale.solvedProof({ ip: '10.0.3.1' }),
   }, { 'x-test-ip': '10.0.3.1' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const [row] = orders(db);
@@ -69,7 +69,7 @@ test('the current version of the campaign’s activity is recorded through the c
 test('a lodging campaign asks the lodging terms; with none published it asks nothing and records nothing', async () => {
   await withShop({ lodging: 4, resource: 9 }, async ({ server, terms }) => {
     const order = (termsVersionId) => server.call('POST', '/public/v1/gift-vouchers/orders', {
-      slug: 'sejour', amountCents: 15000, email: 'paul@example.test', termsVersionId, ...sale.solvedProof({ ip: '10.0.4.1' }),
+      slug: 'sejour', amountCents: 15000, recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'paul@example.test', termsVersionId, ...sale.solvedProof({ ip: '10.0.4.1' }),
     }, { 'x-test-ip': '10.0.4.1' });
     assert.equal((await order(9)).body.error.code, 'TERMS_OUTDATED');
     assert.equal((await order(4)).status, 201);
@@ -77,7 +77,7 @@ test('a lodging campaign asks the lodging terms; with none published it asks not
   });
   await withShop({ resource: 9 }, async ({ server, terms, db }) => {
     const res = await server.call('POST', '/public/v1/gift-vouchers/orders', {
-      slug: 'sejour', amountCents: 15000, email: 'paul@example.test', ...sale.solvedProof({ ip: '10.0.4.2' }),
+      slug: 'sejour', amountCents: 15000, recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'paul@example.test', ...sale.solvedProof({ ip: '10.0.4.2' }),
     }, { 'x-test-ip': '10.0.4.2' });
     assert.equal(res.status, 201, 'lodging behaves as before');
     assert.deepEqual([terms.accepted, orders(db).length], [[], 1]);
@@ -92,13 +92,13 @@ test('specs/gift-vouchers/gift-voucher-campaigns.md rule 60 — a bath cannot be
   const offer = (await server.call('GET', '/public/v1/gift-vouchers/offer', undefined, { 'x-test-ip': '10.0.5.1' })).body.data;
   assert.deepEqual(offer.campaigns.map((c) => c.slug), ['sejour']);
   const english = await server.call('POST', '/public/v1/gift-vouchers/orders', {
-    slug: 'bain-jour', email: 'paul@example.test', language: 'en', ...sale.solvedProof({ ip: '10.0.5.2' }),
+    slug: 'bain-jour', recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'paul@example.test', language: 'en', ...sale.solvedProof({ ip: '10.0.5.2' }),
   }, { 'x-test-ip': '10.0.5.2' });
   assert.equal(english.body.error.message, 'This voucher cannot be sold yet: the terms of the activity are not published yet.');
 }));
 
 test('the operator’s payment link records the acceptance at the payment, channel « lien de paiement », for the campaign’s activity — once, and never for a site order', () => withShop({ lodging: 4, resource: 9 }, async ({ server, api, terms, place }) => {
-  const sent = await server.call('POST', '/api/gift-vouchers', { slug: 'bain-jour', outcome: 'link', email: 'paul@example.test' });
+  const sent = await server.call('POST', '/api/gift-vouchers', { slug: 'bain-jour', outcome: 'link', email: 'paul@example.test', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
   assert.equal(sent.status, 201, JSON.stringify(sent.body));
   assert.deepEqual(terms.accepted, [], 'nothing is accepted by sending the link');
   const { orderId } = sent.body;

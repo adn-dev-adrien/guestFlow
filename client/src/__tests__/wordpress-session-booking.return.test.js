@@ -82,7 +82,7 @@ test('rule 16 — back from the bank with a voucher’s remainder: the use is re
   expect(await screen.findByText('Séance réservée')).toBeTruthy();
   const text = flat(document.querySelector('.gf-sb-done').textContent);
   expect(text).toContain('19:00 – 21:00 · 3 pers.');
-  expect(text).toContain('Bain nordique · 1 hInclus');
+  expect(text).toContain('Bain nordique · 1 h0 €inclus dans le bon');
   expect(text).toContain('Supplément soirée');
   expect(text).toContain('20,00 €');
   expect(callsTo(calls, `/gift-vouchers/use/status/${REF}`)).toHaveLength(1);

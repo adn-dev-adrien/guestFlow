@@ -61,7 +61,7 @@ test('rule 54: after 14 days the cancellation is refused until the operator forc
 }));
 
 test('rule 54: a voucher given away opens no refund line and has no withdrawal period', () => withAdmin(async ({ server, db }) => {
-  const given = await server.call('POST', '/api/gift-vouchers', { amountCents: 15000, outcome: 'offered', date: '2026-01-10' }); // date-literal-ok: the suite runs on its own clock, never the real today
+  const given = await server.call('POST', '/api/gift-vouchers', { amountCents: 15000, outcome: 'offered', date: '2026-01-10', recipientFirstName: 'Marie', recipientLastName: 'Durand' }); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(given.status, 201, JSON.stringify(given.body));
   assert.equal(given.body.withdrawal, null);
   const res = await cancel(server, given.body.id);
@@ -130,7 +130,7 @@ test('rule 54: the books carry the sale on its day and the refund as an avoir on
 }));
 
 test('rule 54: a voucher given away has no sale and no avoir in the books', () => withAdmin(async ({ server, api }) => {
-  const given = await server.call('POST', '/api/gift-vouchers', { amountCents: 15000, outcome: 'offered' });
+  const given = await server.call('POST', '/api/gift-vouchers', { amountCents: 15000, outcome: 'offered', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
   await cancel(server, given.body.id);
   assert.deepEqual(api.salesBetween({ from: '2026-11-01', to: '2026-11-30' }), []); // date-literal-ok: the suite runs on its own clock, never the real today
 }));

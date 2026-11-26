@@ -34,7 +34,7 @@ async function withServer(fn) {
     visitors += 1;
     const ip = `10.0.1.${visitors}`;
     return server.call('POST', '/public/v1/gift-vouchers/orders', {
-      slug: bath.slug, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...body, ...sale.solvedProof({ ip }),
+      slug: bath.slug, recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr', termsVersionId: 9, ...body, ...sale.solvedProof({ ip }),
     }, { 'x-test-ip': ip });
   };
   try { await fn({ server, site, place }); } finally { await server.close(); }
@@ -145,18 +145,18 @@ test('« Offert » issues at no charge: no sale in the books, no VAT, the ledger
   try {
     const books = () => api.salesBetween({ from: '2026-11-01', to: '2026-11-30' }); // date-literal-ok: the suite runs on its own clock, never the real today
     const before = books().length;
-    const given = await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'offered', senderName: 'La maison', recipientName: 'Marie' });
+    const given = await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'offered', senderName: 'La maison', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
     assert.equal(given.status, 201, JSON.stringify(given.body));
     assert.deepEqual([given.body.offered, given.body.vat, given.body.vatLines, given.body.paymentMethod], [true, null, [], 'offered']);
     assert.equal(given.body.amountCents, 10900, 'the value of the contents');
     const [issue] = given.body.movements;
     assert.deepEqual([issue.kind, issue.note, issue.actorName], ['issue', 'Offert par l’établissement', 'Adrien Test']);
     assert.equal(books().length, before, 'an offered voucher is no sale');
-    const bought = await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'paid', paymentMethod: 'transfer', senderName: 'Paul' });
+    const bought = await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'paid', paymentMethod: 'transfer', senderName: 'Paul', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
     assert.equal(bought.status, 201);
     assert.deepEqual(books().filter((s) => s.label === `Bon cadeau ${bought.body.number}`).map((s) => [s.vatRate, s.totalCents]).sort(), [[10, 1400], [20, 9500]],
       'a composed voucher is one sale per VAT rate, HT + VAT at the rates of its lines');
-    assert.equal((await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'paid' })).body.code, 'PAYMENT_METHOD_INVALID');
+    assert.equal((await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'paid', recipientFirstName: 'Marie', recipientLastName: 'Durand' })).body.code, 'PAYMENT_METHOD_INVALID');
     assert.equal((await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'sell' })).body.code, 'OUTCOME_INVALID');
   } finally {
     await server.close();
@@ -167,12 +167,12 @@ test('« Envoyer un lien » creates the order a site order would be, mails the o
   const server = await fx.serve(api);
   try {
     const before = existing();
-    const refused = await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'link', senderName: 'Paul' });
+    const refused = await server.call('POST', '/api/gift-vouchers', { slug: bath.slug, outcome: 'link', senderName: 'Paul', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
     assert.deepEqual([refused.status, refused.body.code], [400, 'EMAIL_INVALID'], 'the e-mail is mandatory for a link');
     assert.deepEqual(existing(), before);
     const mails = shop.sent.length;
     const sent = await server.call('POST', '/api/gift-vouchers', {
-      slug: bath.slug, outcome: 'link', senderName: 'Paul', recipientName: 'Marie', email: 'paul@example.test', extraMinutes: 60,
+      slug: bath.slug, outcome: 'link', senderName: 'Paul', recipientFirstName: 'Marie', recipientLastName: 'Durand', email: 'paul@example.test', extraMinutes: 60,
     });
     assert.equal(sent.status, 201, JSON.stringify(sent.body));
     assert.deepEqual([sent.body.outcome, sent.body.emailedTo, sent.body.totalCents], ['link', 'paul@example.test', 15400]);
@@ -202,7 +202,7 @@ test('« Sur mesure » follows the same path: a one-shot campaign bound to its o
   try {
     const request = {
       composition: { resourceId: ids.bath, band: 'evening', minutes: 120, options: [{ articleRef: `option:${ids.drink}`, qty: 2 }] },
-      title: 'Bain pour Marie', validityMonths: 6, extraMinutes: 60, outcome: 'paid', paymentMethod: 'cash', senderName: 'Paul',
+      title: 'Bain pour Marie', validityMonths: 6, extraMinutes: 60, outcome: 'paid', paymentMethod: 'cash', senderName: 'Paul', recipientFirstName: 'Marie', recipientLastName: 'Durand',
     };
     const preview = await server.call('POST', '/api/gift-vouchers/campaigns/preview-price', request);
     assert.equal(preview.status, 200);
@@ -229,7 +229,7 @@ test('« Sur mesure » follows the same path: a one-shot campaign bound to its o
 test('an unpaid one-shot order is purged with its campaign after 7 days; the campaign of an issued voucher stays', async () => {
   const server = await fx.serve(api);
   try {
-    const request = { composition: { resourceId: ids.bath, band: 'day', minutes: 60, options: [] }, outcome: 'link', email: 'paul@example.test' };
+    const request = { composition: { resourceId: ids.bath, band: 'day', minutes: 60, options: [] }, outcome: 'link', email: 'paul@example.test', recipientFirstName: 'Marie', recipientLastName: 'Durand' };
     const sent = await server.call('POST', '/api/gift-vouchers', request);
     assert.equal(sent.status, 201);
     const withOrder = count('gift_voucher_campaigns');

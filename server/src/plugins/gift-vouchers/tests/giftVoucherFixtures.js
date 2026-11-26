@@ -115,7 +115,7 @@ async function start(fixture, { user = { id: 7, roles: ['admin'] } } = {}) {
 /** A manual voucher through the admin API → the detail the API answers (with `id`). */
 async function issueManual(server, body = {}) {
   const res = await server.call('POST', '/api/gift-vouchers', {
-    amountCents: 15000, recipientName: 'Marie', senderName: 'Paul', message: 'Joyeux anniversaire', paymentMethod: 'transfer', ...body,
+    amountCents: 15000, recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', message: 'Joyeux anniversaire', paymentMethod: 'transfer', ...body,
   });
   if (res.status !== 201) throw new Error(`manual issue refused: ${JSON.stringify(res.body)}`);
   return res.body;

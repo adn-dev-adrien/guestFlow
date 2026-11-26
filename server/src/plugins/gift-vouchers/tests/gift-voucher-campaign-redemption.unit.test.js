@@ -39,7 +39,7 @@ api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids), fx.rul
 
 const issue = (request) => {
   const out = api.offerService.issueDirect({
-    request, parties: { recipientName: '', senderName: 'Paul', message: '', email: '', language: 'fr' }, outcome: 'paid', paymentMethod: 'cash', actor: 'user:7',
+    request, parties: { recipientFirstName: '', recipientLastName: '', senderName: 'Paul', message: '', email: '', language: 'fr' }, outcome: 'paid', paymentMethod: 'cash', actor: 'user:7',
   });
   assert.equal(out.ok, true, JSON.stringify(out));
   const read = sdk.coreModule('encryption').safeDecrypt(api.vouchers.find(out.voucherId).codeEncrypted);
@@ -118,7 +118,7 @@ api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids, {
 const MONDAY = '2026-11-16'; // date-literal-ok: the suite runs on its own clock, never the real today
 const day = (n) => new Date(Date.parse(`${MONDAY}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 const PARTIES = {
-  recipientName: 'Léa', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr',
+  recipientFirstName: 'Léa', recipientLastName: 'Martin', senderName: 'Paul', message: 'Joyeux anniversaire', email: 'paul@example.test', language: 'fr',
 };
 const issueFor = (request) => {
   const out = api.offerService.issueDirect({
@@ -260,7 +260,7 @@ test('nothing due: the confirmation books at once — the booking, the sale at t
   assert.deepEqual([data.booked, data.date, data.start, data.end], [true, day(3), '10:00', '12:00']);
   assert.deepEqual([count('resource_bookings'), count('standalone_sales')], [before.bookings + 1, before.sales + 1]);
   const row = db.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(data.bookingId);
-  assert.deepEqual([row.reservationId, row.date, row.startTime, row.endTime, row.clientName, row.clientPhone], [null, day(3), '10:00', '12:00', 'Léa', '06 12 34 56 78']);
+  assert.deepEqual([row.reservationId, row.date, row.startTime, row.endTime, row.clientName, row.clientPhone], [null, day(3), '10:00', '12:00', 'Léa Martin', '06 12 34 56 78']);
   const document = standaloneSale.documentOf(Number(row.saleRef.split(':')[1]));
   assert.deepEqual(document.lines.map((l) => [l.label, l.totalCents, l.status]), [['Bain nordique', 9500, 'paid'], ['Planche apéro', 1400, 'paid']]);
   assert.deepEqual([document.totals.totalCents, document.totals.paidCents, document.totals.remainingCents], [10900, 10900, 0]);

@@ -38,9 +38,9 @@ test('the offer carries the means of payment of « Payé »', () => withServer(a
 
 test('the voucher list reads the contents, the campaign and the use of each voucher, filtered by campaign and kind; the detail freezes its lines and its refund', () => withServer(async (server) => {
   const campaign = api.campaigns.list().find((c) => c.slug === 'bain-jour');
-  const bath = await server.call('POST', '/api/gift-vouchers', { slug: campaign.slug, outcome: 'paid', paymentMethod: 'card', senderName: 'Paul', recipientName: 'Marie' });
+  const bath = await server.call('POST', '/api/gift-vouchers', { slug: campaign.slug, outcome: 'paid', paymentMethod: 'card', senderName: 'Paul', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
   assert.equal(bath.status, 201, JSON.stringify(bath.body));
-  const stay = await server.call('POST', '/api/gift-vouchers', { amountCents: 15000, outcome: 'paid', paymentMethod: 'card' });
+  const stay = await server.call('POST', '/api/gift-vouchers', { amountCents: 15000, outcome: 'paid', paymentMethod: 'card', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
   assert.equal(stay.status, 201, JSON.stringify(stay.body));
 
   const all = (await server.call('GET', '/api/gift-vouchers')).body;
@@ -58,6 +58,6 @@ test('the voucher list reads the contents, the campaign and the use of each vouc
 
   assert.deepEqual(bath.body.contentLines.slice(0, 2), ['Bain nordique : 2 h en journée', 'Planche apéro']);
   assert.equal(bath.body.refundCents, bath.body.balanceCents);
-  const given = await server.call('POST', '/api/gift-vouchers', { slug: campaign.slug, outcome: 'offered' });
+  const given = await server.call('POST', '/api/gift-vouchers', { slug: campaign.slug, outcome: 'offered', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
   assert.equal(given.body.refundCents, 0, 'a voucher given away refunds nothing');
 }));

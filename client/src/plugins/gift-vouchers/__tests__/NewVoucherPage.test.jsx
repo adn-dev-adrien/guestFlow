@@ -59,13 +59,14 @@ test('the extra time steps by the server’s slot, within its maximum, and an ad
 test('« Payé »: the means of payment are the server’s list, the voucher is created with the one picked and the list opens on it', async () => {
   open();
   await screen.findByTestId('price-recap');
-  await userEvent.type(screen.getByLabelText('Pour'), 'Léa');
+  await userEvent.type(screen.getByLabelText(/^Prénom/), 'Léa');
+  await userEvent.type(screen.getByLabelText(/^Nom/), 'Martin');
   await userEvent.type(screen.getByLabelText('De la part de'), 'Paul');
   await userEvent.click(screen.getByRole('combobox', { name: 'Moyen de paiement' }));
   await userEvent.click(await screen.findByRole('option', { name: 'Espèces' }));
   await userEvent.click(screen.getByRole('button', { name: 'Créer le bon' }));
   await waitFor(() => expect(giftVouchersApi.create).toHaveBeenCalledWith(expect.objectContaining({
-    slug: 'bain-jour', outcome: 'paid', paymentMethod: 'cash', recipientName: 'Léa', senderName: 'Paul',
+    slug: 'bain-jour', outcome: 'paid', paymentMethod: 'cash', recipientFirstName: 'Léa', recipientLastName: 'Martin', senderName: 'Paul',
   })));
   expect(await screen.findByTestId('elsewhere')).toBeInTheDocument();
 });
