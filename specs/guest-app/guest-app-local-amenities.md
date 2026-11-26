@@ -169,7 +169,7 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 
 | App | File | T/C | Responsibility |
 |---|---|---|---|
-| guest | `pages/PlacesPage.jsx` | C | Chips, map / list switch, offline banner, deep-link category |
+| guest | `pages/PlacesPage.jsx` | C | Chips, map / list switch, offline banner, deep-link category; hides a state past its `until` or offline, refetches at `until` and on `visibilitychange` (rule 13) |
 | guest | `components/PlacesMap.jsx` | C | Leaflet map: tiles, estate marker, category markers, grouping and fan-out, zoom, « Me localiser » |
 | guest | `components/PlaceSheet.jsx` | C | The sheet of rule 6 on the existing `BottomSheet`; the GPS chooser and its remembered choice (`device` store, key `gps`) |
 | guest | `constants/placeCategories.js` | C | The one palette of category colours and their Lucide glyphs (component for the page, drawing data for the markers) |
@@ -239,7 +239,7 @@ the pane. Touch targets ≥ 44 px (map controls included). `prefers-reduced-moti
   next-day opening, no hours (rule 13), GPS links (rule 7), module prerequisite (rule 1), button target hidden
   when off (rule 18), visitor access.
 - Guest client — `apps/guest/src/__tests__/PlacesPage.filters.test.jsx` (12): chips, empty category hidden, deep-link category, list, offline list, home tile,
-  button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
+  button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesPage.freshness.test.jsx` (5): a state is hidden past its `until` or without network (the week's table stays), refetched when an `until` passes and on return to the foreground; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
   tiles and their referrer policy, redraw on zoom only, estate marker, grouping bubble, fan-out, « Me localiser »; `PlacesMap.grouping.test.js` (4): pure grouping and the palette's contrast;
   `sw.offline.test.js` (+2): `/places` cached like the booklet.
 - Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx` (10): the list, « À revérifier », the switch, delete, refusals shown under their field, the week sent as minutes, the estate position.

@@ -32,7 +32,13 @@ function CategoryDot({ category, size = 18 }) {
   return <span className="pl-dot" style={{ background: color }}><Mark size={size} strokeWidth={2.25} color="#FFFFFF" aria-hidden="true" focusable="false" /></span>;
 }
 
-function PlaceRow({ place, onOpen }) {
+// setTimeout holds a delay in 32 bits.
+const MAX_DELAY = 2 ** 31 - 1;
+
+/** Rule 13 — a state is never shown past its `until`, nor without the network (a payload read from the cache is as old as its last visit). */
+const stateStale = (place, online) => !online || (Boolean(place.open.until) && Date.parse(place.open.until) <= Date.now());
+
+function PlaceRow({ place, stale, onOpen }) {
   return (
     <li>
       <button type="button" className="pl-row" onClick={() => onOpen(place.id)}>
@@ -41,7 +47,7 @@ function PlaceRow({ place, onOpen }) {
           <b>{place.name}</b>
           <span>{place.commune} · {place.driveLabel}</span>
         </span>
-        <span className={`pl-row-state ${place.open.state}`}>{place.open.label}</span>
+        {stale ? null : <span className={`pl-row-state ${place.open.state}`}>{place.open.label}</span>}
       </button>
     </li>
   );
@@ -59,11 +65,30 @@ export default function PlacesPage() {
   const [openId, setOpenId] = useState(null);
   const map = useRef(null);
   const { data, error, reload } = useLoad(() => api.places(), [lang]);
+  const [, setClock] = useState(0);
 
   const shown = useMemo(() => {
     const all = (data && data.places) || [];
     return filters.size ? all.filter((p) => filters.has(p.category)) : all;
   }, [data, filters]);
+  // Rule 13 — read again when a shown state expires, when the app comes back to the foreground and when the network returns.
+  useEffect(() => {
+    const ahead = shown.map((p) => Date.parse(p.open.until)).filter((at) => at > Date.now());
+    if (!ahead.length) return undefined;
+    const timer = setTimeout(() => { setClock((n) => n + 1); reload(); }, Math.min(Math.min(...ahead) - Date.now() + 250, MAX_DELAY));
+    return () => clearTimeout(timer);
+  }, [shown]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const back = () => { if (document.visibilityState === 'visible') { setClock((n) => n + 1); reload(); } };
+    document.addEventListener('visibilitychange', back);
+    return () => document.removeEventListener('visibilitychange', back);
+  }, [reload]);
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current) reload();
+    wasOnline.current = online;
+  }, [online]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const opened = openId === null ? null : shown.find((p) => p.id === openId) || null;
   useEffect(() => { if (openId !== null && !opened) setOpenId(null); }, [openId, opened]);
 
@@ -107,7 +132,7 @@ export default function PlacesPage() {
         {grouped.map((g) => (
           <section key={g.key} aria-labelledby={`pl-g-${g.key}`}>
             <h2 id={`pl-g-${g.key}`}>{g.label}</h2>
-            <ul>{g.places.map((p) => <PlaceRow key={p.id} place={p} onOpen={setOpenId} />)}</ul>
+            <ul>{g.places.map((p) => <PlaceRow key={p.id} place={p} stale={stateStale(p, online)} onOpen={setOpenId} />)}</ul>
           </section>
         ))}
       </div>
@@ -143,7 +168,7 @@ export default function PlacesPage() {
         {data && !online ? <div className="pl-offline"><Banner tone="warn" icon="cloudoff" role="status">{t('places.offline')}</Banner></div> : null}
       </div>
       <div className={`pl-body${mapVisible && shown.length ? ' is-map' : ''}`}>{body}</div>
-      {opened ? <PlaceSheet key={opened.id} place={opened} open onClose={() => setOpenId(null)} /> : null}
+      {opened ? <PlaceSheet key={opened.id} place={opened} stateShown={!stateStale(opened, online)} open onClose={() => setOpenId(null)} /> : null}
     </div>
   );
 }

@@ -6,7 +6,8 @@
  * tap; the choice stays on the device and later taps open it directly, « Changer d'appli » asking again. The three links
  * come from the server.
  *
- * Props: `place` (an entry of `/places`), `open`, `onClose`.
+ * Props: `place` (an entry of `/places`), `open`, `onClose`, `stateShown` (false → no open / closed line and no « today » mark:
+ * the payload is older than its `until` or was read without network, rule 13).
  */
 import { useState } from 'react';
 import BottomSheet from './BottomSheet';
@@ -37,7 +38,7 @@ function remembered() {
 
 const APP_LABEL_KEY = { apple: 'places.gps.apple', google: 'places.gps.google', waze: 'places.gps.waze' };
 
-export default function PlaceSheet({ place, open, onClose }) {
+export default function PlaceSheet({ place, open, onClose, stateShown = true }) {
   const t = useT();
   const lang = useLang();
   const [choice, setChoice] = useState(remembered);
@@ -74,12 +75,12 @@ export default function PlaceSheet({ place, open, onClose }) {
         <span className="pl-badge"><i style={{ background: color }}><Glyph size={13} strokeWidth={2.25} color="#FFFFFF" aria-hidden="true" /></i>{place.categoryLabel}</span>
         <h3>{place.name}</h3>
         <p className="pl-meta">{place.commune} · {place.driveLabel}</p>
-        <p className={`pl-state ${place.open.state}`}>{place.open.label}</p>
+        {stateShown ? <p className={`pl-state ${place.open.state}`}>{place.open.label}</p> : null}
         {place.hours ? (
           <table className="pl-hours">
             <tbody>
               {place.hours.map((row) => (
-                <tr key={row.day} className={row.today ? 'today' : undefined} aria-current={row.today ? 'date' : undefined}>
+                <tr key={row.day} className={stateShown && row.today ? 'today' : undefined} aria-current={stateShown && row.today ? 'date' : undefined}>
                   <td>{row.day}</td>
                   <td>{row.ranges}</td>
                 </tr>
