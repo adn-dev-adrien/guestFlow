@@ -1,0 +1,1 @@
+- **Session block — no stolen focus** (spec `site-outside-resource-booking.md` §3.I rule 38). Safari no longer leaves the cursor in the gift voucher code field of « Réserver une séance » on page load (connector 1.26.1).
