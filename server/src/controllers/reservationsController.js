@@ -2863,7 +2863,7 @@ function applyUpdate(req, res, pastUnlocked, {
   // dates, the property nor the party, never re-judge the stay's shape or the capacity (moved is read against the STORED row).
   const judgement = judgeStayRules({
     quote,
-    platform: req.body.platform != null ? req.body.platform : (existingReservation || {}).platform,
+    platform: req.body.platform,
     movement: stayMovement(existingReservation, { ...req.body, propertyId, startDate, endDate, adults, children, teens, babies }),
   });
   // Rule 9 of specs/pricing/pricing-components.md — a sale never re-judges the stay's shape (`staySale` reports no breach either).

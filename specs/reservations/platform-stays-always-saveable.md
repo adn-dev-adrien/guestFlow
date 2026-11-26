@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/platform-stays-always-saveable` |
 | **Created** | 2026-11-26 |
 | **Author** | Adrien |
@@ -79,7 +79,7 @@ say. A rule it breaks is shown on the fiche as information, so the platform's se
 10. iCal imports and platform intakes stay unblocked (`tariff-recipes.md` rule 24).
 
     > **Sans test** — unchanged behaviour: iCal imports never went through the fiche's guards, and this change touches neither (covered by the iCal suites).
-11. A stay switched from a platform to `direct` falls under rule 7 again at its next save.
+11. A stay switched from a platform to `direct` falls under rule 7 again at its next save, even when its dates and party stay the same: a change of channel counts as a move for rule 8 (`stayMovement().channelMoved`).
 
 **Edge cases:**
 - Platform stay whose dates the operator moves into a period with a higher minimum → saved, note shown.
@@ -140,10 +140,13 @@ Server unit tests, `server/src/tests/platform-stays-always-saveable.unit.test.js
 - Rule 4: platform stay overlapping another → still refused; beds over the limit → still refused.
 - Rule 5: `stayRuleNotes` worded for each breach, empty when none.
 - Rules 7, 8: direct stay moving its dates → `409 MIN_NIGHTS` as before; direct stay, finance-only edit → saved.
-- Rule 9: public request under the minimum → still refused.
+- Rule 9: public request under the minimum → still refused (`plugins/website-booking/tests/platform-stays-public-path.unit.test.js`).
+- Rule 11: Booking stay switched to `direct` with moved dates, and with the same dates and party → `409 MIN_NIGHTS`.
+
+Counts: 19 server tests in the subject file, 1 in the website-booking plugin, 3 client tests.
 
 Client: `ReservationPage.platform-stays.test.jsx`, which checks that no dialog appears and the note shows.
-E2E: one platform fiche saved under the minimum in the smoke suite.
+E2E: `e2e/specs/reservations/platform-stays-always-saveable.spec.js`, a Booking stay of one night on the recipe's 3-night bridge: info line shown, a party change saves with no dialog.
 Manual: Tardy #22301 re-saved in prod after release with its corrected statement (mobile and desktop).
 
 ## 8. Out of scope

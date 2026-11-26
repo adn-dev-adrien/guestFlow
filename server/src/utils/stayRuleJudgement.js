@@ -23,8 +23,11 @@ const sameStr = (a, b) => String(a == null ? '' : a) === String(b == null ? '' :
  * `placement` = property or dates; `party` = property or any head count.
  */
 function stayMovement(stored, posted) {
-  if (!stored) return { datesMoved: true, propertyMoved: true, partyMoved: true };
+  if (!stored) return { datesMoved: true, propertyMoved: true, partyMoved: true, channelMoved: true };
+  const channel = (v) => String(v == null ? '' : v).trim().toLowerCase();
   return {
+    // Rule 11 — a stay switched to another channel (a platform stay turned direct) is judged again, even with the same dates.
+    channelMoved: posted.platform != null && channel(stored.platform) !== channel(posted.platform),
     datesMoved: !(sameStr(stored.startDate, posted.startDate) && sameStr(stored.endDate, posted.endDate)),
     propertyMoved: !sameNum(stored.propertyId, posted.propertyId),
     partyMoved: !(sameNum(stored.adults, posted.adults) && sameNum(stored.children, posted.children)
@@ -80,8 +83,8 @@ function stayRuleNotes({ quote, platform, capacityBreach }) {
 function judgeStayRules({ quote, platform, movement, capacityBreach = null }) {
   const platformStay = isNamedChannel(platform);
   const occupancyMoved = movement.propertyMoved || movement.partyMoved;
-  const shapeJudged = !platformStay && (movement.datesMoved || occupancyMoved);
-  const capacityJudged = !platformStay && occupancyMoved;
+  const shapeJudged = !platformStay && (movement.datesMoved || occupancyMoved || Boolean(movement.channelMoved));
+  const capacityJudged = !platformStay && (occupancyMoved || Boolean(movement.channelMoved));
   return {
     platformStay,
     shapeJudged,

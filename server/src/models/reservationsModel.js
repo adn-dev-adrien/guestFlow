@@ -1881,7 +1881,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       // specs/reservations/edit-reservation-blocked-by-overlap.md (don't re-block a finance-only edit on a
       // pre-existing overlap/capacity issue).
       return database.prepare(`
-        SELECT propertyId, sourceType, icalSyncLocked, totalPrice, finalPrice,
+        SELECT propertyId, sourceType, icalSyncLocked, totalPrice, finalPrice, platform,
                startDate, endDate, checkInTime, checkOutTime,
                adults, children, teens, babies, singleBeds, doubleBeds, babyBeds
           FROM reservations WHERE id = ?

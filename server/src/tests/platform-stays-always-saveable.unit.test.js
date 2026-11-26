@@ -13,8 +13,8 @@ const SPEC = 'specs/reservations/platform-stays-always-saveable.md';
 
 // ---------------------------------------------------------------- pure judgement
 
-const ALL_MOVED = { datesMoved: true, propertyMoved: true, partyMoved: true };
-const NOTHING_MOVED = { datesMoved: false, propertyMoved: false, partyMoved: false };
+const ALL_MOVED = { datesMoved: true, propertyMoved: true, partyMoved: true, channelMoved: true };
+const NOTHING_MOVED = { datesMoved: false, propertyMoved: false, partyMoved: false, channelMoved: false };
 const BREACHING_QUOTE = {
   nights: 3, requiredMinNights: 4, minNightsBreached: true,
   minNightsRules: [{ label: 'Haute', minNights: 2 }, { label: 'Très haute', minNights: 4 }],
@@ -209,6 +209,20 @@ test(`${SPEC} rule 7 — a direct stay that moves its dates is refused with MIN_
   const refused = await call(controller.update, { params: { id: String(id) }, body: body('direct', ...JULY_SHORT, { reservationId: id }) });
   assert.equal(refused.statusCode, 409);
   assert.equal(refused.body.code, 'MIN_NIGHTS');
+  db.prepare('DELETE FROM reservations WHERE id = ?').run(id);
+});
+
+test(`${SPEC} rule 11 — switched to direct with the same dates and party, the stay is judged all the same`, async () => {
+  const created = await call(controller.create, { body: body('Booking', ...JULY_SHORT) });
+  const id = created.body.id;
+  const sameDates = body('direct', ...JULY_SHORT, { reservationId: id });
+  const quote = await call(controller.calculatePrice, { body: quoteBody(sameDates, { reservationId: id }) });
+  assert.equal(quote.body.minNightsBreached, true);
+  const refused = await call(controller.update, { params: { id: String(id) }, body: sameDates });
+  assert.equal(refused.statusCode, 409);
+  assert.equal(refused.body.code, 'MIN_NIGHTS');
+  const unchanged = await call(controller.update, { params: { id: String(id) }, body: body('Booking', ...JULY_SHORT, { reservationId: id }) });
+  assert.equal(unchanged.statusCode, 200);
   db.prepare('DELETE FROM reservations WHERE id = ?').run(id);
 });
 
