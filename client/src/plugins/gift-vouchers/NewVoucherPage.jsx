@@ -26,7 +26,7 @@ import { NEW_VOUCHER_ERROR_FIELDS, NEW_VOUCHER_TEXTS as T } from './giftVoucherT
 
 const CUSTOM = '__custom__';
 const BLANK_PEOPLE = {
-  recipientName: '', senderName: '', message: '', email: '',
+  recipientFirstName: '', recipientLastName: '', senderName: '', message: '', email: '',
 };
 
 export default function NewVoucherPage() {
@@ -248,9 +248,10 @@ export default function NewVoucherPage() {
 
           <FormSection title={T.steps.who}>
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
-              {person('recipientName', T.recipient, { slotProps: { htmlInput: { maxLength: 40 } } })}
-              {person('senderName', T.sender, { slotProps: { htmlInput: { maxLength: 40 } } })}
+              {person('recipientFirstName', T.recipientFirstName, { required: true, slotProps: { htmlInput: { maxLength: 40 } } })}
+              {person('recipientLastName', T.recipientLastName, { required: true, slotProps: { htmlInput: { maxLength: 40 } } })}
             </Box>
+            {person('senderName', T.sender, { slotProps: { htmlInput: { maxLength: 40 } } })}
             {person('message', T.message, { multiline: true, minRows: 2, helperText: errors.message || `${people.message.length} / 200`, slotProps: { htmlInput: { maxLength: 200 } } })}
             {person('email', `${T.email} ${outcome === 'link' ? '' : T.emailOptional}`.trim(), { type: 'email' })}
           </FormSection>
