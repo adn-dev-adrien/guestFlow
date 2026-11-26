@@ -137,6 +137,25 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
     (same rule as the other targets, `guest-app.md` rule 18). The page *Le domaine* gets « Voir les points de
     collecte » → `{ kind: 'places', category: 'dechets' }` (content, entered in the Studio).
 
+### 3.E Home tiles beyond six
+
+The `places` tile makes a stay home show seven tiles by default (nine with `home` and `contacts`), and rule 10's
+3 × 2 grid holds six. Decided by Adrien on 2026-11-26 (mock-up `docs/specs/2026-11-26-guest-app-home-tiles-carousel.html`).
+
+19. **Up to six tiles, nothing changes**: the grid of `guest-app.md` rule 10 and §6.6.
+20. **More than six, under 900 px: one endless row.** The tiles sit on a single row that the guest swipes with
+    the finger, left or right, as any phone carousel: the browser's own scrolling (momentum, rubber band), each
+    stop snapped on a tile, never moved by the app on its own (no autoplay, no timer). The row never ends: after
+    the last tile comes the first again, in both directions.
+21. **Both sides show on arrival.** On opening, the first tile of the lodging's order is the first whole tile from
+    the left, and a part of the last tile shows on the left edge and a part of the next one on the right edge:
+    three whole tiles and two partial ones on a phone.
+22. **One tile, one stop for assistive technology.** The endless row repeats the tiles for display only: the
+    repeats are hidden from screen readers and skipped by the keyboard, so each module is announced and reached
+    once; a tile that takes the focus is scrolled into view. `prefers-reduced-motion` changes nothing (the motion
+    is the guest's own finger).
+23. **From 900 px: one line.** All tiles on a single line, as many columns as tiles; no carousel.
+
 **Edge cases:**
 - No published place → no tile, no booklet button, `GET …/places` answers 404 `MODULE_OFF`.
 - A filter leaves nothing → « Rien dans ce filtre » + « Tout afficher » (only reachable through a stale deep link,

@@ -136,6 +136,8 @@ is pushed every order.
     lodging's modules (rule 11bis), in the order configured for that lodging (default: Portail · Wifi ·
     Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
     greyed tile).
+    _(Amended 2026-11-26 by specs/guest-app/guest-app-local-amenities.md rules 19-23: beyond six tiles, one endless
+    row swiped with the finger under 900 px, one line from 900 px.)_
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
     actif » (arrival day), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
@@ -1572,7 +1574,7 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 
 ### 6.6 Screen by screen
 
-- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop), `MomentCard`, the suggestion card (rule 15bis), « Commandes en cours » row if any, « Le livret » photo strip.
+- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop; beyond six, the endless row of guest-app-local-amenities rules 19-23), `MomentCard`, the suggestion card (rule 15bis), « Commandes en cours » row if any, « Le livret » photo strip.
 - **Booklet index** — search field (sticky), then `PhotoCard`s in one column (phone) / 2 (tablet) / 3
   (desktop); a shared page is indistinguishable from a lodging one.
 - **Booklet page** — cover photo with title inside, then blocks with 24 px rhythm; « Page suivante » card at
