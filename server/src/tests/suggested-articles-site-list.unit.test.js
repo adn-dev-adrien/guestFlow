@@ -109,6 +109,7 @@ test('rule 36 — each catalogue entry and each listed article says what a unit 
 test('rule 36 — a listed article the engine cannot price now (archived) comes back with a reason, so the page shows its warning row instead of hiding it', () => {
   const gone = option('Cidre', 4, { category: 'Boissons' });
   suggested.save('resource', bath, [ref(gone)]);
+  // date-literal-ok: only marks the option archived; nothing compares it with today
   db.prepare("UPDATE options SET archivedAt = '2026-11-01' WHERE id = ?").run(gone);
   const [resource] = suggested.settingsView().kinds.find((k) => k.kind === 'resource').contexts;
   assert.deepEqual(resource.articles.map((a) => [a.unitCents, a.reason]), [[null, 'Prix introuvable : l’article n’est pas proposé.']]);
