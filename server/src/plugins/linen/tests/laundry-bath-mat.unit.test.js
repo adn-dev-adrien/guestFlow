@@ -6,7 +6,7 @@ const { buildContractsByReservationId, simulateInventory, ALL_TYPES } = require(
 const { constantSchedule } = require('./laundry-schedule-fixtures');
 const laundryModel = require('../laundryModel');
 
-// specs/laundry-bath-mat.md — bath mat as a 7th linen type, driven by the "Tapis de bain" option
+// specs/linen/laundry-bath-mat.md — bath mat as a 7th linen type, driven by the "Tapis de bain" option
 // (active = explicit selection OR property default), with a per-property flat per-stay quantity.
 
 const BATH_MAT_OPTION = Object.freeze({

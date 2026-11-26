@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rule 17 (D11, audit R22-6b, 2026-11-05) — removing a paid line does not
+// specs/accounting/accounting-books-the-money-collected.md rule 17 (D11, audit R22-6b, 2026-11-05) — removing a paid line does not
 // rewrite a booked entry: its contribs stay on the stay per bucket (`reservations.removedLineContribs`), read by the
 // export and by collectedByLine; a cancelled stay offers the removed line for what it collected.
 process.env.DB_PATH = ':memory:';

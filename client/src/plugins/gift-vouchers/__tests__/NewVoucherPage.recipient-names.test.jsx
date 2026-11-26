@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rule 32 — « Nouveau bon »: « Pour » is « Prénom » and « Nom » of the recipient, both required; a server refusal is shown on the field it names;
+// specs/site/site-outside-resource-booking.md rule 32 — « Nouveau bon »: « Pour » is « Prénom » and « Nom » of the recipient, both required; a server refusal is shown on the field it names;
 // the list and the detail show « Prénom Nom », as the server shapes it.
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';

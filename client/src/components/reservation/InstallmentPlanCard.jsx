@@ -1,5 +1,5 @@
 /**
- * InstallmentPlanCard — the « Échéancier » of a direct reservation (specs/direct-installments.md §6).
+ * InstallmentPlanCard — the « Échéancier » of a direct reservation (specs/payments/direct-installments.md §6).
  *
  * Renders the server's `installmentPlan` payload and posts the operator's inputs (count, dates, amounts); it
  * computes no amount, date or status (CLAUDE.md §6.0). Every change saves at once through the API, like the
@@ -251,7 +251,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const fail = useCallback((error) => showError(error && error.message ? error.message : t.GENERIC_ERROR), [showError]);
-  // specs/payment-link-lifecycle.md rule 63 — a refused creation or resize may have withdrawn the stay's links
+  // specs/payments/payment-link-lifecycle.md rule 63 — a refused creation or resize may have withdrawn the stay's links
   // first: the fiche re-reads its money and the card.
   const refused = useCallback((error) => {
     fail(error);
@@ -370,7 +370,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
       if (onMoneyChanged) await onMoneyChanged();
     } catch (error) {
       fail(error);
-      // specs/payment-link-lifecycle.md rule 50 — the refusal booked the installment's payment on the server.
+      // specs/payments/payment-link-lifecycle.md rule 50 — the refusal booked the installment's payment on the server.
       if (isLinkAlreadyPaid(error) && onMoneyChanged) await onMoneyChanged();
     } finally { setBusy(false); }
   };
@@ -382,7 +382,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
     } catch { showError(installment.linkUrl); }
   };
 
-  // specs/mixed-method-payments.md rules 1, 12 — « Plusieurs moyens » sends the lines instead of one method.
+  // specs/payments/mixed-method-payments.md rules 1, 12 — « Plusieurs moyens » sends the lines instead of one method.
   const markPaid = async ({ date, method, tenders, shortfall }) => {
     try {
       const body = tenders ? { paidDate: date, tenders, ...(shortfall ? { shortfall } : {}) } : { paidDate: date, method };

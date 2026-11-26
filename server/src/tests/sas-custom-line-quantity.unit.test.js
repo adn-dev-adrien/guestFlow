@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 29 (2026-10-27 spec review) — a linen element the arrival SAS
+// specs/sas/arrival-departure-sas.md rule 29 (2026-10-27 spec review) — a linen element the arrival SAS
 // bills keeps its count. « Taie d'oreiller » × 2 at 3,30 € was stored as one custom row worth 6,60 €
 // with no quantity, so the planning card (and every other reader) showed « ×1 ».
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// specs/vat-optional-mode.md §7 « Prod-copy proof » — hashes what every VAT reader feeds, for every
+// specs/accounting/vat-optional-mode.md §7 « Prod-copy proof » — hashes what every VAT reader feeds, for every
 // reservation, devis and month of a COPY of a real database, so a lot can be proved to change nothing.
 //
 //   node scripts/vat-regime-golden-prod.mjs <copy.db> --out before.json

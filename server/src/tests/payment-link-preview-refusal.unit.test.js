@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 60 (review of #906) — when a request or reminder that carries a link is
+// specs/payments/payment-link-lifecycle.md rule 60 (review of #906) — when a request or reminder that carries a link is
 // already known to be refused (rule 57 platform stay, rule 55 closed nights, rule 56 unsettled withdrawn payment),
 // the preview says so: `refusal: { error, message }`, the same answer the send would give, with no link and no
 // placeholder in the text. A template without a link, or a payable stay, carries no refusal.

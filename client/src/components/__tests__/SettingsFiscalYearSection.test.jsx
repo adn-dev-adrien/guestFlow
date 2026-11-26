@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import SettingsFiscalYearSection from '../SettingsFiscalYearSection';
 
-// specs/fiscal-year-and-nights-sold.md §3.1 + §6.1 — one Select (« Mois de clôture ») plus a hint
+// specs/accounting/fiscal-year-and-nights-sold.md §3.1 + §6.1 — one Select (« Mois de clôture ») plus a hint
 // spelling out the resulting exercise. The hint is a presentational echo of the picked month; the
 // exercise itself is computed server-side.
 

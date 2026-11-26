@@ -38,7 +38,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # specs/spec-rule-coverage.md §3.2 — la barrière : une règle AJOUTÉE à une spec doit être citée par
+  # specs/tech/spec-rule-coverage.md §3.2 — la barrière : une règle AJOUTÉE à une spec doit être citée par
   # un test. Uniquement sur les PR, et uniquement sur le diff : les 2 500 règles existantes ne
   # bloquent personne (règle 10). Le 2026-09-01, trois règles écrites en v2.9.0 dormaient sur le
   # papier pendant que 5 000 tests étaient verts ; ce job est ce qui empêche la quatrième.
@@ -68,12 +68,12 @@ jobs:
           node scripts/check-spec-coverage.mjs --changed --base "origin/${{ github.base_ref }}"
 
       - name: 🔌 Un plugin modifié porte une nouvelle version et ses lignes de journal
-        # specs/plugins-phase-4-registry.md rule 28 — the plugin a PR changes is bumped in that PR, so the
+        # specs/plugins/plugins-phase-4-registry.md rule 28 — the plugin a PR changes is bumped in that PR, so the
         # release PR only touches the three package.json files and the changelog fold.
         run: node scripts/check-plugin-versions.mjs --base "origin/${{ github.base_ref }}"
 
       - name: 📅 Une date écrite en dur dans un test ajouté ?
-        # specs/server-test-isolation.md rule 7 — a literal date the calendar will pass, on a test line the PR
+        # specs/tech/server-test-isolation.md rule 7 — a literal date the calendar will pass, on a test line the PR
         # adds, fails the job with the line named. A date nothing compares with today (a pure function's
         # input) carries `// date-literal-ok: <why>`. Rule 9 — a line already on master or inte/plugins was
         # checked there: the integration PR and the syncs only carry it over. A branch that is gone sets
@@ -84,7 +84,7 @@ jobs:
           done
           node scripts/check-test-dates.mjs --base "origin/${{ github.base_ref }}" --known origin/master,origin/inte/plugins --strict
 
-  # specs/server-test-isolation.md rule 19 — two shards. One process per test file, run one after another: the suite
+  # specs/tech/server-test-isolation.md rule 19 — two shards. One process per test file, run one after another: the suite
   # reached 13.8 min of its 15-minute cap, and 802b17ac was cancelled at it (audit R37-S1). `--test-shard` splits the
   # FILES, so each shard keeps rule 10's completeness reporter and rule 15's per-file cap; `npm test` stays the one
   # command (run-test-shard.mjs adds the flag to it), and locally it still runs everything.
@@ -109,8 +109,8 @@ jobs:
         with:
           # Back to the floating major since better-sqlite3 13 (2026-08-07). It had been pinned to
           # 24.18.0 for a day: on 24.19.0 every test process crashed at EXIT inside better-sqlite3
-          # ^11's native teardown. The driver bump is the actual fix — see
-          # specs/better-sqlite3-upgrade.md. Keep the major in sync with the Pi's Node (deploy.yml).
+          # ^11's native teardown. The driver bump is the actual fix (the former
+          # better-sqlite3-upgrade spec, in git history). Keep the major in sync with the Pi's Node (deploy.yml).
           node-version: '24'
           # `check-latest` because the runner image ships a CACHED 24.x and setup-node prefers it:
           # without this, '24' quietly resolved back to 24.18.0 — the very version that was already
@@ -132,7 +132,7 @@ jobs:
       - name: 🧪 Run the server unit suite (shard ${{ matrix.shard }}/2)
         run: cd server && node ../scripts/test-runner/run-test-shard.mjs ${{ matrix.shard }}/2
 
-  # specs/server-test-isolation.md rule 8 — three shards. Every test file pays its own fork, jsdom and imports
+  # specs/tech/server-test-isolation.md rule 8 — three shards. Every test file pays its own fork, jsdom and imports
   # (~1.1 s on the runner), and the one-file-per-subject rule took the suite from 220 files to 625 in a week:
   # in one job it reached 711–798 s of its 900 s cap (audit R8 M-2). Vitest splits the FILES, so each shard
   # keeps per-file isolation and its own `vi.mock` hoisting. The build and the bundle budget run once.
@@ -157,8 +157,8 @@ jobs:
         with:
           # Back to the floating major since better-sqlite3 13 (2026-08-07). It had been pinned to
           # 24.18.0 for a day: on 24.19.0 every test process crashed at EXIT inside better-sqlite3
-          # ^11's native teardown. The driver bump is the actual fix — see
-          # specs/better-sqlite3-upgrade.md. Keep the major in sync with the Pi's Node (deploy.yml).
+          # ^11's native teardown. The driver bump is the actual fix (the former
+          # better-sqlite3-upgrade spec, in git history). Keep the major in sync with the Pi's Node (deploy.yml).
           node-version: '24'
           # `check-latest` because the runner image ships a CACHED 24.x and setup-node prefers it:
           # without this, '24' quietly resolved back to 24.18.0 — the very version that was already
@@ -175,13 +175,13 @@ jobs:
 
       - name: 📦 Initial JavaScript within its budget
         if: matrix.shard == 1
-        # specs/inte-performance.md rule 4 — a heavy import in the shell, or a page imported eagerly
+        # specs/tech/inte-performance.md rule 4 — a heavy import in the shell, or a page imported eagerly
         # again, fails here with the chunks named, instead of reaching the operator as a slow app.
         run: |
           cd client && npm run build
           cd .. && node scripts/check-bundle-budget.mjs
 
-  # specs/guest-app.md plan steps 51, 60 — the guest app « Mon séjour » is its own Vite app in `server/src/plugins/guest-app/apps/guest`: its
+  # specs/guest-app/guest-app.md plan steps 51, 60 — the guest app « Mon séjour » is its own Vite app in `server/src/plugins/guest-app/apps/guest`: its
   # suites, its build, and its first-load budget (200 kB gzip, fonts excluded).
   guest-app:
     name: guest app (vitest + budget)
@@ -210,7 +210,7 @@ jobs:
           cd server/src/plugins/guest-app/apps/guest && npm run build
           cd $GITHUB_WORKSPACE && node scripts/check-bundle-budget.mjs --dist server/src/plugins/guest-app/apps/guest/dist --budget 200000
 
-  # specs/guest-app.md rules 47-50 — the booklet studio is its own Vite app in `server/src/plugins/guest-app/apps/studio`: its suites and its
+  # specs/guest-app/guest-app.md rules 47-50 — the booklet studio is its own Vite app in `server/src/plugins/guest-app/apps/studio`: its suites and its
   # build. It reads GuestFlow's shared components and the guest app's renderers through aliases, with its own copy
   # of their dependencies, so only its own install is needed.
   studio-app:
@@ -238,7 +238,7 @@ jobs:
       - name: 🏗️ Build the studio
         run: cd server/src/plugins/guest-app/apps/studio && npm run build
 
-  # specs/control-plane-plans-and-access.md — the control plane (the operator console) is its own app
+  # specs/hosting/control-plane-plans-and-access.md — the control plane (the operator console) is its own app
   # in `control-plane/`, deployed separately, tested here with the rest. Its server requires
   # GuestFlow's licence and password modules and runs `server/scripts/create-first-admin.js` in the
   # tests, so the GuestFlow server's dependencies are installed too.

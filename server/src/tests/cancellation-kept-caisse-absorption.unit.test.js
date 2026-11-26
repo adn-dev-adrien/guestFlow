@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 61, reading of 2026-11-10 (verification R44 L1) — a caisse-interne acompte kept by a
+// specs/payments/payment-schedule-and-cancellation.md rule 61, reading of 2026-11-10 (verification R44 L1) — a caisse-interne acompte kept by a
 // cancellation: the caisse-interne refunds made before it are taken from every other caisse money first (a solde, the
 // caisse share of a mixed solde, a complement paid in the caisse), the acompte only for what they leave over. Before,
 // only a solde paid wholly in the caisse absorbed them: the cancellation notice understated the sum kept.

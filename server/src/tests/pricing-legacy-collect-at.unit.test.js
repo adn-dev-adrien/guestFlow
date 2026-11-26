@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 36, 37 and 91, §5 « Backfill » — the moment a stored line is collected, derived from
+// specs/pricing/pricing-components.md §3 rules 36, 37 and 91, §5 « Backfill » — the moment a stored line is collected, derived from
 // what the stay stores today (`inComplement`, `arrivalExtrasBaseline`, the platform's mode).
 const test = require('node:test');
 const assert = require('node:assert/strict');

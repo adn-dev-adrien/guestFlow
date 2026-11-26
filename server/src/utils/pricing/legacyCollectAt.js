@@ -1,6 +1,6 @@
 /**
  * LEGACY COLLECT-AT — the moment a stored line is collected, derived from what the stay stores today
- * (specs/pricing-components.md §3 rules 36, 37, §5 « Backfill »).
+ * (specs/pricing/pricing-components.md §3 rules 36, 37, §5 « Backfill »).
  *
  * Before rule 37 a line carried only `inComplement`; the moment was implied by it and by the stay. This unit reads that
  * implication once, so the backfill of the `collectAt` column adds a column and rewrites no amount:

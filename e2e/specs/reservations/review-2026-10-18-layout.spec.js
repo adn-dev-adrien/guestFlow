@@ -1,5 +1,5 @@
 // @ts-check
-// specs/review-2026-10-18-reservations.md rules 6 and 7 — the fiche and the calendar never scroll
+// specs/design-system/review-2026-10-18-reservations.md rules 6 and 7 — the fiche and the calendar never scroll
 // sideways: at 900 px the fiche is one column and its bar drops the centred client name; a long
 // property name ellipsises in its select instead of widening the page (review 2026-10-18, M-4, M-5).
 import { test, expect } from '@playwright/test';
@@ -36,7 +36,7 @@ for (const width of [390, 900]) {
   test(`rule 7 — the calendar of a long-named property fits ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(`/calendar?propertyId=${propertyId}`);
-    // The filter is a segmented control or a select (specs/ui-review-2026-10-19-operations.md rule 16).
+    // The filter is a segmented control or a select (specs/design-system/ui-review-2026-10-19-operations.md rule 16).
     await expect(page.getByLabel('Logement').filter({ visible: true }).first()).toBeVisible({ timeout: 15_000 });
     expect(await pageWidth(page)).toBeLessThanOrEqual(width);
   });

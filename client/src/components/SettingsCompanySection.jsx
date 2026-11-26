@@ -149,7 +149,7 @@ export default function SettingsCompanySection({
           />
 
           {/* Fields plugins add to the card (`settings.etablissement`), e.g. the SAS's « Code portail »
-              (specs/platform-settings-relay-and-review.md rule 11). */}
+              (specs/platforms/platform-settings-relay-and-review.md rule 11). */}
           <Slot name="settings.etablissement" values={v} onChange={onChange} disabled={disabled} />
         </Stack>
       </CardContent>

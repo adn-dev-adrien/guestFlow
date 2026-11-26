@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 18 `wifi`, reading of 2026-11-10 (audit R36-INJ-L1) — the join QR escapes every character the
+// specs/guest-app/guest-app.md rule 18 `wifi`, reading of 2026-11-10 (audit R36-INJ-L1) — the join QR escapes every character the
 // WIFI: scheme reserves, the backslash included: a password with a backslash read back wrong and the phone failed to
 // join. The auditor's reader (ZXing's rule: a backslash escapes the next character, `;` ends a field) reads back what
 // was typed.

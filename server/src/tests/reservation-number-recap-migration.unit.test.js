@@ -1,4 +1,4 @@
-// specs/reservation-number-and-search.md §4 — the recap migration writes only the templates it changes,
+// specs/reservations/reservation-number-and-search.md §4 — the recap migration writes only the templates it changes,
 // so the « last modified » of an operator-edited reminder is not rewritten at every boot (audit 2026-10-28).
 const test = require('node:test');
 const assert = require('node:assert/strict');

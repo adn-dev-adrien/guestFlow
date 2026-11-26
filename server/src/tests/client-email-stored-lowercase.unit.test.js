@@ -1,5 +1,5 @@
 process.env.DB_PATH = ':memory:';
-// specs/clients.md rule 12 (reading of 2026-11-05, audit R23 public finding 4): SQLite's lower() is ASCII only, so an
+// specs/clients/clients.md rule 12 (reading of 2026-11-05, audit R23 public finding 4): SQLite's lower() is ASCII only, so an
 // address holding a non-ASCII character is stored in JS lower case, by every writer: the JS key and lower(email) then agree.
 // An ASCII address keeps its case.
 const test = require('node:test');

@@ -2,7 +2,7 @@ const test = require('node:test');
 const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
-// specs/edit-reservation-blocked-by-overlap.md — editing an EXISTING reservation must not be rejected
+// specs/reservations/edit-reservation-blocked-by-overlap.md — editing an EXISTING reservation must not be rejected
 // by an availability/capacity conflict the edit didn't introduce. When the placement (property + dates +
 // times) is unchanged, a pre-existing overlap is NOT re-checked (so a finance-only edit, e.g. the
 // platform payment, saves). Moving the reservation INTO a conflict still validates.

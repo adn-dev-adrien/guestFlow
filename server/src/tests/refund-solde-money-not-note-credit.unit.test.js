@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 115 (stabilisation loop t8, B8-2) — a `lineLowered` row holds the stay's own trop-perçu too (a solde line
+// specs/pricing/pricing-components.md §3 rule 115 (stabilisation loop t8, B8-2) — a `lineLowered` row holds the stay's own trop-perçu too (a solde line
 // discounted before the arrival), not only note money. What a refund on the trop-perçu gives back is stamped with its NOTE part
 // (`refund_obligations.noteCents`) and only that part is « note money already refunded »: the engine's note credit (rule 110), the rule-108
 // refusal, `noteExcessCents` (D6-1) and the cash part of rule 112 read it. Scenario of the review: beer 30 in the solde (paid 330), discounted 24

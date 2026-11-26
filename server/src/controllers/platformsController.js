@@ -1,7 +1,7 @@
 /**
  * Platforms controller — exposes the canonical platform-name list consumed by the UI dropdowns
  * (reservation form platform <Select> + property iCal-source form). Thin: delegates the union /
- * dedup / sort to platformsModel.listNames(). See specs/ical-platforms-in-dropdowns.md.
+ * dedup / sort to platformsModel.listNames(). See specs/platforms/ical-platforms-in-dropdowns.md.
  */
 
 const platformsModel = require('../models/platformsModel');
@@ -15,13 +15,13 @@ function listNames(req, res) {
   res.json({ platforms: platformsModel.listNames() });
 }
 
-// Non-direct platforms + their commission % (specs/platform-price-from-commission.md).
+// Non-direct platforms + their commission % (specs/platforms/platform-price-from-commission.md).
 function listWithCommission(req, res) {
   res.json({ platforms: platformsModel.listWithCommission() });
 }
 
 // Set a platform's global commission % (refused outside [0, 99.99], never clamped —
-// specs/settings-input-guards.md rule 30).
+// specs/settings/settings-input-guards.md rule 30).
 function setCommission(req, res) {
   const parsed = parseBoundedNumber(req.body && req.body.commissionPercent, PLATFORM_LIMITS.commissionPercent);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
@@ -30,7 +30,7 @@ function setCommission(req, res) {
   return res.json({ id: updated.id, name: updated.name, commissionPercent: Number(updated.commissionPercent) || 0 });
 }
 
-// Set a platform's GLOBAL calendar colour (specs/platforms-and-ical-rework.md §3 rules 5-6). The
+// Set a platform's GLOBAL calendar colour (specs/platforms/platforms-and-ical-rework.md §3 rules 5-6). The
 // `:key` is the platform label/name; an empty colour or the built-in brand colour clears the
 // override. Upserts the platform so a never-used built-in can still be recoloured.
 function setColor(req, res) {
@@ -56,7 +56,7 @@ function setTouristTax(req, res) {
   return res.json({ name: updated.name, touristTaxCollection: updated.touristTaxCollection });
 }
 
-// specs/platform-deposit-toggle.md — set a platform's GLOBAL acompte flag. `:key` is the platform
+// specs/platforms/platform-deposit-toggle.md — set a platform's GLOBAL acompte flag. `:key` is the platform
 // label/name. Body `{ takesDeposit: boolean }`. Applies to every property.
 function setDepositMode(req, res) {
   const key = decodeURIComponent(req.params.key || '');
@@ -66,7 +66,7 @@ function setDepositMode(req, res) {
   return res.json({ name: updated.name, platformTakesDeposit: updated.platformTakesDeposit });
 }
 
-// specs/platform-payout-due-date.md §4.3 — set a platform's GLOBAL payout delay (days after the
+// specs/platforms/platform-payout-due-date.md §4.3 — set a platform's GLOBAL payout delay (days after the
 // guest leaves before the transfer is considered late). `:key` is the platform label/name.
 // Body `{ days: 0..365 }`. Own channels (`direct`, `Lodgify`) have no payout to wait for.
 function setPayoutDueDays(req, res) {
@@ -83,10 +83,10 @@ function setPayoutDueDays(req, res) {
 const TOURIST_TAX_MODES = ['platform', 'platform_reversed', 'owner'];
 const MAX_REVIEW_WHERE = 80;
 
-// GET /api/platforms/settings — the « Plateformes » settings page (specs/settings-rationalization.md
+// GET /api/platforms/settings — the « Plateformes » settings page (specs/settings/settings-rationalization.md
 // rule 17): every per-platform commercial setting, in one list.
 // A platform that appeared since the boot (a reservation, an intake, an import) is registered first,
-// so it is on the page the moment it exists — not after a restart (specs/platforms-and-ical-rework.md rule 16).
+// so it is on the page the moment it exists — not after a restart (specs/platforms/platforms-and-ical-rework.md rule 16).
 function listSettings(req, res) {
   platformsModel.rescan();
   res.json({ platforms: platformsModel.listSettings(), limits: PLATFORM_LIMITS });
@@ -118,19 +118,19 @@ function planRow(row, current) {
     if (!TOURIST_TAX_MODES.includes(row.touristTaxCollection)) errors.touristTaxCollection = 'Mode inconnu.';
     else apply.push(() => platformsModel.setTouristTaxCollection(current.name, row.touristTaxCollection));
   }
-  // specs/plugins-phase-p-productisation.md rule 19 — `direct` always counts; the others by choice.
+  // specs/plugins/plugins-phase-p-productisation.md rule 19 — `direct` always counts; the others by choice.
   if (!current.isDirect && has('countsAsDirect')) {
     apply.push(() => platformsModel.setCountsAsDirect(current.id, row.countsAsDirect === true));
   }
   // The own-channel guards below read the state AFTER this save: a row ticked « Compté comme vente
-  // directe » in the same batch takes no platform rule (specs/airbnb-no-checkout-chores.md rule 10).
+  // directe » in the same batch takes no platform rule (specs/platforms/airbnb-no-checkout-chores.md rule 10).
   const ownChannel = current.isDirect
     || (has('countsAsDirect') ? row.countsAsDirect === true : isDirectChannel(current.name));
-  // specs/airbnb-no-checkout-chores.md rule 8 — a platform rule, so never on an own channel.
+  // specs/platforms/airbnb-no-checkout-chores.md rule 8 — a platform rule, so never on an own channel.
   if (!ownChannel && has('forbidsGuestChores')) {
     apply.push(() => platformsModel.setForbidsGuestChores(current.id, row.forbidsGuestChores === true));
   }
-  // specs/platform-settings-relay-and-review.md rules 1-4 — guest-contact settings, never on an own channel.
+  // specs/platforms/platform-settings-relay-and-review.md rules 1-4 — guest-contact settings, never on an own channel.
   if (!ownChannel && has('relaysGuestEmail')) {
     apply.push(() => platformsModel.setRelaysGuestEmail(current.id, row.relaysGuestEmail === true));
   }

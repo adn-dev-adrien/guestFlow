@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 22, 24 and 49 — the period bar offers what the server lists and sends only a
+// specs/accounting/accounting-synthesis.md §3 rules 22, 24 and 49 — the period bar offers what the server lists and sends only a
 // period the server would accept: a custom window it would refuse is refused here, judged from the server's day.
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/ical-sync-override-locked-dates.md rule 11 — approving a date drift moves the stay under the same
+// specs/platforms/ical-sync-override-locked-dates.md rule 11 — approving a date drift moves the stay under the same
 // guards as every other date change (audit 2026-10-28): the new nights are checked against the other
 // stays and the closures (a clash is flagged and notified), a platform stay's payout deadline follows
 // its new departure, and only a live reservation can be moved.

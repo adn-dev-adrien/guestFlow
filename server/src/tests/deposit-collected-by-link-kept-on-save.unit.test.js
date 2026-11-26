@@ -1,4 +1,4 @@
-// specs/disable-deposit-per-reservation.md rule 13 (review of PR #893, RC1, 2026-10-30) — an acompte a payment
+// specs/payments/disable-deposit-per-reservation.md rule 13 (review of PR #893, RC1, 2026-10-30) — an acompte a payment
 // link collected cannot be switched off: a save (or the live quote) carrying « Sans acompte » keeps it. A fiche
 // still holding the flag from before the link was booked — sent without its version (« Enregistrer quand
 // même », a script) or in the same second as the booking — no longer erases the money. An acompte ticked by

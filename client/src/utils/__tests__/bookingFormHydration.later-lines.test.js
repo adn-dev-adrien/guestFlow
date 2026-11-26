@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 85 — the fiche edits an article's FIRST line; the lines sold after it (flagged `laterLine` by the server) are
+// specs/pricing/pricing-components.md §3 rule 85 — the fiche edits an article's FIRST line; the lines sold after it (flagged `laterLine` by the server) are
 // carried as they are, each naming its own stored line, and never reach the form's option state, the offered set or the frozen unit prices.
 import {
   hydrateSelectedOptions, hydrateSelectedResources, hydrateLaterLines, hydrateOfferedOptionIds, frozenUnitPrices,

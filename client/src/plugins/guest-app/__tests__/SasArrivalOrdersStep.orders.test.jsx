@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 71, 87 — the arrival SAS step « Commandes Mon séjour »: a collapsible list drawn from the server's payload
+// specs/guest-app/guest-app.md rules 71, 87 — the arrival SAS step « Commandes Mon séjour »: a collapsible list drawn from the server's payload
 // (unfolded while something is to collect, folded when every order is paid), an unpaid order edited line by line or removed through a
 // confirmation, a card-paid one read-only; every figure is the server's.
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';

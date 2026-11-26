@@ -1,5 +1,5 @@
 /**
- * STEP storedNights — the nights of a stored stay, for a sale (specs/pricing-components.md §3 rules 8 and 9).
+ * STEP storedNights — the nights of a stored stay, for a sale (specs/pricing/pricing-components.md §3 rules 8 and 9).
  *
  * A sale on a stay (selling, offering, removing, discounting a line) prices the nights as they were sold: the stored nights
  * (`reservation_nights`, the price lock) ARE the nightly breakdown, and NIGHTS is not called — no tariff is read, no minimum or maximum

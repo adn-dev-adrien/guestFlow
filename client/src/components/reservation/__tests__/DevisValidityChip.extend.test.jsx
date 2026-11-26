@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 20 — the PDF no longer prints « (expiré) »: the fiche
+// specs/design-system/ui-review-2026-10-19-operations.md rule 20 — the PDF no longer prints « (expiré) »: the fiche
 // warns, and only an expired quote still open offers « prolonger », announced before it is done.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

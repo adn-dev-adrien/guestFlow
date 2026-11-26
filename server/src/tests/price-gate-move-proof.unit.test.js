@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 33, 35 and 73 — `scripts/price-gate/moveProof.js`: a removed source line must
+// specs/pricing/pricing-components.md §3 rules 33, 35 and 73 — `scripts/price-gate/moveProof.js`: a removed source line must
 // reappear verbatim (modulo indentation) among the added lines; only blank lines, imports and export lists may vanish.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -67,11 +67,11 @@ test('rule 73: only source files count — tests, fixtures and docs may change f
   assert.ok(!isSourcePath('server/src/tests/price-gate.unit.test.js'));
   assert.ok(!isSourcePath('server/src/plugins/some-plugin/tests/x.js'));
   assert.ok(!isSourcePath('client/src/__tests__/a.test.jsx'));
-  assert.ok(!isSourcePath('specs/pricing-components.md'));
+  assert.ok(!isSourcePath('specs/pricing/pricing-components.md'));
   assert.ok(!isSourcePath('scripts/pricing-replay.mjs'));
   const text = diff(
     { path: 'server/src/tests/helper.js', hunks: [{ at: 1, removed: ['anything at all'] }] },
-    { path: 'specs/pricing-components.md', hunks: [{ at: 1, removed: ['prose'] }] },
+    { path: 'specs/pricing/pricing-components.md', hunks: [{ at: 1, removed: ['prose'] }] },
   );
   assert.equal(moveProof(text).removed, 0);
 });

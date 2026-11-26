@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import LinkTransactionDialog from '../LinkTransactionDialog';
 import { previewPayload } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rule 14 — « Rattacher à des fiches » from a credit: plausible
+// specs/accounting/reconciliation-assisted-matching.md rule 14 — « Rattacher à des fiches » from a credit: plausible
 // receipts first, all open receipts folded, the same search, several receipts ticked.
 
 vi.mock('../../../api', () => ({

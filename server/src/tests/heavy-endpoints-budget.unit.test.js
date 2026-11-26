@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 5 — the heavy endpoints do not grow with the data: the same number of
+// specs/tech/inte-performance.md rule 5 — the heavy endpoints do not grow with the data: the same number of
 // SQL statements on 20 reservations as on 2 000, and each answers within its time budget.
 const { listenLocal } = require('./listenLocal');
 const { test, after } = require('node:test');

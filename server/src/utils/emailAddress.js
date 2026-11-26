@@ -1,5 +1,5 @@
 /**
- * Email address shape check — the one hardened helper (specs/audit-r2-injection.md rule 1).
+ * Email address shape check — the one hardened helper (audit R2, injection, rule 1).
  *
  * Linear by construction: the length is checked BEFORE anything scans the string, and the
  * check is one `indexOf` plus two bounded character-class tests, never a pattern whose
@@ -11,7 +11,7 @@
  * `@ , ; < > "`. Empty is NOT valid here; callers that accept empty test it themselves.
  * `MAX_EMAIL_LENGTH` is the RFC 5321 path limit.
  *
- * `storedEmail(value)` → the address as a client row holds it (specs/clients.md rule 12).
+ * `storedEmail(value)` → the address as a client row holds it (specs/clients/clients.md rule 12).
  */
 
 const MAX_EMAIL_LENGTH = 254;

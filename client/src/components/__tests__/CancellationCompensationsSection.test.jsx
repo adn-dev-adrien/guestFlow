@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * « Indemnités d'annulation » card of the Comptabilité page (specs/cancellation-compensation.md
+ * « Indemnités d'annulation » card of the Comptabilité page (specs/payments/cancellation-compensation.md
  * §6.3). Pins the two lists (banked this month / still pending), the read-only rendering for the
  * accountant role, and the encaissement flow.
  */
@@ -100,7 +100,7 @@ test('an empty month says so instead of rendering empty tables', async () => {
   expect(screen.getByText(/Aucune indemnité en attente/i)).toBeInTheDocument();
 });
 
-// specs/payment-schedule-and-cancellation.md §3.6 rule 33 — a retained acompte is the same accounting
+// specs/payments/payment-schedule-and-cancellation.md §3.6 rule 33 — a retained acompte is the same accounting
 // object as a platform indemnity, but not the same story: the card says so and points at the stay.
 test('an indemnity born of a retained acompte is labelled and linked to its stay', async () => {
   api.getCancellationCompensations.mockResolvedValue({

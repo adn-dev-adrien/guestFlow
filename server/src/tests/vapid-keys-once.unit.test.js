@@ -1,4 +1,4 @@
-// specs/pwa-push-notifications.md rule 17 — the VAPID keys are generated once, into the instance's local env file: a second
+// specs/guest-app/pwa-push-notifications.md rule 17 — the VAPID keys are generated once, into the instance's local env file: a second
 // boot reads the same pair. Child processes, so the test's own environment stays clean.
 const test = require('node:test');
 const assert = require('node:assert/strict');

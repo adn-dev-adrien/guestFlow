@@ -1,4 +1,4 @@
-// specs/tariff-recipe-platform-cleaning-fee.md rule 11 — a cleaning-fee change is a change: the apply
+// specs/pricing/tariff-recipe-platform-cleaning-fee.md rule 11 — a cleaning-fee change is a change: the apply
 // dialog lists it and never says « Rien à modifier » while one differs.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

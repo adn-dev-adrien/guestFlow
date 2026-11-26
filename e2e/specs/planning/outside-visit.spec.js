@@ -1,5 +1,5 @@
 // @ts-check
-// specs/outside-booking-sas.md §7 — the mini SAS of an outside client, at 1280 and 390 px: a walk-in session booked for today, « Arrivée » from the resource planning, two
+// specs/sas/outside-booking-sas.md §7 — the mini SAS of an outside client, at 1280 and 390 px: a walk-in session booked for today, « Arrivée » from the resource planning, two
 // drinks added from « Proposés à l'arrivée » (one offered), a partial card payment with « Reste à percevoir », the card reading « Reste », the reopened visit paying the reste, and no invoice
 // block while Qonto is not connected (rule 51 b: a silent refusal). The Qonto link cannot be exercised here (the E2E database never connects a provider): the block must be absent, and nothing is e-mailed.
 import { test, expect } from '../../fixtures/test.js';

@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 48 (audit R20-P1) — the start date field hints the date window from the
+// specs/accounting/qonto-bank-reconciliation.md rule 48 (audit R20-P1) — the start date field hints the date window from the
 // server's day; the date it was loaded with is not hinted. The server is the guard.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

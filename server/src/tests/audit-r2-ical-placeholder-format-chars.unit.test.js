@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 32 (review of PR 859) — the iCal placeholder clients go through the same stripping.
+// specs/site/wordpress-plugin.md rule 32 (review of PR 859) — the iCal placeholder clients go through the same stripping.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

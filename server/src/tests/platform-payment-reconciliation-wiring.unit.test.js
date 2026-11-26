@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 70 — the reconciliation, the Gîtes de France intake and the ledger's commission detail read
+// specs/pricing/pricing-components.md §3 rule 70 — the reconciliation, the Gîtes de France intake and the ledger's commission detail read
 // PLATFORM PAYMENT instead of their own arithmetic: the helpers they call return what the inline formulas returned.
 const test = require('node:test');
 const assert = require('node:assert/strict');

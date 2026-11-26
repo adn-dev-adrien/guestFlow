@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 110 (stabilisation loop t7, B7-1) — the note money no line claims (rule 104's credit, `unclaimed` /
+// specs/pricing/pricing-components.md §3 rule 110 (stabilisation loop t7, B7-1) — the note money no line claims (rule 104's credit, `unclaimed` /
 // `noteCredit`) is counted less what a refund on the trop-perçu already gave back (the settled `lineLowered` rows, the subtraction
 // `paidLineJudgment.noteExcessCents` makes). A note line offered, its trop-perçu refunded, then a new unpaid line: the new line is asked in full
 // at the departure — direct and Booking, the note paid by card or in cash. Σ received net + still asked = the stay's total. A refund deleted

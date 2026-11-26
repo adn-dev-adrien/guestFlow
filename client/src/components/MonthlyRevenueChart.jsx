@@ -1,5 +1,5 @@
 /**
- * MonthlyRevenueChart — « Revenu par mois » of the Suivi financier (specs/finance-dashboard-redesign.md
+ * MonthlyRevenueChart — « Revenu par mois » of the Suivi financier (specs/accounting/finance-dashboard-redesign.md
  * rules 22 and 44): each month of the exercise, this year's column stacked « payé ou passé » (rule 54's word)
  * (sapin) / « à venir » (miel profond), last year's column beside it (sable, outlined) on comparable
  * months; the window's months highlighted when the window is not the whole exercise. Readable without

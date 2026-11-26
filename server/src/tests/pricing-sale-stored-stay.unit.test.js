@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 8 and 9 — a sale on a stay prices the nights as stored and never judges the stay's shape: the `staySale`
+// specs/pricing/pricing-components.md §3 rules 8 and 9 — a sale on a stay prices the nights as stored and never judges the stay's shape: the `staySale`
 // use case (`storedNights` in place of NIGHTS) behind every `extraSale` write; a stay edit keeps NIGHTS and its refusals.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

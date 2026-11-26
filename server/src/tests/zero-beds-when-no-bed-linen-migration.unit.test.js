@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { runZeroBedsWhenNoBedLinenMigration } = require('../utils/zeroBedsWhenNoBedLinenMigration');
 
-// specs/bed-config-in-linen-card.md §5 + §7.1. Plain :memory: fixture with the 4 tables the
+// specs/linen/bed-config-in-linen-card.md §5 + §7.1. Plain :memory: fixture with the 4 tables the
 // migration touches. The migration zeroes bed counts on reservations that have neither an
 // explicit bed-linen-flagged option in reservation_options nor a bed-linen-flagged option
 // declared as a default on their property.

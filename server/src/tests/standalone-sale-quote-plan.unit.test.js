@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 56 (d) (stabilisation loop t4 B4-6; rules 4, 45, 55 a) — the preview of a stored document is the plan its commit runs:
+// specs/sas/outside-booking-sas.md rule 56 (d) (stabilisation loop t4 B4-6; rules 4, 45, 55 a) — the preview of a stored document is the plan its commit runs:
 // the money on no line and a lowered line's money pay the lines being added, and the open rows are shown at the amounts that plan leaves them. Nothing
 // is written by a quote.
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rules 2, 3, 15, 16 — the plugin's settings and their refusals.
+// specs/site/google-vacation-rentals-feed.md rules 2, 3, 15, 16 — the plugin's settings and their refusals.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

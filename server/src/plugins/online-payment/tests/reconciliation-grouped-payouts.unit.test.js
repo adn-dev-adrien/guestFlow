@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 17–19 — grouped platform payouts that include stays whose
+// specs/accounting/reconciliation-assisted-matching.md rules 17–19 — grouped platform payouts that include stays whose
 // payout the fiche does not carry yet: estimates, one payout run, confidence, typed shares, shown as one.
 // Fictional data only.
 const test = require('node:test');

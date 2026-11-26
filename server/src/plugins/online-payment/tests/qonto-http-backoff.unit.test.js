@@ -1,4 +1,4 @@
-// Qonto HTTP back-off (specs/payment-polling-fair-use.md rules 6, 7, 8, 9): exponential retries on
+// Qonto HTTP back-off (specs/payments/payment-polling-fair-use.md rules 6, 7, 8, 9): exponential retries on
 // 429/5xx honouring Retry-After, the RATE_LIMITED abort of a poll pass, the idempotency key on link
 // creation, and the env-configurable thresholds. No real waiting: `sleep` is injected.
 
@@ -113,7 +113,7 @@ test('rule 7: a surviving 429 stops the pass with stoppedBy rate-limit and leave
   const first = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_first', url: 'u' });
   const second = links.create({ reservationId: devisId, type: 'full', amountCents: 30000, providerLinkId: 'ql_second', url: 'u' });
   const { client, calls } = clientWith([{ status: 429 }]);
-  // The core polls through the provider interface (specs/plugins-phase-3a-online-payment.md rule 4);
+  // The core polls through the provider interface (specs/plugins/plugins-phase-3a-online-payment.md rule 4);
   // this one forwards to the real client, whose back-off is what the test is about.
   const provider = {
     id: 'qonto',

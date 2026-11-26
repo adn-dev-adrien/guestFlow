@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 15–16 — the fleet shows the probe's real values: version,
+// specs/hosting/hosting-h1-fleet-runtime.md rules 15–16 — the fleet shows the probe's real values: version,
 // process, last backup, last verified restore, disk and certificate, with the late or close ones
 // marked; the host alerts sit with the others. On a phone, each card carries them.
 import React from 'react';

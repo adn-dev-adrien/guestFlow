@@ -1,6 +1,6 @@
 /**
  * AccountFormDialog — Create/Edit form for an admin-managed user account
- * (specs/admin-account-management.md §6.2).
+ * (specs/hosting/admin-account-management.md §6.2).
  *
  * Wraps FormDialog, owns its local draft + per-field error state. The parent (AccountsPage) passes
  * server-side errors via `fieldErrors`; we project them next to each field and clear them as the
@@ -41,7 +41,7 @@ export default function AccountFormDialog({
 }) {
   const isEdit = mode === 'edit';
   const [draft, setDraft] = useState(EMPTY);
-  // A role only exists with the plugin it serves (specs/plugins-phase-0-foundation.md rule 16); a user
+  // A role only exists with the plugin it serves (specs/plugins/plugins-phase-0-foundation.md rule 16); a user
   // who already holds it keeps seeing it, so it can be removed.
   const roleOffered = {
     [ACCOUNTANT]: usePlugin(ACCOUNTING_EXPORT),

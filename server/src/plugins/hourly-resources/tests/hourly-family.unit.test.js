@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 5 and 47 — the `hourly` article family wraps the hourly price-line contributor:
+// specs/pricing/pricing-components.md §3 rules 5 and 47 — the `hourly` article family wraps the hourly price-line contributor:
 // same amounts, tagged amounts without VAT, the free minutes read as the allowance used.
 const test = require('node:test');
 const assert = require('node:assert/strict');

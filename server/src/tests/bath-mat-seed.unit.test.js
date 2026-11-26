@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { ensureDefaultBathMatOption, SEED_DEFINITION } = require('../utils/bathMatSeed');
 
 // Strict mirror of bathroom-linen-seed.unit.test.js, swapping the flag column + autoOptionType.
-// specs/laundry-bath-mat.md §3 rule 1.
+// specs/linen/laundry-bath-mat.md §3 rule 1.
 
 const NULL_LOGGER = { log() {} };
 
@@ -48,7 +48,7 @@ test('seed on a fresh DB: inserts one bath_mat option with the expected shape', 
   assert.equal(Number(row.autoEnabled), 0);
   assert.equal(row.priceType, 'per_stay');
   assert.equal(Number(row.price), 0);
-  // specs/laundry-bath-mat.md §3 rule 12 — bath mats ship internal-only.
+  // specs/linen/laundry-bath-mat.md §3 rule 12 — bath mats ship internal-only.
   assert.equal(Number(row.displayToClient), 0, 'seeded bath mat is internal by default');
 });
 

@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 45 (R35b N1) on the visit's commit, which replaced the one-screen arrival (specs/outside-booking-sas.md rule 31): a Qonto
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 45 (R35b N1) on the visit's commit, which replaced the one-screen arrival (specs/sas/outside-booking-sas.md rule 31): a Qonto
 // invoice is made only on an explicit choice of the operator — the commit issues one when its body says `invoice: true`, nothing else does (payment, edit, the hourly job) —
 // and an `invoice` that is not a boolean is refused before anything is written. A refused invoice keeps the arrival and the payment (rule 25); the address typed after a
 // refusal is stored with the commit (rule 25), and an invoiced visit takes nothing more but its address.

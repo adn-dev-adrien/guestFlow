@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rule 32 — a fling, a smooth wheel or a PageUp is ONE gesture that can
+// specs/planning/dashboard-planning-scroll.md rule 32 — a fling, a smooth wheel or a PageUp is ONE gesture that can
 // start far from an edge and cross the threshold while it runs: the edge it reaches is asked then.
 import React from 'react';
 import { render, act } from '@testing-library/react';

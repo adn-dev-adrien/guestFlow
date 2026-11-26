@@ -1,5 +1,5 @@
 /**
- * Staging phase of a self-update (specs/self-update-and-releases.md §3.D).
+ * Staging phase of a self-update (specs/hosting/self-update-and-releases.md §3.D).
  *
  * Everything here runs while the CURRENT version is still serving requests: download, integrity
  * check, extraction, dependency install, native rebuild, smoke test, database backup. Any failure
@@ -247,7 +247,7 @@ async function installDependencies({ releaseDir, execFileImpl = execFileAsync })
  * The full staging sequence. `onPhase(phase)` is called before each step so the caller can publish
  * progress. `log(line)` receives one line per step with its result (download, SHA-256, signature,
  * extraction, dependencies), so the update log says what was done and not only what failed
- * (specs/self-update-and-releases.md rule 55). Returns the promoted release directory.
+ * (specs/hosting/self-update-and-releases.md rule 55). Returns the promoted release directory.
  */
 async function stageRelease({
   release,

@@ -1,5 +1,5 @@
 /**
- * The refusal of a client record that already exists (specs/clients.md rule 12): 409
+ * The refusal of a client record that already exists (specs/clients/clients.md rule 12): 409
  * `CLIENT_EXISTS`, carrying the existing client so the screen can offer to use it.
  */
 function clientExistsRefusal(existing) {

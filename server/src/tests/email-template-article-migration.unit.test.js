@@ -1,6 +1,6 @@
 // Content migration: the shipped J-7 reminder upgrades "séjour à {{propertyName}}" →
 // "séjour {{propertyWithArticle}}" on installs seeded before the article feature
-// (specs/email-automation.md §3 rule 13). Mirrors the idempotent UPDATE in database.js.
+// (specs/emails/email-automation.md §3 rule 13). Mirrors the idempotent UPDATE in database.js.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

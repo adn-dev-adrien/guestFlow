@@ -1,4 +1,4 @@
-// specs/adjustable-complement-amounts.md rule 7 — le montant ajusté d'un complément est validé côté
+// specs/sas/adjustable-complement-amounts.md rule 7 — le montant ajusté d'un complément est validé côté
 // SERVEUR : nombre fini ≥ 0, sinon `NEGATIVE_AMOUNT` / `NOT_A_NUMBER`.
 //
 // Pourquoi ce fichier existe : le validateur `validateMoneyAmount` a ses propres tests depuis
@@ -107,7 +107,7 @@ test('rule 7 — ce qui n’est pas un nombre est refusé, jamais coercé', () =
   assert.equal(res.body.code, 'NOT_A_NUMBER');
 });
 
-// specs/adjustable-complement-amounts.md rule 3 — le champ vide vaut « calcul automatique » : c'est
+// specs/sas/adjustable-complement-amounts.md rule 3 — le champ vide vaut « calcul automatique » : c'est
 // la valeur que le navigateur envoie dès que l'opérateur efface le montant, et elle doit traverser.
 test('rule 7 — un champ vide traverse : c’est le retour au calcul automatique', () => {
   const { res } = save({ complementAmountOverride: '', endOfStayComplementAmountOverride: '' });

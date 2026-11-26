@@ -1,4 +1,4 @@
-// specs/plugins-phase-3b-neat.md §3.C, §3.E — Neat becomes the neat plugin: it prices the insurance
+// specs/plugins/plugins-phase-3b-neat.md §3.C, §3.E — Neat becomes the neat plugin: it prices the insurance
 // through the core's post-processor, mounts its routes at the URLs the card knows, runs its pass as a job
 // woken by the core's events, keeps its settings in plugin_settings and its two tables, adds its block
 // to the fiche, and its erasure warns about the subscriptions that live on at Neat.

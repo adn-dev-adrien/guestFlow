@@ -1,5 +1,5 @@
 /**
- * One-shot (specs/payment-schedule-and-cancellation.md rule 61): the stored `cancellation_notice` sentence written by
+ * One-shot (specs/payments/payment-schedule-and-cancellation.md rule 61): the stored `cancellation_notice` sentence written by
  * the seed names « l'acompte » kept, while the sum the cancellation keeps may be échéances of a plan or a commission
  * withheld. Only that exact seeded sentence is rewritten to « la somme », in French and in English; a body the
  * operator reworded is left as it is. Returns the number of fields updated.

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 85 — the hourly-resources plugin on a stay holding TWO lines of one resource: a tick lands on its own
+// specs/pricing/pricing-components.md §3 rule 85 — the hourly-resources plugin on a stay holding TWO lines of one resource: a tick lands on its own
 // line, the SAS « Planifier » write replaces the resource's sessions once, the hours of the lines add up.
 const test = require('node:test');
 const assert = require('node:assert/strict');

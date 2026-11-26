@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rule 64 (audit R42-INJ-L1, 2026-11-10) — through the real application: on POST and PUT
+// specs/settings/settings-input-guards.md rule 64 (audit R42-INJ-L1, 2026-11-10) — through the real application: on POST and PUT
 // /api/properties the e-mail facts are judged with the rest, before the first write. `emailHook` / `emailHookEn` text of
 // 300 characters at most (as PUT /properties/email-hooks), `hasWifi` / `depositEnabled` a switch, `cleaningIncluded` /
 // `towelsProvided` / `bedLinenProvided` a switch or `options`. They used to store « [object Object] » in a guest e-mail,

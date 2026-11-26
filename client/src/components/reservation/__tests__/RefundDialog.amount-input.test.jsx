@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import RefundDialog from '../RefundDialog';
 
-// specs/reservation-refunds.md rule 37 — the amount is typed as text, never back-computes a
+// specs/payments/reservation-refunds.md rule 37 — the amount is typed as text, never back-computes a
 // fractional quantity, and a refusal says why next to the button (final review 2026-10-18, UI #1:
 // 45 typed on « Linge de lit » 28 € set the stepper to 6.43 and the button greyed without a reason).
 

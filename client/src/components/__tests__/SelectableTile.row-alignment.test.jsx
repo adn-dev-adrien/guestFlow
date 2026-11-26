@@ -1,4 +1,4 @@
-// specs/report-grammar.md §3 rule 18 — a tile with a definition or a pill is a column laid from its top,
+// specs/design-system/report-grammar.md §3 rule 18 — a tile with a definition or a pill is a column laid from its top,
 // so the labels of a row stay level whether a tile carries a pill or not; the legacy tile is untouched
 // (its markup is pinned by ReportGrammar.legacy-unchanged.test.jsx).
 import React from 'react';

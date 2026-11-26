@@ -1,5 +1,5 @@
 // @ts-check
-// E2E helpers of specs/hosting-h2-account-security.md: the dev mail catcher (GUESTFLOW_MAIL_OUTBOX),
+// E2E helpers of specs/hosting/hosting-h2-account-security.md: the dev mail catcher (GUESTFLOW_MAIL_OUTBOX),
 // a dedicated account seeded in SQLite so the suite's own admin never gets a second step, the TOTP
 // helpers shared with the server, and the console's side of support access signed with a fixed
 // TEST-ONLY key pair (playwright.config.js gives its public half to the server).

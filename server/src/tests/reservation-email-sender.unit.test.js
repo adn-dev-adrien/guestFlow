@@ -1,4 +1,4 @@
-// reservationEmailSender (specs/online-payments-qonto.md §3.4): event-triggered send of a template by
+// reservationEmailSender (specs/payments/online-payments-qonto.md §3.4): event-triggered send of a template by
 // stableKey for a reservation — used to send the « Confirmation de réservation » email on payment.
 
 const test = require('node:test');
@@ -49,7 +49,7 @@ test('renders + sends the confirmation email and logs it as sent', async () => {
   assert.equal(r.sent, true);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, 'jean@x.fr');
-  assert.match(sent[0].subject, /est confirmé/i);  // specs/guest-email-sequence.md §6.1
+  assert.match(sent[0].subject, /est confirmé/i);  // specs/emails/guest-email-sequence.md §6.1
   assert.match(sent[0].text, /Jean/);          // {{clientFirstName}}
   assert.match(sent[0].text, /Gite des Pins/);  // {{propertyName}}
   assert.match(sent[0].text, /300/);            // {{finalPrice}}

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 18 — the studio's rich-text notation: what the operator types becomes the markup the server
+// specs/guest-app/guest-app.md rule 18 — the studio's rich-text notation: what the operator types becomes the markup the server
 // keeps, and stored markup reads back into the same notation.
 import { describe, expect, it } from 'vitest';
 import { toHtml, toNotation } from '../utils/richText';

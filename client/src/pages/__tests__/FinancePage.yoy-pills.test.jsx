@@ -1,4 +1,4 @@
-// specs/finance-revpar-year-over-year.md §3 rules 15, 16 and 17 — the tiles and the hero figures carry
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 15, 16 and 17 — the tiles and the hero figures carry
 // their « i » and the year-over-year pill from `comparison.metrics`, RevPAR and the open nights join the
 // hero, one notice says why or on how much the pills compare; an older payload renders as before.
 import React from 'react';

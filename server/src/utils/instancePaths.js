@@ -1,6 +1,6 @@
 /**
  * Where an instance keeps the files that are its own and not the release's
- * (specs/hosting-h1-fleet-runtime.md H-D4).
+ * (specs/hosting/hosting-h1-fleet-runtime.md H-D4).
  *
  * A hosted release directory is shared by every instance on the host, so nothing an instance writes
  * may land inside it. Two environment variables move those files out:

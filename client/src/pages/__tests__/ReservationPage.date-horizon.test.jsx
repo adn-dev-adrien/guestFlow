@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13 (Adrien's decision of 2026-11-02) — the fiche and the devis say
+// specs/tech/reservations-backend-mvc.md rule 13 (Adrien's decision of 2026-11-02) — the fiche and the devis say
 // « Date trop lointaine : 5 ans au plus. » under the dates for a date typed past today + 5 years, ask neither a
 // quote, the occupied dates nor the resources' availability for it, and « Enregistrer » refuses before any request. A date the record already
 // carries is not held to the horizon. And (review of PR #937, R2) a range the server refuses is not sent to the

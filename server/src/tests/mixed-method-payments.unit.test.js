@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md — the pure rules of a payment split over several methods: what a set of lines
+// specs/payments/mixed-method-payments.md — the pure rules of a payment split over several methods: what a set of lines
 // may be (rules 4-9, 15) and what a recorded settlement counts for (rules 16-18, 26-28).
 const test = require('node:test');
 const assert = require('node:assert/strict');

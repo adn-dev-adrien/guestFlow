@@ -31,7 +31,7 @@ vi.mock('../../../api', () => ({
     getAccountingPlatforms: vi.fn(),
     getAccountingSales: vi.fn(),
     downloadAccountingSalesCsv: vi.fn(),
-    // specs/cancellation-compensation.md §6.3 — the page now mounts the compensations card.
+    // specs/payments/cancellation-compensation.md §6.3 — the page now mounts the compensations card.
     getCancellationCompensations: vi.fn(() => Promise.resolve({ pending: [], received: [], totals: { pendingExpected: 0, receivedInMonth: 0 } })),
   },
 }));
@@ -94,7 +94,7 @@ beforeEach(() => {
 });
 
 describe('AccountingPage — clickable client name in journal entries', () => {
-  // specs/accountant-accounting-export.md rule 25
+  // specs/accounting/accountant-accounting-export.md rule 25
   test('admin (new roles array shape): client name is a link to the reservation', async () => {
     setAuth({ id: 1, email: 'adrien@example.com', roles: ['admin'] });
     renderPage();
@@ -122,7 +122,7 @@ describe('AccountingPage — clickable client name in journal entries', () => {
     expect(link).toHaveAttribute('href', '/reservations/42');
   });
 
-  // specs/accountant-accounting-export.md rule 25
+  // specs/accounting/accountant-accounting-export.md rule 25
   test('accountant-only: NO link rendered for the client name', async () => {
     // Server already 403s `/api/reservations/:id` for accountants, but the UI hides the link too
     // so the click leads nowhere instead of a refused fetch. Note: "Jean Dupont" appears twice
@@ -154,7 +154,7 @@ describe('AccountingPage — clickable client name in journal entries', () => {
   });
 });
 
-// specs/accountant-accounting-export.md rule 27 — sous le montant de chaque carte, la part du séjour
+// specs/accounting/accountant-accounting-export.md rule 27 — sous le montant de chaque carte, la part du séjour
 // que cet encaissement représente et le total du séjour. Sans ce contexte, une carte à 100 € ne dit
 // pas si c'est un acompte de 30 % ou la totalité : le comptable ne peut pas la rapprocher.
 describe('AccountingPage — le contexte de chaque carte', () => {
@@ -174,7 +174,7 @@ describe('AccountingPage — le contexte de chaque carte', () => {
     expect(await screen.findByText(/30 % du séjour \(100,00 €\)/)).toBeInTheDocument();
   });
 
-  // specs/accountant-accounting-export.md rule 26 — le mois et l'année vivent dans l'URL, si bien
+  // specs/accounting/accountant-accounting-export.md rule 26 — le mois et l'année vivent dans l'URL, si bien
   // qu'un retour arrière — ou un lien envoyé au comptable — retombe sur le même mois.
   test('rule 26 — le mois et l’année de l’URL pilotent la requête', async () => {
     setAuth({ id: 1, roles: ['admin'] });

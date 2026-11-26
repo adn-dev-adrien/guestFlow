@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import LinkTransactionDialog from '../LinkTransactionDialog';
 import { ficheCredit, ficheCreditsPayload, previewPayload } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rules 1, 7, 8, 14 — review of 2026-10-28: a closed credit dialog never
+// specs/accounting/reconciliation-assisted-matching.md rules 1, 7, 8, 14 — review of 2026-10-28: a closed credit dialog never
 // crashes, a list or preview failure is worded with a retry, a manual split names its transfers and shows a
 // refusal under the right field, a credit proposed to the fiche is named as such.
 

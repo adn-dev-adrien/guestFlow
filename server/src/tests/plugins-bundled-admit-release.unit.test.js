@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 62 and specs/self-update-and-releases.md rule 54 (D24, audit R34-CON-H1 /
+// specs/plugins/plugins-phase-4-registry.md rule 62 and specs/hosting/self-update-and-releases.md rule 54 (D24, audit R34-CON-H1 /
 // R34-P1) — a release never ships a plugin its own core refuses at boot: every bundled manifest admits the root
 // package.json version and SDK_VERSION, and the next core majors too while the SDK major holds.
 // `check-plugin-versions` (the release `verify` job, every PR, the release skill's pre-flight with `--core-version`)

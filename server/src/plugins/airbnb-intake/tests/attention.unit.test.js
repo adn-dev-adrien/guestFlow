@@ -1,5 +1,5 @@
-// specs/airbnb-mail-intake.md rule 0 (inte/plugins note of 2026-10-26) and rule 15 — the Airbnb mails to
-// check are one subject of the home, counted by the server (specs/shell-and-home-day-first.md rules 6, 9).
+// specs/platforms/airbnb-mail-intake.md rule 0 (inte/plugins note of 2026-10-26) and rule 15 — the Airbnb mails to
+// check are one subject of the home, counted by the server (specs/planning/shell-and-home-day-first.md rules 6, 9).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

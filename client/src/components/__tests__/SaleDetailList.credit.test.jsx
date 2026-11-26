@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 31 and 104 e (stabilisation loop t6, UI6-1 / UI6-2) — the fiche's sale panel draws the server's rule-104
+// specs/pricing/pricing-components.md §3 rules 31 and 104 e (stabilisation loop t6, UI6-1 / UI6-2) — the fiche's sale panel draws the server's rule-104
 // credits as read-only « Déjà réglé » lines after the sold lines, and « Reste à payer » is the server's `totals.dueCents` (what the stay still asks,
 // credits already off): the screen sums nothing.
 import React from 'react';

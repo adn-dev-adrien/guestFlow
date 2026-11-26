@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 16, 18-20 — a guest's name is one ribbon per week segment laid over
+// specs/planning/calendar-property-parity.md rules 16, 18-20 — a guest's name is one ribbon per week segment laid over
 // the stay, never shrunk vertically, truncated only by width with the full text on hover and in its name;
 // the greyed days at either end of a block are real, interactive days.
 import React from 'react';

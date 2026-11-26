@@ -1,5 +1,5 @@
-// Audit R29-DB-1 (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rule 24 and
-// specs/reservation-payment-ledger.md rule 69. A deferred arrival complement with no end of stay (0 €): the credit
+// Audit R29-DB-1 (2026-11-08) — specs/sas/defer-arrival-complement-to-checkout.md rule 24 and
+// specs/payments/reservation-payment-ledger.md rule 69. A deferred arrival complement with no end of stay (0 €): the credit
 // confirmed on the merged « Complément de fin de séjour » receipt marks the arrival part, and the card stays the merged
 // one, so the receipt stays « Rapproché » instead of coming back as « Saisi, rien sur le compte » on a « Complément
 // d'arrivée » the bank never paid. « Défaire » takes the arrival part back.

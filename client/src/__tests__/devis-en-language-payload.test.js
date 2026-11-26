@@ -1,5 +1,5 @@
 // ReservationPage / OptionsPage / ResourcesPage — bilingual devis PDF payload plumbing.
-// See specs/devis-english-language.md §3 rules 1, 6, 7.
+// See specs/devis/devis-english-language.md §3 rules 1, 6, 7.
 //
 // We don't mount the giant pages here (they pull in MUI + router + 30 contexts) — instead we
 // test the small, pure transforms that the pages use to build their save payloads. Those are

@@ -1,4 +1,4 @@
-// specs/cumulative-month-calendar.md rules 13-14 — the week in progress is the row the Dashboard opens on
+// specs/planning/cumulative-month-calendar.md rules 13-14 — the week in progress is the row the Dashboard opens on
 // (on a phone, the first stay of the month not yet over), and the day names stick under each month title.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

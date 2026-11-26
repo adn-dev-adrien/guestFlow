@@ -1,4 +1,4 @@
-// Shared fixtures of the mini SAS suites (specs/outside-booking-sas.md §7): a visit payload as `GET /:id/visit` answers it, and a stand-in for the server's quote so a suite can
+// Shared fixtures of the mini SAS suites (specs/sas/outside-booking-sas.md §7): a visit payload as `GET /:id/visit` answers it, and a stand-in for the server's quote so a suite can
 // drive the draft. The stand-in prices only what the suites ask for; the dialog under test renders what it answers and computes nothing.
 export const BOOKING = {
   id: 5, resourceId: 3, resourceName: 'Bain nordique', date: '2099-02-13', startTime: '18:00', endTime: '20:00', propertyId: null,

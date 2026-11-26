@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 20 (review of PR #937, R1) — the occupied-dates `to` is exclusive: the
+// specs/pricing/establishment-closures.md rule 20 (review of PR #937, R1) — the occupied-dates `to` is exclusive: the
 // calendar asks for one month grid up to the day after its last cell, so a closure on the grid's last Sunday
 // still stops the drag-select.
 import React from 'react';

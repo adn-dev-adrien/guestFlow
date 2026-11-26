@@ -1,4 +1,4 @@
-// specs/ical-export-closures.md — the establishment closures that apply to a property must leave
+// specs/platforms/ical-export-closures.md — the establishment closures that apply to a property must leave
 // through its public iCal feed, so the platforms stop selling a period declared closed.
 //
 // Dates are all relative to today: the "not over yet" filter (rule 2) is the one rule a fixed

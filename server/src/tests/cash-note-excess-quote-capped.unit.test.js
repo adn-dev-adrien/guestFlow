@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 106 b (stabilisation loop t7, data observation, 2026-11-16) — the default « Caisse interne » refund means of a
+// specs/pricing/pricing-components.md §3 rule 106 b (stabilisation loop t7, data observation, 2026-11-16) — the default « Caisse interne » refund means of a
 // save not written yet reads the cash a note took beyond what the quote charges on its line, capped by what the quote charges anew: a line added,
 // un-offered or raised takes the freed note money first (rule 104), so a mixed save — cash freed on one line, an unpaid line added, a booked
 // trop-perçu elsewhere — never defaults that booked money to the caisse interne. Before: the quote branch was uncapped.

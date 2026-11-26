@@ -1,4 +1,4 @@
-// specs/plugins-phase-3b-neat.md rules 6, 21–22 (decision P13) — without an active Neat the cancellation
+// specs/plugins/plugins-phase-3b-neat.md rules 6, 21–22 (decision P13) — without an active Neat the cancellation
 // insurance leaves every option list, the site included, and cannot be made again; a stay that carries
 // it gets it back read-only; the plugin's return brings the option back with its settings.
 

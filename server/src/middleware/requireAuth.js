@@ -6,7 +6,7 @@
  * - User gone or deactivated  → 401 UNAUTHENTICATED + the session is destroyed (except an open
  *                               support session: the support account is never active)
  * - User must change pw       → 403 PASSWORD_CHANGE_REQUIRED (the default password only opens the
- *                               change-password screen; see specs/security-auth-encryption.md rule 6)
+ *                               change-password screen; see specs/hosting/security-auth-encryption.md rule 6)
  * - Otherwise                 → refreshes req.session.user from the DB, attaches req.user, continues.
  *
  * The request is RE-VALIDATED against the database on every call instead of trusting the user
@@ -26,7 +26,7 @@ const defaultUsersModel = require('../models/usersModel');
 
 // The support account is never active (it cannot log in with a password): a session opened by the
 // console's sign-in link carries its access id, and supportAudit decides whether that access still
-// holds (specs/hosting-h2-account-security.md rules 14-16, 21).
+// holds (specs/hosting/hosting-h2-account-security.md rules 14-16, 21).
 function isOpenSupportSession(req, user) {
   return Boolean(user && user.isSupport && req.session && req.session.supportAccessId);
 }

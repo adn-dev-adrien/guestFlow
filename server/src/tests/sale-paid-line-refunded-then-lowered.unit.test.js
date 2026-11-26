@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23, 104, 105, 107 (stabilisation loop t6, D6-1, 2026-11-16) — the obligation a confirmed lowering of a paid line
+// specs/pricing/pricing-components.md §3 rules 23, 104, 105, 107 (stabilisation loop t6, D6-1, 2026-11-16) — the obligation a confirmed lowering of a paid line
 // opens is the note money received beyond the total MINUS what a refund on the trop-perçu already gave back. Before: `noteExcessCents` measured the
 // notes and the buckets, which still count the refunded money as received, so a second paid line offered after a refund opened 90 € owed while the
 // trop-perçu read 60 € — the register asked to give the first 30 € back a second time.

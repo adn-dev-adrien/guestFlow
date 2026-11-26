@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 5 and 47 (SDK 2.27.0) — `ctx.articleFamily(id, family)`: a plugin adds a pricing
+// specs/pricing/pricing-components.md §3 rules 5 and 47 (SDK 2.27.0) — `ctx.articleFamily(id, family)`: a plugin adds a pricing
 // family to the Articles head; it prices only while the plugin is live; an id is declared once; the hourly-resources
 // plugin declares `hourly` next to its price-line contributor (the alias).
 const test = require('node:test');

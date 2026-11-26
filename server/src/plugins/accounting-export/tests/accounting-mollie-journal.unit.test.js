@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — the Mollie journal of the accounting export: a paid link
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — the Mollie journal of the accounting export: a paid link
 // debits the clearing account (what Mollie owes) and credits the client; a reconciled credit debits the bank and credits the
 // clearing account; the settlement's costs go to the fee account. Every entry is two lines of one amount. The export page
 // gets the clearing balance at month end and the credits no payment explains, which book nothing. Fictional data only.

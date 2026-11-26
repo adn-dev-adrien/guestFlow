@@ -1,5 +1,5 @@
 /**
- * Frozen arrival complement inflated by a later mid-stay sale — specs/frozen-complement-trusts-client.md.
+ * Frozen arrival complement inflated by a later mid-stay sale — specs/sas/frozen-complement-trusts-client.md.
  *
  * Once `complementPaid = 1` the arrival complement is frozen: the engine returns the amount it is
  * given instead of recomputing it (pricing.js). That input used to come from the request body, i.e.

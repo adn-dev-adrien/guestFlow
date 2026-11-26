@@ -1,5 +1,5 @@
 /**
- * Payment link lifecycle constants (specs/payment-link-lifecycle.md).
+ * Payment link lifecycle constants (specs/payments/payment-link-lifecycle.md).
  *
  * `LINK_REASONS` are the values of `payment_links.cancelReason`, the reason a link left `open`:
  * withdrawn (`cancelled`) — orphan, superseded, dates-taken, operator, settled, amount-changed;

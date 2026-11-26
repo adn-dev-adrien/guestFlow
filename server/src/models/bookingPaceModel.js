@@ -1,4 +1,4 @@
-// Booking pace of the Suivi financier (specs/booking-pace.md §4.1): reads the stays through financeModel
+// Booking pace of the Suivi financier (specs/pricing/booking-pace.md §4.1): reads the stays through financeModel
 // — never re-deriving a stay's amount — and hands them to utils/bookingPace.
 
 const db = require('../database');

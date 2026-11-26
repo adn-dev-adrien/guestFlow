@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rules 11–17, 29–32 — the matcher proposes, never decides.
+// specs/accounting/qonto-bank-reconciliation.md rules 11–17, 29–32 — the matcher proposes, never decides.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildProposals, classify, smallestSubset } = require('../reconciliation/matcher');

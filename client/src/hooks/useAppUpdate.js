@@ -1,5 +1,5 @@
 /**
- * Single source of update state for the client (specs/self-update-and-releases.md §4.2).
+ * Single source of update state for the client (specs/hosting/self-update-and-releases.md §4.2).
  *
  * The server ships everything ready to render — whether an update exists, its notes already split
  * into sections, the French label of the current phase. This hook only fetches, holds and triggers;

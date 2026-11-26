@@ -1,4 +1,4 @@
-// specs/platform-payout-due-date.md rule 20 — le point d'entrée de relance REFUSE une réservation
+// specs/platforms/platform-payout-due-date.md rule 20 — le point d'entrée de relance REFUSE une réservation
 // non directe.
 //
 // Pourquoi ce fichier existe : la carte cache déjà le bouton « Relancer » sur une ligne plateforme
@@ -25,7 +25,7 @@ function controllerFor(platform, sent) {
     reservationsModel: { getPlatform: () => platform },
     sendDepositRequest: async (id) => { sent.push(['deposit', id]); return { httpStatus: 200, body: { ok: true } }; },
     sendBalanceRequest: async (id) => { sent.push(['balance', id]); return { httpStatus: 200, body: { ok: true } }; },
-    // A payment provider is connected (specs/plugins-phase-3a-online-payment.md rule 5).
+    // A payment provider is connected (specs/plugins/plugins-phase-3a-online-payment.md rule 5).
     hasPaymentProvider: () => true,
   });
 }
@@ -37,7 +37,7 @@ async function remind(platform, body = { type: 'balance' }) {
   return { res, sent };
 }
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('rule 20 — relancer une réservation Airbnb est refusé, et aucun email ne part', async () => {
@@ -47,7 +47,7 @@ test('rule 20 — relancer une réservation Airbnb est refusé, et aucun email n
   assert.deepEqual(sent, [], 'rien n’a été envoyé');
 });
 
-// specs/platform-payout-due-date.md rule 2 — Lodgify est un canal PROPRE : le client nous doit son
+// specs/platforms/platform-payout-due-date.md rule 2 — Lodgify est un canal PROPRE : le client nous doit son
 // solde, la relance est légitime.
 test('rule 20 — une réservation Lodgify se relance comme une directe', async () => {
   const { res, sent } = await remind('lodgify');

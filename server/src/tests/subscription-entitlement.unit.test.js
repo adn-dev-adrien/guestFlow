@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md — C1, the entitlement inside the instance: the signed
+// specs/hosting/control-plane-plans-and-access.md — C1, the entitlement inside the instance: the signed
 // licence (rules 9, 10, 29, 30), plugins outside the plan (rules 11, 12), quotas (rule 13), the
 // read-only path (rules 14, 16), the banner payload (§4.3) and the host-only session cookie (rule 23).
 
@@ -343,7 +343,7 @@ test('rule 13: below the quota the account creation carries on', async () => {
 async function withApp(readOnly, run) {
   const app = express();
   app.use(express.json());
-  // A plugin webhook passes like a sync (specs/plugins-phase-3a-online-payment.md rule 12): the Qonto
+  // A plugin webhook passes like a sync (specs/plugins/plugins-phase-3a-online-payment.md rule 12): the Qonto
   // one, as the loader reports it once online-payment registered.
   app.use('/api', enforceSubscription({ isReadOnly: () => readOnly, isWebhook: (m, p) => m === 'POST' && p === '/payments/qonto/webhook' }));
   app.use('/public/v1/booking-requests', closedWhenReadOnly({ isReadOnly: () => readOnly }));

@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 51 — « Réservable jusqu'à » beside the opening hours of a slotted resource.
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 51 — « Réservable jusqu'à » beside the opening hours of a slotted resource.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';

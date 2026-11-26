@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 (stabilisation loop t14, S14-1 and S14-2, 2026-11-17) — a new free line repeating a label is
+// specs/pricing/pricing-components.md §3 rule 94 (stabilisation loop t14, S14-1 and S14-2, 2026-11-17) — a new free line repeating a label is
 // numbered « (2) » on every path. The save numbered it, the price preview did not: a new « Bois » beside a discounted « Bois » read the stored
 // line's discount and moment, so the fiche showed 2 € less than the save stored and could route the new line to another bucket (S14-1). The
 // creation did not number at all: two « Ménage » shared one key, and a 2 € line discount on one took 4 € off the stay (S14-2).

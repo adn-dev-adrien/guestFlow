@@ -1,5 +1,5 @@
 /**
- * Installment plan of a direct reservation — pure rules (specs/direct-installments.md §3).
+ * Installment plan of a direct reservation — pure rules (specs/payments/direct-installments.md §3).
  *
  * No DB, no clock: today, the stay dates and the property's solde delay are injected, amounts travel in
  * cents. The controller persists what this module decides; the client only renders it (CLAUDE.md §6.0).
@@ -173,7 +173,7 @@ function validateDate({ installments, index, dueDate, today, startDate }) {
     return dateMessage(target.number, 'date invalide.');
   }
   if (dueDate < today) return dateMessage(target.number, `date passée, à partir du ${frDate(today)}.`);
-  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a stay stored past the horizon
+  // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a stay stored past the horizon
   // before the rule does not carry its installments past it.
   if (dateBeyondHorizon(dueDate, today)) return dateMessage(target.number, 'date trop lointaine : 5 ans au plus.');
   const arrival = String(startDate).slice(0, 10);
@@ -239,7 +239,7 @@ function statusOf(installment, today) {
 
 const METHOD_LABELS = {
   link: 'lien', transfer: 'virement', cash: 'espèces', cheque: 'chèque', card: 'carte', other: 'autre',
-  // specs/mixed-method-payments.md rule 12 — an installment paid with several methods.
+  // specs/payments/mixed-method-payments.md rule 12 — an installment paid with several methods.
   mixed: 'plusieurs moyens',
 };
 

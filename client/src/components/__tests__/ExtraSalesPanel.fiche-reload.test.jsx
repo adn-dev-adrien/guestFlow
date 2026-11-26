@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 27, 30, 85 — every accepted write of the panel makes the fiche re-read (a later save must not drop the sold line);
+// specs/pricing/pricing-components.md §3 rules 27, 30, 85 — every accepted write of the panel makes the fiche re-read (a later save must not drop the sold line);
 // a closed fiche offers no sale; a failed read shows an error with a retry.
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';

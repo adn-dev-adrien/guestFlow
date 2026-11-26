@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 1-4, 10, 32 — the plugin as the core sees it: its manifest and catalogue entry, what it registers,
+// specs/gift-vouchers/gift-vouchers.md rules 1-4, 10, 32 — the plugin as the core sees it: its manifest and catalogue entry, what it registers,
 // its settings, the pepper that is never drawn again, and an erasure refused while a voucher still has a balance.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -85,7 +85,7 @@ test('rules 1, 4, 12: it mounts one public tree and one admin tree, declares its
   assert.deepEqual(calls.jobs, ['pending-orders-purge', 'receipts-retry', 'holds-release', 'uses-lapse', 'visuals-purge', 'checks-purge']);
   assert.deepEqual(calls.prepaid, [['giftVoucher', 'Bon cadeau']]);
   assert.deepEqual(calls.attention, ['gift-voucher-checks']);
-  assert.deepEqual(calls.channels, ['gift-voucher-checks', 'online-sales'], 'the second is the channel shared with the sessions booked online (specs/site-outside-resource-booking.md rule 22)');
+  assert.deepEqual(calls.channels, ['gift-voucher-checks', 'online-sales'], 'the second is the channel shared with the sessions booked online (specs/site/site-outside-resource-booking.md rule 22)');
   assert.deepEqual(calls.events, ['pricing.changed']);
 });
 

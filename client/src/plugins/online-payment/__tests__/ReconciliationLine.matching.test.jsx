@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import ReconciliationLine from '../ReconciliationLine';
 import { proposed, done, bankSide } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rules 15, 18, 19, 21 — a proposal over several credits, a group
+// specs/accounting/reconciliation-assisted-matching.md rules 15, 18, 19, 21 — a proposal over several credits, a group
 // whose shares are typed, the « auto » badge and the stays a confirmed credit also covered.
 
 const handlers = () => ({ onConfirm: vi.fn(), onDiscard: vi.fn(), onUndo: vi.fn(), onShares: vi.fn() });

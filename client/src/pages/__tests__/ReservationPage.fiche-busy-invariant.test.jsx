@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 101 (reading 2026-11-17, loop t16 UI16-1) — the fiche on a stale or in-flight state: ONE state
+// specs/pricing/pricing-components.md rule 101 (reading 2026-11-17, loop t16 UI16-1) — the fiche on a stale or in-flight state: ONE state
 // (re-read in flight or failed, a « Ventes du séjour » write before its re-read, a save in flight, a logement switch) that every
 // write path reads. Table-driven: the bar entries and every handler outside the disabled+inert fieldset are enumerated from the
 // page's source, so a new action without a policy row fails here. Each member must act on fresh data or be disabled with
@@ -147,7 +147,7 @@ const OUTSIDE_POLICY = [
   [/onSaveAndQuit=/, 'held (saveDisabledReason while saveBlocked)'],
   [/onClose=\{\(\) => setEmailSendOpen|onMoneyChanged=/, 'email dialog (no stay write)'],
   [/onClose=\{\(\) => setCancelDialogOpen|onConfirm=\{handleCancelReservation\}/, 'cancel dialog (opener held)'],
-  // specs/manual-price-on-placement-change.md rules 12-13 — sets the draft's manual price or puts its placement back; no stay write.
+  // specs/reservations/manual-price-on-placement-change.md rules 12-13 — sets the draft's manual price or puts its placement back; no stay write.
   [/onConfirm=\{handleManualPriceReviewConfirm\}|onCancel=\{handleManualPriceReviewCancel\}/, 'manual price review (local draft edit)'],
 ];
 const policyOf = (h) => (OUTSIDE_POLICY.find(([re]) => re.test(h.text)) || [null, null])[1];

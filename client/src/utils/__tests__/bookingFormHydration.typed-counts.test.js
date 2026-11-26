@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 19 (audit R21-S5) — a stored typed count comes back on the form line:
+// specs/options/non-card-option-served-persons.md rule 19 (audit R21-S5) — a stored typed count comes back on the form line:
 // without it the next save bills the whole stay.
 import { expect, test } from 'vitest';
 import { hydrateSelectedOptions } from '../bookingFormHydration';

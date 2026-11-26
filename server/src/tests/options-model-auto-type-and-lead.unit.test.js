@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const optionsModel = require('../models/optionsModel');
 
-// specs/sas-breakfast-bread-and-push.md rule 7 (notify lead) + the autoOptionType preservation
+// specs/sas/sas-breakfast-bread-and-push.md rule 7 (notify lead) + the autoOptionType preservation
 // regression found during its verification: the Options edit form never sends `autoOptionType`,
 // and update() used to blindly write `payload.autoOptionType || null` — one save of the breakfast
 // option stripped its type, killing the planning card / SAS step / push.

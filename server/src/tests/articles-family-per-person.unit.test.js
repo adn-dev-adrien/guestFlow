@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 47 and 57 — article family `perPerson`: one price per person served
+// specs/pricing/pricing-components.md §3 rules 47 and 57 — article family `perPerson`: one price per person served
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { family } = require('../utils/pricing/articles/families/perPerson');

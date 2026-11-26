@@ -1,4 +1,4 @@
-// specs/property-deposit-switch.md rules 9-13 — the « Acompte & Solde » card splits in two (rule 9):
+// specs/payments/property-deposit-switch.md rules 9-13 — the « Acompte & Solde » card splits in two (rule 9):
 // « Acompte » opens on its switch and reveals its two settings only when ON (rule 10), while
 // « Paiement & Caution » stays visible whatever the switch (rule 11) and says what « Solde (jours
 // avant) » means without an acompte (rule 12). Showing and hiding is local UI state only — the form
@@ -26,7 +26,7 @@ vi.mock('../../api', () => ({
   default: {
     getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
     getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(),
-    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
+    // The « Arrivée » block is part of the page (specs/emails/guest-email-texts-made-simple.md rule 35).
     getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
     savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
@@ -85,7 +85,7 @@ beforeEach(() => {
 // Rules 9-10 — the card exists, and OFF it holds the switch and nothing else.
 test('switch OFF: the acompte card holds nothing but the switch and its caption', async () => {
   await renderWith(0);
-  // Switch OFF: a single payment — the card is titled after it (specs/settings-rationalization.md rule 21).
+  // Switch OFF: a single payment — the card is titled after it (specs/settings/settings-rationalization.md rule 21).
   expect(screen.getAllByText('Paiement & caution')).toHaveLength(2); // the tab + the card title
   expect(screen.getByRole('switch', { name: 'Demander un acompte' })).not.toBeChecked();
   expect(screen.getByText(/payé en une fois/)).toBeInTheDocument();

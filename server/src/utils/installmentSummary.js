@@ -1,5 +1,5 @@
 /**
- * The installment plan as the pricing engine needs it (specs/direct-installments.md rules 4-5, 8): how
+ * The installment plan as the pricing engine needs it (specs/payments/direct-installments.md rules 4-5, 8): how
  * much the plan schedules, how much of it is collected, whether it is entirely settled. A plain read on
  * the handle it is given — no model, no database import — so the engine stays usable on any database;
  * `null` when the reservation has no plan or the table does not exist.

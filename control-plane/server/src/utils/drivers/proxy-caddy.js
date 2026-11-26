@@ -1,5 +1,5 @@
 /**
- * The `caddy` proxy driver (specs/hosting-h1-fleet-runtime.md H-D2): one site file per address in
+ * The `caddy` proxy driver (specs/hosting/hosting-h1-fleet-runtime.md H-D2): one site file per address in
  * the directory the main Caddyfile imports (deploy/hosting/Caddyfile), then `caddy reload`. Caddy
  * obtains each certificate by itself.
  *

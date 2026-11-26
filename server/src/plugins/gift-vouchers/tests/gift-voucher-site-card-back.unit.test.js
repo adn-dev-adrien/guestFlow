@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 66 (2026-11-26) — the site draws the voucher's back as the PDF does and writes nothing of it itself: the offer carries the PDF's own
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 66 (2026-11-26) — the site draws the voucher's back as the PDF does and writes nothing of it itself: the offer carries the PDF's own
 // dimensions and words, each campaign its lines and validity, the preview's QR code points at the site's home, the order status carries the real redemption QR code, and the
 // company's logo is served at a hashed address. A company with no website sends no back at all, and the offer still answers.
 process.env.DB_PATH = ':memory:';

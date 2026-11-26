@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 54, 55 and 56 (verification R34b: R34b-1, R34b-2, R34b-3; R35 leftovers), rule 52.
+// specs/payments/mixed-method-payments.md rules 54, 55 and 56 (verification R34b: R34b-1, R34b-2, R34b-3; R35 leftovers), rule 52.
 // - R34b-1: rule 52's geste came off the accommodation on the target's FIRST bucket only, and the caisse side read its
 //   own share; no test paid a geste over caisse + books on a pool of several buckets, so neither was pinned.
 // - R34b-2 (rule 54): a geste larger than what the accommodation holds came off no line, and the live register offered a

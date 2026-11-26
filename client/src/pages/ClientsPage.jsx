@@ -66,7 +66,7 @@ export default function ClientsPage() {
   const { showSuccess, showError } = useToast();
   const { confirm } = useAppDialogs();
   const [urlParams, setUrlParams] = useSearchParams();
-  // specs/clients-upcoming-past-directory.md rules 11-21 — views, groups, labels, counts and ordering
+  // specs/clients/clients-upcoming-past-directory.md rules 11-21 — views, groups, labels, counts and ordering
   // all come from the server; the page holds the view (in the URL), the search and the sort.
   const view = viewFromParam(urlParams.get('vue'));
   const [sortKey, setSortKey] = useState('stayDate');
@@ -117,7 +117,7 @@ export default function ClientsPage() {
   const cityOptions = usePostalCodeCities(form.postalCode, form.city);
   const [clientReservations, setClientReservations] = useState([]);
   const [clientReservationsLoading, setClientReservationsLoading] = useState(false);
-  // specs/clients.md rule 17: an answer about a client the operator has left never lands on screen.
+  // specs/clients/clients.md rule 17: an answer about a client the operator has left never lands on screen.
   const beginSheetStays = useLatestRequest();
   const beginDeleteImpact = useLatestRequest();
   const beginCleanupPreview = useLatestRequest();
@@ -232,7 +232,7 @@ export default function ClientsPage() {
       try {
         await createItem(payload, listParams);
       } catch (err) {
-        // specs/clients.md rule 12 — the email or phone already belongs to a client.
+        // specs/clients/clients.md rule 12 — the email or phone already belongs to a client.
         if (err?.code !== 'CLIENT_EXISTS') throw err;
         const proceed = await confirm({
           title: 'Client existant',

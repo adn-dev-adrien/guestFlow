@@ -1,4 +1,4 @@
-// specs/guest-app-bath-home-scheduling.md rules 8-14 — the scheduling screen: no switch for one hour, « À la suite » reads the
+// specs/guest-app/guest-app-bath-home-scheduling.md rules 8-14 — the scheduling screen: no switch for one hour, « À la suite » reads the
 // server's blocks of N hours, « Réparties » the slot grid with its counter; a tap beyond the count is refused in place with the
 // two ways out, and « ajoutez une heure » raises the extra hours and takes the slot.
 import { fireEvent, screen } from '@testing-library/react';

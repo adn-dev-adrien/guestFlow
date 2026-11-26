@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 62 (audit R37-INJ-L1) — the studio's search refuses a query too short or too long in
+// specs/guest-app/guest-app.md rule 62 (audit R37-INJ-L1) — the studio's search refuses a query too short or too long in
 // French words, never the bare refusal key of the guest's table (`searchLength`).
 const test = require('node:test');
 const assert = require('node:assert/strict');

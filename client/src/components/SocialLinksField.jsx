@@ -1,6 +1,6 @@
 /**
  * SocialLinksField — an ordered list of social-network links, for the e-mail settings
- * (specs/settings-input-guards.md rules 35, 37, 38). One row per link: a network picker, the URL, and
+ * (specs/settings/settings-input-guards.md rules 35, 37, 38). One row per link: a network picker, the URL, and
  * up / down / remove. The network catalogue and the validation belong to the server; this component
  * only edits the list and shows the server's messages under the right row.
  *

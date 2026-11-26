@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 (stabilisation loop t10 B10-4, 2026-11-17) — a sale outside a stay paid through
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28 (stabilisation loop t10 B10-4, 2026-11-17) — a sale outside a stay paid through
 // Mollie by a passage (no named client, no stay) books its « link » entry under the sale's label, never « RÉSERVATION #null ». Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');

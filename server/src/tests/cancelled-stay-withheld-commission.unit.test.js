@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 55 and specs/reservation-refunds.md rule 48, readings of 2026-11-02
+// specs/payments/payment-schedule-and-cancellation.md rule 55 and specs/payments/reservation-refunds.md rule 48, readings of 2026-11-02
 // (review of PR #926, residual A). A direct stay collected through a payment provider (Lodgify / Stripe) is booked
 // gross, the provider's commission on 622600; what reached the bank is net of it (`comptaCollected`). Cancelled, it
 // requalified only the gross acompte: the commissions withheld could neither be given back nor requalified, so once

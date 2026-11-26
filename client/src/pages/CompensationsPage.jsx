@@ -11,7 +11,7 @@ import { ADMIN, userHasRole } from '../constants/roles';
 import { MONTH_LABELS } from '../constants/months';
 
 /**
- * « Indemnités d'annulation » — Suivi financier (specs/plugins-phase-2-hosts.md rule 21, P7).
+ * « Indemnités d'annulation » — Suivi financier (specs/plugins/plugins-phase-2-hosts.md rule 21, P7).
  *
  * Core page: the compensations banked in the chosen month and, whatever the month, the pending ones.
  * The admin adds, banks, reopens, edits and deletes them; the accountant reads (the server refuses

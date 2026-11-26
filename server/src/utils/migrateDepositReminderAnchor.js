@@ -1,6 +1,6 @@
 /**
  * One-shot migration: re-anchor the existing `deposit_reminder` template row
- * (specs/payment-schedule-and-cancellation.md §3.7 rule 37).
+ * (specs/payments/payment-schedule-and-cancellation.md §3.7 rule 37).
  *
  * The reminder used to be scheduled off the DEVIS validity date (`anchor = 'validUntil'`, J-3) because
  * that is where the acompte deadline lived. The acompte is now due `depositDueDays` after the BOOKING

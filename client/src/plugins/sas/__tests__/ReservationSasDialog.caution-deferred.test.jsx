@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 12 (2026-10-27 spec review) — the arrival recap states the
+// specs/sas/arrival-departure-sas.md rule 12 (2026-10-27 spec review) — the arrival recap states the
 // caution either way: « perçue » after « Caution perçue », « non perçue : reportée au départ » after
 // « Reporter au départ ». The deferred case used to show nothing.
 import { screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/sas-breakfast-time-applies.md — the breakfast hour set in the check-in SAS must actually apply.
+// specs/sas/sas-breakfast-time-applies.md — the breakfast hour set in the check-in SAS must actually apply.
 //
 // Operator report (issue #426): « Si on change l'heure du petit déj dans la SAS Check in ce n'est pas
 // pris en compte. » Since the breakfast planning cards shipped, the hour lives in TWO places: the

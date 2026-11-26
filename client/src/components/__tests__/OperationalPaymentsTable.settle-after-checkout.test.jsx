@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 15, reading of 2026-11-06 (audit R26 finding 3) — before the check-out, a row
+// specs/accounting/finance-dashboard-redesign.md rule 15, reading of 2026-11-06 (audit R26 finding 3) — before the check-out, a row
 // whose only due is the end-of-stay complement carries the server's `settleAllReason`: « Tout solder » is drawn closed and
 // says « Après le départ. » (tooltip on desktop, caption on a phone); a row with something to tick keeps it open.
 import React from 'react';

@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import SasGateAccessStep from '../SasGateAccessStep';
 
-// specs/gate-access-sowel-connector.md §3.5 rules 24-25 — the step shows, it activates nothing,
+// specs/guest-app/gate-access-sowel-connector.md §3.5 rules 24-25 — the step shows, it activates nothing,
 // and it falls back to the gate keypad's code when there is no key to install.
 
 vi.mock('../../../api', () => ({
@@ -86,7 +86,7 @@ test('a key without a code (a profile without one) still shows its QR', async ()
   expect(screen.queryByText('4K7M-9QT2')).toBeNull();
 });
 
-// specs/gate-access-sowel-connector.md §3.5 rule 24 — the QR sits on the page where the gate code is shown.
+// specs/guest-app/gate-access-sowel-connector.md §3.5 rule 24 — the QR sits on the page where the gate code is shown.
 test('with a usable key, the QR and the keypad code share the page', async () => {
   api.getReservationGateAccess.mockResolvedValue({ sas: step() });
   render(<SasGateAccessStep reservationId={42} available portalCode="1234" />);

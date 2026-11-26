@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 11 and 48 — the data-access ports: CatalogueProvider (the per-property override
+// specs/pricing/pricing-components.md §3 rules 11 and 48 — the data-access ports: CatalogueProvider (the per-property override
 // of an option exists once), StayRepository and PaymentLedger read exactly what the loader and the engine read today.
 const test = require('node:test');
 const assert = require('node:assert/strict');

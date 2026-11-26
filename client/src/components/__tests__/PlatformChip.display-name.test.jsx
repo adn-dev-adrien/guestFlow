@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md rule 12 — one label per platform: the chip renders the
+// specs/platforms/platform-settings-relay-and-review.md rule 12 — one label per platform: the chip renders the
 // display name the server serves (« Gîtes de France »), never the stored key « GitesDeFrance », and
 // re-renders when the names arrive after it first drew (audit 2026-10-27).
 import React from 'react';

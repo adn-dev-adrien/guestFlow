@@ -1,4 +1,4 @@
-// specs/reception-role-checkin-only.md rule 18 reading (loop t9 A9-4) — a reception commit refused 409 LINE_OWED names the owed lines'
+// specs/sas/reception-role-checkin-only.md rule 18 reading (loop t9 A9-4) — a reception commit refused 409 LINE_OWED names the owed lines'
 // recap keys (`owedKeys`, no amount): the dialog puts exactly those back to offered, so the next « Valider » sends them offered and goes
 // through instead of meeting the same refusal again.
 import { screen, waitFor } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md §3.1-§3.2 — the send date of every email of the sequence, edge cases
+// specs/emails/guest-email-sequence.md §3.1-§3.2 — the send date of every email of the sequence, edge cases
 // included (one-night stay, booking the day before, exactly 7 or 2 days before, shortened stay).
 
 const test = require('node:test');

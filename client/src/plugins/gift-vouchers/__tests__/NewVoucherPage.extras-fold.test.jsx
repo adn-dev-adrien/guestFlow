@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 64 — « Nouveau bon »: the extra time and the add-ons of a campaign sit in one fold « Ajouter au bon », closed by default; its head counts
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 64 — « Nouveau bon »: the extra time and the add-ons of a campaign sit in one fold « Ajouter au bon », closed by default; its head counts
 // what is inside, then names what is chosen with the price answer's `extrasCents`; each line shows the price the server gives for its quantity (looked up, never multiplied);
 // at the maximum the « + » is disabled and the line says so.
 import React from 'react';

@@ -1,5 +1,5 @@
 /**
- * Property form validation (specs/settings-rationalization.md rule 23a).
+ * Property form validation (specs/settings/settings-rationalization.md rule 23a).
  *
  * Returns `{ [field]: message }` — empty when the payload is acceptable. Only the fields present
  * in the payload are checked (a partial update never trips on a field it does not carry). The
@@ -23,7 +23,7 @@ const isWhole = wholeFrom(0);
 const isBlank = (value) => typeof value !== 'object' ? String(value ?? '').trim() === '' : value === null;
 const isTrue = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
-// specs/guest-email-texts-made-simple.md rule 34, amended by specs/settings-input-guards.md rules 22-26
+// specs/emails/guest-email-texts-made-simple.md rule 34, amended by specs/settings/settings-input-guards.md rules 22-26
 // and 46-47: the pair is judged on what the payload changes, a lone bound is completed from the stored
 // season, and a legacy pair left as it is never blocks an unrelated save.
 function validatePoolSeason(body, errors, existing) {
@@ -60,7 +60,7 @@ function validatePoolSeason(body, errors, existing) {
   if (end < start) errors.poolSeasonEnd = 'La fermeture suit l\'ouverture.';
 }
 
-// specs/hosting-h2-account-security.md rule 68 — a multipart form sends strings, the JSON API may send numbers; anything
+// specs/hosting/hosting-h2-account-security.md rule 68 — a multipart form sends strings, the JSON API may send numbers; anything
 // else stops here, before a validator reads it or the model stores it. A time is HH:MM or empty, a stored one exempt.
 const TEXT_KEYS = ['name', 'nameArticle', 'photo', 'touristTaxMode', 'extraGuestPriceUnit', 'poolSeasonMode', 'poolSeasonStart', 'poolSeasonEnd'];
 const TIME_KEYS = ['defaultCheckIn', 'defaultCheckOut'];
@@ -123,7 +123,7 @@ function validatePropertyInput(body = {}, existing = null) {
   if (Object.keys(wrongShape).length) return wrongShape;
   const errors = {};
   const pick = (key) => (has(body, key) ? body[key] : existing && existing[key]);
-  // A stored number sent back unchanged is not re-judged (specs/settings-input-guards.md rule 51).
+  // A stored number sent back unchanged is not re-judged (specs/settings/settings-input-guards.md rule 51).
   const unchanged = (key) => Boolean(existing) && asNumber(body[key]) === asNumber(existing[key]);
 
   if (has(body, 'name') && !String(body.name || '').trim()) errors.name = 'Le nom est obligatoire.';
@@ -175,7 +175,7 @@ function validatePropertyInput(body = {}, existing = null) {
   }
   for (const key of ['touristTaxPerDayPerPerson', 'touristTaxFixedAmount', 'defaultCautionAmount']) {
     if (!has(body, key)) continue;
-    // An empty deposit keeps the stored one (specs/guest-email-texts-made-simple.md rule 28, 2026-10-18).
+    // An empty deposit keeps the stored one (specs/emails/guest-email-texts-made-simple.md rule 28, 2026-10-18).
     if (key === 'defaultCautionAmount' && isBlank(body[key])) continue;
     if (unchanged(key)) continue;
     const amount = asNumber(body[key]);
@@ -187,7 +187,7 @@ function validatePropertyInput(body = {}, existing = null) {
     if (!usableNumber(value) || value < 0) errors[key] = message;
   }
 
-  // specs/settings-input-guards.md rules 9-11 — a delay is refused, never replaced, and only when it
+  // specs/settings/settings-input-guards.md rules 9-11 — a delay is refused, never replaced, and only when it
   // is the field that changes: a stored value outside the bounds stays savable for an unrelated edit.
   const depositOn = isTrue(pick('depositEnabled'));
   for (const key of ['depositDueDays', 'balanceDaysBefore', 'cancelAfterBalanceDueDays']) {
@@ -238,7 +238,7 @@ function tierRefusal(body, stored) {
 }
 
 /**
- * What a season write carries (specs/settings-input-guards.md rule 52), judged on the requests that come
+ * What a season write carries (specs/settings/settings-input-guards.md rule 52), judged on the requests that come
  * from outside: a recipe apply computes its own numbers and calls the model directly.
  * @param {object} body  the request's season fields
  * @param {object} [stored]  the `pricing_rules` row being edited

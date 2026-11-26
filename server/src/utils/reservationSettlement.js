@@ -1,12 +1,12 @@
 /**
  * Per-bucket settlement rules of a reservation — the single source of truth shared by the finance
- * views (specs/finance-overview-rework.md §3.3, specs/finance-operational-remaining-to-pay.md) and
- * the day-of-operations collection status (specs/dashboard-collection-alert.md).
+ * views (specs/accounting/finance-overview-rework.md §3.3, specs/accounting/finance-operational-remaining-to-pay.md) and
+ * the day-of-operations collection status (specs/planning/dashboard-collection-alert.md).
  *
  * A reservation is paid through four buckets: acompte, solde, complément d'arrivée, complément de
  * fin de séjour. Each one is either NOT APPLICABLE (zero amount, or a deposit opted out for this
  * reservation) or applicable and then settled/pending. « Settled » includes the caisse-interne
- * complements (specs/cash-complement-and-endofstay-finance.md) — the money was collected, it just
+ * complements (specs/sas/cash-complement-and-endofstay-finance.md) — the money was collected, it just
  * stays off-books.
  *
  * Pure functions — unit-tested in tests/reservation-settlement.unit.test.js.
@@ -23,7 +23,7 @@ function platformCommission(r) {
   return round2(Number(r.acompteCommissionAmount || 0) + Number(r.platformCommissionAmount || 0));
 }
 
-// What the platform kept on the payout besides its commission (specs/reconciliation-assisted-matching.md
+// What the platform kept on the payout besides its commission (specs/accounting/reconciliation-assisted-matching.md
 // rule 27): lost to the operator like a commission, but never counted as one. 0 without a declared penalty.
 function platformPenalty(r = {}) {
   return round2(Math.max(0, Number(r.platformPenaltyAmount || 0)));
@@ -40,12 +40,12 @@ function bucketStates(r = {}) {
   const complement = round2(r.complementAmount);
   const endOfStay = round2(r.endOfStayComplementAmount);
   return {
-    // A deposit disabled per reservation (specs/disable-deposit-per-reservation.md) has literally
+    // A deposit disabled per reservation (specs/payments/disable-deposit-per-reservation.md) has literally
     // nothing to collect — not applicable rather than "settled".
     deposit: {
       amount: deposit,
       applicable: deposit > 0 && !r.depositDisabled,
-      // specs/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the
+      // specs/sas/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the
       // caisse interne is settled like a cash complement: the money is in, it just stays off-books.
       settled: Boolean(r.depositPaid) || Boolean(r.depositPaidCash),
     },
@@ -64,7 +64,7 @@ function bucketStates(r = {}) {
       applicable: endOfStay > 0,
       settled: Boolean(r.endOfStayComplementPaid) || Boolean(r.endOfStayComplementPaidCash),
     },
-    // specs/direct-installments.md rule 5 — an installment plan replaces the acompte and the solde; the
+    // specs/payments/direct-installments.md rule 5 — an installment plan replaces the acompte and the solde; the
     // stay's row carries its collected and still-due totals (models/installmentsModel).
     installments: {
       amount: round2(round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount)),
@@ -75,7 +75,7 @@ function bucketStates(r = {}) {
 }
 
 /**
- * specs/mixed-method-payments.md rules 16, 27 — what the split payments of a stay take off the books.
+ * specs/payments/mixed-method-payments.md rules 16, 27 — what the split payments of a stay take off the books.
  * The stay's row carries the aggregates (models/paymentSettlementsModel); a row without them reads 0.
  *   offBooks    cash lines put in the caisse interne on a payment otherwise on the books
  *   waived      gestes commerciaux on such payments
@@ -91,14 +91,14 @@ function splitAdjustment(r = {}) {
   };
 }
 
-// specs/finance-overview-rework.md §3.3 — a reservation is « soldé » when every applicable component
+// specs/accounting/finance-overview-rework.md §3.3 — a reservation is « soldé » when every applicable component
 // is paid OR marked caisse interne. A non-applicable component is trivially settled. A split payment
-// that left a « reste à percevoir » is not (specs/mixed-method-payments.md rule 16).
+// that left a « reste à percevoir » is not (specs/payments/mixed-method-payments.md rule 16).
 function isSettled(r) {
   return Object.values(bucketStates(r)).every((b) => !b.applicable || b.settled) && splitAdjustment(r).due <= 0;
 }
 
-// « Reste à payer » = the real outstanding amount (specs/finance-operational-remaining-to-pay.md §3):
+// « Reste à payer » = the real outstanding amount (specs/accounting/finance-operational-remaining-to-pay.md §3):
 // the SUM of the still-owed buckets only — a bucket already paid (incl. a caisse-interne complement)
 // or a disabled deposit is NOT counted. Equals 0 exactly when isSettled(r) is true. This is the
 // counterpart of comptaCollected and is what the « Suivi opérationnel » must show (the shared
@@ -124,7 +124,7 @@ function remainingToPay(r) {
 
 /**
  * What the guest still owes ON THE STAY ITSELF at check-in — the amount the arrival SAS asks for
- * (specs/collect-stay-payment-at-check-in.md §3.1).
+ * (specs/sas/collect-stay-payment-at-check-in.md §3.1).
  *
  * GROSS on purpose: this is the money that physically changes hands at the door, so — unlike
  * `remainingToPay`, which answers « what will I actually receive? » — the platform commission is NOT
@@ -150,7 +150,7 @@ function stayDueAtArrival(r = {}) {
   };
 }
 
-// specs/fiscal-year-and-nights-sold.md §3.2 — the ACCOUNTING ATTRIBUTION DATE of a reservation: the
+// specs/accounting/fiscal-year-and-nights-sold.md §3.2 — the ACCOUNTING ATTRIBUTION DATE of a reservation: the
 // date its solde was collected, or its departure date when the solde was never collected (unpaid, or
 // no solde at all because the stay was fully prepaid on the acompte). The books are kept on a cash
 // basis, so this — not the departure — is what attaches a stay, its turnover AND its nights to a
@@ -168,7 +168,7 @@ function attributionDate(r = {}) {
   return String(r.endDate == null ? '' : r.endDate).slice(0, 10);
 }
 
-// « Notes en séjour » already collected (specs/mid-stay-notes.md §3.4 rule 15): book money by
+// « Notes en séjour » already collected (specs/sas/mid-stay-notes.md §3.4 rule 15): book money by
 // default, caisse-interne ones only when explicitly asked for.
 function midStayNotesTotal(r, { withCash = false } = {}) {
   return round2(parseNotes(r.midStaySettledNotes)
@@ -176,14 +176,14 @@ function midStayNotesTotal(r, { withCash = false } = {}) {
     .reduce((s, n) => s + (Number(n.total) || 0), 0));
 }
 
-// specs/reservation-refunds.md §3.3 rule 19 — book-money refunds (virement / espèces) already given
+// specs/payments/reservation-refunds.md §3.3 rule 19 — book-money refunds (virement / espèces) already given
 // back. Rows read without the refund columns (minimal test schemas) degrade to 0.
 function refundsBook(r) {
   return round2(Number(r.refundsBookTtc || 0));
 }
 
 /**
- * specs/arrival-payment-detail-and-adjustment.md §3.2-§3.3 — the single arrival payment was made for
+ * specs/sas/arrival-payment-detail-and-adjustment.md §3.2-§3.3 — the single arrival payment was made for
  * LESS than the buckets add up to (a réduction accordée on the accommodation) or for more (a
  * pourboire). Modelled on the refund: an amount the readers subtract, never a bucket rewritten.
  *
@@ -211,14 +211,14 @@ function comptaCollected(r) {
     + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
     + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
     + round2(r.installmentsPaidAmount)
-    // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
+    // A note only exists once collected — it is never « pending » (specs/sas/mid-stay-notes.md rule 16).
     + midStayNotesTotal(r)
-    // …and a refund is money already given back (specs/reservation-refunds.md rule 18).
+    // …and a refund is money already given back (specs/payments/reservation-refunds.md rule 18).
     - refundsBook(r)
     // …and the single arrival payment may have been made for less (réduction) or more (pourboire)
     // than its buckets: what the operator received is what the bank shows.
     + arrivalPaymentAdjustment(r).net
-    // …and a split payment counts only its lines on the books (specs/mixed-method-payments.md rule 27).
+    // …and a split payment counts only its lines on the books (specs/payments/mixed-method-payments.md rule 27).
     - splitBooksDeduction(r),
   );
 }
@@ -231,7 +231,7 @@ function splitBooksDeduction(r) {
 }
 
 /**
- * specs/reservation-refunds.md rule 48 reading of 2026-11-02 — what the caisse interne collected on a stay: the buckets
+ * specs/payments/reservation-refunds.md rule 48 reading of 2026-11-02 — what the caisse interne collected on a stay: the buckets
  * paid there (gross: no platform takes a commission on money handed over at the door), its notes, and the réduction or
  * pourboire of a caisse-interne arrival payment. The counterpart of `comptaCollected`, which leaves all of it out.
  */
@@ -246,7 +246,7 @@ function cashCollected(r = {}) {
     + inCash('endOfStayComplementPaid', 'endOfStayComplementPaidCash', 'endOfStayComplementAmount')
     + round2(midStayNotesTotal(r, { withCash: true }) - midStayNotesTotal(r))
     + groupNet
-    // specs/mixed-method-payments.md rule 27 — the cash lines of a split payment kept on the books, less the
+    // specs/payments/mixed-method-payments.md rule 27 — the cash lines of a split payment kept on the books, less the
     // geste commercial of one entirely in the caisse.
     + splitAdjustment(r).offBooks - splitAdjustment(r).waivedCash,
   );
@@ -257,6 +257,6 @@ module.exports = {
   bucketStates, isSettled, remainingToPay, platformCommission, platformPenalty, attributionDate, stayDueAtArrival,
   midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, round2,
   splitAdjustment, splitBooksDeduction,
-  // specs/pricing-components.md §3 rule 72 — SETTLEMENT's face outside the pricing folder re-exports what is owed back (REFUNDS' `owed`).
+  // specs/pricing/pricing-components.md §3 rule 72 — SETTLEMENT's face outside the pricing folder re-exports what is owed back (REFUNDS' `owed`).
   refundsOwed: require('./pricing/refunds/owed'),
 };

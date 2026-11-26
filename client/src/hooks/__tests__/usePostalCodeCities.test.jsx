@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 27 — the communes of a postcode: from 2 digits, debounced, a help only.
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 27 — the communes of a postcode: from 2 digits, debounced, a help only.
 import { renderHook, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import usePostalCodeCities from '../usePostalCodeCities';

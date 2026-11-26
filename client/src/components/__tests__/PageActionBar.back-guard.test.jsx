@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 42 — the « Retour » arrow of a page using `backTo` asks the guard.
+// specs/design-system/ui-review-2026-10-19-operations.md rule 42 — the « Retour » arrow of a page using `backTo` asks the guard.
 import React, { useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';

@@ -11,9 +11,9 @@ import PlatformChip from './PlatformChip';
 /**
  * OperationalPaymentsTable — the shared « Suivi opérationnel » payments table.
  * Drives both « Paiements en attente » (interactive, 4 buckets) and « Réservations à venir »
- * (read-only, 3 buckets) from one implementation (specs/finance-upcoming-payments-table.md §4.2).
+ * (read-only, 3 buckets) from one implementation (specs/accounting/finance-operational-remaining-to-pay.md §4.2).
  *
- * Since the phase-4 sweep (specs/ds-sweep-finance.md §3.5): money columns are right-aligned in
+ * Since the phase-4 sweep (specs/design-system/ds-sweep-finance.md §3.5): money columns are right-aligned in
  * tabular figures via formatCurrency, and on xs the table becomes stacked cards (this is the block's
  * most operator-critical list). The totals footer becomes a summary card on xs.
  *
@@ -55,7 +55,7 @@ function ScheduledBucketAmount({ amount, paid, dueDate, overdue, disabled }) {
 }
 
 // « Tout solder »: closed with the server's reason when nothing can be ticked before the check-out
-// (specs/finance-dashboard-redesign.md rule 15, reading of 2026-11-06). The span keeps the tooltip on a disabled button.
+// (specs/accounting/finance-dashboard-redesign.md rule 15, reading of 2026-11-06). The span keeps the tooltip on a disabled button.
 function SettleAllButton({ row, onSettleAll }) {
   const reason = row.settleAllReason || null;
   return (
@@ -131,7 +131,7 @@ export default function OperationalPaymentsTable({
                     <ScheduledBucketAmount amount={r.balanceAmount} paid={!!r.balancePaid} dueDate={r.balanceDueDate} overdue={r.balanceOverdue} />
                   </Box>
                 </Line>
-                {/* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — a deferred complement
+                {/* specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 10 — a deferred complement
                     is collected at the door, not at check-in: label it as such (amount unchanged). */}
                 <Line label={r.complementDeferredToCheckout && !complementSettled ? 'Complément (fin de séjour)' : 'Complément'}>
                   <PaymentBucketAmount amount={r.complementAmount} settled={complementSettled} cash={!!r.complementPaidCash} />

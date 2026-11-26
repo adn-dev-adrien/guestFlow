@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md rule 23 (audit R34 L-N2). Rule 21 refuses to delete a converted devis while
+// specs/payments/deposit-blocks-the-dates.md rule 23 (audit R34 L-N2). Rule 21 refuses to delete a converted devis while
 // its stay exists, because the stay reads its deadline on the devis row. A cancelled stay is history: it can no
 // longer be re-priced (409 RESERVATION_CANCELLED) nor brought back, so no deadline is left to protect and its
 // devis is deletable again under the older conditions (no CGV acceptance, no money). A stay set aside as a

@@ -6,7 +6,7 @@ import { useLocation } from 'react-router';
  *
  * React Router preserves the scroll position between routes, so a page opened after scrolling deep
  * into the previous one used to appear mid-content with the sticky top bar out of view
- * (specs/design-system.md §3.6). Renders nothing; mount once inside the router.
+ * (specs/design-system/design-system.md §3.6). Renders nothing; mount once inside the router.
  *
  * Hash navigations (e.g. /page#section) are left alone so in-page anchors keep working. The scroll
  * is instant (no smooth behavior) — safe for prefers-reduced-motion.

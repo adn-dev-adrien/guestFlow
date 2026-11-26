@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 68 and 70 — the price non-regression gate. Every reservation and devis of the
+// specs/pricing/pricing-components.md §3 rules 68 and 70 — the price non-regression gate. Every reservation and devis of the
 // anonymised production copy (`fixtures/price-gate/inputs.json`) is loaded into a freshly migrated database, the
 // clock is frozen on the capture day, every stay is recomputed through the CURRENT code path (quote of the stored
 // stay, fiche, cancellation preview, installments, platform payment figures) and compared, to the cent, with the

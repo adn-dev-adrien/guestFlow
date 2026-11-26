@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 35 (2026-11-12) — on a collected complement the recap says what the commit adds to the
+// specs/sas/arrival-departure-sas.md rule 35 (2026-11-12) — on a collected complement the recap says what the commit adds to the
 // end-of-stay complement, it does not ask to collect it by hand; nothing announced when the run adds nothing.
 import { screen } from '@testing-library/react';
 import { vi } from 'vitest';

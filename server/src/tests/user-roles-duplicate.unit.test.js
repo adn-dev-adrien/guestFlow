@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A4) — a role listed twice is one role:
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A4) — a role listed twice is one role:
 // the stored list does not change, so the user's session stays open.
 const test = require('node:test');
 const assert = require('node:assert/strict');

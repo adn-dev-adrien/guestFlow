@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rules 27–28 — the « Comptes » section of the Plan comptable:
+// specs/plugins/plugins-phase-p-productisation.md rules 27–28 — the « Comptes » section of the Plan comptable:
 // one field per role with its default as helper, a save sends the plan, the server's refusal shows
 // under its field.
 import { vi } from 'vitest';

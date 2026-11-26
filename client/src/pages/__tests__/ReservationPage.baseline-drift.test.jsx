@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 7 — a clean fiche whose stored figures drifted from today's quote
+// specs/reservations/reservation-save-keeps-pricing.md rule 7 — a clean fiche whose stored figures drifted from today's quote
 // (#22212, #22198, #22199) never flashes « modified »: the baseline is derived in the very render that applies
 // the quote, so Enregistrer is not enabled, not even for a frame, when the quote lands.
 import React from 'react';

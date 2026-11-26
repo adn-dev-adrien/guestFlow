@@ -1,5 +1,5 @@
 // Shared fixture: a stay with a Bain nordique sold by the hour
-// (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4). Used by the scheduling and the
+// (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.4). Used by the scheduling and the
 // evening-supplement suites.
 
 const Database = require('better-sqlite3');

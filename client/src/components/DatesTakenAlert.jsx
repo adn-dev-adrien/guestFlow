@@ -1,5 +1,5 @@
 /**
- * DatesTakenAlert — Dashboard card « Dates prises » (specs/payment-link-lifecycle.md rules 43, 66): the stays whose
+ * DatesTakenAlert — Dashboard card « Dates prises » (specs/payments/payment-link-lifecycle.md rules 43, 66): the stays whose
  * payment request lost its dates to another stay, with whether the guest was told. Every word comes from the
  * server (GET /api/dashboard/dates-taken): `title`, `notice.label`, `takenBy.label`, `detail`.
  *

@@ -1,5 +1,5 @@
 /**
- * specs/site-english-version.md §3 rules 1, 3, 8, 12 — the public label dictionary.
+ * specs/site/site-english-version.md §3 rules 1, 3, 8, 12 — the public label dictionary.
  *
  * The point of these tests is the guarantee the module exists for: an English page must never show
  * a French word, and a missing translation must break loudly here rather than quietly on the site.

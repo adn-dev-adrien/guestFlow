@@ -1,6 +1,6 @@
 /**
  * `node --test` reporter added by the server and control-plane `npm test` scripts —
- * specs/server-test-isolation.md rule 10. It fails the run when a test file's process ended before
+ * specs/tech/server-test-isolation.md rule 10. It fails the run when a test file's process ended before
  * reporting every test it declared, which the runner itself reports as a green, shorter run.
  *
  * Per file, every top-level test announced (`test:enqueue`, emitted when the file declares it) must be

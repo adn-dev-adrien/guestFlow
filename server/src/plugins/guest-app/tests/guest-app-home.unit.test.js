@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 5, 10, 11 — the server-written lines of the home. Pure, far-future dates.
+// specs/guest-app/guest-app.md rules 5, 10, 11 — the server-written lines of the home. Pure, far-future dates.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -61,7 +61,7 @@ test('rule 11: eve of departure → the booklet page Départ', () => {
   assert.equal(found.page, 'depart');
 });
 
-test('rule 11 (specs/guest-app-bath-home-scheduling.md rule 6): the bath has no highlight — its home card says it', () => {
+test('rule 11 (specs/guest-app/guest-app-bath-home-scheduling.md rule 6): the bath has no highlight — its home card says it', () => {
   assert.equal(pick('2099-07-07T12:00:00+02:00'), null);
 });
 

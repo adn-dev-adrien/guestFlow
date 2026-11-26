@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 49, 52, 53 (stabilisation loop t2, B2-1, B2-2, B2-3) and specs/pricing-components.md rules 62, 74, 75 — a document's
+// specs/sas/outside-booking-sas.md rules 49, 52, 53 (stabilisation loop t2, B2-1, B2-2, B2-3) and specs/pricing/pricing-components.md rules 62, 74, 75 — a document's
 // `lineLowered` row names the line it was opened for and gives the money back from that line; the open rows follow what the document owes after every
 // change; money a lowered line holds while another line still asks is filed on that line, dated the day of the change, so the journal books what the
 // money pays and never rewrites an earlier day.

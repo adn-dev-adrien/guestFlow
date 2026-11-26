@@ -1,5 +1,5 @@
 /**
- * VatRegimeSwitchDialog — « Passer sans TVA » / « Passer à la TVA » (specs/vat-optional-mode.md §6.2).
+ * VatRegimeSwitchDialog — « Passer sans TVA » / « Passer à la TVA » (specs/accounting/vat-optional-mode.md §6.2).
  *
  * The inputs of a switch (the rate or the legal mention, the scope and its date), the server's preview
  * of what it changes — re-asked 300 ms after each edit — the acknowledgement a correction needs, and the

@@ -1,5 +1,5 @@
 /**
- * The refund WRITE paths of the price gate (specs/pricing-components.md §3 rules 68 and 81, decision D9).
+ * The refund WRITE paths of the price gate (specs/pricing/pricing-components.md §3 rules 68 and 81, decision D9).
  *
  * The gate's stays prove what the code READS. PR B changes what refunds, take-backs and nettings WRITE, so this
  * module plays the write paths through the real controllers on an empty in-memory database and returns, per case,

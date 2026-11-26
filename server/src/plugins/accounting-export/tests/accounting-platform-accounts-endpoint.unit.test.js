@@ -10,7 +10,7 @@ const platformsModel = require('../../../models/platformsModel');
 const { ensurePluginSettingsTable } = require('../../../utils/pluginsSchema');
 
 // accounting-platform-commission-and-no-deposit.md §7.1 — model + endpoint behaviour. The four
-// account and VAT settings live in plugin_settings (specs/plugins-phase-2-hosts.md rule 19).
+// account and VAT settings live in plugin_settings (specs/plugins/plugins-phase-2-hosts.md rule 19).
 
 const DDL = `
   CREATE TABLE ical_sources (id INTEGER PRIMARY KEY AUTOINCREMENT, platformLabel TEXT NOT NULL DEFAULT '');
@@ -112,7 +112,7 @@ test('saveAll: write targeting the Direct row is silently ignored', () => {
   assert.equal(direct.hasVatOnCommission, false);
 });
 
-test('the two accounting VAT rates are edited here (specs/settings-rationalization.md rule 14)', () => {
+test('the two accounting VAT rates are edited here (specs/settings/settings-rationalization.md rule 14)', () => {
   const { model } = freshModel();
   const res = model.saveAll({ defaultAccount: '622600', platforms: [], vatRateCommission: '19,6', vatRateCancellationCompensation: 5.5 });
   assert.equal(res.ok, true);

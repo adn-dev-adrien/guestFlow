@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 12, 19, 31 — the other targets of a split payment and what the fiche shows of
+// specs/payments/mixed-method-payments.md rules 12, 19, 31 — the other targets of a split payment and what the fiche shows of
 // them: an installment paid with several methods is recorded as 'mixed'; a geste commercial is shown under its
 // settlement; the « Notes en séjour » row carries the lines of a note settled that way.
 process.env.DB_PATH = ':memory:';
@@ -25,7 +25,7 @@ const call = (handler, params, body) => {
   return res;
 };
 
-test('specs/mixed-method-payments.md rules 12, 36 — an installment paid with several methods is recorded as mixed', () => {
+test('specs/payments/mixed-method-payments.md rules 12, 36 — an installment paid with several methods is recorded as mixed', () => {
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, finalPrice)
     VALUES (1, 1, date(?, '+60 day'), date(?, '+65 day'), 'direct', 2, 600)`).run(TODAY, TODAY).lastInsertRowid);
   const [first] = installmentsModel.replacePlan(id, [
@@ -50,7 +50,7 @@ const ROW = {
   endOfStayComplementAmount: 122, endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-11-08', // date-literal-ok: a stay already over, it stays over as the calendar passes
 };
 
-test('specs/mixed-method-payments.md rule 19 — the geste commercial is shown under its settlement', () => {
+test('specs/payments/mixed-method-payments.md rule 19 — the geste commercial is shown under its settlement', () => {
   const ledger = buildLedger({
     row: ROW,
     today: TODAY,
@@ -68,7 +68,7 @@ test('specs/mixed-method-payments.md rule 19 — the geste commercial is shown u
   assert.match(row.stateLabel, /plusieurs moyens/);
 });
 
-test('specs/mixed-method-payments.md rule 31 — the « Notes en séjour » row carries the lines of a note settled that way', () => {
+test('specs/payments/mixed-method-payments.md rule 31 — the « Notes en séjour » row carries the lines of a note settled that way', () => {
   const note = { id: 'n1', paidDate: '2026-11-05', paidCash: 0, total: 30, lines: [] }; // date-literal-ok: a stay already over, it stays over as the calendar passes
   const ledger = buildLedger({
     row: { ...ROW, midStaySettledNotes: JSON.stringify([note]) },
@@ -85,7 +85,7 @@ test('specs/mixed-method-payments.md rule 31 — the « Notes en séjour » row 
   assert.deepEqual(row.split.settlements[0].lines.map((l) => [plain(l.label), l.internal]), [['Espèces 10,00 €', true], ['CB 20,00 €', false]]);
 });
 
-test('specs/mixed-method-payments.md rules 2, 34 — a platform sale offers no « Plusieurs moyens » on its acompte or solde', () => {
+test('specs/payments/mixed-method-payments.md rules 2, 34 — a platform sale offers no « Plusieurs moyens » on its acompte or solde', () => {
   const ledger = buildLedger({
     row: {
       id: 10, kind: 'reservation', platform: 'Booking', startDate: TODAY, endDate: TODAY, finalPrice: 500,
@@ -99,7 +99,7 @@ test('specs/mixed-method-payments.md rules 2, 34 — a platform sale offers no �
   }
 });
 
-test('specs/mixed-method-payments.md rules 20, 35 — a note paid with several methods is not edited in place', () => {
+test('specs/payments/mixed-method-payments.md rules 20, 35 — a note paid with several methods is not edited in place', () => {
   const controller = require('../controllers/reservationsController');
   const note = { id: 7, total: 30, paidDate: TODAY, paidCash: 0, items: [] };
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, finalPrice, midStaySettledNotes)

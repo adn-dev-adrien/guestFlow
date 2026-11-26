@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 51 (audit R34 NEW-2) — a payment with several methods that paid several buckets
+// specs/payments/mixed-method-payments.md rule 51 (audit R34 NEW-2) — a payment with several methods that paid several buckets
 // (the single arrival payment, the complement carrying the end of stay, the SAS departure) is taken back whole or not
 // at all: un-ticking ONE of its buckets would drop the whole settlement and leave the other bucket paid in full on the
 // books (caisse-interne money turned into revenue), or forget the reste. 409, nothing written; the group's « Annuler »
@@ -44,7 +44,7 @@ const snapshot = (id) => {
   };
 };
 
-test('specs/mixed-method-payments.md rule 51 — caisse + CB over solde and complement, the complement un-ticked: 409, nothing written (P14)', () => {
+test('specs/payments/mixed-method-payments.md rule 51 — caisse + CB over solde and complement, the complement un-ticked: 409, nothing written (P14)', () => {
   const stay = arrivalSplit((due) => [cashIn(30000), card(due - 30000)]);
   const before = snapshot(stay.id);
   assert.equal(before.cash, 300);
@@ -55,7 +55,7 @@ test('specs/mixed-method-payments.md rule 51 — caisse + CB over solde and comp
   assert.deepEqual(snapshot(stay.id), before);
 });
 
-test('specs/mixed-method-payments.md rule 51 — a reste on the single payment, the solde un-ticked: 409, the reste stays (P13)', () => {
+test('specs/payments/mixed-method-payments.md rule 51 — a reste on the single payment, the solde un-ticked: 409, the reste stays (P13)', () => {
   const stay = arrivalSplit((due) => [card(due - 5000)], { kind: 'due' });
   const before = snapshot(stay.id);
   assert.equal(before.due, 50);
@@ -67,7 +67,7 @@ test('specs/mixed-method-payments.md rule 51 — a reste on the single payment, 
   assert.deepEqual(snapshot(stay.id), before);
 });
 
-test('specs/mixed-method-payments.md rule 51 — the group\'s « Annuler » still takes the whole payment back', () => {
+test('specs/payments/mixed-method-payments.md rule 51 — the group\'s « Annuler » still takes the whole payment back', () => {
   const stay = arrivalSplit((due) => [cashIn(30000), card(due - 30000)]);
   const res = call(controller.settleArrivalPayment, { id: stay.id }, { mode: 'undo' });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -77,7 +77,7 @@ test('specs/mixed-method-payments.md rule 51 — the group\'s « Annuler » stil
   assert.equal(settlementsModel.listFor(stay.id).length, 0);
 });
 
-test('specs/mixed-method-payments.md rule 51 — a caller taking one mark back without the PATCH (SAS, reconciliation) is refused too', () => {
+test('specs/payments/mixed-method-payments.md rule 51 — a caller taking one mark back without the PATCH (SAS, reconciliation) is refused too', () => {
   const stay = arrivalSplit((due) => [cashIn(30000), card(due - 30000)]);
   const refusal = takeBackRefusal(stay.id, { flags: ['complementPaid'] });
   assert.equal(refusal && refusal.status, 409);
@@ -85,7 +85,7 @@ test('specs/mixed-method-payments.md rule 51 — a caller taking one mark back w
   assert.equal(takeBackRefusal(stay.id, { flags: ['balancePaid', 'complementPaid'] }), null);
 });
 
-test('specs/mixed-method-payments.md rule 51 — a split over one bucket is still un-ticked alone (rule 13)', () => {
+test('specs/payments/mixed-method-payments.md rule 51 — a split over one bucket is still un-ticked alone (rule 13)', () => {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(80)] });
   const due = cents(rowOf(stay.id).balanceAmount);
   assert.equal(mark(stay.id, { balancePaid: true, balancePaidDate: TODAY, expectedAmountCents: due, tenders: [cashIn(10000), card(due - 10000)] }).statusCode, 200);
@@ -108,7 +108,7 @@ function mergedSplit() {
   return stay;
 }
 
-test('specs/mixed-method-payments.md rule 51 — the merged complement + end of stay: un-ticking the end of stay alone is refused', () => {
+test('specs/payments/mixed-method-payments.md rule 51 — the merged complement + end of stay: un-ticking the end of stay alone is refused', () => {
   const stay = mergedSplit();
   const before = snapshot(stay.id);
   const res = mark(stay.id, { endOfStayComplementPaid: false });
@@ -119,7 +119,7 @@ test('specs/mixed-method-payments.md rule 51 — the merged complement + end of 
   assert.equal(takeBackRefusal(stay.id, { flags: ['endOfStayComplementPaid'] }).body.error, MESSAGE);
 });
 
-test('specs/mixed-method-payments.md rule 51 — the merged card\'s « Annuler » takes both buckets back', () => {
+test('specs/payments/mixed-method-payments.md rule 51 — the merged card\'s « Annuler » takes both buckets back', () => {
   const stay = mergedSplit();
   const res = mark(stay.id, { complementPaid: false });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -127,11 +127,11 @@ test('specs/mixed-method-payments.md rule 51 — the merged card\'s « Annuler �
   assert.equal(settlementsModel.listFor(stay.id).length, 0);
 });
 
-// specs/mixed-method-payments.md rule 53 — a bucket a payment with several methods paid has no caisse switch: its lines
+// specs/payments/mixed-method-payments.md rule 53 — a bucket a payment with several methods paid has no caisse switch: its lines
 // say where its money is (rule 11), only « Modifier » moves it.
 const SWITCH = 'Paiement en plusieurs moyens : passer par « Modifier ».';
 
-test('specs/mixed-method-payments.md rule 53 — the single payment\'s complement switched to the caisse: 409, the books keep the card money', () => {
+test('specs/payments/mixed-method-payments.md rule 53 — the single payment\'s complement switched to the caisse: 409, the books keep the card money', () => {
   const stay = arrivalSplit((due) => [cashIn(30000), card(due - 30000)]);
   const before = snapshot(stay.id);
   const res = mark(stay.id, { complementPaidCash: true });
@@ -141,7 +141,7 @@ test('specs/mixed-method-payments.md rule 53 — the single payment\'s complemen
   assert.deepEqual(snapshot(stay.id), before);
 });
 
-test('specs/mixed-method-payments.md rule 53 — a complement paid alone with several methods: no caisse switch either way', () => {
+test('specs/payments/mixed-method-payments.md rule 53 — a complement paid alone with several methods: no caisse switch either way', () => {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(80)] });
   assert.equal(mark(stay.id, { complementPaid: true, complementPaidDate: TODAY, expectedAmountCents: 8000, tenders: [cashIn(3000), card(5000)] }).statusCode, 200);
   const before = snapshot(stay.id);
@@ -152,7 +152,7 @@ test('specs/mixed-method-payments.md rule 53 — a complement paid alone with se
   assert.equal(mark(all.id, { complementPaidCash: true }).statusCode, 409);
 });
 
-test('specs/mixed-method-payments.md rule 53 — a complement paid with one method keeps its caisse switch', () => {
+test('specs/payments/mixed-method-payments.md rule 53 — a complement paid with one method keeps its caisse switch', () => {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(80)] });
   assert.equal(mark(stay.id, { complementPaid: true, complementPaidDate: TODAY }).statusCode, 200);
   assert.equal(mark(stay.id, { complementPaidCash: true }).statusCode, 200);

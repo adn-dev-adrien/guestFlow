@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 37 (audit 2026-10-27) — saving « Entreprise » in the start
+// specs/hosting/hosting-h2-account-security.md rule 37 (audit 2026-10-27) — saving « Entreprise » in the start
 // assistant used to replace the bootstrap login with the company e-mail silently; an operator who kept
 // typing the old login was locked out. The login now changes only on an explicit opt-in.
 const test = require('node:test');

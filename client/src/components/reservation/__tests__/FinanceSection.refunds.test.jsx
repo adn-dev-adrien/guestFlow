@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance as renderLedger, ledgerOf } from './ledgerFixtures';
 
-// specs/reservation-refunds.md §6 — the refunds of the Finance card. Since
-// specs/reservation-payment-ledger.md rule 2 each refund is a ledger row (date, means, lines, reason,
+// specs/payments/reservation-refunds.md §6 — the refunds of the Finance card. Since
+// specs/payments/reservation-payment-ledger.md rule 2 each refund is a ledger row (date, means, lines, reason,
 // shaped by the server), the trop-perçu a row with « Rembourser », and « + Nouveau remboursement »
 // sits under the ledger. Deleting still asks for confirmation.
 
@@ -71,7 +71,7 @@ test('« Nouveau remboursement » opens the dialog', async () => {
   expect(setRefundDialogOpen).toHaveBeenCalledWith(true);
 });
 
-// specs/reservation-refunds.md rule 34 — the trop-perçu row opens the dialog on the server's amount.
+// specs/payments/reservation-refunds.md rule 34 — the trop-perçu row opens the dialog on the server's amount.
 test('rule 34 — « Rembourser » on the trop-perçu row opens the dialog on the announced amount', async () => {
   const user = userEvent.setup();
   const setRefundDialogOpen = vi.fn();

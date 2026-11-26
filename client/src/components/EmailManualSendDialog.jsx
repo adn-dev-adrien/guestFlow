@@ -1,7 +1,7 @@
 /**
  * EmailManualSendDialog — pick a template, preview the rendered email, edit if needed,
  * send. Used by the reservation page's "Envoyer un email" button AND by the pending list's
- * "Voir & envoyer" row action. See specs/email-automation.md §6.4.
+ * "Voir & envoyer" row action. See specs/emails/email-automation.md §6.4.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -41,9 +41,9 @@ function formatTargetDate(startDateIso, dayOffset) {
 /**
  * One dialog serves many rows (pending queue, history): every opening starts from a fresh state, so
  * nothing of the previous row — template, edits, recipient, language — can leave in the next email
- * (specs/email-automation.md rule 21).
+ * (specs/emails/email-automation.md rule 21).
  * `onMoneyChanged` (optional): a refusal booked the stay's payment (409 LINK_ALREADY_PAID,
- * specs/payment-link-lifecycle.md rule 50): the page re-reads its money; `onSent` stays for a mail that left.
+ * specs/payments/payment-link-lifecycle.md rule 50): the page re-reads its money; `onSent` stays for a mail that left.
  * A preview that carries the server's `refusal` (rule 60: platform stay, closed nights, payment to settle) shows
  * its message and keeps « Envoyer » disabled.
  */
@@ -60,7 +60,7 @@ export default function EmailManualSendDialog(props) {
 function EmailManualSendForm({
   open, reservationId, reservationStartDate, defaultTemplateId, occurrenceKey, onClose, onSent, onMoneyChanged,
 }) {
-  // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
+  // Full screen on a phone, like every dialog (specs/design-system/ds-components.md rule 22).
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [templates, setTemplates] = useState([]);
@@ -69,7 +69,7 @@ function EmailManualSendForm({
   const [body, setBody] = useState('');
   const [to, setTo] = useState('');
   // The template the subject / body on screen were rendered for: « Envoyer » waits until it is the one
-  // picked (specs/email-automation.md rule 22).
+  // picked (specs/emails/email-automation.md rule 22).
   const [previewedTemplateId, setPreviewedTemplateId] = useState(null);
   const beginPreview = useLatestRequest();
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -78,16 +78,16 @@ function EmailManualSendForm({
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  // specs/guest-email-sequence.md rule 13bis — a sequence email already sent is only re-sent after an
+  // specs/emails/guest-email-sequence.md rule 13bis — a sequence email already sent is only re-sent after an
   // explicit confirmation; the server's 409 carries the date it left.
   const [alreadySentAt, setAlreadySentAt] = useState(null);
   // The language this message will actually leave in. `resolvedLang` is what the server decided —
   // the guest's own language — and `langOverride` is the operator saying "not this time". The
   // override applies to THIS send: it never rewrites the guest's record
-  // (specs/site-english-version.md §6).
+  // (specs/site/site-english-version.md §6).
   const [resolvedLang, setResolvedLang] = useState('fr');
   const [langOverride, setLangOverride] = useState(null);
-  // specs/email-language-fr-en.md rule 9 — the server says this template has no English version for
+  // specs/emails/email-language-fr-en.md rule 9 — the server says this template has no English version for
   // an English-speaking guest: it is shown, never sent.
   const [englishMissing, setEnglishMissing] = useState(false);
   const [refusal, setRefusal] = useState(null);
@@ -175,7 +175,7 @@ function EmailManualSendForm({
       if (onClose) onClose();
     } catch (e) {
       if (e?.error === 'ALREADY_SENT' || e?.message === 'ALREADY_SENT') {
-        // The server words the time in Europe/Paris (specs/email-history-rolling-window.md rule 8).
+        // The server words the time in Europe/Paris (specs/emails/email-history-rolling-window.md rule 8).
         setAlreadySentAt(e.sentAtLabel || (e.sentAt ? displayDateTime(e.sentAt) : ''));
       } else {
         setError(sendErrorMessage(e));

@@ -1,5 +1,5 @@
 /**
- * Two per-platform guest-contact settings (specs/platform-settings-relay-and-review.md rules 1-6):
+ * Two per-platform guest-contact settings (specs/platforms/platform-settings-relay-and-review.md rules 1-6):
  *   - `platforms.relaysGuestEmail` — the platform hands out a relay address instead of the guest's own;
  *   - `platforms.reviewWhereFr` / `reviewWhereEn` — where its guests leave a review, as the J+1
  *     e-mail words it (« votre espace Gîtes de France »).

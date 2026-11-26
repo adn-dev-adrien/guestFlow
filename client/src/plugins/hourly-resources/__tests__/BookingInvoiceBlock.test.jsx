@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 2, 13, 17-19 — the invoice block renders the server's states.
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 2, 13, 17-19 — the invoice block renders the server's states.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';

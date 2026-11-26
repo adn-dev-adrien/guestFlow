@@ -1,5 +1,5 @@
 /**
- * Refund obligations controller — the close action of the « À rembourser » rows (specs/pricing-components.md §3 rule 75).
+ * Refund obligations controller — the close action of the « À rembourser » rows (specs/pricing/pricing-components.md §3 rule 75).
  *
  *   PATCH /api/reservations/:id/refund-obligations/:oid   { status: 'settled' | 'cancelled' }
  *

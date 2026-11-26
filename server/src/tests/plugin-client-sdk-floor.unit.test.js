@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rules 16, 52, 54, 55 (loop t1 AS-3) — the CLIENT half of plugin-core-hardening-floor: a plugin whose client
+// specs/plugins/plugins-phase-1-sdk.md rules 16, 52, 54, 55 (loop t1 AS-3) — the CLIENT half of plugin-core-hardening-floor: a plugin whose client
 // code imports an export of `client/src/plugins/sdk/index.js` asks for the SDK that first shipped it. The core SDK's floor list only scans
 // the server sources; without this one a client-only dependency on a newer export would let an older core load a bundle that crashes.
 // Exports recorded here are the ones whose SDK minor is written next to them in the barrel; the 2.30-2.32 numbers are those of the
@@ -20,7 +20,7 @@ const CLIENT_EXPORTS = [
   { names: ['TenderLines', 'TENDER_TEXTS'], sdk: '2.24.0' },
   { names: ['usePostalCodeCities'], sdk: '2.25.0' },
   { names: ['ClientPickerField'], sdk: '2.27.0' },
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 12 — master's SDK 2.29.0 export, merged 2026-11-17.
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 12 — master's SDK 2.29.0 export, merged 2026-11-17.
   { names: ['TransactionRef'], sdk: '2.29.0' },
   { names: ['StaySalesSection'], sdk: '2.30.0' },
   { names: ['SuggestedArticlesStep', 'SalePaymentLink', 'StandaloneSaleDialog'], sdk: '2.32.0' },
@@ -28,11 +28,11 @@ const CLIENT_EXPORTS = [
   { names: ['useSaleComponentsReady'], sdk: '2.32.0' },
   // Loop t22 UI22-1 — the sale dialogs keep the focus when an answer removes the control holding it (rule 54, reading 2026-11-18).
   { names: ['FocusKeeper'], sdk: '2.32.0' },
-  // Loop t25 (specs/mixed-method-payments.md rule 59 reading of 2026-11-19): the lines' report a commit may send.
+  // Loop t25 (specs/payments/mixed-method-payments.md rule 59 reading of 2026-11-19): the lines' report a commit may send.
   { names: ['tendersForDue'], sdk: '2.32.0' },
-  // Loop t26 (specs/plugins-phase-1-sdk.md rule 58) — the money-dialog contract, one module.
+  // Loop t26 (specs/plugins/plugins-phase-1-sdk.md rule 58) — the money-dialog contract, one module.
   { names: ['useMoneyCommit', 'PreviewFailure', 'MoneyActions', 'useTenderDraft', 'isRetryable'], sdk: '2.32.0' },
-  // specs/mobile-dashboard-exercise-cash.md rule 8 — the identity line of a home subject's row, linking to the fiche.
+  // specs/planning/mobile-dashboard-exercise-cash.md rule 8 — the identity line of a home subject's row, linking to the fiche.
   { names: ['ReservationLinkLine'], sdk: '2.34.0' },
 ];
 

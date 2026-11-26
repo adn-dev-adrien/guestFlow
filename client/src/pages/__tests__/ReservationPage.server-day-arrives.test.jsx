@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13, reading of 2026-11-03 (audit R20-C3) — the fiche's reads that the
+// specs/tech/reservations-backend-mvc.md rule 13, reading of 2026-11-03 (audit R20-C3) — the fiche's reads that the
 // device's day held back are asked once the server's day is known and accepts the dates: the occupied dates, the
 // resources' availability and the quote follow `windowToday`, not only the dates.
 import React from 'react';

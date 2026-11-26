@@ -1,7 +1,7 @@
 /**
  * One-shot repair (2026-10-27 spec review): a property whose name starts with its own article
  * (« La Bergerie », « Le Fournil », « Les Pins », « L'Oustal ») takes that article, confirmed
- * (specs/guest-email-texts-made-simple.md rule 30). Before the review, a property created from the
+ * (specs/emails/guest-email-texts-made-simple.md rule 30). Before the review, a property created from the
  * property page was stored « au » unconfirmed, so its guest e-mails read « votre séjour au La Bergerie ».
  *
  *   repairPropertyOwnArticles(db) → number of properties corrected

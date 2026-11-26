@@ -1,4 +1,4 @@
-// specs/ds-sweep-planning.md rule 29 — « today » is read again when the page comes back to the
+// specs/design-system/ds-sweep-planning.md rule 29 — « today » is read again when the page comes back to the
 // foreground, so a page left open past midnight moves to the new day.
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';

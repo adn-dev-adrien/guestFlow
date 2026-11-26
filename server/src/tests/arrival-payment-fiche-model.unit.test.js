@@ -1,4 +1,4 @@
-// The single arrival payment recorded FROM THE FICHE — specs/single-payment-from-the-fiche.md §3.2.
+// The single arrival payment recorded FROM THE FICHE — specs/payments/single-payment-from-the-fiche.md §3.2.
 //
 // Same result as the check-in's unified settlement, reached without running a single SAS page —
 // which is the point: re-opening the wizard to record one payment costs the « préparé » flags of the
@@ -137,7 +137,7 @@ const groupOf = (db, id) => {
 const seedBoth = (db) => seedStay(db, { complementAmount: 50 });
 const YESTERDAY = '2026-07-09';
 
-// specs/single-payment-from-the-fiche.md rule 6
+// specs/payments/single-payment-from-the-fiche.md rule 6
 test('« CB / Chèque » from the fiche settles every collectible bucket at the CHOSEN date', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -162,7 +162,7 @@ test('« CB / Chèque » from the fiche settles every collectible bucket at the 
   assert.equal(row.complementAmount, 50);
 });
 
-// specs/single-payment-from-the-fiche.md rule 5
+// specs/payments/single-payment-from-the-fiche.md rule 5
 test('« Caisse interne » flags every bucket off the books', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -176,7 +176,7 @@ test('« Caisse interne » flags every bucket off the books', () => {
   assert.equal(groupOf(db, id).cash, 1);
 });
 
-// specs/single-payment-from-the-fiche.md rule 6
+// specs/payments/single-payment-from-the-fiche.md rule 6
 test('a bucket already paid is left alone and is not named by the group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -194,7 +194,7 @@ test('a bucket already paid is left alone and is not named by the group', () => 
   assert.deepEqual(groupOf(db, id).buckets, ['deposit', 'complement']);
 });
 
-// specs/single-payment-from-the-fiche.md rule 2
+// specs/payments/single-payment-from-the-fiche.md rule 2
 test('a single collectible bucket is settled, but is NOT a group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -218,7 +218,7 @@ test('nothing collectible → nothing written', () => {
   assert.equal(groupOf(db, id), null);
 });
 
-// specs/single-payment-from-the-fiche.md rule 10
+// specs/payments/single-payment-from-the-fiche.md rule 10
 test('« Annuler ce paiement » reverts exactly the buckets the group named', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -240,7 +240,7 @@ test('« Annuler ce paiement » reverts exactly the buckets the group named', ()
   assert.equal(row.balancePaidDate, '2026-07-01');
 });
 
-// specs/single-payment-from-the-fiche.md rule 10
+// specs/payments/single-payment-from-the-fiche.md rule 10
 test('undo on a reservation with no group does nothing', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -250,7 +250,7 @@ test('undo on a reservation with no group does nothing', () => {
   assert.equal(rowOf(db, id).balancePaid, 0);
 });
 
-// specs/single-payment-from-the-fiche.md rule 8
+// specs/payments/single-payment-from-the-fiche.md rule 8
 test('the options and their planning occurrences are NOT touched — the whole point', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -275,7 +275,7 @@ test('the options and their planning occurrences are NOT touched — the whole p
 
 // ── The end-of-stay complement in the group (rule 2bis) ─────────────────────────────────────────
 
-// specs/single-payment-from-the-fiche.md rule 2bis
+// specs/payments/single-payment-from-the-fiche.md rule 2bis
 test('a guest who pays everything on arrival settles the END-OF-STAY complement too', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -297,7 +297,7 @@ test('a guest who pays everything on arrival settles the END-OF-STAY complement 
   assert.deepEqual(groupOf(db, id).buckets, ['balance', 'endOfStayComplement']);
 });
 
-// specs/single-payment-from-the-fiche.md rule 10
+// specs/payments/single-payment-from-the-fiche.md rule 10
 test('undoing releases the end-of-stay complement as well', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -314,7 +314,7 @@ test('undoing releases the end-of-stay complement as well', () => {
   assert.equal(groupOf(db, id), null);
 });
 
-// specs/single-payment-from-the-fiche.md rule 11
+// specs/payments/single-payment-from-the-fiche.md rule 11
 test('un-ticking the end-of-stay complement from the fiche dissolves the group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -326,10 +326,10 @@ test('un-ticking the end-of-stay complement from the fiche dissolves the group',
   assert.equal(groupOf(db, id), null);
 });
 
-// specs/single-payment-from-the-fiche.md rule 7 — l'instantané de contribution tourne sur chaque
+// specs/payments/single-payment-from-the-fiche.md rule 7 — l'instantané de contribution tourne sur chaque
 // échéance de SÉJOUR basculée, exactement comme le PATCH par échéance. C'est lui qui permettra plus
 // tard de dire ce que le solde payait : sans lui, le détail du paiement unique dégrade en une ligne
-// « Solde » (specs/arrival-payment-detail-and-adjustment.md rule 8) et aucune réduction n'est
+// « Solde » (specs/sas/arrival-payment-detail-and-adjustment.md rule 8) et aucune réduction n'est
 // possible.
 test('encaisser le solde depuis la fiche capture sa contribution', () => {
   const db = makeDb();
@@ -343,7 +343,7 @@ test('encaisser le solde depuis la fiche capture sa contribution', () => {
   assert.equal(row.accommodationAcompteContribTtc, null, 'et rien sur une échéance non basculée');
 });
 
-// specs/single-payment-from-the-fiche.md rule 7 — « au mieux » : une capture qui LÈVE ne coûte pas
+// specs/payments/single-payment-from-the-fiche.md rule 7 — « au mieux » : une capture qui LÈVE ne coûte pas
 // l'encaissement. En production le cas est une réservation plateforme dont le solde stocké est le
 // chiffre de la plateforme ; ici on provoque la levée à la racine, parce que c'est la garde
 // elle-même — le `try` autour de la capture, à l'intérieur de la transaction — qui doit tenir.
@@ -362,7 +362,7 @@ test('une capture qui échoue ne fait pas perdre le paiement', () => {
   assert.equal(groupOf(db, id).total, 250);
 });
 
-// specs/single-payment-from-the-fiche.md rule 13 — rien n'est re-tarifé. Les montants encaissés sont
+// specs/payments/single-payment-from-the-fiche.md rule 13 — rien n'est re-tarifé. Les montants encaissés sont
 // les montants stockés, même si la grille a bougé entre la réservation et l'encaissement.
 test('rien n’est re-tarifé : les échéances gardent les montants dus', () => {
   const db = makeDb();
@@ -380,7 +380,7 @@ test('rien n’est re-tarifé : les échéances gardent les montants dus', () =>
   assert.equal(res.total, 250, 'et le groupe porte ce qui a vraiment été encaissé');
 });
 
-// specs/single-payment-from-the-fiche.md rule 14 — les notes de séjour sont hors d'atteinte : chacune
+// specs/payments/single-payment-from-the-fiche.md rule 14 — les notes de séjour sont hors d'atteinte : chacune
 // est sa propre collecte, à sa propre date, et le paiement unique ne les nomme jamais.
 test('les notes encaissées en cours de séjour ne sont ni touchées ni regroupées', () => {
   const db = makeDb();

@@ -1,5 +1,5 @@
 /**
- * The admin option catalogue, shaped for the screen (specs/options-resources-ux.md rules 2-7, 26).
+ * The admin option catalogue, shaped for the screen (specs/options/options-resources-ux.md rules 2-7, 26).
  *
  * Pure — no DB access. The client renders what comes out: groups in the fiche's reading order, the
  * price each option really sells at, the traits that make an option special. Nothing here is a rule

@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 27 — `softChipSx(status)` gives a Chip the soft background and dark text
+// specs/design-system/ds-components.md rule 27 — `softChipSx(status)` gives a Chip the soft background and dark text
 // of the status tokens while it keeps its own height and radius (never a filled semantic Chip).
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,6 +1,6 @@
 /**
  * EmailLogViewDialog — read-only preview of an email_log row.
- * See specs/email-automation.md §6.5.
+ * See specs/emails/email-automation.md §6.5.
  */
 
 import React from 'react';

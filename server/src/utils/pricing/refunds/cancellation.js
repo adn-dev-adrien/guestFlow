@@ -1,5 +1,5 @@
 /**
- * Requalifying a retained acompte (specs/payment-schedule-and-cancellation.md §3.6).
+ * Requalifying a retained acompte (specs/payments/payment-schedule-and-cancellation.md §3.6).
  *
  * When a stay is cancelled because the solde never came, the acompte we already cashed stops being a
  * payment for a séjour and becomes an **indemnité** — legally outside the scope of VAT (CJUE Société
@@ -75,7 +75,7 @@ function requalificationLines(depositTtc, depositBuckets, vatRate) {
 }
 
 /**
- * The avoir lines of the installments collected under a plan (specs/direct-installments.md rule 46). Each was
+ * The avoir lines of the installments collected under a plan (specs/payments/direct-installments.md rule 46). Each was
  * booked on its own split (rule 47): the revenue per bucket at the sales VAT rate, split HT / VAT installment
  * by installment, plus its share of the tourist tax at 0 % (rule 39). The avoir reverses each installment's
  * buckets on a line of their own, « Hébergement — échéance 1/3 », so the export can split every line the way
@@ -120,7 +120,7 @@ function soldeLine(bucket, vatRate) {
 }
 
 /**
- * specs/payment-schedule-and-cancellation.md rule 55 — a book refund made before the cancellation already took its
+ * specs/payments/payment-schedule-and-cancellation.md rule 55 — a book refund made before the cancellation already took its
  * money out of the revenue, the VAT or the tax account: the cancellation keeps only what is left.
  *
  * A paid solde (`saleCollected`, what it collected per bucket) absorbs the earlier refunds first, the order rule 48
@@ -363,7 +363,7 @@ function buildCancellationRequalification({
 // words travel separately, in `reason`.
 function resolveCancellationReason(row) {
   const depositUnpaid = Number(row.depositAmount || 0) > 0 && !Number(row.depositPaid);
-  // An installment plan replaces the solde (specs/direct-installments.md rule 5): what it still owes is one.
+  // An installment plan replaces the solde (specs/payments/direct-installments.md rule 5): what it still owes is one.
   const balanceUnpaid = (Number(row.balanceAmount || 0) > 0 && !Number(row.balancePaid))
     || Number(row.installmentsUnpaidAmount || 0) > 0;
   // Nothing collected at all is an unpaid acompte, the first money missing — not an unpaid solde
@@ -373,7 +373,7 @@ function resolveCancellationReason(row) {
   return 'manual';
 }
 
-// specs/payment-schedule-and-cancellation.md rule 55 — per bucket, what the book refunds made before the cancellation
+// specs/payments/payment-schedule-and-cancellation.md rule 55 — per bucket, what the book refunds made before the cancellation
 // gave back (the caisse interne is off the books: it never reversed any revenue).
 function givenBackByBucket(refunds) {
   const given = {};
@@ -399,7 +399,7 @@ const keptSignature = (totalTtc, lines) => {
   return JSON.stringify([cents(totalTtc), kept.map(lineSignature).sort(), commission]);
 };
 
-// specs/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the acompte collected in
+// specs/payments/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the acompte collected in
 // the caisse interne that the cancellation keeps: off the books (D8), so no avoir names it, yet the guest handed it over.
 // Reading of 2026-11-10 (verification R44 L1): the caisse-interne refunds of `refunds` are taken from every other caisse
 // money first (a solde, the caisse share of a mixed solde, a complement, a note), read by `cashCollected`, the caisse

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 1-5 — the forgotten password: the same answer whatever
+// specs/hosting/hosting-h2-account-security.md rules 1-5 — the forgotten password: the same answer whatever
 // the address, a link valid 1 hour that works once, older links voided, the request limits, every
 // session ended by the reset, and no link without a mail transport.
 

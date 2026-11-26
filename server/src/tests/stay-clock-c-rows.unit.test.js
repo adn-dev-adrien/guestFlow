@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 19, 20, 45 and 71 — the sites that PR C moved behind the stay clock keep the day comparison they replaced:
+// specs/pricing/pricing-components.md §3 rules 19, 20, 45 and 71 — the sites that PR C moved behind the stay clock keep the day comparison they replaced:
 // the day before an arrival, the arrival day and the day after. The static side (no raw comparison left) is the `dates` guard of
 // `no-duplicate-formulas`; this suite is the behaviour side, through the sites that are pure.
 const test = require('node:test');

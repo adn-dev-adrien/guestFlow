@@ -1,4 +1,4 @@
-// validateProviderConnection — Qonto provider-connection form. See specs/online-payments-qonto.md §3.2.
+// validateProviderConnection — Qonto provider-connection form. See specs/payments/online-payments-qonto.md §3.2.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

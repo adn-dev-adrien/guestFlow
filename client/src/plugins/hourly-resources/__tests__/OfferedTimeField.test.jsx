@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 7, 9 — the offered time moves by 15 minutes; the refusal is the server's.
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 7, 9 — the offered time moves by 15 minutes; the refusal is the server's.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';

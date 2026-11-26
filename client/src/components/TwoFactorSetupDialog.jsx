@@ -1,7 +1,7 @@
 /**
  * TwoFactorSetupDialog — the activation of the « Validation en deux étapes » in three steps:
  * « Mot de passe » → « Appli » (or « Email ») → « Codes de secours »
- * (specs/hosting-h2-account-security.md rules 40–45, 48, 52). Used for the first activation and, with
+ * (specs/hosting/hosting-h2-account-security.md rules 40–45, 48, 52). Used for the first activation and, with
  * `initialEnrolment`, for « Changer d’appli » (the password and the current code were asked by the
  * ReauthDialog before: the dialog opens at step 2).
  *

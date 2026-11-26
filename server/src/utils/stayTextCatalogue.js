@@ -1,5 +1,5 @@
 /**
- * Stay texts — the sentences of the guest email sequence, as data (specs/plugins-phase-p-productisation.md
+ * Stay texts — the sentences of the guest email sequence, as data (specs/plugins/plugins-phase-p-productisation.md
  * §3.A rules 1–6).
  *
  * The code decides WHETHER a text appears and fills its tokens; the wording is the operator's, stored
@@ -104,7 +104,7 @@ const CATALOGUE = Object.freeze([
   { key: 'gift.fallback', email: MAILS.SEASON, label: 'Bons cadeaux — sans prix', tokens: [], flags: [],
     fr: 'une ou plusieurs nuits chez nous',
     en: 'one or more nights with us' },
-  // specs/guest-email-texts-made-simple.md rule 3 — the J-2's arrival paragraphs, composed from the
+  // specs/emails/guest-email-texts-made-simple.md rule 3 — the J-2's arrival paragraphs, composed from the
   // property's arrival facts; each is omitted while its facts are empty.
   { key: 'addressParagraph', email: MAILS.J2, label: 'Arrivée — adresse', tokens: ['address', 'mapUrl'], flags: [],
     fr: '- Adresse : {{address}}{{#if mapUrl}}\n  Itinéraire : {{mapUrl}}{{/if}}',

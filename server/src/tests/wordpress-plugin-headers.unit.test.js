@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 20 — the plugin declares `Update URI`, so WordPress never offers a
+// specs/site/wordpress-plugin.md rule 20 — the plugin declares `Update URI`, so WordPress never offers a
 // wordpress.org plugin of the same slug as an « update ». Rule 24 — the version is bumped in the three
 // places the release reads, and the update manifest says which WordPress it was tested on.
 const test = require('node:test');

@@ -1,5 +1,5 @@
 /**
- * How far ahead the public may book (specs/gift-voucher-campaigns.md rule 51).
+ * How far ahead the public may book (specs/gift-vouchers/gift-voucher-campaigns.md rule 51).
  *
  * A horizon is « today + N months » on the server's clock — the process runs in the accommodations'
  * time zone (utils/localDate.js, Europe/Paris by default) — never a constant and never computed by a

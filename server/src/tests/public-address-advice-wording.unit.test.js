@@ -1,4 +1,4 @@
-// specs/settings-one-save-and-automatic-webhook.md rule 17 (audit R26 E26-1, 2026-11-06) — every message the tree ships that
+// specs/settings/settings-one-save-and-automatic-webhook.md rule 17 (audit R26 E26-1, 2026-11-06) — every message the tree ships that
 // sends the operator to the public address names the page that holds it, « (Paramètres → Système) »: never « Paramètres ›
 // Société » nor « Réglages → Système », pages GuestFlow does not have. A scan of the server and client sources, tests excluded.
 const test = require('node:test');

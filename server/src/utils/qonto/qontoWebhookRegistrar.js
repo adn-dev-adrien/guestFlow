@@ -1,6 +1,6 @@
 /**
  * The payment-link webhook subscribes itself.
- * See specs/settings-one-save-and-automatic-webhook.md §3 rules 7-11.
+ * See specs/settings/settings-one-save-and-automatic-webhook.md §3 rules 7-11.
  *
  * Until 2026-09-16 the subscription was an operator's job: invent a secret, paste it into a field,
  * press « Enregistrer le webhook ». Nothing in that sequence needed a human — and the secret was on
@@ -15,7 +15,7 @@
 const crypto = require('crypto');
 
 // Shared by the instance's online-payment plugin and the control plane, each with its own settings store
-// (specs/plugins-phase-3a-online-payment.md rule 22): the caller always hands it in.
+// (specs/plugins/plugins-phase-3a-online-payment.md rule 22): the caller always hands it in.
 const guestflowSettings = () => { throw new Error('[qonto] a settings store is required'); };
 const { resolveQontoConfig } = require('./qontoConfig');
 const { withQonto, recordQontoFailure, recordWebhookCheckSuccess } = require('./qontoService');

@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * ReservationsUpcomingPage — DS phase-5 sweep (specs/ds-sweep-planning.md §7):
+ * ReservationsUpcomingPage — DS phase-5 sweep (specs/design-system/ds-sweep-planning.md §7):
  * a load FAILURE must surface the retryable ErrorAlert — the page used to swallow it into
  * « Aucune réservation à venir. » (failure disguised as an empty list).
  */
@@ -26,7 +26,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import ReservationsUpcomingPage from '../ReservationsUpcomingPage';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 function renderPage() {

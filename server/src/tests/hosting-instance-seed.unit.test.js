@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 24 and 25 — on the instance side: the first-admin script
+// specs/hosting/hosting-h1-fleet-runtime.md rules 24 and 25 — on the instance side: the first-admin script
 // gives a lost invitation a new provisional password (`--reissue`), fills the establishment with what
 // the console knows (`--establishment`, `--company`) without ever overwriting what the customer typed,
 // and the address the hosting writes (`GUESTFLOW_PUBLIC_URL`) is the instance's public URL whenever

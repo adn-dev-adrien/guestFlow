@@ -1,6 +1,6 @@
 // @ts-check
-// plugins/booking-intake — specs/booking-extranet-intake.md rules 1–3, 7, 12–15, 17–18, 21–23 (E2E). The bare « Rule N » below are its rules.
-// Repeatable with `--repeat-each … --workers=1` only: specs/e2e-playwright-smoke-suite.md rule 22.
+// plugins/booking-intake — specs/platforms/booking-extranet-intake.md rules 1–3, 7, 12–15, 17–18, 21–23 (E2E). The bare « Rule N » below are its rules.
+// Repeatable with `--repeat-each … --workers=1` only: specs/tech/e2e-playwright-smoke-suite.md rule 22.
 // The userscript's request is replayed by hand against the real server: the iCal placeholder is filled
 // (guest, party, money reconciled with ✓), the dashboard line it created goes away, a second view is
 // « déjà à jour », a fiche edited since gets a proposal that Appliquer settles.
@@ -31,7 +31,7 @@ async function setActive(page, active) {
     const button = card.getByRole('button', { name: 'Activer' });
     if (await button.count()) await button.click();
   } else if (await card.getByText('Actif', { exact: true }).count()) {
-    // specs/plugins-phase-0-foundation.md rule 25 — « Désactiver » sits in ⋯, behind a confirmation.
+    // specs/plugins/plugins-phase-0-foundation.md rule 25 — « Désactiver » sits in ⋯, behind a confirmation.
     await card.getByRole('button', { name: /Plus d’actions/ }).click();
     await page.getByRole('menuitem', { name: /Désactiver/ }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Désactiver' }).click();
@@ -96,7 +96,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
 
   // Rules 21–22 — the fiche waits on the dashboard, with a link into the extranet list.
   await page.goto('/');
-  // The subject waits in « À traiter » (specs/shell-and-home-day-first.md rule 10): unfold its row.
+  // The subject waits in « À traiter » (specs/planning/shell-and-home-day-first.md rule 10): unfold its row.
   await page.getByRole('button', { name: /Réservations Booking à compléter/ }).first().click({ timeout: 10_000 });
   const line = page.getByText(new RegExp(`${PROPERTY_NAME} · .* → `));
   await expect(line).toBeVisible({ timeout: 10_000 });

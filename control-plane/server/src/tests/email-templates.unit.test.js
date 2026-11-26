@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 33 — the five templates, their mode, the refusal of an
+// specs/hosting/control-plane-plans-and-access.md rule 33 — the five templates, their mode, the refusal of an
 // unknown placeholder or an empty text, and the server's preview.
 
 const test = require('node:test');

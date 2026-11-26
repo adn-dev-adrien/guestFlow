@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 2, 6, 10 — the campaigns list: state, kind, validity and contents as the server describes them, the engine's reason when a campaign
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 2, 6, 10 — the campaigns list: state, kind, validity and contents as the server describes them, the engine's reason when a campaign
 // cannot be offered, « Nouvelle campagne », and « Importer une recette » with the server's per-field refusals.
 import React from 'react';
 import { screen, waitFor, within } from '@testing-library/react';

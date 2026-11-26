@@ -1,5 +1,5 @@
 // The application's write routes as Express holds them, core and plugins. A router forgets the path it was mounted on,
-// so `install()` notes it, BEFORE the application loads (specs/hosting-h2-account-security.md rule 68, census).
+// so `install()` notes it, BEFORE the application loads (specs/hosting/hosting-h2-account-security.md rule 68, census).
 const express = require('express');
 
 const WRITES = ['post', 'put', 'patch', 'delete'];

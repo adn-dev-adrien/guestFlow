@@ -1,5 +1,5 @@
 /**
- * Safe arithmetic evaluator for money input fields (specs/reservation-price-arithmetic.md).
+ * Safe arithmetic evaluator for money input fields (specs/reservations/reservation-price-arithmetic.md).
  *
  * Supports `+ - * /`, parentheses, and decimal numbers (French comma `,` accepted as the decimal
  * separator). NO `eval` / `Function` — it tokenizes, converts to RPN (shunting-yard) and evaluates,

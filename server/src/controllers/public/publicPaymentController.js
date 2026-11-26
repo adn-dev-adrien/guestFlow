@@ -1,5 +1,5 @@
 /**
- * Public online full-payment controller (specs/public-online-payment.md §3). Two server-to-server
+ * Public online full-payment controller (specs/site/public-online-payment.md §3). Two server-to-server
  * routes (the WordPress proxy calls them with the public API key):
  *   - `pay`    : create/reuse the FULL (or deposit) link for a public devis (availability re-checked,
  *                engine amount, return URL allowlisted) → { paymentUrl, amountCents }.
@@ -8,7 +8,7 @@
  *
  * Confirmation itself (convert devis → block dates → confirmation email) is the shared `processPaidLink`
  * effect, driven primarily by the provider's webhook and reconciled here on demand. The link comes from
- * the active payment provider (specs/plugins-phase-3a-online-payment.md rule 4); the answers are the
+ * the active payment provider (specs/plugins/plugins-phase-3a-online-payment.md rule 4); the answers are the
  * WordPress contract and do not change — `QONTO_API_ERROR` included, through `provider.errorCode`.
  */
 
@@ -50,7 +50,7 @@ function buildReturnUrl(returnPath) {
 
 // Load a devis eligible for the public payment flow, gated on the per-devis capability token, or an
 // error tag. A bad id or a wrong/missing token is indistinguishable from "not found" so the sequential
-// row id can't be enumerated (specs/public-online-payment.md §7).
+// row id can't be enumerated (specs/site/public-online-payment.md §7).
 function loadPublicDevis(id, token) {
   if (!Number.isInteger(id) || id <= 0) return { error: 'not_found' };
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
@@ -89,7 +89,7 @@ function requireProvider(req, res, next) {
   return res.status(404).json({ error: 'PLUGIN_INACTIVE', plugin: 'online-payment' });
 }
 
-// specs/payment-link-lifecycle.md rule 54 — GuestFlow's own refusals on the link path are operator sentences:
+// specs/payments/payment-link-lifecycle.md rule 54 — GuestFlow's own refusals on the link path are operator sentences:
 // the visitor reads them in the site's language. A link paid meanwhile means the booking is (being) confirmed.
 const VISITOR_REFUSALS = {
   LINK_ALREADY_PAID: [409, 'ALREADY_CONFIRMED', 'alreadyConfirmed'],
@@ -128,11 +128,11 @@ async function pay(req, res) {
     return failT(res, req, 409, code, key, undefined, ...args);
   }
 
-  // Server-decided mode (specs/public-online-deposit.md): 'deposit' charges the stored acompte now (solde
+  // Server-decided mode (specs/site/public-online-deposit.md): 'deposit' charges the stored acompte now (solde
   // by a later emailed link); 'full' charges the whole stay. The client never chooses.
   const mode = resolvePublicPaymentMode(db, row.propertyId, depositPaymentCents(db, id, row));
   const linkType = mode === 'deposit' ? 'deposit' : 'full';
-  // SDK 2.33.0 (specs/gift-vouchers.md rule 38) — prepaid money held for this quote pays the earliest amounts first: the link is
+  // SDK 2.33.0 (specs/gift-vouchers/gift-vouchers.md rule 38) — prepaid money held for this quote pays the earliest amounts first: the link is
   // minted for what the mode still asks, and when that is nothing the quote is confirmed at once, with no link.
   const fullNow = () => fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, row);
   let prepaidReduction = 0;
@@ -173,7 +173,7 @@ async function pay(req, res) {
         ? depositPaymentCents(db, id, r)
         : fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, r)) - prepaidReduction,
       // VAT basket so the Qonto/Mollie page shows the real TVA while charging exactly the resolved total
-      // (specs/payment-links-vat.md). Deposit is accommodation-only (single taxable line).
+      // (specs/payments/payment-links-vat.md). Deposit is accommodation-only (single taxable line).
       resolveItems: (_id, _type, r) => prepaidSources.reduceComponents(mode === 'deposit'
         ? depositPaymentComponents(db, id, r)
         : fullPaymentComponents({ database: db, devisModel, calc: calculateReservationQuote }, id, r), prepaidReduction),
@@ -226,7 +226,7 @@ function recap(reservationRow) {
 // A link retired by the stay's own payment may have been paid anyway (the guest still holds its URL):
 // settle it now, so the double payment is flagged while the guest is on the page. The page polls every few
 // seconds, so a link is asked about at most once per OWED_RETRY_MINUTES (the webhook covers the rest), and a
-// rate limit stops the loop (specs/payment-polling-fair-use.md).
+// rate limit stops the loop (specs/payments/payment-polling-fair-use.md).
 const OWED_RETRY_MINUTES = 5;
 async function settleOwedRetiredLinks(devisId) {
   const provider = paymentProviders.declared();
@@ -244,7 +244,7 @@ async function settleOwedRetiredLinks(devisId) {
   } catch (e) { /* best-effort — the poll retries */ }
 }
 
-// specs/payment-link-lifecycle.md rule 30 — a lapsed link may still have been paid (a payment in flight at
+// specs/payments/payment-link-lifecycle.md rule 30 — a lapsed link may still have been paid (a payment in flight at
 // its deadline): while its last look is pending, or for 24 h after it lapsed, the page reads it once per
 // OWED_RETRY_MINUTES. No lapse timestamp is stored: a lapse writes its moment into `expiresAt` (rule 8);
 // a stay-started lapse without one counts from 00:00 Paris on the arrival day (rule 9).
@@ -311,8 +311,8 @@ async function status(req, res) {
   if (link && link.providerLinkId && provider && link.provider === provider.id) {
     try {
       // Exempt from the poll cadence (the guest is waiting on this page), but the call still counts
-      // towards it (specs/payment-polling-fair-use.md rules 4 and 10). The provider records a failure
-      // where the operator reads it (specs/qonto-settings-in-app.md §3 rule 14).
+      // towards it (specs/payments/payment-polling-fair-use.md rules 4 and 10). The provider records a failure
+      // where the operator reads it (specs/settings/qonto-settings-in-app.md §3 rule 14).
       paymentLinksModel.touchPolled(link.id);
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'public-payment' });
       if (pay.paid) {

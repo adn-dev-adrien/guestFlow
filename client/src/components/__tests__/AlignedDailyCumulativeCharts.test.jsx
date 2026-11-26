@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 11 and 14 — two charts on one time axis: the keys name the bars,
+ * specs/design-system/report-grammar.md §3 rules 11 and 14 — two charts on one time axis: the keys name the bars,
  * the cumulative line and (only when sent) last year's dashed cumulative; the table view lists the
  * three figures per day; the shared tooltip (named export, Recharts draws nothing in jsdom) gives them.
  */

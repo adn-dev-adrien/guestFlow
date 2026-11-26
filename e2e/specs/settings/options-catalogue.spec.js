@@ -1,5 +1,5 @@
 // @ts-check
-// specs/options-resources-ux.md rules 1, 8-17 — the options catalogue in the real app: fold a category,
+// specs/options/options-resources-ux.md rules 1, 8-17 — the options catalogue in the real app: fold a category,
 // search, open an option in the side panel, a refused per-property price, a fixed one that is saved, and
 // the list that shows the effective price range.
 import { test, expect, request as pwRequest } from '@playwright/test';

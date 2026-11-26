@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 1, 32 — « Plusieurs moyens » at the check-out SAS: the lines open under
+// specs/payments/mixed-method-payments.md rules 1, 32 — « Plusieurs moyens » at the check-out SAS: the lines open under
 // the payment buttons, the commit button names what it collects, and the lines ride the commit.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

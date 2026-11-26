@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 40 and specs/control-plane-plans-and-access.md rule 45 —
+// specs/hosting/hosting-h1-fleet-runtime.md rule 40 and specs/hosting/control-plane-plans-and-access.md rule 45 —
 // « Réessayer » on a failed closing mail never sends a dead link (audit R9 N1).
 
 const test = require('node:test');

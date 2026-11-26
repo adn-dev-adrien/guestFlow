@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 32 and 35 (audit R22-C3, C5) — a number typed on an unsold line of
+// specs/options/non-card-option-served-persons.md rules 32 and 35 (audit R22-C3, C5) — a number typed on an unsold line of
 // the note sells that number, on the fiche's bounds; the nights stop at the longest stay, like OptionRow.
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';

@@ -6,7 +6,7 @@ const devisModel = require('../models/devisModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // Full pricing schema (so calculateReservationQuote runs) + devis tables, to cover the money-critical
@@ -55,9 +55,9 @@ const DDL = `
   CREATE TABLE reservation_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, resourceId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
   CREATE TABLE reservation_nights (reservationId INTEGER, date TEXT, seasonLabel TEXT, pricingMode TEXT, price REAL);
   CREATE TABLE reservation_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, eventType TEXT, changedFields TEXT, createdAt TEXT DEFAULT (datetime('now')));
-  -- specs/devis-pdf-and-tourist-tax-fixes.md §3.3: server-side property defaults merge requires this table.
+  -- specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.3: server-side property defaults merge requires this table.
   CREATE TABLE property_option_defaults (propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, offered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
-  -- specs/devis-pdf-and-tourist-tax-fixes.md §3.2: devis create reads quoteValidityDays from settings.
+  -- specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2: devis create reads quoteValidityDays from settings.
   CREATE TABLE app_settings (id INTEGER PRIMARY KEY, quoteValidityDays INTEGER NOT NULL DEFAULT 30);
   INSERT INTO app_settings (id, quoteValidityDays) VALUES (1, 30);
 `;
@@ -97,7 +97,7 @@ test('create honours a manual accommodation price (override 300 → final 350)',
   assert.equal(result.data.customPrice, 300);
 });
 
-// specs/deposit-blocks-the-dates.md rules 4-5 + 7 — a devis being created is booked TODAY. The engine
+// specs/payments/deposit-blocks-the-dates.md rules 4-5 + 7 — a devis being created is booked TODAY. The engine
 // has no clock, so the model injects the day; passing null (as it did) persisted a schedule computed as
 // if the booking day were unknown — an acompte on a stay too close to collect one, and a solde deadline
 // free to land in the past — while the fiche's live recompute, which does inject today, showed the

@@ -1,4 +1,4 @@
-// specs/settings-one-save-and-automatic-webhook.md rules 8 and 10, readings of 2026-11-05 (audit R23, E23-1 and E23-5).
+// specs/settings/settings-one-save-and-automatic-webhook.md rules 8 and 10, readings of 2026-11-05 (audit R23, E23-1 and E23-5).
 // The record of a subscription belongs to the account that consented: a sandbox record answered « skipped » for the
 // production account, and no webhook ever arrived there. A fresh consent forgets it, so the check asks the new account;
 // and two checks at once share one call to Qonto. Loopback fake only.

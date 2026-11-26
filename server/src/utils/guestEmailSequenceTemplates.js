@@ -1,13 +1,13 @@
 /**
- * Copy of the guest email sequence (specs/guest-email-sequence.md §6.1) — FR source of truth, EN
+ * Copy of the guest email sequence (specs/emails/guest-email-sequence.md §6.1) — FR source of truth, EN
  * translation. Every conditional paragraph is composed server-side by utils/stayContentContext.js:
  * the renderer has no nesting, so a template only places `{{#if hasX}}{{x}}{{/if}}` blocks.
  *
- * Neutral copy (specs/plugins-phase-p-productisation.md rule 13): no place, product or facility the
+ * Neutral copy (specs/plugins/plugins-phase-p-productisation.md rule 13): no place, product or facility the
  * product cannot know of. The house speaks as {{companyName}}; the rest is the operator's to write.
  * A stored template is never overwritten by this file.
  *
- * specs/guest-email-texts-made-simple.md rules 3–4 and 8: the J-2 places the arrival paragraphs, and
+ * specs/emails/guest-email-texts-made-simple.md rules 3–4 and 8: the J-2 places the arrival paragraphs, and
  * a sentence built on the company phone is left out while the phone is empty.
  */
 
@@ -15,7 +15,7 @@ const lines = (...l) => l.join('\n');
 
 // ---------------------------------------------------------------- 1. Confirmation
 
-// specs/terms-acceptance-record.md rule 27 — the CGV of the stay, pinned to the version the guest
+// specs/reservations/terms-acceptance-record.md rule 27 — the CGV of the stay, pinned to the version the guest
 // accepted (the current one for a booking taken by phone). The whole paragraph disappears while no
 // version is published. Exported: utils/migrateConfirmationCgvLink.js inserts the same paragraph into
 // stored templates.

@@ -1,5 +1,5 @@
 /**
- * Input limits of the settings (specs/settings-input-guards.md rules 1, 5, 6, 8).
+ * Input limits of the settings (specs/settings/settings-input-guards.md rules 1, 5, 6, 8).
  *
  * A limits descriptor is `{ min, max, integer?, decimals?, unit?, message? }`. The server enforces it
  * and sends it with the payload that fills the form, so `BoundedNumberField` shows exactly the message

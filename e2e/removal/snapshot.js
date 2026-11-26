@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Before a plugin is removed (specs/plugin-removal-resilience.md rule 12): boots the server with every
+// Before a plugin is removed (specs/plugins/plugin-removal-resilience.md rule 12): boots the server with every
 // plugin on the seeded database, saves each seeded stay once — which settles it with the pricing
 // engine — and writes what its money is to `reference.json`. The removal run must find the same.
 //

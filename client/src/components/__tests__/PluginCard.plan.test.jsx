@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 11-12 — a plugin the subscription does not include
+// specs/hosting/control-plane-plans-and-access.md rules 11-12 — a plugin the subscription does not include
 // shows the plan that does and cannot be installed; one installed before a downgrade reads as off,
 // keeps its data and can still be uninstalled.
 import React from 'react';

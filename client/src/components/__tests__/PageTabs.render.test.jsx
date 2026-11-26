@@ -1,4 +1,4 @@
-// specs/ds-tabs.md rules 7-8 — what a strip does once it is drawn: one role="tab" per item, the
+// specs/design-system/ds-tabs.md rules 7-8 — what a strip does once it is drawn: one role="tab" per item, the
 // active one marked, onChange called with the VALUE (not the event), an optional badge riding after
 // the label (rule 8), and an overflow that SCROLLS instead of wrapping or truncating (rule 7).
 import React from 'react';

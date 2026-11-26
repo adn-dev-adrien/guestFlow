@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md rule 69, reading of 2026-11-05 (audit R24 verification DB-1) — a save that would drop a
+// specs/pricing/tariff-recipes.md rule 69, reading of 2026-11-05 (audit R24 verification DB-1) — a save that would drop a
 // property's free units is refused on that row's price; with a price type that has no « Prix » column (« Gratuit »,
 // « Dégressif participants ») the refusal prints under the property's row, never hidden behind « 1 champ à corriger ».
 import React from 'react';

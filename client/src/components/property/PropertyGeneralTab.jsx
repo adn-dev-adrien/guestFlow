@@ -1,5 +1,5 @@
 /**
- * PropertyGeneralTab — « Général » tab of the property page (specs/settings-rationalization.md
+ * PropertyGeneralTab — « Général » tab of the property page (specs/settings/settings-rationalization.md
  * rule 21): name + article, photo, capacity, beds, check-in / check-out times, cleaning time.
  *
  * Props:

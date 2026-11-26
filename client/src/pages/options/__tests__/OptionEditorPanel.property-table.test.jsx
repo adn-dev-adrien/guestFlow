@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 14 — « Logements et prix »: one line per property (Proposée, Prix,
+// specs/options/options-resources-ux.md rule 14 — « Logements et prix »: one line per property (Proposée, Prix,
 // Inclus, Offert), blank price = base price, free / progressive / auto-timed variants.
 import React from 'react';
 import { screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 1, 2 and 12 — what a « Sans TVA » sale prints: the legal
+// specs/accounting/vat-optional-mode.md rules 1, 2 and 12 — what a « Sans TVA » sale prints: the legal
 // mention (one of two fixed texts, French and English) instead of the VAT breakdown, on the live and the
 // stored summary and on the devis PDF; the settings summary words the regime.
 

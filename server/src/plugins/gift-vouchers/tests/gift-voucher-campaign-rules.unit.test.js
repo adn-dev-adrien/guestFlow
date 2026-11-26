@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 2-4, 6, 9, 46 — what a campaign may be: the one judgement shared by the campaign form, « Sur mesure » and the recipe import.
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 2-4, 6, 9, 46 — what a campaign may be: the one judgement shared by the campaign form, « Sur mesure » and the recipe import.
 // A composition holds exactly one hourly resource (band, minutes) and any options; only elements sellable outside a stay; the extra time and the add-ons;
 // the validity; the permanent link (format, uniqueness, locked once a card is printed); the lodging bounds, VAT rate and ideas. Each refusal names its field in French.
 const test = require('node:test');

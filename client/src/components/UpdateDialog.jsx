@@ -1,5 +1,5 @@
 /**
- * UpdateDialog — what changed, then the decision (specs/self-update-and-releases.md §6.2).
+ * UpdateDialog — what changed, then the decision (specs/hosting/self-update-and-releases.md §6.2).
  *
  * The release notes are read inside the application rather than behind a link to GitHub: the
  * operator is about to replace the software running their business, and the one moment they need

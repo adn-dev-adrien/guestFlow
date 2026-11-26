@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 5, 6 and 28-31 — what the clearing account of Mollie books when a
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 5, 6 and 28-31 — what the clearing account of Mollie books when a
 // credit comes short by the fees, when a payment was refunded, when a settlement holds payments GuestFlow does not know, and
 // on which day (Paris, never UTC). Fictional data, dates relative to today.
 const test = require('node:test');

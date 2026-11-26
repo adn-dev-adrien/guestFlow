@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rules 1-2 — the window of the Suivi financier: the exercise, one
+// specs/accounting/finance-dashboard-redesign.md rules 1-2 — the window of the Suivi financier: the exercise, one
 // of its months, or a custom du / au; an invalid custom window is refused with the page's message.
 const { resolveWindow, MESSAGES } = require('../utils/financeWindow');
 const { todayIso } = require('../utils/localDate');

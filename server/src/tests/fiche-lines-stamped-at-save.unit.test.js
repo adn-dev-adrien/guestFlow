@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 36, 37, 97 (loop t1 D-2) — a line the operator adds on the fiche is stamped by the save that writes it: its sale
+// specs/pricing/pricing-components.md §3 rules 36, 37, 97 (loop t1 D-2) — a line the operator adds on the fiche is stamped by the save that writes it: its sale
 // date is the save's (never the booking's at the next boot), its moment, article and family are set, and a second migration run changes nothing.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

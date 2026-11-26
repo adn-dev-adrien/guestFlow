@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 18 — the dated tranches of a staged payment are drawn one
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 18 — the dated tranches of a staged payment are drawn one
 // line each (label, amount, state badge), the way an instalment plan draws its instalments. The component draws
 // what it is given: no state, amount or date is computed here.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 20 and 21 — « prolonger » an expired quote: only an
+// specs/design-system/ui-review-2026-10-19-operations.md rules 20 and 21 — « prolonger » an expired quote: only an
 // open one, announced before it is done with the very figures the save will write, never a converted
 // quote; the list says which quotes are stale.
 const test = require('node:test');

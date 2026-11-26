@@ -10,7 +10,7 @@ const ROOT = path.resolve(__dirname, '..', '..', '..');
 const { installDependencies, pruneNpmCache } = require('../utils/updateStaging');
 const { lockfileViolations, assertLockfileProvenance } = require('../utils/lockfileProvenance');
 
-// specs/self-update-and-releases.md rule 40: before an install, the release's lockfile must resolve every
+// specs/hosting/self-update-and-releases.md rule 40: before an install, the release's lockfile must resolve every
 // package from the npm registry with an integrity hash; the install then runs with --ignore-scripts and a
 // minimal environment. The sentinels play the part of the console's licence key, session secret and
 // encryption key.

@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 23, specs/gites-de-france-mail-intake.md rule 22, specs/hosting-h2-account-security.md
+// specs/platforms/airbnb-mail-intake.md rule 23, specs/platforms/gites-de-france-mail-intake.md rule 22, specs/hosting/hosting-h2-account-security.md
 // rule 18 — the SMTP password is only offered over TLS, only to a host of the SMTP server's domain, and the
 // settings that decide where it goes (or who vouches for a sender) are refused to a support session.
 const test = require('node:test');

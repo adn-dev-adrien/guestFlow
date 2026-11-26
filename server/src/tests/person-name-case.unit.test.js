@@ -1,4 +1,4 @@
-// specs/free-text-keeps-case.md rule 5 — a guest's name typed in one case gets a capital on every
+// specs/reservations/free-text-keeps-case.md rule 5 — a guest's name typed in one case gets a capital on every
 // word and every part of a compound; a name typed in mixed case is kept as typed. « Jean-Pierre » no
 // longer becomes « Jean-pierre », nor « Le Goff » « Le goff » (review of the website booking, 2026-10-18).
 const test = require('node:test');

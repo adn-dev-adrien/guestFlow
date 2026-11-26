@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 78-84 (« Mon séjour » from J-7, second message) — the nordic bath from the app, through the real routes and
+// specs/guest-app/guest-app.md rules 78-84 (« Mon séjour » from J-7, second message) — the nordic bath from the app, through the real routes and
 // the plugin hourly-resources' own scheduler: the stay's days and the bath's own hours, the heat-up counted from now, the other uses
 // of the bath, the free time at the day rate with the evening supplement, the hours the stay already holds, a crafted slot refused first.
 const fx = require('./guestOrderFixtures');

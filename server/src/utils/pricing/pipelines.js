@@ -1,5 +1,5 @@
 /**
- * The use cases built from the steps (specs/pricing-components.md §3 rule 52).
+ * The use cases built from the steps (specs/pricing/pricing-components.md §3 rule 52).
  *
  * `stayQuote` (fiche, devis, intakes): loadStay → clock → nights → extraGuests → discountLevers → extras → midStay →
  * platformGross → touristTax → platformPrice → discounts → vat → totals → inComplement → schedule → platformPayment →

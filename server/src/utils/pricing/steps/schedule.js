@@ -1,5 +1,5 @@
 /**
- * STEP schedule — SCHEDULE (specs/pricing-components.md §3 rule 52).
+ * STEP schedule — SCHEDULE (specs/pricing/pricing-components.md §3 rule 52).
  *
  * The acompte, the solde, their due dates and the complement amounts.
  * `apply(ctx)` returns a new context and never mutates the one it receives.
@@ -46,13 +46,13 @@ const step = {
     // The two readings of money received go through the PaymentLedger port here, under the conditions the plan has always
     // read them: a collected bucket has a split to carve out, read from the stay's receipts (rule 48: the one read of what was
     // received); a direct stay whose solde is not collected may have an installment plan (rules 35 and 60 of
-    // specs/direct-installments.md: a bucket already collected is never zeroed, the acompte stays beside the plan). The unit gets values.
+    // specs/payments/direct-installments.md: a bucket already collected is never zeroed, the acompte stays beside the plan). The unit gets values.
     const splitReceived = (depositPaid || balancePaid || complementPaid) ? paymentLedger.receipts(bookingId).splitReceived : null;
     const installmentPlanRead = isDirectChannel(platform) && !balancePaid ? paymentLedger.installments(bookingId) : null;
 
     // The two due dates are resolved AFTER the amounts (further down), because whether an échéance
     // exists at all depends on them — see the `resolveDepositDueDate` / `resolveBalanceDueDate` call
-    // in `planSchedule` (specs/payment-schedule-and-cancellation.md §3.1-§3.2).
+    // in `planSchedule` (specs/payments/payment-schedule-and-cancellation.md §3.1-§3.2).
 
     const {
       accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate, complementCollectedExcess,

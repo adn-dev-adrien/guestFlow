@@ -1,5 +1,5 @@
 // @ts-check
-// specs/reservation-payment-ledger.md §3.8 rules 50, 57, 62 — the stored amounts look like the usual
+// specs/payments/reservation-payment-ledger.md §3.8 rules 50, 57, 62 — the stored amounts look like the usual
 // summary (no notice), and a platform stay sold far from the grid raises one alert.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';

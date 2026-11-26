@@ -1,7 +1,7 @@
 // Review fixes of the tourist-tax report (review R1, 2026-11-06), through the real controllers:
-//   specs/tourist-tax-report-v2.md §3 rules 26, 27, 28, 29, 34 and 35;
-//   specs/tourist-tax-declaration-month-stay-end.md §3 rule 9 (D-HC10) — a tax frozen at 0 € leaves both pages;
-//   specs/tourist-tax-declared-checkbox.md §3 rule 9 — the « Déclarée » PATCH refuses a platform's stay and a non-boolean.
+//   specs/tourist-tax/tourist-tax-report-v2.md §3 rules 26, 27, 28, 29, 34 and 35;
+//   specs/tourist-tax/tourist-tax-declaration-month-stay-end.md §3 rule 9 (D-HC10) — a tax frozen at 0 € leaves both pages;
+//   specs/tourist-tax/tourist-tax-declared-checkbox.md §3 rule 9 — the « Déclarée » PATCH refuses a platform's stay and a non-boolean.
 // Each test owns a quarter of its own, far ahead, and moves the clock past it.
 process.env.DB_PATH = ':memory:';
 

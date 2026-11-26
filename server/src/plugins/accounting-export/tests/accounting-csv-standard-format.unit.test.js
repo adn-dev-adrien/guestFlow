@@ -37,7 +37,7 @@ function makeEntry(overrides = {}) {
   };
 }
 
-// specs/accounting-platform-commission-and-no-deposit.md rule 14
+// specs/accounting/accounting-platform-commission-and-no-deposit.md rule 14
 test('header line matches the standard format byte-for-byte (incl. trailing space on `Mois `)', () => {
   const csv = serializeCsv(CSV_HEADERS, [], { bom: false });
   const headerLine = csv.split('\r\n')[0];
@@ -48,7 +48,7 @@ test('header line matches the standard format byte-for-byte (incl. trailing spac
   assert.ok(headerLine.endsWith(';Plateforme;Prix payé client;Commission'), `header should end with the platform info columns, got: ${headerLine}`);
 });
 
-// specs/accountant-accounting-export.md rule 18
+// specs/accounting/accountant-accounting-export.md rule 18
 test('a single entry serialises to the standard row shape: debit + revenue + VAT', () => {
   const rows = buildRows([makeEntry()]);
   const csv = serializeCsv(CSV_HEADERS, rows, { bom: false });
@@ -86,7 +86,7 @@ test('a single entry serialises to the standard row shape: debit + revenue + VAT
   assert.equal(vatCols[8], '103,83');
 });
 
-// specs/accountant-accounting-export.md rule 16
+// specs/accounting/accountant-accounting-export.md rule 16
 test('entry with tourist tax → an extra 46710000 row matching the example F-2025-020 shape', () => {
   // Example F-2025-020: 775 = 690 (70600000 @ 10%) + 69 (44571100 @ 10%) + 16 (46710000).
   // Buckets sum to 759 TTC (HT 690 + VAT 69); + tax 16 = 775 debit.
@@ -115,7 +115,7 @@ test('entry with tourist tax → an extra 46710000 row matching the example F-20
   assert.equal(debitCols[7], '775');
 });
 
-// specs/accountant-accounting-export.md rule 19
+// specs/accounting/accountant-accounting-export.md rule 19
 test('CRLF line terminator + comma decimal + no BOM (latin1-friendly serialisation)', () => {
   const csv = serializeCsv(CSV_HEADERS, buildRows([makeEntry()]), { bom: false });
   assert.ok(csv.includes('\r\n'), 'lines must be CRLF-terminated');
@@ -133,7 +133,7 @@ test('every printable byte of a typical French libellé survives the latin1 roun
   assert.ok(roundTrip.includes('HÉLÈNE FRANÇOIS-CÔTÉ'), 'French accents survive ISO-8859-1 round-trip');
 });
 
-// specs/accountant-accounting-export.md rule 20
+// specs/accounting/accountant-accounting-export.md rule 20
 test('uppercased libellé regardless of input casing — matches the accountant\'s example style', () => {
   const rows = buildRows([makeEntry({
     client: { firstName: 'claire', lastName: 'notin' }, // lowercase input

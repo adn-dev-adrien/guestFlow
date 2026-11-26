@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md §3.2 (implementing specs/online-payments-qonto.md §3.7) — a direct
+// specs/payments/deposit-blocks-the-dates.md §3.2 (implementing specs/payments/online-payments-qonto.md §3.7) — a direct
 // stay starting inside the property's solde window has no acompte: the guest owes ONE payment. Every
 // explicit intent above the rule (paid, disabled, hand-set acompte, platform) keeps precedence.
 

@@ -9,11 +9,11 @@ import { resetVatRegime } from '../../fixtures/dbSeed.js';
 test.afterAll(() => { resetVatRegime(); });
 
 test('VAT rate round-trip via Paramètres → TVA & exercice', async ({ page }) => {
-  // Paramètres → TVA & exercice (specs/settings-rationalization.md rule 2).
+  // Paramètres → TVA & exercice (specs/settings/settings-rationalization.md rule 2).
   await page.goto('/settings/tva-exercice');
   await expect(page.getByRole('heading', { name: 'TVA & exercice' })).toBeVisible();
 
-  // The "Taux de TVA (%)" field lives in the VAT section (specs/single-vat-rate.md §6.1).
+  // The "Taux de TVA (%)" field lives in the VAT section (specs/accounting/single-vat-rate.md §6.1).
   // After PR #105 there is only ONE such field (single editable rate).
   const vatField = page.getByLabel(/Taux de TVA/i).first();
   await expect(vatField).toBeVisible({ timeout: 10_000 });

@@ -1,6 +1,6 @@
-// specs/ds-sweep-planning.md rule 28 — GET /api/today is the server's date (Europe/Paris), readable by
+// specs/design-system/ds-sweep-planning.md rule 28 — GET /api/today is the server's date (Europe/Paris), readable by
 // every signed-in role: the Dashboard and the Planning of the reception and the accountant start from it
-// (specs/upcoming-reservations-cards.md rule 7 too).
+// (specs/planning/upcoming-reservations-cards.md rule 7 too).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
@@ -27,7 +27,7 @@ test('rule 28 — GET /api/today answers the server date, and every role may rea
   await new Promise((resolve) => server.close(resolve));
 });
 
-// specs/upcoming-reservations-cards.md rule 7 — between midnight and 2 a.m. in Paris the UTC date is
+// specs/planning/upcoming-reservations-cards.md rule 7 — between midnight and 2 a.m. in Paris the UTC date is
 // still yesterday: the dashboard and the planning used to open on it (review #8, n-1).
 test('rule 7 — at 01:54 in Paris the day is already the 18th, though UTC still reads the 17th', (t) => {
   const before = process.env.TZ;

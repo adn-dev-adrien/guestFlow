@@ -1,5 +1,5 @@
 /**
- * Guest email sequence — the daily pass and the simulation (specs/guest-email-sequence.md §3.3-§3.6).
+ * Guest email sequence — the daily pass and the simulation (specs/emails/guest-email-sequence.md §3.3-§3.6).
  *
  * `planWindow` is the single eligibility path: the 08:00 pass sends what it returns with status
  * `send`, the simulation page and the CLI display the same rows. Nothing here decides a date or an
@@ -164,13 +164,13 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   });
   const context = buildContext({
     ...graph, settings, lang, sequence,
-    // The stored gate key (specs/gate-access-sowel-connector.md §3.5 rule 23) — never reaches Sowel.
+    // The stored gate key (specs/guest-app/gate-access-sowel-connector.md §3.5 rule 23) — never reaches Sowel.
     pluginContext: pluginEmailContext(graph.reservation.id),
   });
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, context);
 
-  // specs/email-language-fr-en.md rule 9 — no English version, nothing leaves for an English-speaking
+  // specs/emails/email-language-fr-en.md rule 9 — no English version, nothing leaves for an English-speaking
   // guest. The claim is released as failed, so the mail goes once the translation exists.
   if (englishMissing(template, lang)) {
     logModel.insert({
@@ -204,7 +204,7 @@ async function sendSequenceMail(deps, plan, opts = {}) {
 // ---------------------------------------------------------------- the daily pass
 
 /**
- * The sequence mails whose template sends by itself (specs/settings-rationalization.md rule 17b).
+ * The sequence mails whose template sends by itself (specs/settings/settings-rationalization.md rule 17b).
  * A « manual » one is never sent by this pass: it waits in the pending queue.
  */
 function autoMailKeys(templatesModel) {

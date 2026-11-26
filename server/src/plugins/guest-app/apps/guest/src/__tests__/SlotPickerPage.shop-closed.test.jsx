@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 102 (fifth pass, 2026-11-10) — the bath picker follows the shop's own judge: when the server answers that
+// specs/guest-app/guest-app.md rule 102 (fifth pass, 2026-11-10) — the bath picker follows the shop's own judge: when the server answers that
 // the stay cannot order yet, no day and no slot is drawn, the server sentence is said instead, and nothing can reach the cart.
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

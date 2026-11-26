@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/pricing-components.md rule 108 (stabilisation loop t7, D7-1) — an offered paid line whose money a refund gave back cannot be put
+// specs/pricing/pricing-components.md rule 108 (stabilisation loop t7, D7-1) — an offered paid line whose money a refund gave back cannot be put
 // back at its price: the server names it (`refundedLoweredLines`), the summary reads « ✓ Offert · remboursée » with no toggle.
 
 const FORM = {

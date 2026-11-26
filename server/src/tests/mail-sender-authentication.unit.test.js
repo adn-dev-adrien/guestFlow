@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 22, specs/gites-de-france-mail-intake.md rule 20 — the mailbox reader
+// specs/platforms/airbnb-mail-intake.md rule 22, specs/platforms/gites-de-france-mail-intake.md rule 20 — the mailbox reader
 // keeps only mails whose header From address IS the sender, and flags the ones the receiving server did
 // not authenticate (DKIM pass for the sender's domain, in the header of the mailbox's own server).
 const test = require('node:test');
@@ -162,7 +162,7 @@ test('the reader honours the configured signing domains and trusted server name,
   assert.equal(unknown[0].authenticated, false, 'unknown provider and empty setting: nothing is authenticated');
 });
 
-// specs/airbnb-mail-intake.md rule 29 (audit R2, finding N3) — only the dkim results written before the first
+// specs/platforms/airbnb-mail-intake.md rule 29 (audit R2, finding N3) — only the dkim results written before the first
 // `smtp.*` one count: an unquoted echo of the envelope cannot add a verdict.
 test('rule 29: a dkim=pass written after the first smtp.* result is not counted', () => {
   const echoed = ar('mx.example; spf=pass smtp.mailfrom=a@evil.test; dkim=pass header.d=gdf07.com');
@@ -176,7 +176,7 @@ test('rule 29: a header written under another server name is never trusted', () 
   assert.equal(verifyDkim(noneFromServer, OPTS).reason, 'untrusted-authserv-id');
 });
 
-// specs/airbnb-mail-intake.md rule 29 (review of PR 859) — a bare value inside a result is an unquoted echo.
+// specs/platforms/airbnb-mail-intake.md rule 29 (review of PR 859) — a bare value inside a result is an unquoted echo.
 test('rule 29: a header with a bare token in a result is not believed, and the genuine layouts still pass', () => {
   const echoed = ar('mx.example; dkim=pass header.d=gdf07.com x@evil.test; spf=pass smtp.mailfrom=a@b.c');
   assert.deepEqual(verifyDkim(echoed, OPTS), { ok: false, reason: 'malformed-authentication-results' });

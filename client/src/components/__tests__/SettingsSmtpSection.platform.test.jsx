@@ -1,5 +1,5 @@
 /**
- * SettingsSmtpSection on a hosted instance — specs/hosting-h1-fleet-runtime.md rule 19: « Envoi par
+ * SettingsSmtpSection on a hosted instance — specs/hosting/hosting-h1-fleet-runtime.md rule 19: « Envoi par
  * la plateforme » with where the replies go, the SMTP fields folded behind « Utiliser mon propre
  * serveur »; a saved host of its own wins and shows « Serveur personnel », unfolded. Without the
  * platform (Solio) the card is the SMTP form as before.

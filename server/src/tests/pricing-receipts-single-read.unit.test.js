@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 48 — `PaymentLedger.receipts(id)` is the one read of what a stay received: SCHEDULE
+// specs/pricing/pricing-components.md §3 rule 48 — `PaymentLedger.receipts(id)` is the one read of what a stay received: SCHEDULE
 // and REFUNDS take the split each bucket received from it; its settlements and allocations are read only by a reader that asks
 // for them (a quote reads neither, and never the default database). Same figures as the direct read.
 process.env.DB_PATH = ':memory:';

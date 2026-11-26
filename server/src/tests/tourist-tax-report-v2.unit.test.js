@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 and 15 — the tourist-tax report over
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 and 15 — the tourist-tax report over
 // any period, through the real controllers: the same rows as the monthly extraction, a quarter or a year as the union
 // of its months, a custom window by day, the stays a platform remits itself shown apart, the exempt persons, the
 // declaration filter, the « Par nuit » register adding up to the list, the CSV of the selection, and the refusals.

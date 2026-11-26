@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 32 — the card batch counts each visit once: `ctx.standaloneSales` lists a booking's money from the plugin only while it lives on the
+// specs/sas/outside-booking-sas.md rule 32 — the card batch counts each visit once: `ctx.standaloneSales` lists a booking's money from the plugin only while it lives on the
 // booking's own columns (paid before the document existed, rule 34); a payment of the document never touches those columns, so its session is the core's to list. A
 // session paid on the booking whose extras later went on a document is still listed once, by the plugin.
 const test = require('node:test');

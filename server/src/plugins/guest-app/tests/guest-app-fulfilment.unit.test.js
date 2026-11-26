@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 41bis, 41ter — delivered to the lodging or picked up: one setting for every lodging, the
+// specs/guest-app/guest-app.md rules 41bis, 41ter — delivered to the lodging or picked up: one setting for every lodging, the
 // pickup place required, the picker's question, the promise the guest reads once the order stands (built from
 // `deliverAt` and the mode, the longest lead of the staff items only), the bath's own line, no time for a self-service
 // order, the moved notice, and the staff's words (« à retirer », « Retirée »). On the app's database, stays around today.

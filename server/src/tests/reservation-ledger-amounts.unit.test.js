@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md §3.3 — setting the acompte and the solde from the ledger
+// specs/payments/reservation-payment-ledger.md §3.3 — setting the acompte and the solde from the ledger
 // (rules 15-23; UI/UX review 2026-10-18 decision 8: « il faut quand même pouvoir setter les montants »,
 // §9 Q1 decided 2026-10-19). Driven through the real calculate-price and save of the fiche, on the
 // real engine: the stay is 3 nights at 100 € for two adults, tax 1,20 € per adult and night
@@ -14,7 +14,7 @@ const { parseAmount } = require('../utils/ledgerAmountEdit');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 /** A day as the ledger prints it: « jj/mm », with the year when it is not the stay's (reservation-payment-ledger rule 4). */
 const ledgerDay = (iso, stayStart) => (iso.slice(0, 4) === stayStart.slice(0, 4) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : iso.split('-').reverse().join('/'));
@@ -185,7 +185,7 @@ test('rule 21 — the field accepts « 12,5 », « 100+20 », rounds a third dec
   assert.equal((await edit(id, 'deposit', 'x')).reason, 'Montant illisible : chiffres, virgule, + et − seulement.');
 });
 
-// specs/editable-deposit-amount.md rule 4 (amended) — refused above the accommodation, not clamped.
+// specs/payments/editable-deposit-amount.md rule 4 (amended) — refused above the accommodation, not clamped.
 test('rule 4 (amended) — the save re-validates: a crafted acompte above H gets the same refusal (400)', async () => {
   const id = createStay();
   const res = await save(id, { depositAmountOverride: 400 });

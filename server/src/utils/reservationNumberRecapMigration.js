@@ -1,5 +1,5 @@
 /**
- * Content migration (specs/reservation-number-and-search.md §4): the J-7 and J-2 reminders recall the
+ * Content migration (specs/reservations/reservation-number-and-search.md §4): the J-7 and J-2 reminders recall the
  * reservation number in the stay recap. Reaches already-seeded rows with a targeted REPLACE that inserts
  * the gated `{{#if hasReservationNumber}}` line between the recap header and "- Logement".
  *

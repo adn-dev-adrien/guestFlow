@@ -5,11 +5,11 @@ const { buildController } = require('../controllers/dashboardController');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // HTTP shaping for the iCal cancellation Dashboard endpoints
-// (specs/ical-cancellation-approval.md §4.3). The model is faked — only the route ←→
+// (specs/platforms/ical-cancellation-approval.md §4.3). The model is faked — only the route ←→
 // controller ←→ response shape is under test.
 
 function makeFake({ pending = [], approveResult = { ok: true, outcome: 'approved' }, rejectResult = { ok: true } } = {}) {
@@ -141,7 +141,7 @@ test('POST reject: invalid id → 400', () => {
   assert.deepEqual(res.body, { error: 'INVALID_ID' });
 });
 
-// specs/cancellation-compensation.md §3.2 — the optional compensation block of an approval.
+// specs/payments/cancellation-compensation.md §3.2 — the optional compensation block of an approval.
 test('POST approve: no body → the model is called with a null compensation (legacy path)', () => {
   const fakes = makeFake();
   const c = buildController(fakes);

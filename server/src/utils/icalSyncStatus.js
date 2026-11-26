@@ -1,5 +1,5 @@
 /**
- * The status line of an imported calendar (specs/ical-import-hardening.md rule 9).
+ * The status line of an imported calendar (specs/platforms/ical-import-hardening.md rule 9).
  *
  * The row used to print the engine's own sentence — « 0 créé(s), 0 mis à jour, 0 verrouillé(s),
  * 0 annulation(s) à valider, 15 inchangé(s) » — with a date and no time, wrapping over three lines on a

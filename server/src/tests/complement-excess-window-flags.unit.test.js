@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 74 and 76 (formerly reservation-save-keeps-pricing.md rule 18, audit R4 N5) — the complement
+// specs/pricing/pricing-components.md §3 rules 74 and 76 (formerly reservation-save-keeps-pricing.md rule 18, audit R4 N5) — the complement
 // counts only the lines it collected; a line dropped from the schedule belongs to the schedule. The two never overlap: a payment
 // names its lines, the complement through its frozen split, the schedule through its contribs.
 

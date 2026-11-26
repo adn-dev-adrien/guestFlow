@@ -1,9 +1,9 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * UpdateAvailableAlert — dashboard notification for a published GuestFlow version.
- * specs/self-update-and-releases.md §3.C rules 17-20 + §6.1. Whether it shows (not up to date, not
+ * specs/hosting/self-update-and-releases.md §3.C rules 17-20 + §6.1. Whether it shows (not up to date, not
  * postponed, not running) and its words are the server's since 2026-10-19
- * (specs/shell-and-home-day-first.md rules 6, 8 — dashboard-attention.unit.test.js).
+ * (specs/planning/shell-and-home-day-first.md rules 6, 8 — dashboard-attention.unit.test.js).
  */
 
 import React from 'react';
@@ -50,7 +50,7 @@ function versionInfo(overrides = {}) {
   };
 }
 
-// The buttons are disabled until the version details load (specs/server-test-isolation.md rule 11).
+// The buttons are disabled until the version details load (specs/tech/server-test-isolation.md rule 11).
 async function enabledButton(name) {
   const button = await screen.findByRole('button', { name });
   await waitFor(() => expect(button).toBeEnabled());
@@ -124,7 +124,7 @@ test('when the deployment cannot self-update, the dialog explains and blocks the
   expect(screen.getByRole('button', { name: 'Installer maintenant' })).toBeDisabled();
 });
 
-// specs/mobile-dashboard-exercise-cash.md rule 7 — a subject that is not about one reservation offers « Ouvrir » to its page.
+// specs/planning/mobile-dashboard-exercise-cash.md rule 7 — a subject that is not about one reservation offers « Ouvrir » to its page.
 test('« Ouvrir » goes to Réglages › Système et mises à jour', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo());
   render(

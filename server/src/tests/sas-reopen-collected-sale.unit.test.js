@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 34 (2026-11-12, verification of the manual trial of 4.0.0) — reopening a check-in whose
+// specs/sas/arrival-departure-sas.md rule 34 (2026-11-12, verification of the manual trial of 4.0.0) — reopening a check-in whose
 // complement it collected and walking through with the same answers must not bill the sale a second time: only what a sale
 // bills BEYOND what the collected complement holds for its key rides the end-of-stay complement.
 const test = require('node:test');

@@ -1,5 +1,5 @@
 /**
- * Version ranges of the plugin packages (specs/plugins-phase-4-registry.md rules 2, 12, 14, 22).
+ * Version ranges of the plugin packages (specs/plugins/plugins-phase-4-registry.md rules 2, 12, 14, 22).
  *
  * The core's own release versions stay strict MAJOR.MINOR.PATCH (`utils/semver.js`); a manifest
  * speaks npm ranges (`>=3.9.0`, `^1.0.0`), so the range logic is the `semver` package's, not ours.
@@ -46,7 +46,7 @@ function rangeNeed(range, version, { of = 'version' } = {}) {
 
 /**
  * The lowest core a `guestflow` range accepts, or null when the range does not parse. The core reads
- * that range as a floor only (D24, specs/plugins-phase-4-registry.md rule 62): what a plugin calls is
+ * that range as a floor only (D24, specs/plugins/plugins-phase-4-registry.md rule 62): what a plugin calls is
  * the SDK contract, judged by its `sdk` range, so a newer core major never switches it off by itself.
  */
 function coreFloor(range) {

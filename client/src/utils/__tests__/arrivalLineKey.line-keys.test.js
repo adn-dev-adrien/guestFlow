@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 85 — the client mirror of the server's line keys.
+// specs/pricing/pricing-components.md §3 rule 85 — the client mirror of the server's line keys.
 import { describe, it, expect } from 'vitest';
 import { optionLineKey, resourceLineKey } from '../arrivalLineKey';
 

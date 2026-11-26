@@ -5,7 +5,7 @@ const http = require('node:http');
 const Module = require('module');
 
 /**
- * HTTP integration tests for the PUBLIC API (specs/public-api.md §7).
+ * HTTP integration tests for the PUBLIC API (specs/site/public-api.md §7).
  *
  * Unit tests already cover the key-auth LOGIC, the controller FLOWS, the projections and the
  * validators in isolation. What they cannot prove is the WIRING of the real router stack:
@@ -13,7 +13,7 @@ const Module = require('module');
  *   - do the rate limiters really emit 429 over HTTP (the one item the spec left unverified)?
  *   - is the uniform error envelope what the wire actually returns?
  *
- * So here we mount the REAL `/public/v1` prefixes (specs/plugins-phase-2-hosts.md rule 23) with the REAL middleware (requirePublicApiKey +
+ * So here we mount the REAL `/public/v1` prefixes (specs/plugins/plugins-phase-2-hosts.md rule 23) with the REAL middleware (requirePublicApiKey +
  * the rate limiters) and drive it over a real TCP socket. Only the leaf CONTROLLERS are stubbed —
  * we are testing the pipe, not the handlers. `trust proxy` + a unique X-Forwarded-For per test
  * gives each test its own rate-limit bucket so they don't bleed into each other.

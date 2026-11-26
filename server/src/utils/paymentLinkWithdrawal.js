@@ -1,6 +1,6 @@
 /**
  * « Retirer le lien » — the operator withdraws an open payment link by hand
- * (specs/payment-link-lifecycle.md rule 42).
+ * (specs/payments/payment-link-lifecycle.md rule 42).
  *
  *   withdrawPaymentLink(linkId, { database, paymentLinksModel, provider, bookPaid, now? }) → { link }
  *

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 12-13, 17 — the support banner: the pending reason with
+// specs/hosting/hosting-h2-account-security.md rules 12-13, 17 — the support banner: the pending reason with
 // « Autoriser 24 h » and « Refuser », the duration picked (1 h / 24 h / 7 jours) sent with the
 // decision, and nothing without a request, for another role, on an unmanaged instance or inside the
 // support's own session.

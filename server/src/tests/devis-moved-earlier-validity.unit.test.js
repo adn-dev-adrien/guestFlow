@@ -1,4 +1,4 @@
-// specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R31-RES-M1 (2026-11-08) — a still-valid quote moved to
+// specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R31-RES-M1 (2026-11-08) — a still-valid quote moved to
 // earlier dates kept its stored `validUntil`, so the quote, its PDF and its single payment said « pay by » a date after
 // the guest's arrival. The stored date is now read against the new start: at most `startDate − 2`, never before today.
 process.env.TZ = 'Europe/Paris';

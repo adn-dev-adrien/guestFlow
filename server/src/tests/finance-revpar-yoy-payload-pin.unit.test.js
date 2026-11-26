@@ -1,10 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-revpar-year-over-year.md §3 rule 14 — the dashboard payload only GAINS fields: every
+// specs/accounting/finance-revpar-year-over-year.md §3 rule 14 — the dashboard payload only GAINS fields: every
 // field it had before this spec keeps its value. The pin was produced by the dashboard model as it was
 // before the change (inte/plugins 5437951d), on the fixed fixture of financeComparisonFixture.js.
-// specs/finance-dashboard-redesign.md rule 53 (D-HC9) — revenue per night and RevPAR changed basis on purpose and
+// specs/accounting/finance-dashboard-redesign.md rule 53 (D-HC9) — revenue per night and RevPAR changed basis on purpose and
 // are compared elsewhere (finance-nights-revenue.unit.test.js); every other field stays as pinned.
 // The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
 // will pass), on the day these figures were written against.

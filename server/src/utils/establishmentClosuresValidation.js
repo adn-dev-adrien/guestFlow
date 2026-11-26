@@ -7,7 +7,7 @@
 
 const { isRealIsoDay, dateWindowMessage, HORIZON_MESSAGE, PAST_HORIZON_MESSAGE } = require('./stayDates');
 
-// specs/establishment-closures.md rule 18 — two years, a leap day included. A recipe closure spans
+// specs/pricing/establishment-closures.md rule 18 — two years, a leap day included. A recipe closure spans
 // a few weeks; a closure ending in 9999 was a typo every availability read then paid for.
 const MAX_CLOSURE_DAYS = 731;
 const DAY_MS = 86400000;

@@ -6,13 +6,13 @@ const devisModel = require('../models/devisModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // Non-regression guard for the bug where property option defaults (typically the
 // per-property `Linge de lit` / `Linge de toilette` linen options) were silently
 // dropped from new devis. The server now enforces the merge regardless of what the
-// client ships (specs/devis-pdf-and-tourist-tax-fixes.md §3.3).
+// client ships (specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.3).
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT, defaultCautionAmount REAL, depositPercent REAL, depositDaysBefore INTEGER, balanceDaysBefore INTEGER, minNights INTEGER, basePrice REAL);
@@ -53,7 +53,7 @@ function freshModel() {
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Linge de lit', 'per_stay', 25)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (11, 'Linge de toilette', 'per_stay', 15)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (12, 'Petit dej', 'per_stay', 10)").run();
-  // specs/option-property-scope.md: options apply only where explicitly linked — link all to Gite.
+  // specs/options/option-property-scope.md: options apply only where explicitly linked — link all to Gite.
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10), (1, 11), (1, 12)').run();
   return { model: devisModel.buildModel(db), db };
 }
@@ -96,10 +96,10 @@ test('create propagates the `offered` flag on default options into reservation_o
 });
 
 // ── update: an included service cannot be dropped ───────────────────────────────────────
-// specs/tourist-tax-included-services-deduction.md rules 4-5 — the devis has the same contract as
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rules 4-5 — the devis has the same contract as
 // the fiche réservation: a property default marked « offerte » is included and mandatory, so a
 // payload that omits it is corrected rather than obeyed. Still bounded by what the devis carries
-// (specs/reservation-option-immutability.md rule 3).
+// (specs/reservations/reservation-option-immutability.md rule 3).
 
 const UPDATE_BASE = { ...BASE, startDate: inDays(1376), endDate: inDays(1378) };
 

@@ -1,8 +1,8 @@
 /**
- * Cancellation compensations (specs/cancellation-compensation.md §4.3) — core: the dashboard alert and
+ * Cancellation compensations (specs/payments/cancellation-compensation.md §4.3) — core: the dashboard alert and
  * the « Indemnités d'annulation » page settle them without the accounting export. The export's own
  * routes under /api/accounting (journal, CSV, account plan) belong to the `accounting-export` plugin
- * (specs/plugins-phase-2-hosts.md rule 19).
+ * (specs/plugins/plugins-phase-2-hosts.md rule 19).
  *
  * The accountant reads the list (middleware/enforceRoleAccess); every write is admin-only.
  */

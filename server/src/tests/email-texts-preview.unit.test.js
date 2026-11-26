@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.D rules 13–15 — the full email rendered by the server from
+// specs/emails/guest-email-texts-made-simple.md §3.D rules 13–15 — the full email rendered by the server from
 // the draft being typed, on the next stay that receives it (or « Exemple »), never saved; the English
 // gap said; a test sent to the company's own address and recorded nowhere.
 

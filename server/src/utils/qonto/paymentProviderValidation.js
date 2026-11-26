@@ -1,5 +1,5 @@
 /**
- * Validate the Qonto payment-links provider-connection form (specs/online-payments-qonto.md §3.2 /
+ * Validate the Qonto payment-links provider-connection form (specs/payments/online-payments-qonto.md §3.2 /
  * §4.3). Pure: returns `{ ok, errors, value }` with the normalized fields. Qonto requires a bank
  * account, an E.164 phone, an http(s) website, and a business description of at least 80 characters.
  */

@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 39 and 40 — the four levels, their words, and a card with no threshold.
+// specs/accounting/vat-optional-mode.md rules 39 and 40 — the four levels, their words, and a card with no threshold.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

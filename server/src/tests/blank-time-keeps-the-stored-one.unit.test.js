@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 23 (audit R23-8) — on an update, a blank time is « not sent » (rule 20) and
+// specs/tech/reservations-backend-mvc.md rule 23 (audit R23-8) — on an update, a blank time is « not sent » (rule 20) and
 // keeps what the stay stores, as the devis does; a stay storing none takes its property's. The model's 15:00 / 10:00
 // fallback moved the arrival an hour earlier, past the cleaning check, which read the blank as no change.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 7 — what the server writes (a payment mark, its undo) moves the
+// specs/reservations/reservation-save-keeps-pricing.md rule 7 — what the server writes (a payment mark, its undo) moves the
 // CURRENT clean baseline, before the first quote as well as after: the fiche stays clean (Enregistrer disabled).
 import React from 'react';
 import { vi } from 'vitest';

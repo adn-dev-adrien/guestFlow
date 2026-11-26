@@ -1,9 +1,9 @@
 /**
- * The email a payment row offers when no online payment is ready (specs/plugins-phase-3a-online-payment.md
+ * The email a payment row offers when no online payment is ready (specs/plugins/plugins-phase-3a-online-payment.md
  * rule 25). The operator reads it in the send dialog first, so it must read well without a link:
  * a template that prints `{{paymentLink}}` outside `{{#if hasPaymentLink}}` would end on « en ligne : »
  * and nothing — and one that prints the link's end there would read « valable jusqu'au . »
- * (specs/payment-link-lifecycle.md rule 36). Pure.
+ * (specs/payments/payment-link-lifecycle.md rule 36). Pure.
  *
  *   draftTemplateFor(templates, type, requestSent) → the template id, or null
  *
@@ -20,7 +20,7 @@ const LINK_NAMES = ['paymentLink', 'paymentLinkValidUntil'];
 
 function readsWithoutLink(template) {
   return ['subject', 'body', 'subjectEn', 'bodyEn'].every((field) => {
-    // specs/payment-link-lifecycle.md rule 59 — the end of validity sits in a block of its own, never without a link.
+    // specs/payments/payment-link-lifecycle.md rule 59 — the end of validity sits in a block of its own, never without a link.
     const outside = namesUsedOutside(template[field], ['hasPaymentLink', 'hasPaymentLinkValidUntil']);
     return LINK_NAMES.every((name) => !outside.has(name));
   });

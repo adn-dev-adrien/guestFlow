@@ -1,4 +1,4 @@
-// specs/airbnb-no-checkout-chores.md rule 8 — « Sans corvées de départ »: a switch per platform, sent with
+// specs/platforms/airbnb-no-checkout-chores.md rule 8 — « Sans corvées de départ »: a switch per platform, sent with
 // the save; an own channel has none.
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,6 +1,6 @@
 /**
  * DataChecksPanel — a counted list of data checks, each row opening the records it concerns
- * (specs/finance-data-checks.md rules 12-17). Generic: any « faire le point » view holding checks of the
+ * (specs/accounting/finance-data-checks.md rules 12-17). Generic: any « faire le point » view holding checks of the
  * shape `{ key, severity: 'fix'|'check'|'info', label, hint?, count, moreCount, items: [{ label, detail? }] }`.
  * Counts, order, labels and the rest-count arrive from the server; the panel only renders them.
  *

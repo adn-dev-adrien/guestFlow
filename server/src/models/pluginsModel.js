@@ -1,5 +1,5 @@
 /**
- * Plugins model — sole DB access for `plugins` (specs/plugins-phase-0-foundation.md §4.1).
+ * Plugins model — sole DB access for `plugins` (specs/plugins/plugins-phase-0-foundation.md §4.1).
  *
  * States: no row = available; enabled = 1 → active; enabled = 0 → installed but inactive.
  * `isActive` runs on every request of a plugin route and every scheduled pass. It reads the table
@@ -13,7 +13,7 @@
  *                              previousSource, previousSha256, rollbackUntil, installedAt, updatedAt }]
  *   get(id)                 → row | null
  *   install(id, pkg?)       → inserts an active row; `pkg` = { version, source, manifest, sha256 }
- *                             (specs/plugins-phase-4-registry.md rule 11), `bundled` when omitted
+ *                             (specs/plugins/plugins-phase-4-registry.md rule 11), `bundled` when omitted
  *   switchVersion(id, pkg, { rollbackUntil }) → records an update: the running package becomes the
  *                             previous one, kept for `rollbackUntil` (rule 16)
  *   rollBack(id)            → the previous package becomes the running one, and no rollback is left
@@ -58,7 +58,7 @@ function buildModel(database) {
   const isActiveStmt = database.prepare('SELECT 1 FROM plugins WHERE id = ? AND enabled = 1');
   const openLinksStmt = database.prepare("SELECT COUNT(*) AS n FROM payment_links WHERE status = 'open'");
   // A link cancelled here but not yet deactivated at the provider is still payable there; only the
-  // plugin's poll retries it (specs/plugins-phase-3a-online-payment.md rule 8).
+  // plugin's poll retries it (specs/plugins/plugins-phase-3a-online-payment.md rule 8).
   // Prepared on first use: a database from before phase 3a has no such column, and nothing pending.
   const countPendingDeactivations = () => {
     try {
@@ -67,7 +67,7 @@ function buildModel(database) {
       return 0;
     }
   };
-  // specs/payment-link-lifecycle.md rule 52 — a lapsed link deactivated unpaid still owes its one last read of
+  // specs/payments/payment-link-lifecycle.md rule 52 — a lapsed link deactivated unpaid still owes its one last read of
   // the payment (rule 19); only the plugin's lifecycle job takes it. So does a link withdrawn for taken dates (rule 64).
   const countPendingLastLooks = () => {
     try {

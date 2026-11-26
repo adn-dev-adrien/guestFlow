@@ -39,7 +39,7 @@ const { notDepartureCharge } = require('./departureChargeLines');
 function computeAccommodationTtc(quote) {
   // Accommodation portion of finalPrice = finalPrice - options - resources (TTC, before tax).
   // optionsTotal already includes the offered=0 customs; resourcesTotal idem.
-  // specs/platform-added-guests-tourist-tax.md rule 16 — the added guests' supplement is in finalPrice
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 16 — the added guests' supplement is in finalPrice
   // but collected with the complement: left here, it made the solde's capture refuse the flip.
   const accommodation = Number(quote.finalPrice || 0) - Number(quote.optionsTotal || 0) - Number(quote.resourcesTotal || 0)
     - Number(quote.extraGuestComplementSurcharge || 0);
@@ -73,7 +73,7 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
     ? roundCents(reservation.depositAmount || 0)
     : roundCents(reservation.balanceAmount || 0);
   const preArrivalAmount = roundCents(quote.preArrivalAmount || 0);
-  // specs/tourist-tax-on-solde.md — the acompte covers the ACCOMMODATION only (no tourist tax); the whole
+  // specs/tourist-tax/tourist-tax-on-solde.md — the acompte covers the ACCOMMODATION only (no tourist tax); the whole
   // pre-arrival tax rides on the solde. So the deposit fraction is computed on `accommodationPreArrival`
   // (accommodation/options/resources, no tax) and the deposit's tax contrib is 0. Fallback to
   // preArrivalAmount for safety on quotes that predate the field.
@@ -84,7 +84,7 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
   // derived from the engine's `preArrivalAmount`, which already excludes forced items + the
   // complement-routed tax — so the fraction can only be > 0 for non-forced contributors.
   const taxRoutedToComplement = Boolean(quote.touristTaxCollectedOnArrival || quote.touristTaxInComplement);
-  // specs/platform-added-guests-tourist-tax.md rule 13 — the added tax rides the complement, not the solde.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 13 — the added tax rides the complement, not the solde.
   const taxFullTtc = roundCents(Number(quote.touristTaxTotal || 0) - Number(quote.touristTaxAddedGuestsAmount || 0));
   const accommodationTtc = computeAccommodationTtc(quote);
 
@@ -103,7 +103,7 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
       return;
     }
 
-    // specs/tourist-tax-on-solde.md — fraction of the ACCOMMODATION the acompte represents (tax excluded).
+    // specs/tourist-tax/tourist-tax-on-solde.md — fraction of the ACCOMMODATION the acompte represents (tax excluded).
     const depositPercent = encaissementAmount / accommodationPreArrival;
     const optionContribsByOptionId = new Map();
     const customContribsByCustomId = new Map();
@@ -138,7 +138,7 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
     }
 
     const accommodationContrib = roundCents(accommodationTtc * depositPercent);
-    // specs/tourist-tax-on-solde.md — the acompte never carries the tourist tax; it's 100 % on the solde.
+    // specs/tourist-tax/tourist-tax-on-solde.md — the acompte never carries the tourist tax; it's 100 % on the solde.
     const taxContrib = 0;
 
     // Conservation: sum of all non-NULL contribs must equal encaissementAmount.
@@ -314,7 +314,7 @@ function applyBalanceContribsToDb(db, reservation, contribs) {
 }
 
 /**
- * specs/reservation-payment-ledger.md rule 37 — the split of a bucket recorded although its capture
+ * specs/payments/reservation-payment-ledger.md rule 37 — the split of a bucket recorded although its capture
  * failed (stored amounts that drifted from today's engine). The money is booked on the stored amounts:
  * the tourist tax the export puts on this entry, the rest on the accommodation and the lines still
  * owed, pro rata — never the whole entry on the tax account.
@@ -358,7 +358,7 @@ function captureStoredSplit({ db, reservation, bucket }) {
       lines.push({ table, key, k: l.k, left });
     }
   }
-  // specs/platform-added-guests-tourist-tax.md rule 16 — the added guests' supplement is the complement's.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 16 — the added guests' supplement is the complement's.
   const accommodationLeft = Math.max(0, Number(reservation.finalPrice || 0) - linesTotal - complementSurcharge
     - (isDeposit ? 0 : Number(reservation.accommodationAcompteContribTtc || 0)));
   const toShare = roundCents(amount - tax);
@@ -410,7 +410,7 @@ function captureBucketSplit({ db, reservation, bucket, log = console }) {
     db.transaction(() => captureContribsOnFlip({ db, reservation, bucket }))();
     return 'captured';
   } catch (err) {
-    // specs/reservation-payment-ledger.md rule 46 — on a reservation with no contribution yet, the
+    // specs/payments/reservation-payment-ledger.md rule 46 — on a reservation with no contribution yet, the
     // whole stay is exported on the stored-money path; a stored split here would be its FIRST
     // contribution and would flip every earlier entry (an acompte recorded without one) to 0 — out of
     // a month possibly already exported. Leave it NULL: the stored-money path books it as before.

@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 1, 3-9, 11-13, 16-17, 25-27 (§4.4) — the website's booking of a session outside a stay: the resources on offer, the free starts of a
+// specs/site/site-outside-resource-booking.md rules 1, 3-9, 11-13, 16-17, 25-27 (§4.4) — the website's booking of a session outside a stay: the resources on offer, the free starts of a
 // duration with what each costs (every hour at its own band), the recap, the confirmation that holds the slot and mints the payment link, and the bank's word that books the session.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

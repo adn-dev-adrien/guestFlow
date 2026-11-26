@@ -5,7 +5,7 @@ import { afterEach, vi } from 'vitest';
 
 import ResponsiveTable from '../ResponsiveTable';
 
-// specs/tourist-tax-report-v2.md rules 48 and 53 (reviews V2-5, V3R-2) — `cardsWhenOverflow`: the table, MEASURED, wider than its
+// specs/tourist-tax/tourist-tax-report-v2.md rules 48 and 53 (reviews V2-5, V3R-2) — `cardsWhenOverflow`: the table, MEASURED, wider than its
 // container gives way to the cards, so no container width ever scrolls the table inside its card (the fixed
 // `cardsBelowWidth` let 860–877 px show a 878 px table scrolling by 18 px).
 

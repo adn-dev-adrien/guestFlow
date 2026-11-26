@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-api.md rule 25 (audit R24 public finding 2) — a phone pasted with a no-break space, a narrow no-break
+// specs/site/public-api.md rule 25 (audit R24 public finding 2) — a phone pasted with a no-break space, a narrow no-break
 // space, bidi marks around it or a zero-width space reads as the number it shows: every \p{Cf} leaves it, a \p{Zs}
 // is a space, and the cleaned number is what is stored. A line break, a letter or a slash is still refused.
 const test = require('node:test');

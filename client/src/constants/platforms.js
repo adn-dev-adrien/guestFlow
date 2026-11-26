@@ -1,4 +1,4 @@
-// Canonical platform names. After specs/normalize-platform-names.md
+// Canonical platform names. After specs/platforms/normalize-platform-names.md
 // (PR #118), the server stores `reservations.platform` as
 // UpperCamelCase ('Airbnb', 'Gitedefrance', etc.) with 'direct' kept
 // lowercase as the canonical enum value. The dropdown values below must
@@ -34,7 +34,7 @@ export const PLATFORM_COLORS = {
 export const DEFAULT_PLATFORM_COLOR = '#6E6A5E';
 
 // The text colour each platform's bar carries (white or ink), decided by the server from the colour
-// (specs/calendar-property-parity.md rule 5) and pushed here with the colour listing by App. The client
+// (specs/planning/calendar-property-parity.md rule 5) and pushed here with the colour listing by App. The client
 // does no contrast math: a platform not in the map reads as white, the colour of the default grey.
 export const PLATFORM_TEXT_COLORS = {
   direct: '#FFFFFF',
@@ -81,7 +81,7 @@ export function getPlatformTextColor(platform) {
   return PLATFORM_TEXT_COLORS[normalizePlatformKey(platform)] || DEFAULT_PLATFORM_TEXT_COLOR;
 }
 
-// specs/platform-settings-relay-and-review.md rule 12 — the display names the server serves with the
+// specs/platforms/platform-settings-relay-and-review.md rule 12 — the display names the server serves with the
 // platform colours (`displayNames`, keyed by slug here), loaded once by App. A component that must
 // re-render when they arrive subscribes with `subscribePlatformDisplayNames` (PlatformChip does).
 const PLATFORM_DISPLAY_NAMES = new Map();
@@ -128,7 +128,7 @@ export function formatPlatformLabel(platform) {
 /**
  * Merge platform-name variants that differ only by case or punctuation into ONE entry.
  *
- * The server stores a canonical name (specs/normalize-platform-names.md), but a value can drift
+ * The server stores a canonical name (specs/platforms/normalize-platform-names.md), but a value can drift
  * between two boots — an iCal sync writing the feed slug, a legacy row — and the operator must
  * never see the same platform listed twice ('Abracadaroom' + 'abracadaroom'). Groups by slug and
  * keeps the best-spelled variant — the canonical mixed-case one, the only spelling that carries the

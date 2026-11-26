@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md §4.3, rules 12, 19–22, 24–28, 34–39 — the reconciliation end to
+// specs/accounting/qonto-bank-reconciliation.md §4.3, rules 12, 19–22, 24–28, 34–39 — the reconciliation end to
 // end on the app's own schema: proposals, confirmation that marks the fiche through the core mark,
 // « Défaire », scope, the fiche block and the home subject.
 const test = require('node:test');

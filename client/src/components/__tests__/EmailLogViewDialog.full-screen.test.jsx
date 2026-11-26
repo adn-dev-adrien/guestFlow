@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 24 — the email log preview is full screen on a phone (CLAUDE.md §7).
+// specs/tech/inte-performance.md rule 24 — the email log preview is full screen on a phone (CLAUDE.md §7).
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';

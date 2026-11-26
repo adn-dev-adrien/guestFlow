@@ -1,6 +1,6 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md edge cases and rules 7, 12 (reading of 2026-11-05, audit R23 public findings
-// 4 and 5), specs/public-api.md rule 21: one address reads as one address. An uppercase non-ASCII letter or an invisible
+// specs/site/public-request-abuse-and-grouping.md edge cases and rules 7, 12 (reading of 2026-11-05, audit R23 public findings
+// 4 and 5), specs/site/public-api.md rule 21: one address reads as one address. An uppercase non-ASCII letter or an invisible
 // character no longer makes a second client, a second quote of the same stay, or a way round the cap of 3.
 const test = require('node:test');
 const assert = require('node:assert/strict');

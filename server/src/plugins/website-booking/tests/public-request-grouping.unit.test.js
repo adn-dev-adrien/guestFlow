@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rules 7 and 12-16 — one quote per stay: the same e-mail,
+// specs/site/public-request-abuse-and-grouping.md rules 7 and 12-16 — one quote per stay: the same e-mail,
 // property and dates update the open website quote in place (number, token and acceptances kept,
 // price recomputed by the engine, message appended, history line); another property or a paid quote
 // make a new one; a quote already sent is flagged; at most 3 NEW quotes per e-mail per 24 h.

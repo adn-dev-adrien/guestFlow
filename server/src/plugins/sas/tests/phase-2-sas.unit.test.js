@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md §3.C — the SAS is a plugin: its routes and the « Facturables » prices
+// specs/plugins/plugins-phase-2-hosts.md §3.C — the SAS is a plugin: its routes and the « Facturables » prices
 // answer only while it is live (gap 3), its payload and commit leave the linen steps to `linen`
 // (gap 5), the arrival/departure push opens it only while it is live (gap 6), and it has nothing to
 // erase (rule 14). The commit itself stays in the core and keeps its own suites.
@@ -91,7 +91,7 @@ async function request(app, method, url, body) {
 
 // ---------- rule 8, gap 3 ----------
 
-test('specs/plugins-phase-2-hosts.md rule 8 — the SAS and « Facturables » routes answer 404 PLUGIN_INACTIVE while sas is off (gap 3)', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 8 — the SAS and « Facturables » routes answer 404 PLUGIN_INACTIVE while sas is off (gap 3)', async () => {
   useLive('linen');
   const app = bootRoutes();
   for (const [method, url] of [
@@ -109,7 +109,7 @@ test('specs/plugins-phase-2-hosts.md rule 8 — the SAS and « Facturables » ro
   }
 });
 
-test('specs/plugins-phase-2-hosts.md rule 8 — while sas is live, the « Facturables » prices are read and replaced through the core models', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 8 — while sas is live, the « Facturables » prices are read and replaced through the core models', async () => {
   useLive('sas');
   const linenFile = require.resolve('../../../models/linenItemsModel');
   const repairFile = require.resolve('../../../models/repairAmountsModel');
@@ -134,7 +134,7 @@ test('specs/plugins-phase-2-hosts.md rule 8 — while sas is live, the « Factur
   }
 });
 
-test('specs/plugins-phase-2-hosts.md rule 8 — the core declares no SAS route any more; the reception entries are the plugin’s', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 8 — the core declares no SAS route any more; the reception entries are the plugin’s', () => {
   const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
   assert.doesNotMatch(read('routes/reservations.js'), /sasController|'\/:id\/sas/);
   assert.doesNotMatch(read('routes/settings.js'), /linen-items|repair-amounts/);
@@ -150,9 +150,9 @@ test('specs/plugins-phase-2-hosts.md rule 8 — the core declares no SAS route a
   assert.ok(entries[0].re.test('/reservations/42/sas'));
   assert.ok(entries[1].re.test('/reservations/42/sas/arrival'));
   assert.ok(entries[2].re.test('/reservations/42/sas/departure'));
-  // specs/sas-arrival-total-server-side.md rule 23 — the arrival preview is door money too.
+  // specs/sas/sas-arrival-total-server-side.md rule 23 — the arrival preview is door money too.
   assert.ok(entries[3].re.test('/reservations/42/sas/arrival/preview'));
-  // specs/sas-departure-recap-server-side.md rule 21 — and so is the departure preview.
+  // specs/sas/sas-departure-recap-server-side.md rule 21 — and so is the departure preview.
   assert.ok(entries[4].re.test('/reservations/42/sas/departure/preview'));
 });
 
@@ -206,7 +206,7 @@ function readSas(mode) {
   return res.body;
 }
 
-test('specs/plugins-phase-2-hosts.md rule 11 — without linen, the arrival payload carries no linen items, no towel offer and no bed-linen alert (gap 5)', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 11 — without linen, the arrival payload carries no linen items, no towel offer and no bed-linen alert (gap 5)', () => {
   useLive('sas');
   const body = readSas('arrival');
   assert.equal('linenItems' in body, false);
@@ -215,7 +215,7 @@ test('specs/plugins-phase-2-hosts.md rule 11 — without linen, the arrival payl
   assert.equal(RESERVATION.bedLinenAlert.type, 'capacity', 'the core reservation is left untouched');
 });
 
-test('specs/plugins-phase-2-hosts.md rule 11 — the departure « Objets manquants » step keeps its priced items without linen', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 11 — the departure « Objets manquants » step keeps its priced items without linen', () => {
   useLive('sas');
   const body = readSas('departure');
   assert.deepEqual(body.linenItems, LINEN_ITEMS);
@@ -223,7 +223,7 @@ test('specs/plugins-phase-2-hosts.md rule 11 — the departure « Objets manquan
   assert.equal('bedLinenAlert' in body.reservation, false);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the payload is the full SAS payload', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 11 — with linen live, the payload is the full SAS payload', () => {
   useLive('sas', 'linen');
   const body = readSas('arrival');
   assert.deepEqual(body.linenItems, LINEN_ITEMS);
@@ -231,7 +231,7 @@ test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the payload is
   assert.deepEqual(body.reservation.bedLinenAlert, RESERVATION.bedLinenAlert);
 });
 
-// specs/sas-arrival-total-server-side.md rules 6-7 — the dialog sends intent: linen elements by item,
+// specs/sas/sas-arrival-total-server-side.md rules 6-7 — the dialog sends intent: linen elements by item,
 // lines kept from a previous run by their row.
 const ARRIVAL_BODY = {
   linenItems: [{ itemId: 1, qty: 2, offered: false }],
@@ -253,7 +253,7 @@ function commitArrival({ storedLines = [], body = ARRIVAL_BODY } = {}) {
   return { ...captures[0], intents: resolved[0] };
 }
 
-test('specs/plugins-phase-2-hosts.md rule 11 — without linen, the arrival commit ignores the towel upsell and the bed-linen lines (gap 5)', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 11 — without linen, the arrival commit ignores the towel upsell and the bed-linen lines (gap 5)', () => {
   useLive('sas');
   const args = commitArrival({ storedLines: [
     { id: 30, description: 'Drap housse', amount: 12, offered: 1 },
@@ -270,7 +270,7 @@ test('specs/plugins-phase-2-hosts.md rule 11 — without linen, the arrival comm
   });
 });
 
-test('specs/plugins-phase-2-hosts.md rule 11 — without linen, « Offrir » on a stored bed-linen line is kept, at the stored amount', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 11 — without linen, « Offrir » on a stored bed-linen line is kept, at the stored amount', () => {
   useLive('sas');
   const args = commitArrival({
     storedLines: [{ id: 30, description: 'Drap housse', amount: 15, offered: 0 }],
@@ -280,7 +280,7 @@ test('specs/plugins-phase-2-hosts.md rule 11 — without linen, « Offrir » on 
   assert.deepEqual(args.intents.keptLines, [{ customOptionId: 30, offered: true }]);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the arrival commit receives the linen decisions as sent', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 11 — with linen live, the arrival commit receives the linen decisions as sent', () => {
   useLive('sas', 'linen');
   const args = commitArrival();
   assert.equal(args.bathLinenAdded, true);
@@ -290,7 +290,7 @@ test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the arrival co
 
 // ---------- rule 12, gap 6 ----------
 
-test('specs/plugins-phase-2-hosts.md rule 12 — the arrival/departure push opens the SAS only while sas is live (gap 6)', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 12 — the arrival/departure push opens the SAS only while sas is live (gap 6)', async () => {
   const reservationsModel = {
     dueArrivals: () => [{ id: 7, checkInTime: '15:00', firstName: 'Jean', lastName: 'Dupont' }],
     dueDepartures: () => [{ id: 8, checkOutTime: '10:00', firstName: 'Anne', lastName: 'Martin' }],
@@ -315,7 +315,7 @@ test('specs/plugins-phase-2-hosts.md rule 12 — the arrival/departure push open
 
 // ---------- rule 14 ----------
 
-test('specs/plugins-phase-2-hosts.md rule 14 — sas has a module but nothing to erase', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 14 — sas has a module but nothing to erase', async () => {
   useLive('sas');
   bootRoutes();
   const db = new Database(':memory:');
@@ -341,7 +341,7 @@ test('specs/plugins-phase-2-hosts.md rule 14 — sas has a module but nothing to
 
 // ---------- rule 13 ----------
 
-test('specs/plugins-phase-2-hosts.md rule 13 — « Accueil » stays a core role, and a reception-only account still keeps the module on', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 13 — « Accueil » stays a core role, and a reception-only account still keeps the module on', async () => {
   assert.equal(require('../../../constants/roles').RECEPTION, 'reception');
   const sources = fs.readdirSync(path.join(__dirname, '..')).filter((f) => f.endsWith('.js'))
     .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');

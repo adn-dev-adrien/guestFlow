@@ -1,6 +1,6 @@
 /**
  * ArithmeticTextField — commits an evaluated arithmetic expression on Enter/blur.
- * See specs/reservation-price-arithmetic.md.
+ * See specs/reservations/reservation-price-arithmetic.md.
  */
 import React, { useState } from 'react';
 import { vi } from 'vitest';

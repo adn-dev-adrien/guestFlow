@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rules 6, 11 — a paid and a cancelled payment link of the direct stay, an
+// specs/plugins/plugin-removal-resilience.md rules 6, 11 — a paid and a cancelled payment link of the direct stay, an
 // open deposit link of the sent quote, and a bank transaction reconciled to the stay.
 module.exports = {
   seed(db, { stays, quote }) {

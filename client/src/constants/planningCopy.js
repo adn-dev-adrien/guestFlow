@@ -1,4 +1,4 @@
-/** French strings of the home day lists and of the planning timeline (specs/dashboard-planning-scroll.md §6). */
+/** French strings of the home day lists and of the planning timeline (specs/planning/dashboard-planning-scroll.md §6). */
 
 export const DEPARTURES_TITLE = 'Départs du jour';
 export const ARRIVALS_TITLE = 'Arrivées du jour';

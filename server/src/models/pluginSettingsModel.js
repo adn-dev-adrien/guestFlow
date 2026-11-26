@@ -1,5 +1,5 @@
 /**
- * Plugin settings model — sole DB access for `plugin_settings` (specs/plugins-phase-1-sdk.md rule 7).
+ * Plugin settings model — sole DB access for `plugin_settings` (specs/plugins/plugins-phase-1-sdk.md rule 7).
  *
  * One row per (plugin, key). A key a plugin declares `secret` is stored encrypted with the same
  * AES-256-GCM helper and key as `app_settings`, and is never returned in clear over HTTP: the HTTP view

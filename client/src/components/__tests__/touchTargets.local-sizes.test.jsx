@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 21 (amended 2026-10-18) — a page's own dense size must not undo the
+// specs/design-system/ds-components.md rule 21 (amended 2026-10-18) — a page's own dense size must not undo the
 // theme's 44 px on touch. « Suivi financier » at 390 px showed six 39 px toggles (Exercice, Mois,
 // Personnalisée, Réservations, Nuits, CA des nuits): a local `minHeight: 36` beat the theme rule
 // (review of PR #700, finding 1).

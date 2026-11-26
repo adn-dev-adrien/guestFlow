@@ -1,12 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/manual-laundry-additions.md §4.3 — GET list + PUT upsert behind /api/laundry/manual-additions.
+// specs/linen/manual-laundry-additions.md §4.3 — GET list + PUT upsert behind /api/laundry/manual-additions.
 const { create } = require('../manualAdditionsController');
 const { todayIso } = require('../../../utils/localDate');
 const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const ZEROS = { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 };

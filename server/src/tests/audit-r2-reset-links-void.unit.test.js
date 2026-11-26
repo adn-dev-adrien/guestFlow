@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 63 (audit R2, finding N2) — a reset link mailed before an
+// specs/hosting/hosting-h2-account-security.md rule 63 (audit R2, finding N2) — a reset link mailed before an
 // email or password change does not work after it.
 
 const test = require('node:test');

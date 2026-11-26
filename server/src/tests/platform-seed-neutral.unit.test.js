@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 32 — a fresh install lists no « GitesDeFrance » platform
+// specs/plugins/plugins-phase-p-productisation.md rule 32 — a fresh install lists no « GitesDeFrance » platform
 // it never asked for: the fold of the Gîtes de France spellings creates its target only for an
 // instance that already speaks of that brand.
 

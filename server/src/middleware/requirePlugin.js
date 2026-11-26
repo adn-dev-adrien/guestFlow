@@ -1,8 +1,8 @@
 /**
  * `requirePlugin(id)` — the routes of an inactive plugin answer as if they did not exist
- * (specs/plugins-phase-0-foundation.md rule 15): 404 `{ error: 'PLUGIN_INACTIVE', plugin }`.
+ * (specs/plugins/plugins-phase-0-foundation.md rule 15): 404 `{ error: 'PLUGIN_INACTIVE', plugin }`.
  * `isActive` is injectable for tests; production asks the plugin registry, which also answers false
- * for a plugin module that failed to register (specs/plugins-phase-1-sdk.md rule 4).
+ * for a plugin module that failed to register (specs/plugins/plugins-phase-1-sdk.md rule 4).
  */
 
 function requirePlugin(id, { isActive } = {}) {

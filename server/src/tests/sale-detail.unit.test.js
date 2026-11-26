@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 31, 51, 62 — saleDetail: one payload, every amount in cents and every label French; the VAT is
+// specs/pricing/pricing-components.md §3 rules 31, 51, 62 — saleDetail: one payload, every amount in cents and every label French; the VAT is
 // cut per (class, rate) group and shared over the lines by largest remainder, a catalogue article may carry its own class.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

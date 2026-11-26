@@ -1,6 +1,6 @@
 /**
  * Platform payout delay — the single source of truth for « how many days after the guest leaves is
- * the platform expected to settle » (specs/platform-payout-due-date.md §3.1 rules 6-7).
+ * the platform expected to settle » (specs/platforms/platform-payout-due-date.md §3.1 rules 6-7).
  *
  * An OTA never pays before the stay: Airbnb transfers a day after check-in, Booking invoices at the
  * month's end, Gîtes de France settles after departure. That delay is a property of the CHANNEL, not

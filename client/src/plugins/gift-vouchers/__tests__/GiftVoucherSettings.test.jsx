@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rule 22, specs/gift-voucher-campaigns.md rules 9, 56 — the settings page: only the keys the plugin declares (the page of the voucher on the site and the
+// specs/gift-vouchers/gift-vouchers.md rule 22, specs/gift-vouchers/gift-voucher-campaigns.md rules 9, 56 — the settings page: only the keys the plugin declares (the page of the voucher on the site and the
 // base of the permanent links) are read and sent; validity, amounts, VAT, ideas, the mail template and `bookingUrl` are gone; the server's message is shown on its field.
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';

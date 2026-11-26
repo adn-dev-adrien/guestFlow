@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/finance-overview-rework.md — every revenue figure is Σ « total de séjour » (acompte + solde +
+// specs/accounting/finance-overview-rework.md — every revenue figure is Σ « total de séjour » (acompte + solde +
 // complément + complément fin de séjour, the two complements EXCLUDED when caisse interne), a reservation
 // counted by its DEPARTURE date (endDate). « Encaissé » = the accounting total (paid, excl. caisse
 // interne). « En attente » = Σ total-séjour of PAST + non-settled reservations.
@@ -14,7 +14,7 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
-    -- specs/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
+    -- specs/site/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
     requestOrigin TEXT, attributionChannel TEXT, devisStatus TEXT, createdAt TEXT,
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
@@ -31,7 +31,7 @@ const DDL = `
 `;
 
 // The local day, like the model's « today » (`localDate.todayIso`): the UTC day of a local date is the next day in the evening
-// west of UTC, and a stay ending « yesterday » read as ending today (specs/server-test-isolation.md rule 6, reading of 2026-11-19).
+// west of UTC, and a stay ending « yesterday » read as ending today (specs/tech/server-test-isolation.md rule 6, reading of 2026-11-19).
 function iso(daysFromToday) {
   const d = new Date();
   d.setDate(d.getDate() + daysFromToday);
@@ -80,7 +80,7 @@ test('getSummary: revenueTotal = Σ total-de-séjour (acompte+solde+complément+
 });
 
 test('getSummary: the total de séjour is NET of the platform commission (« total perçu »)', () => {
-  // specs/fiche-total-sejour-net-of-commission.md — a platform reservation: acompte 100 + solde 300 +
+  // specs/platforms/fiche-total-sejour-net-of-commission.md — a platform reservation: acompte 100 + solde 300 +
   // commission (acompte 10 + solde 30 = 40) → total perçu = 400 − 40 = 360. Caisse-interne exclusion kept.
   const { db, model } = freshModel();
   insertRes(db, {
@@ -144,7 +144,7 @@ matrixCase('direct + complément CAISSE INTERNE → exclu partout (settled)', {
   platform: 'direct', balanceAmount: 200, balancePaid: 1, complementAmount: 50, complementPaid: 1, complementPaidCash: 1,
 }, { total: 200, collected: 200, reste: 0 });
 
-// specs/collect-stay-payment-at-check-in.md §3.4 rule 18 — the SÉJOUR itself collected at the door in
+// specs/sas/collect-stay-payment-at-check-in.md §3.4 rule 18 — the SÉJOUR itself collected at the door in
 // the caisse interne: out of the turnover AND out of « encaissé », settled, nothing left to pay.
 matrixCase('direct + SÉJOUR encaissé en caisse interne → hors CA, sold\u00e9', {
   platform: 'direct', balanceAmount: 400, balancePaid: 1, balancePaidCash: 1,
@@ -185,7 +185,7 @@ matrixCase('plateforme + commission + complément FIN DE SÉJOUR normal (payé, 
 }, { total: 220, collected: 220, reste: 0 }); // eos compté ; 200−20+40
 
 test('getOperational: « reste à payer » is NET of the commission of unpaid échéances; collected + reste = total', () => {
-  // specs/fiche-total-sejour-net-of-commission.md — platform reservation, acompte 100 paid (− 10 = 90),
+  // specs/platforms/fiche-total-sejour-net-of-commission.md — platform reservation, acompte 100 paid (− 10 = 90),
   // solde 300 unpaid (− 30 = 270). total perçu = 360 ; encaissé = 90 ; reste à payer = 270 ; 90+270=360.
   const { db, model } = freshModel();
   insertRes(db, {
@@ -216,7 +216,7 @@ test('getSummary: totalCollected = accounting total (paid, EXCLUDING caisse inte
   assert.equal(summary.totalCollected, 150); // deposit paid; balance unpaid; caisse-interne complement excluded from compta
 });
 
-// ── « En attente de règlement » (specs/finance-pending-global-remaining.md) ─────────────────
+// ── « En attente de règlement » (specs/accounting/finance-pending-global-remaining.md) ─────────────────
 // GLOBAL (period ignored) + RESTANT DÛ (Σ remainingToPay), so the card always equals the
 // operational « Paiements en attente » chip and never double-counts « Encaissé ».
 
@@ -320,7 +320,7 @@ test('getSummary: yearToDate (Jan 1 → today) + yearTotal (full year), by endDa
 });
 
 test('getSummary: empty range → revenueByProperty seeded at 0 € for every logement (no crash)', () => {
-  // specs/finance-per-property-revenue-chart.md rule 6 — the per-logement aggregates are seeded from
+  // specs/accounting/finance-per-property-revenue-chart.md rule 6 — the per-logement aggregates are seeded from
   // the properties table so a logement with no reservation stays in the payload at 0.
   const { model } = freshModel();
   assert.deepEqual(model.getSummary({ from: iso(0), to: iso(10) }).revenueByProperty, [
@@ -394,7 +394,7 @@ test('getOperational: pending totals sum the columns; a disabled deposit is excl
   assert.equal(op.pending.totals.remainingDue, 450);
 });
 
-// specs/finance-operational-remaining-to-pay.md §3 — « reste à payer » = Σ still-owed buckets only.
+// specs/accounting/finance-operational-remaining-to-pay.md §3 — « reste à payer » = Σ still-owed buckets only.
 test('getOperational: remainingToPay sums only the UNPAID buckets, incl. both complements', () => {
   const { db, model } = freshModel();
   // Deposit + balance PAID, but an arrival complement (60) + end-of-stay (40) still owed → 100 left.
@@ -451,7 +451,7 @@ test('getOperational: upcoming totals sum every component column + total de séj
   assert.equal(op.upcoming.totals.complementAmount, 30);
   assert.equal(op.upcoming.totals.endOfStayComplementAmount, 20);
   assert.equal(op.upcoming.totals.totalSejour, 550);
-  // Nothing paid → reste à payer = Σ of all owed buckets = totalSejour (specs/finance-upcoming-payments-table.md §3 rule 6).
+  // Nothing paid → reste à payer = Σ of all owed buckets = totalSejour (specs/accounting/finance-operational-remaining-to-pay.md §3 rule 3).
   assert.equal(op.upcoming.totals.remainingToPay, 550);
 });
 
@@ -494,7 +494,7 @@ test('getTouristTaxExtraction rejects a future or malformed month (current-month
   assert.equal(model.getTouristTaxExtraction({ month: future }).status, 400);
 });
 
-// ── Notes en séjour (specs/mid-stay-notes.md §3.4 rules 15-16) ───────────────
+// ── Notes en séjour (specs/sas/mid-stay-notes.md §3.4 rules 15-16) ───────────────
 // Collected money by definition: they raise the total AND the collected figure, never the pending one.
 
 const oneNote = (total, cash = 0) => JSON.stringify([
@@ -517,7 +517,7 @@ matrixCase('note + reste à percevoir au départ — seul le reste est « en att
   midStaySettledNotes: oneNote(30),
 }, { total: 348, collected: 330, reste: 18 });
 
-// specs/adjustable-complement-amounts.md rule 40 — le suivi financier lit les montants STOCKÉS des
+// specs/sas/adjustable-complement-amounts.md rule 40 — le suivi financier lit les montants STOCKÉS des
 // trois buckets : il suit l'ajustement sans une ligne de code. Ce test épingle ce « sans une ligne de
 // code » — la table de ce harnais ne porte AUCUNE colonne d'ajustement, donc un modèle qui se
 // mettrait à en consulter une échouerait ici au lieu de diverger en silence de la fiche.
@@ -537,7 +537,7 @@ test('le suivi financier suit l’ajustement parce qu’il ne lit que le montant
   );
 });
 
-// specs/payment-schedule-and-cancellation.md rule 35 — la page Finances est une vue OPÉRATIONNELLE :
+// specs/payments/payment-schedule-and-cancellation.md rule 35 — la page Finances est une vue OPÉRATIONNELLE :
 // elle exclut les séjours annulés. Leur argent reste visible en comptabilité — l'acompte conservé a
 // bien été encaissé — mais il n'a plus rien à faire dans un chiffre d'affaires prévisionnel : les
 // dates sont reparties à la vente et le séjour n'aura pas lieu.

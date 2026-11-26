@@ -1,6 +1,6 @@
 /**
  * Cancellation compensations model — sole DB access for `cancellation_compensations`
- * (specs/cancellation-compensation.md §5).
+ * (specs/payments/cancellation-compensation.md §5).
  *
  * A compensation is what a platform pays back when a guest cancels outside the free-cancellation
  * window. It is deliberately **standalone**: approving an iCal cancellation DELETES the reservation,
@@ -27,7 +27,7 @@ const COLUMNS = `id, cancellationAlertId, reservationId, propertyId, propertyNam
                  expectedAmount, expectedDate, receivedAmount, receivedDate, status, origin, notes,
                  createdAt, updatedAt`;
 
-// Where the money comes from (specs/payment-schedule-and-cancellation.md §3.6 rule 33):
+// Where the money comes from (specs/payments/payment-schedule-and-cancellation.md §3.6 rule 33):
 //   'platform'         — the indemnity a platform owes us for a stay cancelled outside its free window;
 //   'retained_deposit' — an acompte we already hold, kept after cancelling for non-payment. Born
 //                        `received` (the money never moved), which is what tells the two apart in the UI.

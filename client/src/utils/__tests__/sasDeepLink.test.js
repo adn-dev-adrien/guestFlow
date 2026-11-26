@@ -1,6 +1,6 @@
 import { readSasDeepLink, readBreakfastDeepLink } from '../sasDeepLink';
 
-// specs/pwa-push-notifications.md §3.3 rule 10 — the arrival/departure push deep-link
+// specs/guest-app/pwa-push-notifications.md §3.3 rule 10 — the arrival/departure push deep-link
 // `/planning?sas=arrival|departure&reservationId=:id` is parsed + validated here before the
 // Planning page opens the matching SAS.
 
@@ -36,7 +36,7 @@ test('is defensive against a bad argument', () => {
   expect(readSasDeepLink({})).toBeNull();
 });
 
-// specs/sas-breakfast-bread-and-push.md rule 10 — the breakfast push deep-link
+// specs/sas/sas-breakfast-bread-and-push.md rule 10 — the breakfast push deep-link
 // `/planning?breakfast=:id&date=YYYY-MM-DD` opens the preparation popup.
 
 test('readBreakfastDeepLink parses a valid link', () => {

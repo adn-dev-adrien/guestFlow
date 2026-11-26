@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 7 — the first administrator of a hosted instance,
+// specs/hosting/control-plane-plans-and-access.md rule 7 — the first administrator of a hosted instance,
 // created by the control plane through `scripts/create-first-admin.js`: an admin with a temporary
 // password to change, idempotent, and the well-known bootstrap account closed behind it.
 
@@ -36,7 +36,7 @@ test('rule 7 — the script creates an admin who must change the password, and c
     assert.deepEqual(again, { created: false, temporaryPassword: null, removedBootstrap: false });
     const db = new Database(dbPath, { readonly: true });
     // The disabled « Support GuestFlow » account every instance carries is not a person
-    // (specs/hosting-h2-account-security.md rule 14).
+    // (specs/hosting/hosting-h2-account-security.md rule 14).
     const users = db.prepare("SELECT u.email, u.firstName, u.lastName, u.mustChangePassword, r.role FROM users u JOIN user_roles r ON r.userId = u.id WHERE u.email <> 'support@guestflow.invalid'").all();
     db.close();
     assert.deepEqual(users, [{ email: 'claire@aulnes.fr', firstName: 'Claire', lastName: 'Martin', mustChangePassword: 1, role: 'admin' }]);

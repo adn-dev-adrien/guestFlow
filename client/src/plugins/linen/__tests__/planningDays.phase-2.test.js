@@ -1,8 +1,8 @@
-// specs/plugins-phase-2-hosts.md rules 5-6 — the module contributes the laundry card and the extra-trip
+// specs/plugins/plugins-phase-2-hosts.md rules 5-6 — the module contributes the laundry card and the extra-trip
 // button. (The load itself is pinned by planningDays.days-endpoint.test.js.)
 import linen from '..';
 
-test('specs/plugins-phase-2-hosts.md rules 5-6: the module contributes the laundry card and the extra-trip button', () => {
+test('specs/plugins/plugins-phase-2-hosts.md rules 5-6: the module contributes the laundry card and the extra-trip button', () => {
   const [days] = linen.contributes['planning.days'];
   expect(days.rank).toBeGreaterThan(0);
   expect(days.errorMessage).toBe("Le linge n'a pas pu être chargé.");

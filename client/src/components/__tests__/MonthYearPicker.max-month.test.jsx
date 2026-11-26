@@ -1,4 +1,4 @@
-// specs/ds-sweep-finance.md rule 24 — with `maxMonth`, the year list stops at its year and a year change
+// specs/design-system/ds-sweep-finance.md rule 24 — with `maxMonth`, the year list stops at its year and a year change
 // that would land past it clamps the month: no pick can ask the server for a future month.
 import React from 'react';
 import { vi } from 'vitest';

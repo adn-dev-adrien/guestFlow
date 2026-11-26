@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 43, 44, 47 and 64 — a stay whose link was withdrawn because another
+// specs/payments/payment-link-lifecycle.md rules 43, 44, 47 and 64 — a stay whose link was withdrawn because another
 // stay took its nights tells its guest at once, once, without validation: only after the provider read the link
 // unpaid, never for a lapse, a started stay or « Retirer le lien », never for the stays withdrawn at the upgrade
 // (rule 61), and never when it cannot leave (template off, no address, no English, no SMTP), in which case the

@@ -1,5 +1,5 @@
 /**
- * money — the shared money helpers of the pricing units (specs/pricing-components.md §3 rule 38).
+ * money — the shared money helpers of the pricing units (specs/pricing/pricing-components.md §3 rule 38).
  *
  * Contract: `sumMoney(values)` adds amounts left to right and rounds once, `roundMoney(value)` rounds to the cent
  * (`Math.round` on the float product: half toward +∞, so `roundMoney(-0.125)` is `-0.12`, as the engine always has),
@@ -67,7 +67,7 @@ function parseIntegerCents(value) {
 }
 
 /**
- * Largest-remainder allocation (specs/pricing-components.md §3 rule 40): each share is floored to the cent, the cents
+ * Largest-remainder allocation (specs/pricing/pricing-components.md §3 rule 40): each share is floored to the cent, the cents
  * left over go one by one to the largest remainders. Ties go to the earliest item: the caller passes the items in
  * the order that must win a tie (accommodation first, then lines by `soldAt`, then id).
  *

@@ -1,5 +1,5 @@
 // @ts-check
-// specs/collect-stay-payment-at-check-in.md rule 6 (revised 2026-09-08) — the « Séjour à régler »
+// specs/sas/collect-stay-payment-at-check-in.md rule 6 (revised 2026-09-08) — the « Séjour à régler »
 // step of the arrival SAS is DIRECT-channel only: a platform solde is the OTA's payout, never money
 // to claim at the door, while the guest's unpaid complements are still collected. Pinned through the
 // real server as the admin session: the client renders whatever `stayPayment.applicable` says

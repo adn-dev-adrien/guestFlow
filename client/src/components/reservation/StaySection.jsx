@@ -29,10 +29,10 @@ export default function StaySection() {
       <CardContent sx={formSectionContentSx}>
         <Typography variant="sectionHeader" sx={{ mb: 2 }}>Séjour</Typography>
         <Stack spacing={2}>
-          {/* Logement + Numéro de réservation share one row on md+ (specs/email-client-language-and-fiche-polish.md
+          {/* Logement + Numéro de réservation share one row on md+ (specs/emails/email-client-language-and-fiche-polish.md
               §3 rule 8); they stack on xs. Devis have no reservation number → Logement stays full-width. */}
           {/* minmax(0, …) + minWidth 0: a long property name ellipsises instead of widening the page
-              (specs/review-2026-10-18-reservations.md rule 7). */}
+              (specs/design-system/review-2026-10-18-reservations.md rule 7). */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: isDevisMode ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
             <FormControl fullWidth disabled={formReadOnly} sx={{ minWidth: 0 }}>
               <InputLabel id="stay-property-label">Logement</InputLabel>
@@ -46,7 +46,7 @@ export default function StaySection() {
               </Select>
             </FormControl>
 
-            {/* Reservation number (specs/reservation-number-and-search.md): generated server-side on first
+            {/* Reservation number (specs/reservations/reservation-number-and-search.md): generated server-side on first
                 save, editable/overridable. Hidden for devis (they carry devisNumber instead). Once set it
                 may be a platform's own number (an intake writes it), so the hint no longer says
                 « généré » (amended 2026-10-18). */}

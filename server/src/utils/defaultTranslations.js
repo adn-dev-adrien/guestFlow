@@ -1,5 +1,5 @@
 /**
- * The English GuestFlow ships with (specs/translation-catalogue.md §5).
+ * The English GuestFlow ships with (specs/site/translation-catalogue.md §5).
  *
  * The system options — the ones a fresh install creates by itself — used to carry their English in
  * the seed that created them, written straight into `options.titleEn`. With that column gone, the

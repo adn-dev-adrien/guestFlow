@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md §3 rule 58 (D-HC20, 2026-11-06) — on a partial comparison the revenue badge
+// specs/accounting/finance-dashboard-redesign.md §3 rule 58 (D-HC20, 2026-11-06) — on a partial comparison the revenue badge
 // under the window's revenue reads « vs N-1 » without its span: the notice under the card says it, once.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

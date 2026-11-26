@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 60 (audit of 2026-10-28, finding M2) — a support write is
+// specs/hosting/hosting-h2-account-security.md rule 60 (audit of 2026-10-28, finding M2) — a support write is
 // in the journal even when the client leaves before the answer: `close` without `finish` is logged with
 // the « aborted » marker, and a normal answer is logged once.
 

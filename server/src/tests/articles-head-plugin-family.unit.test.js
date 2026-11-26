@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 5 and 47 — the head prices a `per_hour` line through the plugin-owned `hourly`
+// specs/pricing/pricing-components.md §3 rules 5 and 47 — the head prices a `per_hour` line through the plugin-owned `hourly`
 // family it is given as an input, inside the safety every plugin answer gets (a throw, a malformed answer, a closed `extra`);
 // without the family the declared hours are billed at the lodging's rate after the free minutes.
 const test = require('node:test');

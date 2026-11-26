@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 7, 10, 12-17, 22, 27, 29 — the « Domotique » routes on the real routers: the
+// specs/guest-app/guest-app-home-automation.md rules 7, 10, 12-17, 22, 27, 29 — the « Domotique » routes on the real routers: the
 // module's prerequisite and modes, the guest's taps, Studio's save with its refusals and its preview.
 const test = require('node:test');
 const assert = require('node:assert/strict');

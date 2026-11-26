@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 readings (stabilisation loop t15, S15-3 / D15-2 and S15-4 / D15-1, 2026-11-17) — the numbering of repeated
+// specs/pricing/pricing-components.md §3 rule 94 readings (stabilisation loop t15, S15-3 / D15-2 and S15-4 / D15-1, 2026-11-17) — the numbering of repeated
 // free labels reaches the devis: a devis with two « Ménage » stores « Ménage » and « Ménage (2) », so the stay it converts into keeps two lines of
 // their own and a 2 € line discount takes 2 € (it took 4 €: both rows shared one fact key). And a blank label is never numbered: two blank lines
 // posted by an API caller were stored as one priced « (2) » line (+10 €) on the preview, the creation and the save; the engine drops them again.

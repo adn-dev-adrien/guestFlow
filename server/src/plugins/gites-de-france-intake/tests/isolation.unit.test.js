@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 0 — everything ships in the plugin: no core file knows its
+// specs/platforms/gites-de-france-mail-intake.md rule 0 — everything ships in the plugin: no core file knows its
 // table, its routes or its folder, except the two registration lists every plugin goes through.
 const test = require('node:test');
 const assert = require('node:assert/strict');

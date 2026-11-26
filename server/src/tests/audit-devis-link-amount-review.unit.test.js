@@ -1,4 +1,4 @@
-// specs/public-online-payment.md rules 14-15 — the review of PR #841: a manual tick is not a refund,
+// specs/site/public-online-payment.md rules 14-15 — the review of PR #841: a manual tick is not a refund,
 // a stale link paid before its retirement is booked, the retirement leaves a trace, a legacy devis
 // without its split is never compared, and the alerts say what the admin has to do.
 const test = require('node:test');

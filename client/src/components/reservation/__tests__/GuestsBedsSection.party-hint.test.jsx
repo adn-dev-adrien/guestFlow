@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 15 (audit R22, 2026-11-04) — the party is whole and ≥ 0: the fiche says so
+// specs/tech/reservations-backend-mvc.md rule 15 (audit R22, 2026-11-04) — the party is whole and ≥ 0: the fiche says so
 // as it is typed, under the field; only the server refuses.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

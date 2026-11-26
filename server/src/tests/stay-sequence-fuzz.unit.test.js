@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 104, 108, 116, 119, 121 (stabilisation loop t9, B9-2..B9-5, 2026-11-16) — the reviewer's stay sequence
+// specs/pricing/pricing-components.md §3 rules 104, 108, 116, 119, 121 (stabilisation loop t9, B9-2..B9-5, 2026-11-16) — the reviewer's stay sequence
 // fuzzer, bounded: random gestures on one stay (before the arrival: discounts, offers, un-offers, unpaid sales, fiche offers, refunds as the
 // ledger row proposes, refund deletions; then the complement collected and the check-in; in the stay: card and cash notes too) and, after
 // EVERY step, the money identity received − refunded − owed + asked = price + tax, and never « asked AND owed » at once. Direct and Booking,

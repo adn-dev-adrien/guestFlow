@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rule 6 — the attention subject of this plugin: titles, plurals and
+// specs/planning/shell-and-home-day-first.md rule 6 — the attention subject of this plugin: titles, plurals and
 // severities come from the server.
 
 const test = require('node:test');

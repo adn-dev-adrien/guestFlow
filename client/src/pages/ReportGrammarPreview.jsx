@@ -1,6 +1,6 @@
 /**
  * ReportGrammarPreview — the dev-only page showing every component of the report grammar with fixture
- * data (specs/report-grammar.md rule 17). Mounted only by a development build (`import.meta.env.DEV`),
+ * data (specs/design-system/report-grammar.md rule 17). Mounted only by a development build (`import.meta.env.DEV`),
  * never in production, never in a menu: it is a workbench for whoever builds a report screen.
  */
 import React, { useState } from 'react';

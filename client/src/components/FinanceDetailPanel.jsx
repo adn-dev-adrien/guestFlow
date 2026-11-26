@@ -1,6 +1,6 @@
 /**
  * FinanceDetailPanel — the table opened by a tile of the Suivi financier
- * (specs/finance-dashboard-redesign.md §3.5 rule 13). Feature-local: each body renders the server's
+ * (specs/accounting/finance-dashboard-redesign.md §3.5 rule 13). Feature-local: each body renders the server's
  * `/finance/dashboard/detail/:tile` payload as is — every amount, total and label comes ready-made.
  * Tables become cards on `xs` (rule 16) through ResponsiveTable / OperationalPaymentsTable.
  *
@@ -11,11 +11,11 @@
  *   loading, error:     request state; `onRetry` retries
  *   windowLabel:        string   « Exercice 2026 »…
  *   staysScope:         'window' | 'upcoming';  onStaysScopeChange(scope)
- *   incomingRecent:     boolean;                onIncomingRecentChange(boolean) — « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rule 24)
+ *   incomingRecent:     boolean;                onIncomingRecentChange(boolean) — « Versements à venir » (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 24)
  *   onClose, onOpenReservation(id), onSettleOverdue(row) (ticks only the row's `overdueItems`), onSelectProperty(id)
  *
  * « Encaissé » and « Reste à encaisser » list one line per payment, grouped by month with the month's subtotal
- * (specs/mobile-dashboard-exercise-cash.md rules 16-17); a line opens the fiche.
+ * (specs/planning/mobile-dashboard-exercise-cash.md rules 16-17); a line opens the fiche.
  */
 import React from 'react';
 import {

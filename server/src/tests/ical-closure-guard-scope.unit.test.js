@@ -1,4 +1,4 @@
-// specs/lodgify-decommission.md §3 rule 17 (audit 2026-10-27) — the closure guard drops only a NEW event
+// specs/platforms/lodgify-decommission.md §3 rule 17 (audit 2026-10-27) — the closure guard drops only a NEW event
 // whose every night is inside a closure (the closure coming back from a channel). It used to drop any
 // overlapping event: a stay the platform moved onto a closure stayed frozen on its old dates without a
 // word, and a new booking partly over a closure never existed in GuestFlow.

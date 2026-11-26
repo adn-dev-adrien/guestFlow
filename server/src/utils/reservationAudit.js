@@ -8,7 +8,7 @@
  * Read side: `buildHistoryRows` turns that stored diff into ready-to-print rows for the fiche's
  * « Historique des modifications » — ids resolved to names, values in French (€, JJ/MM/AAAA, Oui/Non),
  * options/resources expanded line by line, engine recalculations split apart.
- * See specs/reservation-history-granular-diff.md.
+ * See specs/reservations/reservation-history-granular-diff.md.
  */
 
 const { discountAmountCentsOf } = require('./pricing/discounts');
@@ -39,7 +39,7 @@ const HISTORY_FIELD_LABELS = {
   discountAmountCents: 'Réduction (montant)',
   finalPrice: 'Prix final',
   depositAmount: 'Acompte',
-  // specs/reservation-history-granular-diff.md rule 13 — an acompte typed by hand is a decision, not a
+  // specs/reservations/reservation-history-granular-diff.md rule 13 — an acompte typed by hand is a decision, not a
   // recalculation: it reads as its own row, apart from the « Recalculs » block.
   depositAmountOverride: 'Acompte saisi',
   depositDueDate: 'Date acompte',
@@ -54,7 +54,7 @@ const HISTORY_FIELD_LABELS = {
   extraGuestSurchargeOffered: 'Surcoût voyageurs offert',
   depositDisabled: 'Acompte désactivé',
   touristTaxInComplement: 'Taxe en complément',
-  // specs/adjustable-complement-amounts.md §3.1 rule 11 — an adjusted complement is money moved by
+  // specs/sas/adjustable-complement-amounts.md §3.1 rule 11 — an adjusted complement is money moved by
   // hand: it has to be re-readable in the history like any other field edit.
   complementAmountOverride: "Complément d'arrivée ajusté",
   endOfStayComplementAmountOverride: 'Complément de fin de séjour ajusté',
@@ -95,7 +95,7 @@ function getResourcesSignature(lines) {
     .join('|');
 }
 
-// specs/reservation-history-granular-diff.md rule 12 — custom lines have no stable id, so both
+// specs/reservations/reservation-history-granular-diff.md rule 12 — custom lines have no stable id, so both
 // snapshots key them by their rank AMONG CUSTOM LINES on this one base. Two schemes (one counting the
 // catalogue lines too) made every save of a fiche with a custom line look like an options change.
 const CUSTOM_OPTION_SIGNATURE_BASE = 1000000;
@@ -141,12 +141,12 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     cautionReturned: payload.cautionReturned ? 1 : 0,
     cautionReturnedDate: payload.cautionReturnedDate || null,
     extraGuestSurchargeOffered: payload.extraGuestSurchargeOffered ? 1 : 0,
-    // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md). Tracked
+    // Per-reservation deposit opt-out (specs/payments/disable-deposit-per-reservation.md). Tracked
     // here so a toggle change shows up in `reservation_history` like any other field edit.
     depositDisabled: payload.depositDisabled ? 1 : 0,
-    // Per-item routing of the tourist tax to Complément (specs/force-item-to-complement.md).
+    // Per-item routing of the tourist tax to Complément (specs/sas/force-item-to-complement.md).
     touristTaxInComplement: payload.touristTaxInComplement ? 1 : 0,
-    // specs/adjustable-complement-amounts.md §3.1 rule 11 — NULL when the bucket is on automatic.
+    // specs/sas/adjustable-complement-amounts.md §3.1 rule 11 — NULL when the bucket is on automatic.
     complementAmountOverride: payload.complementAmountOverride === undefined || payload.complementAmountOverride === null || payload.complementAmountOverride === ''
       ? null : Number(payload.complementAmountOverride),
     endOfStayComplementAmountOverride: payload.endOfStayComplementAmountOverride === undefined || payload.endOfStayComplementAmountOverride === null || payload.endOfStayComplementAmountOverride === ''
@@ -191,7 +191,7 @@ const HISTORY_FIELD_FORMATS = {
   cautionReturnedDate: 'date',
   totalPrice: 'money',
   customPrice: 'money',
-  // specs/platform-statement-after-payout.md rule 10 — the statement a « Relevé plateforme corrigé » row lists.
+  // specs/platforms/platform-statement-after-payout.md rule 10 — the statement a « Relevé plateforme corrigé » row lists.
   platformGrossAmount: 'money',
   platformTouristTaxAmount: 'money',
   platformCommissionAmount: 'money',
@@ -221,7 +221,7 @@ const HISTORY_FIELD_FORMATS = {
   cancellationReason: 'cancellationReason',
 };
 
-// specs/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1, R45-DB-L1) — a cancel
+// specs/payments/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1, R45-DB-L1) — a cancel
 // confirmed with an empty « Motif » stores the derived key; it reads French, the stored row untouched. Only the whole
 // value is matched, so a reason the operator typed reads as typed.
 // Rule 16: what a stay discount is aimed at, as the history reads it.
@@ -348,7 +348,7 @@ function diffSignatureChange(change, context = {}) {
   return rows;
 }
 
-// specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) — the « paiement unique »
+// specs/payments/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) — the « paiement unique »
 // lines stored before it wrote « 281.98 € — CB / Chèque le 2026-09-01 — balance, endOfStayComplement »: read back
 // the French way, the stored row untouched.
 const STORED_ARRIVAL_BUCKETS = {

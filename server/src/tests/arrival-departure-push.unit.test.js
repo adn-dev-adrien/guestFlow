@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { create: createReservationsModel } = require('../models/reservationsModel');
 const { runArrivalDeparturePush } = require('../utils/arrivalDeparturePushRunner');
 
-// specs/pwa-push-notifications.md §3.3 + §3.4 — due arrivals/departures detection, send + stamp once,
+// specs/guest-app/pwa-push-notifications.md §3.3 + §3.4 — due arrivals/departures detection, send + stamp once,
 // and the first-run back-stamp (no restart flood).
 
 function freshDb() {
@@ -37,7 +37,7 @@ function stubPush() {
 
 const NOW = new Date(2026, 5, 14, 16, 0, 0); // 2026-06-14 16:00 local
 const TODAY = '2026-06-14';
-// The deep link targets the SAS while the plugin is live (specs/plugins-phase-2-hosts.md rule 12).
+// The deep link targets the SAS while the plugin is live (specs/plugins/plugins-phase-2-hosts.md rule 12).
 const SAS_ON = () => true;
 
 test('dueArrivals: today + check-in reached + not stamped; sends « arrivals » and stamps once', async () => {

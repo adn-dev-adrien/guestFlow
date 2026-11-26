@@ -2,7 +2,7 @@ const router = require('express').Router();
 const controller = require('../controllers/clientsController');
 
 router.get('/', controller.list);
-// Declared before `/:id` so the literal path wins (specs/clients-upcoming-past-directory.md §4.1).
+// Declared before `/:id` so the literal path wins (specs/clients/clients-upcoming-past-directory.md §4.1).
 router.get('/directory', controller.directory);
 router.get('/picker', controller.picker);
 router.get('/duplicate', controller.duplicate);

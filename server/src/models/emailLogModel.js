@@ -1,6 +1,6 @@
 /**
  * Email log model — sole DB access for `email_log`
- * (specs/email-automation.md §4.1 + §5).
+ * (specs/emails/email-automation.md §4.1 + §5).
  *
  * Records every send attempt (sent / failed / acknowledged-skip) — the cron, the
  * manual-send button and the acknowledge endpoint all funnel through this model.
@@ -11,12 +11,12 @@
  *   existsFor(templateId, reservationId, statuses[], occurrenceKey?) → boolean
  *   hasFailure(templateId, reservationId, errorMessage) → a `failed` row with that stored reason exists
  *     `occurrenceKey` tells apart the several sends of one template on one reservation (one per
- *     installment: `installment:<id>`, specs/direct-installments.md rule 19); '' for every other email.
+ *     installment: `installment:<id>`, specs/payments/direct-installments.md rule 19); '' for every other email.
  *   listPending({ today, lookbackDays })
  *                               → « manual » candidates not yet acted on (joins reservation + client
  *                                 + property). « auto » templates leave on their own and are never
- *                                 proposed (specs/settings-rationalization.md rule 17b), nor is the acompte
- *                                 reminder of a stay whose dates were taken (specs/payment-link-lifecycle.md rule 65).
+ *                                 proposed (specs/settings/settings-rationalization.md rule 17b), nor is the acompte
+ *                                 reminder of a stay whose dates were taken (specs/payments/payment-link-lifecycle.md rule 65).
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
@@ -29,12 +29,12 @@ const INSTALLMENT_STABLE_KEY = 'installment_request';
 // The request whose departure unlocks each anchor's reminder (rule 40bis).
 const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDate: 'balance_request' };
 
-// Which templates the review queue proposes (specs/no-automatic-email-without-approval.md §3 rule 3):
+// Which templates the review queue proposes (specs/emails/no-automatic-email-without-approval.md §3 rule 3):
 // the `manual` ones — each `auto` template is sent by the 08:00 pass, since its own mode is the only
-// switch (specs/settings-rationalization.md rule 17b). Literal constant, never user input.
+// switch (specs/settings/settings-rationalization.md rule 17b). Literal constant, never user input.
 const SEND_MODE_MANUAL_ONLY = "t.sendMode = 'manual'";
 
-// specs/email-history-rolling-window.md §3 rules 1 and 9 — an email_log row is "current" (shown + kept)
+// specs/emails/email-history-rolling-window.md §3 rules 1 and 9 — an email_log row is "current" (shown + kept)
 // while today ≤ the later of the arrival and the day it was written, + this many days; past that it is
 // hidden by history() AND purged. The later of the two keeps a J+1 or a season e-mail, written after
 // the arrival, visible as long as any other (rule 9, 2026-10-27 spec review).
@@ -42,7 +42,7 @@ const STAY_RETENTION_DAYS = 3;
 const CURRENT_ROW_SQL = (log) => `date(max(r.startDate, COALESCE(date(${log}.sentAt), r.startDate)), '+' || ? || ' days') >= date(?)`;
 
 function buildModel(database) {
-  // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  // The own channels, read at query time (specs/plugins/plugins-phase-p-productisation.md rule 19).
   registerDirectChannelSql(database);
   const HAS_SALE_REF = database.prepare('PRAGMA table_info(email_log)').all().some((c) => c.name === 'saleRef');
   const SELECT_COLS = `id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, occurrenceKey${HAS_SALE_REF ? ', saleRef' : ''}`;
@@ -98,17 +98,17 @@ function buildModel(database) {
   // out devis, expired stays > 7 days in the past, already-sent and already-acknowledged
   // pairs. Returns the rows the dashboard renders verbatim.
   //
-  // Past-arrival guard (specs/email-automation.md §3 rule 8): a before-or-on-arrival reminder
+  // Past-arrival guard (specs/emails/email-automation.md §3 rule 8): a before-or-on-arrival reminder
   // (`dayOffset <= 0`, e.g. J-7 / J-2) is pointless once the guest has arrived, but the 7-day
   // lookback window would otherwise keep re-proposing it for up to a week after `startDate`
   // (a J-2's send date stays in the window until startDate + 5 days). So such pairs are dropped
   // as soon as `startDate` is in the past. Post-stay emails (`dayOffset > 0`) are meant to fire
   // after arrival and are kept regardless.
-  // One UNION branch per payment anchor (specs/payment-schedule-and-cancellation.md §3.7 rule 41).
+  // One UNION branch per payment anchor (specs/payments/payment-schedule-and-cancellation.md §3.7 rule 41).
   // The two are identical apart from the three column names, so they are generated rather than
   // copy-pasted — a divergence between the acompte and the solde branch would be a silent bug.
   // Column names are hard-coded call-site constants, never user input.
-  // specs/payment-schedule-and-cancellation.md §3.7 rules 40bis + 40ter. Two guards the `start` anchor
+  // specs/payments/payment-schedule-and-cancellation.md §3.7 rules 40bis + 40ter. Two guards the `start` anchor
   // does not need:
   //   • own channels only — an Airbnb guest owes their solde to Airbnb, not to us. The auto pass has
   //     had this filter since PR #458; the queue never needed it while both reminders were `auto`, and
@@ -154,7 +154,7 @@ function buildModel(database) {
             AND l.status IN ('sent', 'acknowledged-skip')
         )`;
 
-  // specs/direct-installments.md rule 19 — one entry PER installment: on its due date, while it is unpaid
+  // specs/payments/direct-installments.md rule 19 — one entry PER installment: on its due date, while it is unpaid
   // and no request has left, until the stay is over. The pair (template, reservation) alone cannot tell
   // them apart, hence the occurrence key. Own channels only (rule 1), like the payment anchors above.
   const installmentBranch = (sendModePredicate) => `
@@ -199,9 +199,9 @@ function buildModel(database) {
     // Four scheduling anchors, UNION-ed so each stays readable:
     //   • 'start'          → reservations, sendDate = startDate + dayOffset (legacy; past-arrival guard);
     //   • 'validUntil'     → open, deposit-unpaid devis, sendDate = validUntil + dayOffset
-    //                        (specs/online-payments-qonto.md §3.8);
+    //                        (specs/payments/online-payments-qonto.md §3.8);
     //   • 'depositDueDate' → reservations whose acompte is still unpaid, sendDate = that deadline
-    //                        + dayOffset (specs/payment-schedule-and-cancellation.md §3.7 rule 41);
+    //                        + dayOffset (specs/payments/payment-schedule-and-cancellation.md §3.7 rule 41);
     //   • 'balanceDueDate' → reservations whose solde is still unpaid, same shape.
     // The two payment anchors only ever match a reservation that still owes the money: a paid échéance
     // drops out of the queue on its own, without relying on the email_log dedup.
@@ -299,7 +299,7 @@ function buildModel(database) {
     return withoutRemindersOnTakenDates(rows);
   }
 
-  // specs/payment-link-lifecycle.md rule 65 — the acompte reminder of a stay whose nights another stay took is never
+  // specs/payments/payment-link-lifecycle.md rule 65 — the acompte reminder of a stay whose nights another stay took is never
   // proposed: its send would be refused (rule 35), and the guest is told by the notice of rule 43 instead.
   function withoutRemindersOnTakenDates(rows) {
     const reminder = database.prepare("SELECT id FROM email_templates WHERE stableKey = 'deposit_reminder'").get();
@@ -311,7 +311,7 @@ function buildModel(database) {
     return rows.filter((row) => Number(row.templateId) !== Number(reminder.id) || !takenByOf(database, row.reservationId));
   }
 
-  // Rolling-window history (specs/email-history-rolling-window.md §3 rule 2): only rows whose reservation
+  // Rolling-window history (specs/emails/email-history-rolling-window.md §3 rule 2): only rows whose reservation
   // exists AND is still current (today ≤ startDate + retention). The INNER JOIN to reservations also drops
   // orphan rows (email_log has no FK cascade). The retention + today are bound, never interpolated.
   function history({ limit = 50, offset = 0, reservationId, templateId, status, today } = {}) {
@@ -353,7 +353,7 @@ function buildModel(database) {
     return { rows, total };
   }
 
-  // Purge every email_log row that is no longer current (specs/email-history-rolling-window.md §3 rule 3):
+  // Purge every email_log row that is no longer current (specs/emails/email-history-rolling-window.md §3 rule 3):
   // no reservation backs it within the retention window — covers both past-window rows and orphans (the
   // reservation was deleted). Idempotent; returns the number of rows removed. `today` injectable for tests.
   // End review R1-4 (outside-visit spec rule 42, pricing-components rule 86) — a sale's e-mail (`saleRef`, no reservation) is kept like a stay's: until
@@ -386,7 +386,7 @@ function buildModel(database) {
 
   // Most recent successful-send timestamp for a (template, reservation) pair, or null if it was
   // never sent. Drives the "déjà envoyé le …" guard when queuing a manual email
-  // (specs/manual-email-from-template.md §3 rule 5).
+  // (specs/emails/manual-email-from-template.md §3 rule 5).
   function lastSentAt(templateId, reservationId, occurrenceKey = '') {
     const row = database.prepare(
       "SELECT MAX(sentAt) AS lastSentAt FROM email_log WHERE templateId = ? AND reservationId = ? AND occurrenceKey = ? AND status = 'sent'"

@@ -1,4 +1,4 @@
-// specs/ical-export-guest-privacy.md (amended 2026-10-18) — the export card's title and line: no emoji,
+// specs/platforms/ical-export-guest-privacy.md (amended 2026-10-18) — the export card's title and line: no emoji,
 // no « vous », and it says only the dates leave GuestFlow.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -24,10 +24,10 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
   const app = express();
   app.set('trust proxy', 1);
   // The instances share the host's loopback: forwarded headers count only with Caddy's secret
-  // (specs/hosting-h1-fleet-runtime.md rule 21).
+  // (specs/hosting/hosting-h1-fleet-runtime.md rule 21).
   app.use(proxySecret.proxySecretGuard(proxySecretValue));
   app.use(helmet());
-  // specs/control-plane-plans-and-access.md rule 36 — a write comes from the console's own pages or the
+  // specs/hosting/control-plane-plans-and-access.md rule 36 — a write comes from the console's own pages or the
   // login page's own forms. `SameSite=Lax` alone lets a same-site page (an instance on
   // `<slug>.<domain>`) post with the operator's cookie. Exempt: Qonto's webhook, server to server and
   // signed. A request without Origin or Referer (scripts, tests) passes; the session guard still applies.
@@ -37,7 +37,7 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
   // console, and neither answers on the other's host.
   const login = publicRoutes(ctx, { secureCookies });
   app.use((req, res, next) => (appHost && req.hostname === appHost ? login(req, res, next) : next()));
-  // specs/plugins-phase-4-registry.md rule 7 — the registry is public, read by the instances.
+  // specs/plugins/plugins-phase-4-registry.md rule 7 — the registry is public, read by the instances.
   app.use('/registry/v1', registryPublicRoutes(ctx));
   // The raw bytes are kept for the Qonto webhook's signature (rule 32).
   app.use(express.json({ limit: '200kb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
@@ -67,7 +67,7 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
     if (err.status && err.body && typeof err.body === 'object') return res.status(err.status).json(err.body);
-    // specs/control-plane-plans-and-access.md rule 49: a body the parser refuses is the caller's, not a fault.
+    // specs/hosting/control-plane-plans-and-access.md rule 49: a body the parser refuses is the caller's, not a fault.
     if (err.status >= 400 && err.status < 500) {
       const tooLarge = err.status === 413;
       return res.status(err.status).json({

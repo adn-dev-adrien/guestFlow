@@ -1,5 +1,5 @@
 // Review amendments: rule 48 — decimals refused, -0 reads as 0, the payout bound has one source.
-// specs/settings-input-guards.md rules 1, 5, 6, 8 — the limits descriptors and the shared parser.
+// specs/settings/settings-input-guards.md rules 1, 5, 6, 8 — the limits descriptors and the shared parser.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

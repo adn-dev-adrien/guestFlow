@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 44 (UI/UX review 2026-10-18, decision 12) — one name per
+// specs/emails/guest-email-texts-made-simple.md rule 44 (UI/UX review 2026-10-18, decision 12) — one name per
 // email, everywhere, and Emails › Modèles in the order of the stay; a shipped email is switched off,
 // never deleted.
 

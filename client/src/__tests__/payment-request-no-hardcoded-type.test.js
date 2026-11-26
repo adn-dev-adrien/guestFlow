@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// specs/deposit-blocks-the-dates.md rule 10 — the client no longer names the payment type. It used to
+// specs/payments/deposit-blocks-the-dates.md rule 10 — the client no longer names the payment type. It used to
 // post `{ type: 'deposit' }`, which on a last-minute devis (no acompte) asked for a 0 € link the API
 // refuses. The server now resolves it from the record and says which type it sent.
 

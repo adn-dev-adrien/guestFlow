@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md §3.6 — the simulation CLI, run for real against a database file.
+// specs/emails/guest-email-sequence.md §3.6 — the simulation CLI, run for real against a database file.
 // It exists to be pointed at a COPY OF PRODUCTION before automatic sending is turned on, so the one
 // thing it must never do is write: the test checks the target byte for byte around the run.
 

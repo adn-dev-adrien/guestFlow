@@ -1,5 +1,5 @@
 /**
- * YearOverYearBadge — specs/finance-dashboard-redesign.md rules 18 and 20: hidden without a
+ * YearOverYearBadge — specs/accounting/finance-dashboard-redesign.md rules 18 and 20: hidden without a
  * comparison, and saying when it only covers part of the window.
  */
 

@@ -1,5 +1,5 @@
 /**
- * Onboarding controller — the start assistant (specs/plugins-phase-p-productisation.md §3.D rules
+ * Onboarding controller — the start assistant (specs/plugins/plugins-phase-p-productisation.md §3.D rules
  * 20–23, §4.3). Admin-only through the role guard.
  *
  *   GET  /api/onboarding            { open, company, property, plugins, questions, emails, pluginsSummary, login: { email, canAdopt } }
@@ -8,14 +8,14 @@
  *                                     capacity proposed while the beds are typed)
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
- *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 29)
+ *                                     | 409 PROPERTIES_EXIST (specs/emails/guest-email-texts-made-simple.md rule 29)
  *   PUT  /api/onboarding/plugins    { answers: { options, website, payment } } → { results: [{ id, ok, error,
  *                                     reason }], pluginsSummary, reload } (rule 43: the server maps
  *                                     each « oui » to its plugins; a « non » never switches one off)
  *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, accessCode,
  *                                     wifiName, wifiPassword, caution, cleaningIncluded, towelsProvided,
  *                                     bedLinenProvided }] }
- *                                     → 200 | 422 { errors } (specs/guest-email-texts-made-simple.md rule 21)
+ *                                     → 200 | 422 { errors } (specs/emails/guest-email-texts-made-simple.md rule 21)
  *   POST /api/onboarding/done       records onboardingCompletedAt (« C'est prêt » and « Plus tard »)
  *
  * Every step reuses the core's own write path: the company settings, the property creation, the
@@ -200,7 +200,7 @@ function buildController({
 
   async function get(req, res) {
     const row = settingsModel.read();
-    // specs/plugin-operator-provisioning.md rule 8: an operator-managed space has no plugin step.
+    // specs/plugins/plugin-operator-provisioning.md rule 8: an operator-managed space has no plugin step.
     const withPlugins = pluginStep();
     const list = withPlugins ? await pluginList() : [];
     return res.json({
@@ -210,7 +210,7 @@ function buildController({
         questions: questionsOf(list),
         pluginsSummary: activeSummary(list.filter((p) => p.state === 'active').length),
       } : {}),
-      // specs/hosting-h2-account-security.md rule 37 — whether step 1 offers its « se connecter » opt-in.
+      // specs/hosting/hosting-h2-account-security.md rule 37 — whether step 1 offers its « se connecter » opt-in.
       login: { email: (req.user && req.user.email) || null, canAdopt: isBootstrapLogin(req.user) },
     });
   }
@@ -290,7 +290,7 @@ function buildController({
   }
 
   /**
-   * specs/hosting-h2-account-security.md rules 27, 37 — the company email typed at step 1 becomes the
+   * specs/hosting/hosting-h2-account-security.md rules 27, 37 — the company email typed at step 1 becomes the
    * administrator's login only when the operator ticked « Utiliser aussi cette adresse pour se
    * connecter » (`useAsLogin`, off by default), and only over the bootstrap login: never implicitly,
    * since an operator who kept typing the old login was locked out. Returns the login after the step.

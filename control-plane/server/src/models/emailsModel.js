@@ -1,6 +1,6 @@
 /**
  * The email templates and their mode, and every email a customer was sent or is waiting to be sent
- * (specs/control-plane-plans-and-access.md rules 17, 33).
+ * (specs/hosting/control-plane-plans-and-access.md rules 17, 33).
  *
  * A `reminders` row is created once per invoice and scheduled kind (unique index), with its text
  * frozen when it is prepared: what the operator approves is what leaves.

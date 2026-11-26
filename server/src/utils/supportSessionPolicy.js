@@ -1,5 +1,5 @@
 /**
- * What a support session may not do (specs/hosting-h2-account-security.md rules 15, 18), judged on
+ * What a support session may not do (specs/hosting/hosting-h2-account-security.md rules 15, 18), judged on
  * the path Express will actually route.
  *
  * Express matches routes case-insensitively and ignores a trailing slash, so `/api/SUPPORT-ACCESS/3/decide/`

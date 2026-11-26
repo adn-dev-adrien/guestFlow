@@ -1,6 +1,6 @@
 /**
  * LedgerList — a list of money movements, one row each: label · amount · state · one action
- * (specs/reservation-payment-ledger.md §6). The rows come from the server ready to print; this
+ * (specs/payments/reservation-payment-ledger.md §6). The rows come from the server ready to print; this
  * component computes nothing — no state, no total, no rule. It knows nothing about reservations: the
  * same « row = amount + state + one action » shape serves any ledger.
  *

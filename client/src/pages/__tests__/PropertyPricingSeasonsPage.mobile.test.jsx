@@ -5,7 +5,7 @@
 // that exists because a 980 px table on a 390 px phone meant scrolling 2,6 screens sideways to read
 // one season — would ship with no coverage at all.
 //
-// CLAUDE.md §Responsive · specs/tariff-recipes/spec.md §3.4 · specs/tariff-events-and-extra-guest-tiers §6.
+// CLAUDE.md §Responsive · specs/pricing/tariff-recipes.md §3.4 · specs/tariff-events-and-extra-guest-tiers §6.
 
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
@@ -38,7 +38,7 @@ import api from '../../api';
 import DialogProvider from '../../components/DialogProvider';
 import PropertyPricingSeasonsPage from '../PropertyPricingSeasonsPage';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 const TODAY = new Date('2026-08-12T10:00:00Z');

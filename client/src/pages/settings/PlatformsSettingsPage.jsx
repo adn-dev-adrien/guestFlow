@@ -1,5 +1,5 @@
 /**
- * PlatformsSettingsPage — Paramètres → Plateformes (specs/settings-rationalization.md rule 17).
+ * PlatformsSettingsPage — Paramètres → Plateformes (specs/settings/settings-rationalization.md rule 17).
  *
  * Every per-platform commercial setting in one place: colour, commission %, « takes an acompte »,
  * who collects the tourist tax, payout delay. They apply to every property, so the property page
@@ -7,7 +7,7 @@
  *
  * The second table, « E-mails aux voyageurs », holds what the guest e-mails need to know of a platform:
  * whether it relays the guest's address, and where its guests leave a review
- * (specs/platform-settings-relay-and-review.md rules 1-5). An own channel has neither.
+ * (specs/platforms/platform-settings-relay-and-review.md rules 1-5). An own channel has neither.
  *
  * A value that does not apply to a channel arrives as null from the server (`direct` has no
  * deposit / tax / payout notion, an own channel no payout) and is shown as « — ».
@@ -119,7 +119,7 @@ export default function PlatformsSettingsPage() {
     } catch (err) {
       if (err && err.errors) {
         setErrors(err.errors);
-        // A refused colour goes back to the saved one (specs/calendar-property-parity.md rule 7).
+        // A refused colour goes back to the saved one (specs/planning/calendar-property-parity.md rule 7).
         setDraft((rows) => rows.map((row) => {
           if (!(err.errors[String(row.id)] || {}).color) return row;
           const previous = saved.find((p) => p.id === row.id);
@@ -179,7 +179,7 @@ export default function PlatformsSettingsPage() {
       <MenuItem value={1}>Oui</MenuItem>
     </TextField>
   ));
-  // specs/plugins-phase-p-productisation.md rule 19 — always on, and locked, for `direct`.
+  // specs/plugins/plugins-phase-p-productisation.md rule 19 — always on, and locked, for `direct`.
   const directCell = (p) => (
     <Switch
       checked={Boolean(p.countsAsDirect)}
@@ -188,7 +188,7 @@ export default function PlatformsSettingsPage() {
       slotProps={{ input: { 'aria-label': `Compté comme vente directe ${formatPlatformLabel(p.name)}` } }}
     />
   );
-  // specs/airbnb-no-checkout-chores.md rule 8 — a platform rule, so an own channel has none.
+  // specs/platforms/airbnb-no-checkout-chores.md rule 8 — a platform rule, so an own channel has none.
   const choresCell = (p) => (p.forbidsGuestChores === null ? '—' : (
     <Switch
       checked={Boolean(p.forbidsGuestChores)}
@@ -197,7 +197,7 @@ export default function PlatformsSettingsPage() {
       slotProps={{ input: { 'aria-label': `Sans corvées de départ ${formatPlatformLabel(p.name)}` } }}
     />
   ));
-  // specs/platform-settings-relay-and-review.md rules 1-5 — what the guest e-mails need to know.
+  // specs/platforms/platform-settings-relay-and-review.md rules 1-5 — what the guest e-mails need to know.
   const relayCell = (p) => (p.relaysGuestEmail === null ? '—' : (
     <Switch
       checked={Boolean(p.relaysGuestEmail)}

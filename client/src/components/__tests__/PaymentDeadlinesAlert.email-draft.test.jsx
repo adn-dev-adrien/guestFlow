@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 25 — without online payment, « Envoyer la demande »
+// specs/plugins/plugins-phase-3a-online-payment.md rule 25 — without online payment, « Envoyer la demande »
 // stays on a row « à demander » and opens the request as an email in the send dialog, for the
 // operator to read before it leaves; the reason is said in one short line.
 import React from 'react';
@@ -18,7 +18,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
 
 const ROW = {

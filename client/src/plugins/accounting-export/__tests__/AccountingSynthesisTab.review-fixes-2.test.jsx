@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rule 47 (V2-2, V5-2) — a window that collected nothing: the cumulative chart gives
+// specs/accounting/accounting-synthesis.md §3 rule 47 (V2-2, V5-2) — a window that collected nothing: the cumulative chart gives
 // way to the server's « empty », said in one sentence, no axis.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 27–28 — the bootstrap login becomes the company email of
+// specs/hosting/hosting-h2-account-security.md rules 27–28 — the bootstrap login becomes the company email of
 // the start assistant, so « Mot de passe oublié » reaches someone (rule 27); the code that confirmed
 // an authenticator app cannot also open a session in the same step (rule 28).
 

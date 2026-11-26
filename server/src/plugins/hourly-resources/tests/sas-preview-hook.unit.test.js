@@ -1,8 +1,8 @@
-// specs/sas-arrival-total-server-side.md rules 10-12 — the arrival preview bills a plugin's lines
+// specs/sas/sas-arrival-total-server-side.md rules 10-12 — the arrival preview bills a plugin's lines
 // through its `sasCommit` hook, exactly as the commit does: the evening supplement shows once, the
 // hook's `write` never runs on a preview, and a stale block is refused before « Valider ».
 
-// specs/server-test-isolation.md rule 3 — this file sets its own temporary database.
+// specs/tech/server-test-isolation.md rule 3 — this file sets its own temporary database.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

@@ -1,5 +1,5 @@
-// Built-in plugin catalogue (specs/plugins-phase-0-foundation.md §3.A). The twelve optional features
-// the owner arbitrated on 2026-09-28 (specs/plugins-inventory.md §5.3); everything else is core.
+// Built-in plugin catalogue (specs/plugins/plugins-phase-0-foundation.md §3.A). The twelve optional features
+// the owner arbitrated on 2026-09-28 (docs/rapports/plugins-inventory.md §5.3); everything else is core.
 // Mirrored client-side in client/src/constants/plugins.js (ids only).
 
 const { readSourceManifest } = require('../plugins/manifest');
@@ -23,7 +23,7 @@ const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
 const GUEST_APP = 'guest-app';
 const GIFT_VOUCHERS = 'gift-vouchers';
 
-// specs/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
+// specs/plugins/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
 // list only fixes the order the Plugins page shows them in. A version installed from the registry
 // carries its own manifest in the `plugins` row (rule 11); this catalogue is what the core ships.
 const CATALOG_ORDER = [
@@ -32,7 +32,7 @@ const CATALOG_ORDER = [
   GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP, GIFT_VOUCHERS,
 ];
 
-// specs/plugin-removal-resilience.md rule 1 — the catalogue is the manifests that exist: a plugin whose
+// specs/plugins/plugin-removal-resilience.md rule 1 — the catalogue is the manifests that exist: a plugin whose
 // folder is gone (a distribution without it, a package left out) is skipped, never a boot failure.
 function readCatalogue(read = readSourceManifest, log = console.warn) { // eslint-disable-line no-console
   return CATALOG_ORDER.flatMap((id) => {
@@ -49,7 +49,7 @@ const PLUGIN_CATALOG = Object.freeze(readCatalogue());
 
 const PLUGIN_IDS = Object.freeze(PLUGIN_CATALOG.map((p) => p.id));
 
-// specs/plugins-phase-0-foundation.md rule 10 — what an existing database gets installed and active:
+// specs/plugins/plugins-phase-0-foundation.md rule 10 — what an existing database gets installed and active:
 // the twelve features that were core before phase 0, so nothing disappears. A plugin added since
 // (the three intakes) is a new opt-in and is never installed by the seed.
 const SEEDED_ON_EXISTING_IDS = Object.freeze([
@@ -57,7 +57,7 @@ const SEEDED_ON_EXISTING_IDS = Object.freeze([
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
 ]);
 
-// specs/plugins-phase-p-productisation.md rule 40 — the pages that exist only with a plugin, known
+// specs/plugins/plugins-phase-p-productisation.md rule 40 — the pages that exist only with a plugin, known
 // even when that plugin is not installed (a release ships its pages in the plugin's own bundle). A
 // path matches itself and the paths below it. Kept in step with each plugin's `contributes.routes`
 // by tests/plugin-page-owner.unit.test.js.
@@ -76,9 +76,9 @@ const PLUGIN_PAGES = Object.freeze({
   '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP],
 });
 
-// specs/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
+// specs/plugins/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
 // « Configurer » / « Réglages » opens. A plugin of Intégrations is reached by its tab
-// (`?tab=<id>`, specs/integrations-tab-per-plugin.md rule 6). `null`: nothing to set up (the card has
+// (`?tab=<id>`, specs/plugins/integrations-tab-per-plugin.md rule 6). `null`: nothing to set up (the card has
 // no such button).
 const INTEGRATIONS = '/settings/integrations';
 const PLUGIN_SETTINGS_PLACES = Object.freeze({
@@ -104,7 +104,7 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [GIFT_VOUCHERS]: '/parametres/bons-cadeaux',
 });
 
-// specs/plugin-removal-resilience.md rule 1 — what a page says of the plugin it depends on when this
+// specs/plugins/plugin-removal-resilience.md rule 1 — what a page says of the plugin it depends on when this
 // release does not ship it and no row remembers it (tests/plugin-page-owner keeps it in step with the
 // manifests).
 const PLUGIN_DISPLAY_NAMES = Object.freeze({
@@ -139,7 +139,7 @@ function findPlugin(id) {
   return PLUGIN_CATALOG.find((p) => p.id === id) || null;
 }
 
-// The roles a plugin brings: without it the role cannot be given (specs/plugins-phase-0-foundation.md
+// The roles a plugin brings: without it the role cannot be given (specs/plugins/plugins-phase-0-foundation.md
 // rule 29) — the client already hides it from the picker (rule 16), the server refuses it.
 const ROLE_PLUGINS = Object.freeze({ reception: SAS, accountant: ACCOUNTING_EXPORT });
 

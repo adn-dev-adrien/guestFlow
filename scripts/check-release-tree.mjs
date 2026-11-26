@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Refuses a release staging tree that carries a secret or a runtime file
- * (specs/self-update-and-releases.md rule 42), and any `node_modules` directory: the installer refuses such an
+ * (specs/hosting/self-update-and-releases.md rule 42), and any `node_modules` directory: the installer refuses such an
  * archive (rule 46), so CI must fail here, not at install time. `release.sh` runs it on the tree it is about to
  * archive: whatever sits in a developer's checkout (`server/.env.local`, a database and its WAL,
  * `licence.jws`, a TLS key, uploaded photos) must never reach a published archive.

@@ -1,5 +1,5 @@
 /**
- * Un complément d'arrivée encaissé est CLOS — specs/mid-stay-extras-to-end-of-stay-complement.md
+ * Un complément d'arrivée encaissé est CLOS — specs/sas/mid-stay-extras-to-end-of-stay-complement.md
  * §3.1 rule 3 (élargi le 2026-08-22).
  *
  * Le bug de production qui a motivé la règle : sur une réservation dont le complément d'arrivée était
@@ -118,7 +118,7 @@ test('séjour à venir mais complément ENCAISSÉ → la base existe, le bucket 
   assert.deepEqual(JSON.parse(model.captureArrivalExtrasBaselineIfDue(1)), { 'opt:9': 24 });
 });
 
-// specs/pricing-components.md §3 rules 20, 44 (supersedes arrival-moment-is-the-check-in.md for routing): « started » is the
+// specs/pricing/pricing-components.md §3 rules 20, 44 (supersedes arrival-moment-is-the-check-in.md for routing): « started » is the
 // check-in time having passed, answered by the stay clock; the arrival mark and the arrival SAS only change the display.
 test('séjour commencé par l\'horloge → la base existe, encaissé ou non', () => {
   const model = createReservationsModel(modelDb({ startDate: '2026-08-01', checkedIn: true }));
@@ -127,7 +127,7 @@ test('séjour commencé par l\'horloge → la base existe, encaissé ou non', ()
 
 // Le jour de l'arrivée, avant l'heure du check-in : pas de base (l'option ajoutée à la main part au solde). Le moment du geste
 // est fixé (`withNow`) : l'horloge du séjour juge à Paris, quel que soit le fuseau du processus ou l'heure du runner
-// (specs/server-test-isolation.md rule 6, reading of 2026-11-19).
+// (specs/tech/server-test-isolation.md rule 6, reading of 2026-11-19).
 test('jour d\'arrivée atteint mais heure du check-in pas passée → pas de base', () => {
   const model = createReservationsModel(modelDb({ checkInTime: '16:00' }));
   withNow(ARRIVAL_DAY_AT('10:00'), () => {
@@ -189,7 +189,7 @@ test('une part seulement : la ligne est listée à ce qui reste côté arrivée'
 });
 
 // ── le bloc fusionné LIVE suit chaque édition ───────────────────────────────
-// specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — le bloc stocké date du dernier
+// specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — le bloc stocké date du dernier
 // enregistrement ; pendant l'édition la carte fusionnée doit suivre le moteur (retirer un repas des
 // trappeurs laissait la carte à 183,05 € pendant que le résumé affichait déjà 158,05 € — 2026-08-23).
 

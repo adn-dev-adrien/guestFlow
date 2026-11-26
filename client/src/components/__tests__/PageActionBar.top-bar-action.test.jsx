@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rules 23-24 — on a phone, a page bar with no back button, subtitle
+// specs/planning/shell-and-home-day-first.md rules 23-24 — on a phone, a page bar with no back button, subtitle
 // nor tabs and a single ICON action hands it to the top bar instead of drawing a nearly empty band —
 // never Save/Cancel, a node, a destructive action or the « ⋯ » menu, and only while the title keeps
 // its full text; a bar with a wrapped subtitle keeps its actions level with the back button.

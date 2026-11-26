@@ -1,5 +1,5 @@
 // @ts-check
-// specs/options-resources-ux.md rule 12 + §6 (mobile check) — at 390 px the options are a list of
+// specs/options/options-resources-ux.md rule 12 + §6 (mobile check) — at 390 px the options are a list of
 // sections (no table), a row opens a full-height sheet, nothing scrolls sideways.
 import { test, expect } from '@playwright/test';
 import { createProperty } from '../../fixtures/apiSeed.js';

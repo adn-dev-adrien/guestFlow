@@ -1,5 +1,5 @@
 /**
- * STEP totals — TOTALS (specs/pricing-components.md §3 rule 52).
+ * STEP totals — TOTALS (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Aggregates the final price, the discount amount and the stay total; computes nothing.
  * `apply(ctx)` returns a new context and never mutates the one it receives.

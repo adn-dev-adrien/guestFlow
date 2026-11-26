@@ -1,5 +1,5 @@
 // @ts-check
-// The bare-install E2E suite (specs/plugins-phase-0-foundation.md rule 28): the same harness as
+// The bare-install E2E suite (specs/plugins/plugins-phase-0-foundation.md rule 28): the same harness as
 // playwright.config.js, on its own database, seeded with NO plugin — a new customer after the start
 // assistant — and running only e2e/bare. `npm run test:e2e:bare`.
 //

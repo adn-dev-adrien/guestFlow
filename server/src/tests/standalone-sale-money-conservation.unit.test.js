@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 55, 56 (stabilisation loop t4; the reviewer's invariants of round 4) — over many random sequences of what a counter
+// specs/sas/outside-booking-sas.md rules 55, 56 (stabilisation loop t4; the reviewer's invariants of round 4) — over many random sequences of what a counter
 // document lives through (sales, payments by card or caisse interne, partial payments, lines offered / made payable again / removed, late links, the document
 // cancelled, rows refunded or closed « rien à rembourser »), after EVERY step:
 //   1. no cent is created or lost: booked money received − booked money given back = journal revenue + tips + booked money still on no line;

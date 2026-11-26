@@ -1,4 +1,4 @@
-// specs/ical-export-closures.md rule 13 — TEXT values are escaped per RFC 5545 §3.3.11 (backslash first,
+// specs/platforms/ical-export-closures.md rule 13 — TEXT values are escaped per RFC 5545 §3.3.11 (backslash first,
 // then CR/LF, comma, semicolon) and content lines are folded at 75 octets (§3.1) without cutting a
 // multi-byte character (audit 2026-10-28). The feed still reads back to the same label.
 const test = require('node:test');

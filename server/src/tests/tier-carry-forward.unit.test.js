@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { normalizeProgressiveTiers } = require('../utils/pricing');
 
-// specs/tariff-recipes/spec.md §3.6 rule 39 — beyond the last configured tier, that tier's price
+// specs/pricing/tariff-recipes.md §3.6 rule 39 — beyond the last configured tier, that tier's price
 // repeats for every further night. A season with NO configured tier keeps the legacy weekly model.
 
 function createDb({ tiers }) {

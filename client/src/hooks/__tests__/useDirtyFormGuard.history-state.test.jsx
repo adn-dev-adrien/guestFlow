@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 29 — the global navigation slots a dirty form holds: taken only while
+// specs/options/options-resources-ux.md rule 29 — the global navigation slots a dirty form holds: taken only while
 // dirty, previous handler restored, and a clean form never blocks (out-of-order releases included).
 import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';

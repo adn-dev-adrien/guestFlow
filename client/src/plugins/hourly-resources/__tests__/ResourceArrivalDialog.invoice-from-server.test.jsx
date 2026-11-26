@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 54 (stabilisation loop t2, B2-7; CLAUDE.md §6.0) — at « Payé maintenant » the arrival asks the server, with the payment typed,
+// specs/sas/outside-booking-sas.md rule 54 (stabilisation loop t2, B2-7; CLAUDE.md §6.0) — at « Payé maintenant » the arrival asks the server, with the payment typed,
 // whether its commit could make the invoice; « Créer la facture dans Qonto » follows that answer, never the tenders.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

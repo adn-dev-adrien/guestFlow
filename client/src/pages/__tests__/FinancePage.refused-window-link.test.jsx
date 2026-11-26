@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 51, readings of 2026-11-02 (review of PR #937, R3) — a link to a
+// specs/accounting/finance-dashboard-redesign.md rule 51, readings of 2026-11-02 (review of PR #937, R3) — a link to a
 // custom window the server refuses (wider than 750 days, past the date horizon) sends nothing: the page shows
 // the period selector with the message, so the operator fixes the window in place instead of a dead end.
 import React from 'react';

@@ -1,6 +1,6 @@
 /**
  * Email templates controller — orchestrates CRUD on the templates library
- * (specs/email-automation.md §4.1 + §4.3).
+ * (specs/emails/email-automation.md §4.1 + §4.3).
  *
  * Validation rules:
  *   - `name`, `subject`, `body` required, non-empty after trim → otherwise 400.
@@ -9,10 +9,10 @@
  *   - `enabled` accepts boolean / 0 / 1 / 'true' / 'false'.
  *   - `stableKey` in the payload is ALWAYS ignored (set only by the registry seed).
  *
- * A template's mode is the only switch for automatic sending (specs/settings-rationalization.md
+ * A template's mode is the only switch for automatic sending (specs/settings/settings-rationalization.md
  * rule 17b). So every write:
  *   - fixes the guest-sequence start date the first time a SEQUENCE template goes « auto »
- *     (specs/guest-email-sequence.md rule 16 — never moved afterwards, so no past stay is mailed);
+ *     (specs/emails/guest-email-sequence.md rule 16 — never moved afterwards, so no past stay is mailed);
  *   - re-aligns the 08:00 scheduler, which only runs while one template is « auto ».
  *
  * Exports a default controller bound to the production model + a `buildController(model)`
@@ -30,7 +30,7 @@ const { weekdayLabel } = require('../utils/dateFr');
 const { asText, isOptionalText, numeric } = require('../utils/bodyText');
 const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
 
-// specs/guest-email-texts-made-simple.md rule 11 — a template refuses an unknown variable with the
+// specs/emails/guest-email-texts-made-simple.md rule 11 — a template refuses an unknown variable with the
 // same 422 as a stay text or a mention, instead of dropping it silently at render time.
 function templateTokenError(payload) {
   const allowed = templateAllowed();
@@ -105,7 +105,7 @@ function buildController(model, settingsModel, deps = {}) {
   const today = deps.today || todayIso;
   const isLive = deps.isLive || ((id) => require('../plugins/sdk/registry').isLive(id));
   const editorTokens = deps.editorTokens || (() => require('../plugins/sdk/eventBus').editorTokens());
-  // A template only an inactive plugin could send is not listed (specs/plugins-phase-1-sdk.md rule 13).
+  // A template only an inactive plugin could send is not listed (specs/plugins/plugins-phase-1-sdk.md rule 13).
   const sendable = (row) => !PLUGIN_OF_TEMPLATE[row.stableKey] || isLive(PLUGIN_OF_TEMPLATE[row.stableKey]);
 
   function afterWrite(row) {
@@ -117,10 +117,10 @@ function buildController(model, settingsModel, deps = {}) {
   }
 
   // `textsSection`: the section of « Textes des emails » that writes this template's sentences
-  // (specs/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
-  // `whenLabel` / `when`: the « Quand » (specs/email-automation.md rule 16; specs/guest-email-texts-made-simple.md
+  // (specs/emails/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
+  // `whenLabel` / `when`: the « Quand » (specs/emails/email-automation.md rule 16; specs/emails/guest-email-texts-made-simple.md
   // rule 43). `displayName`: the one name of the email on every page (rule 44). `hasEnglish`: whether it
-  // can be sent to an English-speaking guest (specs/email-language-fr-en.md rule 9).
+  // can be sent to an English-speaking guest (specs/emails/email-language-fr-en.md rule 9).
   const withSection = (row) => ({
     ...row,
     textsSection: sectionOfStableKey(row.stableKey),
@@ -129,7 +129,7 @@ function buildController(model, settingsModel, deps = {}) {
     displayName: displayNameOf(row),
     shipped: Boolean(row.stableKey),
     hasEnglish: hasEnglishVersion(row),
-    // specs/payment-link-lifecycle.md rule 45 — the one exception to the validation rule: its mode is shown, never edited.
+    // specs/payments/payment-link-lifecycle.md rule 45 — the one exception to the validation rule: its mode is shown, never edited.
     ...(sendModeLocked(row.stableKey) ? { sendModeLocked: true, sendModeLabel: 'Automatique (exception)' } : {}),
   });
 
@@ -139,7 +139,7 @@ function buildController(model, settingsModel, deps = {}) {
   function list(req, res) {
     const rows = model.list().filter(sendable).map(withSection);
     // The timeline lists what the page shows; the two bodies (the bulk of the payload) are read from
-    // `GET /:id` when the editor opens (specs/inte-performance.md rule 11).
+    // `GET /:id` when the editor opens (specs/tech/inte-performance.md rule 11).
     if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows.map(withoutBodies)) });
     // `?view=picker` — the same rows without the bodies, for the pickers (history filter, send and compose
     // dialogs) that show a name and a moment (rule 16).
@@ -227,7 +227,7 @@ function buildController(model, settingsModel, deps = {}) {
       name:      String(req.body.name).trim(),
       subject:   String(req.body.subject),
       body:      String(req.body.body),
-      // Optional English side (specs/email-language-fr-en.md). '' / absent → no English version.
+      // Optional English side (specs/emails/email-language-fr-en.md). '' / absent → no English version.
       subjectEn: req.body.subjectEn === undefined ? undefined : String(req.body.subjectEn || ''),
       bodyEn:    req.body.bodyEn    === undefined ? undefined : String(req.body.bodyEn || ''),
       dayOffset: Number(req.body.dayOffset),
@@ -246,7 +246,7 @@ function buildController(model, settingsModel, deps = {}) {
     req.body = read.body;
     const errors = validateForUpdate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: errors });
-    // specs/payment-schedule-and-cancellation.md rule 44 — a template that asks for money is never « auto ».
+    // specs/payments/payment-schedule-and-cancellation.md rule 44 — a template that asks for money is never « auto ».
     if (PAYMENT_STABLE_KEYS.includes(existing.stableKey) && String(req.body.sendMode || '').toLowerCase() === 'auto') {
       return res.status(409).json({ error: 'PAYMENT_TEMPLATE_STAYS_MANUAL', message: 'Un email qui demande de l’argent ne part jamais tout seul : il reste en validation manuelle.' });
     }

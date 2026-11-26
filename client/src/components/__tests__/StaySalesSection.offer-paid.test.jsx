@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 14, 23 and 32, PR C mock M3 (docs/rapports/2026-11-13-m3-sas-sur-lignes.html) — a line already paid can be offered from
+// specs/pricing/pricing-components.md §3 rules 14, 23 and 32, PR C mock M3 (docs/rapports/2026-11-13-m3-sas-sur-lignes.html) — a line already paid can be offered from
 // the SAS: the server's refusal (409 OVERPAID) opens the confirmation with ITS figure, the confirmed offer asks again with `force`, and what the stay owes
 // back is announced (the fiche pays it). Without the handler a paid line offers nothing.
 import React from 'react';

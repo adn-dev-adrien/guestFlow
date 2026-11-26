@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 33 and specs/settings-input-guards.md rules 61-62 (audit R25-DB-1, R25-I1, 2026-11-06) —
+// specs/options/options-resources-ux.md rule 33 and specs/settings/settings-input-guards.md rules 61-62 (audit R25-DB-1, R25-I1, 2026-11-06) —
 // through the real application: a key a catalogue save does not send keeps the stored value (options, resources,
 // properties), and a property's option list names only real options of a real property.
 const test = require('node:test');
@@ -218,7 +218,7 @@ test('R25 N4: a panel save naming « Inclus » on « Lit bébé » leaves no def
   assert.deepEqual(app.readDb('SELECT propertyId FROM property_option_defaults WHERE optionId = ?', cot.id), []);
 });
 
-test('R25 N1 (specs/options-resources-ux.md rule 34): a price type sent without its price judges the stored price under that type', async () => {
+test('R25 N1 (specs/options/options-resources-ux.md rule 34): a price type sent without its price judges the stored price under that type', async () => {
   const created = await app.call(admin, 'POST', '/api/options', {
     title: 'Navette', description: '', priceType: 'per_stay', price: 115, propertyIds: [property], propertyPrices: {},
   });
@@ -244,7 +244,7 @@ test('R25 N1 (specs/options-resources-ux.md rule 34): a price type sent without 
   assert.equal(sentBack.status, 200, sentBack.text);
 });
 
-test('R25 N1 (specs/options-resources-ux.md rule 34): a stored price of a logement outside the option is not judged on a type change', async () => {
+test('R25 N1 (specs/options/options-resources-ux.md rule 34): a stored price of a logement outside the option is not judged on a type change', async () => {
   const other = await app.call(admin, 'POST', '/api/properties', { name: 'Grange', maxGuests: 2, maxBabies: 1, doubleBeds: 1, singleBeds: 0, pricePerNight: 80 });
   assert.equal(other.status, 200, other.text);
   const created = await app.call(admin, 'POST', '/api/options', {

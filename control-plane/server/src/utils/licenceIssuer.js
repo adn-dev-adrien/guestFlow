@@ -1,5 +1,5 @@
 /**
- * Builds, signs and delivers a customer's licence (specs/control-plane-plans-and-access.md rule 9).
+ * Builds, signs and delivers a customer's licence (specs/hosting/control-plane-plans-and-access.md rule 9).
  * The format is the instance's own (`server/src/utils/licence.js`): the console signs with the
  * private key of rule 30, the instance verifies with the public one.
  *
@@ -33,7 +33,7 @@ function allowedPlugins(customer, plans, lowest) {
 }
 
 // `customer.modules` is the operator's choice — `{ chosen: [id], eraseOrders: [{ order, id }] }` —
-// and is carried only once the choice has been seeded (specs/plugin-operator-provisioning.md rules
+// and is carried only once the choice has been seeded (specs/plugins/plugin-operator-provisioning.md rules
 // 15, 25): a licence without it changes nothing on the space.
 function buildPayload({ customer, state, plans, lowest, catalogueVersion, payUrl, now }) {
   const plan = plans.find((p) => p.code === customer.planCode);
@@ -66,7 +66,7 @@ function buildPayload({ customer, state, plans, lowest, catalogueVersion, payUrl
 
 function createLicenceIssuer({ privateKey, instances }) {
   // → { written: true, path } | { written: false, reason } — the licence, or the support request of
-  // specs/hosting-h2-account-security.md rule 12, which travels the same way.
+  // specs/hosting/hosting-h2-account-security.md rule 12, which travels the same way.
   function writeFile(slug, fileName, token) {
     const dir = instances.dataDir(slug);
     if (!fs.existsSync(dir)) return { written: false, reason: `Dossier de l’instance introuvable (${dir}).` };

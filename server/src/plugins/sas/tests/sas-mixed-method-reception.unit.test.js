@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 45 (audit R34-A1) — reception records a check-out with one method: the SAS read
+// specs/payments/mixed-method-payments.md rule 45 (audit R34-A1) — reception records a check-out with one method: the SAS read
 // tells the dialog not to offer « Plusieurs moyens », and crafted lines are refused with a French message, nothing
 // recorded (never dropped: they carry the caisse-interne share).
 process.env.DB_PATH = ':memory:';
@@ -26,7 +26,7 @@ function leavingToday() {
 }
 const respond = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
 
-test('specs/mixed-method-payments.md rule 45 — the SAS read offers the split to the admin only', () => {
+test('specs/payments/mixed-method-payments.md rule 45 — the SAS read offers the split to the admin only', () => {
   const id = leavingToday();
   for (const [user, expected] of [[ADMIN, true], [RECEPTION, false]]) {
     const res = respond();
@@ -36,7 +36,7 @@ test('specs/mixed-method-payments.md rule 45 — the SAS read offers the split t
   }
 });
 
-test('specs/mixed-method-payments.md rule 45 — reception sending lines: 403 in French, nothing recorded', () => {
+test('specs/payments/mixed-method-payments.md rule 45 — reception sending lines: 403 in French, nothing recorded', () => {
   const id = leavingToday();
   const res = respond();
   sas.commitDeparture({

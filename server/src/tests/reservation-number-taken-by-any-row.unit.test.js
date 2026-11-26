@@ -1,4 +1,4 @@
-// specs/reservation-number-and-search.md rule 16 (spec review 2026-10-27) — the « number already
+// specs/reservations/reservation-number-and-search.md rule 16 (spec review 2026-10-27) — the « number already
 // taken » check covers every row the unique index covers (cancelled stays and devis included), so a
 // reused number is refused with the French 400, never by the index.
 process.env.DB_PATH = ':memory:';

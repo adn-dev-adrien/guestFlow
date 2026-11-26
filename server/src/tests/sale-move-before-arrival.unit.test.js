@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 20, 37, 95 (loop t1 S-3) — before the stay has started a line is moved to the arrival only: a move to the
+// specs/pricing/pricing-components.md §3 rules 20, 37, 95 (loop t1 S-3) — before the stay has started a line is moved to the arrival only: a move to the
 // departure is refused and writes no extras baseline, so a later sale before the arrival still goes to the arrival complement.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

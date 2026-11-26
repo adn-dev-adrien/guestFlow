@@ -1,5 +1,5 @@
 /**
- * Second step of the login (specs/hosting-h2-account-security.md rules 6–10), on the TOTP and
+ * Second step of the login (specs/hosting/hosting-h2-account-security.md rules 6–10), on the TOTP and
  * backup-code helpers shared with the console (rule 11, utils/totp.js).
  *
  * - Turning it on (« Mon compte ») takes the password, then a first code of the chosen method; it
@@ -435,7 +435,7 @@ function createTwoFactorController({
 
   // → { user, notice } — `user` is the safe user to put in the session.
   function verifyLogin(userId, { code } = {}) {
-    // A user deactivated between the password and the code is refused (specs/security-auth-encryption.md rule 3).
+    // A user deactivated between the password and the code is refused (specs/hosting/security-auth-encryption.md rule 3).
     const user = activeUser(userId);
     const row = user && model.get(userId);
     if (!user || !row || !row.enabledAt) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnexion nécessaire.');

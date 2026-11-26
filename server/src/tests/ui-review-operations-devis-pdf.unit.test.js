@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 17-20 — the quote PDF in the « Maison » identity.
+// specs/design-system/ui-review-2026-10-19-operations.md rules 17-20 — the quote PDF in the « Maison » identity.
 // PDFKit encodes glyph indexes, so the document is proven through its pure resolvers and a layout
 // trace (`full.__trace`, test-only like `__testCompress`).
 const test = require('node:test');

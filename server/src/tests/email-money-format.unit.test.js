@@ -1,4 +1,4 @@
-// specs/email-language-fr-en.md rule 10 (2026-10-27 spec review): one amount format across every guest
+// specs/emails/email-language-fr-en.md rule 10 (2026-10-27 spec review): one amount format across every guest
 // e-mail — « 1 234,56 € » with a narrow no-break space, « €1,234.56 » in English, no « ,00 » on a
 // whole amount, so the caution no longer reads « 500,00 € » beside a « 45 € » of the stay texts.
 

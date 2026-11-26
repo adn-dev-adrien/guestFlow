@@ -1,5 +1,5 @@
 /**
- * PageTabs — the one way to draw tabs in GuestFlow (specs/ds-tabs.md).
+ * PageTabs — the one way to draw tabs in GuestFlow (specs/design-system/ds-tabs.md).
  *
  * The look (sentence case, 44 px target, 2 px fir-green indicator) lives in the theme's
  * MuiTabs/MuiTab overrides; this component owns the structure and the behaviour, so no page
@@ -12,7 +12,7 @@
  *                                          (e.g. the « modifié » dot of a property tab);
  *                                          count = a number from the server, drawn as an outlined
  *                                          pill after the label (« Encaissements 40 »,
- *                                          specs/report-grammar.md rule 6)
+ *                                          specs/design-system/report-grammar.md rule 6)
  *   variant?   'bar' | 'card'           'bar' (default) sits in PageActionBar's `tabs` slot —
  *                                       no border of its own, the bar closes the block.
  *                                       'card' sits at the top of a Card/Dialog content —
@@ -25,7 +25,7 @@
 import React from 'react';
 import { Box, Tab, Tabs } from '@mui/material';
 
-// specs/report-grammar.md rule 6 — the size of the list behind a tab, in the tab's own colour.
+// specs/design-system/report-grammar.md rule 6 — the size of the list behind a tab, in the tab's own colour.
 function TabCount({ count }) {
   return (
     <Box

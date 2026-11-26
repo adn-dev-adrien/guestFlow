@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md rule 14 (2026-10-27 spec review) — the property's
+// specs/platforms/platform-settings-relay-and-review.md rule 14 (2026-10-27 spec review) — the property's
 // « Plateformes » tab names each platform the way Paramètres › Plateformes does (the server's display
 // name), never by its stored key (« GitesDeFrance », « BookingCom », « direct »).
 import React from 'react';

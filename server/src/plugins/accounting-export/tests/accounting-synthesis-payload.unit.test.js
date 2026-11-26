@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 5, 8, 9, 19 and 21 — the payload the « Synthèse » tab renders, built on
+// specs/accounting/accounting-synthesis.md §3 rules 5, 8, 9, 19 and 21 — the payload the « Synthèse » tab renders, built on
 // a model double: what each tile says without VAT, without a comparison, on a part of the window, and the source
 // every panel names. The clock is pinned for the whole file: the dates are inputs of the double.
 const test = require('node:test');

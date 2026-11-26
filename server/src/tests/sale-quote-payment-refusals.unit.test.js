@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 30 (loop t1 S-7) — a quote refuses what the sale would refuse before pricing: a payment taken now before the arrival.
+// specs/pricing/pricing-components.md §3 rule 30 (loop t1 S-7) — a quote refuses what the sale would refuse before pricing: a payment taken now before the arrival.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');

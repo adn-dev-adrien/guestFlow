@@ -1,7 +1,7 @@
 require('./isolatedDb');
-// specs/public-api.md rule 8 — the public stay dates are bounded before any engine call: no start in
+// specs/site/public-api.md rule 8 — the public stay dates are bounded before any engine call: no start in
 // the past (the accommodations' day), at most MAX_STAY_NIGHTS nights, no end beyond the booking
-// horizon (specs/gift-voucher-campaigns.md rule 51: a setting, 12 months by default). An unbounded endDate (9999-12-31) used to walk millions of nights
+// horizon (specs/gift-vouchers/gift-voucher-campaigns.md rule 51: a setting, 12 months by default). An unbounded endDate (9999-12-31) used to walk millions of nights
 // synchronously and block the server, on /quote and /booking-requests alike.
 const test = require('node:test');
 const assert = require('node:assert/strict');

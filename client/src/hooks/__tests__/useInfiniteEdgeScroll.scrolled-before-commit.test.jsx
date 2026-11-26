@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rule 31 — the operator's own scroll between the hold and the commit
+// specs/planning/dashboard-planning-scroll.md rule 31 — the operator's own scroll between the hold and the commit
 // (a wheel handler asks for a window before the browser applies the scroll) is kept: only the shift of the
 // content is undone, so scrolling up never snaps the view back to the held item.
 import React, { useState } from 'react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 71 (PR A) — the SDK `reservations.update` of an intake patch runs through the payload shape
+// specs/pricing/pricing-components.md §3 rule 71 (PR A) — the SDK `reservations.update` of an intake patch runs through the payload shape
 // of the future `fromPlatform` port (`utils/platformIntakePort.js`) and saves exactly as it always did. Contract: the SDK
 // surface is unchanged, the patch the plugins write comes back identical from the port's payload, a line's `inComplement` is
 // read as `collectAt` on a platform stay, and a started stay is still refused. The replay of the stored intakes at 0 diff is

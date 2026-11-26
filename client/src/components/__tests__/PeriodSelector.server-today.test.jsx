@@ -1,5 +1,5 @@
 /**
- * PeriodSelector — specs/finance-dashboard-redesign.md rule 51 + specs/reservations-backend-mvc.md rule 13, second
+ * PeriodSelector — specs/accounting/finance-dashboard-redesign.md rule 51 + specs/tech/reservations-backend-mvc.md rule 13, second
  * reading (review of PR #938, F8 / V2): a custom window is judged from the `today` the page hands in (the server's
  * day), not the device's.
  */

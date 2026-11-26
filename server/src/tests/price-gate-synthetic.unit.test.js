@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 68, 72 and 81 (PR A bullet) — the price gate's synthetic stays. The snapshot
+// specs/pricing/pricing-components.md §3 rules 68, 72 and 81 (PR A bullet) — the price gate's synthetic stays. The snapshot
 // holds one refund and no example of several money paths, so the refund cases the suites pin (cancelled with indemnity,
 // caisse interne, mixed methods, installments, line refund, trop-perçu) and one named case for every other money path
 // (7.77 % discount, progressive option fresh and sold, insurance on the stay and per night, typed counts, mid-stay notes

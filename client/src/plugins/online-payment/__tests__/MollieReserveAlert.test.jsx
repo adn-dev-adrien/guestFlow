@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 13 — the home's « Retenue Mollie non reçue »: the server's
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 13 — the home's « Retenue Mollie non reçue »: the server's
 // late-reserve attention, one line per fiche (oldest expected date first), a click opens the fiche; the card's words
 // are the server's attention subject.
 import React from 'react';

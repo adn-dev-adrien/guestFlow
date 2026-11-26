@@ -1,5 +1,5 @@
 /**
- * One-shot (specs/settings-input-guards.md rule 41): the single Instagram URL becomes the first entry
+ * One-shot (specs/settings/settings-input-guards.md rule 41): the single Instagram URL becomes the first entry
  * of the social-links list. The URL is copied verbatim, even when it would fail the host check, so no
  * e-mail changes; `instagramUrl` stays written for a rollback (rule 42).
  */

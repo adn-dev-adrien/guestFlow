@@ -1,5 +1,5 @@
 /**
- * Standalone sales controller — HTTP face of `utils/standaloneSale.js` (specs/pricing-components.md §4.3, rules 53, 74).
+ * Standalone sales controller — HTTP face of `utils/standaloneSale.js` (specs/pricing/pricing-components.md §4.3, rules 53, 74).
  *
  *   POST /api/standalone-sales/quote   { lines, customer?, saleId?, payment? }                      priced, nothing written
  *   GET  /api/standalone-sales/vat-rates                                                              { classes: [{ vatClass, label, externalRate | null }] }

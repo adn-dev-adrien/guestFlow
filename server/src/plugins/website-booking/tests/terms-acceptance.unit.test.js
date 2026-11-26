@@ -1,12 +1,12 @@
 require('./isolatedDb');
-// specs/terms-acceptance-record.md §3.3-§3.5 — the public booking request and the CGV: refused without
+// specs/reservations/terms-acceptance-record.md §3.3-§3.5 — the public booking request and the CGV: refused without
 // acceptance (422), with an outdated version (409), while nothing is published (503); the emergency
 // switch; the acceptance written with the server clock and the relayed visitor, in the same
 // transaction as the devis.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Module = require('module');

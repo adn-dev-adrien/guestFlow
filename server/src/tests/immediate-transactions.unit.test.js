@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 29 — `db.transaction(fn)()` takes the write lock up front (BEGIN IMMEDIATE):
+// specs/plugins/plugins-phase-3a-online-payment.md rule 29 — `db.transaction(fn)()` takes the write lock up front (BEGIN IMMEDIATE):
 // a read-then-write transaction started while another connection writes waits for it instead of failing at once with
 // SQLITE_BUSY_SNAPSHOT. Nested transactions stay savepoints; `.deferred()` keeps its meaning.
 const test = require('node:test');

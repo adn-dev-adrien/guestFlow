@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rule 32 — the purchase block: « Pour » is « Prénom » and « Nom » of the recipient, both required with their own inline refusal, 40 characters each, sent
+// specs/site/site-outside-resource-booking.md rule 32 — the purchase block: « Pour » is « Prénom » and « Nom » of the recipient, both required with their own inline refusal, 40 characters each, sent
 // as `recipientFirstName` and `recipientLastName`; the card preview names the first name only; a server refusal lands on its field.
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { loadBlock } from './wordpressBookingFixtures';
@@ -10,7 +10,7 @@ const OFFER = {
   termsVersionId: 4,
   validityMonths: 18,
   ideas: [],
-  // The back of specs/gift-voucher-campaigns.md rule 66, reduced to what this suite reads: the card that names the first name only.
+  // The back of specs/gift-vouchers/gift-voucher-campaigns.md rule 66, reduced to what this suite reads: the card that names the first name only.
   back: {
     layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
     texts: { title: 'BON CADEAU', recipient: 'Pour {name}', sender: 'de la part de {name}', codePlaceholder: 'XXXX', validUntil: '{date}', bullet: '•' },

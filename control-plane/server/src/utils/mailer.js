@@ -26,9 +26,9 @@ function createMailer(env = process.env, log = (msg) => console.log(msg)) {
     port: Number(env.CP_SMTP_PORT || 587),
     secure,
     auth,
-    // A login never leaves in clear (specs/admin-account-management.md rule 16, reading of 2026-11-04).
+    // A login never leaves in clear (specs/hosting/admin-account-management.md rule 16, reading of 2026-11-04).
     requireTLS: Boolean(auth) && !secure,
-    // Greets with the From domain, never the VM's `[127.0.0.1]` (specs/admin-account-management.md rule 21, audit R35-CON-L1).
+    // Greets with the From domain, never the VM's `[127.0.0.1]` (specs/hosting/admin-account-management.md rule 21, audit R35-CON-L1).
     ...(name ? { name } : {}),
   });
   return {

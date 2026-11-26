@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 32(c) (review of PR #868) — the receiving server's own
+// specs/platforms/gites-de-france-mail-intake.md rule 32(c) (review of PR #868) — the receiving server's own
 // Authentication-Results header decides; when Gmail's own header is inflated past 4 KB by bogus DKIM signatures, a
 // header the sender wrote below it must NOT verify the mail: the forged booking stays a proposal, nothing is applied.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 38 (loop t10 A10-4) — mollieClient reads cents through the shared `toCentsStrict`, no private copy.
+// specs/pricing/pricing-components.md rule 38 (loop t10 A10-4) — mollieClient reads cents through the shared `toCentsStrict`, no private copy.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

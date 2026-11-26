@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 28 — a resource's property line with no price of its own (a free first
+// specs/options/options-resources-ux.md rule 28 — a resource's property line with no price of its own (a free first
 // hour only) is stored as NULL and inherits the base price; the migration that allows it keeps every row.
 const test = require('node:test');
 const assert = require('node:assert/strict');

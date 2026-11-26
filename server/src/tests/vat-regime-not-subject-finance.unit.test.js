@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 12 (d) — the finance dashboard: each reservation's HT uses its own
+// specs/accounting/vat-optional-mode.md rule 12 (d) — the finance dashboard: each reservation's HT uses its own
 // period's rate, and the payload says whether the HT figures mean anything (`showHt`): false when the
 // period in force is « Sans TVA » and no reservation of the view is under VAT.
 

@@ -2,7 +2,7 @@
  * QuantityField — a controlled numeric input with `−` / `＋` stepper buttons.
  *
  * Solves two problems the raw `<TextField type="number">` has on the reservation fiche
- * (specs/reservation-quantity-stepper.md):
+ * (specs/reservations/reservation-quantity-stepper.md):
  *   1. A local draft decouples typing from committing, so the field can be momentarily empty while
  *      the operator retypes a value — the parent is NOT notified per keystroke, only on blur / Enter
  *      / stepper click. This stops a mid-edit `0` from reaching setters that drop the line at `≤ 0`.

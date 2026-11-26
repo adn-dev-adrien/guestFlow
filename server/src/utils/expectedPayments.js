@@ -1,5 +1,5 @@
 /**
- * Expected payments of a stay (specs/mobile-dashboard-exercise-cash.md rule 14) — `remainingToPay(r)` broken
+ * Expected payments of a stay (specs/planning/mobile-dashboard-exercise-cash.md rule 14) — `remainingToPay(r)` broken
  * into dated lines, one per unpaid bucket, with the day the money is expected.
  *
  * It reads the same flags as `remainingToPay` and nets the platform commission the same way, so the lines add

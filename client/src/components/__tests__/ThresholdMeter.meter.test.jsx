@@ -1,4 +1,4 @@
-// ThresholdMeter (specs/vat-optional-mode.md §6.7): a solid bar to the value, a hatched one to the
+// ThresholdMeter (specs/accounting/vat-optional-mode.md §6.7): a solid bar to the value, a hatched one to the
 // projection, a tick at the limit, drawn past the tick when the limit is crossed; named for assistive tech.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

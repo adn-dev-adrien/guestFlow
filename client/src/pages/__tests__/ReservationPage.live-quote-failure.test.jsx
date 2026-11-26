@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 21 (loop t24 S24-3; plugins-phase-1-sdk.md rule 54 reading of 2026-11-18) — the fiche's live quote that fails is no longer silent: the
+// specs/reservations/reservation-save-keeps-pricing.md rule 21 (loop t24 S24-3; plugins-phase-1-sdk.md rule 54 reading of 2026-11-18) — the fiche's live quote that fails is no longer silent: the
 // finance figures are dimmed as not up to date, with the reason and « Réessayer », which stays (with the focus) while it asks; a quote that
 // lands ends it, and an edit of the fiche asks afresh without the older message. The save is unchanged: it quotes again before writing.
 import React from 'react';

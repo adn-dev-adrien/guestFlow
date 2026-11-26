@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 7 — name matching.
+// specs/guest-app/guest-app.md rule 7 — name matching.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

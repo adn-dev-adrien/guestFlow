@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13 and 82, owner 2026-11-15 (existing stays keep their figures) — stabilisation loop t7, S7-3
+// specs/pricing/pricing-components.md §3 rules 13 and 82, owner 2026-11-15 (existing stays keep their figures) — stabilisation loop t7, S7-3
 // (2026-11-16): a save that moves nothing on a stay booked before 4.2.0 keeps its lines and its price, even when the engine would derive an
 // automatic option the stay never stored (an early arrival) and one of its lines is of an article its lodging no longer offers. Before: the
 // missing automatic option re-priced the save, which dropped the unlinked « Ménage » 80 € and stored « Arrivée anticipée » instead (prod stay

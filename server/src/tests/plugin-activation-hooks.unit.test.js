@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 17 — the activation hooks also fire when the licence starts
+// specs/plugins/plugin-removal-resilience.md rule 17 — the activation hooks also fire when the licence starts
 // allowing a plugin whose row was already enabled, once per off → on transition, and never for the live
 // set a boot starts with.
 

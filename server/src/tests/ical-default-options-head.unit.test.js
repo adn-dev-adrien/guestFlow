@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 10, 17 — the default options an iCal import materialises are priced by the engine, whose extras are the Articles head's:
+// specs/pricing/pricing-components.md §3 rules 10, 17 — the default options an iCal import materialises are priced by the engine, whose extras are the Articles head's:
 // the model holds no multiplier of its own (the `families` guard) and reads only the priced line. The amounts the import writes are pinned by
 // `import-price-default-options`; PLATFORM PRICE's `platformLinesTotal` is the one sum of the lines inside the platform price.
 const test = require('node:test');

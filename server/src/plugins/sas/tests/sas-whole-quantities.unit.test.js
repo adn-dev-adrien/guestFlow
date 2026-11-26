@@ -1,4 +1,4 @@
-// specs/sas-departure-recap-server-side.md rule 28 (2026-10-27 spec review) — a linen element is
+// specs/sas/sas-departure-recap-server-side.md rule 28 (2026-10-27 spec review) — a linen element is
 // counted in whole pieces. The departure preview rounded a missing quantity of 1.5 to 2 and billed
 // it; the arrival rounded the same way. Both drafts now refuse it (400 INVALID_QUANTITY), preview
 // and commit alike, and write nothing.

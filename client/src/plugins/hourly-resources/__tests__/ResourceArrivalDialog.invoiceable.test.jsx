@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 13, 44, 45 and specs/outside-booking-sas.md rules 31, 48 (loop t1 UI-10 / AV-11, CLAUDE.md §6.0) — whether the money on the
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 13, 44, 45 and specs/sas/outside-booking-sas.md rules 31, 48 (loop t1 UI-10 / AV-11, CLAUDE.md §6.0) — whether the money on the
 // books can be invoiced now is the server's `visit.invoiceable`: « Créer la facture » iff `ok`, its `reason` otherwise; the reception's payload carries `null` and no invoice block.
 // The dialog derives nothing from the remaining, the payment or Qonto's state.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md §6.1 — the six shipped templates, rendered FR and EN through the real
+// specs/emails/guest-email-sequence.md §6.1 — the six shipped templates, rendered FR and EN through the real
 // context builder: no token left behind, the unsubscribe link only where it belongs, and the content
 // rules of §3.5 (no option push in the confirmation, one review solicitation, gifts with a deadline).
 
@@ -63,7 +63,7 @@ test('unsubscribe link on the two season emails only', () => {
   }
 });
 
-// specs/plugins-phase-p-productisation.md rule 13 — a new database ships neutral copy: nothing of
+// specs/plugins/plugins-phase-p-productisation.md rule 13 — a new database ships neutral copy: nothing of
 // Solio in any of the six emails, French or English. Solio's own emails are pinned by the golden test.
 const SOLIO_TERMS = /Solio|Satillieu|Japperenard|Pilat|trappeur|trapper|hectare|nordique|nordic|Nespresso|La Granja|Estiva|domaine|domain\b/i;
 

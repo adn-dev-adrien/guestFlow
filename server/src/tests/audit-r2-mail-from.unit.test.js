@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 36 (audit R2, finding N1) — the From display name is never quoted by
+// specs/hosting/hosting-h1-fleet-runtime.md rule 36 (audit R2, finding N1) — the From display name is never quoted by
 // hand: nodemailer encodes it, so no payload can rewrite the From address or the envelope sender.
 const test = require('node:test');
 const assert = require('node:assert/strict');

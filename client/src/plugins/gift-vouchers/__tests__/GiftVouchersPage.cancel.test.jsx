@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 54 — « Annuler le bon »: within the 14 days of the payment a confirmation naming the voucher and the amount to refund; after them a
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 54 — « Annuler le bon »: within the 14 days of the payment a confirmation naming the voucher and the amount to refund; after them a
 // forcing dialog (a goodwill cancellation) whose reason is mandatory; a voucher given away has no refund; a cancelled voucher shows « Annulé », « À rembourser x € » and
 // « Marquer remboursé », then the refund done. Every figure and every deadline is the server's.
 import React from 'react';

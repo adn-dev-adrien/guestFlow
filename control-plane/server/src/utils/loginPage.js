@@ -1,5 +1,5 @@
 /**
- * The HTML of `app.<domain>` (specs/control-plane-plans-and-access.md rules 24, 25, 27). Rendered by
+ * The HTML of `app.<domain>` (specs/hosting/control-plane-plans-and-access.md rules 24, 25, 27). Rendered by
  * the server with no script, so it works on any phone and needs no client bundle. Every value is
  * escaped. There is no password field on this page, ever: passwords stay on each space.
  */

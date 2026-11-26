@@ -1,4 +1,4 @@
-// Tourist-tax collection coverage (specs/per-platform-tourist-tax-collection.md):
+// Tourist-tax collection coverage (specs/tourist-tax/per-platform-tourist-tax-three-way.md):
 //   1. Suivi Financier → Taxe de séjour: a platform-collected stay is EXCLUDED from the tax-to-remit,
 //      an owner-collected ("Vous") and a direct stay are INCLUDED. Simulated end-to-end via a seeded DB.
 //   2. Suivi Financier → Comptabilité: an owner-collected stay surfaces the tourist tax on a dedicated
@@ -47,7 +47,7 @@ function seedTaxDb() {
   db.prepare(`INSERT INTO properties (id, name, touristTaxPerDayPerPerson, touristTaxMode, basePriceIncludedGuests, extraGuestPrice)
               VALUES (1, 'Gite', 1.0, 'per_day_per_person', 0, 0)`).run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
-  // The tourist-tax mode is GLOBAL per platform (specs/per-platform-tourist-tax-three-way.md), stored
+  // The tourist-tax mode is GLOBAL per platform (specs/tourist-tax/per-platform-tourist-tax-three-way.md), stored
   // on `platforms`. One platform per handling; the reservations below use the manual label so the
   // Suivi filter matches platforms.name directly:
   //   Airbnb  → collects + remits to commune itself (1, 1) → NOT remitted by us → excluded from the page.
@@ -64,7 +64,7 @@ function insertStay(db, { id, platform, year, m }) {
   // 2-night stay: arrival on the 14th, departure on the 16th → last night = 15th, inside the month.
   const start = `${year}-${pad2(m)}-14`;
   const end = `${year}-${pad2(m)}-16`;
-  // specs/tourist-tax-declaration-month-stay-end.md — a stay is declared in its last-night month once
+  // specs/tourist-tax/tourist-tax-declaration-month-stay-end.md — a stay is declared in its last-night month once
   // its tax-carrying échéance is paid (a later payment shifts it to the payment month). Mark BOTH the
   // solde and the complement paid inside the month (the 15th) so the stay surfaces whether the tax rides
   // on the solde (direct / platform-reverses) or on the complement (we collect at arrival).
@@ -103,7 +103,7 @@ test('Taxe de séjour: when ALL non-direct stays are platform-collected, only di
 
 test('Taxe de séjour: a MULTI-WORD owner-collected platform (manual stay) is still in the tax-to-remit', () => {
   // Regression for the platformKey/platformLabel divergence: iCal stores the hyphenated key, a manual
-  // reservation stores the concatenated label. The extraction must match EITHER (specs/platforms-and-ical-rework.md).
+  // reservation stores the concatenated label. The extraction must match EITHER (specs/platforms/platforms-and-ical-rework.md).
   const { db, model } = seedTaxDb();
   const { month, year, m } = previousMonth();
   // Owner-collected multi-word platform: the GLOBAL mode lives on platforms (label 'GitesDeFrance',
@@ -132,7 +132,7 @@ test('Taxe de séjour: the CURRENT month is accepted (declarations run up to the
   assert.deepEqual(res.data.reservations.map((r) => r.reservationId).sort((a, b) => a - b), [1, 2]);
 });
 
-// specs/tourist-tax-declaration-month-stay-end.md — the declaration follows the STAY: last-night month,
+// specs/tourist-tax/tourist-tax-declaration-month-stay-end.md — the declaration follows the STAY: last-night month,
 // unless the tax-carrying échéance is paid LATER (→ payment month). Payment stays a gate: an unpaid
 // stay never appears, so a never-collected tax is never remitted.
 function monthsAgo(n) {
@@ -289,7 +289,7 @@ function makeRow(overrides = {}) {
   };
 }
 // buildEntry(row, kind, perLineData, commissionContext, taxContext) — quote-free since
-// specs/accounting-encaissement-effective-percent.md; the routing flag rides taxContext.
+// specs/accounting/accounting-encaissement-effective-percent.md; the routing flag rides taxContext.
 const csvLines = (entries) => serializeCsv(CSV_HEADERS, buildRows(entries), { bom: false }).split('\r\n').filter(Boolean);
 
 test('Comptabilité: owner-collected tax → a dedicated 46710000 line in the entry detail + CSV', { skip: skipWithout(['accounting-export']) }, () => {

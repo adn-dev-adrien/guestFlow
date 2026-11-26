@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md — the plan catalogue: rule 1 (three ordered plans with
+// specs/hosting/control-plane-plans-and-access.md — the plan catalogue: rule 1 (three ordered plans with
 // prices and quotas), rule 2 (nested plans, the refusal), rule 3 (the decided allocation), rule 5
 // (impact before saving, grandfathering, available not installed), rule 6 (versions, the price a
 // customer was sold under).

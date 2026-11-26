@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rule 23 (audit r3, N-R3-2) — a plugin outside a cycle whose requirement closure
+// specs/plugins/plugin-dependencies.md rule 23 (audit r3, N-R3-2) — a plugin outside a cycle whose requirement closure
 // touches a cycle member is refused like the member itself: `REQUIREMENT_CYCLE` on activate, and on the card.
 const test = require('node:test');
 const assert = require('node:assert/strict');

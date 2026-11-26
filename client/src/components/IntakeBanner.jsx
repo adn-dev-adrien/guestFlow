@@ -1,6 +1,6 @@
 /**
  * IntakeBanner — the banner an intake plugin shows at the top of a fiche (slot `reservation.banners`)
- * to say what a platform's mail or page did to it (specs/airbnb-mail-intake.md §4.1). Presentational:
+ * to say what a platform's mail or page did to it (specs/platforms/airbnb-mail-intake.md §4.1). Presentational:
  * each plugin fetches its intake, maps its status to these props and keeps its own copy.
  *
  * Props:

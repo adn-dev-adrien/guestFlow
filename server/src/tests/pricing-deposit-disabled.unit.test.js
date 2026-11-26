@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing');
 
-// Per-reservation `depositDisabled` toggle (specs/disable-deposit-per-reservation.md).
+// Per-reservation `depositDisabled` toggle (specs/payments/disable-deposit-per-reservation.md).
 // When ON, the pricing engine must:
 //   - drop depositAmount to 0 (not the property's depositPercent fraction)
 //   - let balanceAmount absorb the full pre-arrival total
@@ -78,7 +78,7 @@ test('depositDisabled=0 (default): deposit follows property.depositPercent — r
   assert.equal(q.depositAmount, 90);
   assert.equal(q.balanceAmount, 210);
   assert.equal(q.depositAmount + q.balanceAmount, q.finalPrice);
-  // specs/payment-schedule-and-cancellation.md §3.1 — the acompte deadline is anchored on the BOOKING
+  // specs/payments/payment-schedule-and-cancellation.md §3.1 — the acompte deadline is anchored on the BOOKING
   // day, which the engine never invents: without a `bookingDate` there is no deadline to state.
   assert.equal(q.depositDueDate, null);
   db.close();

@@ -1,8 +1,8 @@
 /**
- * Payments routes (specs/online-payments-qonto.md §4.3). Thin — delegates to paymentsController.
+ * Payments routes (specs/payments/online-payments-qonto.md §4.3). Thin — delegates to paymentsController.
  * Mounted at /api/payments behind the standard session guard (see index.js).
  *
- * Only the provider-neutral routes are the core's (specs/plugins-phase-3a-online-payment.md rule 11):
+ * Only the provider-neutral routes are the core's (specs/plugins/plugins-phase-3a-online-payment.md rule 11):
  * the Qonto settings, OAuth and webhook under /api/payments/qonto/* and /api/payments/settings are
  * mounted by the online-payment plugin.
  */
@@ -14,15 +14,15 @@ const ctrl = require('../controllers/paymentsController');
 const db = require('../database');
 const { guardReadOnly } = require('../utils/reservationReadOnly');
 
-// No link, no request on a cancelled stay or on a duplicate set aside (specs/calendar-property-parity.md rule 22).
+// No link, no request on a cancelled stay or on a duplicate set aside (specs/planning/calendar-property-parity.md rule 22).
 const noWriteOnClosedStay = guardReadOnly(db, { cancelled: true });
 
-// Payment links on a reservation/devis + the manual poll trigger (specs/online-payments-qonto.md §3.4 / §7).
+// Payment links on a reservation/devis + the manual poll trigger (specs/payments/online-payments-qonto.md §3.4 / §7).
 router.post('/reservations/:id/payment-links', noWriteOnClosedStay, ctrl.createReservationPaymentLink);
 router.get('/reservations/:id/payment-links', ctrl.listReservationPaymentLinks);
 router.post('/reservations/:id/payment-emails', noWriteOnClosedStay, ctrl.sendPaymentRequestEmail);
 router.post('/poll', ctrl.pollPaymentsNow);
-// « Retirer le lien » by hand (specs/payment-link-lifecycle.md rule 42); the read-only stays are refused by the service.
+// « Retirer le lien » by hand (specs/payments/payment-link-lifecycle.md rule 42); the read-only stays are refused by the service.
 router.post('/links/:id/withdraw', ctrl.withdrawLink);
 // A payment received on a link withdrawn by hand, after its withdrawal: refunded or recorded on the stay (rule 56).
 router.post('/links/:id/settle', ctrl.settleLink);

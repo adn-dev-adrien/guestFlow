@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 39-41, specs/payment-link-lifecycle.md rule 68 and specs/pricing-components.md rule 86 — the payment link of an outside sale's reste: absent without a ready provider, disabled
+// specs/sas/outside-booking-sas.md rules 39-41, specs/payments/payment-link-lifecycle.md rule 68 and specs/pricing/pricing-components.md rule 86 — the payment link of an outside sale's reste: absent without a ready provider, disabled
 // without an e-mail, its amount SETTLEMENT's reste and never a request's, one open link per document (reused at the same amount, replaced when it drifted), 36 hours,
 // a paid link settling the document through the poll's paid effect, a surplus or a cancelled document booked in full and owed back with an admin alert.
 process.env.DB_PATH = ':memory:';

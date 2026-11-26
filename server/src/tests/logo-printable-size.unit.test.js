@@ -1,4 +1,4 @@
-// specs/settings.md rule 8 (audit R24 combined verification, 2026-11-05): the logo the devis PDF reads is turned upright
+// specs/settings/settings.md rule 8 (audit R24 combined verification, 2026-11-05): the logo the devis PDF reads is turned upright
 // from its EXIF orientation and holds at most 1200 px a side; a small logo keeps its size.
 const test = require('node:test');
 const assert = require('node:assert/strict');

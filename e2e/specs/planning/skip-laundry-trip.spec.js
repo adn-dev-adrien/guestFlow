@@ -1,5 +1,5 @@
 // @ts-check
-// specs/skip-laundry-trip.md §7.3 — Playwright smoke for the laundry-trip skip toggle.
+// specs/linen/skip-laundry-trip.md §7.3 — Playwright smoke for the laundry-trip skip toggle.
 //
 // The seed-data complexity of materializing a non-empty `LaundryDayCard` in the E2E DB
 // (= a reservation with a bed-linen option that ends just before a Tuesday in the
@@ -12,7 +12,7 @@
 import { test, expect } from '../../fixtures/test.js';
 import { farYearWeekday } from '../../fixtures/farYear.js';
 
-// Inside the date window (specs/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.
+// Inside the date window (specs/tech/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.
 const FAR_FUTURE_TUESDAY = farYearWeekday(2);
 
 test('laundry trip skip — API round-trip + planning page still renders with a skip set', async ({ page, request }) => {

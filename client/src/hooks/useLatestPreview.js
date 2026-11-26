@@ -1,6 +1,6 @@
 /**
  * useLatestPreview — the answer of a server-side preview for a draft the user keeps editing
- * (specs/sas-arrival-total-server-side.md rules 17-21, specs/resource-supplements-total-server-side.md
+ * (specs/sas/sas-arrival-total-server-side.md rules 17-21, specs/resources/resource-supplements-total-server-side.md
  * rules 10-13). The screen renders the answer and never estimates in between.
  *
  *   fetcher  — (draft, { signal }) => Promise<answer>; may change identity freely (read through a ref)
@@ -17,7 +17,7 @@
  * newer one is pending), `fresh` says it is for the current draft. Only the latest request counts: an older
  * one is aborted, and its late answer ignored.
  *
- * A request that FAILS makes the answer unknown (loop t23 S23-1, specs/plugins-phase-1-sdk.md rule 54 reading of
+ * A request that FAILS makes the answer unknown (loop t23 S23-1, specs/plugins/plugins-phase-1-sdk.md rule 54 reading of
  * 2026-11-18): `data` turns null and `failed` stays true — through a « Réessayer » still pending — until a new
  * answer arrives, so no screen keeps drawing the figures of an older draft, or a money control set from them,
  * next to its error. `last` keeps the latest answer for a screen that draws its layout from it and shows every

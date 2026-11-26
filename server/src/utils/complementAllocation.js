@@ -1,6 +1,6 @@
 /**
  * Accounting ventilation of an ADJUSTED arrival complement —
- * specs/adjustable-complement-amounts.md §3.6.
+ * specs/sas/adjustable-complement-amounts.md §3.6.
  *
  * An arrival complement is not one accounting line but several: `70600000` (the accommodation
  * auto-gap), `70600010` (options + custom options), `70601000` (resources) and the `46710000`
@@ -28,10 +28,10 @@ const POSTE_BY_KIND = {
   option: 'options',
   resource: 'resources',
   tax: 'tax',
-  // specs/platform-extra-guest-complement.md rule 10 — a supplement on the nights: stay revenue.
+  // specs/platforms/platform-extra-guest-complement.md rule 10 — a supplement on the nights: stay revenue.
   extraGuests: 'accommodation',
   remainder: 'accommodation',
-  // specs/direct-installments.md rules 58-59 — what a closed installment plan leaves to the arrival is stay money, booked like the auto-gap.
+  // specs/payments/direct-installments.md rules 58-59 — what a closed installment plan leaves to the arrival is stay money, booked like the auto-gap.
   installmentRest: 'accommodation',
 };
 

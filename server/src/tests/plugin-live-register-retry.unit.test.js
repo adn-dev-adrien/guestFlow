@@ -1,11 +1,11 @@
-// specs/plugins-phase-4-registry.md rule 39 — a plugin whose live `register` failed is registered
+// specs/plugins/plugins-phase-4-registry.md rule 39 — a plugin whose live `register` failed is registered
 // afresh by the next install: it comes up whole, or the install answers the error again.
 const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['linen'])) return;
 const express = require('express');

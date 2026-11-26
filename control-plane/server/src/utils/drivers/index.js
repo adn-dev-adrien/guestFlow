@@ -1,5 +1,5 @@
 /**
- * The host drivers (specs/hosting-h1-fleet-runtime.md H-D6). Every host action goes through one of
+ * The host drivers (specs/hosting/hosting-h1-fleet-runtime.md H-D6). Every host action goes through one of
  * four: `process`, `proxy`, `backup`, `mail`. Each has a `local` implementation, so the whole
  * lifecycle runs on a laptop and in CI; production selects the real ones by environment:
  *
@@ -24,7 +24,7 @@ const { createLitestreamBackupDriver } = require('./backup-litestream');
 const { createMailDriver } = require('./mail-platform');
 
 /**
- * specs/hosting-h1-fleet-runtime.md rule 27 — rclone uses the object storage Litestream uses, with
+ * specs/hosting/hosting-h1-fleet-runtime.md rule 27 — rclone uses the object storage Litestream uses, with
  * the same keys, typed once: the remote is derived from CP_BACKUP_URL (`s3://<bucket>/<path>`) and
  * configured through rclone's environment (`RCLONE_CONFIG_GFBACKUP_*`), so no `rclone config` is run.
  * CP_RCLONE_REMOTE, when set, wins (a remote configured by hand). → { remote, env }

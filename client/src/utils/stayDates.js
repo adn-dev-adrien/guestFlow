@@ -6,7 +6,7 @@ const DAY_MS = 86400000;
 
 /**
  * The hint the fiche shows under its dates, '' when the two dates are typed and sound or not both typed
- * yet (specs/reservations-backend-mvc.md rule 12). It mirrors the server's guard (rule 11) so the fiche
+ * yet (specs/tech/reservations-backend-mvc.md rule 12). It mirrors the server's guard (rule 11) so the fiche
  * neither quotes nor saves a stay the server refuses: a date that is not a real day (a 5-digit year), a departure on or before the arrival, or a stay
  * longer than MAX_STAY_NIGHTS, or a date outside the window of rule 13 (today ± 5 years). `stored` is the
  * record as loaded (`{ startDate, endDate }`): a date it already carries is not held to the window, as on the server.

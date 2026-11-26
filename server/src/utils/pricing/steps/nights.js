@@ -1,5 +1,5 @@
 /**
- * STEP nights — NIGHTS (specs/pricing-components.md §3 rule 52).
+ * STEP nights — NIGHTS (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Prices the nights of the stay (locked nights replayed), refuses a stay with none, and checks the changeover
  * days.
@@ -44,7 +44,7 @@ const step = {
 
     const totalPrice = roundMoney(baseAccommodationPrice);
 
-    // specs/tariff-recipes/spec.md §3.4 rules 21-23 — changeover-day check, exposed beside the
+    // specs/pricing/tariff-recipes.md §3.4 rules 21-23 — changeover-day check, exposed beside the
     // min-nights fields and enforced by the controller with the same force-override pattern.
     const changeover = checkChangeover(rules, startDate, endDate);
 

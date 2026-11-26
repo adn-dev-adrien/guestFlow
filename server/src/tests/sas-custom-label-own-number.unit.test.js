@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 102 e as completed by rule 103 (stabilisation loop t3, T3-7, 2026-11-16) — a SAS linen item whose own label ends
+// specs/pricing/pricing-components.md §3 rule 102 e as completed by rule 103 (stabilisation loop t3, T3-7, 2026-11-16) — a SAS linen item whose own label ends
 // in « (n) » (labels are operator-editable: « Drap-housse (140) », « Drap-housse (160) ») is found again by its own label on a re-run: same row, same
 // line id, same amount, whatever the order of the items; a row the SAS numbered itself (« Bière locale (2) ») is still found by its base label.
 process.env.DB_PATH = ':memory:';

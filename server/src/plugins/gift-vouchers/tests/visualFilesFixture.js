@@ -1,4 +1,4 @@
-// The folder the visual files of a suite go to (specs/gift-voucher-campaigns.md rule 47): one per process, removed at its end. Not a test file.
+// The folder the visual files of a suite go to (specs/gift-vouchers/gift-voucher-campaigns.md rule 47): one per process, removed at its end. Not a test file.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

@@ -1,4 +1,4 @@
-// specs/direct-installments.md rules 53, 54, 57, 58, 60 — the last installment can be typed, a closed plan offers
+// specs/payments/direct-installments.md rules 53, 54, 57, 58, 60 — the last installment can be typed, a closed plan offers
 // « Ajuster automatiquement » and prints the server's « Reste à régler à l'arrivée », and the acompte collected before the
 // plan is a read-only paid row. The card renders the server's payload and computes nothing.
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';

@@ -2,7 +2,7 @@ const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rules 26-27 — the annual revenue goal, one per exercise, in
+// specs/accounting/finance-dashboard-redesign.md rules 26-27 — the annual revenue goal, one per exercise, in
 // Settings → TVA & exercice. Validation, merge with what is stored, and the `accounting` response.
 
 let stored = {};

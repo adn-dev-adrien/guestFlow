@@ -34,10 +34,10 @@ const OPTIONAL_COLS = [
 const MERGED_SCALAR_COLS = [
   'commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent', 'color',
   'platformTakesDeposit', 'payoutDueDays',
-  // Operator switches (specs/plugins-phase-p-productisation.md rule 19, specs/airbnb-no-checkout-chores.md
+  // Operator switches (specs/plugins/plugins-phase-p-productisation.md rule 19, specs/platforms/airbnb-no-checkout-chores.md
   // rule 8): ticked on any duplicate means ticked on the survivor.
   'countsAsDirect', 'forbidsGuestChores',
-  // specs/platform-settings-relay-and-review.md rule 6 — the guest-contact settings, like the switches.
+  // specs/platforms/platform-settings-relay-and-review.md rule 6 — the guest-contact settings, like the switches.
   'relaysGuestEmail', 'reviewWhereFr', 'reviewWhereEn',
 ];
 
@@ -55,7 +55,7 @@ function isCustomTax(row) {
 // A scalar setting is "customised" when it differs from its column default (0 / NULL / '').
 function isCustomScalar(col, val) {
   if (col === 'color' || col === 'commissionAccountNumber' || col === 'reviewWhereFr' || col === 'reviewWhereEn') return val != null && String(val).trim() !== '';
-  // specs/platform-payout-due-date.md — this one's default is 10, not 0: a platform genuinely set to
+  // specs/platforms/platform-payout-due-date.md — this one's default is 10, not 0: a platform genuinely set to
   // 0 days ("pays on the departure day") is a customisation and must survive a dedup.
   if (col === 'payoutDueDays') return val != null && Number(val) !== DEFAULT_PAYOUT_DUE_DAYS;
   return Number(val) !== 0; // hasVatOnCommission, commissionPercent, platformTakesDeposit, the switches
@@ -69,7 +69,7 @@ function runPlatformSlugDedup(database) {
   const select = `SELECT id, name${present.length ? ', ' + present.join(', ') : ''} FROM platforms`;
   const rows = database.prepare(select).all();
 
-  // Group by compact slug — case, accents and separators ignored (specs/normalize-platform-names.md
+  // Group by compact slug — case, accents and separators ignored (specs/platforms/normalize-platform-names.md
   // rule 23). Grouping by `formatPlatformName` kept `AirbnbTente` and `Airbnbtente` apart: both are
   // already canonical, yet they are one platform, and the second one carried no commission.
   const bySlug = new Map();

@@ -1,10 +1,10 @@
-// The send dialog's errors in French (specs/email-automation.md rule 15). The server already words
+// The send dialog's errors in French (specs/emails/email-automation.md rule 15). The server already words
 // a transport failure; a bare code is never shown to the operator.
 const BY_CODE = Object.freeze({
   EMAIL_NOT_CONFIGURED: 'Envoi non configuré : Paramètres › Emails.',
   CLIENT_NO_EMAIL: 'Adresse destinataire manquante.',
   INVALID_EMAIL: 'Adresse email invalide.',
-  // specs/email-language-fr-en.md rules 9 + 12 — the cause and what to do about it.
+  // specs/emails/email-language-fr-en.md rules 9 + 12 — the cause and what to do about it.
   ENGLISH_VERSION_MISSING: 'Version anglaise manquante pour ce modèle : la rédiger dans Emails › Modèles, ou passer le mail en français.',
 });
 

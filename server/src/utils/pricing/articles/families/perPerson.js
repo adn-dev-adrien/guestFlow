@@ -1,5 +1,5 @@
 /**
- * Article family `perPerson` — one price per person served (specs/pricing-components.md §3 rule 47).
+ * Article family `perPerson` — one price per person served (specs/pricing/pricing-components.md §3 rule 47).
  *
  * Contract: `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
  * `price` returns `{ quantity, unitPrice, billedUnits, typed, components, allowanceUsed, amounts }` before the head
@@ -18,7 +18,7 @@ const configSchema = kit.configSchemaFor(PRICE_TYPES);
 // One unit per person served.
 const multiplier = (persons) => persons;
 
-// The operator may type a count of people (« 3 personnes »): it stays that count (specs/non-card-option-served-persons.md rules 2-5, 19).
+// The operator may type a count of people (« 3 personnes »): it stays that count (specs/options/non-card-option-served-persons.md rules 2-5, 19).
 function resolveUnits({
   quantity, persons, cardPersons, maxGuests,
 }) {

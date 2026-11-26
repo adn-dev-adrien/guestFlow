@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 11bis — the studio's Modules screen: each module on or off, in the lodging's own order,
+// specs/guest-app/guest-app.md rule 11bis — the studio's Modules screen: each module on or off, in the lodging's own order,
 // saved as the whole ordered list; the dirty guard keeps unsaved changes.
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';

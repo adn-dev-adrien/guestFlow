@@ -1,5 +1,5 @@
 /**
- * STEP vat (external) — the VAT of an external sale's lines (specs/pricing-components.md §3 rules 51, 61, 62).
+ * STEP vat (external) — the VAT of an external sale's lines (specs/pricing/pricing-components.md §3 rules 51, 61, 62).
  *
  * Every line is a tagged amount with `customerContext = 'external'` and its article's class, and the VAT component resolves
  * `vat.rate.<class>.external`. A line the document already stores keeps the rate it was sold at (rule 74): its amount is cut at that

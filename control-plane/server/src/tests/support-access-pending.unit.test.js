@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 26 — right after « Demander l'accès » the console shows
+// specs/hosting/hosting-h2-account-security.md rule 26 — right after « Demander l'accès » the console shows
 // « En attente », not « Aucun accès »: a request it wrote and the instance has not imported yet is
 // already pending. Once the instance imported it, the instance's own row is the state again.
 

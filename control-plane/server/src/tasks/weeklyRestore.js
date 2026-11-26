@@ -1,5 +1,5 @@
 /**
- * Every Sunday (specs/hosting-h1-fleet-runtime.md rule 13), run from the console's daily pass: each
+ * Every Sunday (specs/hosting/hosting-h1-fleet-runtime.md rule 13), run from the console's daily pass: each
  * customer's latest backup is restored into a temporary folder and checked (utils/restoreVerifier.js).
  * The day of the last run is kept in `meta`, so a console down on Sunday runs it when it comes back
  * the same day, and never twice.

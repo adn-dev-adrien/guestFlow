@@ -1,5 +1,5 @@
-// devisQuote — the online full-payment amount for a public devis (specs/public-online-payment.md,
-// specs/deposit-blocks-the-dates.md rule 18).
+// devisQuote — the online full-payment amount for a public devis (specs/site/public-online-payment.md,
+// specs/payments/deposit-blocks-the-dates.md rule 18).
 // SENSITIVE: the guest must be charged EXACTLY what the payment then records — the stored acompte plus
 // the stored solde, i.e. the pre-arrival amount of the quote they agreed to (tourist tax included unless
 // paid on arrival, arrival-complement lines excluded) — never a fresh engine recompute (which can drift,
@@ -80,7 +80,7 @@ test('recomputeDevisQuote: passes the devis options + resources to the engine (s
 test('recomputeDevisQuote: carries the scheduled sessions of an hourly resource', () => {
   // Regression guard: this path rebuilt `selectedResources` WITHOUT `sessions`, so an hourly resource
   // was re-priced from its quantity alone and the recompute diverged from the stored devis
-  // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 3).
+  // (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §1 defect 3).
   let input = null;
   const calc = (i) => { input = i; return {}; };
   const sessions = [{ date: '2026-09-16', start: '20:00', end: '22:00' }];

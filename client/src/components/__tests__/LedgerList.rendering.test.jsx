@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md — LedgerList renders the server's rows verbatim (rules 1, 3-6),
+// specs/payments/reservation-payment-ledger.md — LedgerList renders the server's rows verbatim (rules 1, 3-6),
 // one action per row at most, the closing line (rule 5), and the two-line layout under 600 px (§6).
 import React from 'react';
 import { render, screen, within, fireEvent } from '@testing-library/react';

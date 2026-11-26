@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 26, 40, 43 — the browser « Retour » of a dirty logement with a real
+// specs/design-system/ui-review-2026-10-19-operations.md rules 26, 40, 43 — the browser « Retour » of a dirty logement with a real
 // BrowserRouter, and an unknown logement that says so rather than offering a retry.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

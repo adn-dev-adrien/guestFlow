@@ -1,5 +1,5 @@
 /**
- * PropertyTariffTab — « Tarifs » tab of the property page (specs/settings-rationalization.md
+ * PropertyTariffTab — « Tarifs » tab of the property page (specs/settings/settings-rationalization.md
  * rules 21-22): the seasons (recipe or manual) with the entry to « Gestion tarifaire », the
  * extra-guest price, the tourist tax, and a pointer to the stay VAT rate.
  *
@@ -26,10 +26,10 @@ import useVatRegime from '../../hooks/useVatRegime';
 export default function PropertyTariffTab({
   property, form, errors = {}, updateField, onZeroFocus, canManage, onOpenTariffs, getSortedSeasonRanges,
 }) {
-  // « Sans TVA » (specs/vat-optional-mode.md rule 12f): the prices are simply what the guest pays.
+  // « Sans TVA » (specs/accounting/vat-optional-mode.md rule 12f): the prices are simply what the guest pays.
   const { state: vatState } = useVatRegime();
   const notSubject = Boolean(vatState && vatState.inForce && vatState.inForce.regime === 'not_subject');
-  // Without the tariff-recipes plugin the seasons read as manual ones (specs/plugins-phase-0-foundation.md rule 16).
+  // Without the tariff-recipes plugin the seasons read as manual ones (specs/plugins/plugins-phase-0-foundation.md rule 16).
   const recipesOn = usePlugin(TARIFF_RECIPES);
   const recipe = recipesOn ? property.tariffRecipeId : null;
   const seasons = [...(property.pricingRules || [])]

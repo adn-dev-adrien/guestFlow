@@ -1,6 +1,6 @@
 /**
  * EmailManualSendDialog — the language a message will leave in
- * (specs/site-english-version.md rules 20-21).
+ * (specs/site/site-english-version.md rules 20-21).
  *
  * The dialog must answer, before anything is sent, a question the operator could previously only
  * answer by opening the guest's record: which language is this going out in? And it must let them

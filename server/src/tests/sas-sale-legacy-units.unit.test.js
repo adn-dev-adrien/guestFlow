@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 28 — a per-person SAS sale sent with `units` and no `persons`, by a tab still
+// specs/options/non-card-option-served-persons.md rule 28 — a per-person SAS sale sent with `units` and no `persons`, by a tab still
 // running the previous bundle (audit R21-P1, C4, R21-L5). Pure, then through the real resolver.
 
 process.env.DB_PATH = ':memory:';

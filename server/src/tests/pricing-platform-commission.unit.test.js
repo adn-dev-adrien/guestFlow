@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/platform-commission-line.md — the platform commission is operator-entered
+// specs/platforms/platform-commission-line.md — the platform commission is operator-entered
 // (`platformCommissionAmount`, €) and only applies to a non-direct platform. The engine echoes it back
 // (clamped ≥ 0, 0 on direct) and returns `platformNetReceivedAmount = total séjour − commission` (null
 // when no commission). The fiche summary shows « total séjour − commission = net perçu ».
@@ -87,7 +87,7 @@ test('commission with options/resources → net = full total séjour − commiss
   db.close();
 });
 
-// specs/platform-per-echeance-commission.md (2026-06-22) — the acompte/solde now store the GROSS amounts
+// specs/platforms/platform-per-echeance-commission.md (2026-06-22) — the acompte/solde now store the GROSS amounts
 // (what the guest pays); the commission is tracked separately and booked per échéance. The « net perçu »
 // = total − commission is a separate figure, no longer the stored solde.
 test('platform reservation: the solde is the gross (commission tracked separately, net perçu = total − commission)', () => {
@@ -115,7 +115,7 @@ test('platform reservation: a forced-complement extra stays in the complement; t
   // The gross échéances sum to the total séjour; the commission is separate.
   assert.equal(q.balanceAmount + q.complementAmount, q.totalStayPrice);
   // Net perçu = the PRE-ARRIVAL the platform settles (200) − commission (40); the 50 complement extra is
-  // collected by us on arrival, never by the platform (specs/platform-payment-entry.md — écart bug fix).
+  // collected by us on arrival, never by the platform (specs/platforms/platform-payment-entry.md — écart bug fix).
   assert.equal(q.platformNetReceivedAmount, 160);                // 200 pre-arrival − 40
   db.close();
 });

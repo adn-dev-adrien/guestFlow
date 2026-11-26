@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 36 (2026-11-12) — the guard against selling taken dates is the server's: the public
+// specs/site/wordpress-plugin.md rule 36 (2026-11-12) — the guard against selling taken dates is the server's: the public
 // `pay` re-checks the devis's nights and times before anything else, so a visitor holding a quote on nights booked
 // since (or a site that let them through) never gets a payment link. The provider is never called, no link is stored.
 

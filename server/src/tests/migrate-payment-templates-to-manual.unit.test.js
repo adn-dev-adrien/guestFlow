@@ -1,5 +1,5 @@
 // One-shot flip of the seeded dunning templates to manual send
-// (specs/payment-schedule-and-cancellation.md §1 amendment, rule 45).
+// (specs/payments/payment-schedule-and-cancellation.md §1 amendment, rule 45).
 //
 // The registry change alone is invisible to an existing install: templates are seeded once, so the
 // production rows keep the `sendMode` they were born with. Without this migration the two reminders

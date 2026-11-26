@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 41 (end-review verification V-4) — a document's open obligation (a link paid after the reste moved) is served with
+// specs/sas/outside-booking-sas.md rule 41 (end-review verification V-4) — a document's open obligation (a link paid after the reste moved) is served with
 // its words to the administrator, on the counter's list (any day) and on the document, and closes like a stay's « À rembourser » row: settled or
 // cancelled, only once, written in the document's history; once closed the document stops claiming that money. The reception never reaches it.
 process.env.DB_PATH = ':memory:';

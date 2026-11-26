@@ -1,5 +1,5 @@
 /**
- * Client-side Web Push helpers (specs/pwa-push-notifications.md §4.2).
+ * Client-side Web Push helpers (specs/guest-app/pwa-push-notifications.md §4.2).
  *
  * Registers the (fetch-free) service worker, and enables/disables the device subscription against the
  * server. All functions degrade gracefully when the browser doesn't support push (older Safari, http

@@ -1,4 +1,4 @@
-// specs/hourly-resource-quantity-and-sas-scheduling.md rule 38 (guest-app rules 81-83; pricing-components rule 90.3) — the evening supplement of an app order's sessions, computed by
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md rule 38 (guest-app rules 81-83; pricing-components rule 90.3) — the evening supplement of an app order's sessions, computed by
 // the scheduler (`orderSupplement`), written by the order as a line of the stay under the supplement's own words and tagged with its order (`orderRef`), and the arrival commit's
 // recompute that subtracts what those lines already bill, per resource, never below 0: whether the SAS runs before or after the order, or is re-opened, the same evening is billed once.
 const test = require('node:test');

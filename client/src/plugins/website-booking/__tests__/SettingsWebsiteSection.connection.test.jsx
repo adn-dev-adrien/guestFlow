@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rules 30-31 — Paramètres › Intégrations hands the admin what the
+// specs/plugins/plugins-phase-2-hosts.md rules 30-31 — Paramètres › Intégrations hands the admin what the
 // WordPress plugin needs: this GuestFlow's address and the API key, masked until « Afficher », and a
 // confirmed « Régénérer la clé ».
 import React from 'react';

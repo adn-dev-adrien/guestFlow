@@ -1,5 +1,5 @@
 // « Tester la connexion »: a real call, and a badge that only claims success once one has succeeded.
-// See specs/qonto-settings-in-app.md §3 rules 9, 11.
+// See specs/settings/qonto-settings-in-app.md §3 rules 9, 11.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

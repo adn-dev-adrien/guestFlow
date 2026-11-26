@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13 (past reading of 2026-11-02) on the resource bookings — the preview,
+// specs/tech/reservations-backend-mvc.md rule 13 (past reading of 2026-11-02) on the resource bookings — the preview,
 // the create and the update take a real day from today − 5 years to today + 5 years (400, nothing written);
 // an edited booking keeps its stored day whatever it is.
 const test = require('node:test');

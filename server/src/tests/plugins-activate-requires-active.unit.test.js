@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 37 (adversarial review of the 2026-10-27 fixes) — the mirror
+// specs/plugins/plugins-phase-4-registry.md rule 37 (adversarial review of the 2026-10-27 fixes) — the mirror
 // of rule 36: activating a plugin whose requirement is inactive is refused 409 REQUIREMENT_INACTIVE,
 // naming the plugin to activate first. Google Vacation Rentals could be re-activated while
 // website-booking, which it requires, was off.

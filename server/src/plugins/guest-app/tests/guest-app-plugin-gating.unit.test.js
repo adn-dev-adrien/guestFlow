@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 22 — while the plugin is off nothing answers, its rows stay, and the core is untouched.
+// specs/guest-app/guest-app.md rule 22 — while the plugin is off nothing answers, its rows stay, and the core is untouched.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

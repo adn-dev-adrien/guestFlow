@@ -1,4 +1,4 @@
-// Shared fixtures of the TouristTaxPage suites (specs/tourist-tax-report-v2.md): a report payload as
+// Shared fixtures of the TouristTaxPage suites (specs/tourist-tax/tourist-tax-report-v2.md): a report payload as
 // GET /finance/tourist-tax/report sends it, built from extraction-like rows. Not a test file.
 import React from 'react';
 import { render } from '@testing-library/react';

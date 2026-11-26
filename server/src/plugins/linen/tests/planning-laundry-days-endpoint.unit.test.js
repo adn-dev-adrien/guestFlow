@@ -1,4 +1,4 @@
-// specs/linen-laundry-days.md §3.2 rules 13 and 17 — `GET /api/planning/laundry/days`: the cards to draw
+// specs/linen/linen-laundry-days.md §3.2 rules 13 and 17 — `GET /api/planning/laundry/days`: the cards to draw
 // for a window, any window, and their agreement with the stock projection. Real models on the real
 // schema: the point is that the Planning cards and the engine tell the same story day by day.
 const test = require('node:test');
@@ -87,7 +87,7 @@ const TYPE_KEYS = { single: 'singleBeds', double: 'doubleBeds', baby: 'babyBeds'
 
 // --- Rule 13: bounds ----------------------------------------------------------------------------
 
-test('specs/linen-laundry-days.md §3.2 rule 13: both bounds are required and well formed', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: both bounds are required and well formed', () => {
   const { controller } = fresh();
   for (const query of [{}, { from: '2026-06-01' }, { to: '2026-06-30' }, { from: 'x', to: '2026-06-30' }, { from: '2026-06-01', to: '30/06/2026' }, { from: '2026-06-30', to: '2026-06-01' }]) {
     const res = makeRes();
@@ -97,7 +97,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: both bounds are required and we
   }
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a pathological span is refused before any model is read', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a pathological span is refused before any model is read', () => {
   const trap = new Proxy({}, { get() { return () => { throw new Error('nothing should be read'); }; } });
   const controller = buildController({
     laundryModel: trap, settingsModel: trap, linenInventoryModel: trap, laundryScheduleModel: trap,
@@ -111,14 +111,14 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a pathological span is refused 
 
 // --- Rule 13: which dates are drawn -------------------------------------------------------------
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a regular day with nothing to bring or collect is not drawn', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a regular day with nothing to bring or collect is not drawn', () => {
   const { days } = fresh();
   const res = days('2026-06-01', '2026-06-30');
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { days: {} });
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a regular day with linen to bring is drawn, the others of the schedule are not', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a regular day with linen to bring is drawn, the others of the schedule are not', () => {
   const { days, stay, setSchedule } = fresh();
   setSchedule('0001-01-01', [2, 4], 1);
   stay('2026-06-05', '2026-06-11', { doubleBeds: 2 });
@@ -136,7 +136,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a regular day with linen to bri
   assert.equal(card.leftAtLaundry, null);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a day that only collects is drawn, and names where the linen was dropped', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a day that only collects is drawn, and names where the linen was dropped', () => {
   const { days, stay, setSchedule } = fresh();
   setSchedule('0001-01-01', [2, 4], 2);
   stay('2026-06-05', '2026-06-09', { singleBeds: 3 });
@@ -156,7 +156,7 @@ function seedMatsOnlyStay({ db, setSchedule, property, client }) {
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, 1)').run(stayId, mat);
 }
 
-test('specs/linen-laundry-days.md §3.5 rule 27: a day with only bath mats is drawn when the mats are tracked', () => {
+test('specs/linen/linen-laundry-days.md §3.5 rule 27: a day with only bath mats is drawn when the mats are tracked', () => {
   const ctx = fresh({ stock: { ...STOCK, towelStockBathMat: 4 } });
   seedMatsOnlyStay(ctx);
   const card = ctx.days('2026-06-09', '2026-06-09').body.days['2026-06-09'];
@@ -164,13 +164,13 @@ test('specs/linen-laundry-days.md §3.5 rule 27: a day with only bath mats is dr
   assert.equal(card.dropOff.bathMats, 2);
 });
 
-test('specs/linen-laundry-days.md §3.5 rule 27: a day with only bath mats is not drawn while their stock is 0 (untracked)', () => {
+test('specs/linen/linen-laundry-days.md §3.5 rule 27: a day with only bath mats is not drawn while their stock is 0 (untracked)', () => {
   const ctx = fresh();
   seedMatsOnlyStay(ctx);
   assert.deepEqual(ctx.days('2026-06-09', '2026-06-09').body, { days: {} });
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a skipped regular day is always drawn, with zeros, so it can be reverted', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a skipped regular day is always drawn, with zeros, so it can be reverted', () => {
   const { days, models } = fresh();
   models.laundryTripSkipsModel.add('2026-06-09');
   const card = days('2026-06-08', '2026-06-10').body.days['2026-06-09'];
@@ -180,7 +180,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a skipped regular day is always
   assert.deepEqual(card.stillAtLaundry, []);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: an extra trip is always drawn, with its record and, when partial, what it leaves', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: an extra trip is always drawn, with its record and, when partial, what it leaves', () => {
   const { days, models, stay } = fresh();
   stay('2026-06-05', '2026-06-08', { singleBeds: 4 });
   models.laundryExtraTripsModel.set('2026-06-12', { pickUpAll: false, pickUp: { singleBeds: 1 } });
@@ -195,7 +195,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: an extra trip is always drawn, 
   assert.equal(card.leftAtLaundry.singleBeds, 3);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: an extra trip with nothing at all is still drawn', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: an extra trip with nothing at all is still drawn', () => {
   const { days, models } = fresh();
   models.laundryExtraTripsModel.set('2026-06-12', { pickUpAll: true, pickUp: {} });
   const card = days('2026-06-12', '2026-06-12').body.days['2026-06-12'];
@@ -204,7 +204,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: an extra trip with nothing at a
   assert.equal(card.leftAtLaundry, null);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a day whose drop-off has stays without a quantity yet is drawn, with them', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a day whose drop-off has stays without a quantity yet is drawn, with them', () => {
   const { days, stay, setSchedule } = fresh();
   setSchedule('0001-01-01', [2], 1);
   // The stay carries the bed-linen option but no bed quantity yet: it contributes 0 and is flagged.
@@ -214,7 +214,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a day whose drop-off has stays 
   assert.deepEqual(card.dropOff.incomplete.map((r) => r.id), [stayId]);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 11: a day with batches still at the laundry is drawn with stillAtLaundry and its readiness', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 11: a day with batches still at the laundry is drawn with stillAtLaundry and its readiness', () => {
   const { days, stay, setSchedule } = fresh();
   setSchedule('0001-01-01', [2, 4], 3);
   stay('2026-06-05', '2026-06-09', { doubleBeds: 2 });
@@ -226,7 +226,7 @@ test('specs/linen-laundry-days.md §3.2 rule 11: a day with batches still at the
   assert.deepEqual(card.stillAtLaundry.map((l) => [l.readyOn, l.counts.doubleBeds]), [['2026-06-12', 2]]);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: the manual line of the date rides on the card, signed', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: the manual line of the date rides on the card, signed', () => {
   const { days, models, stay } = fresh();
   stay('2026-06-05', '2026-06-09', { singleBeds: 2 });
   models.laundryManualAdditionsModel.set('2026-06-09', { singleBeds: -1, doubleBeds: 3 });
@@ -239,7 +239,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: the manual line of the date rid
 
 // --- Rule 13: past and future windows, the projection -------------------------------------------
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a window entirely in the past is answered, without inventoryAfter', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a window entirely in the past is answered, without inventoryAfter', () => {
   const { days, stay } = fresh({ today: '2026-07-15' });
   stay('2026-06-05', '2026-06-09', { singleBeds: 2 });
   stay('2026-07-10', '2026-07-20', { singleBeds: 1 });
@@ -250,7 +250,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a window entirely in the past i
   assert.equal(card.inventoryAfter, null);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: from today on a card carries inventoryAfter, for the tracked types only', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: from today on a card carries inventoryAfter, for the tracked types only', () => {
   const { days, stay } = fresh();
   stay('2026-06-05', '2026-06-16', { singleBeds: 2, doubleBeds: 1 });
   const card = days('2026-06-16', '2026-06-16').body.days['2026-06-16'];
@@ -258,7 +258,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: from today on a card carries in
   assert.equal(typeof card.inventoryAfter.single, 'number');
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: no horizon (no stay ahead) means no inventoryAfter, and the cards still come', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: no horizon (no stay ahead) means no inventoryAfter, and the cards still come', () => {
   const { days, stay } = fresh({ today: '2026-06-30' });
   stay('2026-06-05', '2026-06-09', { singleBeds: 2 });
   const card = days('2026-06-09', '2026-06-09').body.days['2026-06-09'];
@@ -266,7 +266,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: no horizon (no stay ahead) mean
   assert.equal(card.inventoryAfter, null);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a window straddling today answers the past without a projection and the future with one', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 13: a window straddling today answers the past without a projection and the future with one', () => {
   const { days, stay } = fresh();
   stay('2026-06-03', '2026-06-09', { singleBeds: 2 });
   stay('2026-06-12', '2026-06-16', { singleBeds: 2 });
@@ -277,7 +277,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a window straddling today answe
 
 // --- Rules 5 and 13: the past keeps its rhythm --------------------------------------------------
 
-test('specs/linen-laundry-days.md §3.1 rule 5: after a change of schedule, the cards before it keep the old rhythm', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: after a change of schedule, the cards before it keep the old rhythm', () => {
   const { days, stay, setSchedule } = fresh({ today: '2026-06-01' });
   setSchedule('2026-06-10', [2, 4], 1);
   for (const [start, end] of [['2026-06-01', '2026-06-04'], ['2026-06-05', '2026-06-09'], ['2026-06-10', '2026-06-11'], ['2026-06-12', '2026-06-16']]) {
@@ -291,7 +291,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: after a change of schedule, the 
 
 // --- Rule 17: the cards and the projection agree -------------------------------------------------
 
-test('specs/linen-laundry-days.md §3.2 rule 17: every trip date of a Tuesday + Thursday month — skip, extra trip, partial pick-up, manual lines and a turnaround change included — shows the engine\'s moves', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 17: every trip date of a Tuesday + Thursday month — skip, extra trip, partial pick-up, manual lines and a turnaround change included — shows the engine\'s moves', () => {
   const { days, models, stay, setSchedule, linenInventoryModel } = fresh();
   setSchedule('0001-01-01', [2, 4], 2);
   setSchedule('2026-06-16', [2, 4], 3);          // the turnaround changes mid-month

@@ -1,7 +1,7 @@
-// specs/calendar-property-parity.md rules 22, 25 — a duplicate set aside takes no write: every route that writes
+// specs/planning/calendar-property-parity.md rules 22, 25 — a duplicate set aside takes no write: every route that writes
 // to a stay (the fiche save, a payment mark, the check-in and check-out, an arrival payment, a refund, an
 // installment, a payment link, an e-mail) answers 409 RESERVATION_SUPERSEDED, and nothing is written.
-// A cancelled stay keeps the writes its history needs (specs/payment-schedule-and-cancellation.md rule 25):
+// A cancelled stay keeps the writes its history needs (specs/payments/payment-schedule-and-cancellation.md rule 25):
 // the fiche, the payment marks, the SAS, the arrival payment and the payment links stay refused, a refund and
 // the cancellation e-mails stay possible.
 process.env.DB_PATH = ':memory:';

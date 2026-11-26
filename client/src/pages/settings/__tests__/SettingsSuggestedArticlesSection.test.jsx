@@ -1,5 +1,5 @@
 /**
- * SettingsSuggestedArticlesSection — « Proposés à l'arrivée » (specs/outside-booking-sas.md rule 37): one list per sale context, grouped by kind, reordered with ↑ / ↓, 12 articles at most, a kind
+ * SettingsSuggestedArticlesSection — « Proposés à l'arrivée » (specs/sas/outside-booking-sas.md rule 37): one list per sale context, grouped by kind, reordered with ↑ / ↓, 12 articles at most, a kind
  * with no context not drawn, saved with the bar's « Enregistrer » (one PUT per list changed, the server judging every reference).
  */
 import React from 'react';

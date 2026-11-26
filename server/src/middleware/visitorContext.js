@@ -1,7 +1,7 @@
 const net = require('net');
 
 /**
- * The website visitor behind the WordPress proxy (specs/terms-acceptance-record.md §3.6).
+ * The website visitor behind the WordPress proxy (specs/reservations/terms-acceptance-record.md §3.6).
  *
  * The proxy calls GuestFlow server-to-server, so `req.ip` is the WordPress host for every visitor. It
  * relays the real visitor in three headers, trusted ONLY because this middleware runs after
@@ -26,7 +26,7 @@ function readVisitor(req) {
 
 function visitorContext(req, res, next) {
   // Only the WordPress proxy relays a visitor; any other caller is its own visitor
-  // (specs/roostview-api-key.md rule 4) and cannot pick an identity through these headers.
+  // (specs/plugins/roostview-api-key.md rule 4) and cannot pick an identity through these headers.
   req.visitor = req.publicApiCaller === 'roostview' ? { ip: '', userAgent: '', pluginVersion: '' } : readVisitor(req);
   next();
 }

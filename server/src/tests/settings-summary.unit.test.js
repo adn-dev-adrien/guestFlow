@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 25 (UI/UX review 2026-10-18, proposal 20) — the summary
+// specs/settings/settings-rationalization.md rule 25 (UI/UX review 2026-10-18, proposal 20) — the summary
 // page reads one line of state per Paramètres page, computed by the server; a warning tone marks
 // what is missing; a line that cannot be computed is left out.
 

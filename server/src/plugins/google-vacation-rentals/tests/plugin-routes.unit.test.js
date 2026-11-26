@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rules 1, 2, 11, 12, 16, §4.3 — the plugin as the app mounts it:
+// specs/site/google-vacation-rentals-feed.md rules 1, 2, 11, 12, 16, §4.3 — the plugin as the app mounts it:
 // its routes behind the loader, its settings through the generic plugin settings endpoint, its event
 // subscriptions, its setup state and its data. Real loader, real database in memory.
 process.env.DB_PATH = ':memory:';

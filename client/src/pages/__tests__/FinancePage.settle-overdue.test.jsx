@@ -1,5 +1,5 @@
 /**
- * FinancePage — specs/finance-dashboard-redesign.md rule 38: « Marquer payé » on a row of « En retard »
+ * FinancePage — specs/accounting/finance-dashboard-redesign.md rule 38: « Marquer payé » on a row of « En retard »
  * ticks exactly the elements its chips list (review of PR #702, major 1: a late platform payout also
  * marked the guest's on-site complement as paid).
  */

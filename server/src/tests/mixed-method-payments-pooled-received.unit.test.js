@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 50 (audit R34 NEW-1, D25 « Une seule somme », Adrien 2026-11-09) — the money
+// specs/payments/mixed-method-payments.md rule 50 (audit R34 NEW-1, D25 « Une seule somme », Adrien 2026-11-09) — the money
 // received by a settlement paying several buckets (the single arrival payment, the SAS arrival and departure, the
 // complement carrying the end of stay) is ONE pool across its buckets. A later cut lowers the reste / the geste first:
 // the engine may lower any paid bucket of the pool down to what the pool received, the solde first, and every
@@ -48,7 +48,7 @@ function arrivalSplit(kind, shortCents = 5000) {
   return { stay, received: round2((due - shortCents) / 100) };
 }
 
-test('specs/mixed-method-payments.md rule 50 — single arrival payment with a reste, then 5 % off: the reste shrinks, no trop-perçu (P12)', async () => {
+test('specs/payments/mixed-method-payments.md rule 50 — single arrival payment with a reste, then 5 % off: the reste shrinks, no trop-perçu (P12)', async () => {
   const { stay, received } = arrivalSplit('due');
   const res = await save(stay, { discountPercent: 5 });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -61,7 +61,7 @@ test('specs/mixed-method-payments.md rule 50 — single arrival payment with a r
   assert.equal(overRow(stay.id), undefined);
 });
 
-test('specs/mixed-method-payments.md rule 50 — single arrival payment with a geste, then 5 % off: the geste shrinks, no trop-perçu (P12 geste)', async () => {
+test('specs/payments/mixed-method-payments.md rule 50 — single arrival payment with a geste, then 5 % off: the geste shrinks, no trop-perçu (P12 geste)', async () => {
   const { stay, received } = arrivalSplit('waived');
   const res = await save(stay, { discountPercent: 5 });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -71,7 +71,7 @@ test('specs/mixed-method-payments.md rule 50 — single arrival payment with a g
   assert.equal(overRow(stay.id), undefined);
 });
 
-test('specs/mixed-method-payments.md rule 50 — a cut beyond the reste: the trop-perçu is the money received beyond the new total', async () => {
+test('specs/payments/mixed-method-payments.md rule 50 — a cut beyond the reste: the trop-perçu is the money received beyond the new total', async () => {
   const { stay, received } = arrivalSplit('due');
   const refused = await save(stay, { discountPercent: 20 });
   assert.equal(refused.statusCode, 409, JSON.stringify(refused.body));
@@ -85,7 +85,7 @@ test('specs/mixed-method-payments.md rule 50 — a cut beyond the reste: the tro
   assert.equal(overRow(stay.id).amount, round2(received - total(stay.id)));
 });
 
-test('specs/mixed-method-payments.md rule 50 — the line collected at arrival removed: the pool gives up the reste, the rest is a true trop-perçu', async () => {
+test('specs/payments/mixed-method-payments.md rule 50 — the line collected at arrival removed: the pool gives up the reste, the rest is a true trop-perçu', async () => {
   const { stay, received } = arrivalSplit('due');
   const refused = await save(stay, { customOptions: [] });
   assert.equal(refused.statusCode, 409, JSON.stringify(refused.body));
@@ -98,7 +98,7 @@ test('specs/mixed-method-payments.md rule 50 — the line collected at arrival r
   assert.equal(overRow(stay.id).amount, 30);
 });
 
-test('specs/mixed-method-payments.md rule 50 — a small cut, then the line collected at arrival removed: one pool, counted once', async () => {
+test('specs/payments/mixed-method-payments.md rule 50 — a small cut, then the line collected at arrival removed: one pool, counted once', async () => {
   const { stay, received } = arrivalSplit('due');
   assert.equal((await save(stay, { discountPercent: 3 })).statusCode, 200);
   const refused = await save(stay, { customOptions: [] });
@@ -109,7 +109,7 @@ test('specs/mixed-method-payments.md rule 50 — a small cut, then the line coll
   assert.equal(rowOf(stay.id).splitShortfallDue, 0);
 });
 
-test('specs/mixed-method-payments.md rule 50 — readSplitReceived reads a pool: the buckets it cannot lower full, the solde the rest', () => {
+test('specs/payments/mixed-method-payments.md rule 50 — readSplitReceived reads a pool: the buckets it cannot lower full, the solde the rest', () => {
   const { stay, received } = arrivalSplit('due');
   const r = rowOf(stay.id);
   const read = readSplitReceived(db, stay.id);

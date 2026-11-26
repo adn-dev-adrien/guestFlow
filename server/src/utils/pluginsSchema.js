@@ -1,5 +1,5 @@
 /**
- * Schema and first seed of the `plugins` table (specs/plugins-phase-0-foundation.md §5, rules 10–12).
+ * Schema and first seed of the `plugins` table (specs/plugins/plugins-phase-0-foundation.md §5, rules 10–12).
  *
  * No row = the plugin is available (not installed). A database that already holds a property or a
  * reservation when the seed runs is an existing install: it gets the twelve built-ins installed and
@@ -13,7 +13,7 @@ const { SEEDED_ON_EXISTING_IDS } = require('../constants/plugins');
 const SEED_MIGRATION = 'plugins_builtin_seed_v1';
 const SETTINGS_COPY_MIGRATION = 'plugin_settings_from_app_settings_v1';
 
-// specs/plugins-phase-1-sdk.md §5 — the app_settings columns a moved plugin now reads from
+// specs/plugins/plugins-phase-1-sdk.md §5 — the app_settings columns a moved plugin now reads from
 // plugin_settings. Encrypted blobs are copied byte for byte: same key, same format.
 const SETTINGS_COPY = [
   ['meteoFranceApiKeyEncrypted', 'weather-alerts', 'apiKey'],
@@ -41,7 +41,7 @@ function ensurePluginsTable(db) {
   ensurePackageColumns(db);
 }
 
-// specs/plugins-phase-4-registry.md §5 — what a package install records (rule 11) and what a
+// specs/plugins/plugins-phase-4-registry.md §5 — what a package install records (rule 11) and what a
 // rollback needs (rule 16). Idempotent; a row from before phase 4 keeps every value it had, and its
 // `builtin` source becomes `bundled`: the copy shipped in the release archive, which is exactly
 // what it was running.
@@ -69,7 +69,7 @@ function ensurePackageColumns(db) {
   db.prepare("UPDATE plugins SET source = 'bundled' WHERE source = 'builtin'").run();
 }
 
-// specs/plugin-operator-provisioning.md §5 — what the reconciliation did with the operator's choice.
+// specs/plugins/plugin-operator-provisioning.md §5 — what the reconciliation did with the operator's choice.
 // Empty and never written on a space that no operator manages.
 function ensureProvisioningTables(db) {
   db.exec(`

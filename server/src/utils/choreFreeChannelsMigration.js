@@ -1,5 +1,5 @@
 /**
- * `platforms.forbidsGuestChores` (specs/airbnb-no-checkout-chores.md rule 8): the column on every boot,
+ * `platforms.forbidsGuestChores` (specs/platforms/airbnb-no-checkout-chores.md rule 8): the column on every boot,
  * and the one-shot `chore_free_channels_v1` that ticks it on the Airbnb rows of an existing database.
  *
  * Until this flag, the code recognised Airbnb by its name. That knowledge is kept here, as a migration

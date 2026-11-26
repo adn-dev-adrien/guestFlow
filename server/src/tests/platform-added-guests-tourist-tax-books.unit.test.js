@@ -1,4 +1,4 @@
-// Declaration of the added guests' tourist tax — specs/platform-added-guests-tourist-tax.md rules 11-12,
+// Declaration of the added guests' tourist tax — specs/tourist-tax/platform-added-guests-tourist-tax.md rules 11-12,
 // 15: declared once collected, a declaration already made does not move. Rule 13 (the books) is tested
 // beside the export: plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js.
 

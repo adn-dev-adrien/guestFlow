@@ -10,7 +10,7 @@ import { displayDateTime } from '../../utils/formatters';
  * Pure renderer: the server ships ready-to-print rows
  * (`{ field, group, label, kind: 'added'|'removed'|'changed', fromText, toText }`) split into
  * `changes` (what was edited) and `derived` (what the pricing engine recomputed).
- * See specs/reservation-history-granular-diff.md.
+ * See specs/reservations/reservation-history-granular-diff.md.
  *
  * Props:
  * - entries: array of `{ id, eventType, createdAt, changes, derived }`
@@ -20,21 +20,21 @@ import { displayDateTime } from '../../utils/formatters';
  */
 
 // Title of an entry, per event type. Anything unknown reads « Modification » (the historical
-// default). specs/arrival-departure-sas.md §3.7 adds the two SAS ones.
+// default). specs/sas/arrival-departure-sas.md §3.7 adds the two SAS ones.
 const HISTORY_EVENT_TITLES = {
   create: 'Création',
   update: 'Modification',
-  // specs/public-request-abuse-and-grouping.md rule 13.
+  // specs/site/public-request-abuse-and-grouping.md rule 13.
   public_update: 'Demande mise à jour depuis le site',
   sas_arrival: 'SAS arrivée',
   sas_departure: 'SAS départ',
-  // specs/platform-statement-after-payout.md rule 10.
+  // specs/platforms/platform-statement-after-payout.md rule 10.
   platform_statement: 'Relevé plateforme corrigé',
-  // specs/terms-acceptance-record.md rule 20.
+  // specs/reservations/terms-acceptance-record.md rule 20.
   terms_accepted: 'CGV acceptées en ligne',
-  // specs/plugins-phase-3a-online-payment.md rule 3: money received, accounting split missing.
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 3: money received, accounting split missing.
   payment_capture_failed: 'Paiement en ligne',
-  // specs/calendar-property-parity.md rule 24.
+  // specs/planning/calendar-property-parity.md rule 24.
   superseded: 'Doublon écarté',
   unsuperseded: 'Doublon rétabli',
 };

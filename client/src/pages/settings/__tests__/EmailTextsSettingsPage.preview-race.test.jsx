@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 13 — the preview always shows the latest draft: a slower
+// specs/emails/guest-email-texts-made-simple.md rule 13 — the preview always shows the latest draft: a slower
 // answer to an older draft (or its refusal) never overwrites the newer one.
 import { vi } from 'vitest';
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';

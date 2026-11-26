@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 47 — the re-authentication dialog: both fields when a code
+// specs/hosting/hosting-h2-account-security.md rule 47 — the re-authentication dialog: both fields when a code
 // is needed, « Recevoir un code » for the email method with its countdown, and the server's refusal
 // where it belongs.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 34 — on a phone the closures page keeps a title, and
+// specs/plugins/plugins-phase-p-productisation.md rule 34 — on a phone the closures page keeps a title, and
 // « Aucune fermeture configurée. » is shown whole, outside the table's inner scroll.
 import React from 'react';
 import { vi } from 'vitest';

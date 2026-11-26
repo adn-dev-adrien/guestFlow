@@ -1,6 +1,6 @@
 /**
  * Bed-linen adequacy check for the planning arrival cards
- * (specs/planning-arrival-alerts.md §3 rule 6).
+ * (specs/planning/planning-arrival-alerts.md §3 rule 6).
  *
  * Pure function — no DB access. Mirrors the capacity formula already used live in the
  * reservation form (ReservationPage `bedsCapacityMismatch`) so the planning surfaces the SAME

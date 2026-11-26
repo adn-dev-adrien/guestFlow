@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rules 3, 5–7 — reading the account into the plugin's table.
+// specs/accounting/qonto-bank-reconciliation.md rules 3, 5–7 — reading the account into the plugin's table.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

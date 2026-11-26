@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 B25-1) — the shortfall choice answers for one amount due. A draft
+// specs/payments/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 B25-1) — the shortfall choice answers for one amount due. A draft
 // brings it back only for the same due; for another due the lines stay as typed and the choice is asked again, the commit waiting for it
 // (before: « Geste commercial » chosen for 50 € of 500 € came back for 134 € of 584 € and was recorded without being asked). A due that
 // changes while the block is mounted asks it again the same way.

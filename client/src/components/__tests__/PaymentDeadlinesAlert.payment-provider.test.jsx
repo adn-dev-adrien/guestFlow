@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * specs/plugins-phase-3a-online-payment.md rules 5, 9, 19 — the dashboard card follows the server:
+ * specs/plugins/plugins-phase-3a-online-payment.md rules 5, 9, 19 — the dashboard card follows the server:
  * no « Relancer » without a payment provider (`remindType: null`), and a cancellation whose payment
  * link could not be deactivated says so, in the server's words.
  */
@@ -24,7 +24,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
 
 const ROW = {

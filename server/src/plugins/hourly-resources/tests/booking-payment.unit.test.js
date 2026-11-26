@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 11-13 — the payment of a booking, through the fiches' tender rules.
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 11-13 — the payment of a booking, through the fiches' tender rules.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed, book, card } = require('./standaloneBookingFixture');

@@ -1,6 +1,6 @@
 /**
  * ClientFormFields — the address block and the email/phone drop zones send their raw payload to the
- * server and render what comes back (specs/client-contact-smart-input.md). Nothing is parsed here, so
+ * server and render what comes back (specs/clients/client-contact-smart-input.md). Nothing is parsed here, so
  * these tests assert the plumbing: what is sent, what is written back, and what happens on failure.
  */
 

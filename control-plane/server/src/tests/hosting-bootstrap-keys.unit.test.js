@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 26 and 27 — what the operator no longer types by hand:
+// specs/hosting/hosting-h1-fleet-runtime.md rules 26 and 27 — what the operator no longer types by hand:
 // bootstrap generates the licence key pair (Ed25519, base64 DER, the format the console loads) once,
 // and the object storage keys are typed once — rclone's remote and keys are derived from the
 // console's own environment, so no `rclone config` and no second copy to keep in step.

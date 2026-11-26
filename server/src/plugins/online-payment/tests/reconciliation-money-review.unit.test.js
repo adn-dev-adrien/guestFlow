@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md — the money review of 2026-10-28: an early credit is no « sûr » match
+// specs/accounting/reconciliation-assisted-matching.md — the money review of 2026-10-28: an early credit is no « sûr » match
 // (rules 17, 20), a group never beats an exact single stay and always waits for the operator (rule 18), « Défaire »
 // takes an auto-confirmed installment back (rule 21), a penalty is offered on a partial cover and completes it
 // (rules 24, 31), the headline follows the penalty (rule 27), an unrecorded payout is capped (rules 5–6).

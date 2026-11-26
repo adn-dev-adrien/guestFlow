@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 42 (audit R34-DB-M1) — a paid complement split over several methods, lowered on
+// specs/payments/mixed-method-payments.md rule 42 (audit R34-DB-M1) — a paid complement split over several methods, lowered on
 // the fiche: rule 39 reads it at its new amount, and the refund guard of reservation-refunds.md rule 52 judges the state
 // the save writes. With no book refund on the stay nothing can block the save; with one, only a real shortfall does.
 process.env.DB_PATH = ':memory:';
@@ -30,7 +30,7 @@ async function save(stay, over) {
   return res;
 }
 
-test('specs/mixed-method-payments.md rule 42 — 80 € (30 caisse + 50 CB) lowered to 20 €, no refund: saved, read at 20 €', async () => {
+test('specs/payments/mixed-method-payments.md rule 42 — 80 € (30 caisse + 50 CB) lowered to 20 €, no refund: saved, read at 20 €', async () => {
   const stay = splitComplement();
   const res = await save(stay, { complementAmountOverride: 20 });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -40,14 +40,14 @@ test('specs/mixed-method-payments.md rule 42 — 80 € (30 caisse + 50 CB) lowe
   assert.equal(r.splitOffBooksAmount, 7.5);
 });
 
-test('specs/mixed-method-payments.md rule 42 — lowered to 0 €, no refund: saved', async () => {
+test('specs/payments/mixed-method-payments.md rule 42 — lowered to 0 €, no refund: saved', async () => {
   const stay = splitComplement();
   const res = await save(stay, { complementAmountOverride: 0 });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(rowOf(stay.id).splitOffBooksAmount, 0);
 });
 
-test('specs/mixed-method-payments.md rule 42 — a book refund above what the lowered complement leaves: refused, naming it', async () => {
+test('specs/payments/mixed-method-payments.md rule 42 — a book refund above what the lowered complement leaves: refused, naming it', async () => {
   const stay = splitComplement();
   const line = register(stay.id).refundableLines.find((l) => l.label === 'Forcée');
   const given = refund(stay.id, [{ key: line.key, amountTtc: 40 }]);
@@ -60,7 +60,7 @@ test('specs/mixed-method-payments.md rule 42 — a book refund above what the lo
   assert.equal(rowOf(stay.id).complementAmount, 80);
 });
 
-test('specs/mixed-method-payments.md rule 42 — a refund between the stale and the true « after »: the lowered complement still saves', async () => {
+test('specs/payments/mixed-method-payments.md rule 42 — a refund between the stale and the true « after »: the lowered complement still saves', async () => {
   // Solde paid whole on the books (604,80 €) + the split complement: once lowered to 20 €, the books hold
   // 604,80 + 20 × 50 / 80 = 617,30 €. The aggregates of the old amount (30 € off the books) would read 594,80 €.
   const stay = splitComplement();
@@ -72,7 +72,7 @@ test('specs/mixed-method-payments.md rule 42 — a refund between the stale and 
   assert.equal(rowOf(stay.id).complementAmount, 20);
 });
 
-test('specs/mixed-method-payments.md rule 42 — nothing refunded on the books: nothing to protect, whatever « after » reads', () => {
+test('specs/payments/mixed-method-payments.md rule 42 — nothing refunded on the books: nothing to protect, whatever « after » reads', () => {
   const { untickRefusal } = require('../utils/refundUntickGuard');
   // An installment taken back beyond what the row recorded reads a negative « after »: with no book refund, no refusal.
   assert.equal(untickRefusal({ installmentsPaidAmount: 0 }, { installmentsPaidAmount: -30 }, []), null);

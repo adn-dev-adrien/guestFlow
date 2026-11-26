@@ -1,5 +1,5 @@
 /**
- * A client typed on the fiche is written with the stay, never before (specs/clients.md rule 13).
+ * A client typed on the fiche is written with the stay, never before (specs/clients/clients.md rule 13).
  *
  * The fiche used to save « Créer un nouveau client » at once: a fiche abandoned afterwards left a
  * client with no stay, and three tries left three copies. The fiche now sends the typed client as

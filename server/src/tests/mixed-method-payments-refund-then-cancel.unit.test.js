@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 57 (verification R35b, finding 1) — an acompte paid by card, a solde paid with
+// specs/payments/mixed-method-payments.md rule 57 (verification R35b, finding 1) — an acompte paid by card, a solde paid with
 // several methods (part in the caisse interne, part a geste), everything on the books given back while the stay is live,
 // THEN the stay cancelled. The cancellation read the solde gross, so the solde absorbed caisse and geste money it never
 // put on the books, and the acompte kept the difference as a 7588 indemnity: phantom revenue, and the caisse money

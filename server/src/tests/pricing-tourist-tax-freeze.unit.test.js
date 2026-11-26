@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tourist-tax-freeze-past-with-refresh.md — when `freezeTouristTax` is set, the quote pins the
+// specs/tourist-tax/tourist-tax-freeze-past-with-refresh.md — when `freezeTouristTax` is set, the quote pins the
 // tourist-tax AMOUNT to the provided `frozenTouristTaxTotal` / `frozenTouristTaxRate` (a past
 // reservation's stored values) instead of recomputing from current property settings. The routing
 // (balance / complément) still applies to that frozen amount.

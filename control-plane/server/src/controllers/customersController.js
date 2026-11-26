@@ -1,5 +1,5 @@
 /**
- * Customers of the platform (specs/control-plane-plans-and-access.md rules 7, 8, 9, 14, 15, 19, 20).
+ * Customers of the platform (specs/hosting/control-plane-plans-and-access.md rules 7, 8, 9, 14, 15, 19, 20).
  *
  * Every action ends the same way: the state is recomputed from the dates (lifecycle.js), a
  * transition is journaled, and the licence is re-issued and written to the instance. The payloads
@@ -42,7 +42,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Rule 7 (C2b): where a customer can be invoiced from. Qonto wants an ISO country code.
 const COUNTRIES = { FR: 'France', BE: 'Belgique', CH: 'Suisse', LU: 'Luxembourg', MC: 'Monaco', ES: 'Espagne', IT: 'Italie', DE: 'Allemagne' };
 
-// Rule 7 with specs/hosting-h1-fleet-runtime.md rules 1–7 (2026-10-08): every step is automatic,
+// Rule 7 with specs/hosting/hosting-h1-fleet-runtime.md rules 1–7 (2026-10-08): every step is automatic,
 // run by the console through the host drivers; none is ticked by hand any more.
 const CREATE_STEPS = PROVISION_STEPS.map((s) => ({ ...s, kind: 'auto' }));
 const DEPROVISION_STEPS = [
@@ -245,7 +245,7 @@ function createCustomersController(ctx) {
     }
     const payload = licencePayload(id, true);
     const result = issuer.write(c.slug, issuer.sign(payload));
-    // The stamp the space answers to (specs/plugin-operator-provisioning.md rule 14).
+    // The stamp the space answers to (specs/plugins/plugin-operator-provisioning.md rule 14).
     if (result.written) models.meta.set(`licenceIssuedAt:${id}`, payload.issuedAt);
     provisioning.set(id, 'licence', result.written ? 'ok' : 'failed',
       result.written ? `Écrite dans ${result.path}` : `${result.reason} Téléchargez-la depuis cette page, ou réessayez une fois le dossier créé.`, stamp());

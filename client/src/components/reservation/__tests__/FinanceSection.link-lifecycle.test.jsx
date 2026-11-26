@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 24 and 42 — the ledger row prints the server's link label, offers
+// specs/payments/payment-link-lifecycle.md rules 24 and 42 — the ledger row prints the server's link label, offers
 // « Renvoyer la demande » only when the server does, and « Retirer le lien » behind its confirmation.
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -76,7 +76,7 @@ test('rule 42 (review of #902, L5): a second open link of the row prints too, ea
   expect(ctx.withdrawPaymentLink).toHaveBeenCalledWith(40);
 });
 
-// specs/payment-link-lifecycle.md rule 56 — a payment received after a withdrawal by hand: refunded or recorded on the stay.
+// specs/payments/payment-link-lifecycle.md rule 56 — a payment received after a withdrawal by hand: refunded or recorded on the stay.
 const SETTLE = {
   linkId: 44,
   stay: { label: 'Enregistrer sur le séjour', confirmTitle: 'Enregistrer ce paiement sur le séjour ?', confirmMessage: 'Le montant est compté comme perçu.', confirmLabel: 'Enregistrer' },

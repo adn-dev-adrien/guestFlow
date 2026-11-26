@@ -1,8 +1,8 @@
 import { countDayTasks } from '../planningDayTasks';
 
-// specs/planning-day-task-count.md — the Planning day chip counts every tickable card of the day
+// specs/planning/planning-day-task-count.md — the Planning day chip counts every tickable card of the day
 // (issue #15): arrivals, departures and what the plugins' cards hold to tick — the resource sessions
-// come from the hourly-resources plugin (specs/plugins-phase-3c-hourly-resources.md rule 22). It used to
+// come from the hourly-resources plugin (specs/plugins/plugins-phase-3c-hourly-resources.md rule 22). It used to
 // count arrivals only, so a day made of departures read « 0/0 » and never turned green.
 
 test('arrivals only: the historical behaviour is preserved', () => {

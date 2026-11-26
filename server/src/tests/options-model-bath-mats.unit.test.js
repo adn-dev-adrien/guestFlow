@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../models/optionsModel');
 
-// specs/laundry-bath-mat.md §4 — the "Tapis de bain" option carries a per-property quantity
+// specs/linen/laundry-bath-mat.md §4 — the "Tapis de bain" option carries a per-property quantity
 // (property_option_bath_mats), persisted through the option save payload exactly like
 // per-property prices. Mirror of options-model-property-prices.unit.test.js.
 
@@ -80,7 +80,7 @@ test('list exposes propertyBathMats per option', () => {
   assert.deepEqual(opt.propertyBathMats, { 10: 4 });
 });
 
-// specs/laundry-bath-mat.md §3 rule 11 — generic client-visibility flag round-trips.
+// specs/linen/laundry-bath-mat.md §3 rule 11 — generic client-visibility flag round-trips.
 test('displayToClient round-trips (default 1; explicit 0 persisted)', () => {
   const model = freshDb();
   const visible = model.create({ title: 'Ménage', priceType: 'per_stay', price: 40, displayToClient: true });

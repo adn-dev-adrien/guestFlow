@@ -9,7 +9,7 @@ A recipe is **data, not code**: a versioned JSON document describing *what* a pr
 is. `server/src/plugins/tariff-recipes/seasonPlan.js` turns it into dated season ranges; `plugins/tariff-recipes/model.js`
 diffs it against a property and applies it. You never write date logic — you declare rules.
 
-Read `specs/tariff-recipes/spec.md` before a substantial change; it is the source of truth.
+Read `specs/pricing/tariff-recipes.md` before a substantial change; it is the source of truth.
 `server/src/plugins/tariff-recipes/recipes/aventura-lodge-2026.json` is the worked example.
 
 ## Workflow
@@ -58,7 +58,7 @@ Read `specs/tariff-recipes/spec.md` before a substantial change; it is the sourc
 | Calendar: base season, periods, modifiers | Options included in the rate (`property_option_defaults.offered`) |
 | Recurring closures | Free units on an option (`property_option_prices.freeUnits`) |
 | Welcome-pack COST price (`welcomePack.cost`) — a margin input, never guest-facing | Which options make up the pack |
-| Cleaning billed apart by a channel (`cleaning`: ménage net cost, hourly rate, and per channel `chargesCleaning` + `choresMinutes`) — the grid's « Ménage / séjour » column grosses it up with the channel's commission (`specs/tariff-recipe-platform-cleaning-fee.md`) | The ménage option price GuestFlow bills on its own fiches |
+| Cleaning billed apart by a channel (`cleaning`: ménage net cost, hourly rate, and per channel `chargesCleaning` + `choresMinutes`) — the grid's « Ménage / séjour » column grosses it up with the channel's commission (`specs/pricing/tariff-recipe-platform-cleaning-fee.md`) | The ménage option price GuestFlow bills on its own fiches |
 | Extra-guest unit and threshold | Extra-guest price on the property |
 | Horizon | Platform commissions (global, shared between properties) |
 
@@ -107,7 +107,7 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
    labels the property already uses, or the operator will hit a wall on day one.
 10. **Never delete linen or cleaning options** because a document says the fees are removed. The
     laundry engine counts linen from the option ticked on the reservation
-    (`specs/laundry-counts-explicit-option-only.md`). Mark them included in the rate instead — which
+    (`specs/linen/laundry-counts-explicit-option-only.md`). Mark them included in the rate instead — which
     also makes them deductible from the percentage-mode tourist-tax base.
 11. **Archived and internal options must never become defaults.** An archived duplicate or an
     internal counter (`displayToClient = 0`, e.g. « Tapis de bain ») produces a phantom line on the
@@ -132,11 +132,11 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
     recipe, verify the grid's direct row REPRODUCES the displayed prices — that identity is the
     whole point of a net pivot, and it fails loudly the moment one is dropped.
 16. **`extraGuest.unit` and `appliesAbove` are written on the property by the apply** (rule 64 of
-    `specs/tariff-recipes/spec.md`); the preview lists them as « Supplément voyageurs » / « Personnes
+    `specs/pricing/tariff-recipes.md`); the preview lists them as « Supplément voyageurs » / « Personnes
     incluses ». A tier table on a `per_stay` unit is refused at load: a per-stay supplement never reads
     tiers, and the card would announce a price nobody is billed.
 17. **A cleaning fee for a channel the installation does not record is skipped, not blocking**
-    (`specs/tariff-recipe-platform-cleaning-fee.md` rule 15). The preview names it; re-apply once
+    (`specs/pricing/tariff-recipe-platform-cleaning-fee.md` rule 15). The preview names it; re-apply once
     the platform exists in Paramètres › Plateformes.
 
 ## Validation the loader enforces

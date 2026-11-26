@@ -4,10 +4,10 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tourist-tax-base-accommodation-only.md — in percentage mode the tax base is the
+// specs/tourist-tax/tourist-tax-base-accommodation-only.md — in percentage mode the tax base is the
 // ACCOMMODATION CHARGED. Extras, their Complément routing and the platform brut are all inert; only
 // the tariff nights, the discount and the manual « Prix hébergement ajusté » move it — plus, since
-// specs/tourist-tax-included-services-deduction.md, the services included in that rate, which are
+// specs/tourist-tax/tourist-tax-included-services-deduction.md, the services included in that rate, which are
 // deducted from it (they are sold inside the night, so they are not the dry night).
 
 function createDb({ mode = 'percentage_accommodation', defaultOffered = true, optionPrice = 34.09 } = {}) {
@@ -66,7 +66,7 @@ test('the base is the accommodation charged — 200 €, not the total', () => {
   db.close();
 });
 
-// specs/tourist-tax-matches-the-office-calculation.md rule 6 — every other extra stays inert: it
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 6 — every other extra stays inert: it
 // never enters the base, it only ever leaves it through rule 2, and only for what was billed.
 test('no BILLED extra moves the tax — paid, custom, resource, routed to Complément or not', () => {
   const db = createDb();
@@ -88,7 +88,7 @@ test('no BILLED extra moves the tax — paid, custom, resource, routed to Compl�
   db.close();
 });
 
-// specs/tourist-tax-included-services-deduction.md rule 7 — the Complément routing is not a price
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rule 7 — the Complément routing is not a price
 // lever: an included service leaves the base by the same amount wherever it is collected.
 test('an included service leaves the base, and its Complément routing changes nothing', () => {
   const db = createDb();
@@ -123,7 +123,7 @@ test('an included value larger than the accommodation floors the base at 0', () 
   db.close();
 });
 
-// specs/tourist-tax-matches-the-office-calculation.md rules 1-2 — the base is the accommodation the
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 1-2 — the base is the accommodation the
 // guest actually paid, and where that figure lives depends on who took the money.
 test('the platform brut derives the base again, net of the extras billed through it', () => {
   const db = createDb();
@@ -139,7 +139,7 @@ test('the platform brut derives the base again, net of the extras billed through
     selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 1 }],
   });
 
-  // specs/tourist-tax-matches-the-office-calculation.md rule 3 — no brut, no change: the tariff is
+  // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 3 — no brut, no change: the tariff is
   // what the guest paid us.
   assert.equal(platformNoBrut.touristTaxBaseAccommodation, 200);
   assert.equal(platformNoBrut.touristTaxTotal, direct.touristTaxTotal);
@@ -156,12 +156,12 @@ test('the platform brut derives the base again, net of the extras billed through
   assert.equal(platformBrutAndComplementExtra.touristTaxBaseAccommodation, 450);
 
   // The brut still pins the money: it holds the whole stay, the reversed tax included
-  // (specs/platform-payment-tourist-tax-as-option.md).
+  // (specs/tourist-tax/platform-payment-tourist-tax-as-option.md).
   assert.equal(platformWithBrut.totalStayPrice, 450);
   db.close();
 });
 
-// specs/tourist-tax-matches-the-office-calculation.md rule 4 — the extra-guest surcharge is NOT part
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 4 — the extra-guest surcharge is NOT part
 // of the base. On the tariff branch it simply is not added; inside a brut the guest HAS paid it, so it
 // has to be subtracted. Operator decision of 2026-09-01, and the heaviest one in the spec: it declares
 // less than the guest paid to sleep, so it gets a test of its own rather than riding on another.
@@ -188,7 +188,7 @@ test('a brut that does not even cover its extras is flagged, and floors the base
     ...BASE, db, platform: 'Lodgify', platformGrossAmount: 5,
     selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 0 }],
   });
-  // specs/tourist-tax-matches-the-office-calculation.md rules 7 + 16 — an inconsistent entry, not a
+  // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 7 + 16 — an inconsistent entry, not a
   // negative base and not a silent zero.
   assert.equal(quote.touristTaxBaseAccommodation, 0);
   assert.equal(quote.touristTaxBrutInconsistent, true);

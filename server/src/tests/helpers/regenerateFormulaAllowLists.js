@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 66 — rewrites `fixtures/no-duplicate-formulas/<guard>.json` from the tree as it is:
+// specs/pricing/pricing-components.md §3 rule 66 — rewrites `fixtures/no-duplicate-formulas/<guard>.json` from the tree as it is:
 // one entry per surviving copy, nothing stale. An entry that already carries its removedBy and reason keeps them; a new
 // one gets the PR and the reason of its guard (`helpers/formulaGuards.js`). Without `--write` it only prints the sizes.
 //   node server/src/tests/helpers/regenerateFormulaAllowLists.js [--write]

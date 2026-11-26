@@ -1,4 +1,4 @@
-// specs/terms-acceptance-record.md §3.7 — `{{cgvUrl}}` in guest emails (pinned to the version the
+// specs/reservations/terms-acceptance-record.md §3.7 — `{{cgvUrl}}` in guest emails (pinned to the version the
 // guest accepted, else the current one) and the one-shot migration of the stored confirmation template.
 const test = require('node:test');
 const assert = require('node:assert/strict');

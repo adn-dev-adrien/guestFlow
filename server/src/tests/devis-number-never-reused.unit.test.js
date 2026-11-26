@@ -1,4 +1,4 @@
-// specs/public-request-abuse-and-grouping.md rule 35 (audit R34b N3-2). « A quote number may have gaps, not repeats »
+// specs/site/public-request-abuse-and-grouping.md rule 35 (audit R34b N3-2). « A quote number may have gaps, not repeats »
 // (rule 10) held for the purge of website requests only: a devis deleted from its fiche (« Supprimer… », allowed again on
 // the devis of a cancelled stay by deposit-blocks-the-dates rule 23) or by a client's or a logement's cascade gave its
 // number back, and the next devis carried the number a guest already held on a PDF.

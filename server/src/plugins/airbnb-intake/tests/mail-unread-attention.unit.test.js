@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 32 (audit r4, external N1) — a pass that hit the mail cap says how many mails it
+// specs/platforms/airbnb-mail-intake.md rule 32 (audit r4, external N1) — a pass that hit the mail cap says how many mails it
 // left unread, in its result and on the home's attention line, in short impersonal French.
 const test = require('node:test');
 const assert = require('node:assert/strict');

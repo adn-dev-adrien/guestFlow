@@ -1,6 +1,6 @@
 /**
  * The running instance's plugin packages, as one object the boot, the controller and the asset
- * route share (specs/plugins-phase-4-registry.md rules 9–19).
+ * route share (specs/plugins/plugins-phase-4-registry.md rules 9–19).
  *
  *   mode            `packages` (a release: every plugin from its package, P27) or `sources`
  *                   (development and unit suites: the folders of server/src/plugins, rule 19)
@@ -228,7 +228,7 @@ function boot({ db, loader, registry, model, catalogue }) {
   const s = init();
   const ids = catalogue.map((p) => p.id);
   const rows = housekeeping({ model, ids });
-  // specs/plugin-removal-resilience.md rule 1 — an installed plugin whose code is gone from this
+  // specs/plugins/plugin-removal-resilience.md rule 1 — an installed plugin whose code is gone from this
   // release (it left the catalogue) is still reported, and can be uninstalled.
   const order = [...ids, ...rows.map((r) => r.id).filter((id) => !ids.includes(id))];
   const missing = { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' };
@@ -250,7 +250,7 @@ function boot({ db, loader, registry, model, catalogue }) {
 }
 
 /**
- * specs/hosting-h1-fleet-runtime.md rule 11 — whether a plugin pushed by the console came up: the
+ * specs/hosting/hosting-h1-fleet-runtime.md rule 11 — whether a plugin pushed by the console came up: the
  * version this process loaded, and `ok` false when it was left out or its `register` threw.
  */
 function pluginHealth(id, registry = require('./sdk/registry')) {

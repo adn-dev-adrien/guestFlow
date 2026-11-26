@@ -1,5 +1,5 @@
 /**
- * The renewal (specs/control-plane-plans-and-access.md rules 15, 17, 18, 19, 33, 34): the Qonto
+ * The renewal (specs/hosting/control-plane-plans-and-access.md rules 15, 17, 18, 19, 33, 34): the Qonto
  * invoice of the next period, the emails of that invoice, the approval queue, « Relancer
  * maintenant », payment detection, and the operator's daily email.
  *

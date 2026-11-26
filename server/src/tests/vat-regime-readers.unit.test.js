@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 8 — one resolver. No code outside vatRegimeModel reads the settings
+// specs/accounting/vat-optional-mode.md rule 8 — one resolver. No code outside vatRegimeModel reads the settings
 // column, and each reader of the rate answers the period of the row it works on: on a database with
 // two periods (10 % for the stays before 2027-08-01, 20 % from then on) every one of them gives the
 // right rate to a stay of each side.

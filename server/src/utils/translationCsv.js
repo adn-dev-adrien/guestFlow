@@ -1,5 +1,5 @@
 /**
- * The translation catalogue's exchange format (specs/translation-catalogue.md §3.2).
+ * The translation catalogue's exchange format (specs/site/translation-catalogue.md §3.2).
  *
  * Pure: no database, no filesystem. It turns catalogue rows into the CSV the operator downloads, and
  * turns the file they send back into a list of changes — nothing else decides anything here.
@@ -42,7 +42,7 @@ function langOfHeader(header) {
 }
 
 /** RFC 4180 with the separator we are writing: quote only when we must, double the inner quotes. */
-// specs/guest-email-texts-made-simple.md rule 22 — a cell starting with = + - @ is read by Excel as a
+// specs/emails/guest-email-texts-made-simple.md rule 22 — a cell starting with = + - @ is read by Excel as a
 // formula: « - Garez-vous… » became #NOM?. The apostrophe tells the spreadsheet « text », and the
 // import takes it off again. A cell Excel already turned into an error value is refused, never stored.
 const FORMULA_START = /^[=+\-@]/;
@@ -155,7 +155,7 @@ function splitRows(text, sep) {
 /**
  * Separator: whichever of `,` and `;` appears first on the header line. Excel on a French locale
  * writes `;`, Numbers writes `,`, and both are this file's natural home. Shared with
- * utils/emailTextsCsv.js (specs/guest-email-texts-made-simple.md rule 18).
+ * utils/emailTextsCsv.js (specs/emails/guest-email-texts-made-simple.md rule 18).
  */
 function detectSeparator(raw) {
   const firstLine = String(raw || '').split(/\r?\n/, 1)[0];

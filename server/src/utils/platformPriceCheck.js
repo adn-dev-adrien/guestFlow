@@ -1,6 +1,6 @@
 /**
  * Is the price a platform sold a stay at far from the « Prix plateformes » grid of that channel?
- * (specs/reservation-payment-ledger.md §3.8, rules 58-61 and 63.)
+ * (specs/payments/reservation-payment-ledger.md §3.8, rules 58-61 and 63.)
  *
  * Our own tariff always differs from what a platform charges — the platform's price is the grid, grossed
  * up by its commission — so comparing with the tariff would fire on every platform stay. Comparing with

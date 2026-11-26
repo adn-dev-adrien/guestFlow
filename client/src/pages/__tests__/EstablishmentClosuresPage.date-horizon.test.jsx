@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 18, reading of 2026-11-02 (specs/reservations-backend-mvc.md rule 13) — a
+// specs/pricing/establishment-closures.md rule 18, reading of 2026-11-02 (specs/tech/reservations-backend-mvc.md rule 13) — a
 // closure date moved past today + 5 years says « Date trop lointaine : 5 ans au plus. » under its field; the dialog
 // neither previews nor saves it. A closure already stored past the horizon (a tariff recipe's) opens without it.
 import React from 'react';

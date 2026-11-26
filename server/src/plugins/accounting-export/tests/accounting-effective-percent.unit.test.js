@@ -10,7 +10,7 @@ const { entryToRows, buildStructuredEntries } = require('../accountingExport');
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
-// Non-regression suite for specs/accounting-encaissement-effective-percent.md — one test per
+// Non-regression suite for specs/accounting/accounting-encaissement-effective-percent.md — one test per
 // problem (P1..P7) Adrien reported on the Comptabilité page (2026-07-15), pinned on the exact
 // prod reference: reservation #22224 (Psi Bravo, Lodgify, Aventura lodge).
 //

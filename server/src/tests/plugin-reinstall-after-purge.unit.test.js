@@ -1,11 +1,11 @@
-// specs/plugins-phase-4-registry.md rule 39 — a plugin installed again in the same process after an
+// specs/plugins/plugins-phase-4-registry.md rule 39 — a plugin installed again in the same process after an
 // uninstall with erasure has its tables back (the install always runs the migrations; the ledger
 // makes it idempotent), and a failed erasure tells what is true.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['linen'])) return;
 const h = require('./pluginPackagesFixture');

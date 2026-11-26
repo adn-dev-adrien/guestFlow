@@ -58,7 +58,7 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
   const checkOutTime = reservation.checkOutTime || '10:00';
   // The card action is the check-out (SAS) launcher — a LARGE icon for an easy tap target on mobile.
   // The whole card opens the reservation fiche (no separate « open » icon); this button stops the click.
-  // specs/reception-sas-today-only.md §3.3 rule 11 — server-resolved lock ('done' | 'past' | 'future')
+  // specs/sas/reception-sas-today-only.md §3.3 rule 11 — server-resolved lock ('done' | 'past' | 'future')
   // shipped in the reception payload; absent for an admin, which reads as "no lock".
   const sasLock = reservation.departureSasLock || null;
   const sasLabel = (() => {
@@ -214,7 +214,7 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
             )}
           </Box>
 
-          {/* Handover note authored at check-in (specs/sas-breakfast-and-handover-note.md) — shown
+          {/* Handover note authored at check-in (specs/sas/sas-breakfast-and-handover-note.md) — shown
               read-only here so the operator sees the arrival-time instructions at departure. */}
           {reservation.departureHandoverNote && (
             <Box sx={{

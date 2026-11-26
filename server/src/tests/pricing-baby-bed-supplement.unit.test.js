@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing');
 
-// specs/baby-bed-supplement.md — the engine derives ONE option line from `reservations.babyBeds`:
+// specs/options/baby-bed-supplement.md — the engine derives ONE option line from `reservations.babyBeds`:
 // 5 € per cot, for the whole stay, on every channel. It inherits the offered / Complément / locked
 // handling of the other engine-derived options, and it never touches a booking taken before the
 // supplement existed (§3.3).

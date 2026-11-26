@@ -128,7 +128,7 @@ test('getDeleteImpact counts reservations and bookings using the resource', () =
   assert.equal(model.getDeleteImpact(9999), null);
 });
 
-// Baby-bed availability (specs/bed-config-in-linen-card.md §10 follow-up #6) — the "Lit bébé"
+// Baby-bed availability (specs/linen/bed-config-in-linen-card.md §10 follow-up #6) — the "Lit bébé"
 // resource quantity minus the baby beds already taken by OVERLAPPING reservations. This is the
 // logic behind the reservation form's "Dispo restante" + the max on the Lits bébé input: once
 // other reservations have booked all the baby beds for the dates, none are available here.

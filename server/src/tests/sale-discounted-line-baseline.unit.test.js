@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-8, 2026-11-16) — a line's own discount (rule 39) is weighed by the baseline as the
+// specs/pricing/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-8, 2026-11-16) — a line's own discount (rule 39) is weighed by the baseline as the
 // engine weighs it: net. A line discounted before the arrival, or at an open arrival, no longer freezes the started stay (before: every later sale
 // was refused 400 ARRIVAL_EXTRAS_FROZEN « reduced »), and a discounted line moved to the arrival keeps its money there (before: 409 MOMENT_NOT_AVAILABLE).
 process.env.DB_PATH = ':memory:';

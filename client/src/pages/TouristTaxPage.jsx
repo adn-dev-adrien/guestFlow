@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 17-24 and §6 — the « Taxe de séjour » page: any period, by logement and
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 17-24 and §6 — the « Taxe de séjour » page: any period, by logement and
 // declaration status, as a list of stays or a night-by-night register, with the totals pinned at the bottom.
 // Every figure comes from GET /finance/tourist-tax/report; the page renders it and keeps local UI state only.
 import React, { useEffect, useRef, useState } from 'react';
@@ -46,7 +46,7 @@ function previousMonth(today) {
   return m === 1 ? `${y - 1}-12` : `${y}-${pad2(m - 1)}`;
 }
 
-// specs/finance-data-checks.md rule 16 — `?month=YYYY-MM` (a link of « À vérifier ») opens that month when it is
+// specs/accounting/finance-data-checks.md rule 16 — `?month=YYYY-MM` (a link of « À vérifier ») opens that month when it is
 // a real one not still to come, judged from the server's day (rule 32); anything else opens the default month.
 function linkedMonth(asked, today) {
   const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(asked || ''));
@@ -83,7 +83,7 @@ function paramsOf(q) {
 const sameQuery = (a, b) => JSON.stringify(paramsOf(a)) === JSON.stringify(paramsOf(b));
 
 // « Dates » = the reservation's stay dates (arrival → departure), like the fiche
-// (specs/tourist-tax-declared-checkbox.md rule 1).
+// (specs/tourist-tax/tourist-tax-declared-checkbox.md rule 1).
 function formatReservationDates(startDate, endDate) {
   const start = displayDate(startDate);
   if (!endDate) return start;
@@ -104,7 +104,7 @@ function formatDeclaredDate(declaredAt) {
 const NIGHT_DAY = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', timeZone: 'UTC' });
 const formatNight = (iso) => `${NIGHT_DAY.format(new Date(`${iso}T00:00:00Z`))} ${displayDate(iso)}`;
 
-// specs/reservation-refunds.md §3.5 — the row's figures are NET of the refunded nights; the note says what left.
+// specs/payments/reservation-refunds.md §3.5 — the row's figures are NET of the refunded nights; the note says what left.
 function refundedTaxCaption(row) {
   const nights = Number(row.refundedTaxNights || 0);
   const amount = Number(row.refundedTaxAmount || 0);
@@ -113,7 +113,7 @@ function refundedTaxCaption(row) {
   return `dont ${nightsPart} (−\u00A0${formatCurrency(amount)})`;
 }
 
-// specs/platform-added-guests-tourist-tax.md rule 12 — a stay can list a second row, its added guests.
+// specs/tourist-tax/platform-added-guests-tourist-tax.md rule 12 — a stay can list a second row, its added guests.
 const rowName = (row) => `${row.reservationName || 'Réservation'}${row.addedGuestsRow ? TAX_PAGE.addedGuestsSuffix : ''}`;
 const byPlatform = (row) => row.remittedBy === 'platform';
 const dash = (row, value) => (row.noGuestAdded ? '—' : value);
@@ -171,7 +171,7 @@ export default function TouristTaxPage() {
 
   const setSelection = (patch) => setQuery((q) => ({ ...q, ...patch }));
 
-  // specs/tourist-tax-declared-checkbox.md §3 — optimistic « Déclarée » toggle; revert + toast on error.
+  // specs/tourist-tax/tourist-tax-declared-checkbox.md §3 — optimistic « Déclarée » toggle; revert + toast on error.
   const patchDeclared = (target, value) =>
     setData((prev) => (prev ? {
       ...prev,
@@ -180,7 +180,7 @@ export default function TouristTaxPage() {
 
   // Rule 21 — the rows and the totals are the server's: once no tick is on its way the selection is read again,
   // without a loading state. Only the last read counts, and only if its selection is still on screen
-  // (specs/platform-added-guests-tourist-tax.md rules 24, 26).
+  // (specs/tourist-tax/platform-added-guests-tourist-tax.md rules 24, 26).
   const refresh = (forQuery) => {
     const read = readSeq.current + 1;
     readSeq.current = read;
@@ -290,7 +290,7 @@ export default function TouristTaxPage() {
     ? (declaredDay(row) ? `${TAX_PAGE.declared} le ${declaredDay(row)}` : TAX_PAGE.declared)
     : TAX_PAGE.notDeclared);
 
-  // specs/tourist-tax-declared-checkbox.md rule 8 — the server says when a tick can be made; an existing one can always go.
+  // specs/tourist-tax/tourist-tax-declared-checkbox.md rule 8 — the server says when a tick can be made; an existing one can always go.
   const notDeclarableYet = (row) => !row.declarable && !row.touristTaxDeclaredAt;
 
   const declaredCell = (row) => {
@@ -352,7 +352,7 @@ export default function TouristTaxPage() {
         <TableCell sx={HEAD} align="right">{TAX_COLUMNS.exempt}</TableCell>
         <Tooltip title={PERSON_NIGHT_HINTS.taxed}><TableCell sx={{ ...HEAD, cursor: 'help' }} align="right" aria-label={TAX_COLUMNS.taxedNights}>{TAX_COLUMNS.taxed}</TableCell></Tooltip>
         <Tooltip title={PERSON_NIGHT_HINTS.exempt}><TableCell sx={{ ...HEAD, cursor: 'help' }} align="right" aria-label={TAX_COLUMNS.exemptNights}>{TAX_COLUMNS.exempt}</TableCell></Tooltip>
-        {/* specs/tourist-tax-included-services-deduction.md rule 15 — the base the commune's percentage form asks for. */}
+        {/* specs/tourist-tax/tourist-tax-included-services-deduction.md rule 15 — the base the commune's percentage form asks for. */}
         {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.nightPrice}</TableCell>}
         {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.accommodation}</TableCell>}
         <TableCell sx={HEAD} align="right">{TAX_COLUMNS.amount}</TableCell>

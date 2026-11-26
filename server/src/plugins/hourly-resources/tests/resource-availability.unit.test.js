@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { buildDays, validateBlock, toAbsMinutes } = require('../availability');
 
-// specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 / §3.4 — which start times the SAS may
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.3 / §3.4 — which start times the SAS may
 // offer, and why the others are refused. The Bain nordique is the reference resource: 60-min slots,
 // 11:00–22:00, minimum 1 h, 15 min turnover, 4 h warm-up from cold, still usable 8 h after a use.
 const BAIN = {

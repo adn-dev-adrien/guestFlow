@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 57 (operator decision 2026-10-27) — the sold night prices are
+// specs/pricing/tariff-recipes.md §3 rule 57 (operator decision 2026-10-27) — the sold night prices are
 // kept only while the ARRIVAL date is unchanged; an arrival moved reprices the whole stay at today's
 // tariff, so a progressive tariff keeps its rank logic.
 const test = require('node:test');

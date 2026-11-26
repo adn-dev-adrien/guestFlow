@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 19, 29, 96 (loop t1 S-4, S-5) — the stay's first breakfast sold before the arrival is a new line routed to the
+// specs/pricing/pricing-components.md §3 rules 19, 29, 96 (loop t1 S-4, S-5) — the stay's first breakfast sold before the arrival is a new line routed to the
 // arrival complement; a breakfast morning paid by card before the arrival, merged into that line, is settled by what the line grew.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

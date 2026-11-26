@@ -1,11 +1,11 @@
 /**
- * The CSV journal exporter: pure, formatting only (specs/pricing-components.md §3 rule 63).
+ * The CSV journal exporter: pure, formatting only (specs/pricing/pricing-components.md §3 rule 63).
  *
  * Given a list of encaissement entries (one per deposit/balance/complement that hit the bank
  * in a given month — shape produced by `accountingModel.encaissementsByMonth`), produces the
  * balanced double-entry journal lines expected by the accountant.
  *
- * « Format standard (CSV) » (specs/plugins-phase-p-productisation.md rule 29) — the column layout set
+ * « Format standard (CSV) » (specs/plugins/plugins-phase-p-productisation.md rule 29) — the column layout set
  * on 2026-06-01 from the accountant's example file:
  *
  *   Jour ; Mois  ; Année ; Journal ; Pièce ; Libellé de l'écriture ; Compte ; Débit ; Crédit
@@ -40,13 +40,13 @@
  * in the header so the structure matches the example.
  *
  * Turnover basis = NET (the owner-received `finalPrice`). For platform sales, gross +
- * commission ride only in the trailing info columns. See specs/accountant-accounting-export.md §9.
+ * commission ride only in the trailing info columns. See specs/accounting/accountant-accounting-export.md §9.
  *
- * Refunds (specs/reservation-refunds.md) travel through the same pipe with `direction: 'refund'`:
+ * Refunds (specs/payments/reservation-refunds.md) travel through the same pipe with `direction: 'refund'`:
  * one « avoir » = the mirror image of an encaissement (credit client / debit revenue + VAT), so the
  * CSV and the visual journal stay a single code path.
  *
- * Cancellation compensations (specs/cancellation-compensation.md) ride the same pipe with
+ * Cancellation compensations (specs/payments/cancellation-compensation.md) ride the same pipe with
  * `direction: 'compensation'`: money comes IN like an encaissement, but against no séjour — one
  * debit on the client account, one credit on the configured produit account (plus a VAT line only
  * if the operator made the indemnity taxable).
@@ -83,7 +83,7 @@ function createCsvJournal({ accountPlan }) {
   const DEBIT_INDEX = 7;
   const CREDIT_INDEX = 8;
 
-  // specs/accounting-synthesis.md rule 3 — what each row of the journal IS (its role, and the VAT rate of a
+  // specs/accounting/accounting-synthesis.md rule 3 — what each row of the journal IS (its role, and the VAT rate of a
   // revenue or VAT line), carried beside the row and never in it: the CSV cells stay byte-identical, the
   // synthesis reads the very rows the export writes.
   const ROW_META = Symbol('accountingRowMeta');
@@ -113,7 +113,7 @@ function createCsvJournal({ accountPlan }) {
     return `RÉSERVATION #${entry.reservationId}`;
   }
 
-  // specs/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the export sets no maximum libellé length: the Qonto
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 28 — the export sets no maximum libellé length: the Qonto
   // transaction id (50 characters) would drown the line, so a Mollie credit or cost names its Mollie settlement and the last
   // 6 characters of Qonto's reference — enough to find it in the bank's search. A paid link reads like a sale: the client.
   // Loop t10 B10-4: a sale outside a stay with no named client (a passage) has no stay id to fall back on — it reads the sale's label
@@ -175,7 +175,7 @@ function createCsvJournal({ accountPlan }) {
   const ACCOUNT_COLUMN = 6;
 
   /**
-   * The rows of one entry, in the operator's account plan (specs/plugins-phase-p-productisation.md
+   * The rows of one entry, in the operator's account plan (specs/plugins/plugins-phase-p-productisation.md
    * rule 27). Without a plan, or with the defaults, the rows are exactly the engine's.
    */
   function entryToRows(entry, plan) {
@@ -193,7 +193,7 @@ function createCsvJournal({ accountPlan }) {
   }
 
   /**
-   * specs/accounting-synthesis.md rule 3 — the lines of one entry exactly as the CSV writes them (the plan's
+   * specs/accounting/accounting-synthesis.md rule 3 — the lines of one entry exactly as the CSV writes them (the plan's
    * accounts, the same cents), each with its role (client, revenue, vat, touristTax, commission,
    * commissionVat, penalty) and, on revenue and VAT lines, the VAT rate it was booked at.
    */
@@ -221,7 +221,7 @@ function createCsvJournal({ accountPlan }) {
   // « Format standard (CSV) »: the file the accountant imports. ISO-8859-1 (latin1) without BOM, byte-for-byte the
   // accountant's example file: French accounting software (Sage/EBP/Cegid) defaults to latin1 and chokes on the UTF-8 BOM,
   // so the string is re-encoded into a latin1 Buffer once every cell's characters outside latin1 (’, Œ, …) have been
-  // transliterated (specs/accountant-accounting-export.md rule 31), before the quoting, which a « ” » → « " » must go through.
+  // transliterated (specs/accounting/accountant-accounting-export.md rule 31), before the quoting, which a « ” » → « " » must go through.
   function exportFile(entries, { plan, period }) {
     const rows = buildRows(entries, plan);
     const latin1Rows = rows.map((row) => row.map((cell) => (typeof cell === 'string' ? toLatin1Text(cell) : cell)));

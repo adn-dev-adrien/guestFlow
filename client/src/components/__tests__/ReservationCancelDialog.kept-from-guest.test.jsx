@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 60, reading of 2026-11-10 (audits R45-C-L1 = R45-RES-L2) — on an
+// specs/payments/payment-schedule-and-cancellation.md rule 60, reading of 2026-11-10 (audits R45-C-L1 = R45-RES-L2) — on an
 // acompte collected in the caisse interne the dialog read « Conservé en indemnité : 0,00 € » while the notice it sends
 // tells the guest 180 € are kept. The dialog now shows the sum the notice states (`keptFromGuest`, from the server's
 // preview) whenever it differs from the indemnity.

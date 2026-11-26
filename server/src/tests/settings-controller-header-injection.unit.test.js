@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// Header-injection guard on the settings boundary (specs/admin-account-management.md §3.4 rule 16b).
+// Header-injection guard on the settings boundary (specs/hosting/admin-account-management.md §3.4 rule 16b).
 // `smtpFromName`, `smtpFromEmail` and `notificationRecipientEmail` are the three settings that end
 // up VERBATIM inside an email header — `From: "<name>" <address>` and `To: <address>`. A control
 // character in any of them would close the header line and let whatever follows be parsed as a new

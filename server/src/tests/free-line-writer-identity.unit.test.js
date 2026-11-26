@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 79 reading (stabilisation loop t17, D17-1, 2026-11-18 — the data reviewer's `p4` probe made permanent).
+// specs/pricing/pricing-components.md §3 rule 79 reading (stabilisation loop t17, D17-1, 2026-11-18 — the data reviewer's `p4` probe made permanent).
 // The writer of the free lines takes the row the save's judges chose (`matchStoredCustomLines` over the posted lines), never a text
 // comparison of its own: a line posted without its row id whose label differs from its row by case or spacing only is the same line for
 // the judges AND the writer — it keeps its number and its discount, and a note that paid it does not refuse the save LINE_PAID. The SAS

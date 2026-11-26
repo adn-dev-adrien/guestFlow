@@ -1,5 +1,5 @@
 /**
- * SalePaymentLink — the « Envoyer un lien » block of a sale's reste (specs/outside-booking-sas.md rules 39-42): four states drawn from the server's `paymentLink` payload, a disabled
+ * SalePaymentLink — the « Envoyer un lien » block of a sale's reste (specs/sas/outside-booking-sas.md rules 39-42): four states drawn from the server's `paymentLink` payload, a disabled
  * action with « Adresse e-mail requise. » and an « E-mail » field when no address is known, copy on a click, and the e-mail only on its own click.
  */
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 27 — a broken variable or condition is refused at save,
+// specs/emails/guest-email-texts-made-simple.md rule 27 — a broken variable or condition is refused at save,
 // by the one validation every editor shares (texts, templates, file import), and a stored one is
 // listed in « À compléter »: the renderer would hand it to the guest as it is.
 

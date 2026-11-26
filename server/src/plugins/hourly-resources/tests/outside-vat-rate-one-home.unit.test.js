@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 28, pricing-components rules 61, 88 (loop t1 B-3) — the outside rate of a session has one home: the catalogue's
+// specs/sas/outside-booking-sas.md rule 28, pricing-components rules 61, 88 (loop t1 B-3) — the outside rate of a session has one home: the catalogue's
 // `resources` rate once typed, else the plugin's « TVA des ventes hors séjour »; the core's settings provider reads the same.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -28,7 +28,7 @@ export function getClosureForDate(dateStr, closures, selectedPropertyId) {
 }
 
 /**
- * How a closure touches a day on a logement's calendar (specs/calendar-property-parity.md rule 12): the
+ * How a closure touches a day on a logement's calendar (specs/planning/calendar-property-parity.md rule 12): the
  * closure's `startDate` is closed from the middle of the day, its reopening day (`endDate`) until the
  * middle of the day, every day between all day. A day two closures meet on is closed all day.
  * Returns `{ closure, part }` where part is 'full' | 'start' | 'end', or null when the day is open.

@@ -1,4 +1,4 @@
-// specs/sas-offer-complement-lines.md rule 12 reading (stabilisation loop t9, A9-2, 2026-11-16) — a collected arrival complement's lines
+// specs/sas/sas-offer-complement-lines.md rule 12 reading (stabilisation loop t9, A9-2, 2026-11-16) — a collected arrival complement's lines
 // cannot be offered from the SAS: the recap serves them `offerable: false`, read as stored whatever the draft, and a raw commit offering one
 // writes nothing and does not answer « offered ». Before: « Offrir » drawn, the commit answered 200 with the line offered and billed 0, and
 // wrote nothing (Booking, card and « caisse interne »).

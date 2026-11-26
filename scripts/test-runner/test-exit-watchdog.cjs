@@ -1,6 +1,6 @@
 /**
  * Preloaded (`node --require`) by the server and control-plane `npm test` scripts —
- * specs/server-test-isolation.md rule 5. In each test file's child process, once the file's last test
+ * specs/tech/server-test-isolation.md rule 5. In each test file's child process, once the file's last test
  * has been reported, the process gets a grace period to exit by itself; past it, a handle left open (a
  * listening server, an interval, typically behind a timed-out test on Node 24) is what keeps it alive,
  * so the watchdog names the file and exits 1, and the run fails instead of stalling until the CI

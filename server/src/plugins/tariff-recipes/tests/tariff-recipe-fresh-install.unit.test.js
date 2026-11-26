@@ -7,7 +7,7 @@ const Database = require('better-sqlite3');
 const { validateRecipe } = require('../store');
 const { createTariffRecipeModel } = require('../model');
 
-// specs/tariff-recipe-platform-cleaning-fee.md rule 15 — spec review 2026-10-27 (L2). On a fresh
+// specs/pricing/tariff-recipe-platform-cleaning-fee.md rule 15 — spec review 2026-10-27 (L2). On a fresh
 // install the `platforms` table holds only `direct`, and both shipped recipes refused to apply
 // (« Plateforme inconnue dans la recette : Airbnb »): a generic product failed on its own recipes.
 

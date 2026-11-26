@@ -1,4 +1,4 @@
-// specs/planning-arrival-alerts.md rules 7–10 (2026-10-27 spec review, F4) — the cleaning alerts come
+// specs/planning/planning-arrival-alerts.md rules 7–10 (2026-10-27 spec review, F4) — the cleaning alerts come
 // from the server keyed by card kind: an arrival card shows the `arrivals` alert of its stay, a
 // departure row the `departures` one. A stay's two cards used to share one alert.
 import React from 'react';

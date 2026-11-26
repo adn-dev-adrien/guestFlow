@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 68 — the committed price-gate fixture holds no personal data: no string with an `@`,
+// specs/pricing/pricing-components.md §3 rule 68 — the committed price-gate fixture holds no personal data: no string with an `@`,
 // no phone-like sequence, no table or column outside the allow-list of `scripts/price-gate/anonymise.js`. The strings
 // of the JSON columns are read too (a JSON column is a string that holds more strings).
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 44 (audit 2026-10-27, finding 8) — a platform that took an
+// specs/accounting/qonto-bank-reconciliation.md rule 44 (audit 2026-10-27, finding 8) — a platform that took an
 // acompte pays it out on its own: the later solde credit carries the solde only. Writing that credit as
 // the stay's whole payout inflated the commission by the acompte: brut 1000, acompte 300 (commission
 // 15), solde credit 665 → the fiche stored a 320 € commission instead of 35 €.

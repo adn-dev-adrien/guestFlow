@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md — customers in the console: rule 21 (the slug), rule 7
+// specs/hosting/control-plane-plans-and-access.md — customers in the console: rule 21 (the slug), rule 7
 // (onboarding and its steps), rule 8 (the fleet and its counters), rule 15 (a payment recorded),
 // rule 19 (overrides with a mandatory reason), rule 4 (add-ons follow the subscription).
 

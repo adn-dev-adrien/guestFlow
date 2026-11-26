@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 29 and specs/ui-review-2026-10-19-operations.md rule 26 — the browser
+// specs/options/options-resources-ux.md rule 29 and specs/design-system/ui-review-2026-10-19-operations.md rule 26 — the browser
 // « Retour » of a dirty PAGE form, with a real BrowserRouter: its popstate listener runs before any
 // component's, so the guard is the interceptor installed before the router mounts.
 import React, { useState } from 'react';

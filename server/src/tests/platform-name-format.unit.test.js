@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { formatPlatformName } = require('../utils/platformNameFormat');
 
-// specs/normalize-platform-names.md §3.1 + §7.1.
+// specs/platforms/normalize-platform-names.md §3.1 + §7.1.
 
 test('preserves the `direct` enum value as lowercase regardless of input casing', () => {
   for (const input of ['direct', 'Direct', 'DIRECT', '  direct  ']) {

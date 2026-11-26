@@ -1,5 +1,5 @@
 /**
- * VatFranchiseCard — « Seuil de franchise » of the Suivi financier (specs/vat-optional-mode.md rules
+ * VatFranchiseCard — « Seuil de franchise » of the Suivi financier (specs/accounting/vat-optional-mode.md rules
  * 35-41, §6.7): the calendar year's collected turnover and its projection to 31 December against the
  * threshold the operator typed. Feature-local: it renders the `/finance/vat-franchise` payload as is —
  * the level, its words, the ratios and the action all come from the server.

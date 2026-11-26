@@ -5,7 +5,7 @@ import { renderFinance, dueRow, paidRow, editable, ledgerOf } from './ledgerFixt
 import api from '../../../api';
 import { addIsoDays, localIsoToday } from '../../../utils/isoDay';
 
-// Audit R30-C-L2 (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rule 28, specs/mid-stay-notes.md rule 24.
+// Audit R30-C-L2 (2026-11-08) — specs/sas/defer-arrival-complement-to-checkout.md rule 28, specs/sas/mid-stay-notes.md rule 24.
 // A refused « Percevoir en fin de séjour », « Reporter au départ » on a note, or a note's settlement used to fail
 // silently: the fiche drew the switch as done (« Perçu en fin de séjour ✓ », dirty, « Enregistrer » lit) while nothing was stored, and the server's reason
 // only reached the console. The fiche now moves only once the server took it, and shows the refusal.

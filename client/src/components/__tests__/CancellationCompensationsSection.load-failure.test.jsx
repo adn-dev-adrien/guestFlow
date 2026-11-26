@@ -1,5 +1,5 @@
 /**
- * specs/cancellation-compensation.md rule 30 — a failed load is an error with « Réessayer », never a
+ * specs/payments/cancellation-compensation.md rule 30 — a failed load is an error with « Réessayer », never a
  * « Total : 0,00 € » that reads as a true zero.
  */
 import React from 'react';

@@ -1,5 +1,5 @@
 /**
- * specs/devis-extras-parity-and-price-lock.md §3 rules 13-16 — a quote holds its price until it expires.
+ * specs/devis/devis-extras-parity-and-price-lock.md §3 rules 13-16 — a quote holds its price until it expires.
  *
  * A devis is a price promise with an end date: re-opening and re-saving a VALID one must not move a
  * cent, even if the tariff has been raised in the meantime; once the validity date is past, the same

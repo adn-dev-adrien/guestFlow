@@ -10,7 +10,7 @@ import { makeMockContext } from './mockReservationForm';
 import api from '../../../api';
 import { paidRow, ledgerOf } from './ledgerFixtures';
 
-// specs/arrival-payment-detail-and-adjustment.md §3.1-§3.2 — le paiement unique, détaillé, et son
+// specs/sas/arrival-payment-detail-and-adjustment.md §3.1-§3.2 — le paiement unique, détaillé, et son
 // ajustement. La fiche ne décide rien : elle imprime les lignes que le serveur envoie et lui transmet
 // le montant saisi. La réduction et le pourboire sont dérivés et bornés côté serveur.
 
@@ -60,7 +60,7 @@ const DETAILED = {
   ],
 };
 
-// Since specs/reservation-payment-ledger.md rule 4 the group's buckets are ledger rows reading
+// Since specs/payments/reservation-payment-ledger.md rule 4 the group's buckets are ledger rows reading
 // « paiement unique »; the payment's detail folds under the first of them.
 const GROUP_LEDGER = ledgerOf([
   paidRow('balance', 'Solde', 720.82, { state: 'paid-group', stateLabel: 'Perçu le 30/08 · paiement unique' }),
@@ -74,7 +74,7 @@ const render7 = (payment) => {
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-// specs/arrival-payment-detail-and-adjustment.md rules 1 + 5 — le bloc imprime les lignes que le
+// specs/sas/arrival-payment-detail-and-adjustment.md rules 1 + 5 — le bloc imprime les lignes que le
 // serveur envoie, dans son ordre, sans rien calculer.
 test('the block lists the prestations the payment covered, then its total', () => {
   render7(DETAILED);
@@ -94,13 +94,13 @@ test('an offered line stays visible at 0 € with its original amount struck', (
   expect(within(line).getByText(/0,00 €/)).toBeInTheDocument();
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 8
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 8
 test('without lines (a payment whose attribution was never captured) the bucket caption is kept', () => {
   render7({ ...DETAILED, lines: [] });
   expect(screen.getByText(/solde 720,82 € · complément 132,00 €/)).toBeInTheDocument();
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 10
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 10
 test('a réduction shows as its own line, and the total is what was handed over', () => {
   render7({ ...DETAILED, total: 800, reduction: 52.82 });
   expect(screen.getByText('Réduction accordée')).toBeInTheDocument();
@@ -108,14 +108,14 @@ test('a réduction shows as its own line, and the total is what was handed over'
   expect(screen.getByText(/paiement unique de 800,00 €/)).toBeInTheDocument();
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 12
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 12
 test('a pourboire shows as its own line', () => {
   render7({ ...DETAILED, total: 900, tip: 47.18 });
   expect(screen.getByText('Pourboire')).toBeInTheDocument();
   expect(screen.getByText('+ 47,18 €')).toBeInTheDocument();
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 9
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 9
 test('the field posts the amount the operator typed', async () => {
   const user = userEvent.setup();
   render7(DETAILED);
@@ -126,7 +126,7 @@ test('the field posts the amount the operator typed', async () => {
   expect(api.adjustArrivalPayment).toHaveBeenCalledWith(7, 800);
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 15
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 15
 test('clearing the field restores the computed total', async () => {
   const user = userEvent.setup();
   render7({ ...DETAILED, total: 800, reduction: 52.82 });
@@ -141,7 +141,7 @@ test('the helper says the computed total when nothing is adjusted', () => {
   expect(screen.getByText('Calcul auto (852,82 €)')).toBeInTheDocument();
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 11
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 11
 test('at the floor, the helper names the accommodation as the limit', () => {
   // L'opérateur a demandé moins que l'hébergement ne le permet : le serveur a remonté au plancher, et
   // le champ doit dire pourquoi plutôt que de laisser croire que la saisie a été ignorée.
@@ -149,9 +149,9 @@ test('at the floor, the helper names the accommodation as the limit', () => {
   expect(screen.getByText(/Réduction maximale 700,00 €/)).toBeInTheDocument();
 });
 
-// specs/single-payment-at-check-in.md rule 17 — les contrôles par échéance ne bougent pas : le bloc
+// specs/payments/single-payment-at-check-in.md rule 17 — les contrôles par échéance ne bougent pas : le bloc
 // est une aide à la lecture au-dessus d'eux, pas leur remplaçant.
-// specs/arrival-payment-detail-and-adjustment.md rule 4 — le bloc est une LECTURE des seaux, jamais
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 4 — le bloc est une LECTURE des seaux, jamais
 // un remplacement : les contrôles par échéance restent là, intacts, sous lui.
 test('les contrôles par échéance restent affichés sous le bloc', () => {
   render7(DETAILED);
@@ -159,7 +159,7 @@ test('les contrôles par échéance restent affichés sous le bloc', () => {
   expect(screen.getByRole('button', { name: 'Annuler ce paiement' })).toBeInTheDocument();
 });
 
-// specs/arrival-payment-detail-and-adjustment.md rule 13 — pas de groupe, pas de bloc, pas de champ.
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 13 — pas de groupe, pas de bloc, pas de champ.
 // Ajuster un séjour encaissé en deux échéances est une autre question, hors périmètre.
 test('sans paiement unique, ni le bloc ni le champ n’existent', () => {
   renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: null } });

@@ -1,4 +1,4 @@
-// Shared fixture of the Mollie suites (specs/mollie-rolling-reserve-and-incoming-payments.md): a stay paid by a Qonto
+// Shared fixture of the Mollie suites (specs/payments/mollie-rolling-reserve-and-incoming-payments.md): a stay paid by a Qonto
 // payment link, and the credits Mollie sends. Fictional data only.
 const { db, TODAY, dayAt, addReservation, credit, build, reset } = require('./reconciliationFixture');
 const paymentLinks = require('../../../models/paymentLinksModel');

@@ -6,7 +6,7 @@
  * create/update through `upsertByName`. The Direct row (id 1, name 'direct') is always
  * present and never editable.
  *
- * Spec: specs/accounting-platform-commission-and-no-deposit.md §3.1.
+ * Spec: specs/accounting/accounting-platform-commission-and-no-deposit.md §3.1.
  *
  * Factory `create(db)` (+ a default bound to the production DB), mirroring the other models.
  */
@@ -53,7 +53,7 @@ function resolveColor(name, customColor) {
   return KNOWN_PLATFORM_COLORS[platformSlug(name)] || DEFAULT_PLATFORM_COLOR;
 }
 
-// specs/per-platform-tourist-tax-three-way.md — the GLOBAL 3-way tourist-tax mode ⇄ the two stored
+// specs/tourist-tax/per-platform-tourist-tax-three-way.md — the GLOBAL 3-way tourist-tax mode ⇄ the two stored
 // booleans. 'platform' = collects + remits to commune (1,1); 'platform_reversed' = collects, reverses
 // to us (1,0); 'owner' = we collect at arrival (0,0). Invalid combo (collects=0 + remitted=1) is
 // normalised away (we-collect always means we remit).
@@ -113,7 +113,7 @@ function createPlatformsModel(database) {
   };
 
   // The catalogue spelling of a platform typed or sent any way (2026-10-27 spec review,
-  // specs/platforms-and-ical-rework.md rule 15): the existing row or built-in name with the same slug, also when
+  // specs/platforms/platforms-and-ical-rework.md rule 15): the existing row or built-in name with the same slug, also when
   // the input carries the « .com » of the brand (« Booking.com », `BookingCom` → `Booking`); otherwise
   // the input in its canonical form. `direct` stays `direct`.
   function canonicalName(input) {
@@ -157,7 +157,7 @@ function createPlatformsModel(database) {
       if (id == null) return null;
       return stmts.findById.get(Number(id)) || null;
     },
-    // specs/normalize-platform-names.md §3.2 rule 10 — belt-and-suspenders: format the input
+    // specs/platforms/normalize-platform-names.md §3.2 rule 10 — belt-and-suspenders: format the input
     // even though the model's callers (propertyIcalModel + reservationsModel) already feed a
     // canonical string. Guards against a future caller that bypasses those hooks.
     upsertByName(name) {
@@ -203,7 +203,7 @@ function createPlatformsModel(database) {
       return stmts.findById.get(Number(id));
     },
 
-    // Non-direct platforms with their commission % (specs/platform-price-from-commission.md §3.1).
+    // Non-direct platforms with their commission % (specs/platforms/platform-price-from-commission.md §3.1).
     listWithCommission() {
       return stmts.listAll.all()
         .filter((p) => p.name !== DIRECT_NAME)
@@ -211,9 +211,9 @@ function createPlatformsModel(database) {
     },
 
     // Set a platform's global commission %: refused (null, nothing written) outside [0, 99.99], never
-    // clamped (specs/settings-input-guards.md rules 30, 48) — plugins reach this method too.
+    // clamped (specs/settings/settings-input-guards.md rules 30, 48) — plugins reach this method too.
     // The Direct row is editable too
-    // since specs/tariff-recipes/spec.md §3.6 rule 32: it carries the booking-engine fee (Lodgify 5 %)
+    // since specs/pricing/tariff-recipes.md §3.6 rule 32: it carries the booking-engine fee (Lodgify 5 %)
     // that the direct displayed price must cover.
     setCommissionPercent(id, commissionPercent) {
       const row = stmts.findById.get(Number(id));
@@ -224,7 +224,7 @@ function createPlatformsModel(database) {
       return stmts.findById.get(Number(id));
     },
 
-    // ── Global per-platform colour (specs/platforms-and-ical-rework.md §3 rules 5-6) ─────────────
+    // ── Global per-platform colour (specs/platforms/platforms-and-ical-rework.md §3 rules 5-6) ─────────────
     // Resolution everywhere: custom `platforms.color` → built-in `KNOWN_PLATFORM_COLORS[slug]` → grey.
 
     // Resolved display colour for a platform name/key.
@@ -235,7 +235,7 @@ function createPlatformsModel(database) {
     },
 
     // One-pass resolver for a list of stays: platform name → resolved colour, a single read of the
-    // registry instead of one per row (specs/calendar-property-parity.md rule 3).
+    // registry instead of one per row (specs/planning/calendar-property-parity.md rule 3).
     colorResolver() {
       const customBySlug = new Map(stmts.listAll.all().map((p) => [platformSlug(p.name), p.color]));
       return (name) => resolveColor(name, customBySlug.get(platformSlug(name)));
@@ -297,7 +297,7 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, touristTaxCollection: flagsToTouristTaxCollection(flags.collectsTouristTax, flags.touristTaxRemittedByPlatform) };
     },
 
-    // specs/platform-deposit-toggle.md — GLOBAL per-platform "takes an acompte?" flag. Read defensively
+    // specs/platforms/platform-deposit-toggle.md — GLOBAL per-platform "takes an acompte?" flag. Read defensively
     // (column absent on minimal test DBs → 0). `direct` always returns 0 (it has its own deposit flow).
     getDepositMode(name) {
       const slug = platformSlug(name);
@@ -328,7 +328,7 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, platformTakesDeposit: value };
     },
 
-    // specs/platform-payout-due-date.md — GLOBAL per-platform payout delay, in days after the guest
+    // specs/platforms/platform-payout-due-date.md — GLOBAL per-platform payout delay, in days after the guest
     // leaves. Read defensively (column absent on minimal/pre-migration test DBs → the default), and
     // never for an own channel: `direct` and `Lodgify` are paid by the guest, not by a platform.
     // Matched by SLUG, not by `name COLLATE NOCASE`: an iCal-imported reservation stores the source's
@@ -367,7 +367,7 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, payoutDueDays: value };
     },
 
-    // « Compté comme vente directe » (specs/plugins-phase-p-productisation.md rule 19). Guarded: a
+    // « Compté comme vente directe » (specs/plugins/plugins-phase-p-productisation.md rule 19). Guarded: a
     // database without the column counts `direct` alone.
     countsAsDirectIds() {
       try {
@@ -386,7 +386,7 @@ function createPlatformsModel(database) {
       refreshDirectChannels(database);
     },
 
-    // « Sans corvées de départ » (specs/airbnb-no-checkout-chores.md rule 8). Guarded like
+    // « Sans corvées de départ » (specs/platforms/airbnb-no-checkout-chores.md rule 8). Guarded like
     // `countsAsDirectIds`: a database without the column has no such channel.
     choreFreeIds() {
       try {
@@ -405,7 +405,7 @@ function createPlatformsModel(database) {
       refreshChoreFreeChannels(database);
     },
 
-    // « Adresse e-mail relais » and « Où laisser un avis » (specs/platform-settings-relay-and-review.md
+    // « Adresse e-mail relais » and « Où laisser un avis » (specs/platforms/platform-settings-relay-and-review.md
     // rules 1-4). Guarded like `choreFreeIds`: a database without the columns has neither.
     guestContactById() {
       try {
@@ -431,7 +431,7 @@ function createPlatformsModel(database) {
     },
 
     // Every per-platform COMMERCIAL setting in one list, for the « Plateformes » settings page
-    // (specs/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
+    // (specs/settings/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
     // `direct` has no deposit / tourist-tax / payout notion, and an own channel (Lodgify) no payout.
     listSettings() {
       const counted = this.countsAsDirectIds();
@@ -472,7 +472,7 @@ function createPlatformsModel(database) {
       return map;
     },
 
-    // Merged per-property platform list (specs/platforms-and-ical-rework.md §3 rule 2 + §4.3). Every
+    // Merged per-property platform list (specs/platforms/platforms-and-ical-rework.md §3 rule 2 + §4.3). Every
     // platform (built-ins ∪ DB registry, incl. `direct`) joined with THIS property's `ical_sources`
     // config (matched by slug on platformKey/platformLabel/name). A platform with no source row still
     // appears: empty URL, no sync, tax = default (platform collects), not disabled.
@@ -480,7 +480,7 @@ function createPlatformsModel(database) {
       const names = this.listNames();
       const platformRows = stmts.listAll.all();
       const colorBySlug = new Map(platformRows.map((p) => [platformSlug(p.name), p.color]));
-      // GLOBAL tourist-tax mode per platform (specs/per-platform-tourist-tax-three-way.md). Read
+      // GLOBAL tourist-tax mode per platform (specs/tourist-tax/per-platform-tourist-tax-three-way.md). Read
       // defensively — the columns are absent on minimal test DBs that pre-date the migration.
       const taxBySlug = new Map();
       try {
@@ -488,7 +488,7 @@ function createPlatformsModel(database) {
           taxBySlug.set(platformSlug(r.name), r);
         }
       } catch (_) { /* tax columns missing → every platform falls back to the 'platform' default */ }
-      // specs/platform-deposit-toggle.md — GLOBAL per-platform "takes an acompte?" flag. Read
+      // specs/platforms/platform-deposit-toggle.md — GLOBAL per-platform "takes an acompte?" flag. Read
       // defensively (column absent on minimal/pre-migration test DBs → default 0 = no acompte).
       const depositBySlug = new Map();
       try {
@@ -496,7 +496,7 @@ function createPlatformsModel(database) {
           depositBySlug.set(platformSlug(r.name), Number(r.d) === 1 ? 1 : 0);
         }
       } catch (_) { /* column missing → every platform falls back to 0 (no acompte) */ }
-      // specs/platform-payout-due-date.md — GLOBAL per-platform payout delay. Same defensive read:
+      // specs/platforms/platform-payout-due-date.md — GLOBAL per-platform payout delay. Same defensive read:
       // a DB predating the column falls back to the default for every platform.
       const payoutBySlug = new Map();
       try {
@@ -528,7 +528,7 @@ function createPlatformsModel(database) {
           platformLabel: name,
           color: resolveColor(name, colorBySlug.get(slug)),
           isDirect: slug === DIRECT_NAME,
-          // specs/platform-payout-due-date.md rule 26 — `isDirect` above means « the Direct row »;
+          // specs/platforms/platform-payout-due-date.md rule 26 — `isDirect` above means « the Direct row »;
           // this one means « an OWN channel », which also covers Lodgify (the guest pays us, through
           // Lodgify). Everything that must not apply to an own channel — the payout delay, the
           // payout-overdue alert — tests THIS flag, never `isDirect`.
@@ -537,7 +537,7 @@ function createPlatformsModel(database) {
           // custom-added platforms expose the "réinitialiser la configuration" (delete) action.
           isBuiltIn: Boolean(KNOWN_PLATFORM_COLORS[slug]),
           url: source ? (source.url || '') : '',
-          // specs/per-platform-tourist-tax-three-way.md — the tourist-tax mode is GLOBAL per platform
+          // specs/tourist-tax/per-platform-tourist-tax-three-way.md — the tourist-tax mode is GLOBAL per platform
           // (read from `platforms`, not the per-property source). The 3-way string the UI Select binds
           // to; no platform row / missing columns → 'platform' (the platform collects + remits itself).
           touristTaxCollection: (() => {
@@ -548,15 +548,15 @@ function createPlatformsModel(database) {
             const t = taxBySlug.get(slug);
             return t ? Number(t.c) : 1;
           })(),
-          // specs/platform-deposit-toggle.md — GLOBAL per-platform acompte flag (0 = no acompte, default).
+          // specs/platforms/platform-deposit-toggle.md — GLOBAL per-platform acompte flag (0 = no acompte, default).
           platformTakesDeposit: slug === DIRECT_NAME ? 0 : (depositBySlug.get(slug) || 0),
-          // specs/platform-payout-due-date.md — days after departure the platform is expected to pay.
+          // specs/platforms/platform-payout-due-date.md — days after departure the platform is expected to pay.
           payoutDueDays: payoutBySlug.has(slug) ? payoutBySlug.get(slug) : DEFAULT_PAYOUT_DUE_DAYS,
-          // specs/ical-import-hardening.md rule 10 — a boolean: a number `0` rendered as text.
+          // specs/platforms/ical-import-hardening.md rule 10 — a boolean: a number `0` rendered as text.
           disabled: source ? Number(source.disabled) === 1 : false,
           // Rule 2 — a stopped source (`isActive = 0`) is shown as such and offers no sync.
           isActive: source ? Number(source.isActive) !== 0 : true,
-          // specs/lodgify-decommission.md §3 rule 16 — the feed marks every stay « CLOSED - Not available ».
+          // specs/platforms/lodgify-decommission.md §3 rule 16 — the feed marks every stay « CLOSED - Not available ».
           // No source yet (or a pre-migration row): what a new source would start with.
           feedMarksStaysClosed: source && source.feedMarksStaysClosed != null
             ? Number(source.feedMarksStaysClosed) === 1

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { runBreakfastPush, subtractMinutes } = require('../utils/breakfastPushRunner');
 
-// specs/sas-breakfast-bread-and-push.md rules 7-9 — fully injected fakes, no timers, no DB.
+// specs/sas/sas-breakfast-bread-and-push.md rules 7-9 — fully injected fakes, no timers, no DB.
 
 function makeDeps({ items = [], lead = 30 } = {}) {
   const stamps = [];

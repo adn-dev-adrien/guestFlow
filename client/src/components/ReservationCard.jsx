@@ -21,7 +21,7 @@
  *   onOpen — `(reservationId) => void`. Optional. When provided, the whole Card body
  *     becomes clickable with cursor + hover affordance.
  *
- * Reception locks (specs/reception-sas-today-only.md): `reservation.arrivalSasLock`
+ * Reception locks (specs/sas/reception-sas-today-only.md): `reservation.arrivalSasLock`
  * ('done'|'past'|'future') disables the SAS ✓ with the matching tooltip, and
  * `reservation.checkInStatusEditable === false` disables the « Prêt » checkbox. Both fields are
  * absent from admin payloads, which reads as "no lock".
@@ -120,7 +120,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
 
   // The card action is the check-in (SAS) launcher — a LARGE icon so it's an easy tap target on mobile.
   // The whole card opens the reservation fiche (no separate « open » icon); this button stops the click.
-  // specs/reception-sas-today-only.md §3.3 rule 10 — the server resolves the lock ('done' | 'past' |
+  // specs/sas/reception-sas-today-only.md §3.3 rule 10 — the server resolves the lock ('done' | 'past' |
   // 'future') and ships it in the reception payload; an admin payload carries no such field, so the
   // ✓ stays clickable for them. Same for the « Prêt » checkbox and its own day window (rule 12).
   const sasLock = r.arrivalSasLock || null;
@@ -323,7 +323,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             </Box>
           )}
 
-          {/* Bed-linen alert (specs/planning-arrival-alerts.md §3 rule 6). Server-computed flag
+          {/* Bed-linen alert (specs/planning/planning-arrival-alerts.md §3 rule 6). Server-computed flag
               (`bedLinenAlert`): the guest didn't take the bed-linen option, or the bed configuration
               sleeps fewer people than the booking. Never set for linen-by-default properties. */}
           {r.bedLinenAlert && (
@@ -361,14 +361,14 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             </Box>
           )}
 
-          {/* Complément à percevoir (specs/force-extras-complement-on-platform.md). On platform/iCal
+          {/* Complément à percevoir (specs/sas/force-extras-complement-on-platform.md). On platform/iCal
               reservations the options are collected on arrival — surface the amount + status so the
               host knows what to collect at check-in. */}
           {Number(r.complementAmount || 0) > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
               <EuroIcon sx={{ fontSize: 16, color: r.complementPaid ? 'success.main' : 'error.main', flexShrink: 0 }} />
               <Chip
-                /* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — deferred at check-in
+                /* specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 10 — deferred at check-in
                    → collected at the door, with the end-of-stay complement. */
                 label={`${r.complementDeferredToCheckout && !r.complementPaid ? 'Complément (fin de séjour)' : 'Complément à percevoir'} : ${formatCurrency(r.complementAmount)}${r.complementPaid ? ' (perçu)' : ''}`}
                 size="small"

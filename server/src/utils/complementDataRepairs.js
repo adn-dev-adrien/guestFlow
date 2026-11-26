@@ -3,11 +3,11 @@
  * `db` rather than the reservations model, which cannot be required there (it binds itself to
  * `require('../database')` at load time, so pulling it in mid-file would hand it a half-built module).
  *
- * 1. specs/sas-bath-linen-ghost-line.md — erase the billing lines the removed « linge de toilette
+ * 1. specs/linen/sas-bath-linen-ghost-line.md — erase the billing lines the removed « linge de toilette
  *    réglé en fin de séjour » flow left behind. Idempotent (a filter).
- * 2. specs/frozen-complement-trusts-client.md — reduce a collected arrival complement that absorbed a
+ * 2. specs/sas/frozen-complement-trusts-client.md — reduce a collected arrival complement that absorbed a
  *    later mid-stay sale. ONE-SHOT: it subtracts, so the caller guards it with the `migrations` table.
- * 3. specs/arrival-moment-is-the-check-in.md rule 3 — clear the arrival-extras baselines of stays the stay clock has not started
+ * 3. specs/sas/arrival-moment-is-the-check-in.md rule 3 — clear the arrival-extras baselines of stays the stay clock has not started
  *    (`clearPreArrivalBaselines`). Idempotent (a filter); runs on every boot.
  */
 
@@ -94,7 +94,7 @@ function repairFrozenComplements(db) {
   return repaired;
 }
 
-// specs/arrival-moment-is-the-check-in.md rule 3, as amended by pricing-components rules 102 and 103 b (loop t4, D4-2, 2026-11-16).
+// specs/sas/arrival-moment-is-the-check-in.md rule 3, as amended by pricing-components rules 102 and 103 b (loop t4, D4-2, 2026-11-16).
 // A baseline pinned before any arrival (master-era: by the mere arrival DATE) is stale: the stay is still pre-arrival, so an extra added to it
 // belongs to the arrival complement, and with the baseline in place it was billed at check-out instead. Rule 102 now lays a baseline on a
 // save once the stay clock has started (the check-in hour passed, nothing ticked): that one is the stay's own, and clearing it at a restart

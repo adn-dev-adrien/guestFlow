@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 30 (2026-10-27 audit, plugin 1.17.1) — a quote whose stay breaks the
+// specs/site/wordpress-plugin.md rule 30 (2026-10-27 audit, plugin 1.17.1) — a quote whose stay breaks the
 // maximum stay or the changeover days carries `stayRefusal`: the drawer prints GuestFlow's sentence,
 // keeps no quote and leaves the request button disabled.
 import { screen, waitFor } from '@testing-library/react';

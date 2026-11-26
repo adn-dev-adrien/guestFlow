@@ -1,6 +1,6 @@
 /**
  * The window of a stay, shared by the gate keys and the guest app so both read one helper
- * (specs/gate-access-sowel-connector.md §3.1 rule 4; specs/guest-app.md rule 2).
+ * (specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4; specs/guest-app/guest-app.md rule 2).
  *
  *   start = startDate + checkInTime  − 3 h   (the check-in time is the planned arrival; a guest
  *                                              early by a few hours is let in — contract v2, 2026-09-27)
@@ -11,7 +11,7 @@
  *
  * Both ends are **Europe/Paris wall clock**, because that is what is written on the contract and
  * what the guest reads. It is computed from the live reservation at every read of the list of keys
- * (specs/gate-access-sowel-connector.md §3.1 rule 3): moving the dates moves the key with them, with no
+ * (specs/guest-app/gate-access-sowel-connector.md §3.1 rule 3): moving the dates moves the key with them, with no
  * operator action.
  *
  * Why the conversion is not `new Date('2026-09-12T16:00')`: that parses in the *server's* zone.
@@ -22,7 +22,7 @@
 
 const TIME_ZONE = 'Europe/Paris';
 const ONE_HOUR_MS = 60 * 60 * 1000;
-/** Margins around the stay (specs/gate-access-sowel-connector.md §3.1 rule 4). */
+/** Margins around the stay (specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4). */
 const OPENS_BEFORE_CHECK_IN_MS = 3 * ONE_HOUR_MS;
 const CLOSES_AFTER_CHECK_OUT_MS = 2 * ONE_HOUR_MS;
 
@@ -114,7 +114,7 @@ function toParisIso(date) {
 /**
  * The window of a stay, or `null` when the reservation cannot yield one (missing dates). Early
  * opening and prolongation are the owner's, set in Sowel's list: they never enter this computation
- * (specs/gate-access-sowel-connector.md §3.1).
+ * (specs/guest-app/gate-access-sowel-connector.md §3.1).
  */
 function computeWindow(reservation) {
   if (!reservation) return null;

@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 4, 15-18, 22 (CLAUDE.md §6.0) — every figure of the mini SAS is the server's: Total, Déjà payé, Reste à payer and the VAT rows are rendered from the
+// specs/sas/outside-booking-sas.md rules 4, 15-18, 22 (CLAUDE.md §6.0) — every figure of the mini SAS is the server's: Total, Déjà payé, Reste à payer and the VAT rows are rendered from the
 // payload, never computed (the payload here is deliberately not the sum of its lines); « Rien à encaisser. » when nothing is left; a payment below the reste offers « Reste à percevoir » only.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

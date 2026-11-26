@@ -1,5 +1,5 @@
 // @ts-check
-// specs/dashboard-planning-scroll.md rules 12-14, 18, 22 — the planning is a timeline of days that scrolls
+// specs/planning/dashboard-planning-scroll.md rules 12-14, 18, 22 — the planning is a timeline of days that scrolls
 // into the past and the future: it opens on today under the bar, the past is one scroll up, an empty
 // fortnight does not stop the scroll (a stay 8 weeks out is reachable), « Aujourd'hui » comes back, and
 // there is no date input on the page.
@@ -72,7 +72,7 @@ test('the planning opens on today, scrolls into the past, crosses an empty fortn
 });
 
 // A planning with nothing on it is short: it never fills the screen, so both edges are always « near ».
-// The timeline must not keep asking for windows on its own (specs/dashboard-planning-scroll.md rules 26-27).
+// The timeline must not keep asking for windows on its own (specs/planning/dashboard-planning-scroll.md rules 26-27).
 test('an empty planning asks for no more windows while nobody touches it', async ({ page, request }) => {
   const { today } = await (await request.get('/api/today')).json();
   let asked = 0;

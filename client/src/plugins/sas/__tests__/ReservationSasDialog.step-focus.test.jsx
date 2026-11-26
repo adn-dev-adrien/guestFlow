@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md §3.0 reading of 2026-11-18 (stabilisation loop t22, owner decision: lost focus is a defect on every path) —
+// specs/sas/arrival-departure-sas.md §3.0 reading of 2026-11-18 (stabilisation loop t22, owner decision: lost focus is a defect on every path) —
 // every step change of the SAS, forward and back, puts the focus on the new step's title: never on the document body, never on a footer
 // button React kept for the next page with another meaning (« Suivant » turned « Valider et terminer »).
 // The pages are enumerated from the code (the `case` keys of the footer's `renderActions`); the walks below go through the arrival and the

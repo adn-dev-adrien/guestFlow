@@ -1,4 +1,4 @@
-// The logement-level « Acompte » switch (specs/property-deposit-switch.md).
+// The logement-level « Acompte » switch (specs/payments/property-deposit-switch.md).
 // `properties.depositEnabled = 0` means this property has NO acompte — direct bookings, platform
 // bookings and the website alike — so the solde absorbs the whole pre-arrival total. The one thing
 // the switch must never do is rewrite an acompte that was already encaissé (rule 4): that money

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 66 — the static guards that name their patterns, their home and, for the
+// specs/pricing/pricing-components.md §3 rule 66 — the static guards that name their patterns, their home and, for the
 // exporters, their scope. Shared by `no-duplicate-formulas.unit.test.js` (which judges the hits against the allow-lists
 // of `fixtures/no-duplicate-formulas/`) and by the script that regenerates those lists.
 //

@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 7, 21, 25, 39, 43-47 (loop t1 AV-1, AV-3, AV-4, AV-5, AV-7, AV-11) — a confirmed lowering of a paid line opens its register row and
+// specs/sas/outside-booking-sas.md rules 7, 21, 25, 39, 43-47 (loop t1 AV-1, AV-3, AV-4, AV-5, AV-7, AV-11) — a confirmed lowering of a paid line opens its register row and
 // holds the invoice; the invoice and the billing address are the administrator's; a refused commit writes no billing; the reception never reads the link's address;
 // the payload says whether « Créer la facture » can be offered.
 const test = require('node:test');

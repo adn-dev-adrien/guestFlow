@@ -2,7 +2,7 @@ const test = require('node:test');
 const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
-// specs/bed-config-in-linen-card.md §10 hotfix follow-up #4 — empty platform must never be persisted.
+// specs/linen/bed-config-in-linen-card.md §10 hotfix follow-up #4 — empty platform must never be persisted.
 // The controller normalises NULL / '' / whitespace to 'direct' before any downstream logic runs.
 //
 // (The former « gross coercion / GROSS_BELOW_NET » tests were removed 2026-06-22 with the
@@ -44,7 +44,7 @@ function buildController({ quoteFinalPrice = 100, quoteBalanceAmount, captures }
       };
     },
   };
-  // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
+  // The creation is one transaction (specs/reservations/reservation-number-and-search.md rule 13): run it inline.
   const dbMock = {
     transaction: (fn) => fn,
     prepare() {
@@ -138,7 +138,7 @@ test('create — a real platform value is preserved', () => {
   assert.equal(captures.inserted.platform, 'Airbnb', 'non-empty platform left intact');
 });
 
-// specs/platform-payment-entry.md + platform-commission-line.md — the engine must receive `platform`,
+// specs/platforms/platform-payment-entry.md + platform-commission-line.md — the engine must receive `platform`,
 // `platformGrossAmount` (brut → pins finalPrice) and `platformCommissionAmount` (→ solde = net) on SAVE,
 // not just the live preview. Regression: Yann P. — stored finalPrice ignored the brut (983 vs 994) and
 // older résas had a full-total solde because these never reached the engine on create/update.

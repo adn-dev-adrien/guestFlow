@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 56 (b) reading of rule 49 (stabilisation loop t4 B4-3) — the money a row gives back (or keeps) is taken from its own line
+// specs/sas/outside-booking-sas.md rule 56 (b) reading of rule 49 (stabilisation loop t4 B4-3) — the money a row gives back (or keeps) is taken from its own line
 // first, then from the excess no other open row names, and only then from what another row holds: a whole document cancelled (`lineRef` NULL) after its
 // paid beers were offered gives back the plank, so the books keep (or tip) the beers' money at the beers' rate.
 process.env.DB_PATH = ':memory:';

@@ -1,5 +1,5 @@
 /**
- * ReadinessList — the generic « À compléter » list (specs/guest-email-texts-made-simple.md rules 6–7):
+ * ReadinessList — the generic « À compléter » list (specs/emails/guest-email-texts-made-simple.md rules 6–7):
  * what the server found missing, each item a link to where it is fixed. Renders nothing when the list
  * is empty, unless `doneLabel` asks to say so.
  *

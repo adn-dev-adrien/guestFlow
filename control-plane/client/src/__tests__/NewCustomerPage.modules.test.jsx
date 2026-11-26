@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 13 — « Nouveau client »: the modules the plan allows are
+// specs/plugins/plugin-operator-provisioning.md rule 13 — « Nouveau client »: the modules the plan allows are
 // ticked, the operator may untick some, changing the plan re-ticks, and the save sends the choice.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

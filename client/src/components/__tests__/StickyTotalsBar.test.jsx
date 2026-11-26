@@ -1,5 +1,5 @@
 /**
- * StickyTotalsBar — specs/tourist-tax-report-v2.md §3 rules 20, 39, 45, 47 and 54: the given figures, as given, in a sticky polite live
+ * StickyTotalsBar — specs/tourist-tax/tourist-tax-report-v2.md §3 rules 20, 39, 45, 47 and 54: the given figures, as given, in a sticky polite live
  * region; on a phone the `compact` ones and a toggle that unfolds the rest.
  */
 import React from 'react';

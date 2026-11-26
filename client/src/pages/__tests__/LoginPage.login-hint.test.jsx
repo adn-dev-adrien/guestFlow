@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 24 — arriving from the shared login page, the email is
+// specs/hosting/control-plane-plans-and-access.md rule 24 — arriving from the shared login page, the email is
 // filled in and the focus is on the password.
 import React from 'react';
 import { vi } from 'vitest';

@@ -69,7 +69,7 @@ const bookingLinesModel = require('./bookingLinesModel');
 const { buildModel: createOptionsModel } = require('./optionsModel');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
-// reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
+// reconstruction, like « Ménage »). specs/linen/sas-bath-linen-upsell.md §3.1 rule 4.
 const BATH_LINEN_LABEL = 'Linge de toilette';
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 const { carriesMoney, cautionBlocker, withConvertedDevis, MONEY_MESSAGE } = require('../utils/deletionGuard');
@@ -81,7 +81,7 @@ const { keyLines } = require('../utils/pricing/lineKeys');
 const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
 const { roundMoneyStrict, roundMoneyOrZero: num, roundMoneyStrict: r2 } = require('../utils/pricing/money');
 
-// specs/platform-per-echeance-commission.md rule 3 — a commission is clamped to its échéance (net cash
+// specs/platforms/platform-per-echeance-commission.md rule 3 — a commission is clamped to its échéance (net cash
 // ≥ 0). The engine clamps it (`quote.<field>`), so the stored figure is the engine's whenever it gave
 // one: storing the raw input let a 100 € commission on a 0 € acompte reach finance as a −100 € net.
 function storedCommission(input, engineValue) {
@@ -89,7 +89,7 @@ function storedCommission(input, engineValue) {
   return engineValue != null && Number.isFinite(Number(engineValue)) ? Math.min(entered, Number(engineValue)) : entered;
 }
 
-// Origin shown on the « Nouvelles réservations » dashboard card (specs/dashboard-ical-new-reservations.md
+// Origin shown on the « Nouvelles réservations » dashboard card (specs/planning/dashboard-ical-new-reservations.md
 // rule 9): the iCal source, else « Site » for a paid website devis, else the channel set on the fiche.
 function newReservationOriginLabel(row) {
   if (row.sourceType === 'ical') {
@@ -112,8 +112,8 @@ function parseDetailLines(raw) {
   } catch { return []; }
 }
 
-// Business error the controller maps to a 409 with its code (specs/mid-stay-notes.md §4.3).
-// specs/disable-deposit-per-reservation.md rule 2 — no acompte, no acompte deadline. The posted date is
+// Business error the controller maps to a 409 with its code (specs/sas/mid-stay-notes.md §4.3).
+// specs/payments/disable-deposit-per-reservation.md rule 2 — no acompte, no acompte deadline. The posted date is
 // only a fallback for a deposit the engine priced without dating it; it never survives a zero deposit.
 function storedDepositDueDate(quote, postedDepositDueDate) {
   if (!(round2(quote.depositAmount) > 0)) return null;
@@ -129,11 +129,11 @@ function midStayError(code, message) {
 // Platform-sourced reservations carry `clientGrossAmount` (what the guest paid the platform, TTC).
 // The owner's net stays in `finalPrice`. Commission = gross − net (clipped to 0). Null on direct bookings
 // and on platform bookings without a recorded gross.
-// specs/caution-live-from-property.md §3 — the caution amount a reservation displays is LIVE from the
+// specs/payments/caution-live-from-property.md §3 — the caution amount a reservation displays is LIVE from the
 // property's current `defaultCautionAmount` until the caution is received, then FROZEN to the amount
 // actually collected (stored in `reservations.cautionAmount`, frozen at receipt). Expects a row carrying
 // `cautionReceived`, `cautionAmount` and `propertyDefaultCautionAmount`.
-// specs/arrival-departure-sas.md rule 31 — a stay whose check-in answered « Non » takes no caution: 0 until one is received.
+// specs/sas/arrival-departure-sas.md rule 31 — a stay whose check-in answered « Non » takes no caution: 0 until one is received.
 function resolveEffectiveCaution(row) {
   if (!row) return 0;
   if (Number(row.cautionReceived || 0) === 1) return Number(row.cautionAmount || 0);
@@ -151,12 +151,12 @@ function deriveCommissionAmount(row) {
   return Math.max(0, roundMoneyStrict(gross - net));
 }
 
-// specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement from a
+// specs/sas/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement from a
 // detailed reservation (the shape returned by getByIdWithDetails). Lines = the in-complement (non-offered)
 // options / resources / custom options + the tourist-tax-in-complement line + a remainder line so the
 // listed detail always sums to the authoritative `complementAmount`. Pure → unit-tested.
 //
-// specs/sas-offer-complement-lines.md §4.3 — every line carries a `ref` = the row behind it, which is
+// specs/sas/sas-offer-complement-lines.md §4.3 — every line carries a `ref` = the row behind it, which is
 // what lets the SAS offer it. With `includeOffered` (SAS payload only) the already-offered extras are
 // listed too, at `amount: 0` with their real price in `originalAmount`, so a gesture can be undone; the
 // listed detail still sums to `complementAmount`. Every other consumer (J-2 email, recall display) keeps
@@ -194,7 +194,7 @@ function readExtraLinesFromDetailed(r) {
   ];
 }
 
-// specs/single-payment-at-check-in.md rule 8bis — un paiement unique qui se dissout doit le DIRE.
+// specs/payments/single-payment-at-check-in.md rule 8bis — un paiement unique qui se dissout doit le DIRE.
 //
 // La dissolution est silencieuse depuis la v2.9.0 : le groupe disparaissait sans une ligne
 // d'historique, si bien qu'un opérateur voyait son encaissement s'évaporer sans aucun moyen de savoir
@@ -223,7 +223,7 @@ function traceGroupDissolved(database, reservationId, group, bucket) {
   }
 }
 
-// specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — le marqueur d'appartenance du
+// specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — le marqueur d'appartenance du
 // complément de fin de séjour : 1 = « c'est le SAS départ qui l'a encaissé », et lui seul peut donc le
 // dé-payer. Miroir exact de `complementPaidAtArrival` côté arrivée. Gardés : plusieurs schémas de test
 // minimaux n'ont pas la colonne, et l'encaissement lui-même ne doit pas en dépendre.
@@ -236,7 +236,7 @@ function markEndOfStayPaidAtDeparture(database, reservationId, value) {
   }
 }
 
-// specs/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — the end-of-stay complement is collected (books or
+// specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — the end-of-stay complement is collected (books or
 // caisse interne) and the departure SAS did not settle it: a row without the marker column reads as the SAS's own, as below.
 function endOfStayCollectedElsewhere(row) {
   if (!row) return false;
@@ -255,7 +255,7 @@ function settledByThisSas(database, reservationId) {
   }
 }
 
-// specs/arrival-payment-detail-and-adjustment.md rule 23 — the réduction and the pourboire belong to
+// specs/sas/arrival-payment-detail-and-adjustment.md rule 23 — the réduction and the pourboire belong to
 // ONE payment; when that payment goes, they go with it. Guarded: several minimal test schemas have
 // neither column, and there is then nothing to clear.
 function clearArrivalPaymentAdjustment(database, reservationId) {
@@ -267,7 +267,7 @@ function clearArrivalPaymentAdjustment(database, reservationId) {
   }
 }
 
-// specs/platform-added-guests-tourist-tax.md rule 23 — a tax forced to the complement or collected on
+// specs/tourist-tax/platform-added-guests-tourist-tax.md rule 23 — a tax forced to the complement or collected on
 // arrival is whole there and keeps its name; the engine counts no addition on those.
 function complementTaxIsAddition(r, tax) {
   const added = round2(r.touristTaxAddedGuestsAmount || 0);
@@ -279,7 +279,7 @@ const installmentRestOf = (r, room) => require('../utils/installmentPlan').restO
 function arrivalComplementDetailFromReservation(r, { includeOffered = false, withLineIds = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const lines = [];
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2 — une ligne « en complément » peut avoir
+  // specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.2 — une ligne « en complément » peut avoir
   // déjà quitté le complément d'ARRIVÉE : la part vendue en cours de séjour est facturée en fin de
   // séjour. La lister ici à son prix plein la faisait apparaître DEUX FOIS sur la carte fusionnée
   // (une fois côté arrivée, une fois côté fin de séjour) et rompait l'invariant de cette fonction —
@@ -299,7 +299,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false, wit
     midStayByKey[key] = round2(midStayByKey[key] - moved);
     return round2(real - moved);
   };
-  // `qty`/`unitPrice`/`kind` (specs/j2-email-coffee-and-sas-complement.md) are additive: they let the
+  // `qty`/`unitPrice`/`kind` (specs/emails/j2-email-coffee-and-sas-complement.md) are additive: they let the
   // J-2 email render the same « label : qté × prix = total » lines as the SAS recap, and localise the
   // system labels (tax / remainder) per language. Existing consumers reading `label`/`amount` are
   // unaffected. `qty` mirrors the SAS: billedUnits, else quantity, else 1.
@@ -343,7 +343,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false, wit
       ...(offered ? { offered: 1, originalAmount: real } : {}),
     });
   }
-  // specs/platform-extra-guest-complement.md §3.5 — the guests added after the brut was entered.
+  // specs/platforms/platform-extra-guest-complement.md §3.5 — the guests added after the brut was entered.
   const extraGuestsReal = round2(r.extraGuestComplementSurcharge || 0);
   if (extraGuestsReal > 0) {
     const offered = Number(r.extraGuestSurchargeOffered || 0) === 1;
@@ -379,7 +379,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false, wit
   return { amount, paid: Number(r.complementPaid || 0) === 1 ? 1 : 0, detail: lines };
 }
 
-// specs/plugins-phase-3a-online-payment.md rule 39 — a bucket collected at arrival retires its open payment link at
+// specs/plugins/plugins-phase-3a-online-payment.md rule 39 — a bucket collected at arrival retires its open payment link at
 // once (rule 23), so a payment landing before the next poll meets a settled bucket instead of a live link.
 function retireSettledLinksOf(database) {
   try { require('./paymentLinksModel').buildModel(database).retireSettled(); } catch { /* no link table: nothing to retire */ }
@@ -387,7 +387,7 @@ function retireSettledLinksOf(database) {
 
 function createReservationsModel(database, { arrivalComplementEngine = null } = {}) {
   const catalogue = createCatalogueProvider(database);
-  // specs/pricing-components.md rule 41 — the free units an arrival SAS sale may spend: the grant the stay was sold with (its tariff
+  // specs/pricing/pricing-components.md rule 41 — the free units an arrival SAS sale may spend: the grant the stay was sold with (its tariff
   // snapshot), else the lodging's catalogue, on an own-channel stay only — the very grant the fiche's engine reads. The SAS sells an
   // article no fiche line holds (its own earlier line is replaced), so the whole grant is left for it.
   const sasFreeUnitsGrant = (reservationId, res) => {
@@ -402,21 +402,21 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     });
     return (optionId) => ledger.grantedFreeUnitsFor(optionId);
   };
-  // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  // The own channels, read at query time (specs/plugins/plugins-phase-p-productisation.md rule 19).
   registerDirectChannelSql(database);
-  // Per-reservation breakfast time (specs/breakfast-time.md). Persisted via a dedicated guarded
+  // Per-reservation breakfast time (specs/options/breakfast-time.md). Persisted via a dedicated guarded
   // write so the core INSERT/UPDATE SQL stays untouched; absent in minimal test schemas → no-op.
   const HAS_RESERVATION_BREAKFAST_TIME = (() => {
     try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'breakfastTime'); }
     catch { return false; }
   })();
-  // specs/platform-extra-guest-complement.md §5 — the paid base and the arrival part of the supplement,
+  // specs/platforms/platform-extra-guest-complement.md §5 — the paid base and the arrival part of the supplement,
   // as the engine resolved them. A collected complement keeps what was collected (rule 12).
   const HAS_EXTRA_GUEST_COMPLEMENT = (() => {
     try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'extraGuestComplementSurcharge'); }
     catch { return false; }
   })();
-  // specs/platform-added-guests-tourist-tax.md §5 — the engine already kept a collected amount (rule 7).
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md §5 — the engine already kept a collected amount (rule 7).
   const HAS_ADDED_GUESTS_TAX = (() => {
     try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'platformPaidOccupants'); }
     catch { return false; }
@@ -449,7 +449,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       reservationId,
     );
   }
-  // specs/pricing-components.md §3 rule 8 — what EXTRA GUESTS and TOURIST TAX gave the save, for a later sale to read as stored.
+  // specs/pricing/pricing-components.md §3 rule 8 — what EXTRA GUESTS and TOURIST TAX gave the save, for a later sale to read as stored.
   // A quote with no records (a halted quote: no night) clears them, so a sale runs the units.
   const HAS_SALE_FIGURES = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'storedTouristTax'); } catch { return false; }
@@ -495,7 +495,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
     applyBreakfastTimeToOccurrences(reservationId, value);
   }
-  // specs/sas-breakfast-time-applies.md §3 — the breakfast hour of a stay lives in TWO places since the
+  // specs/sas/sas-breakfast-time-applies.md §3 — the breakfast hour of a stay lives in TWO places since the
   // planning cards shipped: `reservations.breakfastTime` and, per served morning, the `time` of the
   // breakfast option's `cardOccurrences`. The planning card and the push notice read the occurrence, so
   // a new hour that only lands on the reservation is invisible. Writing the hour therefore rewrites
@@ -524,7 +524,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         .run(JSON.stringify(next), ...(optionRow.lineId != null ? [optionRow.lineId] : [reservationId, optionRow.optionId]));
     }
   }
-  // Per-reservation email language (specs/email-language-fr-en.md). Guarded; 'en' or 'fr' (default), only
+  // Per-reservation email language (specs/emails/email-language-fr-en.md). Guarded; 'en' or 'fr' (default), only
   // written when the payload carries it. Absent column (minimal test schema) → no-op.
   const HAS_EMAIL_LANGUAGE = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'emailLanguage'); }
@@ -535,13 +535,13 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     const value = String(payload.emailLanguage || '').toLowerCase() === 'en' ? 'en' : 'fr';
     database.prepare('UPDATE reservations SET emailLanguage = ? WHERE id = ?').run(value, reservationId);
   }
-  // « En fin de séjour » marker (specs/defer-arrival-complement-to-checkout.md §3.2 rule 5). Guarded
+  // « En fin de séjour » marker (specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 5). Guarded
   // so minimal test schemas without the column simply skip the write.
   const HAS_COMPLEMENT_DEFERRED = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementDeferredToCheckout'); }
     catch { return false; }
   })();
-  // specs/adjustable-complement-amounts.md §3.1 rule 3 — '' / null = « no adjustment », i.e. the bucket
+  // specs/sas/adjustable-complement-amounts.md §3.1 rule 3 — '' / null = « no adjustment », i.e. the bucket
   // keeps whatever the engine (or the sum of the lines) produces. `undefined` means « the caller
   // didn't say », so the stored value is left alone; an explicit '' clears it.
   const toOverride = (v) => (v === undefined ? undefined
@@ -564,7 +564,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     }
   }
 
-  // specs/adjustable-complement-amounts.md §3.1 rule 4 + §3.2 — le montant annoncé a le dernier mot.
+  // specs/sas/adjustable-complement-amounts.md §3.1 rule 4 + §3.2 — le montant annoncé a le dernier mot.
   // Les SAS déplacent `complementAmount` EN DIRECT, hors moteur de prix (le commit du SAS arrivée qui
   // ajoute ses lignes, « Offrir » qui en passe une à 0) : sans ce rappel, un passage au SAS effacerait
   // silencieusement l'ajustement jusqu'au prochain enregistrement de la fiche, et la ventilation
@@ -588,7 +588,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     database.prepare("UPDATE reservations SET complementDeferredToCheckout = ?, updatedAt = datetime('now') WHERE id = ?")
       .run(deferred ? 1 : 0, reservationId);
   }
-  // Human-readable reservation number (specs/reservation-number-and-search.md §3). Guarded so minimal
+  // Human-readable reservation number (specs/reservations/reservation-number-and-search.md §3). Guarded so minimal
   // test schemas without the column simply skip it.
   const HAS_RESERVATION_NUMBER = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'reservationNumber'); }
@@ -616,9 +616,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     }
   }
   // Every write to reservation_options / _custom_options / _resources / _nights goes through this
-  // shared store, which `devisModel` uses too (specs/devis-extras-parity-and-price-lock.md §4.1).
+  // shared store, which `devisModel` uses too (specs/devis/devis-extras-parity-and-price-lock.md §4.1).
   const bookingLines = bookingLinesModel.buildModel(database);
-  // « This option row was added by the arrival SAS » (specs/sas-upsells-activate-catalogue-option.md
+  // « This option row was added by the arrival SAS » (specs/sas/sas-upsells-activate-catalogue-option.md
   // §3.2 rule 5). Guarded so minimal test schemas without the column simply behave as legacy.
   const HAS_RESERVATION_PLATFORM = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'platform'); }
@@ -629,19 +629,19 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     catch { return false; }
   })();
   // Check-in / check-out hours of the stay — they bound the moments a card option can be served on
-  // (specs/sas-breakfast-and-catering-upsell.md §3.2). Guarded: a minimal schema falls back to the
+  // (specs/sas/sas-breakfast-and-catering-upsell.md §3.2). Guarded: a minimal schema falls back to the
   // usual 15:00 / 10:00.
   const HAS_RESERVATION_CHECK_TIMES = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'checkInTime'); }
     catch { return false; }
   })();
-  // Per-reservation moments of a card option (specs/option-planning-card.md §3.2). The arrival SAS
+  // Per-reservation moments of a card option (specs/options/option-planning-card.md §3.2). The arrival SAS
   // writes them when it sells the breakfast / a meal; guarded like every other optional column.
   const HAS_RO_CARD_OCCURRENCES = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardOccurrences'); }
     catch { return false; }
   })();
-  // Served persons of a per-person card option (specs/card-option-served-persons.md §5), and the
+  // Served persons of a per-person card option (specs/options/card-option-served-persons.md §5), and the
   // property capacity that bounds it. Guarded like every other optional column.
   const HAS_RO_CARD_NIGHTS = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardNights'); }
@@ -655,14 +655,14 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     try { return database.prepare('PRAGMA table_info(properties)').all().some((c) => c.name === 'maxGuests'); }
     catch { return false; }
   })();
-  // specs/plugins-phase-3c-hourly-resources.md rules 6–7 — which plugin line of the SAS a custom row is.
+  // specs/plugins/plugins-phase-3c-hourly-resources.md rules 6–7 — which plugin line of the SAS a custom row is.
   const HAS_RCO_LINE_ID = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'lineId'); } catch { return false; }
   })();
   const HAS_RCO_SAS_LINE_KEY = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'sasLineKey'); } catch { return false; }
   })();
-  // A custom line keeps its count (specs/arrival-departure-sas.md rule 29); minimal test schemas lack it.
+  // A custom line keeps its count (specs/sas/arrival-departure-sas.md rule 29); minimal test schemas lack it.
   // Loop t3 T3-3 — a custom line carries its moment and its own discount like an option row (`ro.*`), so the readers of the detail (the arrival SAS
   // recap) judge it the same way. Read when asked: the columns are added by the pricing-lines migration.
   const customLineFacts = () => {
@@ -672,20 +672,20 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   const HAS_RCO_QUANTITY = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity'); } catch { return false; }
   })();
-  // Extras baseline captured when the stay starts (specs/mid-stay-extras-to-end-of-stay-complement.md
+  // Extras baseline captured when the stay starts (specs/sas/mid-stay-extras-to-end-of-stay-complement.md
   // §3.1). Guarded so minimal test schemas without the column simply never route anything to the
   // end-of-stay complement (legacy behaviour).
   const HAS_ARRIVAL_EXTRAS_BASELINE = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'arrivalExtrasBaseline'); }
     catch { return false; }
   })();
-  // « Notes en séjour » register (specs/mid-stay-notes.md §3.1). Same guard rationale.
+  // « Notes en séjour » register (specs/sas/mid-stay-notes.md §3.1). Same guard rationale.
   const HAS_MID_STAY_NOTES = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'midStaySettledNotes'); }
     catch { return false; }
   })();
 
-  // specs/adjustable-complement-amounts.md §3.3 — the operator's amount for the end-of-stay
+  // specs/sas/adjustable-complement-amounts.md §3.3 — the operator's amount for the end-of-stay
   // complement. Guarded like every other late column so minimal test schemas simply see « no
   // adjustment » and behave exactly as before.
   const HAS_COMPLEMENT_OVERRIDES = (() => {
@@ -704,7 +704,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     return row && row.endOfStayComplementAmountOverride != null ? Number(row.endOfStayComplementAmountOverride) : null;
   }
 
-  // Quand la base de référence des extras doit-elle exister ? — specs/mid-stay-extras-to-end-of-stay-complement.md
+  // Quand la base de référence des extras doit-elle exister ? — specs/sas/mid-stay-extras-to-end-of-stay-complement.md
   // §3.1 rule 3, élargi le 2026-08-22 puis corrigé le 2026-08-24.
   //
   // Elle marquait « le séjour a commencé », par le calendrier. Deux corrections successives :
@@ -715,7 +715,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   //    complément encaissé montait le total du séjour sans qu'aucune échéance ne la réclame
   //    (constaté en production le 2026-08-22). L'encaissement ferme donc le bucket.
   // 2. Le calendrier répondait à une AUTRE question que « le client est-il là ? »
-  //    (specs/arrival-moment-is-the-check-in.md). Le jour de l'arrivée, avant tout check-in, la base
+  //    (specs/sas/arrival-moment-is-the-check-in.md). Le jour de l'arrivée, avant tout check-in, la base
   //    était déjà posée : une option ajoutée à la main passait donc pour « vendue en cours de séjour »
   //    et partait au complément de fin de séjour. L'arrivée est un acte de l'opérateur — le check-in
   //    ou le SAS d'arrivée —, jamais une date.
@@ -732,12 +732,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   // Rule 90.2: the departure charges of the detail written are the stay's departure lines, in the same write — created by the departure
   // SAS's commit (`asLines`), kept in step by every other rewrite of a stay that holds them.
   const writeEndOfStayDetail = (reservationId, detailLines, notes, { asLines = false } = {}) => {
-    // An OFFERED line (specs/sas-offer-complement-lines.md §3.3) is worth 0 € but must survive every
+    // An OFFERED line (specs/sas/sas-offer-complement-lines.md §3.3) is worth 0 € but must survive every
     // rewrite: it is the trace of the geste commercial and the only way to un-offer it on a re-open.
     // The « Ajustement » line is filtered out here on purpose: it is not a real line, it is recomputed
     // just below from whatever the real ones now weigh.
     const real = keepRealLines(detailLines);
-    // specs/adjustable-complement-amounts.md §3.3 rule 20 — every path that rewrites the detail goes
+    // specs/sas/adjustable-complement-amounts.md §3.3 rule 20 — every path that rewrites the detail goes
     // through here, so the operator's adjustment is re-applied by all of them: the mid-stay sync of a
     // fiche save, settling or cancelling a note, offering a line, a departure-SAS re-run.
     const { lines, amount } = reconcileEndOfStayLines({ lines: real, override: readEndOfStayOverride(reservationId) });
@@ -835,7 +835,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     }
   };
 
-  // specs/sas-offer-complement-lines.md §3.3 rule 9 — apply the operator's « Offrir » decisions to the
+  // specs/sas/sas-offer-complement-lines.md §3.3 rule 9 — apply the operator's « Offrir » decisions to the
   // in-complement extras. `refs` is the AUTHORITATIVE offered set (`[{ kind, id }]`): a line named in it
   // is offered, one absent from it is billed — so un-offering works on a re-open. Offering never loses
   // the price (a catalogue row keeps `unitPrice`/`billedUnits`, a custom row keeps `amount`), and
@@ -846,7 +846,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   // from here. At CHECK-OUT (the recalled arrival complement) every in-complement line is addressable.
   // The read half: which rows the offered set flips, and how far it moves `complementAmount`. Shared by
   // the commit (which then writes) and the arrival preview (which writes nothing) —
-  // specs/sas-arrival-total-server-side.md rule 1.
+  // specs/sas/sas-arrival-total-server-side.md rule 1.
   const planOfferedComplementExtras = (reservationId, refs, { skipSasOrigin = false } = {}) => {
     const none = { delta: 0, writes: [], stored: null };
     if (!Array.isArray(refs)) return none;
@@ -919,7 +919,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       writes.push(() => setCustom.run(want ? 1 : 0, c.id));
     }
 
-    // specs/platform-extra-guest-complement.md rule 17 — the added guests are one line, offered through
+    // specs/platforms/platform-extra-guest-complement.md rule 17 — the added guests are one line, offered through
     // the reservation's own flag (the in-brut part is never touched: the engine masks the arrival part only).
     if (HAS_EXTRA_GUEST_COMPLEMENT) {
       const eg = database.prepare('SELECT extraGuestComplementSurcharge AS real, COALESCE(extraGuestSurchargeOffered, 0) AS offered FROM reservations WHERE id = ?').get(reservationId);
@@ -943,7 +943,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     reapplyComplementOverride(reservationId, next);
   };
 
-  // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11). Guarded
+  // Client-visibility flag on the options catalog (specs/linen/laundry-bath-mat.md §3 rule 11). Guarded
   // so minimal test schemas without the column degrade to "visible" (the SELECT emits 1).
   const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
     try { return database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'displayToClient'); }
@@ -952,7 +952,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   const OPTION_DISPLAY_TO_CLIENT_SELECT = HAS_OPTION_DISPLAY_TO_CLIENT
     ? 'o.displayToClient as displayToClient' : '1 as displayToClient';
 
-  // specs/accounting-books-the-money-collected.md rule 17 — the contribs of paid lines since removed, as the contrib
+  // specs/accounting/accounting-books-the-money-collected.md rule 17 — the contribs of paid lines since removed, as the contrib
   // readers below want them. Guarded: a minimal schema has no such column.
   const removedContribsOf = (reservationId) => {
     let raw = null;
@@ -1114,7 +1114,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const params = [reservationId, l.optionId, l.quantity, l.unitPrice, l.billedUnits, l.priceType, l.totalPrice];
       if (occColumn) params.push(l.cardOccurrences && l.cardOccurrences.length ? JSON.stringify(l.cardOccurrences) : null);
       // Only a deliberately reduced (or raised) number of covers is stored; NULL keeps the line
-      // following the party (specs/card-option-served-persons.md §3.1 rule 4).
+      // following the party (specs/options/card-option-served-persons.md §3.1 rule 4).
       if (perColumn) params.push(l.cardPersons != null ? Number(l.cardPersons) : null);
       if (nightsColumn) params.push(l.cardNights != null ? Number(l.cardNights) : null);
       upsert.run(...params);
@@ -1196,13 +1196,13 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (!kept.has(row.id)) database.prepare('DELETE FROM reservation_custom_options WHERE id = ?').run(row.id);
     }
   };
-  // specs/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
+  // specs/sas/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
   // toilette activate their CATALOGUE option (so the laundry + linen stock finally count them),
   // priced by the engine, routed to the complement, tagged `sasArrivalOrigin` so a re-run may
   // remove them. Tri-state: `undefined` = step not shown → leave the reservation alone. An
   // option the operator sold from the fiche (`sasArrivalOrigin = 0`) is NEVER touched.
   // The sold-options writer is handed the two upsells' option ids, to know which rows it must never remove.
-  // specs/sas-offer-complement-lines.md §3.2 rule 8 — « Offrir » is NOT « Non merci »: an
+  // specs/sas/sas-offer-complement-lines.md §3.2 rule 8 — « Offrir » is NOT « Non merci »: an
   // offered upsell stays activated (the laundry + the linen stock count it) but is stored at
   // `totalPrice = 0`, so it costs the guest nothing and drops out of the complement.
   const applyUpsell = (reservationId, offer, wanted, offered) => {
@@ -1386,7 +1386,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const params = [];
       if (propertyId) {
         // No platform filter: a stay occupying dates is never hidden, whatever the state of its
-        // platform's iCal source (specs/calendar-property-parity.md rule 2).
+        // platform's iCal source (specs/planning/calendar-property-parity.md rule 2).
         sql += ' AND r.propertyId = ?'; params.push(propertyId);
       }
       if (clientId) { sql += ' AND r.clientId = ?'; params.push(clientId); }
@@ -1394,7 +1394,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
       sql += ' ORDER BY r.startDate';
       // The server's calendar day, not UTC's: between midnight and 2 a.m. in Paris the UTC date is
-      // still yesterday (specs/upcoming-reservations-cards.md rule 7).
+      // still yesterday (specs/planning/upcoming-reservations-cards.md rule 7).
       const today = localTodayIso();
       const nowTime = localHourMinute(new Date());
       return database.prepare(sql).all(...params).map((row) => {
@@ -1404,7 +1404,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const payment = computePaymentStatus(row, today);
         return {
           ...reservation,
-          // specs/caution-live-from-property.md §3 — live from property until received, then frozen.
+          // specs/payments/caution-live-from-property.md §3 — live from property until received, then frozen.
           cautionAmount: resolveEffectiveCaution(row),
           customPrice: row.customPrice == null ? '' : Number(row.customPrice),
           clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
@@ -1414,7 +1414,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           complementAmount: Number(row.complementAmount || 0),
           complementPaid: Number(row.complementPaid || 0),
           complementPaidDate: row.complementPaidDate || null,
-          // specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — lets the lists label a
+          // specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 10 — lets the lists label a
           // deferred complement as collected at check-out (values unchanged).
           complementDeferredToCheckout: Number(row.complementDeferredToCheckout || 0),
           remainingDue: payment.remainingDue,
@@ -1423,12 +1423,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       });
     },
 
-    // Live "jump to a reservation" search (specs/reservation-number-and-search.md §3 rule 8-9).
+    // Live "jump to a reservation" search (specs/reservations/reservation-number-and-search.md §3 rule 8-9).
     // Matches reservations by number, firstName, lastName, "first last", "last first" or email
     // (case-insensitive substring). Result is shaped + capped server-side (fat backend). Blank q → [].
-    // Cancelled stays are included and flagged (specs/payment-schedule-and-cancellation.md §3.5
+    // Cancelled stays are included and flagged (specs/payments/payment-schedule-and-cancellation.md §3.5
     // rule 26): search is the one path that must still find them — every list view drops them.
-    // A duplicate set aside (specs/calendar-property-parity.md rule 22) is found the same way.
+    // A duplicate set aside (specs/planning/calendar-property-parity.md rule 22) is found the same way.
     search({ q } = {}) {
       const term = String(q || '').trim().toLowerCase();
       if (!term) return [];
@@ -1470,7 +1470,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (!value) return false;
       // Every row the unique index covers — devis and cancelled stays included — so a number held by
       // one is refused with the French 400, never by the index as a 500
-      // (specs/reservation-number-and-search.md rule 16).
+      // (specs/reservations/reservation-number-and-search.md rule 16).
       let sql = 'SELECT 1 FROM reservations WHERE reservationNumber = ?';
       const params = [value];
       if (exceptId) { sql += ' AND id != ?'; params.push(Number(exceptId)); }
@@ -1492,7 +1492,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // Reservations whose check-in time on `todayIso` has been reached (≤ nowHHMM) and whose arrival
-    // push hasn't been sent today yet. Drives the per-minute push tick (specs/pwa-push-notifications.md
+    // push hasn't been sent today yet. Drives the per-minute push tick (specs/guest-app/pwa-push-notifications.md
     // §3.3). Default check-in 15:00 when unset, mirroring the rest of the app.
     dueArrivals(todayIso, nowHHMM) {
       return database.prepare(`
@@ -1530,7 +1530,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       database.prepare('UPDATE reservations SET departureNotifiedAt = ? WHERE id = ?').run(dateIso, Number(reservationId));
     },
     // Breakfast push guard: the last day (YYYY-MM-DD) this reservation's breakfast was notified
-    // (specs/sas-breakfast-bread-and-push.md rule 8).
+    // (specs/sas/sas-breakfast-bread-and-push.md rule 8).
     stampBreakfastNotified(reservationId, dateIso) {
       database.prepare('UPDATE reservations SET breakfastNotifiedDate = ? WHERE id = ?').run(dateIso, Number(reservationId));
     },
@@ -1540,14 +1540,14 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName, p.photo as propertyPhoto,
           p.defaultCautionAmount as propertyDefaultCautionAmount,
           -- Capacity of the logement: the ceiling of the « personnes servies » stepper the arrival SAS
-          -- shows on a card option (specs/card-option-served-persons.md §3.1 rule 3).
+          -- shows on a card option (specs/options/card-option-served-persons.md §3.1 rule 3).
           p.maxGuests as propertyMaxGuests
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        -- specs/payment-schedule-and-cancellation.md §3.5 rule 26 — a cancelled stay stays
+        -- specs/payments/payment-schedule-and-cancellation.md §3.5 rule 26 — a cancelled stay stays
         -- reachable: its fiche opens read-only so the operator can see what was cancelled and why.
-        -- A duplicate set aside (specs/calendar-property-parity.md rule 22) opens read-only too.
+        -- A duplicate set aside (specs/planning/calendar-property-parity.md rule 22) opens read-only too.
         WHERE r.id = ? AND r.kind IN ('reservation', 'cancelled', 'superseded')
       `).get(id);
       if (!reservation) return null;
@@ -1555,10 +1555,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const keeper = database.prepare('SELECT reservationNumber FROM reservations WHERE id = ?').get(reservation.supersededByReservationId);
         reservation.supersededByReservationNumber = (keeper && keeper.reservationNumber) || null;
       }
-      // specs/caution-live-from-property.md §3: the caution amount is live from the property
+      // specs/payments/caution-live-from-property.md §3: the caution amount is live from the property
       // (defaultCautionAmount) until it is received, then frozen to the collected amount.
       reservation.cautionAmount = resolveEffectiveCaution(reservation);
-      // specs/site-traffic-analytics.md rule 19 — the ready-to-render origin of a website request.
+      // specs/site/site-traffic-analytics.md rule 19 — the ready-to-render origin of a website request.
       Object.assign(reservation, originDisplay(reservation));
 
       // `ro.*` already brings the new force-item-to-complement fields
@@ -1580,11 +1580,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         WHERE ro.reservationId = ?
       `).all(id).map(({ lineIsCard, lineIsInsurance, ...line }) => ({
         ...line,
-        // specs/non-card-option-served-persons.md rule 29 — what the dashboard and the SAS recap print.
+        // specs/options/non-card-option-served-persons.md rule 29 — what the dashboard and the SAS recap print.
         displayCount: displayCountOf(line, reservation, { isCard: Boolean(lineIsCard), isInsurance: Boolean(lineIsInsurance) }),
       }));
 
-      // Option-driven planning cards (specs/option-planning-card.md §3.2): the per-reservation
+      // Option-driven planning cards (specs/options/option-planning-card.md §3.2): the per-reservation
       // selected occurrences are stored as a JSON string — parse them back to an array so the
       // fiche (ExtrasSection) can restore the checklist. Absent column / null → [].
       for (const opt of reservation.options) {
@@ -1631,7 +1631,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         WHERE rr.reservationId = ?
       `).all(id).map((rr) => ({
         ...rr,
-        // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md) parsed for the fiche editor.
+        // Hourly-scheduled sessions (specs/resources/resource-hourly-scheduling.md) parsed for the fiche editor.
         sessions: (() => { try { return rr.sessions ? JSON.parse(rr.sessions) : []; } catch { return []; } })(),
       }));
 
@@ -1648,27 +1648,27 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       `).all(id);
 
       reservation.customPrice = reservation.customPrice == null ? '' : Number(reservation.customPrice);
-      // Manual deposit override (specs/editable-deposit-amount.md): '' when auto, number when frozen —
+      // Manual deposit override (specs/payments/editable-deposit-amount.md): '' when auto, number when frozen —
       // mirrors customPrice so the form field repopulates correctly on load.
       reservation.depositAmountOverride = reservation.depositAmountOverride == null ? '' : Number(reservation.depositAmountOverride);
       reservation.clientGrossAmount = reservation.clientGrossAmount == null ? null : Number(reservation.clientGrossAmount);
       reservation.commissionAmount = deriveCommissionAmount(reservation);
-      // specs/platform-commission-line.md — operator-entered platform commission; '' when unset so the
+      // specs/platforms/platform-commission-line.md — operator-entered platform commission; '' when unset so the
       // form's text field repopulates correctly on load (mirrors customPrice/depositAmountOverride).
       reservation.platformCommissionAmount = reservation.platformCommissionAmount == null ? '' : Number(reservation.platformCommissionAmount);
-      // specs/platform-per-echeance-commission.md — the acompte commission; '' when unset so the form field repopulates.
+      // specs/platforms/platform-per-echeance-commission.md — the acompte commission; '' when unset so the form field repopulates.
       reservation.acompteCommissionAmount = reservation.acompteCommissionAmount == null ? '' : Number(reservation.acompteCommissionAmount);
-      // specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation); '' when unset so
+      // specs/platforms/platform-payment-entry.md — brut (pins the total) + virement (reconciliation); '' when unset so
       // the form's fields repopulate correctly on load.
       reservation.platformGrossAmount = reservation.platformGrossAmount == null ? '' : Number(reservation.platformGrossAmount);
       reservation.platformPayoutAmount = reservation.platformPayoutAmount == null ? '' : Number(reservation.platformPayoutAmount);
-      // specs/platform-tourist-tax-out-of-the-commission.md rule 2 — '' is not 0 here: it is what says
+      // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 2 — '' is not 0 here: it is what says
       // the brut was typed tourist-tax-excluded, and the fiche must be able to tell the two apart.
       reservation.platformTouristTaxAmount = reservation.platformTouristTaxAmount == null ? '' : Number(reservation.platformTouristTaxAmount);
       reservation.complementAmount = Number(reservation.complementAmount || 0);
       reservation.complementPaid = Number(reservation.complementPaid || 0);
       reservation.complementPaidDate = reservation.complementPaidDate || null;
-      // specs/adjustable-complement-amounts.md §3.1 — '' when the bucket is on automatic, a number when
+      // specs/sas/adjustable-complement-amounts.md §3.1 — '' when the bucket is on automatic, a number when
       // the operator froze it; mirrors `depositAmountOverride` so the form fields repopulate on load.
       reservation.complementAmountOverride = reservation.complementAmountOverride == null
         ? '' : Number(reservation.complementAmountOverride);
@@ -1686,10 +1686,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       reservation.remainingDue = payment.remainingDue;
       reservation.paymentComplete = payment.paymentComplete;
 
-      // Bed-linen adequacy flag for the planning arrival card (specs/planning-arrival-alerts.md
+      // Bed-linen adequacy flag for the planning arrival card (specs/planning/planning-arrival-alerts.md
       // §3 rule 6). Skipped for properties where bed linen is a default-offered option (the
       // operator doesn't manage linen per stay there). Absent while the `linen` plugin is not live
-      // (specs/plugins-phase-2-hosts.md rule 17).
+      // (specs/plugins/plugins-phase-2-hosts.md rule 17).
       if (require('../plugins/sdk/registry').isLive(LINEN)) {
         const bedLinenProvidedByDefault = Boolean(database.prepare(`
           SELECT 1 FROM property_option_defaults d
@@ -1703,29 +1703,29 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           bedLinenProvidedByDefault,
         });
       }
-      // specs/per-platform-tourist-tax-three-way.md — the tourist-tax portion of the complement,
+      // specs/tourist-tax/per-platform-tourist-tax-three-way.md — the tourist-tax portion of the complement,
       // computed server-side so the SAS arrival recap can itemise a « Taxe de séjour » line. The tax
       // is in the complement ONLY when it's forced there (touristTaxInComplement = 1) or WE collect it
       // at arrival (case 3 `owner` = the platform does NOT charge the guest). Case 1 (platform collects
       // then reverses it to us) charges it in the BALANCE → NOT in the complement. Direct (balance) and
       // offered platforms (touristTaxTotal = 0) → 0.
-      // Same reading as the engine (specs/plugins-phase-p-productisation.md rule 45): any named
+      // Same reading as the engine (specs/plugins/plugins-phase-p-productisation.md rule 45): any named
       // channel, counted as direct or not, follows its platform's tax mode.
       const taxPlatform = String(reservation.platform || 'direct').toLowerCase();
       const weCollectAtArrival = isNamedChannel(taxPlatform)
         && Number(reservation.touristTaxTotal || 0) > 0
         && !isPlatformCollectingTouristTax(database, reservation.propertyId, taxPlatform);
-      // specs/platform-added-guests-tourist-tax.md rule 15 — a reversing platform's added guests pay
+      // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 15 — a reversing platform's added guests pay
       // their share here; every surface that itemises the complement reads this one figure.
       reservation.touristTaxInComplementAmount = (
         Number(reservation.touristTaxInComplement || 0) === 1 || weCollectAtArrival
       ) ? Number(reservation.touristTaxTotal || 0) : Number(reservation.touristTaxAddedGuestsAmount || 0);
-      // specs/defer-arrival-complement-to-checkout.md §3.2 rules 6-7 — the single « complément de fin
+      // specs/sas/defer-arrival-complement-to-checkout.md §3.2 rules 6-7 — the single « complément de fin
       // de séjour » the fiche renders when the operator deferred the arrival complement to check-out.
       // Server-built (amount + detail lines + paid state) so the client only renders it.
       const arrivalDetail = arrivalComplementDetailFromReservation(reservation);
       reservation.checkoutComplement = buildCheckoutComplement(reservation, arrivalDetail);
-      // specs/adjustable-complement-amounts.md §3.6 — everything the fiche needs to render the
+      // specs/sas/adjustable-complement-amounts.md §3.6 — everything the fiche needs to render the
       // adjustment field: the floor it may not go under (the tourist tax + the accommodation auto-gap,
       // neither of which an adjustment ever touches) and the ventilation the accounting will book,
       // ready to display. Decided here, rendered there.
@@ -1749,7 +1749,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           ].filter((poste) => poste.amount > 0)
           : null,
       };
-      // specs/dashboard-collection-alert.md §4.3 — the day-of-operations « what's left to collect at
+      // specs/planning/dashboard-collection-alert.md §4.3 — the day-of-operations « what's left to collect at
       // the door » block the Dashboard rows render. Deliberately NOT in the reception payload: the
       // receptionView whitelist drops it (it carries the acompte/solde states).
       reservation.operationalCollection = buildOperationalCollection(
@@ -1783,9 +1783,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return bookingLines.getPricingSnapshot(reservationId);
     },
 
-    // specs/tourist-tax-included-services-deduction.md rule 5 — the option ids the booking already
+    // specs/tourist-tax/tourist-tax-included-services-deduction.md rule 5 — the option ids the booking already
     // carries. An update uses them to put back an included service the payload dropped, WITHOUT ever
-    // adding one the booking never had (specs/reservation-option-immutability.md rule 3).
+    // adding one the booking never had (specs/reservations/reservation-option-immutability.md rule 3).
     listCarriedOptionIds(reservationId) {
       return database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ?')
         .all(reservationId)
@@ -1845,7 +1845,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         cautionReturned: Number(row.cautionReturned || 0),
         cautionReturnedDate: row.cautionReturnedDate || null,
         extraGuestSurchargeOffered: Number(row.extraGuestSurchargeOffered || 0),
-        // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
+        // Per-reservation deposit opt-out (specs/payments/disable-deposit-per-reservation.md).
         depositDisabled: Number(row.depositDisabled || 0),
         touristTaxInComplement: Number(row.touristTaxInComplement || 0),
         optionsSignature: getOptionsSignature([
@@ -1876,7 +1876,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     getForUpdate(reservationId) {
       // Also returns the date/time + occupancy columns so the controller can tell whether an edit
       // actually changed anything the availability / capacity guards protect — see
-      // specs/edit-reservation-blocked-by-overlap.md (don't re-block a finance-only edit on a
+      // specs/reservations/edit-reservation-blocked-by-overlap.md (don't re-block a finance-only edit on a
       // pre-existing overlap/capacity issue).
       return database.prepare(`
         SELECT propertyId, sourceType, icalSyncLocked, totalPrice, finalPrice,
@@ -1887,7 +1887,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // The check-in / check-out times a stay takes when none is given: the property's own defaults
-    // (specs/edit-reservation-blocked-by-overlap.md rule 5, specs/reservations-backend-mvc.md rule 9).
+    // (specs/reservations/edit-reservation-blocked-by-overlap.md rule 5, specs/tech/reservations-backend-mvc.md rule 9).
     getPropertyDefaultTimes(propertyId) {
       const row = database.prepare('SELECT defaultCheckIn, defaultCheckOut FROM properties WHERE id = ?').get(Number(propertyId));
       return {
@@ -1916,7 +1916,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // Σ of the contribs captured per schedule bucket when it was ticked — what that bucket actually
-    // collected (specs/reservation-refunds.md rule 34). `null` for a bucket that captured nothing.
+    // collected (specs/payments/reservation-refunds.md rule 34). `null` for a bucket that captured nothing.
     // Guarded: a minimal schema without the contrib columns captures nothing.
     capturedScheduleContribs(reservationId) {
       const none = { deposit: null, balance: null };
@@ -1938,7 +1938,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           // A minimal schema without this table or its contrib columns.
         }
       }
-      // specs/accounting-books-the-money-collected.md rule 17 — a paid line since removed still holds what it collected.
+      // specs/accounting/accounting-books-the-money-collected.md rule 17 — a paid line since removed still holds what it collected.
       lines.push(...removedContribsOf(reservationId));
       const sum = (values) => (values.every((v) => v == null)
         ? null
@@ -1949,7 +1949,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       };
     },
 
-    // The same captures split by poste (specs/reservation-refunds.md rule 35), so a trop-perçu can be
+    // The same captures split by poste (specs/payments/reservation-refunds.md rule 35), so a trop-perçu can be
     // refunded on the poste it came from. `null` for a bucket that captured nothing.
     capturedScheduleContribsByPoste(reservationId) {
       const none = { deposit: null, balance: null };
@@ -1994,7 +1994,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return (row && row.reservationNumber) || '';
     },
 
-    // Dashboard card (specs/dashboard-ical-new-reservations.md): every reservation created during
+    // Dashboard card (specs/planning/dashboard-ical-new-reservations.md): every reservation created during
     // the last 24 hours, whatever its origin — a rolling window, so each one stays exactly 24 h
     // whatever the hour it arrived. Fully shaped server-side, ordered most-recent first.
     listNewReservations() {
@@ -2028,7 +2028,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       });
     },
 
-    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 16): the stays the boot repair
+    // Dashboard « À vérifier » (specs/reservations/reservation-number-and-search.md rule 16): the stays the boot repair
     // numbered — possibly ghosts of a failed creation, still blocking their dates — until the operator
     // has looked at them. Empty on a schema without the stamp.
     listRepairedNumbers() {
@@ -2070,7 +2070,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       }
     },
 
-    // Dashboard alert (specs/site-booking-notifications.md §3 rule 5): site-origin devis still
+    // Dashboard alert (specs/site/site-booking-notifications.md §3 rule 5): site-origin devis still
     // pending handling — requestOrigin='public', kind='devis', still draft, not yet converted.
     // Disappears from the alert once the operator changes its status / converts / deletes it.
     listPendingPublicDevis() {
@@ -2113,7 +2113,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // `options.allowPastDates` (default false) lifts ONLY the "startDate < today" guard. The
     // overlap/conflict/capacity/closure rules below are untouched — they remain correctness
     // checks even when the admin has flipped the past-reservation unlock in Paramètres.
-    // See specs/admin-unlock-past-reservations.md §3.5 + §3.6.
+    // See specs/reservations/admin-unlock-past-reservations.md §3.5 + §3.6.
     validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, excludeId, nightBlocks = {}, options = {}) {
       const property = database.prepare('SELECT cleaningHours FROM properties WHERE id = ?').get(propertyId);
       const cleaning = property ? (property.cleaningHours ?? 3) : 3;
@@ -2226,9 +2226,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return peakResourceHeld(database, { resourceId, startDate, endDate, excludeId });
     },
 
-    // specs/devis-accept-to-reservation.md rule 10, specs/calendar-property-parity.md rule 31 — the stock a stored row
+    // specs/devis/devis-accept-to-reservation.md rule 10, specs/planning/calendar-property-parity.md rule 31 — the stock a stored row
     // would take by becoming a stay: its cots and its lines that hold stock (hourly ones do not, rule 4 of
-    // specs/plugins-phase-3c-hourly-resources.md). Returns the refusal, or null.
+    // specs/plugins/plugins-phase-3c-hourly-resources.md). Returns the refusal, or null.
     heldStockRefusal({ id, propertyId, startDate, endDate, babyBeds }) {
       const cotsLeft = model.getBabyBedAvailability(propertyId, startDate, endDate, null);
       if (Number(babyBeds || 0) > cotsLeft) return cotsRefusal(cotsLeft);
@@ -2258,7 +2258,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         platformTouristTaxAmount,
         depositDisabled, touristTaxInComplement, depositAmountOverride,
         complementAmountOverride, endOfStayComplementAmountOverride } = payload;
-      // specs/normalize-platform-names.md §3.2 rule 9 — `reservations.platform` is normalized
+      // specs/platforms/normalize-platform-names.md §3.2 rule 9 — `reservations.platform` is normalized
       // to UpperCamelCase here so direct DB queries (`SELECT DISTINCT platform`) yield a
       // case-uniform set. The 'direct' enum stays lowercase (formatPlatformName preserves it).
       const platformNormalized = formatPlatformName(platform) || 'direct';
@@ -2270,24 +2270,24 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const grossForPlatform = platformIsNonDirect
         ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : null)
         : Number(quote.finalPrice || 0);
-      // specs/platform-commission-line.md — operator-entered platform commission (€), clamped ≥ 0.
+      // specs/platforms/platform-commission-line.md — operator-entered platform commission (€), clamped ≥ 0.
       // NULL on direct bookings (no commission). Drives the fiche « net perçu » only; the accounting
       // commission stays derived from `clientGrossAmount`.
       const platformCommissionForStore = platformIsNonDirect
         ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? storedCommission(platformCommissionAmount, quote.platformCommissionAmount) : null)
         : null;
-      // specs/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
+      // specs/platforms/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
       const acompteCommissionForStore = platformIsNonDirect
         ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? storedCommission(acompteCommissionAmount, quote.acompteCommissionAmount) : null)
         : null;
-      // specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
+      // specs/platforms/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
       const platformGrossForStore = platformIsNonDirect
         ? (platformGrossAmount != null && platformGrossAmount !== '' ? Math.max(0, Number(platformGrossAmount)) : null)
         : null;
       const platformPayoutForStore = platformIsNonDirect
         ? (platformPayoutAmount != null && platformPayoutAmount !== '' ? Math.max(0, Number(platformPayoutAmount)) : null)
         : null;
-      // specs/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
+      // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
       // withheld (€, ≥ 0, NULL on direct). NULL is meaningful: it says the brut is tax-excluded.
       const platformTouristTaxForStore = platformIsNonDirect
         ? (platformTouristTaxAmount != null && platformTouristTaxAmount !== '' ? Math.max(0, Number(platformTouristTaxAmount)) : null)
@@ -2324,11 +2324,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         platformGrossForStore,
         platformPayoutForStore,
         platformTouristTaxForStore,
-        // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff this reservation is SOLD under.
+        // specs/pricing/tariff-recipes.md §3.2 rule 12bis — the tariff this reservation is SOLD under.
         // Written once, at creation, and replayed by every later save so a recipe change never
         // re-prices what is already in the database.
         quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
-        // specs/force-item-to-complement.md rule 18 — the arrival complement the engine priced. Left
+        // specs/sas/force-item-to-complement.md rule 18 — the arrival complement the engine priced. Left
         // out of this INSERT until the 2026-10-27 review, so a stay created with a line routed to the
         // complement read « Rien à percevoir » at the SAS until its first re-save.
         Number(quote.complementAmount || 0),
@@ -2342,13 +2342,13 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       persistStayLines(result.lastInsertRowid, quote);
       persistEmailLanguage(result.lastInsertRowid, payload);
       persistComplementOverrides(result.lastInsertRowid, { complementAmountOverride, endOfStayComplementAmountOverride });
-      // specs/tourist-tax-matches-the-office-calculation.md rule 12 — the base and divisor behind the
+      // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 12 — the base and divisor behind the
       // amount just written, so a line that later freezes can still explain itself.
       writeTouristTaxSnapshot(database, result.lastInsertRowid, quote);
       return result.lastInsertRowid;
     },
 
-    // specs/tariff-recipes/spec.md §3 rule 62 — the snapshot a save priced with becomes the stored one,
+    // specs/pricing/tariff-recipes.md §3 rule 62 — the snapshot a save priced with becomes the stored one,
     // so the nights it added and the reprice of a moved arrival carry their season into the next save.
     // The engine already wrote the sold property-level half (tiers verbatim, rule 67) and the sold
     // free-unit grants (rule 66) into it: nothing is merged here.
@@ -2358,7 +2358,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * specs/collect-stay-payment-at-check-in.md §3.3 rule 15 — a stay bucket whose paid flag is
+     * specs/sas/collect-stay-payment-at-check-in.md §3.3 rule 15 — a stay bucket whose paid flag is
      * FLIPPED outside the arrival SAS stops being the SAS's: its ownership marker goes, and so does
      * its caisse-interne flag (a bucket the operator just un-ticked must not keep reading « settled »
      * through the cash flag, and a payment recorded on the fiche is never caisse interne).
@@ -2380,7 +2380,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
     /**
      * Record the single arrival payment FROM THE FICHE
-     * (specs/single-payment-from-the-fiche.md §3.2), without running a single SAS page.
+     * (specs/payments/single-payment-from-the-fiche.md §3.2), without running a single SAS page.
      *
      * That restraint is the feature: re-opening the wizard to record one payment costs eleven pages,
      * several questions whose wrong answer REMOVES a sale, and — measured on 2026-08-31 — the
@@ -2444,7 +2444,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
             } catch { /* no marker column on a minimal schema */ }
             // Collecting the arrival complement CLOSES it: what is sold afterwards goes to the
             // end-of-stay complement instead of drifting between échéances (same rule as the fiche's
-            // own « Marquer complément payé », specs/mid-stay-extras-to-end-of-stay-complement.md).
+            // own « Marquer complément payé », specs/sas/mid-stay-extras-to-end-of-stay-complement.md).
             model.captureArrivalExtrasBaseline(reservationId);
             persistComplementDeferred(reservationId, false);
             stampComplementPaidSplit(database, reservationId);
@@ -2479,13 +2479,13 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * The complement's twin of `releaseStayBucket` (specs/single-payment-at-check-in.md rules 8-9):
+     * The complement's twin of `releaseStayBucket` (specs/payments/single-payment-at-check-in.md rules 8-9):
      * a complement flipped from the fiche is no longer the SAS's, so its ownership marker goes and
      * any single payment that named it is dissolved. Guarded — a minimal test schema has neither
      * column, and there is then nothing to release.
      */
     /**
-     * specs/single-payment-from-the-fiche.md rule 2bis — the end-of-stay complement is now groupable,
+     * specs/payments/single-payment-from-the-fiche.md rule 2bis — the end-of-stay complement is now groupable,
      * so flipping it from the fiche must dissolve the group like every other bucket does.
      */
     releaseEndOfStayBucket(reservationId) {
@@ -2493,7 +2493,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — la fiche vient de basculer le
+     * specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — la fiche vient de basculer le
      * complément de fin de séjour : ce n'est donc plus le SAS départ qui possède cet encaissement, et
      * il n'aura plus le droit de le défaire.
      */
@@ -2512,7 +2512,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * specs/single-payment-at-check-in.md §3.2 rule 8 — a bucket that stops being settled takes the
+     * specs/payments/single-payment-at-check-in.md §3.2 rule 8 — a bucket that stops being settled takes the
      * whole group down with it. The group says « these buckets were ONE collection »; once one of
      * them is no longer collected, that sentence is false, and the fiche must stop showing a payment
      * that no longer exists. All-or-nothing by construction, so there is nothing to shrink.
@@ -2526,7 +2526,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           .run(reservationId);
         // rule 8bis — dire ce qui vient de disparaître, et à cause de quelle échéance.
         traceGroupDissolved(database, reservationId, dissolved, bucket);
-        // specs/arrival-payment-detail-and-adjustment.md rule 23 — the réduction dies with the payment
+        // specs/sas/arrival-payment-detail-and-adjustment.md rule 23 — the réduction dies with the payment
         // it was granted on. Left behind, it would keep lowering `comptaCollected` and the total du
         // séjour of a collection that no longer exists.
         clearArrivalPaymentAdjustment(database, reservationId);
@@ -2536,7 +2536,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over.
+     * specs/sas/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over.
      *
      * `target` is the operator's amount; the réduction and the pourboire are DERIVED from it against
      * the buckets the group settled, and the réduction is clamped to the accommodation before being
@@ -2589,10 +2589,10 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         complementPaid, complementPaidDate,
         depositDisabled, touristTaxInComplement, depositAmountOverride,
         complementAmountOverride, endOfStayComplementAmountOverride } = payload;
-      // specs/normalize-platform-names.md §3.2 rule 9 — same canonicalization as insertReservation.
+      // specs/platforms/normalize-platform-names.md §3.2 rule 9 — same canonicalization as insertReservation.
       const platformNormalized = formatPlatformName(platform) || 'direct';
       const platformIsNonDirect = String(platformNormalized).toLowerCase() !== 'direct';
-      // specs/accounting-books-the-money-collected.md rule 4, reading of 2026-11-05 (audit R22-1 of the reservations
+      // specs/accounting/accounting-books-the-money-collected.md rule 4, reading of 2026-11-05 (audit R22-1 of the reservations
       // slice) — no client sends this retired field and the export still books a legacy stay from it: a save that does not
       // carry a number keeps what the platform stay stored. What a direct stay stored is its own total, not a gross.
       const storedGross = database.prepare('SELECT platform, clientGrossAmount FROM reservations WHERE id = ?').get(reservationId);
@@ -2600,22 +2600,22 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const grossForPlatform = platformIsNonDirect
         ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : storedGrossOfPlatform)
         : Number(quote.finalPrice || 0);
-      // specs/platform-commission-line.md — operator-entered platform commission (€), clamped ≥ 0; NULL on direct.
+      // specs/platforms/platform-commission-line.md — operator-entered platform commission (€), clamped ≥ 0; NULL on direct.
       const platformCommissionForStore = platformIsNonDirect
         ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? storedCommission(platformCommissionAmount, quote.platformCommissionAmount) : null)
         : null;
-      // specs/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
+      // specs/platforms/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
       const acompteCommissionForStore = platformIsNonDirect
         ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? storedCommission(acompteCommissionAmount, quote.acompteCommissionAmount) : null)
         : null;
-      // specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
+      // specs/platforms/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
       const platformGrossForStore = platformIsNonDirect
         ? (platformGrossAmount != null && platformGrossAmount !== '' ? Math.max(0, Number(platformGrossAmount)) : null)
         : null;
       const platformPayoutForStore = platformIsNonDirect
         ? (platformPayoutAmount != null && platformPayoutAmount !== '' ? Math.max(0, Number(platformPayoutAmount)) : null)
         : null;
-      // specs/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
+      // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
       // withheld (€, ≥ 0, NULL on direct, which is also what a switch to direct writes back).
       const platformTouristTaxForStore = platformIsNonDirect
         ? (platformTouristTaxAmount != null && platformTouristTaxAmount !== '' ? Math.max(0, Number(platformTouristTaxAmount)) : null)
@@ -2665,7 +2665,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       );
       persistBreakfastTime(reservationId, payload);
       persistDiscountTarget(reservationId, payload);
-      // `stayPinned` (specs/pricing-components.md rule 30): a sale writes its lines and the money they move; the stay's own records stay as stored.
+      // `stayPinned` (specs/pricing/pricing-components.md rule 30): a sale writes its lines and the money they move; the stay's own records stay as stored.
       const writesStay = !keepPricing && !stayPinned;
       if (writesStay) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
       if (writesStay) persistSaleFigures(reservationId, quote);
@@ -2678,21 +2678,21 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (writesStay) writeTouristTaxSnapshot(database, reservationId, quote);
       if (Number(beforeStay.depositPaid || 0) !== (depositPaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'deposit');
       if (Number(beforeStay.balancePaid || 0) !== (balancePaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'balance');
-      // Same ownership release for the complement (specs/single-payment-at-check-in.md rules 8-9):
+      // Same ownership release for the complement (specs/payments/single-payment-at-check-in.md rules 8-9):
       // a full fiche save that flips it dissolves the single payment that named it.
       if (Number(beforeStay.complementPaid || 0) !== (complementPaid ? 1 : 0)) model.releaseComplementBucket(reservationId);
       if (Number(beforeStay.complementPaid || 0) !== 1 && complementPaid) stampComplementPaidSplit(database, reservationId);
     },
 
     // `inComplement` is carried on every write, authoritative as resolved by the pricing engine
-    // (specs/force-extras-complement-on-platform.md §3): the engine applies the platform default
+    // (specs/sas/force-extras-complement-on-platform.md §3): the engine applies the platform default
     // for unflagged lines AND honours an explicit operator override, so the model trusts the value
     // verbatim — no second-guessing here. `acompteContribTtc`/`soldeContribTtc` are owned by the
     // payment-flip code path (`updatePayment` → `captureContribsOnFlip`); regular saves preserve
     // them by passing through the values the engine returned. Lines in Complément (`inComplement = 1`)
     // always get NULL contribs — they live 100 % in the Complément entry, never in Acompte/Solde.
     // The four line tables are written by ONE module, shared with `devisModel`
-    // (specs/devis-extras-parity-and-price-lock.md §4.1): a devis and a reservation store their lines in
+    // (specs/devis/devis-extras-parity-and-price-lock.md §4.1): a devis and a reservation store their lines in
     // the same children, so a new column must land on both sides at once or not at all.
     replaceOptions(reservationId, optionLines) {
       bookingLines.replaceOptions(reservationId, optionLines);
@@ -2770,9 +2770,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       })();
     },
 
-    // ── Payment deadlines & cancellation (specs/payment-schedule-and-cancellation.md) ──────────
+    // ── Payment deadlines & cancellation (specs/payments/payment-schedule-and-cancellation.md) ──────────
     // Everything the deadline card could possibly be about: a reservation with an unpaid acompte or
-    // solde — platform bookings included since specs/platform-payout-due-date.md, whose payout
+    // solde — platform bookings included since specs/platforms/platform-payout-due-date.md, whose payout
     // deadline falls AFTER the stay. The state itself is decided by utils/paymentDeadlines (pure) —
     // this read only narrows the set.
     //
@@ -2793,7 +2793,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
                -- it to tell « à demander » from « en retard », and to refuse to propose a cancellation
                -- over a solde nobody ever claimed (rule 12bis).
                -- A reminder sent by hand asks too: it is the request of an instance without online
-               -- payment (specs/plugins-phase-3a-online-payment.md rule 25).
+               -- payment (specs/plugins/plugins-phase-3a-online-payment.md rule 25).
                EXISTS (SELECT 1 FROM email_log l JOIN email_templates t ON t.id = l.templateId
                         WHERE l.reservationId = r.id AND t.stableKey IN ('deposit_request', 'deposit_reminder')
                           AND l.status = 'sent') AS depositRequestSent,
@@ -2809,7 +2809,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
              (r.endDate >= date(@today, '-60 days')
               AND ((r.depositAmount > 0 AND r.depositPaid = 0)
                 OR (r.balanceAmount > 0 AND r.balancePaid = 0)))
-             -- specs/platform-payout-due-date.md §3.2bis — a platform booking carrying NO figures at
+             -- specs/platforms/platform-payout-due-date.md §3.2bis — a platform booking carrying NO figures at
              -- all. The clause above cannot see it (every amount is 0), which is exactly why an
              -- import whose price was never entered went unnoticed for good. No date floor here: an
              -- amount missing from the books does not become acceptable by ageing (rule 29).
@@ -2823,7 +2823,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // The booking channel alone — all the dunning guard needs to know before sending anything
-    // (specs/platform-payout-due-date.md rule 20). Returns null when the reservation is gone.
+    // (specs/platforms/platform-payout-due-date.md rule 20). Returns null when the reservation is gone.
     getPlatform(reservationId) {
       const row = database.prepare('SELECT platform FROM reservations WHERE id = ?').get(Number(reservationId));
       return row ? row.platform : null;
@@ -2909,7 +2909,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       `).run(cancelledAt, String(reason || ''), cancelledBy == null ? null : Number(cancelledBy), Number(reservationId));
     },
 
-    // specs/calendar-property-parity.md rule 22 — undo of the boot migration that set a stay aside as the
+    // specs/planning/calendar-property-parity.md rule 22 — undo of the boot migration that set a stay aside as the
     // copy of another (utils/supersededDuplicates.js): the stay is a plain reservation again. The caller
     // checks availability first. Returns whether a row moved.
     restoreSuperseded(reservationId) {
@@ -2921,8 +2921,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       `).run(Number(reservationId)).changes > 0;
     },
 
-    // ── Arrival / Departure SAS (specs/arrival-departure-sas.md §4.1) ──────────────
-    // The two catalogue options the ARRIVAL SAS can sell (specs/sas-upsells-activate-catalogue-option.md
+    // ── Arrival / Departure SAS (specs/sas/arrival-departure-sas.md §4.1) ──────────────
+    // The two catalogue options the ARRIVAL SAS can sell (specs/sas/sas-upsells-activate-catalogue-option.md
     // §3.1): « Ménage » and « Linge de toilette ». Resolves, for each, the option id, the engine price
     // for THIS reservation (per-property override → the Articles head, on the option's own priceType)
     // and whether the reservation already carries it — distinguishing a row the SAS itself added
@@ -2966,16 +2966,16 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // The custom lines a previous arrival SAS wrote (the billed linen elements). Feeds the SAS history
-    // snapshot (specs/arrival-departure-sas.md §3.7).
+    // snapshot (specs/sas/arrival-departure-sas.md §3.7).
     listSasArrivalCustomLines(reservationId) {
       // `offered` rides along so the history says « Taie d'oreiller ×2 (offert) » rather than showing
-      // the price of a line the guest was never charged (specs/sas-offer-complement-lines.md §3.5).
+      // the price of a line the guest was never charged (specs/sas/sas-offer-complement-lines.md §3.5).
       return database.prepare('SELECT id, description, amount, COALESCE(offered, 0) AS offered FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id')
         .all(reservationId);
     },
 
     // The catalogue prestations the arrival SAS sold (petit déjeuner, restauration) — title, billed
-    // units and amount for the history snapshot (specs/sas-breakfast-and-catering-upsell.md §3.5).
+    // units and amount for the history snapshot (specs/sas/sas-breakfast-and-catering-upsell.md §3.5).
     // The ménage and the linge de toilette carry their own history field, so they are excluded here.
     listSasArrivalOptionLines(reservationId) {
       if (!HAS_RO_SAS_ARRIVAL_ORIGIN) return [];
@@ -2991,14 +2991,14 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       `).all(reservationId)
         .filter((row) => !excluded.has(Number(row.optionId)))
         // « 1 moment × 2 pers. servies » — a reduced number of covers is a decision worth reading back
-        // in the history (specs/card-option-served-persons.md §3.3 rule 15).
+        // in the history (specs/options/card-option-served-persons.md §3.3 rule 15).
         .map(({ moments, cardPersons, ...row }) => (Number(cardPersons) > 0
           ? { ...row, detail: `${Number(moments) || 1} × ${Number(cardPersons)} pers. servies` }
           : row));
     },
 
     // « Is the cleaning already sold on this reservation? » — single source of truth for both SAS
-    // ends (specs/defer-arrival-complement-to-checkout.md §3.1 rule 1): a booked cleaning option, a
+    // ends (specs/sas/defer-arrival-complement-to-checkout.md §3.1 rule 1): a booked cleaning option, a
     // « Ménage » line added by the arrival SAS (custom option, no tag → matched by name), or a
     // property offering cleaning as a default. When true the guest is not responsible for the
     // end-of-stay cleaning: the arrival ménage page is hidden AND the departure one never bills.
@@ -3032,7 +3032,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return roundMoneyStrict(override ? Number(override.price) : Number(opt.price || 0));
     },
 
-    // specs/sas-bath-linen-ghost-line.md — erase a `arrivalBathLinen` billing line wherever it is still
+    // specs/linen/sas-bath-linen-ghost-line.md — erase a `arrivalBathLinen` billing line wherever it is still
     // stored, recomputing the end-of-stay amount from the lines that remain. Returns true when it wrote.
     dropBathLinenGhostLine(reservationId) {
       const row = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
@@ -3043,7 +3043,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return true;
     },
 
-    // Bath-linen upsell offer for the arrival SAS (specs/sas-bath-linen-upsell.md §3.1). Resolves the
+    // Bath-linen upsell offer for the arrival SAS (specs/linen/sas-bath-linen-upsell.md §3.1). Resolves the
     // « Linge de toilette » option, applies the per-property price override, and prices it PER PERSON
     // exactly as the reservation engine (the Articles head, on the option's own priceType — `per_person`
     // → persons). `persons = adults + teens + children` (babies excluded, like pricing.js). Not offered
@@ -3064,14 +3064,14 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return { available: amount > 0, unitPrice, priceType, persons, nights, amount, label: BATH_LINEN_LABEL };
     },
 
-    // Prestations the arrival SAS sells (specs/sas-breakfast-and-catering-upsell.md §3.3): the
+    // Prestations the arrival SAS sells (specs/sas/sas-breakfast-and-catering-upsell.md §3.3): the
     // breakfast and the « Restauration » catalogue. The wizard sends INTENT — `[{ optionId,
     // occurrences }]` for a card option, `[{ optionId, units }]` otherwise — and everything priced is
     // resolved here: the catalogue row, the per-property price override, then the engine arithmetic
     // (utils/sasOptionSale.js). An option the operator sold from the fiche is skipped: the sale step
     // is hidden for it, and its money must never be re-routed to the complement. Anything else outside
     // the offer is dropped too (rule 15), but a line this SAS already sold stays its own, whatever the
-    // catalogue became since (specs/reopen-completed-sas.md rule 4).
+    // catalogue became since (specs/sas/reopen-completed-sas.md rule 4).
     resolveSasOptionSales(reservationId, sales) {
       if (!Array.isArray(sales) || sales.length === 0) return [];
       const res = database.prepare(`
@@ -3120,7 +3120,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           stay,
           occurrences: sale?.occurrences,
           units: sale?.units,
-          // How many covers each moment serves (specs/card-option-served-persons.md §3.3 rule 12).
+          // How many covers each moment serves (specs/options/card-option-served-persons.md §3.3 rule 12).
           servedPersons: sale?.persons,
           maxPersons: Number(res.maxGuests) || 0,
           freeUnits: grantOf(optionId),
@@ -3132,7 +3132,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return out;
     },
 
-    // specs/sas-arrival-total-server-side.md rules 6-7 — the arrival SAS sends INTENT for the lines it
+    // specs/sas/sas-arrival-total-server-side.md rules 6-7 — the arrival SAS sends INTENT for the lines it
     // writes as custom rows: a linen element by `itemId` + `qty` (priced here from « Facturables »), a
     // line kept from a previous run by its `customOptionId` (its stored amount is read, never sent).
     // Returns the complement items the planner and the commit take: `{ key, label, qty, unitPrice,
@@ -3173,7 +3173,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * The arrival SAS plan (specs/sas-arrival-total-server-side.md §3.1): the recap lines, the stored
+     * The arrival SAS plan (specs/sas/sas-arrival-total-server-side.md §3.1): the recap lines, the stored
      * complement before and after this run, and what the commit will write. PURE READ — the preview
      * calls it on a draft, `commitArrivalSas` calls it at the start of its transaction and writes what
      * it says. One computation, two callers: they cannot diverge.
@@ -3337,17 +3337,17 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
       const addedBilled = round2(itemsSum + newOptionSum);
       if (paid) {
-        // A collected complement never moves (specs/frozen-complement-trusts-client.md): what the run adds
+        // A collected complement never moves (specs/sas/frozen-complement-trusts-client.md): what the run adds
         // is collected apart — the recap's « encaisser le supplément » warning.
         const stored = round2(row.complementAmount);
-        // specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the sale would ride the end-of-stay complement, which
+        // specs/sas/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the sale would ride the end-of-stay complement, which
         // freezes once collected: one collected outside the departure SAS takes no sale that adds money.
         // Rules 34-35 — what this run ADDS to the end-of-stay complement beyond what the collected complement holds (and the
         // end-of-stay detail already carries) per key, for sales, upsells and custom items alike: the very amount the commit writes.
         const routing = frozenRouting(reservationId, sasLinesAfter(reservationId, {
           upsells, intents: { cleaning: { wanted: cleaningAdded, offered: cleaningOffered }, bathLinen: { wanted: bathLinenAdded, offered: bathLinenOffered } }, sales, items,
         }));
-        // specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the lines ride the end-of-stay complement, which
+        // specs/sas/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the lines ride the end-of-stay complement, which
         // freezes once collected: one collected outside the departure SAS takes no run that adds money.
         // For the CHECK-IN, an end-of-stay complement collected by the departure SAS is just as closed: its amount is frozen, so
         // a line routed there would be billed nowhere and one taken out would leave finalPrice below what was collected.
@@ -3421,13 +3421,13 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // elements + optionally the cleaning charge). Written as custom options inComplement=1 +
     // sasArrivalOrigin=1. Re-openable SAS: a re-commit REPLACES the SAS-origin complement lines
     // instead of appending (complementAmount adjusted by new − previous SAS sum), so it never
-    // double-charges (specs/reopen-completed-sas.md §4). A paid complement stays frozen.
+    // double-charges (specs/sas/reopen-completed-sas.md §4). A paid complement stays frozen.
     // Same itemisation from a reservation the caller already loaded (`getByIdWithDetails` shape).
     arrivalComplementDetailOf(reservation, options = {}) {
       return arrivalComplementDetailFromReservation(reservation, options);
     },
 
-    // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement so
+    // specs/sas/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement so
     // the departure SAS can recall it line-by-line.
     buildArrivalComplementDetail(reservationId, options = {}) {
       const r = model.getByIdWithDetails(reservationId);
@@ -3436,7 +3436,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // ── Prestations vendues en cours de séjour ────────────────────────────────
-    // specs/mid-stay-extras-to-end-of-stay-complement.md. The baseline is the extras as they stood
+    // specs/sas/mid-stay-extras-to-end-of-stay-complement.md. The baseline is the extras as they stood
     // when the stay started; everything above it is sold mid-stay and billed in the end-of-stay
     // complement. Read straight from the child tables so it reflects the state BEFORE the save that
     // triggers the capture.
@@ -3475,9 +3475,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       ];
     },
 
-    // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the « Forcer en complément » routing as stored,
+    // specs/sas/mid-stay-extras-on-locked-fiche.md rule 8 — the « Forcer en complément » routing as stored,
     // so a save inside the window can carry it back untouched whatever the payload says.
-    // specs/reservation-save-keeps-pricing.md rule 19 — and the custom lines' contribs, carried by every priced save.
+    // specs/reservations/reservation-save-keeps-pricing.md rule 19 — and the custom lines' contribs, carried by every priced save.
     // Pricing-components rule 85 (loop t9 B9-5) — a stay may hold several lines of one article (a solde line paid, the same article sold again
     // at the arrival): the routing is stored per LINE (`optionLines` / `resourceLines`, by `lineId`), and the per-article maps are only the
     // fallback of a body line that carries no `lineId`.
@@ -3500,7 +3500,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       };
     },
 
-    // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the ready-to-render lock of a fiche: is it
+    // specs/sas/mid-stay-extras-on-locked-fiche.md rule 13 — the ready-to-render lock of a fiche: is it
     // locked, may its extras still be edited, and the floor of every line sold at arrival.
     getEditLock(reservationId, { today, nowTime, now = null }) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
@@ -3524,7 +3524,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count
-    // (specs/mid-stay-extras-on-locked-fiche.md rules 6 and 13). A custom line is one unit.
+    // (specs/sas/mid-stay-extras-on-locked-fiche.md rules 6 and 13). A custom line is one unit.
     readExtraLinesWithQuantity(reservationId) {
       // Rule 85: the units of each stored LINE (`lineId`), the article's first line when a schema predates it.
       const quantities = (table, idColumn) => {
@@ -3538,7 +3538,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       };
       const optionUnits = quantities('reservation_options', 'optionId');
       // What the fiche's field shows for a non-card line, so a floor can speak its unit
-      // (specs/non-card-option-served-persons.md rule 17). No count for any other price type.
+      // (specs/options/non-card-option-served-persons.md rule 17). No count for any other price type.
       const stay = database.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(reservationId);
       const optionLid = hasLineId(database, 'reservation_options') ? 'ro.lineId, ' : '';
       const lineSlot = (row) => (row.lineId != null ? `line:${row.lineId}` : `article:${row.optionId}`);
@@ -3547,7 +3547,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         JOIN options o ON o.id = ro.optionId
         WHERE ro.reservationId = ? AND COALESCE(o.showsPlanningCard, 0) = 0
       `).all(reservationId).map((row) => [lineSlot(row), typedCountOf(row, stay)]));
-      // specs/non-card-option-served-persons.md rule 37 (audit R22-6, 2026-11-05) — an offered planning-card line bills
+      // specs/options/non-card-option-served-persons.md rule 37 (audit R22-6, 2026-11-05) — an offered planning-card line bills
       // 0 €: only the persons it stored can say what was sold. NULL follows the party and is never compared.
       for (const row of database.prepare(`
         SELECT ${optionLid}ro.optionId, ro.cardPersons FROM reservation_options ro
@@ -3580,7 +3580,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // `startDate`, so a stay that started but was never re-saved has none yet — and the live preview
     // would then show a mid-stay sale as nothing at all. Synthesize the very baseline the next save
     // WOULD store (the extras currently stored), so the preview matches the post-save reality
-    // without the read path ever writing (specs/mid-stay-notes.md §4.1).
+    // without the read path ever writing (specs/sas/mid-stay-notes.md §4.1).
     resolveArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
@@ -3604,7 +3604,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return Boolean(row.arrivalExtrasBaseline) || arrivalExtrasBaselineIsDue(row);
     },
 
-    // No baseline, and none due: what is sold now joins the ordinary balance (specs/mid-stay-notes.md rule 23).
+    // No baseline, and none due: what is sold now joins the ordinary balance (specs/sas/mid-stay-notes.md rule 23).
     arrivalBaselineNotDue(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return false;
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
@@ -3635,7 +3635,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // check-in done), so a check-in that sells a prestation on an already-collected complement needs
     // the pre-sale state pinned right now — else the sale would have no baseline to stand above and
     // its money would never reach the end-of-stay complement
-    // (specs/sas-breakfast-and-catering-upsell.md §3.4). Idempotent: an existing baseline is kept.
+    // (specs/sas/sas-breakfast-and-catering-upsell.md §3.4). Idempotent: an existing baseline is kept.
     // What `captureArrivalExtrasBaseline` would store, without writing it: the stored baseline, else the
     // one the extras carried now would pin.
     peekArrivalExtrasBaseline(reservationId) {
@@ -3693,7 +3693,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         .run(JSON.stringify(baseline), reservationId);
     },
 
-    // ── Notes en séjour (specs/mid-stay-notes.md) ─────────────────────────────
+    // ── Notes en séjour (specs/sas/mid-stay-notes.md) ─────────────────────────────
     // A note is ONE punctual collection during the stay. Settling MOVES stored amounts from the
     // end-of-stay remainder into the register, inside a single transaction: the invariant
     // « remainder + register = everything sold mid-stay » holds at every step, and no money is ever
@@ -3840,7 +3840,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * specs/adjustable-complement-amounts.md §3.4 — edit a note of the mid-stay register in place:
+     * specs/sas/adjustable-complement-amounts.md §3.4 — edit a note of the mid-stay register in place:
      * its amount, its payment date, its CB / caisse-interne mode.
      *
      * The bucket « durant le séjour » is not an amount but a register, so the adjustable unit is the
@@ -3938,13 +3938,13 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return tx();
     },
 
-    // specs/defer-arrival-complement-to-checkout.md §3.3 rules 12-14 — the fiche writes the very same
+    // specs/sas/defer-arrival-complement-to-checkout.md §3.3 rules 12-14 — the fiche writes the very same
     // marker the arrival SAS recap writes. One column, two entry points, last gesture wins.
     setComplementDeferredToCheckout(reservationId, deferred) {
       persistComplementDeferred(reservationId, deferred);
     },
 
-    // specs/adjustable-complement-amounts.md §3.3 rule 22 — re-run the single write point on the
+    // specs/sas/adjustable-complement-amounts.md §3.3 rule 22 — re-run the single write point on the
     // CURRENT lines so the « Ajustement » line is rebuilt. Deliberately without `syncMidStayComplement`'s
     // « already collected » guard: adjusting an amount that was collected wrong is the main use case.
     applyEndOfStayAdjustment(reservationId) {
@@ -3953,7 +3953,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       writeEndOfStayDetail(reservationId, parseDetailLines(row.endOfStayComplementDetail), model.getMidStaySettledNotes(reservationId));
     },
 
-    // specs/adjustable-complement-amounts.md §3.6 rule 36 — the accounting ventilation of an ADJUSTED
+    // specs/sas/adjustable-complement-amounts.md §3.6 rule 36 — the accounting ventilation of an ADJUSTED
     // arrival complement, decided here (by the fiche, at save time) and stored, so the export reads it
     // verbatim instead of deriving it. `autoAmount` is the complement the engine produced BEFORE the
     // adjustment: the postes are those of the auto complement, only their weights move.
@@ -4024,8 +4024,8 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
     /**
      * Per-bucket contribution snapshot for a stay settled at the door — the SAS stay payment and
-     * « Encaisser en une fois » (specs/collect-stay-payment-at-check-in.md §3.3 rule 13, revised
-     * 2026-08-30; specs/reservation-payment-ledger.md rule 42).
+     * « Encaisser en une fois » (specs/sas/collect-stay-payment-at-check-in.md §3.3 rule 13, revised
+     * 2026-08-30; specs/payments/reservation-payment-ledger.md rule 42).
      *
      * Never aborts the commit: on a booking whose stored solde no longer matches today's engine — most
      * OTA stays, a stay priced under an earlier rule — the engine split fails its conservation check,
@@ -4047,28 +4047,28 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
-      // specs/single-payment-at-check-in.md §3.2 — the guest handed over ONE payment covering the
+      // specs/payments/single-payment-at-check-in.md §3.2 — the guest handed over ONE payment covering the
       // stay AND the complement. INTENT only: the server records which buckets it actually settled
       // and what they came to, so the group can never claim a collection that did not happen.
       groupArrivalPayment,
-      // specs/collect-stay-payment-at-check-in.md §3.3 — the SÉJOUR itself settled at the door
+      // specs/sas/collect-stay-payment-at-check-in.md §3.3 — the SÉJOUR itself settled at the door
       // (a last-minute stay arrives unpaid). Tri-state like the caution: `undefined` = the step never
       // ran → the acompte / solde are left exactly as they are.
       stayPaid, stayPaidCash,
-      // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — the two upsells are sent as
+      // specs/sas/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — the two upsells are sent as
       // INTENT (booleans); the server resolves the option + its price. Tri-state, like the caution.
       cleaningAdded, bathLinenAdded,
-      // specs/sas-breakfast-and-catering-upsell.md §3.3 — the breakfast + « Restauration » prestations
+      // specs/sas/sas-breakfast-and-catering-upsell.md §3.3 — the breakfast + « Restauration » prestations
       // sold at check-in, as INTENT: `[{ optionId, occurrences }]` (card option) or
       // `[{ optionId, units }]`. `undefined` = the sale steps never ran → nothing is touched.
       soldOptions,
-      // specs/sas-offer-complement-lines.md §3.2 — gestes commerciaux decided on the recap:
+      // specs/sas/sas-offer-complement-lines.md §3.2 — gestes commerciaux decided on the recap:
       // `offeredExtras` is the authoritative offered set of the PRE-EXISTING in-complement lines,
       // `cleaningOffered` / `bathLinenOffered` bill the upsell 0 € while still activating its option
       // (so the laundry + the linen stock keep counting it), and each `complementItems` entry carries
       // its own `offered` flag.
       offeredExtras, cleaningOffered, bathLinenOffered,
-      // specs/plugins-phase-3c-hourly-resources.md rule 6 — what the plugins' steps write, each a
+      // specs/plugins/plugins-phase-3c-hourly-resources.md rule 6 — what the plugins' steps write, each a
       // `(db) => void` already validated by the controller. They run inside this transaction, so a
       // throwing one rolls the whole commit back.
       pluginWrites = [],
@@ -4079,20 +4079,20 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       // The SAS controller refuses a bad count first; a direct caller gets a throw, never an Infinity stored
-      // (specs/sas-departure-recap-server-side.md rule 30).
+      // (specs/sas/sas-departure-recap-server-side.md rule 30).
       const usableCount = (v) => {
         const n = Number(v) || 0;
         if (!usableNumber(n)) throw Object.assign(new Error('Quantité invalide.'), { status: 400, code: 'INVALID_QUANTITY' });
         return n;
       };
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v))));
-      // Bread is counted in baguettes with half steps (specs/sas-breakfast-bread-and-push.md rule 2).
+      // Bread is counted in baguettes with half steps (specs/sas/sas-breakfast-bread-and-push.md rule 2).
       const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v) * 2) / 2));
       // Rules 23, 104, 105 (loop t6 S6-4) — the SAS commit is a save of the stay: a paid line it offers is judged like the fiche and the line API.
       const paidLines = require('../utils/paidLineJudgment').begin(database, reservationId);
       const tx = database.transaction(() => {
         const today = localTodayIso();
-        // specs/sas-arrival-total-server-side.md rule 2 — the plan is read BEFORE any write, by the very
+        // specs/sas/sas-arrival-total-server-side.md rule 2 — the plan is read BEFORE any write, by the very
         // function the preview calls; everything below executes it and recomputes nothing.
         const plan = model.planArrivalSas(reservationId, {
           complementItems, cleaningAdded, bathLinenAdded, cleaningOffered, bathLinenOffered, soldOptions, offeredExtras,
@@ -4100,12 +4100,12 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const billedBefore = billedLinesOf(reservationId);
         const reopened = Boolean(database.prepare('SELECT arrivalSasDoneAt FROM reservations WHERE id = ?').get(reservationId)?.arrivalSasDoneAt);
         // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
-        // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
+        // clickable ✓ so the SAS can be re-opened — specs/sas/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
 
-        // Breakfast composition + hour (specs/sas-breakfast-and-handover-note.md). breakfastTime '' /
+        // Breakfast composition + hour (specs/sas/sas-breakfast-and-handover-note.md). breakfastTime '' /
         // invalid → NULL (= fall back to the option default). Counts default 0 when omitted.
-        // Single write path with the fiche (specs/sas-breakfast-time-applies.md §3 rule 2): the hour
+        // Single write path with the fiche (specs/sas/sas-breakfast-time-applies.md §3 rule 2): the hour
         // lands on the reservation AND on the stay's breakfast occurrences, which is what the planning
         // card and the push notice actually read.
         persistBreakfastTime(reservationId, { breakfastTime });
@@ -4129,26 +4129,26 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         database.prepare("UPDATE reservations SET departureHandoverNote = ?, updatedAt = datetime('now') WHERE id = ?")
           .run((departureHandoverNote && String(departureHandoverNote).trim()) || null, reservationId);
 
-        // Fire-extinguisher seal baseline at arrival (specs/extinguisher-seal-and-repair-amounts.md):
+        // Fire-extinguisher seal baseline at arrival (specs/options/extinguisher-seal-and-repair-amounts.md):
         // default-present (the client sends 1 unless flagged missing). Recorded only; never bills here.
         if (extinguisherSealOkAtArrival !== undefined) {
           database.prepare("UPDATE reservations SET extinguisherSealOkAtArrival = ?, updatedAt = datetime('now') WHERE id = ?")
             .run(extinguisherSealOkAtArrival ? 1 : 0, reservationId);
         }
 
-        // Caution received — faithful, reversible edit (specs/reopen-completed-sas.md §6). `undefined`
+        // Caution received — faithful, reversible edit (specs/sas/reopen-completed-sas.md §6). `undefined`
         // (the caution step wasn't shown this run) leaves the marker untouched; true sets it (keeping
         // the first date via COALESCE); false clears the marker AND its date.
         if (cautionReceived !== undefined) {
           if (cautionReceived) {
-            // specs/caution-live-from-property.md §3 rule 2 — freeze the live property caution into the
+            // specs/payments/caution-live-from-property.md §3 rule 2 — freeze the live property caution into the
             // reservation at the moment of receipt, so the collected amount never moves afterwards.
-            // specs/reservation-payment-ledger.md rule 71 (audit R39-DB-L1) — only on that flip: a caution already
+            // specs/payments/reservation-payment-ledger.md rule 71 (audit R39-DB-L1) — only on that flip: a caution already
             // received is never received again (rule 38), so a stale SAS tab leaves its amount and dates alone.
             database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), cautionWaived = 0, updatedAt = datetime('now') WHERE id = ? AND COALESCE(cautionReceived, 0) = 0")
               .run(today, reservationId);
           } else {
-            // specs/reservation-payment-ledger.md rule 14 (audit R38-DB-L1) — as on the PATCH, undoing the receipt
+            // specs/payments/reservation-payment-ledger.md rule 14 (audit R38-DB-L1) — as on the PATCH, undoing the receipt
             // undoes the return too: a caution is never « restituée » while « non reçue ».
             database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, cautionReturned = 0, cautionReturnedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
@@ -4163,11 +4163,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
         for (const write of pluginWrites) write(database);
 
-        // Arrival complement — REPLACE the SAS-origin lines (specs/reopen-completed-sas.md §4 rule 4): a re-run changes the rows a prior
+        // Arrival complement — REPLACE the SAS-origin lines (specs/sas/reopen-completed-sas.md §4 rule 4): a re-run changes the rows a prior
         // run of THIS SAS created (sasArrivalOrigin=1) instead of appending, so re-opening never double-counts. A paid complement is frozen.
         const items = plan ? plan.items : [];
         const compRow = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
-        // specs/sas-breakfast-and-catering-upsell.md §3.3 — the prestations the two sale steps sold,
+        // specs/sas/sas-breakfast-and-catering-upsell.md §3.3 — the prestations the two sale steps sold,
         // priced server-side by the plan. `null` = the steps never ran (tri-state, like the upsell
         // booleans) → the reservation's SAS-sold options are left exactly as they are.
         const sales = plan ? plan.sales : null;
@@ -4178,21 +4178,21 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           .filter((id) => id != null).map(Number));
         // Keys the frozen branch must NOT fold into the arrival baseline (they are mid-stay sales).
         let midStaySaleKeys = [];
-        // specs/sas-offer-complement-lines.md rule 12 (loop t9 A9-2) — a collected complement's lines cannot be offered from the SAS: the plan
+        // specs/sas/sas-offer-complement-lines.md rule 12 (loop t9 A9-2) — a collected complement's lines cannot be offered from the SAS: the plan
         // shows them as stored, not offerable, and the commit writes no « Offrir » on them.
         if (compRow && Number(compRow.complementPaid || 0) !== 1) {
           // Rule 90.1 — the very write the plan played and rolled back: the gestes commerciaux on the pre-existing lines
-          // (specs/sas-offer-complement-lines.md §3.3), the SAS-origin rows replaced, the complement the engine gives them.
+          // (specs/sas/sas-offer-complement-lines.md §3.3), the SAS-origin rows replaced, the complement the engine gives them.
           writeArrivalComplement(reservationId, {
             items, hosted: plan.hosted, sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic: plan.engineAfter,
           });
         } else if (compRow && (sales || items.length > 0 || cleaningAdded !== undefined || bathLinenAdded !== undefined
           || database.prepare('SELECT 1 FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1').get(reservationId))) {
           // The arrival complement is already collected, and a collected complement never moves again
-          // (specs/frozen-complement-trusts-client.md). Selling now is therefore a sale made DURING the
+          // (specs/sas/frozen-complement-trusts-client.md). Selling now is therefore a sale made DURING the
           // stay: the option is still written — it has to be prepared, planned and counted — but its
           // money takes the mid-stay route, i.e. the end-of-stay complement, collectable on the spot
-          // with a « note » or at check-out (specs/mid-stay-notes.md). Capturing the baseline first is
+          // with a « note » or at check-out (specs/sas/mid-stay-notes.md). Capturing the baseline first is
           // what makes the sale (and only the sale) stand above it. The ménage, the linge de toilette and the custom items
           // (linen pieces, a plugin's supplements) go the same way (rule 35): their rows are written, and only what they
           // bill beyond what the collected complement holds for their key rides the end-of-stay complement (rule 34).
@@ -4229,16 +4229,16 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           model.syncMidStayComplement(reservationId, [...byKey.values()]);
         }
 
-        // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 2 — explicit « Complément encaissé »
+        // specs/sas/recall-unpaid-arrival-complement-at-checkout.md §3 rule 2 — explicit « Complément encaissé »
         // confirmation on the arrival recap. Tri-state (same contract as the caution): undefined leaves the
         // marker untouched; true marks the arrival complement paid (first date kept via COALESCE); false
         // clears it. A normally-collected complement is thus NOT recalled at departure; a forgotten one
         // stays unpaid and IS recalled.
-        // specs/defer-arrival-complement-to-checkout.md §3.2 rule 5 — the same answer also records
+        // specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 5 — the same answer also records
         // WHERE the complement will be collected: « En fin de séjour » (not settled) marks the
         // reservation deferred so every view presents a single end-of-stay complement; settling on
         // the spot clears the marker (fully reversible on a re-open).
-        // specs/single-payment-at-check-in.md §3.2 — what THIS commit actually settled, which is what
+        // specs/payments/single-payment-at-check-in.md §3.2 — what THIS commit actually settled, which is what
         // the group is allowed to claim. Filled by the two blocks below, read once at the end.
         const settledByThisCommit = [];
         if (complementSettled !== undefined) {
@@ -4251,7 +4251,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
             database.prepare("UPDATE reservations SET complementPaid = 0, complementPaidDate = NULL, complementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
           }
-          // `complementPaidAtArrival` mirrors the two stay markers (specs/single-payment-at-check-in.md
+          // `complementPaidAtArrival` mirrors the two stay markers (specs/payments/single-payment-at-check-in.md
           // rule 9): the settlement is the SAS's own, so a re-open may undo it and a fiche edit takes
           // it away. Written apart and guarded — several minimal test schemas have no such column, and
           // the settlement above must not depend on it.
@@ -4264,7 +4264,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           persistComplementDeferred(reservationId, !complementSettled);
         }
 
-        // specs/collect-stay-payment-at-check-in.md §3.3 rules 13-14 — the stay collected at the door.
+        // specs/sas/collect-stay-payment-at-check-in.md §3.3 rules 13-14 — the stay collected at the door.
         // Runs AFTER the complement lines: the contribution capture replays the engine on the stored
         // reservation, and the SAS lines are `inComplement = 1`, so they contribute NULL and leave the
         // acompte / solde conservation invariant alone. A capture that breaks it THROWS, which rolls
@@ -4290,7 +4290,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               },
             },
           ];
-          // specs/direct-installments.md rule 36 — a plan is settled by marking its remaining installments paid,
+          // specs/payments/direct-installments.md rule 36 — a plan is settled by marking its remaining installments paid,
           // by the mode chosen at the door. « Pas maintenant » leaves them as they are.
           if (stayPaid && Number(row.installmentsUnpaidAmount || 0) > 0) {
             const { recordInstallmentPayment } = require('../utils/installmentPayment');
@@ -4318,7 +4318,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           }
         }
 
-        // specs/single-payment-at-check-in.md §3.2 rules 6-7 — the group. Nothing above changed:
+        // specs/payments/single-payment-at-check-in.md §3.2 rules 6-7 — the group. Nothing above changed:
         // every bucket keeps its own amount, its own date and its own accounting. What is added is
         // the sentence « these buckets were one collection », written from what the commit really
         // settled rather than from what the client claimed. Fewer than two buckets settled → no
@@ -4342,7 +4342,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               .run(json, reservationId);
             // rule 8bis — un SAS re-joué en « Plus tard » retire le paiement unique qu'un passage
             // précédent avait enregistré : ça aussi doit se relire.
-            // specs/arrival-payment-detail-and-adjustment.md rule 23 — …et la réduction (ou le
+            // specs/sas/arrival-payment-detail-and-adjustment.md rule 23 — …et la réduction (ou le
             // pourboire) meurt avec lui. Laissée derrière, elle continuerait à minorer `comptaCollected`
             // et le total du séjour au nom d'une collecte qui n'existe plus.
             if (previous && !json) {
@@ -4353,20 +4353,20 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
             // Minimal test schemas without the column: the settlement above still stands.
           }
         }
-        // specs/sas-bath-linen-ghost-line.md §3 rules 1-2 — the arrival SAS never writes a billing line
+        // specs/linen/sas-bath-linen-ghost-line.md §3 rules 1-2 — the arrival SAS never writes a billing line
         // into the end-of-stay complement: what the guest takes is the catalogue option activated on the
         // fiche just above. Any line left by the removed « réglé en fin de séjour » flow is dropped here,
         // unconditionally (NOT gated on the bath-linen step being shown — that gate is exactly why a
         // reservation carrying both the option and the ghost line could never repair itself).
         model.dropBathLinenGhostLine(reservationId);
 
-        // specs/arrival-departure-sas.md §3.6 — going all the way through the arrival SAS validates the
+        // specs/sas/arrival-departure-sas.md §3.6 — going all the way through the arrival SAS validates the
         // planning coche AND the dashboard « Prêt » + « Arrivé » (checkInReady is both). Forward-only
         // convenience: completing the SAS means the guest is in; re-committing re-affirms it, and it's
         // never auto-unticked here (the operator can always uncheck it on the planning/dashboard).
         database.prepare("UPDATE reservations SET checkInReady = 1, checkInDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
 
-        // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 4 — the SAS runs after the
+        // specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 4 — the SAS runs after the
         // stay started, so its own lines would look like mid-stay sales at the next fiche save. They
         // belong to the ARRIVAL complement (they are already in `complementAmount`), so fold them
         // into the baseline at their current amount. Re-running the SAS re-folds the new amounts.
@@ -4396,7 +4396,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return complementAmount;
     },
 
-    // specs/sas-departure-recap-server-side.md rules 6-9 — the departure SAS sends INTENT: the missing
+    // specs/sas/sas-departure-recap-server-side.md rules 6-9 — the departure SAS sends INTENT: the missing
     // linen by `itemId` + `qty`, the end-of-stay ménage as a yes/no, the stored lines by the key the
     // server issued. Returns the detail lines the planner and the commit take, in the order the commit
     // has always written them (ménage, linen, carried, preserved), each priced HERE from « Facturables »
@@ -4524,7 +4524,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     /**
-     * The departure SAS plan (specs/sas-departure-recap-server-side.md §3.1): every recap line, the
+     * The departure SAS plan (specs/sas/sas-departure-recap-server-side.md §3.1): every recap line, the
      * end-of-stay complement and the recalled arrival complement as this run leaves them. PURE READ —
      * the preview calls it on a draft, `commitDepartureSas` calls it at the start of its transaction and
      * writes what it says. One computation, two callers: they cannot diverge.
@@ -4543,7 +4543,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
       // Rule 3 of defer-arrival-complement-to-checkout.md — a cleaning already sold is never billed again,
       // whatever the caller sends, and a ménage line stored by an earlier run is dropped. Nor on a channel
-      // that forbids billing an undone chore (specs/airbnb-no-checkout-chores.md rules 7–8).
+      // that forbids billing an undone chore (specs/platforms/airbnb-no-checkout-chores.md rules 7–8).
       const cleaningSold = model.isCleaningSoldForReservation(reservationId) || isChoreFreeChannel(row.platform);
       const base = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
         .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))
@@ -4671,7 +4671,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       return {
         detail,
         offeredRefs,
-        // specs/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — collected outside this SAS and raised by
+        // specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — collected outside this SAS and raised by
         // this run: the controller refuses it, nothing claims the rise otherwise.
         raisesCollectedEndOfStay: endOfStayCollectedElsewhere(row)
           && round2(reconciled.amount) > round2(Number(row.endOfStayComplementAmount || 0)),
@@ -4689,14 +4689,14 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
 
     // Single commit for the departure SAS: caution return + the dedicated end-of-stay complement. It
-    // EXECUTES `planDepartureSas` (specs/sas-departure-recap-server-side.md rule 2): the lines, their
+    // EXECUTES `planDepartureSas` (specs/sas/sas-departure-recap-server-side.md rule 2): the lines, their
     // pricing and the offered netting come from the plan, this method only writes. The extinguisher
-    // charge is priced there too (specs/extinguisher-seal-and-repair-amounts.md §3.2) and the stored
+    // charge is priced there too (specs/options/extinguisher-seal-and-repair-amounts.md §3.2) and the stored
     // amount is the authoritative sum of every line (no client-supplied total is trusted).
     commitDepartureSas(reservationId, {
       cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges,
       complementsSettled, complementsPaidCash,
-      // specs/sas-offer-complement-lines.md §3.2 rule 6 — the arrival complement is collected at the
+      // specs/sas/sas-offer-complement-lines.md §3.2 rule 6 — the arrival complement is collected at the
       // door when it was never settled, so its lines are offerable here too. Authoritative set, same
       // contract as the arrival `offeredExtras` (every in-complement line is addressable at check-out,
       // including the ones the arrival SAS wrote).
@@ -4710,7 +4710,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const plan = model.planDepartureSas(reservationId, {
           endOfStayComplementDetail, extinguisherSealOkAtDeparture, extinguisherCharges, offeredArrivalExtras,
         }, { withLines: false });
-        // specs/sas-offer-complement-lines.md §3.2 rule 6.ter — the check-out recap only RECALLS the
+        // specs/sas/sas-offer-complement-lines.md §3.2 rule 6.ter — the check-out recap only RECALLS the
         // arrival complement when something is still owed on it; when it is not recalled, the recap
         // rendered no arrival line, so it holds no authority over their `offered` flags (the plan
         // hands back no refs then). Taken literally an empty set billed back every offered line — and an
@@ -4720,9 +4720,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         applyOfferedComplementExtras(reservationId, plan.offeredRefs);
         moveFinalPriceBy(reservationId, billedBeforeGifts);
         // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
-        // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
+        // clickable ✓ so the SAS can be re-opened — specs/sas/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
-        // Caution returned — faithful, reversible edit (specs/reopen-completed-sas.md §6). Same
+        // Caution returned — faithful, reversible edit (specs/sas/reopen-completed-sas.md §6). Same
         // undefined / set / clear contract as the arrival caution.
         if (cautionReturned !== undefined) {
           if (cautionReturned) {
@@ -4733,11 +4733,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               .run(reservationId);
           }
         }
-        // specs/adjustable-complement-amounts.md §3.3 rule 20 — through the single write point, so a
+        // specs/sas/adjustable-complement-amounts.md §3.3 rule 20 — through the single write point, so a
         // re-run of the departure SAS re-applies the operator's adjustment instead of erasing it.
         const amount = writeEndOfStayDetail(reservationId, plan.detail, model.getMidStaySettledNotes(reservationId), { asLines: true });
 
-        // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rules 4-5 — « Compléments encaissés »
+        // specs/sas/recall-unpaid-arrival-complement-at-checkout.md §3 rules 4-5 — « Compléments encaissés »
         // confirmation on the departure recap. Tri-state (same contract as the caution). When ON, mark
         // paid WHATEVER has a positive amount, at the checkout moment:
         //   - the end-of-stay complement (when amount > 0);
@@ -4769,7 +4769,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
               stampComplementPaidSplit(database, reservationId);
             }
           } else if (settledByThisSas(database, reservationId)) {
-            // specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — « pas maintenant » ne
+            // specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — « pas maintenant » ne
             // défait QUE ce que ce SAS a encaissé. Le complément de fin de séjour peut avoir été réglé
             // à la porte, dans le paiement unique de l'arrivée : le dé-payer ici effaçait de l'argent
             // réellement encaissé et laissait le groupe promettre une collecte dont une moitié était
@@ -4786,7 +4786,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
             .run(extinguisherSealOkAtDeparture ? 1 : 0, reservationId);
         }
 
-        // specs/arrival-departure-sas.md §3.6 — going all the way through the departure SAS validates the
+        // specs/sas/arrival-departure-sas.md §3.6 — going all the way through the departure SAS validates the
         // planning coche = dashboard « Parti » (checkOutDone). Same forward-only, never-auto-untick rule
         // as the arrival flags above.
         database.prepare("UPDATE reservations SET checkOutDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
@@ -4797,7 +4797,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     },
   };
 
-  // specs/mixed-method-payments.md — a settlement never outlives the payment it described: every write that
+  // specs/payments/mixed-method-payments.md — a settlement never outlives the payment it described: every write that
   // can take a payment back (a bucket released, a group undone or dissolved, a note cancelled, a SAS
   // re-committed, the fiche saved) drops the settlements whose target is no longer paid and refreshes the
   // stay's split aggregates.

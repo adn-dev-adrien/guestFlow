@@ -1,5 +1,5 @@
 /**
- * `property_resource_prices.price` may be NULL (specs/options-resources-ux.md rule 28): a property line
+ * `property_resource_prices.price` may be NULL (specs/options/options-resources-ux.md rule 28): a property line
  * that only carries a free first hour has no price of its own and inherits the resource's base price.
  * The column was declared `NOT NULL DEFAULT 0`; SQLite cannot relax that in place, so the table is
  * rebuilt (create new, copy every row and value, swap) inside one transaction.

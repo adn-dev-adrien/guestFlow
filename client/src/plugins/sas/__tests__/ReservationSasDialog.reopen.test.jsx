@@ -1,4 +1,4 @@
-// Re-opening a completed SAS — specs/reopen-completed-sas.md.
+// Re-opening a completed SAS — specs/sas/reopen-completed-sas.md.
 //
 // One file per subject (CLAUDE.md §9). Fixtures used by more than one subject live in ./sasFixtures.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
@@ -41,7 +41,7 @@ async function walkToKeys() {
   clickBtn('Oui');
 }
 
-// specs/reopen-completed-sas.md rules 2 + 3 — re-opening a done departure shows the caution-return
+// specs/sas/reopen-completed-sas.md rules 2 + 3 — re-opening a done departure shows the caution-return
 // step even though the caution is already returned, pre-ticked from the stored flag.
 test('departure re-open: the caution-return step is shown, pre-ticked « Caution rendue »', async () => {
   api.getReservationSas.mockResolvedValue(returnedCaution({ departureSasDoneAt: '2026-07-12 10:00:00' }));
@@ -60,7 +60,7 @@ test('departure re-open: the caution-return step is shown, pre-ticked « Caution
   expect(api.commitDepartureSas.mock.calls[0][1].cautionReturned).toBe(true);
 });
 
-// specs/reopen-completed-sas.md rule 3 — outside a re-open, an already returned caution has no step.
+// specs/sas/reopen-completed-sas.md rule 3 — outside a re-open, an already returned caution has no step.
 test('first departure run: an already returned caution has no step', async () => {
   api.getReservationSas.mockResolvedValue(returnedCaution({ departureSasDoneAt: null }));
   renderDialog({ mode: 'departure' });
@@ -70,7 +70,7 @@ test('first departure run: an already returned caution has no step', async () =>
   expect(screen.queryByText(/Rendre la caution de/)).toBeNull();
 });
 
-// specs/reopen-completed-sas.md rule 8 — « Quitter » on a re-opened wizard writes nothing.
+// specs/sas/reopen-completed-sas.md rule 8 — « Quitter » on a re-opened wizard writes nothing.
 test('re-open then « Quitter »: the dialog closes and nothing is committed', async () => {
   api.getReservationSas.mockResolvedValue(returnedCaution({ departureSasDoneAt: '2026-07-12 10:00:00' }));
   const onClose = vi.fn();

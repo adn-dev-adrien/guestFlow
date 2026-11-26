@@ -1,4 +1,4 @@
-// specs/guest-app.md §5 data model (rules 66, 72, 88 as ported in PR C) and specs/pricing-components.md rule 36 — the two guest_orders migrations:
+// specs/guest-app/guest-app.md §5 data model (rules 66, 72, 88 as ported in PR C) and specs/pricing/pricing-components.md rule 36 — the two guest_orders migrations:
 // `collectAt` (arrival | departure, every earlier order read `departure`) and the `cancelled` status (a rebuild that keeps every row and index).
 const test = require('node:test');
 const assert = require('node:assert/strict');

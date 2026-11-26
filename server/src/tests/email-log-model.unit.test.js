@@ -1,5 +1,5 @@
-// emailLogModel CRUD + pending join + history pagination. See specs/email-automation.md §4.1.
-// specs/email-history-rolling-window.md rule 4 — the status / template / reservation filters combine with
+// emailLogModel CRUD + pending join + history pagination. See specs/emails/email-automation.md §4.1.
+// specs/emails/email-history-rolling-window.md rule 4 — the status / template / reservation filters combine with
 // the window (AND); see « history: paginated » below.
 
 const test = require('node:test');
@@ -148,7 +148,7 @@ test('listPending: a sendDate 8 days in the past with lookbackDays=7 is excluded
 });
 
 test('listPending: a before-arrival reminder is NOT re-proposed once the guest has arrived (startDate in the past)', () => {
-  // Regression (specs/email-automation.md §3 rule 8): the 7-day lookback used to keep re-proposing a
+  // Regression (specs/emails/email-automation.md §3 rule 8): the 7-day lookback used to keep re-proposing a
   // J-2 reminder for up to 5 days AFTER arrival (its sendDate stays in the window). Once startDate is
   // past, a before-or-on-arrival reminder must drop out.
   const { db, model } = fresh();
@@ -224,7 +224,7 @@ test('listPending: event/action-triggered templates (deposit_request, reservatio
 });
 
 // ---- listPending × automatic sending ----
-// specs/settings-rationalization.md rule 17b: a template's own mode is the only switch. An « auto »
+// specs/settings/settings-rationalization.md rule 17b: a template's own mode is the only switch. An « auto »
 // template leaves with the 08:00 pass, so the review queue only ever proposes the « manual » ones —
 // on every anchor.
 
@@ -279,7 +279,7 @@ test('history: limit + offset pagination', () => {
   assert.equal(page1.total, 5);
 });
 
-// ---- history: rolling window (specs/email-history-rolling-window.md §3 rule 2) ----
+// ---- history: rolling window (specs/emails/email-history-rolling-window.md §3 rule 2) ----
 
 test('history: keeps in-window stays (incl. exactly arrival+3), drops past-window + orphans', () => {
   const { db, model } = fresh();
@@ -303,7 +303,7 @@ test('history: keeps in-window stays (incl. exactly arrival+3), drops past-windo
   assert.equal(res.total, 2);
 });
 
-// specs/email-history-rolling-window.md rules 5 + 6 — every status follows the window (listed and purged
+// specs/emails/email-history-rolling-window.md rules 5 + 6 — every status follows the window (listed and purged
 // the same way) and the page's total counts only in-window rows.
 test('rule 5: sent, failed and acknowledged-skip rows are scoped and purged identically', () => {
   const { db, model } = fresh();

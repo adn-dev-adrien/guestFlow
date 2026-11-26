@@ -1,4 +1,4 @@
-// The page-1 summary of a devis (specs/ui-review-2026-10-19-operations.md rule 19): « due by 25 September
+// The page-1 summary of a devis (specs/design-system/ui-review-2026-10-19-operations.md rule 19): « due by 25 September
 // 2026 » is wider than its column in English and used to run over the amount of the next line. It now
 // shrinks to fit; a date that already fits is drawn at the usual size.
 

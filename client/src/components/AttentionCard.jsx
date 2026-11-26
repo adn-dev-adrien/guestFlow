@@ -1,6 +1,6 @@
 /**
  * AttentionCard — one subject that asks for the operator, drawn the same way everywhere
- * (specs/shell-and-home-day-first.md rule 13). It replaces the four recipes the dashboard alerts had
+ * (specs/planning/shell-and-home-day-first.md rule 13). It replaces the four recipes the dashboard alerts had
  * (outlined Alert, `info.lighter` Card, `warning.soft` Card, plain Alert). Core and plugins (through
  * the SDK) render with it.
  *

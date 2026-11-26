@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { runForceExtrasComplementOnPlatform } = require('../utils/forceExtrasComplementOnPlatformMigration');
 
-// specs/force-extras-complement-on-platform.md §3 rule 6 + §7.1.
+// specs/sas/force-extras-complement-on-platform.md §3 rule 6 + §7.1.
 // Plain :memory: fixture with the 4 tables the migration touches.
 
 const DDL = `

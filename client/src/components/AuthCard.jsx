@@ -1,6 +1,6 @@
 /**
  * AuthCard — the centred card of the screens shown before a session exists: login, forgotten
- * password, new password (specs/hosting-h2-account-security.md §4.3).
+ * password, new password (specs/hosting/hosting-h2-account-security.md §4.3).
  *
  * Props: title ('GuestFlow'), subtitle (string), children.
  */

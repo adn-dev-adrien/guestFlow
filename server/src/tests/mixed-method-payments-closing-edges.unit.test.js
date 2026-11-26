@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 56 and 58 (verification R35b, findings 2-4) — the edges of the closing refund:
+// specs/payments/mixed-method-payments.md rules 56 and 58 (verification R35b, findings 2-4) — the edges of the closing refund:
 // a live stay given back in full closes like a cancelled one (rule 56 as worded since R35c); a 20 % indemnity's VAT stays
 // out of the sale legs; a negative closing leg is a credit, the tourist tax's included; a payment dated after the refund is
 // not read by it; and a stay paid with ONE method closes too from the month after the install (rule 58), while a refund

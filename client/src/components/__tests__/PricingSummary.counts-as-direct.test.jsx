@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 45 — the summary reads « platform sale » from the server:
+// specs/plugins/plugins-phase-p-productisation.md rule 45 — the summary reads « platform sale » from the server:
 // a channel counted as direct (Lodgify) shows the direct labels, whatever its name.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

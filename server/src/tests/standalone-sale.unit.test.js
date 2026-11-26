@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 53, 74, 52 and specs/outside-booking-sas.md rules 10-19, 21-26 — the external sale core: the `externalSale`
+// specs/pricing/pricing-components.md §3 rules 53, 74, 52 and specs/sas/outside-booking-sas.md rules 10-19, 21-26 — the external sale core: the `externalSale`
 // pipeline, the frozen lines of a standalone document, SETTLEMENT's remaining amount and allocation, the refusals, « Offrir », the paid-line confirmation.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

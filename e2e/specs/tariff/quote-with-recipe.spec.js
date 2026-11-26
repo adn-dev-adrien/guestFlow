@@ -1,5 +1,5 @@
 // @ts-check
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3.1-§3.2
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1-§3.2
 //
 // What a recipe actually charges, quoted by the real server for a real reservation.
 //

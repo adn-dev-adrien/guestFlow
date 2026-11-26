@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 10–11 — the operator updates one customer, a selection or
+// specs/hosting/hosting-h1-fleet-runtime.md rules 10–11 — the operator updates one customer, a selection or
 // the whole fleet, one instance at a time: a snapshot, the version switched, a restart, a health
 // check on that version. A failed check puts that instance back on its previous version and its
 // snapshot's database, and the fleet update stops there. Plugins are pushed the same way to the

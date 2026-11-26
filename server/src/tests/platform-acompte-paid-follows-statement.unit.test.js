@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 40 (audit 2026-10-27) — rule 38 holds on a platform that takes an
+// specs/payments/reservation-refunds.md rule 40 (audit 2026-10-27) — rule 38 holds on a platform that takes an
 // acompte: both paid, the acompte stays and the paid solde follows the statement; no complement.
 const test = require('node:test');
 const assert = require('node:assert/strict');

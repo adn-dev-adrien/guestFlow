@@ -1,7 +1,7 @@
 /**
- * specs/settings-rationalization.md rule 29 — the settings search reads the shipped emails' names from
+ * specs/settings/settings-rationalization.md rule 29 — the settings search reads the shipped emails' names from
  * client/src/constants/emailNames.js, a mirror of the names the server gives them
- * (utils/emailTimeline.js, specs/guest-email-texts-made-simple.md rule 44). The two never drift.
+ * (utils/emailTimeline.js, specs/emails/guest-email-texts-made-simple.md rule 44). The two never drift.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');

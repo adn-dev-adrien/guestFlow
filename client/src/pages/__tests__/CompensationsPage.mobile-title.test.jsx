@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rule 21 — the page of the indemnities reads « Indemnités » on a phone (and on every width, specs/ds-components.md rule 25),
+// specs/plugins/plugins-phase-2-hosts.md rule 21 — the page of the indemnities reads « Indemnités » on a phone (and on every width, specs/design-system/ds-components.md rule 25),
 // where the full title would be cut, and its explanation speaks of no one (« faute de règlement »).
 import React from 'react';
 import { vi } from 'vitest';
@@ -25,7 +25,7 @@ afterEach(() => { window.matchMedia = orig; });
 
 const renderPage = () => render(<MemoryRouter initialEntries={['/finance/indemnites']}><DialogProvider><CompensationsPage /></DialogProvider></MemoryRouter>);
 
-test('rule 21: « Indemnités » on a phone, and above too (specs/ds-components.md rule 25)', async () => {
+test('rule 21: « Indemnités » on a phone, and above too (specs/design-system/ds-components.md rule 25)', async () => {
   window.matchMedia = media(true);
   const { unmount } = renderPage();
   expect(await screen.findByText('Indemnités')).toBeInTheDocument();

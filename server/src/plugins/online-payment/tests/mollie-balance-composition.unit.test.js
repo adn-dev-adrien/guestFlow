@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 4, 5, 10, 16 — what a Mollie settlement paid, read EXACTLY
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 4, 5, 10, 16 — what a Mollie settlement paid, read EXACTLY
 // from the primary balance's transactions (measured on the live account, 2026-11-16): the `payment` and
 // `api-payment-rolling-reserve-release` transactions between two `outgoing-transfer`s are one settlement. No network:
 // the Mollie client is a fake. Names and ids are fictitious; the amounts and dates of the measured cases are real.

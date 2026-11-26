@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 90.3 (rule 24, owner Q-C7) — the evening of an hourly session is a component of the session line.
+// specs/pricing/pricing-components.md §3 rule 90.3 (rule 24, owner Q-C7) — the evening of an hourly session is a component of the session line.
 // While that line is the open arrival complement's, the SAS sets its evening component (it grows and shrinks, the hours do not move) and
 // the fiche's next save keeps it; otherwise what the sessions add beyond the evening the line carries rides a line of its own; a stay
 // holding a stored `evening:<id>` line keeps it, and the session line gets no component (billed once).

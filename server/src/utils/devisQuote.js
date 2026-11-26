@@ -1,7 +1,7 @@
 /**
  * Recompute the pricing-engine quote for a PERSISTED devis, and derive the online full-payment amount.
  *
- * The engine is the single source of truth (specs/online-payments-qonto.md, public-online-payment.md):
+ * The engine is the single source of truth (specs/payments/online-payments-qonto.md, public-online-payment.md):
  * stored `finalPrice`/`depositAmount` columns can be stale, so payment amounts are always re-run from
  * the saved devis graph. The public full payment charges the stored acompte + solde — the pre-arrival
  * amount, tourist tax included unless it is collected on arrival (decision 2026-06-30), arrival
@@ -15,7 +15,7 @@ const vatRegimeModel = require('../models/vatRegimeModel');
 // Build the engine input from a persisted devis row and run it.
 //
 // NOT the full replay of the sold state: this mapping drops `offeredOptionIds` and the price-lock
-// snapshot, so its AMOUNTS can drift from the fiche (specs/devis-pdf-total-parity.md §1). That is
+// snapshot, so its AMOUNTS can drift from the fiche (specs/devis/devis-pdf-total-parity.md §1). That is
 // harmless here and here only — the caller below reads exactly one boolean from the result
 // (`touristTaxCollectedOnArrival`, a property-config flag) and takes every euro from the stored row.
 // Any consumer that needs the devis's actual quote must call `devisModel.recomputeQuote(id)`.
@@ -46,12 +46,12 @@ function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
       // The scheduled hours have to ride along: without them the engine re-prices an hourly resource
       // from its quantity alone and the recompute silently diverges from the stored devis
-      // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 3). The PDF path always
+      // (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §1 defect 3). The PDF path always
       // passed them; this one did not.
       sessions: Array.isArray(r.sessions) ? r.sessions : [],
     })),
     platform: full.platform,
-    // A public devis prices planning-card options by quantity (specs/public-planning-options.md), so the
+    // A public devis prices planning-card options by quantity (specs/site/public-planning-options.md), so the
     // recompute must match the stored devis (else it would drop them and diverge).
     planningCardAsQuantity: full.requestOrigin === 'public',
   });
@@ -60,7 +60,7 @@ function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
 // What a FULL online payment of a public devis charges = exactly what the payment then records: the
 // **stored** acompte plus the **stored** solde, i.e. the pre-arrival amount the guest agreed to on the
 // quote — tourist tax included unless it is paid on arrival, and any line routed to the arrival
-// complement excluded (specs/deposit-blocks-the-dates.md rule 18, decided 2026-10-27). It used to be
+// complement excluded (specs/payments/deposit-blocks-the-dates.md rule 18, decided 2026-10-27). It used to be
 // `finalPrice + touristTaxTotal`, which also charged the complement lines the stay then asks for again
 // on arrival.
 //
@@ -79,7 +79,7 @@ function fullPaymentCents({ devisModel }, devisId, fallbackRow) {
   return preArrivalCents(savedDevis({ devisModel }, devisId, fallbackRow));
 }
 
-// VAT basket components for a public FULL payment (specs/payment-links-vat.md): the stay part of the
+// VAT basket components for a public FULL payment (specs/payments/payment-links-vat.md): the stay part of the
 // pre-arrival amount (VAT-liable at the global rate) as one taxable line, plus the tourist tax as a
 // 0 %-VAT line (VAT-exempt) — unless it is paid on arrival (collected there, or forced to the
 // complement), then no tax line. The engine is re-run ONLY to read the `collectedOnArrival` flag (a

@@ -1,5 +1,5 @@
 /**
- * ImageDropField — pick one image by dropping it on the field or tapping it (specs/gift-voucher-campaigns.md rule 47).
+ * ImageDropField — pick one image by dropping it on the field or tapping it (specs/gift-vouchers/gift-voucher-campaigns.md rule 47).
  * The field only holds the chosen file and previews it; the server judges the image and its refusal is handed back through `error`.
  *
  * Props:

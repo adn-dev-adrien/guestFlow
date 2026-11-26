@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 11 — the three « faits marquants », written server-side.
+// specs/accounting/finance-dashboard-redesign.md rule 11 — the three « faits marquants », written server-side.
 const { buildInsights } = require('../utils/financeInsights');
 
 const norm = (s) => s.replace(/\s/g, ' ');

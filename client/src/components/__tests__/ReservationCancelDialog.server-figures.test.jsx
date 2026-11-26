@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the cancel dialog renders the figures the server
+// specs/payments/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the cancel dialog renders the figures the server
 // answers for the cancellation, never a sum worked out from the quote: a plan with one paid échéance read 0,00 € kept
 // and 0,00 € written off, while the cancel kept 125 € and wrote 249,79 € off. While the figures load, the confirm
 // waits; when the server refuses, the refusal is shown and the confirm stays off.

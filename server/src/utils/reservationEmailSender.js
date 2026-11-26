@@ -1,5 +1,5 @@
 /**
- * Send a single templated email for a reservation, by `stableKey` (specs/online-payments-qonto.md
+ * Send a single templated email for a reservation, by `stableKey` (specs/payments/online-payments-qonto.md
  * §3.4). Event-triggered counterpart of the dayOffset cron — used to send the « Confirmation de
  * réservation » email the moment an online payment confirms a stay. Mirrors emailAutoSendRunner's
  * load → context → render → send → log pipeline; every dependency is injected for testability.
@@ -22,8 +22,8 @@ const { formatMomentLong } = require('./dateFr');
 const { notDepartureCharge } = require('./departureChargeLines');
 
 // `installment` (the plan context of utils/installmentPlan.requestContext) and `occurrenceKey` make this the
-// request of ONE installment (specs/direct-installments.md rules 19-21). `onAccepted(logRow)` runs in the transaction
-// that writes the `sent` history row, once SMTP accepted the message (specs/payment-link-lifecycle.md rule 64); a
+// request of ONE installment (specs/payments/direct-installments.md rules 19-21). `onAccepted(logRow)` runs in the transaction
+// that writes the `sent` history row, once SMTP accepted the message (specs/payments/payment-link-lifecycle.md rule 64); a
 // failure after that acceptance answers `accepted: true` (the guest may have it) and writes no `failed` row; without
 // `onAccepted`, such a failure is logged `failed` as any other.
 async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext, installment = null, occurrenceKey = '', onAccepted = null }) {
@@ -43,7 +43,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
     SELECT rr.*, res.name
     FROM reservation_resources rr JOIN resources res ON res.id = rr.resourceId WHERE rr.reservationId = ?
   `).all(reservation.id);
-  // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
+  // The English names come from the translation catalogue (specs/site/translation-catalogue.md rule 2).
   require('./translationResolver').attachEnglishNames(database, { options, resources });
   require('../models/stayFactsModel').attachResourceSentences(database, resources);
   const customOptions = database.prepare(`SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservation.id);
@@ -63,7 +63,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   const context = buildContext({
     reservation, client, property, options, resources, customOptions,
     bedLinenProvidedByDefault, settings, lang, termsVersion, installment,
-    // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
+    // specs/payments/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
     cancellationKept: require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation),
     // The local copy of the gate-access result — nothing to reach, nothing to wait for.
     pluginContext: pluginEmailContext(reservation.id),
@@ -71,9 +71,9 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   // Per-send overrides (e.g. the payment link, which isn't a reservation column) are merged over the
   // built context's vars/flags so callers can inject values without touching emailContextBuilder.
   // `amounts` carries euros, written here like every other amount of the mail, in the guest's language
-  // (specs/email-language-fr-en.md rule 10): a caller never pre-formats money.
+  // (specs/emails/email-language-fr-en.md rule 10): a caller never pre-formats money.
   // `dates` carries instants (ISO), written the same way: « lundi 2 novembre à 18 h 00 » / « Monday 2 November
-  // at 6:00 pm », Paris time (specs/payment-link-lifecycle.md rule 36).
+  // at 6:00 pm », Paris time (specs/payments/payment-link-lifecycle.md rule 36).
   const extra = extraContext || {};
   const amounts = Object.fromEntries(Object.entries(extra.amounts || {}).map(([k, v]) => [k, emailAmount(Number(v || 0), lang)]));
   const dates = Object.fromEntries(Object.entries(extra.dates || {}).map(([k, v]) => [k, formatMomentLong(v, lang)]));
@@ -84,7 +84,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, merged);
 
-  // specs/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking guest.
+  // specs/emails/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking guest.
   if (englishMissing(template, lang)) {
     logModel.insert({
       templateId: template.id, reservationId: reservation.id, status: 'failed',
@@ -125,7 +125,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
  * Curry the dependencies into a `sendConfirmation(reservationId)` function suitable for
  * `runPaymentPoll({ sendConfirmation })`.
  *
- * The confirmation is mail 1 of the guest email sequence (specs/guest-email-sequence.md rule 2): it
+ * The confirmation is mail 1 of the guest email sequence (specs/emails/guest-email-sequence.md rule 2): it
  * goes through the same eligibility (direct channels, start date) and the same ledger as the daily
  * pass, so the webhook, the poll and the 08:00 pass racing on one payment send it once.
  * `ledger` / `preferences` are injectable for tests; production uses the default models.
@@ -148,7 +148,7 @@ function buildConfirmationSender({ database, templatesModel, logModel, settingsM
 
 /**
  * Same confirmation sender, gated by the confirmation template's own mode
- * (specs/no-automatic-email-without-approval.md §3 rule 4, specs/settings-rationalization.md rule 17b).
+ * (specs/emails/no-automatic-email-without-approval.md §3 rule 4, specs/settings/settings-rationalization.md rule 17b).
  *
  * A confirmed online payment is not an operator action — nobody read that email before it left. So:
  *   template « auto »   → send immediately;

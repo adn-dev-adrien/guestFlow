@@ -36,7 +36,7 @@ function warnDecryptFailure(col, reason) {
 }
 
 // Columns encrypted at rest (AES-256-GCM). The Google, Météo-France, Qonto and Neat secrets moved to
-// plugin_settings with their plugins (specs/plugins-phase-1-sdk.md §5, plugins-phase-3a-online-payment.md
+// plugin_settings with their plugins (specs/plugins/plugins-phase-1-sdk.md §5, plugins-phase-3a-online-payment.md
 // rule 13, plugins-phase-3b-neat.md rule 10); their old columns stay in the table, unread.
 const ENCRYPTED_COLUMNS = [
   'smtpPasswordEncrypted',
@@ -53,7 +53,7 @@ const COLUMNS = [
   'companyBic',
   'companyBankName',
   'quoteFooterText',
-  // English-language footer for the bilingual devis PDF (specs/devis-english-language.md §3 rule 11).
+  // English-language footer for the bilingual devis PDF (specs/devis/devis-english-language.md §3 rule 11).
   // Optional — when empty the PDF falls back to a hard-coded English default in devisPdfLabels.
   'quoteFooterTextEn',
   'quoteValidityDays',
@@ -61,20 +61,20 @@ const COLUMNS = [
   'vatRate',
   // The four account and VAT settings of the accounting export (commission account and rate,
   // cancellation-compensation account and rate) live in plugin_settings since
-  // specs/plugins-phase-2-hosts.md rule 19; their app_settings columns stay in place, unread.
-  // Accounting closing month, 1..12 (specs/fiscal-year-and-nights-sold.md §3.1). Drives every annual
+  // specs/plugins/plugins-phase-2-hosts.md rule 19; their app_settings columns stay in place, unread.
+  // Accounting closing month, 1..12 (specs/accounting/fiscal-year-and-nights-sold.md §3.1). Drives every annual
   // window of the Suivi financier. Plain integer — nothing secret, no encryption.
   'fiscalYearEndMonth',
-  // How far ahead the public may book a lodging, in months (specs/gift-voucher-campaigns.md rule 51).
+  // How far ahead the public may book a lodging, in months (specs/gift-vouchers/gift-voucher-campaigns.md rule 51).
   'bookingHorizonMonths',
-  // Revenue goal per exercise, JSON (specs/finance-dashboard-redesign.md §3.8). Validated and merged
+  // Revenue goal per exercise, JSON (specs/accounting/finance-dashboard-redesign.md §3.8). Validated and merged
   // by the settings controller through utils/revenueGoals.js.
   'revenueGoals',
-  // The franchise threshold, typed by the operator (specs/vat-optional-mode.md rule 36). Read through
+  // The franchise threshold, typed by the operator (specs/accounting/vat-optional-mode.md rule 36). Read through
   // `read()`; written only by `setVatFranchiseThreshold`, which keeps NULL and the day of the change.
   'vatFranchiseThreshold',
   'vatFranchiseThresholdSetAt',
-  // SMTP for the account-management flow (specs/admin-account-management.md). The password column
+  // SMTP for the account-management flow (specs/hosting/admin-account-management.md). The password column
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.
   'smtpHost',
@@ -84,28 +84,28 @@ const COLUMNS = [
   'smtpFromEmail',
   'smtpFromName',
   'publicUrl',
-  // Domain gate/access code shown on the arrival SAS (specs/arrival-departure-sas.md §3.5). Global.
+  // Domain gate/access code shown on the arrival SAS (specs/sas/arrival-departure-sas.md §3.5). Global.
   'portalCode',
-  // Booking notifications (specs/site-booking-notifications.md §5). Non-secret. `notificationsEnabled`
+  // Booking notifications (specs/site/site-booking-notifications.md §5). Non-secret. `notificationsEnabled`
   // is the master switch (INTEGER 0/1, default 1); `notificationRecipientEmail` is the TO address
   // (empty → falls back to smtpFromEmail). The email link reuses `publicUrl`.
   'notificationsEnabled',
   'notificationRecipientEmail',
   // Per-channel switch for the new-iCal-reservation email (INTEGER 0/1, default 1). See spec §3 rule 9b.
   'notifyIcalReservationEnabled',
-  // Guest email sequence (specs/guest-email-sequence.md §5). `guestSequenceStartDate` is written once,
+  // Guest email sequence (specs/emails/guest-email-sequence.md §5). `guestSequenceStartDate` is written once,
   // by the email-templates controller, the first time a sequence template goes « auto »: no sequence email
   // dated before it is ever sent. The rest feeds the email copy.
   'guestSequenceStartDate',
   'googleReviewUrl',
   'instagramUrl',
-  // specs/settings-input-guards.md §3.7 — JSON `[{ network, url }]`, ordered; `instagramUrl` mirrors its Instagram entry.
+  // specs/settings/settings-input-guards.md §3.7 — JSON `[{ network, url }]`, ordered; `instagramUrl` mirrors its Instagram entry.
   'socialLinks',
   // The public website's origin: the CGV link of the emails and the return page of an online payment
-  // (specs/plugins-phase-3a-online-payment.md rule 15). The 20 Qonto columns moved to the
+  // (specs/plugins/plugins-phase-3a-online-payment.md rule 15). The 20 Qonto columns moved to the
   // online-payment plugin's settings (rule 13); they stay in the table, unread.
   'publicSiteOrigin',
-  // specs/plugins-phase-p-productisation.md rules 18 and 20.
+  // specs/plugins/plugins-phase-p-productisation.md rules 18 and 20.
   'vapidSubject',
   'onboardingCompletedAt',
 ];
@@ -228,7 +228,7 @@ function createSettingsModel(databaseInstance) {
     // ----- SMTP / account-management helpers -----
 
     // A hosted instance without its own SMTP sends through the platform
-    // (specs/hosting-h1-fleet-runtime.md rule 18): configured with nothing typed.
+    // (specs/hosting/hosting-h1-fleet-runtime.md rule 18): configured with nothing typed.
     smtpConfigured() {
       const row = readRaw();
       const host = String(row.smtpHost || '').trim();
@@ -237,14 +237,14 @@ function createSettingsModel(databaseInstance) {
     },
 
     // The typed URL, else the one the hosting writes into the instance's environment
-    // (specs/hosting-h1-fleet-runtime.md rule 25): a hosted instance has its address from day one,
+    // (specs/hosting/hosting-h1-fleet-runtime.md rule 25): a hosted instance has its address from day one,
     // and a rename moves it without anyone typing it again.
     publicUrl() {
       return effectivePublicUrl(readRaw());
     },
 
-    // Booking-notification config (specs/site-booking-notifications.md). Sender and recipient are
-    // the resolved identity (specs/settings-rationalization.md rule 12): the recipient falls back to
+    // Booking-notification config (specs/site/site-booking-notifications.md). Sender and recipient are
+    // the resolved identity (specs/settings/settings-rationalization.md rule 12): the recipient falls back to
     // the sending address, which falls back to the contact email.
     // `enabled` defaults ON (NaN/undefined on a partially-migrated DB → still ON, the safe default).
     notificationSettings() {
@@ -263,7 +263,7 @@ function createSettingsModel(databaseInstance) {
     },
 
     // The public website's origin, without its trailing slash, over PUBLIC_SITE_ORIGIN
-    // (specs/plugins-phase-3a-online-payment.md rule 15). '' when neither is set.
+    // (specs/plugins/plugins-phase-3a-online-payment.md rule 15). '' when neither is set.
     publicSiteOrigin() {
       const stored = String(readRaw().publicSiteOrigin || '').trim();
       return (stored || String(process.env.PUBLIC_SITE_ORIGIN || '').trim()).replace(/\/+$/, '');
@@ -295,7 +295,7 @@ function createSettingsModel(databaseInstance) {
       const identity = resolveEmailIdentity(row);
       return {
         host: String(row.smtpHost || '').trim(),
-        // Derived, never stored (specs/settings-rationalization.md rule 11).
+        // Derived, never stored (specs/settings/settings-rationalization.md rule 11).
         port: smtpPortForSecure(row.smtpSecure),
         secure: Number(row.smtpSecure) === 1,
         user: identity.username,

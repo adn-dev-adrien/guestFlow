@@ -1,5 +1,5 @@
 /**
- * Copy of the installment plan card (specs/direct-installments.md §6) — presentation only. The server decides
+ * Copy of the installment plan card (specs/payments/direct-installments.md §6) — presentation only. The server decides
  * every amount, date, status and refusal; these are the words around them.
  */
 

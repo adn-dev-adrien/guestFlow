@@ -1,4 +1,4 @@
-// specs/sas-departure-mode-param.md — `GET /reservations/:id/sas` answers a different « is the cleaning
+// specs/sas/sas-departure-mode-param.md — `GET /reservations/:id/sas` answers a different « is the cleaning
 // already sold? » per end of the stay. The client never sent `?mode=departure`, so the check-out SAS got
 // the check-in answer: it asked about a ménage it could never bill and announced 80 € the commit threw
 // away. These tests pin the two flavours of the read.

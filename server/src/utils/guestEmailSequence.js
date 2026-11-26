@@ -1,5 +1,5 @@
 /**
- * Guest email sequence — the calendar, as pure functions (specs/guest-email-sequence.md §3.1-§3.4).
+ * Guest email sequence — the calendar, as pure functions (specs/emails/guest-email-sequence.md §3.1-§3.4).
  *
  * Every date and every exclusion rule of the sequence lives here and nowhere else: the daily pass,
  * the simulation page and the CLI all call these functions, so what the simulation shows is exactly
@@ -97,7 +97,7 @@ function seasonDedupKey(stableKey, clientId, seasonKey) {
 
 // ---------------------------------------------------------------- channel helpers
 
-// `isRelayChannel` — the platforms ticked « Adresse e-mail relais » (specs/platform-settings-relay-and-review.md
+// `isRelayChannel` — the platforms ticked « Adresse e-mail relais » (specs/platforms/platform-settings-relay-and-review.md
 // rule 2), never a platform name.
 
 function hasEmail(client) {

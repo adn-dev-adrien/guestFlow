@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import RefundDialog from '../RefundDialog';
 
-// specs/reservation-refunds.md rule 41 — a free line with an amount but no label is refused in the
+// specs/payments/reservation-refunds.md rule 41 — a free line with an amount but no label is refused in the
 // dialog, never dropped silently from the posted lines while still counted in the total.
 
 const LINES = [

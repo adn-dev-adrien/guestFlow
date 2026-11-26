@@ -1,6 +1,6 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 28, 44 (R35-C-L1, R35-C-L2, R35-C-L4) and specs/outside-booking-sas.md rule 34 — the visit of a guest who paid at booking time is
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 28, 44 (R35-C-L1, R35-C-L2, R35-C-L4) and specs/sas/outside-booking-sas.md rule 34 — the visit of a guest who paid at booking time is
 // still recorded (no payment sent, the session read « Payée » from the booking); an invoice cancelled in Qonto is offered again; a refused attachment is said on screen.
-// specs/server-test-isolation.md rules 16, 17 — these dialog walks run under the client suite's one 30 s budget.
+// specs/tech/server-test-isolation.md rules 16, 17 — these dialog walks run under the client suite's one 30 s budget.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -52,7 +52,7 @@ test('A2 — arrived, paid, its invoice cancelled in Qonto: « Créer la facture
   api.getResourceVisit.mockResolvedValue(paidBefore({ invoiceReady: true, invoice: { number: 'F-1', cancelled: true }, invoiceable: { ok: true, code: null, reason: null } }, { arrived: true, invoice: { number: 'F-1', cancelled: true, attachment: { state: null } } }));
   api.issueResourceBookingInvoice.mockResolvedValue({});
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
-  // The footer button is drawn disabled until the dialog has the sale blocks' code (specs/server-test-isolation.md rule 23, loop t23 UI23-1).
+  // The footer button is drawn disabled until the dialog has the sale blocks' code (specs/tech/server-test-isolation.md rule 23, loop t23 UI23-1).
   await waitFor(() => expect(screen.getAllByRole('button', { name: 'Créer la facture' }).at(-1)).toBeEnabled());
   fireEvent.click(screen.getAllByRole('button', { name: 'Créer la facture' }).at(-1));
   await waitFor(() => expect(api.issueResourceBookingInvoice).toHaveBeenCalledWith(5, expect.anything()));

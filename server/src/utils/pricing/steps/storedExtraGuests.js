@@ -1,5 +1,5 @@
 /**
- * STEP storedExtraGuests — EXTRA GUESTS as stored, for a sale (specs/pricing-components.md §3 rule 8).
+ * STEP storedExtraGuests — EXTRA GUESTS as stored, for a sale (specs/pricing/pricing-components.md §3 rule 8).
  *
  * A sale on a stay reads the extra-guest supplement the stay was priced with (`reservations.storedExtraGuests`, its share
  * inside a platform price included) instead of running EXTRA GUESTS: no tariff, season or extra-guest setting is read. A

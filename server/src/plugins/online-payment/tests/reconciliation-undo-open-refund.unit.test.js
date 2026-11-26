@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 52 (audit R23 N7, 2026-11-05), specs/qonto-bank-reconciliation.md rule 38 — « Défaire » takes a
+// specs/payments/reservation-refunds.md rule 52 (audit R23 N7, 2026-11-05), specs/accounting/qonto-bank-reconciliation.md rule 38 — « Défaire » takes a
 // confirmed receipt back like an un-tick: refused while a book refund needs that money. Reached on an installment through the
 // plugin's writer, on a bucket through the core mark. No payment link in these scenarios.
 const test = require('node:test');

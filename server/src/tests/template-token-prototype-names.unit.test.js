@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 11, reading of 2026-11-05 (audit R24-I4) — a name only an object's
+// specs/emails/guest-email-texts-made-simple.md rule 11, reading of 2026-11-05 (audit R24-I4) — a name only an object's
 // prototype holds (constructor, toString, __proto__…) is a name nobody knows: « Variable inconnue : {{name}} », never
 // the text of a native function; a chip of such a name is labelled by the name itself.
 const test = require('node:test');

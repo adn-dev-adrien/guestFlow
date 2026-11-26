@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 18, past reading of 2026-11-02 (specs/reservations-backend-mvc.md rule 13) —
+// specs/pricing/establishment-closures.md rule 18, past reading of 2026-11-02 (specs/tech/reservations-backend-mvc.md rule 13) —
 // a closure start moved before today − 5 years says « Date trop ancienne : 5 ans au plus. » under its field; the
 // dialog neither previews nor saves it. A closure already stored before the window opens without it.
 import React from 'react';

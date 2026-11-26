@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rule 27 — the finance pages count a platform stay net of its
+// specs/accounting/reconciliation-assisted-matching.md rule 27 — the finance pages count a platform stay net of its
 // penalties: « total de séjour », « encaissé », « à encaisser », a late payout and the cash-flow line, with
 // the invariant collected + remaining = total kept. Same stay with and without a penalty.
 const test = require('node:test');

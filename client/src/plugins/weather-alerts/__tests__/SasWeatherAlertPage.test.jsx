@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import SasWeatherAlertPage from '../SasWeatherAlertPage';
 
 // The page is purely presentational — it renders the server-shaped alert objects
-// (specs/checkin-weather-alerts.md). These fixtures mirror weatherController's payload.
+// (specs/guest-app/checkin-weather-alerts.md). These fixtures mirror weatherController's payload.
 const CANICULE = {
   phenomenonId: 6,
   phenomenon: 'Canicule',

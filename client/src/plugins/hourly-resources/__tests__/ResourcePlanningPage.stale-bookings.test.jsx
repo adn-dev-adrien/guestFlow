@@ -1,4 +1,4 @@
-// specs/ds-sweep-planning.md rule 31 — the bookings shown are always those of the week and the resource
+// specs/design-system/ds-sweep-planning.md rule 31 — the bookings shown are always those of the week and the resource
 // on screen: a slow answer for a week or a resource already left is dropped, so a taken slot never reads
 // as free (rule 9); until the answer of the one on screen lands, the grid is dimmed and inert.
 import React from 'react';
@@ -77,7 +77,7 @@ test('rule 31 — a late failure of a week already left does not raise the error
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine précédente' })[0]);
   await waitFor(() => expect(calls).toHaveLength(3));
   // The week on screen paints after its call returns: the late failure must find it painted
-  // (specs/server-test-isolation.md rule 11).
+  // (specs/tech/server-test-isolation.md rule 11).
   await firstPaint();
   await act(async () => { rejectNext(new Error('boom')); });
   expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0);

@@ -1,4 +1,4 @@
-// specs/ds-tabs.md rules 4, 5, 6, 9 — the house style of a tab: sentence case, 44 px target, the
+// specs/design-system/ds-tabs.md rules 4, 5, 6, 9 — the house style of a tab: sentence case, 44 px target, the
 // weights, and the fact that the DEFAULTS live in the theme (so a `<Tabs>` written later, by
 // someone who never read this spec, still lands on the right look). Plus the `card` variant's own
 // rhythm: a bottom divider and a standard gap before the content, never a forced width.

@@ -1,5 +1,5 @@
 /**
- * Brings the space's plugins to the operator's choice (specs/plugin-operator-provisioning.md rules
+ * Brings the space's plugins to the operator's choice (specs/plugins/plugin-operator-provisioning.md rules
  * 16–19, 23). `planSteps` is pure; `createReconciler` takes its effects as dependencies so the unit
  * suites run it on an in-memory database with no HTTP round-trip.
  *

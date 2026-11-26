@@ -6,7 +6,7 @@ const icalCancellationModel = require('../models/icalCancellationModel');
 
 // Approving an iCal cancellation DELETES the reservation, so the compensation it may leave behind
 // has to be built from a snapshot taken before the delete, in the same transaction
-// (specs/cancellation-compensation.md §3.2 rules 9-11).
+// (specs/payments/cancellation-compensation.md §3.2 rules 9-11).
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);

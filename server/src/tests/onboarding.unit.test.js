@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.D rules 20–22 — the start assistant: open for an admin
+// specs/plugins/plugins-phase-p-productisation.md §3.D rules 20–22 — the start assistant: open for an admin
 // until done, each step validated by the server, plugins outside the licence refused, a partial plugin
 // failure named, « Plus tard » closes it with what was saved.
 

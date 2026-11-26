@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 17 — the platform pin excludes the lines that do not declare `collectAt = 'platform'`
+// specs/pricing/pricing-components.md §3 rule 17 — the platform pin excludes the lines that do not declare `collectAt = 'platform'`
 // (falling back to the `inComplement` flag when a line declares no moment).
 const test = require('node:test');
 const assert = require('node:assert/strict');

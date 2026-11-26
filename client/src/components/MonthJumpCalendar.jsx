@@ -3,7 +3,7 @@
  *
  * A horizontal, scrollable row of month chips (from the current month to the month of the horizon) jumps
  * straight to a month; the month grid below disables the days before today and after the horizon.
- * The limit comes from the server (`horizonUntil`, specs/gift-voucher-campaigns.md rule 51): this component
+ * The limit comes from the server (`horizonUntil`, specs/gift-vouchers/gift-voucher-campaigns.md rule 51): this component
  * never works out how far ahead a booking may go, it only greys out what it is told is out of reach.
  *
  * Props:

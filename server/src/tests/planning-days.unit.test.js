@@ -9,7 +9,7 @@ const planningDaysModel = require('../models/planningDaysModel');
 const { buildController } = require('../controllers/planningController');
 const { windowDays, checkWindow, MAX_WINDOW_DAYS } = require('../utils/planningDays');
 
-// specs/dashboard-planning-scroll.md rules 8–10 — GET /api/planning/days: every day of a bounded
+// specs/planning/dashboard-planning-scroll.md rules 8–10 — GET /api/planning/days: every day of a bounded
 // window with its stays, breakfast, option cards and alerts; the replaced reads are gone.
 
 const DDL = `

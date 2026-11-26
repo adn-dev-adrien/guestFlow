@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 44 — a refusal keeps its code in `error` and carries a French `message`
+// specs/design-system/ui-review-2026-10-19-operations.md rule 44 — a refusal keeps its code in `error` and carries a French `message`
 // (audit R23-C7: « SMTP_NOT_CONFIGURED » reached a toast, and no SMTP is the normal state of a new install).
 const test = require('node:test');
 const assert = require('node:assert/strict');

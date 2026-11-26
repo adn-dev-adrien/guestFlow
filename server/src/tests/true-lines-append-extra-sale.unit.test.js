@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13, 74 and 85 — selling an article the stay already sells appends a NEW line: its own price (frozen once
+// specs/pricing/pricing-components.md §3 rules 13, 74 and 85 — selling an article the stay already sells appends a NEW line: its own price (frozen once
 // written), source, moment and status; the lines already sold are not touched, whatever their state.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

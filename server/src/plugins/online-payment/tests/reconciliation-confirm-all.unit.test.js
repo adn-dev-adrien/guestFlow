@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 12–13 — « Tout confirmer »: what the summary counts, and a
+// specs/accounting/reconciliation-assisted-matching.md rules 12–13 — « Tout confirmer »: what the summary counts, and a
 // confirmation per proposal, each in its own transaction, guarded against what changed since the page was
 // drawn. Fictional data only.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/direct-installments.md rules 53-60 — the last installment can be typed, what a closed plan does not cover is paid at
+// specs/payments/direct-installments.md rules 53-60 — the last installment can be typed, what a closed plan does not cover is paid at
 // the arrival, and a plan can be made beside an acompte already collected. The pure rules first, then the controller on an
 // in-memory database, then the engine, the complement's detail and the money readers.
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/lodgify-decommission.md — Booking.com, Airbnb and Abritel back on their native iCal feeds:
+// specs/platforms/lodgify-decommission.md — Booking.com, Airbnb and Abritel back on their native iCal feeds:
 // the Booking echo filter (rules 5-9), the takeover of stays imported through the Lodgify relay
 // (rules 1-4, 2bis) and the export tombstones (rule 7).
 const test = require('node:test');
@@ -13,7 +13,7 @@ const notificationService = require('../utils/notificationService');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-// Every stay hangs on a day 246 days out (specs/server-test-isolation.md rule 6): `day(n)` is n days after it,
+// Every stay hangs on a day 246 days out (specs/tech/server-test-isolation.md rule 6): `day(n)` is n days after it,
 // `compact(n)` the same day as an iCal DATE.
 const FIRST = addDaysToIsoDate(todayIso(), 246);
 const day = (n) => addDaysToIsoDate(FIRST, n);

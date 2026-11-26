@@ -1,10 +1,10 @@
 /**
  * Payment links model — sole DB access for `payment_links`
- * (specs/online-payments-qonto.md §5, provider-neutral since specs/plugins-phase-3a-online-payment.md
+ * (specs/payments/online-payments-qonto.md §5, provider-neutral since specs/plugins/plugins-phase-3a-online-payment.md
  * rule 6).
  *
  * One row per payment link a provider issued for a reservation/devis (deposit / balance / full /
- * complement, or one installment of a plan — `installmentId`, specs/direct-installments.md). The polling pass reads `status='open'` rows, asks the provider, and flips them to `paid`.
+ * complement, or one installment of a plan — `installmentId`, specs/payments/direct-installments.md). The polling pass reads `status='open'` rows, asks the provider, and flips them to `paid`.
  * Amounts are stored in **cents** (integer, exact — never float euros). The rows are core data: they
  * are the trace of what was asked and paid online, and outlive the provider's plugin.
  *
@@ -12,7 +12,7 @@
  *   create({ reservationId, type, amountCents, currency?, provider?, providerLinkId?, url?, status?, createdAt?, expiresAt? }) → row
  *   listOpen()                              → all status='open' rows
  *   retireExpired({ now })                  → lapses open links past a known expiresAt: 'expired', reason 'validity',
- *                                           deactivation marker (specs/payment-link-lifecycle.md rules 7, 17); returns them
+ *                                           deactivation marker (specs/payments/payment-link-lifecycle.md rules 7, 17); returns them
  *   lapseIfOpen(id, { reason, now })        → open→expired with that reason and the marker; null when no longer open
  *   retireSettled()                         → cancels the open links whose bucket the stay already settled; returns them
  *   settledBucketDateOf(link)               → the day the stay recorded that link's bucket as paid, or null
@@ -20,7 +20,7 @@
  *   markRetiredLinkPaid(id, { providerPaymentId, paidAt, reason? }) → a link retired by retireSettled (or, with
  *                                           reason 'amount-changed', by retireForAmountChange) was paid: cancelled→paid
  *   retireForAmountChange(reservationId, type, newAmountCents, installmentId?) → cancels the open links of that type whose amount
- *                                           the fiche changed (specs/reservation-payment-ledger.md rule 29)
+ *                                           the fiche changed (specs/payments/reservation-payment-ledger.md rule 29)
  *   listPollable({ now, force, cadence })   → the open links due for a provider check (the polling worklist)
  *   touchPolled(id, at?)                    → stamps lastPolledAt (every provider call made for a link)
  *   hasKnownExpiry(link)                    → whether the link carries a real expiry date
@@ -42,7 +42,7 @@
  *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
  *   holdPaidBesidePlan(id, { providerPaymentId?, paidAt? }) → a `dates-taken` bucket link paid beside an installment plan:
  *                                           the payment kept on the link, unbooked, to settle (rule 63); true once
- *   setLastLook(id, at) / claimLastLook(id) → the one last payment read of a lapsed link (specs/payment-link-lifecycle.md rule 19),
+ *   setLastLook(id, at) / claimLastLook(id) → the one last payment read of a lapsed link (specs/payments/payment-link-lifecycle.md rule 19),
  *                                           or of a link withdrawn for taken dates (rule 64); the claim clears it and says
  *                                           whether this caller owns the read
  *   markUnpaidRead(id, at)                  → that read found a `dates-taken` link unpaid (rule 64)
@@ -51,7 +51,7 @@
  *   claimDeactivationAlert(id, at)          → stamps deactivationAlertedAt once (rule 20); false when already stamped
  *   findById(id)
  *
- * Poll cadence (specs/payment-polling-fair-use.md rules 1, 3, 4, 9): a link is due every pass while
+ * Poll cadence (specs/payments/payment-polling-fair-use.md rules 1, 3, 4, 9): a link is due every pass while
  * younger than `freshHours`, at most every `warmIntervalMinutes` until `warmDays`, then at most every
  * `coldIntervalMinutes` — measured from its persisted `lastPolledAt`, so a restart resets nothing.
  */
@@ -113,10 +113,10 @@ function isPollDue(link, nowMs, cadence = POLL_CADENCE_DEFAULTS) {
 function buildModel(database) {
   const OWES_LAST_LOOK = "status = 'expired' OR (status = 'cancelled' AND cancelReason = 'dates-taken')";
 
-  // specs/guest-app.md rule 35 — the basket a `complement` link bills (a guest order). A schema without the column
+  // specs/guest-app/guest-app.md rule 35 — the basket a `complement` link bills (a guest order). A schema without the column
   // (a unit suite's own table) has no basket link.
   const HAS_BASKET = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'basketJson');
-  // specs/pricing-components.md rule 86 — the document a link of an outside sale bills (`saleRef`, `reservationId` then NULL).
+  // specs/pricing/pricing-components.md rule 86 — the document a link of an outside sale bills (`saleRef`, `reservationId` then NULL).
   const HAS_SALE_REF = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'saleRef');
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
     status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId${HAS_BASKET ? ', basketJson' : ''}${HAS_SALE_REF ? ', saleRef' : ''}`;
@@ -167,7 +167,7 @@ function buildModel(database) {
     ).all();
   }
 
-  // specs/payment-link-lifecycle.md rules 7, 17 — the expiry is decided without a provider call (the date
+  // specs/payments/payment-link-lifecycle.md rules 7, 17 — the expiry is decided without a provider call (the date
   // is in our record); the link then owes its deactivation, which the retry of rule 18 makes.
   function retireExpired({ now = new Date() } = {}) {
     const nowMs = now.getTime();
@@ -206,7 +206,7 @@ function buildModel(database) {
     return Number(info.changes) > 0 ? findById(id) : null;
   }
 
-  // specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket the stay settled another
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket the stay settled another
   // way (transfer, cash, platform, a second link) is abandoned like a stale one: cancelled here with
   // the remote-deactivation marker, so the poll deactivates it at the provider — after checking it was
   // not paid in the meantime, which would be a double payment to refund. A link on a devis reads the
@@ -293,7 +293,7 @@ function buildModel(database) {
     return { flipped: Number(info.changes) > 0, row: findById(id) };
   }
 
-  // specs/reservation-payment-ledger.md rule 29 (§9 Q3) — the fiche changed the amount an open link
+  // specs/payments/reservation-payment-ledger.md rule 29 (§9 Q3) — the fiche changed the amount an open link
   // bills: the link is abandoned at once, with the remote-deactivation marker so the poll deactivates
   // it at the provider (rule 8) and books it if the guest paid it anyway (rule 31).
   function retireForAmountChange(reservationId, type, newAmountCents, installmentId = null) {
@@ -356,7 +356,7 @@ function buildModel(database) {
     return ownersOf(id).flatMap((owner) => listForReservation(owner)).sort((a, b) => b.id - a.id);
   }
 
-  // specs/payment-link-lifecycle.md rule 63 — why a link of these types may still take a payment at the provider:
+  // specs/payments/payment-link-lifecycle.md rule 63 — why a link of these types may still take a payment at the provider:
   // 'deactivation' (owed), 'lastLook' (rule 19's last read owed — a lapsed link, or one withdrawn for taken dates,
   // rule 64; audit R11 N1), 'open' (with `openToo`), or null.
   function liveLinkReasonForStay(id, types, { openToo = false } = {}) {
@@ -408,7 +408,7 @@ function buildModel(database) {
   // rule 1 retires links on our own clock, and a payment in flight at that moment must still be
   // processed once. A late/duplicate call on an already-paid (or cancelled) row changes nothing and
   // reports it didn't flip — so the polling pass never double-processes a payment.
-  // A paid link owes no deactivation and no last look (specs/payment-link-lifecycle.md rule 23: a marker
+  // A paid link owes no deactivation and no last look (specs/payments/payment-link-lifecycle.md rule 23: a marker
   // left on it would block the plugin's uninstall for good).
   function markPaid(id, { providerPaymentId, paidAt } = {}) {
     const info = database.prepare(`
@@ -433,7 +433,7 @@ function buildModel(database) {
   // Retires a link only while it is still `open`: null when it moved meanwhile (paid by a webhook that
   // ran during an awaited provider call), so a payment is never overwritten by a later cancellation.
   // `endsAt` (an instant) also ends the link's validity at that moment: the ledger names the day a link was
-  // withdrawn by hand (specs/payment-link-lifecycle.md rule 42).
+  // withdrawn by hand (specs/payments/payment-link-lifecycle.md rule 42).
   function cancelIfOpen(id, { reason = null, endsAt = null } = {}) {
     const end = endsAt ? new Date(endsAt).toISOString() : null;
     const info = database.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = COALESCE(?, cancelReason), expiresAt = COALESCE(?, expiresAt) WHERE id = ? AND status = 'open'")
@@ -441,7 +441,7 @@ function buildModel(database) {
     return Number(info.changes) > 0 ? findById(id) : null;
   }
 
-  // specs/plugins-phase-3a-online-payment.md rule 7 — the row is abandoned locally at once; when the
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 7 — the row is abandoned locally at once; when the
   // provider could not deactivate it, the marker keeps it on the poll's retry list (rule 8).
   function cancel(id, { remotePending = false } = {}) {
     database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ? WHERE id = ? AND status != 'paid'")
@@ -461,7 +461,7 @@ function buildModel(database) {
       .run(new Date().toISOString(), Number(id));
   }
 
-  // specs/payment-link-lifecycle.md rule 67 — every link still payable at the provider that should not be, whether or
+  // specs/payments/payment-link-lifecycle.md rule 67 — every link still payable at the provider that should not be, whether or
   // not the provider is connected (the lifecycle pass that sets the marker only runs while it is): a link carrying the
   // deactivation marker, and an `open` link whose stay is gone, cancelled or set aside (its own row or the stay its devis
   // became), whose known validity is over, or whose pre-arrival link lapses at 00:00 Paris on the arrival day (rule 9). It needs a provider id to be deactivated. `stayMissing` tells the orphans.
@@ -502,7 +502,7 @@ function buildModel(database) {
     }));
   }
 
-  // specs/payment-link-lifecycle.md rule 18 — a lapsed link owes its deactivation like a withdrawn one.
+  // specs/payments/payment-link-lifecycle.md rule 18 — a lapsed link owes its deactivation like a withdrawn one.
   function listRemoteCancelPending() {
     return database.prepare(
       `SELECT ${SELECT_COLS} FROM payment_links WHERE status IN ('cancelled', 'expired') AND remoteCancelPendingAt IS NOT NULL ORDER BY id`
@@ -555,7 +555,7 @@ function buildModel(database) {
       .run(at.toISOString(), Number(id)).changes) === 1;
   }
 
-  // specs/payment-link-lifecycle.md rule 63 (audit R11 M1) — a `dates-taken` acompte / solde / séjour link found paid
+  // specs/payments/payment-link-lifecycle.md rule 63 (audit R11 M1) — a `dates-taken` acompte / solde / séjour link found paid
   // beside an installment plan: the payment stays on the link, unbooked, for the operator to settle (rule 56). Only the
   // caller that stamps it alerts; nothing more is owed on it (no deactivation, no last look).
   function holdPaidBesidePlan(id, { providerPaymentId = null, paidAt = null } = {}) {

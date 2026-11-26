@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rule 20 (audit R42-EXT-L2, 2026-11-10) — the `properties` setting names logements
+// specs/site/google-vacation-rentals-feed.md rule 20 (audit R42-EXT-L2, 2026-11-10) — the `properties` setting names logements
 // of the core, or keys already stored; Envoi counts only the enabled entries of real logements.
 const test = require('node:test');
 const assert = require('node:assert/strict');

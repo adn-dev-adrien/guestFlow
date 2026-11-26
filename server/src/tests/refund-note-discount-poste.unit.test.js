@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 111, reading of 2026-11-16 (stabilisation loop t8, B8-1) — a note line DISCOUNTED leaves its money on its
+// specs/pricing/pricing-components.md §3 rule 111, reading of 2026-11-16 (stabilisation loop t8, B8-1) — a note line DISCOUNTED leaves its money on its
 // own poste, as an offered one does: `postesLeft` measures what a stored line charges as its amount less its own discount (`discountCents`), so a
 // card note's beer 30 discounted 24 reads « Prestations complémentaires » 24 and its avoir reverses 70600010, the account the note booked —
 // never « Hébergement » / 70600000. Direct and Booking, card; a cash note's discount defaults to the caisse interne on the same poste.

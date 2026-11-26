@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 30 — the public /status sees a lapsed link: it reads the devis's
+// specs/payments/payment-link-lifecycle.md rule 30 — the public /status sees a lapsed link: it reads the devis's
 // latest `expired` link (at most once per 5 minutes, while its last look is pending or it lapsed less than
 // 24 h ago) and books it if paid; a lapsed, unpaid link with none open answers the new value `expired`.
 

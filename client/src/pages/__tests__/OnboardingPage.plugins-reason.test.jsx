@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rules 37–38 — step « Plugins » names each plugin left out
+// specs/plugins/plugins-phase-p-productisation.md rules 37–38 — step « Plugins » names each plugin left out
 // with the server's reason; the last step prints the server's « N plugins actifs »; the price is
 // required on step 2; the fourth step is titled « Emails ».
 import React from 'react';

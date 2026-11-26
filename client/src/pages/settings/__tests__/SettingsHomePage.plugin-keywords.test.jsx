@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md rule 10 — the summary's search words of a plugin's feature
+// specs/platforms/platform-settings-relay-and-review.md rule 10 — the summary's search words of a plugin's feature
 // come from the plugin: its `settings.menu` entry (`keywords`) or its `settings.keywords` contribution to
 // a core page. A word of an inactive plugin finds nothing, and the core names no operator's resource.
 import React from 'react';

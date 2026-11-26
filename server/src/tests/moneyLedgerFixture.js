@@ -74,7 +74,7 @@ function pay(id, ...marks) {
   }
 }
 
-// specs/reservation-payment-ledger.md rule 68 (D20, 2026-11-06) — no path marks the end-of-stay complement before the
+// specs/payments/reservation-payment-ledger.md rule 68 (D20, 2026-11-06) — no path marks the end-of-stay complement before the
 // check-out. A stay that holds one collected anyway is a row stored before D20, never rewritten: the suites that judge
 // such a row write it as it is stored.
 function storedEndOfStayPaid(id, { date = TODAY, cash = false } = {}) {

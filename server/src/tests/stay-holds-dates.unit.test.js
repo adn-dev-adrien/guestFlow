@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 37 (§9 Q9) — a stay holds its dates when it is a reservation that carries
+// specs/payments/payment-link-lifecycle.md rule 37 (§9 Q9) — a stay holds its dates when it is a reservation that carries
 // money (rule 31: an acompte paid is enough, the solde open or not) or comes from a platform. A devis never holds
 // them, an unpaid direct reservation neither, and a cancellation frees them. Rule 10 (§9 Q11): two unpaid rows on the
 // same nights both keep their links; the first paid withdraws the other's.

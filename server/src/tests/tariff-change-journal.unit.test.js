@@ -12,10 +12,10 @@ const {
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
-// specs/tariff-change-journal.md — the register of WHEN the grid changed. Nothing here prices
+// specs/pricing/tariff-change-journal.md — the register of WHEN the grid changed. Nothing here prices
 // anything; what these tests protect is that a date, once recorded, is exact and durable.
 
 function makeDb() {

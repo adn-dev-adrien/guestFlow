@@ -1,6 +1,6 @@
 /**
  * SettingsFiscalYearSection — the annual revenue goal fields.
- * specs/finance-dashboard-redesign.md rules 26-29: one field for the current exercise and one for the
+ * specs/accounting/finance-dashboard-redesign.md rules 26-29: one field for the current exercise and one for the
  * next, labelled by the server; an invalid amount shows its message and blocks Enregistrer.
  */
 

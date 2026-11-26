@@ -1,4 +1,4 @@
-// specs/resource-booking-client-picker.md rules 1, 2, 6-9 — the « Client enregistré » list of a resource
+// specs/resources/resource-booking-client-picker.md rules 1, 2, 6-9 — the « Client enregistré » list of a resource
 // session: the server's groups in the server's order, a search on every typed word without accents, the
 // empty answer, a new session day asking again, and an edited session keeping its client.
 import React from 'react';

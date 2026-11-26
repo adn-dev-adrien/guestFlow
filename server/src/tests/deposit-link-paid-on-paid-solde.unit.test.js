@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 49 (review of PR #893, RC2, 2026-10-30) — an acompte link paid
+// specs/plugins/plugins-phase-3a-online-payment.md rule 49 (review of PR #893, RC2, 2026-10-30) — an acompte link paid
 // on a stay whose solde is already collected never rewrites that solde downwards: the acompte is booked on top
 // at what was received, the solde keeps its paid amount, and the excess is the trop-perçu (round 6, E1). The
 // alert says the solde is already collected and asks for the refund; no confirmation goes to the guest.

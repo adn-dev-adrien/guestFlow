@@ -1,5 +1,5 @@
 /**
- * HeaderPill — the compact, tappable indicator of the top bar (specs/self-update-and-releases.md
+ * HeaderPill — the compact, tappable indicator of the top bar (specs/hosting/self-update-and-releases.md
  * §6.5). Soft semantic background + same-color icon and text, fully rounded — the `StatusBadge`
  * grammar, sized for the `AppBar` and made clickable.
  *

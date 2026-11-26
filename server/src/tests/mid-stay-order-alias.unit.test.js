@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app.md rules 24, 30, 34, 35) — the core commit of a
+// specs/plugins/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app/guest-app.md rules 24, 30, 34, 35) — the core commit of a
 // plugin's order as mid-stay extras (`coreModule('midStayOrderCommit')`, the thin SDK alias over `extraSale`, C30): the order's lines added to the stored fiche and
 // written by the operator's own save on a locked fiche, priced by the same engine, in one transaction with the plugin's
 // order row, in the caller's own words; a card order's money settled as a mid-stay note marked with its source and ref.
@@ -50,7 +50,7 @@ function seedStay({ endOfStayPaid = 0, start = -1 } = {}) {
 const money = (id) => db.prepare('SELECT depositAmount, balanceAmount, complementAmount, endOfStayComplementAmount, endOfStayComplementDetail, midStaySettledNotes FROM reservations WHERE id = ?').get(id);
 const midStay = (id) => JSON.parse(money(id).endOfStayComplementDetail || '[]').filter((l) => l.source === 'midStayExtra');
 
-test('specs/pricing-components.md rules 13, 85: mergeOrderLines appends a line of its own for every unit and resource line, never adding to the stay’s line of the item', () => {
+test('specs/pricing/pricing-components.md rules 13, 85: mergeOrderLines appends a line of its own for every unit and resource line, never adding to the stay’s line of the item', () => {
   const body = { adults: 2, teens: 0, children: 1, options: [{ optionId: 9, quantity: 2 }, { optionId: 7, quantity: 1, cardPersons: null }], resources: [{ resourceId: 3, quantity: 1, sessions: [{ date: '2099-07-07', start: '18:00', end: '19:00' }] }] };
   const rows = new Map([[7, { priceType: 'per_person' }], [9, { priceType: 'per_stay' }]]);
   let next = 100;
@@ -74,7 +74,7 @@ test('specs/pricing-components.md rules 13, 85: mergeOrderLines appends a line o
   assert.deepEqual(body.options[0], { optionId: 9, quantity: 2 }, 'the stored body is not touched');
 });
 
-test('specs/guest-app.md rule 27bis: a breakfast order sets the hour of the mornings it names, and adds the others', () => {
+test('specs/guest-app/guest-app.md rule 27bis: a breakfast order sets the hour of the mornings it names, and adds the others', () => {
   const body = { options: [{ optionId: 5, quantity: 2, cardOccurrences: [{ date: '2099-07-07', time: '08:30' }, { date: '2099-07-08', time: '08:30', done: true }], cardPersons: 2 }], resources: [] };
   const next = mergeOrderLines(body, [{ kind: 'breakfast', id: 5, mornings: ['2099-07-07', '2099-07-08', '2099-07-09'], time: '09:30', persons: 3 }]);
   assert.deepEqual(next.options[0], {
@@ -83,7 +83,7 @@ test('specs/guest-app.md rule 27bis: a breakfast order sets the hour of the morn
   });
 });
 
-test('specs/guest-app.md rule 27bis: a breakfast line with no morning placed keeps its quantity — the order only places its mornings', () => {
+test('specs/guest-app/guest-app.md rule 27bis: a breakfast line with no morning placed keeps its quantity — the order only places its mornings', () => {
   const body = { options: [{ optionId: 5, quantity: 3, cardPersons: 2 }], resources: [] };
   const next = mergeOrderLines(body, [{ kind: 'breakfast', id: 5, mornings: ['2099-07-08'], time: '09:00', persons: 2 }]);
   assert.deepEqual(next.options[0], { optionId: 5, quantity: 3, cardPersons: 2, cardOccurrences: [{ date: '2099-07-08', time: '09:00' }] });

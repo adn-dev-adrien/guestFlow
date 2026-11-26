@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rule 24 — « Exporter en CSV » downloads the selection shown and its view from
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rule 24 — « Exporter en CSV » downloads the selection shown and its view from
 // the server; a refusal says the server's reason.
 import { vi } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

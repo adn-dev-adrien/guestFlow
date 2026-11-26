@@ -1,5 +1,5 @@
 // @ts-check
-// The removal matrix's checks (specs/plugin-removal-resilience.md rules 8-12): the production build on
+// The removal matrix's checks (specs/plugins/plugin-removal-resilience.md rules 8-12): the production build on
 // the seeded database of a cell, whose plugin — and the ones requiring it — are gone from the code
 // while their rows are still installed. `node scripts/plugin-removal.mjs cell <id>`.
 const { test, expect } = require('@playwright/test');

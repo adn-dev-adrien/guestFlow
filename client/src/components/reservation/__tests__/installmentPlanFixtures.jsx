@@ -1,4 +1,4 @@
-// Shared fixture of the « last amount » suites of the échéancier card (specs/direct-installments.md rules 53-60). Not a
+// Shared fixture of the « last amount » suites of the échéancier card (specs/payments/direct-installments.md rules 53-60). Not a
 // test file: a suite imports it, none of them re-runs another.
 
 const installment = (number, extra = {}) => ({

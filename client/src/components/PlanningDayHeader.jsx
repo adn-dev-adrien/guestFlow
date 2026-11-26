@@ -1,13 +1,13 @@
 /**
  * PlanningDayHeader — the header of one planning day, sticky just under the page bar while the day's
- * cards scroll beneath it (specs/dashboard-planning-scroll.md rules 16, 17).
+ * cards scroll beneath it (specs/planning/dashboard-planning-scroll.md rules 16, 17).
  *
  * Props:
  *   label   string   the day, as the server wrote it (« mardi 3 novembre »); set in sans (dates are never
  *                     serif) with its first letter capitalised, the month staying lowercase
  *   isToday boolean  filled `primary`, « — Aujourd'hui » after the label
  *   isPast  boolean  neutral grey with secondary text
- *   done    number   tasks ticked   (specs/planning-day-task-count.md)
+ *   done    number   tasks ticked   (specs/planning/planning-day-task-count.md)
  *   total   number   tasks to tick
  *   allDone boolean  a future day whose tasks are all ticked is filled `success`
  *

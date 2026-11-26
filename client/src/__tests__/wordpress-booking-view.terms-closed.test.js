@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 21 — no CGV published while GuestFlow requires them: the booking
+// specs/site/wordpress-plugin.md rule 21 — no CGV published while GuestFlow requires them: the booking
 // block says « Réservation en ligne fermée pour le moment. » instead of a form every request of which
 // would be refused at the end. Rule 18: a website booking switched off in GuestFlow reads as the
 // « unavailable » state, not as a generic failure.

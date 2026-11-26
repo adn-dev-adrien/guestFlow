@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 22 and 50 — SCHEDULE alone: the acompte and the solde (percentage, overrides,
+// specs/pricing/pricing-components.md §3 rules 22 and 50 — SCHEDULE alone: the acompte and the solde (percentage, overrides,
 // platform single payment, installment plan, a paid bucket that keeps what it collected), their due dates, the arrival
 // complement and the end-of-stay complement amounts. No DB, no port: the ledger readings are plain values.
 const test = require('node:test');

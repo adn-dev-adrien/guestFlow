@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 13 (audit R21-S5) — what the note counts as added is the number typed:
+// specs/options/non-card-option-served-persons.md rule 13 (audit R21-S5) — what the note counts as added is the number typed:
 // the line's `quantity` stays 1 whatever the operator adds, so it can say nothing.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

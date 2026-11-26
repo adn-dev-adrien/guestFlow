@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { ensureCancellationInsuranceOption, SEED_KEY } = require('../utils/cancellationInsuranceSeed');
 
-// specs/cancellation-insurance.md §3.2 rules 11-15 — an idempotent, non-destructive boot seed keyed
+// specs/payments/cancellation-insurance.md §3.2 rules 11-15 — an idempotent, non-destructive boot seed keyed
 // on `seedKey`, linked to every property, exclusive on `isCancellationInsurance`, and seeded
 // UNPRICED so the booking funnel is untouched until Adrien sets a tariff.
 

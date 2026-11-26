@@ -1,5 +1,5 @@
 // Classifying a Qonto failure into the action that repairs it.
-// See specs/qonto-settings-in-app.md §3 rules 10, 14.
+// See specs/settings/qonto-settings-in-app.md §3 rules 10, 14.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,7 +24,7 @@ test('rule 10: invalid_client is a credentials problem, invalid_grant is an auth
   const lapsed = classifyQontoOutcome(qontoError(400, { error: 'invalid_grant' }), { configured: true });
   assert.equal(lapsed.state, 'reauth_required');
   // The repair action names the button as it is labelled today
-  // (specs/settings-one-save-and-automatic-webhook.md rule 13 renamed it from « Reconnecter Qonto »).
+  // (specs/settings/settings-one-save-and-automatic-webhook.md rule 13 renamed it from « Reconnecter Qonto »).
   assert.match(lapsed.action, /« Connexion »/);
 
   assert.notEqual(rejected.action, lapsed.action);

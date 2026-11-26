@@ -1,7 +1,7 @@
 /**
  * Article family `perUnit` — n units counted by the operator, whatever the stay: the moments placed on a planning card
  * (a breakfast on 3 mornings, a dinner on 2 evenings) or the portions asked while they are not placed yet
- * (specs/pricing-components.md §3 rule 47; specs/option-planning-card.md §3.4, specs/unscheduled-card-option.md).
+ * (specs/pricing/pricing-components.md §3 rule 47; specs/options/option-planning-card.md §3.4, specs/options/unscheduled-card-option.md).
  *
  * Contract: `{ id, configSchema, validate, price, describe }`. `price` reads `request.occurrences` (placed moments) or
  * `request.quantity` (portions to place): billed units = moments × the covers of each when the option is per person,
@@ -23,7 +23,7 @@ function price(config, request, ctx) {
   const occurrences = Array.isArray(request.occurrences) ? request.occurrences : [];
   if (occurrences.length > 0) {
     const perPerson = String(config.priceType).includes('per_person');
-    // How many covers on each moment (specs/card-option-served-persons.md §3.1 rule 2): the
+    // How many covers on each moment (specs/options/card-option-served-persons.md §3.1 rule 2): the
     // party unless the operator said otherwise, capped by the property's capacity.
     const covers = resolveServedPersons({
       cardPersons: request.cardPersons, persons: ctx.persons, maxGuests: ctx.maxGuests,

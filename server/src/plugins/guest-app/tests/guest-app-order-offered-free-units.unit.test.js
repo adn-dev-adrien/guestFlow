@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 55 and 60 (audit R37-M-L1) — the free units or minutes left explain a 0 € line only up
+// specs/guest-app/guest-app.md rules 55 and 60 (audit R37-M-L1) — the free units or minutes left explain a 0 € line only up
 // to what they cover: a line the fiche offers, asked beyond the free units left, is refused ITEM_UNAVAILABLE on the
 // quote and the order, nothing written; inside them it still confirms at 0 €. Stays dated around today: the core
 // reads its window on today.
@@ -43,7 +43,7 @@ async function withOrdering(reservationId, fn) {
 
 const wood = (quantity) => ({ lines: [{ kind: 'option', id: WOOD, quantity }] });
 
-test('specs/pricing-components.md rule 85 (was guest-app rule 60): asked beyond the free units left, an order is a billed line of its own — the offered line is untouched, never confirmed free', async () => {
+test('specs/pricing/pricing-components.md rule 85 (was guest-app rule 60): asked beyond the free units left, an order is a billed line of its own — the offered line is untouched, never confirmed free', async () => {
   const stay = offeredStay();
   const before = optionLine(stay, WOOD);
   await withOrdering(stay, async ({ call }) => {
@@ -66,7 +66,7 @@ test('rule 60: inside the free units left an offered line still confirms at 0 �
   assert.equal(Number(optionLine(stay, WOOD).totalPrice), 0);
 });
 
-test('specs/pricing-components.md rule 85 (was guest-app rule 60): an order of bath hours past the free minutes left is billed on its own line, inside them it is 0 €', { skip: !hasHourly }, async () => {
+test('specs/pricing/pricing-components.md rule 85 (was guest-app rule 60): an order of bath hours past the free minutes left is billed on its own line, inside them it is 0 €', { skip: !hasHourly }, async () => {
   const stay = seedStay({ propertyId: 1 });
   // The fiche offers one hour of the bath: 60 of the 120 free minutes used, the line at 0 €.
   db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, totalPrice, offered, sessions) VALUES (?, ?, 1, 0, 1, ?)')

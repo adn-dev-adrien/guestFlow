@@ -1,5 +1,5 @@
 /**
- * The one way a stay payment is recorded (specs/plugins-phase-3a-online-payment.md rules 1, 3).
+ * The one way a stay payment is recorded (specs/plugins/plugins-phase-3a-online-payment.md rules 1, 3).
  *
  * A payment ticked by hand on the fiche and a payment received through a provider's link used to be
  * two different writes: the online one flipped the flag with a raw UPDATE and skipped the contribs
@@ -85,7 +85,7 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
   }).immediate();
 
   if (flipped.length) {
-    // specs/payment-link-lifecycle.md rules 32, 37 — money makes the stay hold its nights: the first paid wins,
+    // specs/payments/payment-link-lifecycle.md rules 32, 37 — money makes the stay hold its nights: the first paid wins,
     // and the unpaid requests on them lose their links.
     require('./datesTaken').withdrawForStay(db, id);
     if (emit) emit('reservation.paid', { reservationId: id, bucket });
@@ -94,7 +94,7 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
 }
 
 // The wiring the core uses, on the app's database or on a given one (the poll and webhook effects take
-// theirs injected). Neat listens to `reservation.paid` (specs/plugins-phase-3b-neat.md rule 9).
+// theirs injected). Neat listens to `reservation.paid` (specs/plugins/plugins-phase-3b-neat.md rule 9).
 function depsFor(database) {
   const appDb = require('../database');
   const reservationsModel = require('../models/reservationsModel');

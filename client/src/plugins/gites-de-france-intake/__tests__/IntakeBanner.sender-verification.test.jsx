@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rules 20–21 — a proposal from an unauthenticated sender warns, and
+// specs/platforms/gites-de-france-mail-intake.md rules 20–21 — a proposal from an unauthenticated sender warns, and
 // a proposal that kept the fiche's e-mail or phone says why.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,5 +1,5 @@
 /**
- * PeriodSelector — specs/finance-dashboard-redesign.md rule 51, reading of 2026-11-03 (audit R20-C1): a custom date
+ * PeriodSelector — specs/accounting/finance-dashboard-redesign.md rule 51, reading of 2026-11-03 (audit R20-C1): a custom date
  * that is not a real `YYYY-MM-DD` day (a 5- or 6-digit year typed on the keyboard, 30 February) or a missing date is
  * refused on the spot with the server's « Deux dates à choisir. », and never sent. A year still being typed (padded
  * to four digits) is a real day: the window speaks.

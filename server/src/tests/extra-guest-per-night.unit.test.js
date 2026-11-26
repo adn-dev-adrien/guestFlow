@@ -5,12 +5,12 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { computeExtraGuestSurcharge } = require('../utils/pricing');
 
-// specs/tariff-recipes/spec.md §3.6 rules 37-38 + §3.10 rule 55 — the per-night extra-guest
+// specs/pricing/tariff-recipes.md §3.6 rules 37-38 + §3.10 rule 55 — the per-night extra-guest
 // supplement follows the season curve; the six D-cases must match to the cent. Tiers are provided
 // explicitly for nights 2..7 here; the single-tier + carry-forward form is covered by
 // tier-carry-forward.unit.test.js.
 
-// specs/tariff-recipes/spec.md §3.6 rule 37 — the source document's §6 cumulative discount table,
+// specs/pricing/tariff-recipes.md §3.6 rule 37 — the source document's §6 cumulative discount table,
 // converted to the marginal night prices the engine bills.
 const DISCOUNT_TABLE = { 2: 24, 3: 33, 4: 38, 5: 41, 6: 43, 7: 45 };
 const r2 = (v) => Math.round(v * 100) / 100;

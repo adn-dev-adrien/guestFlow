@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 11 and 25 — the decimals were born in the browser, which
+// specs/options/non-card-option-served-persons.md rules 11 and 25 — the decimals were born in the browser, which
 // divided what the operator typed by the party. These files must never convert a typed value again.
 
 const test = require('node:test');

@@ -1,6 +1,6 @@
 /**
  * The variables and conditions of the guest emails, with their French labels
- * (specs/guest-email-texts-made-simple.md rules 10–11).
+ * (specs/emails/guest-email-texts-made-simple.md rules 10–11).
  *
  * One catalogue for the whole product: the chips of every editor come from here, per email, and the
  * one validator below refuses an unknown name the same way for a template, a stay text and a mention.
@@ -186,7 +186,7 @@ const STAY_TOKEN_LABELS = Object.freeze({
   wifiPassword: 'Mot de passe Wi-Fi',
 });
 
-// specs/guest-email-texts-made-simple.md rule 11, reading of 2026-11-05 — own keys only: `constructor` or `__proto__`
+// specs/emails/guest-email-texts-made-simple.md rule 11, reading of 2026-11-05 — own keys only: `constructor` or `__proto__`
 // typed in a text is a name nobody knows, not the label of a native function.
 const ownLabel = (labels, name) => (Object.hasOwn(labels, name) ? labels[name] : undefined);
 const stayTokenLabel = (name) => ownLabel(STAY_TOKEN_LABELS, name);
@@ -197,7 +197,7 @@ const STAY_FLAG_LABELS = Object.freeze({
 /* eslint-enable max-len */
 
 /**
- * The template variable through which a sentence reaches an email (specs/guest-email-texts-made-simple.md
+ * The template variable through which a sentence reaches an email (specs/emails/guest-email-texts-made-simple.md
  * rule 25): a sentence whose variable no stored template of its email uses never leaves.
  */
 const VARIABLE_OF_TEXT = Object.freeze([
@@ -236,7 +236,7 @@ function namesUsedOutside(text, flag) {
 
 const inScope = (entry, section) => !entry.in || !section || entry.in.includes(section);
 
-/** The live and registered plugins' names (specs/plugins-phase-1-sdk.md rule 13). */
+/** The live and registered plugins' names (specs/plugins/plugins-phase-1-sdk.md rule 13). */
 function pluginNames() {
   try {
     const registry = require('../plugins/sdk/registry');

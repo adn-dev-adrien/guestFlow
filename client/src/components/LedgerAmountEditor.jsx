@@ -1,5 +1,5 @@
 /**
- * LedgerAmountEditor — the inline amount editor of a ledger row (specs/reservation-payment-ledger.md
+ * LedgerAmountEditor — the inline amount editor of a ledger row (specs/payments/reservation-payment-ledger.md
  * rules 15, 21; §6). The field only proposes: every typed value is sent to `onCheck`, and the server's
  * answer is printed as it comes — a refusal in red under the field (the typed value stays, focus stays,
  * « Valider » is disabled with the reason beside it), or the consequence of the amount. « Valider »

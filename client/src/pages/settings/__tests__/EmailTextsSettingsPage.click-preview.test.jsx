@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 41 and 45 (UI/UX review 2026-10-18, decisions 5 and 13) —
+// specs/emails/guest-email-texts-made-simple.md rules 41 and 45 (UI/UX review 2026-10-18, decisions 5 and 13) —
 // a sentence of the email opens its field (beside it on a computer, in a sheet on a phone); a refused
 // variable leaves the last email in place and says where to fix it.
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.D rule 21 (2026-10-23) — the capacity of step 2 follows
+// specs/plugins/plugins-phase-p-productisation.md §3.D rule 21 (2026-10-23) — the capacity of step 2 follows
 // the server's proposal for the beds, a late answer never overwrites a newer one, a failed request
 // leaves the field editable, and a capacity typed by hand stops following.
 import { vi } from 'vitest';

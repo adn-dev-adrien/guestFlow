@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/terms-acceptance-record.md §3.6 — the public limiters count per website VISITOR (relayed by
+// specs/reservations/terms-acceptance-record.md §3.6 — the public limiters count per website VISITOR (relayed by
 // the WordPress proxy), not per caller: every call comes from the one WordPress host. The relayed
 // address is honoured only once the API key is checked, and an unauthenticated call is refused before
 // being counted. Real router + middleware over a real socket; leaf controllers stubbed.
@@ -60,7 +60,7 @@ function book({ visitorIp, key = API_KEY, ua } = {}) {
   return fetch(`${baseUrl}/public/v1/booking-requests`, { method: 'POST', headers, body: '{}' });
 }
 
-// specs/public-request-abuse-and-grouping.md rules 6 + 8 — the per-visitor limit stays and is the only
+// specs/site/public-request-abuse-and-grouping.md rules 6 + 8 — the per-visitor limit stays and is the only
 // one: a visitor's budget is its own, never a counter shared by every visitor behind the proxy.
 test('rule 24 — two visitors through the one proxy address get separate booking budgets', async () => {
   assert.equal((await book({ visitorIp: '203.0.113.1' })).status, 201);

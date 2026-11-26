@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 43 (UI/UX review 2026-10-18, proposal 13) — step
+// specs/plugins/plugins-phase-p-productisation.md rule 43 (UI/UX review 2026-10-18, proposal 13) — step
 // « Plugins » asks three yes/no questions; each says what its « oui » turns on, the answers go to the
 // server as they are, and the full list stays in Paramètres › Plugins.
 import React from 'react';

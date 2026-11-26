@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 32, 45 (audits R34-C-M1, R34-A1) — the SAS dialog stays mounted for the whole page:
+// specs/payments/mixed-method-payments.md rules 32, 45 (audits R34-C-M1, R34-A1) — the SAS dialog stays mounted for the whole page:
 // every opening starts with one method, so a check-out with nothing to collect after a split one ends on « Valider et
 // terminer »; and reception, which records a check-out with one method only, is never offered « Plusieurs moyens ».
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 47 and 51 (V2-2, V2-6) — the series gives way to a sentence when the server
+// specs/accounting/accounting-synthesis.md §3 rules 47 and 51 (V2-2, V2-6) — the series gives way to a sentence when the server
 // says the window collected nothing; « Autres » says what it holds, on its segment and under its table.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

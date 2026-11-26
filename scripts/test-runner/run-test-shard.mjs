@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Runs one shard of a package's `npm test` — specs/server-test-isolation.md rule 19 (audit R37-S1).
+ * Runs one shard of a package's `npm test` — specs/tech/server-test-isolation.md rule 19 (audit R37-S1).
  *
  *   cd server && node ../scripts/test-runner/run-test-shard.mjs 1/2
  *

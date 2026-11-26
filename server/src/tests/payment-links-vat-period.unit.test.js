@@ -1,4 +1,4 @@
-// specs/payment-links-vat.md rule 11 — the basket rate is the reservation's period rate; a devis not
+// specs/payments/payment-links-vat.md rule 11 — the basket rate is the reservation's period rate; a devis not
 // converted takes the regime in force; a link already open keeps the basket it was created with.
 
 const test = require('node:test');

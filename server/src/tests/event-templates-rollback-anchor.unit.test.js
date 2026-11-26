@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 43, readings of 2026-11-01 (audit R11 console N1, review of #915) — the
+// specs/hosting/self-update-and-releases.md rule 43, readings of 2026-11-01 (audit R11 console N1, review of #915) — the
 // generic guard: every default template the rollback floor's own registry does not seed is new to the floor, which
 // may not render its placeholders (the rule-53 class), and that the floor's queue cannot exclude by name. Each one
 // must be seeded manual on an anchor the floor's queue never matches — never on `start` — or be declared safe for

@@ -1,7 +1,7 @@
 /**
- * EmailPendingAlert — the manual-email queue as a subject of the home (specs/email-automation.md §6.2
+ * EmailPendingAlert — the manual-email queue as a subject of the home (specs/emails/email-automation.md §6.2
  * + §6.10). Its count and « N messages à envoyer · M clients sans adresse » are the server's
- * (specs/shell-and-home-day-first.md rule 6, tested server-side); the card draws them and leads to
+ * (specs/planning/shell-and-home-day-first.md rule 6, tested server-side); the card draws them and leads to
  * the Emails page.
  */
 

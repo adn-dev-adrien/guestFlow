@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 39 — money kept on a direct stay stays in the sale: priced as a free
+// specs/payments/reservation-refunds.md rule 39 — money kept on a direct stay stays in the sale: priced as a free
 // line, it leaves the trop-perçu at what is still owed back. Second pass of the final review
 // (2026-10-19, minor 1): a reduction kept without refund showed a trop-perçu with no way to close it.
 

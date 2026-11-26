@@ -1,4 +1,4 @@
-// Comparison with last year (specs/finance-dashboard-redesign.md §3.6 rules 17-21). Pure.
+// Comparison with last year (specs/accounting/finance-dashboard-redesign.md §3.6 rules 17-21). Pure.
 //
 // Nothing is ever compared to a month that has no data: the coverage starts with the month of the
 // earliest reservation of the scope, and a month is comparable once the same month a year earlier is
@@ -67,7 +67,7 @@ function lastYearSnapshotKnown(today, trackingStart) {
 }
 
 /**
- * specs/finance-revpar-year-over-year.md rule 22 — the first day `lastYearSnapshotKnown` holds: the
+ * specs/accounting/finance-revpar-year-over-year.md rule 22 — the first day `lastYearSnapshotKnown` holds: the
  * first d with shiftYear(d, −1) ≥ trackingStart. A tracking start on 29 February is reached a year later
  * on 1 March, never on the 28th (shiftYear lands the 29th on the 28th).
  */

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 51 — a custom window is at most MAX_CUSTOM_WINDOW_DAYS
+// specs/accounting/finance-dashboard-redesign.md rule 51 — a custom window is at most MAX_CUSTOM_WINDOW_DAYS
 // wide (two exercises fit), refused fast past it, and the cumulative curve always ends on its last day.
 const { resolveWindow, MESSAGES, MAX_CUSTOM_WINDOW_DAYS } = require('../utils/financeWindow');
 const { freshDb, insert, THIS_YEAR } = require('./financeDashboardFixture');

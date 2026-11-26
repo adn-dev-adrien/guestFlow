@@ -1,4 +1,4 @@
-// The per-field fuzz of specs/hosting-h2-account-security.md rule 68, shared by the files that split the route set
+// The per-field fuzz of specs/hosting/hosting-h2-account-security.md rule 68, shared by the files that split the route set
 // (audit R36-S4): `npm test`'s --test-timeout also caps each file, so each file fuzzes a part of the rows and stays far
 // under it. `part(path)` keeps the rows of one file; every row lands in exactly one file (a filter and its complement).
 // Four files at a time (server-test-isolation rule 24) the stay half took 37 to 63 s on CI, most of it in one row: the

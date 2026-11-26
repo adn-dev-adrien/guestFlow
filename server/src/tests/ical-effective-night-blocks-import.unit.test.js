@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rule 19 (audit R2 H) — the import's overlap check and the drift approval
+// specs/platforms/ical-import-hardening.md rule 19 (audit R2 H) — the import's overlap check and the drift approval
 // judge the nights a GuestFlow stay really takes (late check-out / early check-in), like the export.
 const test = require('node:test');
 const assert = require('node:assert/strict');

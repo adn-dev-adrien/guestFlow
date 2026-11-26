@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 12, 61 (review of #907, B1) — the one-shots that withdraw links at boot (the
+// specs/payments/payment-link-lifecycle.md rules 12, 61 (review of #907, B1) — the one-shots that withdraw links at boot (the
 // upgrade's dates-taken migration, a duplicate set aside) run while database.js is still being evaluated. They must
 // load no model: a model required then keeps the half-built database module for the life of the process, and the
 // first boot after the install served 500s on /api/reservations. Booted in a child process on a real file.

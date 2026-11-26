@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 14 and 25 (PR C, C21); specs/reopen-completed-sas.md §4 rule 4 (amended): reopening the arrival SAS
+// specs/pricing/pricing-components.md §3 rules 14 and 25 (PR C, C21); specs/sas/reopen-completed-sas.md §4 rule 4 (amended): reopening the arrival SAS
 // changes the lines it wrote in place (same row, same identity), appends the new ones and flags them « Ajoutée à la réouverture »;
 // it never deletes a line to write it again.
 

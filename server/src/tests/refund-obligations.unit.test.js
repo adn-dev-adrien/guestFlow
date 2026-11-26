@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23 and 75 — the register of refund obligations (owner O-2, O-5, O-10): every writer of
+// specs/pricing/pricing-components.md §3 rules 23 and 75 — the register of refund obligations (owner O-2, O-5, O-10): every writer of
 // "money that must leave" opens a row, the ledger shows the open ones with a close action, the PATCH closes them, a refund opened
 // on the trop-perçu settles what it covered, and money the provider already refunded is a row opened then settled.
 process.env.DB_PATH = ':memory:';

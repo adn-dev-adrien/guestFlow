@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 — a tiered supplement has no single unit
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1 — a tiered supplement has no single unit
 // price, so the summary must render the rule the SERVER phrased rather than invent one from a
 // number no night actually costs.
 

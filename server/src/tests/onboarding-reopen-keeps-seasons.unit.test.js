@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 29 (2026-10-18) — the start assistant reopened edits the
+// specs/emails/guest-email-texts-made-simple.md rule 29 (2026-10-18) — the start assistant reopened edits the
 // price of the rule it created, never the seasons the owner added since.
 
 const test = require('node:test');

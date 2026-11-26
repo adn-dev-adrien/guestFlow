@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §4.3 — « Textes des mails ». Admin-only through the role guard.
+// specs/plugins/plugins-phase-p-productisation.md §4.3 — « Textes des mails ». Admin-only through the role guard.
 const router = require('express').Router();
 const { buildController } = require('../controllers/stayTextsController');
 

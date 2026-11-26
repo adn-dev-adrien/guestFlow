@@ -1,4 +1,4 @@
-// specs/hourly-extra-hour-rates.md rules 1, 5 and §6 — the rates grid of the resource form: two audience blocks, the first-hour and
+// specs/resources/hourly-extra-hour-rates.md rules 1, 5 and §6 — the rates grid of the resource form: two audience blocks, the first-hour and
 // following-hours columns, the first-hour value as the placeholder of an empty following-hours field, the server's refusal under the field.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

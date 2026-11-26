@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 16-17 — what the core gives a plugin for a sale with no stay (SDK 2.33.0, generic, the word « voucher »
+// specs/gift-vouchers/gift-vouchers.md rules 16-17 — what the core gives a plugin for a sale with no stay (SDK 2.33.0, generic, the word « voucher »
 // appears only in the plugin under test): a link with no reservation billed to `<source>:<ref>`, never withdrawn as an orphan, whose paid
 // effect is the owning plugin's `ctx.paymentBasket` — with `reservationId` null — and idempotent. The full chain runs on the real core
 // database: the plugin mints the link through `core.payments.saleLink`, the poll's `processPaidLink` settles it, the voucher is issued.

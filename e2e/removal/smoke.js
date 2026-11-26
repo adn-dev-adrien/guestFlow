@@ -1,4 +1,4 @@
-// The pages smoke of the removal matrix (specs/plugin-removal-resilience.md rule 10).
+// The pages smoke of the removal matrix (specs/plugins/plugin-removal-resilience.md rule 10).
 const fs = require('fs');
 const path = require('path');
 const { WORK } = require('./helpers');

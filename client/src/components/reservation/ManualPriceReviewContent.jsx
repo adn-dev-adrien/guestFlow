@@ -1,5 +1,5 @@
 /**
- * ManualPriceReviewContent — the explanation of the « Tarif modifié » review (specs/manual-price-on-placement-change.md §3.3, §6):
+ * ManualPriceReviewContent — the explanation of the « Tarif modifié » review (specs/reservations/manual-price-on-placement-change.md §3.3, §6):
  * tariff before → after, nights and season groups « Avant / Après » (stacked on xs), the current manual price and its gap. Renders
  * the server's `manualPriceReview` as is; `manualPriceChoices(review)` shapes its choices for `ChoiceDialog`.
  */

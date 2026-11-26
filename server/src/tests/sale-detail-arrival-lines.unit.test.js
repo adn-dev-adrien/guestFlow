@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 91 — the sale detail lists everything the arrival complement collects as arrival lines: the tax part
+// specs/pricing/pricing-components.md §3 rule 91 — the sale detail lists everything the arrival complement collects as arrival lines: the tax part
 // it collects, the added guests, and what it collects beyond its lines (« Complément d'arrivée »); the guest e-mails read their itemised
 // complement from it (`arrivalComplementDetailOf`), in the very shape and order of the stored breakdown (`buildArrivalComplementDetail`).
 process.env.DB_PATH = ':memory:';

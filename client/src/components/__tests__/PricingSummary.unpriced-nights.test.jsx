@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 59 — a night no season covers is priced by default; the summary
+// specs/pricing/tariff-recipes.md §3 rule 59 — a night no season covers is priced by default; the summary
 // says so, from the server's `unpricedNights`.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

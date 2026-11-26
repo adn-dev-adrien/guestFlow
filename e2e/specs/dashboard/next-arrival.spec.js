@@ -1,5 +1,5 @@
 // @ts-check
-// specs/dashboard-planning-scroll.md rules 4-6 — on a day without arrival the home folds the empty lists to one
+// specs/planning/dashboard-planning-scroll.md rules 4-6 — on a day without arrival the home folds the empty lists to one
 // line each and shows the next arrival with its date. The shared E2E database holds stays of other
 // specs, so the day's lists are fixed by answering GET /api/planning/today; the real answer's shape is
 // pinned alongside.

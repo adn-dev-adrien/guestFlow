@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 (audit R22-3) — a solde ticked before its acompte
+// specs/payments/reservation-payment-ledger.md rule 46, reading of 2026-11-05 (audit R22-3) — a solde ticked before its acompte
 // keeps what it collected across a save: the acompte still owed shrinks first, a rise goes to the complement, and the
 // solde carries the stored split from the first entry.
 process.env.DB_PATH = ':memory:';

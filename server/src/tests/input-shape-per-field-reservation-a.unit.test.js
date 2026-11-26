@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68 (audit R23-A2, R23-A3) — the per-field fuzz of the whole reservation
+// specs/hosting/hosting-h2-account-security.md rule 68 (audit R23-A2, R23-A3) — the per-field fuzz of the whole reservation
 // (`PUT /api/reservations/:id`) with the first three values (`toString` object, object, `true`);
 // input-shape-per-field-reservation-b sends the others. The row alone is most of the stays' fuzz: split so that, four files at a time, each file stays far
 // under npm test's per-file cap (server-test-isolation rules 15 and 24).

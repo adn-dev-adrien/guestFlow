@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 122 (stabilisation loop t9, S9-1, 2026-11-16) — the arrival SAS writes only the arrival complement, so it
+// specs/pricing/pricing-components.md §3 rule 122 (stabilisation loop t9, S9-1, 2026-11-16) — the arrival SAS writes only the arrival complement, so it
 // never lets the engine take money out of it that the engine now routes to another bucket. A direct stay whose solde was paid holds 20 € in its
 // arrival complement (the stay grew past the paid solde); the solde is un-marked from the fiche: the engine of today puts those 20 € in the unpaid
 // solde (300 €) and leaves the complement at 0. The SAS validated with nothing changed must keep the stored complement (20 €) — before, it wrote

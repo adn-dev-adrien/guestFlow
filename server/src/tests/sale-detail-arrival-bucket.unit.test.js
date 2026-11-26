@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 31 and 37 — a line moved to the arrival is collected by the arrival complement: the moment the line
+// specs/pricing/pricing-components.md §3 rules 31 and 37 — a line moved to the arrival is collected by the arrival complement: the moment the line
 // says (« À payer à l’arrivée ») and the bucket that collects it (`saleDetail.buckets.arrival`, the stored complement) are one, on a stay
 // that has started as on one that has not; the acompte and the solde never take it.
 process.env.DB_PATH = ':memory:';

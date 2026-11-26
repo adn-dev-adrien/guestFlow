@@ -1,5 +1,5 @@
 /**
- * SettingsSuggestedArticlesSection — « Proposés à l'arrivée » (specs/outside-booking-sas.md rules 36-37), a tab of Options & ressources: one reorderable list of articles per sale
+ * SettingsSuggestedArticlesSection — « Proposés à l'arrivée » (specs/sas/outside-booking-sas.md rules 36-37), a tab of Options & ressources: one reorderable list of articles per sale
  * context (« Bain nordique »…), grouped by kind, edited together and saved with the bar's « Enregistrer ».
  *
  * Renders `GET /api/settings/suggested-articles`; the lists are the server's `suggested_articles` rows. A kind with no context is not drawn (its plugin is off or lists nothing). The

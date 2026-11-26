@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 6-11 — the second step of the login: enrolment by an
+// specs/hosting/hosting-h2-account-security.md rules 6-11 — the second step of the login: enrolment by an
 // authenticator app (±1 step of drift) or an email code, 10 single-use backup codes, the code asked
 // after the password, the trusted device (revoked by a new password or by turning the step off),
 // the lock after 5 wrong codes, an admin turning another user's step off, the dashboard card, and

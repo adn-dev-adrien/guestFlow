@@ -5,13 +5,13 @@ const dashboard = require('../models/financeDashboardModel');
 const bookingPace = require('../models/bookingPaceModel');
 const vatFranchise = require('../models/vatFranchiseModel');
 
-// specs/finance-dashboard-redesign.md §4.3 — the whole page in one payload, and each tile's table.
+// specs/accounting/finance-dashboard-redesign.md §4.3 — the whole page in one payload, and each tile's table.
 const dashboardParams = (q) => ({
   fiscalYear: q.fiscalYear, period: q.period, month: q.month, from: q.from, to: q.to,
   propertyId: q.propertyId, until: q.until, scope: q.scope, recent: q.recent,
 });
 
-// specs/finance-dashboard-redesign.md rule 57 — a refusal may carry its code (`UNKNOWN_EXERCISE`).
+// specs/accounting/finance-dashboard-redesign.md rule 57 — a refusal may carry its code (`UNKNOWN_EXERCISE`).
 const refusal = (res, result) => res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
 
 function getDashboard(req, res) {
@@ -26,7 +26,7 @@ function getDashboardDetail(req, res) {
   return res.json(result.data);
 }
 
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 21-27 — « Versements à venir », grouped by client; `?recent=1` lists
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 21-27 — « Versements à venir », grouped by client; `?recent=1` lists
 // what arrived in the last 30 days. The same payload as the dashboard's `incoming` detail.
 function getIncoming(req, res) {
   const result = dashboard.getDashboardDetail('incoming', dashboardParams(req.query));
@@ -34,7 +34,7 @@ function getIncoming(req, res) {
   return res.json(result.data);
 }
 
-// specs/booking-pace.md §4.3 — réservations à date vs l'an dernier, and one month's pickup curve.
+// specs/pricing/booking-pace.md §4.3 — réservations à date vs l'an dernier, and one month's pickup curve.
 function getPace(req, res) {
   const result = bookingPace.getPace({ propertyId: req.query.propertyId, metric: req.query.metric });
   if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
@@ -47,7 +47,7 @@ function getPaceMonth(req, res) {
   return res.json(result.data);
 }
 
-// specs/vat-optional-mode.md rule 35 — the franchise threshold card; `{ applies: false }` outside the franchise.
+// specs/accounting/vat-optional-mode.md rule 35 — the franchise threshold card; `{ applies: false }` outside the franchise.
 function getVatFranchise(req, res) {
   res.json(vatFranchise.getFollowUp());
 }
@@ -62,9 +62,9 @@ function touristTax(req, res) {
   return res.json(result.data);
 }
 
-// specs/tourist-tax-declared-checkbox.md §4.3 — tick / untick « Déclarée » for one reservation.
+// specs/tourist-tax/tourist-tax-declared-checkbox.md §4.3 — tick / untick « Déclarée » for one reservation.
 function setTouristTaxDeclared(req, res) {
-  // specs/tourist-tax-declared-checkbox.md rule 9 — `declared` is a boolean, `addedGuests` a boolean or absent.
+  // specs/tourist-tax/tourist-tax-declared-checkbox.md rule 9 — `declared` is a boolean, `addedGuests` a boolean or absent.
   const body = req.body || {};
   if (typeof body.declared !== 'boolean' || (body.addedGuests !== undefined && typeof body.addedGuests !== 'boolean')) {
     return res.status(400).json({ error: 'Déclaration invalide : oui ou non attendu.' });

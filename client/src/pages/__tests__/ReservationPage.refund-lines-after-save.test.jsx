@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 43 — audit R3 N4: « Enregistrer et rembourser » opens the refund dialog on the
+// specs/payments/reservation-refunds.md rule 43 — audit R3 N4: « Enregistrer et rembourser » opens the refund dialog on the
 // sold lines as they stand AFTER the save (re-read from the server), not on those of the loaded fiche.
 import React from 'react';
 import { vi } from 'vitest';

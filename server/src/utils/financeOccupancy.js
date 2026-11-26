@@ -1,5 +1,5 @@
 const { roundMoneyStrict, toCents } = require('./pricing/money');
-// Occupancy of the logements (specs/finance-dashboard-redesign.md §3.7 rules 24-25). Pure.
+// Occupancy of the logements (specs/accounting/finance-dashboard-redesign.md §3.7 rules 24-25). Pure.
 //
 // Sellable nights = the nights of the period minus those covered by an establishment closure — a
 // global one (propertyId NULL) or the logement's own. A closure's `endDate` is the reopening day,

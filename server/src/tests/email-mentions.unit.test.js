@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.B rules 7–11 — the sentences tied to options: when they
+// specs/plugins/plugins-phase-p-productisation.md §3.B rules 7–11 — the sentences tied to options: when they
 // are proposed, the price they quote, their sections, the confirmation order, the « Enfants » section,
 // the resource sentence; and the API that edits them.
 
@@ -123,7 +123,7 @@ test('API: options required, the chosen price among them, unknown tokens refused
   assert.equal(call(controller.create, { body: { section: 'local', optionIds: [1], priceSource: 'option', priceOptionId: 3, offerFr: 'x' } }).body.field, 'priceOptionId');
   assert.equal(call(controller.create, { body: { section: 'bar', optionIds: [1], offerFr: 'x' } }).status, 400);
   const bad = call(controller.create, { body: { section: 'local', optionIds: [1], offerFr: 'x', bookedFr: 'Prêt pour {{price}}' } });
-  // A known variable out of place is named by its label (specs/guest-email-texts-made-simple.md rule 11).
+  // A known variable out of place is named by its label (specs/emails/guest-email-texts-made-simple.md rule 11).
   assert.deepEqual(bad, { status: 422, body: { field: 'bookedFr', message: 'Variable non disponible ici : Prix', unknown: 'price' } });
 });
 

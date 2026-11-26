@@ -1,11 +1,11 @@
-// specs/plugins-phase-4-registry.md rule 50 (audit r3, N-R3-4) — once a step of an install plan owes the restart,
+// specs/plugins/plugins-phase-4-registry.md rule 50 (audit r3, N-R3-4) — once a step of an install plan owes the restart,
 // every later install of the plan is recorded for the boot instead of running live: requirements first
 // (rules 4 and 48), never a dependant's install hook against the old requirement code.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['website-booking', 'google-vacation-rentals'])) return;
 const h = require('./pluginPackagesFixture');

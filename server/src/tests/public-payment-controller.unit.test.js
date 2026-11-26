@@ -1,4 +1,4 @@
-// publicPaymentController (specs/public-online-payment.md §3) — the return-URL allowlist is the
+// publicPaymentController (specs/site/public-online-payment.md §3) — the return-URL allowlist is the
 // security-relevant pure bit (open-redirect prevention). The link-creation logic itself is covered by
 // payment-request-service.unit.test.js.
 

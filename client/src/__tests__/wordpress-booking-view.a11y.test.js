@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 15 — the booking engine of the WordPress plugin is usable with a
+// specs/site/wordpress-plugin.md rule 15 — the booking engine of the WordPress plugin is usable with a
 // screen reader: every field is named by its label, each stepper button says what it counts, a
 // calendar day reads in full with its state, and the quote, hints and refusals are live regions.
 // Also rule 22 (real plurals in the recap) and rule 23 (the e-mail field's own row).

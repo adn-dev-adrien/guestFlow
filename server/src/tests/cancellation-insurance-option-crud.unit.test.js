@@ -1,4 +1,4 @@
-// specs/cancellation-insurance.md §3.1 rule 2 + §3.2 rules 11-12, 15 — persisting the flag
+// specs/payments/cancellation-insurance.md §3.1 rule 2 + §3.2 rules 11-12, 15 — persisting the flag
 // (exclusive, guarded), resolving THE insurance of a property, and rejecting an out-of-range
 // percentage at the API boundary.
 
@@ -10,7 +10,7 @@ const Module = require('module');
 const optionsModel = require('../models/optionsModel');
 const { offerInsurance, withdrawInsurance } = require('./insuranceOfferFixture');
 
-// The insurance is offered while a plugin prices it (specs/plugins-phase-3b-neat.md rule 21); the
+// The insurance is offered while a plugin prices it (specs/plugins/plugins-phase-3b-neat.md rule 21); the
 // hidden case has its own suite (insurance-offer-follows-neat).
 test.before(() => offerInsurance());
 test.after(() => withdrawInsurance());

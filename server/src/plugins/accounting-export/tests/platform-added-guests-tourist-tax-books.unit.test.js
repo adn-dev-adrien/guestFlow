@@ -1,4 +1,4 @@
-// specs/platform-added-guests-tourist-tax.md rules 13, 17 — the balance and complement entries share the
+// specs/tourist-tax/platform-added-guests-tourist-tax.md rules 13, 17 — the balance and complement entries share the
 // added guests' tourist tax without a cent lost, on a solde whose contribs are frozen or not.
 
 process.env.DB_PATH = ':memory:';

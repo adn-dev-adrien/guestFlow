@@ -1,5 +1,5 @@
 /**
- * One prepared statement per SQL text and database handle (specs/pricing-components.md rule 48, extended to the
+ * One prepared statement per SQL text and database handle (specs/pricing/pricing-components.md rule 48, extended to the
  * handle by the stabilisation loop t19).
  *
  * The models prepare their statements where they run them, call after call. Preparing is the expensive part of a short

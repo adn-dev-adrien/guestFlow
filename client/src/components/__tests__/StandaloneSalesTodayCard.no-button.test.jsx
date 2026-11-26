@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 88 (loop t2 UI2-9) — on a phone the finance page carries « Vente hors séjour » at its top: the day's card, given no `onNewSale`,
+// specs/pricing/pricing-components.md rule 88 (loop t2 UI2-9) — on a phone the finance page carries « Vente hors séjour » at its top: the day's card, given no `onNewSale`,
 // draws no button of its own, so the page shows one entry and nothing moves when the dashboard arrives.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// Shared fixture of the « Mon bain » suites (specs/gift-voucher-campaigns.md rules 23-32): the booking offer of the resource plugin (the plugin itself, on the core database, its
+// Shared fixture of the « Mon bain » suites (specs/gift-vouchers/gift-voucher-campaigns.md rules 23-32): the booking offer of the resource plugin (the plugin itself, on the core database, its
 // terms and its clock stood in), handed to the voucher plugin as the core hands it out, and a payment provider that remembers the links it minted and withdrew. Not a test file.
 // The hold of the offer lapses by the real clock; a suite lapses one by moving its `expiresAt` into the past (`lapseHold`).
 

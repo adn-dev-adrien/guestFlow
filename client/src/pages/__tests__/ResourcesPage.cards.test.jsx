@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rules 18, 20, 21, 22 — the resource cards: stock, price lines, the lines a
+// specs/options/options-resources-ux.md rules 18, 20, 21, 22 — the resource cards: stock, price lines, the lines a
 // plugin adds, the editor sections, validation, deletion with its impact.
 import React from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';

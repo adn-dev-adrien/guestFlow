@@ -1,4 +1,4 @@
-// Shared fixture of the outside-visit suites (specs/outside-booking-sas.md §7): the core database in memory with the plugin's tables, one « Bain fictif »
+// Shared fixture of the outside-visit suites (specs/sas/outside-booking-sas.md §7): the core database in memory with the plugin's tables, one « Bain fictif »
 // (10:00-22:00, slot 30 min, minimum 60 min, external 50 €/h, 70 €/h from 19:00, one per booking), two drinks sellable outside a stay and one article that needs a stay,
 // the visit model and its controller bound to a clock standing on the session's day. A walk-in 10:00-11:00 costs 50 €, one 18:00-20:00 120 € (50 + 70).
 process.env.DB_PATH = ':memory:';

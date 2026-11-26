@@ -1,4 +1,4 @@
-// PropertyPlatformsTab — the « séjours en CLOSED » switch of a calendar (specs/lodgify-decommission.md
+// PropertyPlatformsTab — the « séjours en CLOSED » switch of a calendar (specs/platforms/lodgify-decommission.md
 // §3 rule 16): which feed names every stay « CLOSED - Not available » is the source's own setting, not
 // the slug `booking`, so a Booking calendar registered as « BookingTente » can say so too.
 

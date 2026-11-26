@@ -1,4 +1,4 @@
-// specs/backup-restore.md rule 14 — shell scripts must survive macOS /bin/bash 3.2 under a UTF-8
+// specs/hosting/backup-restore.md rule 14 — shell scripts must survive macOS /bin/bash 3.2 under a UTF-8
 // locale. That bash reads the bytes of a non-ASCII character glued to `$VAR` as part of the
 // variable name, so `"$STAMP…"` aborts under `set -u` with « STAMP�: unbound variable ».
 // restore-to-pi.sh did exactly that right after `pm2 stop guestflow`, leaving production stopped.

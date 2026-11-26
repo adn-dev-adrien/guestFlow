@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 9, 10, 18 — a closure of one logement is a lane item of its
+// specs/planning/calendar-property-parity.md rules 9, 10, 18 — a closure of one logement is a lane item of its
 // logement's group with a stay's half-day edges; a closure of every logement stays a column hatch; the
 // week segments are shared by the name ribbons of the logement calendar.
 import { buildMonthLayout, normalizeItems, weekSegments, monthItems, frRange, closedRange } from '../calendarLayout';

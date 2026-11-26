@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 36 — `{{paymentLinkValidUntil}}`: the end of validity of the link
+// specs/payments/payment-link-lifecycle.md rule 36 — `{{paymentLinkValidUntil}}`: the end of validity of the link
 // the e-mail carries, in the guest's language and Paris time, empty with no link; the default request
 // templates and the acompte reminder say it right after the link, migrated onto untouched templates only.
 const fs = require('fs');

@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 3 and 4 — the report pill gives the change AND last year's value,
+ * specs/design-system/report-grammar.md §3 rules 3 and 4 — the report pill gives the change AND last year's value,
  * in points for a rate, and reads « — vs N-1 » when there is nothing to compare with.
  */
 import React from 'react';

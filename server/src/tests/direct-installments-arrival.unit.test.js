@@ -1,4 +1,4 @@
-// specs/direct-installments.md rules 35-38 — the plan at the door and in the books: what is due at arrival, the
+// specs/payments/direct-installments.md rules 35-38 — the plan at the door and in the books: what is due at arrival, the
 // SAS settling it, the fiscal attribution date, the bank reconciliation, and the paid buckets a plan never zeroes.
 const test = require('node:test');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');

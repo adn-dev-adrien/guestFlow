@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import SplitSharesDialog from '../SplitSharesDialog';
 import { previewPayload } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rules 18–19 — the shares of a grouped payout are typed, previewed
+// specs/accounting/reconciliation-assisted-matching.md rules 18–19 — the shares of a grouped payout are typed, previewed
 // by the server, and refused until they make the credit to the cent.
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { previewReconciliationAllocation: vi.fn() } }));

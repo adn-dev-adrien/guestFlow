@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 26, specs/gites-de-france-mail-intake.md rule 25 (audit 2026-10-28, F2) —
+// specs/platforms/airbnb-mail-intake.md rule 26, specs/platforms/gites-de-france-mail-intake.md rule 25 (audit 2026-10-28, F2) —
 // the mailbox reader never reads a part past 256 KB and turns HTML into text in linear time.
 const test = require('node:test');
 const assert = require('node:assert/strict');

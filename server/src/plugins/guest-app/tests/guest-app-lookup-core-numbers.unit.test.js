@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 6 and 54, decision D28 (audit R36 A36-1) — « Retrouver mon séjour » never opens a stay whose
+// specs/guest-app/guest-app.md rules 6 and 54, decision D28 (audit R36 A36-1) — « Retrouver mon séjour » never opens a stay whose
 // number the core made: sequential, a surname was enough to walk through them and hold the gate and the note. Judged by
 // the platform's mode (own channel), never its name; a platform stay still carrying the core's number is refused too.
 // « Régénérer le lien » ends the lookup sessions of the stay. Far-future dates on an injected clock.

@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 2, 3, 4 and 5 — the window of the tourist-tax report, pure: a month, a quarter
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 2, 3, 4 and 5 — the window of the tourist-tax report, pure: a month, a quarter
 // or a year as whole months, a custom window by day under the finance window's own validation (D7), and the months
 // to come left out. Today is an input; every date is built on a year from the real calendar, inside the date window.
 

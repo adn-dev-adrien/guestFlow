@@ -1,4 +1,4 @@
-// Who may open the SAS, and which end of the stay it reads — specs/reception-role-checkin-only.md, reception-sas-today-only.md, sas-departure-mode-param.md
+// Who may open the SAS, and which end of the stay it reads — specs/sas/reception-role-checkin-only.md, reception-sas-today-only.md, sas-departure-mode-param.md
 //
 // One file per subject (CLAUDE.md §9): two features appending their cases no longer collide on
 // the last line of a shared suite. Fixtures used by more than one subject live in ./sasFixtures.
@@ -9,7 +9,7 @@ import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // Mock the API the dialog consumes.
@@ -20,7 +20,7 @@ vi.mock('../../../api', () => ({
     previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
-    // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
+    // Weather alerts (specs/guest-app/checkin-weather-alerts.md) — fired in the background on arrival open.
     // Default to "no alert" so the wizard flow under test is unchanged.
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
@@ -28,12 +28,12 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
-// specs/reception-role-checkin-only.md §3.4 — the reception role runs the SAS but has no reservation
+// specs/sas/reception-role-checkin-only.md §3.4 — the reception role runs the SAS but has no reservation
 // sheet access, so the header « Fiche » link is hidden when canOpenReservation is false.
 test('canOpenReservation gates the « Fiche » link (shown by default, hidden for reception)', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload());
@@ -48,7 +48,7 @@ test('canOpenReservation gates the « Fiche » link (shown by default, hidden fo
   expect(screen.queryByRole('button', { name: 'Fiche' })).not.toBeInTheDocument();
 });
 
-// specs/reception-sas-today-only.md §3.3 rule 13 — reception reaches a locked SAS only via a deep-link
+// specs/sas/reception-sas-today-only.md §3.3 rule 13 — reception reaches a locked SAS only via a deep-link
 // (Dashboard row / push); the dialog then renders a locked panel instead of the wizard. `receptionLock`
 // is resolved server-side and is null for an admin.
 test('reception lock: a « done » arrival renders the locked panel, no wizard', async () => {
@@ -119,7 +119,7 @@ test('reception lock: a 403 SAS_LOCKED at commit surfaces the French message', a
   expect(shown.length).toBeGreaterThan(0);
 });
 
-// ---- the read carries the end of the stay (specs/sas-departure-mode-param.md) ----
+// ---- the read carries the end of the stay (specs/sas/sas-departure-mode-param.md) ----
 
 test('the SAS read tells the server which end it is', async () => {
   // Without it the check-out SAS got the check-in answer to « le ménage est-il déjà vendu ? », asked a

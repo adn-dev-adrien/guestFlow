@@ -1,6 +1,6 @@
 /**
  * The accounting split of ONE installment, frozen the moment it is collected
- * (specs/direct-installments.md rule 47, specs/accounting-books-the-money-collected.md rule 14).
+ * (specs/payments/direct-installments.md rule 47, specs/accounting/accounting-books-the-money-collected.md rule 14).
  *
  * An installment of a past month is money the accountant may already have imported: its entry must
  * never move. Derived live, it did — the tourist-tax share is a proportion of the whole plan and the
@@ -28,7 +28,7 @@ function computeInstallmentPaidSplit(db, installmentId) {
   if (!stay) return null;
   const plan = db.prepare('SELECT id, amountCents FROM reservation_installments WHERE reservationId = ? ORDER BY number')
     .all(installment.reservationId);
-  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
   const taxCents = stay.taxOnArrival ? 0 : cents(stay.touristTaxTotal) - cents(stay.touristTaxAddedGuestsAmount);
   const shares = taxShares(taxCents, plan.map((p) => Number(p.amountCents)));
   const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;

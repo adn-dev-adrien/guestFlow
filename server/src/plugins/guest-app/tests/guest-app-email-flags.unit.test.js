@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 70, 89, 90 — the flags the J-7 and J-2 e-mails hang their stay-app paragraph on, computed by the server:
+// specs/guest-app/guest-app.md rules 70, 89, 90 — the flags the J-7 and J-2 e-mails hang their stay-app paragraph on, computed by the server:
 // `hasStayAppShop` (the shop is shown, an article is sold, orders are taken for the stay now) and `hasStayAppBath` (on top, the stay
 // holds the nordic bath or has free minutes of it left). A template never promises what the link does not give.
 const fx = require('./guestOrderFixtures');

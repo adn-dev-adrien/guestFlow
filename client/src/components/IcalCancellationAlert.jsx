@@ -1,11 +1,11 @@
 /**
  * IcalCancellationAlert — Dashboard approval card for iCal reservations whose UID has
- * fallen out of every source feed (specs/ical-cancellation-approval.md §6.1).
+ * fallen out of every source feed (specs/platforms/ical-cancellation-approval.md §6.1).
  *
  * Self-contained: fetches its own list on mount + on every route change, then renders one
  * `AttentionCard` listing every pending cancellation. Each card offers three actions:
  *   - "Supprimer" (color="error") → asks whether the platform owes an indemnity for the cancelled
- *                                   stay (specs/cancellation-compensation.md §3.2), then deletes
+ *                                   stay (specs/payments/cancellation-compensation.md §3.2), then deletes
  *                                   the reservation server-side + ack, recording the compensation
  *                                   in the same transaction when one is declared.
  *   - "Voir la fiche"             → opens the reservation page without acknowledging.

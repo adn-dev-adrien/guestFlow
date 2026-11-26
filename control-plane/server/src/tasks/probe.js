@@ -1,5 +1,5 @@
 /**
- * The probe, every minute (specs/hosting-h1-fleet-runtime.md rules 15–17, 20): it measures each
+ * The probe, every minute (specs/hosting/hosting-h1-fleet-runtime.md rules 15–17, 20): it measures each
  * instance through the drivers — unit state, health, memory, last replicated backup, certificate,
  * disk, the platform emails of the day — stores what the fleet view shows, and opens or closes the
  * host alerts:

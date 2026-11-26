@@ -1,9 +1,9 @@
 // @ts-check
-// Storage-state paths written by `e2e/global-setup.js` (specs/e2e-playwright-smoke-suite.md §4.3).
+// Storage-state paths written by `e2e/global-setup.js` (specs/tech/e2e-playwright-smoke-suite.md §4.3).
 //
 // `admin.json` is the suite-wide default (playwright.config.js `use.storageState`), so specs only
 // need this module when they want a DIFFERENT session — today the « Accueil » account
-// (specs/reception-role-checkin-only.md, specs/reception-sas-today-only.md):
+// (specs/sas/reception-role-checkin-only.md, specs/sas/reception-sas-today-only.md):
 //
 //   const { RECEPTION_STORAGE_STATE } = require('../../fixtures/authState.js');
 //   test.use({ storageState: RECEPTION_STORAGE_STATE });

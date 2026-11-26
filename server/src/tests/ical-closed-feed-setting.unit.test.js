@@ -1,4 +1,4 @@
-// specs/lodgify-decommission.md §3 rule 16 (audit 2026-10-27) — « the feed marks every stay CLOSED - Not
+// specs/platforms/lodgify-decommission.md §3 rule 16 (audit 2026-10-27) — « the feed marks every stay CLOSED - Not
 // available » is a setting of the iCal source, not the exact slug `booking`. Registered as `booking-com`
 // or `booking-tente`, a Booking calendar used to drop every stay at parse time, then cancel them all
 // through the empty-feed sweep.

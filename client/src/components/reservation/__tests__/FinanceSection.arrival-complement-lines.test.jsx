@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance as renderLedger, dueRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/lock-at-arrival-time-and-arrival-complement-lines.md rules 6-7 — the « Détail » of the arrival
+// specs/sas/lock-at-arrival-time-and-arrival-complement-lines.md rules 6-7 — the « Détail » of the arrival
 // complement lists what it contains, through the same component as the end-of-stay complement. The lines
 // come from the server (live quote, else the stored payload); the fiche sums nothing.
 

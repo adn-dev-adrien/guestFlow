@@ -1,7 +1,7 @@
 /**
  * planningDayOrder — order a planning day's renderable cards by time.
  *
- * Pure presentational ordering (specs/planning-chronological-day-ordering.md): the Planning page
+ * Pure presentational ordering (specs/planning/planning-chronological-day-ordering.md): the Planning page
  * assembles a day's cards from six independent, independently-paginated endpoints; each card already
  * carries its own display time in its payload. This helper only decides the vertical order — no
  * business rule, price, or status is computed here.
@@ -10,7 +10,7 @@
  * (or null/empty for a time-less card, e.g. a plugin's laundry card or an option without a set hour).
  * Returns a NEW array ordered by time ascending, time-less entries last. Among the time-less ones,
  * `rank` orders them (absent = 0, so the core's own cards come first; a `planning.days` contribution
- * sets its own — specs/plugins-phase-2-hosts.md rule 5). Ties keep insertion order (stable).
+ * sets its own — specs/plugins/plugins-phase-2-hosts.md rule 5). Ties keep insertion order (stable).
  */
 
 function timeToMinutes(time) {

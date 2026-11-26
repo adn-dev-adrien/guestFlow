@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rule 29 (2026-10-27 spec review, replaces rule 23) — what
+// specs/site/public-request-abuse-and-grouping.md rule 29 (2026-10-27 spec review, replaces rule 23) — what
 // raises the difficulty is the requests an address MADE in the hour, never the challenges it was
 // handed: five page views from a phone used to cost the next request 22 bits (10-20 s). And a
 // challenge is judged at the difficulty signed into it: one issued just before the hour's total crossed
@@ -42,7 +42,7 @@ store.ensureTables();
 const reset = () => db.exec('DELETE FROM public_request_log; DELETE FROM public_request_challenges_used;');
 
 // The 3.1 s a challenge must age before it is answered, on a mocked clock instead of a real wait
-// (specs/server-test-isolation.md rule 24): the controller reads `Date.now()`.
+// (specs/tech/server-test-isolation.md rule 24): the controller reads `Date.now()`.
 function clock(t) {
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   return (ms) => t.mock.timers.tick(ms);

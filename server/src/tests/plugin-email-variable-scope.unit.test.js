@@ -1,6 +1,6 @@
-// specs/plugins-phase-1-sdk.md rule 10 — a plugin's e-mail variable or condition may name the e-mails it belongs to
+// specs/plugins/plugins-phase-1-sdk.md rule 10 — a plugin's e-mail variable or condition may name the e-mails it belongs to
 // (`in`, like the core catalogue's), so it is offered only there; without `in` it is offered in every e-mail. A
-// template that already uses it keeps its chip anywhere. First used by specs/guest-app.md rule 9bis (b).
+// template that already uses it keeps its chip anywhere. First used by specs/guest-app/guest-app.md rule 9bis (b).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

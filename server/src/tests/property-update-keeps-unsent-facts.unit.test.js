@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 28 and 30 (2026-10-18) — saving the property page
+// specs/emails/guest-email-texts-made-simple.md rules 28 and 30 (2026-10-18) — saving the property page
 // never resets what it does not send: an empty deposit keeps the stored amount (no 500 € back), and an
 // article the form leaves out is neither changed nor confirmed.
 

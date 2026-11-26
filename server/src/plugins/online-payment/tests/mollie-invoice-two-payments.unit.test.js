@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 16 (step 3), 33 (stabilisation loop t11 B11-1, 2026-11-17) — one document with ONE
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 16 (step 3), 33 (stabilisation loop t11 B11-1, 2026-11-17) — one document with ONE
 // Qonto invoice, paid by card on two days (30 € then 20 €), and a Mollie settlement whose two payments both carry the invoice number. Before, both
 // paired with the first card day's split: the second re-pointed it (`tr_d1` belonged to no split), and without « CB sur place via Mollie depuis »
 // the 20 € never reached the journal. Now a split bound to another Mollie payment is never taken again: the second payment goes to the document's

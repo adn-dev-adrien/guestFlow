@@ -1,7 +1,7 @@
 /**
  * IntegrationsSettingsPage — the action bar is the only thing that writes.
- * See specs/settings-one-save-and-automatic-webhook.md §3 rules 1 and 4; the Neat card moved from the
- * former « Générale » page to Paramètres → Intégrations (specs/settings-rationalization.md rule 2).
+ * See specs/settings/settings-one-save-and-automatic-webhook.md §3 rules 1 and 4; the Neat card moved from the
+ * former « Générale » page to Paramètres → Intégrations (specs/settings/settings-rationalization.md rule 2).
  *
  * The Neat card keeps its own data and its own endpoints; what it gave up is its three « Enregistrer »
  * buttons. This suite checks the seam: a change made inside the card lights up the bar, the bar's
@@ -54,7 +54,7 @@ import api from '../../../api';
 import IntegrationsSettingsPage from '../../../pages/settings/IntegrationsSettingsPage';
 import { CONFIGURED_SETTINGS } from './neatSectionFixtures';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 function settingsPayload(over = {}) {
@@ -78,7 +78,7 @@ beforeEach(() => {
   delete window.__guestflowBeforeNavigate;
 });
 
-// The Neat card is under its own tab (specs/integrations-tab-per-plugin.md rule 5).
+// The Neat card is under its own tab (specs/plugins/integrations-tab-per-plugin.md rule 5).
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/settings/integrations?tab=neat']}>
@@ -107,7 +107,7 @@ test('rule 1: a change inside the Neat card enables the bar’s Save, which writ
 });
 
 // Rule 1 — the cards of the page are saved by the same press. The weather key is the weather
-// plugin's own setting since specs/plugins-phase-1-sdk.md rule 7: it no longer rides /api/settings.
+// plugin's own setting since specs/plugins/plugins-phase-1-sdk.md rule 7: it no longer rides /api/settings.
 test('rule 1: one press writes the weather key and the Neat card together', async () => {
   renderPage();
   await screen.findByText('Connectée — staging');

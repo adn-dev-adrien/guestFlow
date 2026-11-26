@@ -4,14 +4,14 @@ import QuantityField from '../QuantityField';
 import { formatCurrency } from '../../utils/formatters';
 import { useReservationForm } from './ReservationFormContext';
 
-// specs/reservations-backend-mvc.md rule 15 — a hint as it is typed; only the server refuses.
+// specs/tech/reservations-backend-mvc.md rule 15 — a hint as it is typed; only the server refuses.
 const PARTY_HINT = 'Un nombre entier, 0 ou plus.';
 const partyHint = (value) => (Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? null : PARTY_HINT);
 
 /**
  * Voyageurs card: guest counts + capacity warning.
  *
- * specs/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — the lits doubles / simples counters,
+ * specs/linen/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — the lits doubles / simples counters,
  * "Suggérer les lits" button, and the `bedsCapacityMismatch` warning live in the "Linge de lit"
  * option card inside `ExtrasSection` (shown only when the bed-linen option is enabled).
  *
@@ -19,7 +19,7 @@ const partyHint = (value) => (Number.isSafeInteger(Number(value)) && Number(valu
  * independent resource needed whenever there are babies, so it is shown HERE (always, when
  * babies > 0) instead of being hidden behind the bed-linen option. Title kept "Voyageurs".
  *
- * specs/property-capacity-single-total.md (2026-08-14) — capacity is ONE total: adultes + enfants +
+ * specs/reservations/property-capacity-single-total.md (2026-08-14) — capacity is ONE total: adultes + enfants +
  * ados ≤ maxGuests, babies bounded separately. The three "over capacity" counters therefore share a
  * single error state, and the property's capacity is shown as a caption next to the title instead of
  * a "(max N)" suffix on the Adultes label.
@@ -39,7 +39,7 @@ export default function GuestsBedsSection() {
   } = useReservationForm();
 
   const showBabyBed = Number(form.babies || 0) > 0;
-  // specs/baby-bed-supplement.md §6 — a cot is billed per unit for the whole stay, and this counter
+  // specs/options/baby-bed-supplement.md §6 — a cot is billed per unit for the whole stay, and this counter
   // is the only place the operator decides it. Saying the price here is what stops the line from
   // appearing « out of nowhere » in the récapitulatif. The amount comes from the catalogue option the
   // engine bills (0 / absent = this logement does not charge for cots → nothing to announce).
@@ -149,7 +149,7 @@ export default function GuestsBedsSection() {
             </Typography>
           )}
         </Stack>
-        {/* specs/non-card-option-served-persons.md rule 21 — said at once, where the change was made. */}
+        {/* specs/options/non-card-option-served-persons.md rule 21 — said at once, where the change was made. */}
         {typedAlertTitles.length > 0 && (
           <Alert severity="warning" sx={{ mt: 2 }}>
             Valeur saisie à vérifier : {typedAlertTitles.join(', ')}

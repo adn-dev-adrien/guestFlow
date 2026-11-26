@@ -1,5 +1,5 @@
-// The `stay` block every gate key carries — contract v3, specs/sowel-stays-in-keys.md, written down
-// as specs/gate-access-sowel-connector.md §3.1 rule 4b.
+// The `stay` block every gate key carries — contract v3, specs/guest-app/gate-access-sowel-connector.md, written down
+// as specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4b.
 //
 // `arrival` / `departure` are the stay's own check-in / check-out on the Europe/Paris wall clock,
 // sent with their numeric offset: 2026-10-25 is the last Sunday of October, the night Paris goes
@@ -28,7 +28,7 @@ test('a Paris instant is written with the offset the zone had at that instant', 
   assert.equal(toParisIso(new Date(NaN)), null);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 4b — the wire shape of a create, v0.3.0 fields untouched.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4b — the wire shape of a create, v0.3.0 fields untouched.
 test('a create carries the stay: property id and name, arrival and departure without the margins', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { propertyId: 2, clientId: 2, reservationNumber: 'R-2026-060', startDate: '2026-10-06', endDate: '2026-10-09', checkInTime: '16:00' });
@@ -42,7 +42,7 @@ test('a create carries the stay: property id and name, arrival and departure wit
   }]);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 4b — each stay's own times, not the defaults.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4b — each stay's own times, not the defaults.
 test('the stay honours the reservation check-in and check-out times, and falls back on 15:00 / 10:00', () => {
   const { db, model } = freshDb();
   const late = addStay(db, { checkInTime: '17:30', checkOutTime: '11:15' });
@@ -56,7 +56,7 @@ test('the stay honours the reservation check-in and check-out times, and falls b
   });
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 4b — a stay across the last Sunday of October.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4b — a stay across the last Sunday of October.
 test('a stay spanning 2026-10-25 arrives in summer time and leaves in winter time', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { startDate: '2026-10-23', endDate: '2026-10-27' });
@@ -68,7 +68,7 @@ test('a stay spanning 2026-10-25 arrives in summer time and leaves in winter tim
   assert.equal(key.endsAt, '2026-10-27T11:00:00.000Z');
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 4b — a cancelled stay still has its row.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4b — a cancelled stay still has its row.
 test('the revoke of a cancelled stay carries the stay read from the reservation', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { propertyId: 2, kind: 'cancelled', checkInTime: '16:00' });
@@ -80,7 +80,7 @@ test('the revoke of a cancelled stay carries the stay read from the reservation'
   });
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rules 4b and 6 — a deleted stay, rebuilt from the results table.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rules 4b and 6 — a deleted stay, rebuilt from the results table.
 test('the revoke of a deleted stay rebuilds its stay from the stored window and property, across DST', async () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { propertyId: 2, clientId: 2, reservationNumber: 'R-2026-070', startDate: '2026-10-23', endDate: '2026-10-27', checkInTime: '16:00', checkOutTime: '11:00' });
@@ -105,7 +105,7 @@ test('the revoke of a deleted stay rebuilds its stay from the stored window and 
   });
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 4b — the block is optional, never invented.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4b — the block is optional, never invented.
 test('a deleted stay filed before propertyId existed is revoked without a stay block', () => {
   const { db, model } = freshDb();
   const stay = addStay(db);
@@ -122,7 +122,7 @@ test('a deleted stay filed before propertyId existed is revoked without a stay b
   assert.equal('stay' in key, false);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 4b — a property that no longer exists names nothing.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 4b — a property that no longer exists names nothing.
 test('a deleted stay whose property is gone too is revoked without a stay block', () => {
   const { db, model } = freshDb();
   const stay = addStay(db);
@@ -135,7 +135,7 @@ test('a deleted stay whose property is gone too is revoked without a stay block'
   assert.equal('stay' in keyOf(buildKeyList(model, NOW), stay.id), false);
 });
 
-// specs/gate-access-sowel-connector.md §3.2 rule 9 — a result without a stay keeps the stored property.
+// specs/guest-app/gate-access-sowel-connector.md §3.2 rule 9 — a result without a stay keeps the stored property.
 test('a later result that carries no property does not erase the stored one', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { propertyId: 2 });

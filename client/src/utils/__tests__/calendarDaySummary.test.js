@@ -1,6 +1,6 @@
 /**
  * calendarDaySummary — pure helpers for the phone's day agenda.
- * See specs/calendar-mobile-view.md.
+ * See specs/planning/calendar-property-parity.md.
  */
 
 import { buildDaySummary, isEmptyDay } from '../calendarDaySummary';

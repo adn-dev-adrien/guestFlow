@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rule 23 — « Par nuit » shows the server's register, one row per night, and its
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rule 23 — « Par nuit » shows the server's register, one row per night, and its
 // empty state; the totals bar stays the same.
 import { vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/react';

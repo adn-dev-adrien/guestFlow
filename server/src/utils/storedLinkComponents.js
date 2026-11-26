@@ -1,6 +1,6 @@
 const { toCents: cents, allocateCents } = require('./pricing/money');
 /**
- * VAT basket of a payment link created for a RESERVATION (specs/payment-links-vat.md rule 8).
+ * VAT basket of a payment link created for a RESERVATION (specs/payments/payment-links-vat.md rule 8).
  *
  * A devis is replayed by the pricing engine (controllers/paymentsController `resolveVatComponents`);
  * a reservation has no engine replay — its stored columns are authoritative — so its basket is built
@@ -18,10 +18,10 @@ function storedLinkComponents(row, type, { vatRatePercent, taxOnArrival, titles 
   if (!row) return null;
   if (type === 'deposit') return { components: [{ title: titles.deposit, grossCents: cents(row.depositAmount), taxable: true }], vatRatePercent };
   if (type !== 'balance' && type !== 'full') return null;
-  // A full payment is the acompte plus the solde (specs/deposit-blocks-the-dates.md rule 18): the tax
+  // A full payment is the acompte plus the solde (specs/payments/deposit-blocks-the-dates.md rule 18): the tax
   // rides on it exactly as on the solde.
   const total = type === 'full' ? cents(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)) : cents(row.balanceAmount);
-  // specs/platform-added-guests-tourist-tax.md rule 27 — the added guests' tax rides the complement, not this money.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 27 — the added guests' tax rides the complement, not this money.
   const tax = taxOnArrival ? 0 : Math.max(0, cents(row.touristTaxTotal) - cents(row.touristTaxAddedGuestsAmount));
   if (tax > total) return null;
   const components = [{ title: titles[type], grossCents: total - tax, taxable: true }];
@@ -30,7 +30,7 @@ function storedLinkComponents(row, type, { vatRatePercent, taxOnArrival, titles 
 }
 
 /**
- * The basket of a link on a stay the sale-line readers serve (specs/pricing-components.md §3 rule 91, owner 2026-11-15,
+ * The basket of a link on a stay the sale-line readers serve (specs/pricing/pricing-components.md §3 rule 91, owner 2026-11-15,
  * utils/saleLinesReaders.js): the taxable part of `basket` (the bucket the link collects, tax apart) shared over the lines the
  * sale detail collects in the acompte and the solde, each at its own VAT rate. The amount never moves: the shares are the bucket's
  * cents allocated by largest remainder over what each line still owes. One line to share over (the accommodation alone, the case of

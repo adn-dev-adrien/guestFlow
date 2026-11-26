@@ -1,4 +1,4 @@
-// specs/reception-sas-today-only.md §3.1 — the « Accueil » role only handles the SAS of the DAY:
+// specs/sas/reception-sas-today-only.md §3.1 — the « Accueil » role only handles the SAS of the DAY:
 // window = [D 00:00, D+1 04:00). The 4-hour tail covers a check-in validated after midnight and an
 // early check-out, without ever opening the following day's arrivals.
 

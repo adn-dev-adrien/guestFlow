@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 22, 43 (audit R34-EXT-1) — a bank credit matched on a split payment's receipt
+// specs/payments/mixed-method-payments.md rules 22, 43 (audit R34-EXT-1) — a bank credit matched on a split payment's receipt
 // (`settlement-<id>`) holds that payment: undoing it is refused, like modifying it. And a split recorded over a target
 // whose plain receipt (`balance`, `group`, `installment-N`) already holds a bank line is refused: the line would be left
 // pointing at a receipt no longer expected. In both cases « Défaire » the reconciliation first, then the payment.

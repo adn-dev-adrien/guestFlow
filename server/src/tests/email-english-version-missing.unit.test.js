@@ -1,4 +1,4 @@
-// specs/email-language-fr-en.md rule 9 (operator decision of 2026-10-27): a template without its
+// specs/emails/email-language-fr-en.md rule 9 (operator decision of 2026-10-27): a template without its
 // English version is never sent to an English-speaking guest. The manual send is refused with a French
 // message, the preview says so, the automatic passes skip it and the history shows why.
 

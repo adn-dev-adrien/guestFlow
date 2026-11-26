@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 94 reading S14-3 (« the preview prices as the save ») and guest-app rule 110 a — invariant harness of the
+// specs/pricing/pricing-components.md rule 94 reading S14-3 (« the preview prices as the save ») and guest-app rule 110 a — invariant harness of the
 // stabilisation loop t16 (apps ga16, made permanent by the sale fixer, 2026-11-17). A stay holding APP-ORDERED lines (a pre-arrival order:
 // beer `order:1`, an evening supplement free line `order:2` with its `fulfilmentRef`) is previewed then saved over every platform mode ×
 // stay moment × fiche mutation; an accepted save stores exactly the preview's figures.

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 33 — `?from=` is followed only when it is an in-app path (starts with
+// specs/design-system/ui-review-2026-10-19-operations.md rule 33 — `?from=` is followed only when it is an in-app path (starts with
 // `/`, not `//`). Anything else (a URL, a protocol-relative link, `javascript:`) falls back to the default target
 // instead of making React Router throw « External navigation is not allowed ».
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 57 (audit R36-PUB-L2) — the card orders of a stay are limited per STAY, whatever its sessions:
+// specs/guest-app/guest-app.md rule 57 (audit R36-PUB-L2) — the card orders of a stay are limited per STAY, whatever its sessions:
 // each one mints a payment link at the provider (an order awaiting its payment no longer blocks the next one, rule 35), and a new session costs only a
 // stay-link exchange — one holder of the link minted about 300 links an hour. Six an hour per stay; a refused card
 // order spends nothing; the note stays open. Stays dated around today.

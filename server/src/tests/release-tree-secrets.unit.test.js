@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 42 — a release archive is built from tracked files only and is
+// specs/hosting/self-update-and-releases.md rule 42 — a release archive is built from tracked files only and is
 // refused when a secret or a runtime file reached its staging tree.
 const test = require('node:test');
 const assert = require('node:assert/strict');

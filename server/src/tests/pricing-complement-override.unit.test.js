@@ -1,7 +1,7 @@
 /**
- * specs/adjustable-complement-amounts.md §3.2 — le montant annoncé au client l'emporte sur le calcul,
+ * specs/sas/adjustable-complement-amounts.md §3.2 — le montant annoncé au client l'emporte sur le calcul,
  * y compris sur un complément déjà encaissé, sans jamais rouvrir la porte que
- * specs/frozen-complement-trusts-client.md a fermée (le `complementAmount` CALCULÉ par le navigateur
+ * specs/sas/frozen-complement-trusts-client.md a fermée (le `complementAmount` CALCULÉ par le navigateur
  * reste ignoré sur un bucket gelé).
  */
 
@@ -63,7 +63,7 @@ test('règle 3 — pas d\'ajustement : le complément calculé ne bouge pas', ()
   assert.equal(q.complementAmountAuto, 24);
 });
 
-// specs/adjustable-complement-amounts.md rule 12
+// specs/sas/adjustable-complement-amounts.md rule 12
 test('règle 13 — l\'ajustement gagne sur les lignes forcées', () => {
   const q = quote({ complementAmountOverride: 20 });
   assert.equal(q.complementAmount, 20);
@@ -94,7 +94,7 @@ test('un ajustement négatif est ramené à 0 (le validateur le refuse déjà en
   assert.equal(quote({ complementAmountOverride: -5 }).complementAmount, 0);
 });
 
-// specs/adjustable-complement-amounts.md rule 8
+// specs/sas/adjustable-complement-amounts.md rule 8
 test('un ajustement vide / illisible laisse le calcul auto', () => {
   assert.equal(quote({ complementAmountOverride: '' }).complementAmount, 24);
   assert.equal(quote({ complementAmountOverride: null }).complementAmount, 24);
@@ -115,7 +115,7 @@ test('specs/defer-arrival-complement-to-checkout §3.3 règle 16 — le marqueur
   assert.equal(deferred.complementSplit.endOfStay, 24);
 });
 
-// specs/adjustable-complement-amounts.md rule 5 — l'écart est ABSORBÉ : le montant ajusté devient le
+// specs/sas/adjustable-complement-amounts.md rule 5 — l'écart est ABSORBÉ : le montant ajusté devient le
 // montant du bucket, point. Aucune ligne de compensation n'est créée ailleurs, aucun autre bucket
 // n'est touché, et le total du séjour de la fiche reprend la valeur annoncée au client.
 test('règle 5 — l’écart est absorbé : le total suit, les autres échéances ne bougent pas', () => {

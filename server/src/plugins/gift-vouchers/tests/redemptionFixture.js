@@ -1,4 +1,4 @@
-// Shared fixture of the redemption suites (specs/gift-vouchers.md rules 36-42): the plugin's API on the REAL core database
+// Shared fixture of the redemption suites (specs/gift-vouchers/gift-vouchers.md rules 36-42): the plugin's API on the REAL core database
 // (in memory), registered as a live prepaid source, with a payment provider that mints no real link. Not a test file.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

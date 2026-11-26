@@ -1,4 +1,4 @@
-// qontoAuth.getValidQontoAccessToken — reuse-or-refresh logic. See specs/online-payments-qonto.md §4.1.
+// qontoAuth.getValidQontoAccessToken — reuse-or-refresh logic. See specs/payments/online-payments-qonto.md §4.1.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 40 — the email runners and the email draft preview read
+// specs/accounting/finance-dashboard-redesign.md rule 40 — the email runners and the email draft preview read
 // « today » from utils/localDate, the operator's calendar day, like every other server module
 // (rule 37). Final code review, lows 3 and 4.
 const test = require('node:test');

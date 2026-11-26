@@ -1,6 +1,6 @@
 /**
- * TIMED OPTIONS — the engine-derived early check-in and late check-out options (specs/pricing-components.md §3 rules 2,
- * 43; specs/timed-options-proportional-pricing.md). Priced from the ACTUAL check-in/out hour against a reference night
+ * TIMED OPTIONS — the engine-derived early check-in and late check-out options (specs/pricing/pricing-components.md §3 rules 2,
+ * 43; specs/pricing/timed-options-proportional-pricing.md). Priced from the ACTUAL check-in/out hour against a reference night
  * of the tariff: a full night past the threshold, else the share of the window the guest stays beyond the default hour.
  *
  * Contract:

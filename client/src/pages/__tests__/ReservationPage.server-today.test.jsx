@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13, second reading (review of PR #938, F8 / V2) — the fiche judges the
+// specs/tech/reservations-backend-mvc.md rule 13, second reading (review of PR #938, F8 / V2) — the fiche judges the
 // date window from the server's day (`GET /api/today`), not the device's: an arrival the device would accept but
 // the server would refuse says « Date trop ancienne : 5 ans au plus. » under the dates and is not quoted.
 import React from 'react';

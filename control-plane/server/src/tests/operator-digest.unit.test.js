@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 18 — the operator's daily email: the home page's
+// specs/hosting/control-plane-plans-and-access.md rule 18 — the operator's daily email: the home page's
 // lines, to every operator, and nothing on a quiet day.
 
 const test = require('node:test');

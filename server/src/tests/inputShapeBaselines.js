@@ -1,5 +1,5 @@
 // The authenticated write routes from a VALID baseline, for input-shape-per-field(-others).unit.test.js
-// (specs/hosting-h2-account-security.md rule 68). A wrong value sent in every field stops at the first required-field
+// (specs/hosting/hosting-h2-account-security.md rule 68). A wrong value sent in every field stops at the first required-field
 // refusal; only a body the route accepts reaches the field the fuzz changes. Each row is
 // [method, url, body, { plugin, ok }]: the body or the url may be a function of a counter when a success uses up what it
 // names, `plugin` skips a row whose plugin the tree does not ship, `ok` lists the statuses of a state the row is known to
@@ -102,7 +102,7 @@ async function baselines(app, admin, active) {
     ['POST', '/api/resource-bookings/preview', { resourceId: s.resource, bookingId: s.booking, date: dayAt(80), startTime: '10:00', endTime: '11:00', propertyId: String(s.property) }, hourly],
     ['PUT', `/api/resource-bookings/${s.booking}`, { date: dayAt(80), startTime: '10:00', endTime: '11:00', propertyId: String(s.property), notes: 'Note', paid: false, clientId: s.client, clientName: null, clientPhone: null, displayedTotal: 30, reservationId: null }, hourly],
     ['POST', `/api/resource-bookings/${s.booking}/payment`, { tenders: [{ method: 'card', amountCents: 3000, internal: false }], paidAt: dayAt(0) }, hourly],
-    // specs/resource-booking-pricing-and-invoicing.md §4.3 — no Qonto here: the invoice stops at « not connected ».
+    // specs/resources/resource-booking-pricing-and-invoicing.md §4.3 — no Qonto here: the invoice stops at « not connected ».
     ['POST', `/api/resource-bookings/${s.booking}/invoice`, { billing: { street: '1 rue', postcode: '07000', city: 'Privas' } }, { ...hourly, ok: [409] }],
     ['POST', `/api/resource-bookings/${s.booking}/invoice/attach`, { transactionId: 'tx-1' }, { ...hourly, ok: [400] }],
     ['POST', '/api/clients', { lastName: 'Durand', firstName: 'Lea', email: '', phone: '', streetNumber: '1', street: 'Rue', postalCode: '75000', city: 'Paris', address: 'Rue', notes: 'Note', emailLanguage: 'fr', allowDuplicate: true }],
@@ -149,11 +149,11 @@ async function baselines(app, admin, active) {
     ['PUT', `/api/reservations/${s.planned}/installments`, { count: plan.length }],
     ['POST', `/api/reservations/${s.platformStay}/platform-penalties/preview`, { amount: 1, date: dayAt(0), reason: 'Frais', source: 'fiche', payoutIncludesPenalty: true }],
     ['POST', `/api/reservations/${s.platformStay}/platform-penalties`, { amount: 1, date: dayAt(0), reason: 'Frais', source: 'fiche', payoutIncludesPenalty: true }],
-    // specs/platform-statement-after-payout.md §4.3.
+    // specs/platforms/platform-statement-after-payout.md §4.3.
     ['POST', `/api/reservations/${s.platformStay}/platform-statement/preview`, { platformGrossAmount: 400, platformTouristTaxAmount: '', platformCommissionAmount: 60, acompteCommissionAmount: '' }, { ok: [409] }],
     ['PATCH', `/api/reservations/${s.platformStay}/platform-statement`, { platformGrossAmount: 400, platformTouristTaxAmount: '', platformCommissionAmount: 60, acompteCommissionAmount: '' }, { ok: [409] }],
     ['POST', `${url.stay}/arrival-payment`, { method: 'card', mode: 'card', date: dayAt(0), amount: 1, keys: ['balance'], touristTax: true }],
-    // specs/mixed-method-payments.md §4.3 — the stay has no split payment: the reste and the correction stop at « nothing to act on ».
+    // specs/payments/mixed-method-payments.md §4.3 — the stay has no split payment: the reste and the correction stop at « nothing to act on ».
     ['POST', `${url.stay}/settlements`, { targetKind: 'bucket', targetKey: 'endOfStayComplement', date: dayAt(0), tenders: [{ method: 'card', amountCents: 100, internal: false }], shortfall: { kind: 'due' } }, { ok: [409] }],
     ['PUT', `${url.stay}/settlements/1`, { date: dayAt(0), tenders: [{ method: 'card', amountCents: 100, internal: false }], shortfall: { kind: 'due' } }, { ok: [404] }],
     ['POST', `/api/payments/reservations/${s.direct}/payment-links`, { type: 'deposit', installmentId: 1 }, { plugin: 'online-payment', ok: [409] }],

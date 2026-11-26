@@ -1,5 +1,5 @@
 /**
- * « Versions » (specs/hosting-h1-fleet-runtime.md rules 8, 10, 11): the releases installed on the
+ * « Versions » (specs/hosting/hosting-h1-fleet-runtime.md rules 8, 10, 11): the releases installed on the
  * host and the instances on each, the newest published version and its installation, the update of
  * one customer, a selection or the whole fleet — followed live, one instance after the other — and
  * the last updates. With the plugin registry (phase 4), a plugin update is pushed the same way.

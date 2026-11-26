@@ -44,7 +44,7 @@ const FOOTER_HEADING = 'Détail';
 const HEADING_BY_KEY = Object.fromEntries(CATEGORIES.map(([k, h]) => [k, h]));
 const KEY_BY_HEADING = Object.fromEntries(CATEGORIES.map(([k, h]) => [h.toLowerCase(), k]));
 
-// The operator digest (specs/self-update-and-releases.md §6.2 rule 20c) — the few lines the update
+// The operator digest (specs/hosting/self-update-and-releases.md §6.2 rule 20c) — the few lines the update
 // dialog shows before « Installer », with every section below it folded away. It is deliberately NOT
 // a fragment category: it is written once, at release time, looking at the whole set of changes.
 // That is the only moment anyone can say what a release means, rather than what each commit did.
@@ -159,7 +159,7 @@ export function checkBodySize(body, max = RELEASE_BODY_MAX_CHARS) {
 
 /**
  * Judge a section's operator digest → `{ ok, errors[], bullets[] }`. Pure, so the release workflow
- * and a unit test apply exactly the same rule (specs/self-update-and-releases.md §6.2 rule 20c).
+ * and a unit test apply exactly the same rule (specs/hosting/self-update-and-releases.md §6.2 rule 20c).
  *
  * The limits are the point, not bureaucracy: a digest allowed to run long would just become the
  * changelog again, which is how the update dialog got unreadable in the first place. Anything that
@@ -199,7 +199,7 @@ export function checkDigest(sectionBody) {
   return { ok: errors.length === 0, errors, bullets };
 }
 
-// specs/plugins-phase-4-registry.md rule 24 — a bullet `- plugin:<id> <text>` belongs to a plugin. The
+// specs/plugins/plugins-phase-4-registry.md rule 24 — a bullet `- plugin:<id> <text>` belongs to a plugin. The
 // release section names the plugin; the plugin's own lines, in French, are in its manifest, written
 // in the pull request that bumped it (rule 28) — the release pull request never edits a manifest.
 const PLUGIN_BULLET = /^-\s+plugin:([a-z][a-z0-9-]*)\s*[—–:-]?\s*([\s\S]*)$/;

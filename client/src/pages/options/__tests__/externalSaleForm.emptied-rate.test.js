@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 11 (loop t2 UI2-8) — the external rate goes to the server only once typed: a rate typed then emptied is sent empty, so the server
+// specs/sas/outside-booking-sas.md rule 11 (loop t2 UI2-8) — the external rate goes to the server only once typed: a rate typed then emptied is sent empty, so the server
 // refuses it with the field named instead of the save keeping the old rate in silence; an untouched rate (null) is not sent.
 import { externalSalePayload } from '../externalSaleForm';
 

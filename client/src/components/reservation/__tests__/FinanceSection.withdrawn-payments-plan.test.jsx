@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 63 (audit R10-M1; Adrien, 2026-10-31) — with an installment plan, the server sends
+// specs/payments/payment-link-lifecycle.md rule 63 (audit R10-M1; Adrien, 2026-10-31) — with an installment plan, the server sends
 // the payments received after a withdrawal on a row of their own: an échéance one with both rule-56 actions, an acompte one
 // with the refund only and a note. The fiche renders what it is sent, nothing computed.
 import { screen, within } from '@testing-library/react';

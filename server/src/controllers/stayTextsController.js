@@ -1,6 +1,6 @@
 /**
  * Stay texts controller — « Textes des mails », the sentences of the guest emails
- * (specs/plugins-phase-p-productisation.md §3.A rules 1–5, §4.3).
+ * (specs/plugins/plugins-phase-p-productisation.md §3.A rules 1–5, §4.3).
  *
  *   GET    /api/stay-texts?propertyId=      the catalogue with the stored wording
  *   PUT    /api/stay-texts/:key             { fr, en, propertyId? } → 200 | 422 { field, message }
@@ -10,7 +10,7 @@
  */
 
 const { CATALOGUE, entryOf } = require('../utils/stayTextCatalogue');
-// Rule 4, and specs/guest-email-texts-made-simple.md rule 11: one validation for every editor.
+// Rule 4, and specs/emails/guest-email-texts-made-simple.md rule 11: one validation for every editor.
 const { tokenError, lengthError } = require('../utils/templateTokens');
 const { isOptionalText, positiveId } = require('../utils/bodyText');
 const stayTextsModel = require('../models/stayTextsModel');

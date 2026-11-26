@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 d (stabilisation loop t4, D4-1, 2026-11-16) — the baseline of an arrival line follows the line's own
+// specs/pricing/pricing-components.md §3 rule 103 d (stabilisation loop t4, D4-1, 2026-11-16) — the baseline of an arrival line follows the line's own
 // discount both ways. Before, `fitArrivalBaseline` only lowered it: a discount reduced or removed at an open arrival left the baseline at the
 // old net, so the arrival complement collected the line whole and the departure billed the given-back part a second time (45 € + 16 € for a
 // 45 € line and a 6 € beer).

@@ -2,7 +2,7 @@
  * The quote of the website for a stay: the engine (`calculateReservationQuote`) on the direct channel,
  * with the property's DEFAULT options merged in. Moved out of the website-booking plugin unchanged so
  * that every reader of « the price the site charges » calls the same code
- * (specs/google-vacation-rentals-feed.md rule 4): the public quote and booking request of
+ * (specs/site/google-vacation-rentals-feed.md rule 4): the public quote and booking request of
  * website-booking, and the Google Vacation Rentals feed. Exposed to plugins as `coreModule('directQuote')`.
  */
 
@@ -17,7 +17,7 @@ function createDirectQuote({
 }) {
   /**
    * The quantity a property DEFAULT takes on the public flow: one portion per guest for a per-person
-   * card option (specs/site-meal-portions.md rule 5), 1 for everything else.
+   * card option (specs/site/site-meal-portions.md rule 5), 1 for everything else.
    */
   function defaultPortionQuantity(input, optionId) {
     const option = optionsModel.listForProperty(Number(input.propertyId))
@@ -34,7 +34,7 @@ function createDirectQuote({
     // itself and must never arrive as a client-chosen line: the engine drops its own line when the id
     // is already selected, so honouring the payload would let a visitor set the quantity — and the
     // price — of a supplement they don't get to choose. Same filter as `devisModel.computeQuote`, so
-    // the live quote and the devis the request creates agree (specs/baby-bed-supplement.md §3.5 rule 18).
+    // the live quote and the devis the request creates agree (specs/options/baby-bed-supplement.md §3.5 rule 18).
     const engineManagedAutoIds = new Set(
       optionsModel.listForProperty(Number(input.propertyId))
         .filter((o) => o.autoOptionType && Number(o.autoEnabled || 0) === 1)
@@ -55,10 +55,10 @@ function createDirectQuote({
     return calculateReservationQuote({
       db,
       propertyId: input.propertyId,
-      // specs/payment-schedule-and-cancellation.md §3.1 — a public quote is a booking happening now:
+      // specs/payments/payment-schedule-and-cancellation.md §3.1 — a public quote is a booking happening now:
       // the solde is clamped to today at the earliest.
       bookingDate: today,
-      // specs/deposit-blocks-the-dates.md rule 19 (D23) — the site's request becomes a devis: it is priced
+      // specs/payments/deposit-blocks-the-dates.md rule 19 (D23) — the site's request becomes a devis: it is priced
       // as that devis, with the validity date its create writes, so the payment mode, the acompte and the
       // deadlines shown are the ones the devis and its link carry.
       kind: 'devis',
@@ -73,7 +73,7 @@ function createDirectQuote({
       children: input.children,
       teens: input.teens,
       babies: input.babies,
-      // specs/baby-bed-supplement.md §3.5 — the site bills the cot like the fiche does. No `bookingId`:
+      // specs/options/baby-bed-supplement.md §3.5 — the site bills the cot like the fiche does. No `bookingId`:
       // a public quote is always a booking that does not exist yet.
       babyBeds: input.babyBeds,
       selectedOptions: merged.selectedOptions,
@@ -81,10 +81,10 @@ function createDirectQuote({
       selectedResources: (input.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
       platform: 'direct',
       // Public/site flow: planning-card options are billed by quantity (unschedulable on the site) —
-      // the operator fixes the slots later (specs/public-planning-options.md). A per-person one counts
-      // portions, capped by what the stay can serve (specs/site-meal-portions.md).
+      // the operator fixes the slots later (specs/site/public-planning-options.md). A per-person one counts
+      // portions, capped by what the stay can serve (specs/site/site-meal-portions.md).
       planningCardAsQuantity: true,
-      // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2) — absent on the first run.
+      // The insurance price a plugin sets (specs/plugins/plugins-phase-3b-neat.md rule 2) — absent on the first run.
       cancellationInsurancePriceOverride: input.cancellationInsurancePriceOverride,
     });
   }

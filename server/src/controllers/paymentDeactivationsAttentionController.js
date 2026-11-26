@@ -1,6 +1,6 @@
 /**
  * The payment links still payable at the provider because their deactivation is owed
- * (specs/payment-link-lifecycle.md rule 67), as the home's attention subject `payment-deactivations` reads them.
+ * (specs/payments/payment-link-lifecycle.md rule 67), as the home's attention subject `payment-deactivations` reads them.
  * Whatever path withdrew the link (orphan, taken dates, amount changed, settled, superseded, lapsed), the
  * marker `remoteCancelPendingAt` is the single source: the poll retries it while the provider is connected,
  * and the link stays listed until the provider has deactivated it.

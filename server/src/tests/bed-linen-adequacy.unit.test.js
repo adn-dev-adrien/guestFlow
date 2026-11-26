@@ -1,5 +1,5 @@
 // Bed-linen adequacy flag for the planning arrival cards.
-// See specs/planning-arrival-alerts.md §3 rule 6.
+// See specs/planning/planning-arrival-alerts.md §3 rule 6.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 12-14 — the console's « Accès du support » block: ask
+// specs/hosting/hosting-h2-account-security.md rules 12-14 — the console's « Accès du support » block: ask
 // with a reason (refused when empty, with the server's words), the pending state, and « Ouvrir
 // l'espace » only while the customer's access is open, opening the signed link in a new tab.
 import React from 'react';

@@ -1,6 +1,6 @@
-// The « i » definitions of the Suivi financier's figures (specs/finance-revpar-year-over-year.md rules
+// The « i » definitions of the Suivi financier's figures (specs/accounting/finance-revpar-year-over-year.md rules
 // 15-17). Each one names its source (D-HC8): every figure of this page reads the stays' amounts — « Encaissé »
-// included (specs/finance-dashboard-redesign.md rule 54, D-HC11); « Sur les encaissements » belongs
+// included (specs/accounting/finance-dashboard-redesign.md rule 54, D-HC11); « Sur les encaissements » belongs
 // to the accounting synthesis.
 
 export const STAYS_SOURCE = 'Sur les montants des séjours';
@@ -17,7 +17,7 @@ export const TILE_DEFINITIONS = {
   channels: `${STAYS_SOURCE} : commissions des plateformes sur les séjours de la période.`,
 };
 
-// specs/mobile-dashboard-exercise-cash.md rule 18 — the « Trésorerie de l'exercice » card.
+// specs/planning/mobile-dashboard-exercise-cash.md rule 18 — the « Trésorerie de l'exercice » card.
 export const CASH_PROJECTION_DEFINITION = `${STAYS_SOURCE} : l'argent reçu jusqu'à aujourd'hui (trait plein), puis l'argent attendu à la date de chaque échéance (pointillés) : acompte, solde, échéances, versement de la plateforme après le départ. Un paiement déjà en retard compte aujourd'hui. Montants nets de commissions.`;
 
 export const HERO_DEFINITIONS = {

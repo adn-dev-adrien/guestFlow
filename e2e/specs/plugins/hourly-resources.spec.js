@@ -1,5 +1,5 @@
 // @ts-check
-// plugins/hourly-resources — specs/plugins-phase-3c-hourly-resources.md rules 18–21 (decision P14). With
+// plugins/hourly-resources — specs/plugins/plugins-phase-3c-hourly-resources.md rules 18–21 (decision P14). With
 // the plugin active, a resource sold by the hour is in the catalogue and Calendrier › Ressources is in the
 // menu. Switched off, both go and its URLs answer 404; switched back on, they come back with the resource's
 // settings.

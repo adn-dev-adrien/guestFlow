@@ -1,4 +1,4 @@
-// Requalifying a retained acompte (specs/payment-schedule-and-cancellation.md §3.6): the avoir that
+// Requalifying a retained acompte (specs/payments/payment-schedule-and-cancellation.md §3.6): the avoir that
 // reverses the séjour revenue and the indemnity that credits the same sum VAT-free.
 
 const test = require('node:test');

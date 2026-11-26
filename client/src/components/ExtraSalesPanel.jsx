@@ -1,12 +1,12 @@
 /**
- * ExtraSalesPanel — what the stay sold, with « Ajouter un produit » and the moment of each unpaid line (specs/pricing-components.md §3 rules 27, 31, 37).
+ * ExtraSalesPanel — what the stay sold, with « Ajouter un produit » and the moment of each unpaid line (specs/pricing/pricing-components.md §3 rules 27, 31, 37).
  *
  * Props: `reservationId` (a saved stay), `articles` (`[{ articleRef, label }]`), `locked` (no sale: a closed stay, or a started stay whose
  * mid-stay window the server closed), `heldReason` (a string while the fiche has unsaved edits: the writes are held, read-only, with this
  * reason — a write re-reads the fiche, which would drop the typed edits), `initialDetail` (the `saleDetail` the fiche already read; when
  * given, the panel does not ask for it again), `onChanged()` (called after every write the server accepted, so the fiche re-reads the new line),
  * `onWriting(busy)` (true while a moment write is on its way, false once it is answered: the fiche holds its form meanwhile —
- * specs/pricing-components.md rule 101 reading loop t16 — and `onChanged()` is called before the false, so no gap opens).
+ * specs/pricing/pricing-components.md rule 101 reading loop t16 — and `onChanged()` is called before the false, so no gap opens).
  * Renders the server's `saleDetail`; every change goes through the server, which answers the new payload.
  */
 import React, { useCallback, useEffect, useState } from 'react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 120 (stabilisation loop t9, D9-2, 2026-11-16) — a lowered paid line's « À rembourser » row is the
+// specs/pricing/pricing-components.md §3 rule 120 (stabilisation loop t9, D9-2, 2026-11-16) — a lowered paid line's « À rembourser » row is the
 // trop-perçu (rule 75, the same money with one face): it closes through a refund on the trop-perçu, which stamps its note part (rule 115),
 // never by hand. PATCH /refund-obligations/:oid on it answers 409 OBLIGATION_REFUND_ONLY and leaves the row open, so the trop-perçu still
 // asks for it and rule 108 still holds once it is refunded. Before, a hand close counted as nothing refunded: the line could be put back to

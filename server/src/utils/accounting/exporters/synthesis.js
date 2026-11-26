@@ -1,5 +1,5 @@
 /**
- * The synthesis exporter (specs/pricing-components.md §3 rule 63), moved from the accounting-export plugin — the accounting synthesis engine (specs/accounting-synthesis.md). Pure: it reads the entries the journal
+ * The synthesis exporter (specs/pricing/pricing-components.md §3 rule 63), moved from the accounting-export plugin — the accounting synthesis engine (specs/accounting/accounting-synthesis.md). Pure: it reads the entries the journal
  * is made of — the very ones the CSV export writes, through `entryVentilation` / `entryToStructured` — and
  * shapes the VAT return, the checks and the collections. Every amount is summed in cents and leaves as
  * euros rounded to the cent; every share is computed here.

@@ -1,8 +1,8 @@
-// specs/guest-email-texts-made-simple.md rules 28–30, 32 — the assistant reopens on the property it
+// specs/emails/guest-email-texts-made-simple.md rules 28–30, 32 — the assistant reopens on the property it
 // created (rule 29) and never offers one to an instance that has some; « Vos emails » asks the deposit,
 // the cleaning and the towels with no answer chosen, sends only what was answered (rule 28), shows no
 // article as chosen until one is (rule 30), and has its own key-box code field (rule 32).
-// specs/hosting-h2-account-security.md rule 27 — step 1 says once that the login is now the company email.
+// specs/hosting/hosting-h2-account-security.md rule 27 — step 1 says once that the login is now the company email.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -52,7 +52,7 @@ const start = async () => {
   await screen.findByText('Étape 1 sur 5');
 };
 
-test('specs/hosting-h2-account-security.md rule 27: the new login is said once, at step 2', async () => {
+test('specs/hosting/hosting-h2-account-security.md rule 27: the new login is said once, at step 2', async () => {
   api.saveOnboardingCompany.mockResolvedValue({ loginEmail: 'contact@cabanes.fr', loginChanged: true });
   await start();
   next();

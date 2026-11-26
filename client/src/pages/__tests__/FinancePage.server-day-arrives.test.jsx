@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 51, reading of 2026-11-03 (audit R20-C3) — a link the device's day refuses
+// specs/accounting/finance-dashboard-redesign.md rule 51, reading of 2026-11-03 (audit R20-C3) — a link the device's day refuses
 // but the server's accepts is loaded as soon as the server's day is known: the refusal lifting re-asks the dashboard
 // (it used to spin on « Chargement du suivi financier… » forever).
 import React from 'react';

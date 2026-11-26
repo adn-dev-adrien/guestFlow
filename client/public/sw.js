@@ -1,4 +1,4 @@
-/* GuestFlow service worker — Web Push only (specs/pwa-push-notifications.md §4.2).
+/* GuestFlow service worker — Web Push only (specs/guest-app/pwa-push-notifications.md §4.2).
  *
  * Deliberately has NO `fetch` handler: it never intercepts requests, so it cannot change how the app
  * loads or behaves. It only shows push notifications and handles clicks. Keeping it fetch-free is what

@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 18 `wifi`, reading of 2026-11-13 — the join QR is scanned by another phone: a tap on the
+// specs/guest-app/guest-app.md rule 18 `wifi`, reading of 2026-11-13 — the join QR is scanned by another phone: a tap on the
 // ticket's QR opens it full screen with the network's name, and « Fermer » brings the ticket back.
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

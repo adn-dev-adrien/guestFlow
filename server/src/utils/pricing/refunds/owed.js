@@ -1,5 +1,5 @@
 /**
- * REFUNDS / owed — the money that must LEAVE and has not yet (specs/pricing-components.md §3 rules 72 and 75, owner O-2, O-10).
+ * REFUNDS / owed — the money that must LEAVE and has not yet (specs/pricing/pricing-components.md §3 rules 72 and 75, owner O-2, O-10).
  *
  * Three questions, one answer each, in cents. The callers write what they get into `refund_obligations`; nothing here reads a
  * database, a clock or a plugin.

@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 17 (audit R22-C6) — the cots left follow the dates: asked when they move,
+// specs/tech/reservations-backend-mvc.md rule 17 (audit R22-C6) — the cots left follow the dates: asked when they move,
 // waited for on a range the server would refuse, the latest answer only, and a move never rewrites the cots held.
 import React from 'react';
 import { vi } from 'vitest';

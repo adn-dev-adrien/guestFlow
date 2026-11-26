@@ -1,5 +1,5 @@
 /**
- * A new customer (specs/control-plane-plans-and-access.md rules 7 and 21): identity, billing identity
+ * A new customer (specs/hosting/control-plane-plans-and-access.md rules 7 and 21): identity, billing identity
  * (the address Qonto needs to invoice), subscription. The server checks the form as it is typed and
  * computes the end date and the price; saving opens the customer's page on its creation steps.
  */

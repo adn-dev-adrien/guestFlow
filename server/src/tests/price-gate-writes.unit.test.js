@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 81 (decision D9) — the refund WRITE paths of the price gate. The cases of
+// specs/pricing/pricing-components.md §3 rule 81 (decision D9) — the refund WRITE paths of the price gate. The cases of
 // `scripts/price-gate/writeReplay.js` (refund create and its refusals, deletion, the cancellation's avoir and nettings,
 // un-tick with a refund standing, the D25 pool, an end-of-stay refund, a refund from the trop-perçu) are played through
 // the real controllers on an empty database with the clock frozen on the capture day, and compared, exactly, with what

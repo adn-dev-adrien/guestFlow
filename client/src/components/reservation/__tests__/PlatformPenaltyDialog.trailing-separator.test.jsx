@@ -1,4 +1,4 @@
-// Loop t25 verifier (specs/reconciliation-assisted-matching.md rule 24; plugins-phase-1-sdk rule 54 reading of 2026-11-19) — an amount
+// Loop t25 verifier (specs/accounting/reconciliation-assisted-matching.md rule 24; plugins-phase-1-sdk rule 54 reading of 2026-11-19) — an amount
 // being typed with its decimal separator last (« 30, ») is that whole amount: the preview is asked for it and its figures stay, with no
 // « Montant invalide » and no « — » for that keystroke. Each row waits for the line of its own amount, never a node of the older answer
 // (loop t26 A26-1).

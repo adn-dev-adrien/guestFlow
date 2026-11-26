@@ -211,5 +211,5 @@ Context the coder must know:
 35. L23: reword rule 37, the changelog fragment and the hourly-resources 1.6.0 manifest line (day value applies only to the app's evening charge), and restore §4.1 of `resource-supplements-total-server-side.md`. Add a test pinning 19-21 h at 35 €.
 36. L24: add a test for a breakfast order at 08:30 followed by a no-op fiche save. If the time moves to 09:00, keep the stored delivery time in the save path.
 37. L25: add one test per surviving mutant X6/A8, A4, B7, B8, B26, S8, S19, S13, S10, S20.
-38. Specs and changelog: update `specs/guest-app.md` (rules 66, 68, 79, 85, 87, 88, 89, 98, 101 and others touched), the hourly spec and the `changelog.d/` fragments in the same pass. Re-run the server, client, guest, E2E, `check-spec-coverage` and `check-plugin-versions` gates on the merged tree.
+38. Specs and changelog: update `specs/guest-app/guest-app.md` (rules 66, 68, 79, 85, 87, 88, 89, 98, 101 and others touched), the hourly spec and the `changelog.d/` fragments in the same pass. Re-run the server, client, guest, E2E, `check-spec-coverage` and `check-plugin-versions` gates on the merged tree.
 VERDICT: NOT READY

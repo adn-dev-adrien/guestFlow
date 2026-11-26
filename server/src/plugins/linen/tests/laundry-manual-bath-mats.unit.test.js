@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/laundry-bath-mat.md rule 13 — the manual line of a laundry trip counts bath mats too: the
+// specs/linen/laundry-bath-mat.md rule 13 — the manual line of a laundry trip counts bath mats too: the
 // column is migrated onto existing installs (rows read 0), stored signed, summed over a window like the
 // other types (mega review #5, M4).
 const { MIGRATIONS } = require('../migrations');

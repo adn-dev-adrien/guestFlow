@@ -1,4 +1,4 @@
-// The part of a fiche the removal matrix compares to the cent (specs/plugin-removal-resilience.md rule 12).
+// The part of a fiche the removal matrix compares to the cent (specs/plugins/plugin-removal-resilience.md rule 12).
 const FIELDS = ['totalPrice', 'finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount', 'clientGrossAmount',
   'touristTaxRate', 'touristTaxTotal', 'remainingDue', 'platformGrossAmount', 'platformPayoutAmount', 'platformCommissionAmount'];
 const LINE_FIELDS = ['optionId', 'resourceId', 'quantity', 'unitPrice', 'billedUnits', 'priceType', 'totalPrice', 'offered', 'sessions'];

@@ -1,5 +1,5 @@
 /**
- * Which plugin version an instance may install or update to, and why not (specs/plugins-phase-4-registry.md
+ * Which plugin version an instance may install or update to, and why not (specs/plugins/plugins-phase-4-registry.md
  * rules 10, 12, 14, 20, 22). Pure: the controller hands it the sources and the installed state.
  *
  *   sources.registry(id) → [{ version, sha256, size, manifest }]   the verified index (rule 6)
@@ -96,7 +96,7 @@ function bestRefusal(id, sources, env) {
 
 /**
  * The plan of `manifest`'s requirements (rules 9, 12 of phase 4; rules 5, 9, 15 of
- * specs/plugin-dependencies.md): what must be installed or switched on first, in order, or the
+ * specs/plugins/plugin-dependencies.md): what must be installed or switched on first, in order, or the
  * refusal that stops it. A step is `{ id, name, version, op: 'install' | 'activate' }` (`source` too
  * for an install). `installed` maps an installed id to its version, `inactive` lists the installed ones
  * that are off, `installedManifest(id)` gives an installed plugin's own manifest, `nameOf(id)` and

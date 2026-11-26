@@ -1,5 +1,5 @@
 // @ts-check
-// specs/reservation-fiche-concurrency.md rules 1-5 — a fiche saved after a background write is refused, not
+// specs/reservations/reservation-fiche-concurrency.md rules 1-5 — a fiche saved after a background write is refused, not
 // allowed to revert it. « Garder ma saisie » leaves the draft on screen; « Recharger » shows the write.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';

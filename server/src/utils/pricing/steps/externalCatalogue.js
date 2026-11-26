@@ -1,5 +1,5 @@
 /**
- * STEP loadCatalogue — the catalogue side of an external sale (specs/pricing-components.md §3 rules 52, 53).
+ * STEP loadCatalogue — the catalogue side of an external sale (specs/pricing/pricing-components.md §3 rules 52, 53).
  *
  * The caller (`utils/standaloneSale.js`, with `models/standaloneSalesModel.js`) hands in what it read: the articles to price as instances
  * of rule 47 (`requests[i] = { article, quantity, offered?, ... }`), the document's frozen lines and allocations when the sale already

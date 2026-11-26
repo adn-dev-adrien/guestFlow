@@ -1,5 +1,5 @@
 /**
- * Shared fixtures of the guest email sequence suites (specs/guest-email-sequence.md §7). Not a test
+ * Shared fixtures of the guest email sequence suites (specs/emails/guest-email-sequence.md §7). Not a test
  * file: each suite imports what it needs, so no suite ever re-runs another.
  */
 
@@ -59,7 +59,7 @@ function settingsStub({ startDate = '2026-01-01', ...extra } = {}) {
 
 /**
  * Puts the six sequence templates in one mode. They ship « manual »; a template's own mode is what
- * lets it leave by itself (specs/settings-rationalization.md rule 17b).
+ * lets it leave by itself (specs/settings/settings-rationalization.md rule 17b).
  */
 function setSequenceMode(db, mode) {
   const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 23, owner reading 2026-11-16 (S-8) — on an already over-collected stay, offering or removing an
+// specs/pricing/pricing-components.md §3 rule 23, owner reading 2026-11-16 (S-8) — on an already over-collected stay, offering or removing an
 // UNPAID line is allowed and grows the trop-perçu by exactly that line; a PAID line keeps its 409 OVERPAID.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

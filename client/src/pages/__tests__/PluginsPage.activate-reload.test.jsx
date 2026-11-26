@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 46 — an activation that brought a dependant up answers `reload`:
+// specs/plugins/plugins-phase-4-registry.md rule 46 — an activation that brought a dependant up answers `reload`:
 // the page reloads so the revived plugin's bundle is imported.
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';

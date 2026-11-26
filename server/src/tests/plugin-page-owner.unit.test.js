@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 40 — the address of a page whose plugin is not active
+// specs/plugins/plugins-phase-p-productisation.md rule 40 — the address of a page whose plugin is not active
 // is answered with that plugin's name, so the client says « module inactif » instead of « Page
 // introuvable »; the server's list follows every plugin's `contributes.routes`.
 
@@ -47,7 +47,7 @@ test('rule 40: the answer carries the plugin name, its state and the sentence to
   assert.deepEqual(one.plugins.map((p) => [p.id, p.state]), [['accounting-export', 'available']]);
   assert.equal(one.message, 'Cette page dépend du plugin «\u00a0Export comptable\u00a0», qui n’est pas activé.');
   const many = ask(ctrl, '/settings/integrations');
-  // Nine since google-vacation-rentals (specs/google-vacation-rentals-feed.md §4.2).
+  // Nine since google-vacation-rentals (specs/site/google-vacation-rentals-feed.md §4.2).
   assert.equal(many.plugins.length, PLUGIN_PAGES['/settings/integrations'].length);
   assert.equal(many.message, 'Cette page dépend de plugins qui ne sont pas activés.');
   assert.deepEqual(ask(ctrl, '/nulle-part'), { plugins: [], message: null });
@@ -90,7 +90,7 @@ test('rule 42: Intégrations is named while none of its nine plugins is active, 
   db.close();
 });
 
-// specs/plugin-removal-resilience.md rule 1 — a page whose plugin this release never shipped, and that no
+// specs/plugins/plugin-removal-resilience.md rule 1 — a page whose plugin this release never shipped, and that no
 // row remembers, still names it properly.
 test('rule 1: the core display names follow the manifests, and a page names a plugin nobody installed', () => {
   const { PLUGIN_DISPLAY_NAMES, findPlugin } = require('../constants/plugins');

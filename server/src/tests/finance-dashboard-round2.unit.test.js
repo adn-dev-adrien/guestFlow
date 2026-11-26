@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md §3 rule 57 (D-HC16, V5-11, 2026-11-06) — a repeated `fiscalYear` names no
+// specs/accounting/finance-dashboard-redesign.md §3 rule 57 (D-HC16, V5-11, 2026-11-06) — a repeated `fiscalYear` names no
 // exercise: the dashboard, its detail tables and the stay profile (one shared context) refuse it with
 // « Exercice inconnu. »; a single unusable value still reads the current exercise; and the exercise served is
 // always among the selector's options.

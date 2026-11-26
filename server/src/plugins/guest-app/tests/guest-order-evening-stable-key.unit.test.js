@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 82 and specs/pricing-components.md rules 94, 102 (stabilisation loop t2, N-6) — the evening supplement an order bills names its bath by a
+// specs/guest-app/guest-app.md rule 82 and specs/pricing/pricing-components.md rules 94, 102 (stabilisation loop t2, N-6) — the evening supplement an order bills names its bath by a
 // stable key (`fulfilmentRef = evening:resource:<id>`), and the arrival recompute reads what the orders already billed by that key: a second supplement of
 // the stay is written « … (2) » (rule 94), and the bare label read only the first.
 const fx = require('./guestOrderFixtures');

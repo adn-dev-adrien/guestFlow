@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 53 — the client and property deletes (forced or not)
+// specs/payments/payment-schedule-and-cancellation.md rule 53 — the client and property deletes (forced or not)
 // obey the refusals of the per-row routes: cancelled stays and CGV acceptance proofs are never wiped.
 const test = require('node:test');
 const assert = require('node:assert/strict');

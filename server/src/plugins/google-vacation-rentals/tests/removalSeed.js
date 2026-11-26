@@ -1,9 +1,9 @@
-// specs/plugin-removal-resilience.md rule 11 — what the Google Vacation Rentals feed remembers having sent.
+// specs/plugins/plugin-removal-resilience.md rule 11 — what the Google Vacation Rentals feed remembers having sent.
 module.exports = {
   seed(db, { stays }) {
     const propertyId = stays.direct.propertyId;
     // A partner id and an enabled property: the feed has something to send, so a catch-up after a
-    // reactivation leaves a trace in the push log (specs/plugin-removal-resilience.md rule 17).
+    // reactivation leaves a trace in the push log (specs/plugins/plugin-removal-resilience.md rule 17).
     const setting = db.prepare("INSERT OR REPLACE INTO plugin_settings (plugin_id, key, value) VALUES ('google-vacation-rentals', ?, ?)");
     setting.run('partnerId', 'removal_partner');
     setting.run('properties', JSON.stringify({ [propertyId]: { enabled: true } }));

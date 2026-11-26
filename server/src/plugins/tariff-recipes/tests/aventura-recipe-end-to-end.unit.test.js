@@ -9,7 +9,7 @@ const { buildYearPlan, materializeClosures, missingEventYears } = require('../se
 const { createTariffRecipeModel } = require('../model');
 const { calculateReservationQuote } = require('../../../utils/pricing').__test;
 
-// specs/tariff-recipes/plan.md step 43 — THE SHIPPED RECIPE FILE, end to end: the recipe is data,
+// specs/pricing/tariff-recipes.md (former plan step 43) — THE SHIPPED RECIPE FILE, end to end: the recipe is data,
 // and data can be wrong. Load server/src/recipes/aventura-lodge-2026.json, derive 2026 (spec §3.7
 // rule 44 to the day), apply it to a property, and quote the six D-cases of spec §3.10 rule 55.
 

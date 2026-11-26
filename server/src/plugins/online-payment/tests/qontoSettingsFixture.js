@@ -1,4 +1,4 @@
-// Shared fixture for the Qonto settings suites — specs/qonto-settings-in-app.md.
+// Shared fixture for the Qonto settings suites — specs/settings/qonto-settings-in-app.md.
 //
 // A sibling module rather than a test file, so a new subject never has to import (and therefore
 // re-run) another suite (CLAUDE.md §9 "one test file per subject").
@@ -9,7 +9,7 @@ const { buildModel: buildPluginSettingsModel } = require('../../../models/plugin
 const { createSettingsStore, DECLARED } = require('../settingsStore');
 
 // The instance keeps its public URL and public site origin in app_settings; the Qonto values live in
-// the plugin's settings (specs/plugins-phase-3a-online-payment.md rule 13).
+// the plugin's settings (specs/plugins/plugins-phase-3a-online-payment.md rule 13).
 const DDL = `
   CREATE TABLE app_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),

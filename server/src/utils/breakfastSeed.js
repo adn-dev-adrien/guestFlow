@@ -1,5 +1,5 @@
 /**
- * Default "Petit déjeuner" option seeder (specs/breakfast-option-and-planning-card.md §3 rule 1).
+ * Default "Petit déjeuner" option seeder (specs/options/breakfast-option-and-planning-card.md §3 rule 1).
  *
  * Idempotent + non-destructive boot-time seed, mirror of `bedLinenSeed.js` and
  * `bathroomLinenSeed.js`. Runs on every server start; only inserts when both invariants
@@ -32,7 +32,7 @@ const SEED_DEFINITION = Object.freeze({
   autoOptionType: 'breakfast',
 });
 
-// English title surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+// English title surfaced in the EN devis PDF (specs/devis/devis-english-language.md §3 rule 6).
 // No `descriptionEn`: the option description isn't printed in the devis PDF.
 const SEED_DEFINITION_EN = Object.freeze({
   title: 'Breakfast',
@@ -72,7 +72,7 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
     }
 
     // 2026-06-17 — the breakfast option gains the generic planning-card mechanism (« une fois par
-    // jour » — specs/breakfast-option-planning-card.md): per-reservation day×hour selection drives
+    // jour » — specs/options/breakfast-option-planning-card.md): per-reservation day×hour selection drives
     // its (dedicated) planning card. Set the flags on the typed row(s) (idempotent); initialise the
     // single slot from the option's breakfast hour but never clobber an existing one. Called after the
     // promotion AND after a fresh insert so every breakfast row carries the flags from boot one.

@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 66 — the purchase block draws the card the buyer will receive, front and back, and nothing of the back is written by the page:
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 66 — the purchase block draws the card the buyer will receive, front and back, and nothing of the back is written by the page:
 // GuestFlow sends the dimensions, the words, the lines, the validity and the QR code, the page adds what the buyer typed. The grey ticket under « Payer » is gone. The card
 // turns by itself on a wide block when the buyer types, not on a narrow one (a link turns it there); « Agrandir » opens a dialog that Escape closes; the page after payment
 // shows the same card, back first, with the real code and no « Aperçu » pill.

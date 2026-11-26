@@ -1,5 +1,5 @@
 /**
- * What the emails controller knows of the stay's own payment links (specs/payment-link-lifecycle.md
+ * What the emails controller knows of the stay's own payment links (specs/payments/payment-link-lifecycle.md
  * rules 26, 35): whether a link can be minted, and the link a request or the acompte reminder carries,
  * resolved at send time like the fiche's « Envoyer la demande » (reused with 24 h left, else minted).
  * The installment counterpart is utils/installmentRequests.js. Every dependency is injectable.

@@ -1,5 +1,5 @@
 /**
- * The one way the drivers run a host command (specs/hosting-h1-fleet-runtime.md H-D6). Injected, so
+ * The one way the drivers run a host command (specs/hosting/hosting-h1-fleet-runtime.md H-D6). Injected, so
  * the tests assert the exact command lines without running systemctl, caddy, litestream or rclone.
  *
  *   exec(file, args, { env, timeout }) → Promise<{ stdout, stderr }>

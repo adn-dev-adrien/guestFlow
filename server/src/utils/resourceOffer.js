@@ -1,6 +1,6 @@
 /**
  * A resource sold by the hour is offered only while the `hourly-resources` plugin is live
- * (specs/plugins-phase-3c-hourly-resources.md rules 18–20 — decision P14, as P13 for the insurance).
+ * (specs/plugins/plugins-phase-3c-hourly-resources.md rules 18–20 — decision P14, as P13 for the insurance).
  * Without it:
  *   - the resource lists hide the `per_hour` resources;
  *   - nothing new gets one: a payload that adds one is refused;

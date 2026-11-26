@@ -20,11 +20,11 @@ function renderStay(overrides) {
   return ctx;
 }
 
-// specs/email-client-language-and-fiche-polish.md rule 3 — no e-mail language selector on the fiche.
+// specs/emails/email-client-language-and-fiche-polish.md rule 3 — no e-mail language selector on the fiche.
 test('renders property select, both date fields, the time selects and the mini-calendar host', () => {
   renderStay();
   // Three MUI Selects in DOM order: Logement, Heure d'arrivée, Heure de départ. (The email-language
-  // selector moved to the client fiche — specs/email-client-language-and-fiche-polish.md.)
+  // selector moved to the client fiche — specs/emails/email-client-language-and-fiche-polish.md.)
   expect(screen.getAllByRole('combobox')).toHaveLength(3);
   expect(screen.queryByText('Langue des emails')).toBeNull();
   expect(screen.getAllByText('Logement').length).toBeGreaterThan(0);

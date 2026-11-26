@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 54 and specs/plugins-phase-1-sdk.md rule 54 (readings of 2026-11-19, loop t25 verifier) — while the
+// specs/sas/outside-booking-sas.md rule 54 and specs/plugins/plugins-phase-1-sdk.md rule 54 (readings of 2026-11-19, loop t25 verifier) — while the
 // « Facture » answer for the payment being typed is on its way (a new draft, a slow answer), no answer is current for it: the visit arrival
 // and the hourly booking draw the block pending — « Créer la facture dans Qonto » disabled, ticked as the operator left it, the address
 // kept and disabled — instead of the older payment's answer, ticked and clickable. The answer then fills it: accepted, the checkbox is live

@@ -1,4 +1,4 @@
-// specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 (2026-11-09, audit R32-C-L1) — the devis fiche's
+// specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 (2026-11-09, audit R32-C-L1) — the devis fiche's
 // « Valide jusqu'au » chip follows the validity the server resolves: the live quote's while the edit is unsaved, the
 // PUT's once saved. It used to keep the date read at load until a reload, also « Périmé · prolonger » on a quote the
 // save had just re-issued.

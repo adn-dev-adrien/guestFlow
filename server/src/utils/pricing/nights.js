@@ -1,5 +1,5 @@
 /**
- * NIGHTS — the price of the nights of a stay (specs/pricing-components.md §3 rules 1, 2, 6, 7).
+ * NIGHTS — the price of the nights of a stay (specs/pricing/pricing-components.md §3 rules 1, 2, 6, 7).
  *
  * Contract: from the property's pricing rules (seasons, date ranges, weekly model, degressive tiers, min / max nights
  * per range) and a stay's dates, `calculateBaseStayPrice(rules, startDate, endDate)` returns the nightly breakdown,
@@ -79,14 +79,14 @@ function normalizeDateRanges(dateRanges, startDate, endDate) {
         endDate: range?.endDate || '',
       };
       // A per-range minimum-nights override travels inside the dateRanges JSON
-      // (specs/pricing-min-nights-per-range.md). Keep it only when it's a real integer ≥ 1; a blank /
+      // (specs/pricing/pricing-min-nights-per-range.md). Keep it only when it's a real integer ≥ 1; a blank /
       // absent value means "inherit the season-level minNights", so we drop the key entirely.
       const minNights = Math.floor(Number(range?.minNights));
       if (Number.isFinite(minNights) && minNights >= 1) normalized.minNights = minNights;
       const maxNights = Math.floor(Number(range?.maxNights));
       if (Number.isFinite(maxNights) && maxNights >= 1) normalized.maxNights = maxNights;
       // Per-range changeover overrides ride the same JSON with the same "blank = inherit the season"
-      // rule (specs/tariff-recipes/spec.md §3.4). JS weekday convention: 0 = dimanche … 6 = samedi.
+      // rule (specs/pricing/tariff-recipes.md §3.4). JS weekday convention: 0 = dimanche … 6 = samedi.
       const arrival = Math.floor(Number(range?.changeoverArrival));
       if (Number.isFinite(arrival) && arrival >= 0 && arrival <= 6 && range?.changeoverArrival !== '' && range?.changeoverArrival != null) {
         normalized.changeoverArrival = arrival;
@@ -187,7 +187,7 @@ function normalizeProgressiveTiers(baseNightPrice, progressiveTiers, maxNights =
       .filter((tier) => Number(tier?.nightNumber) > 1)
       .map((tier) => [Number(tier.nightNumber), tier])
   );
-  // specs/tariff-recipes/spec.md §3.6 rule 39 — beyond the LAST provided tier the last resolved price
+  // specs/pricing/tariff-recipes.md §3.6 rule 39 — beyond the LAST provided tier the last resolved price
   // carries forward, replacing the legacy weekly-model fallback that priced long stays off a formula
   // unrelated to the configured curve. No provided tier at all → the legacy defaults stay untouched
   // (an unconfigured season behaves exactly as before). Also what makes a single night-2 tier enough
@@ -281,7 +281,7 @@ function getRuleNightBaseForDate(rules, dateStr) {
   };
 }
 
-// specs/tariff-recipes/spec.md §3 rule 57 — the nights a reservation was sold at are kept only while
+// specs/pricing/tariff-recipes.md §3 rule 57 — the nights a reservation was sold at are kept only while
 // its ARRIVAL date is unchanged. A progressive tariff prices a night by its rank in the stay, so a
 // locked night moved to another rank (arrival one day earlier or later) carries a price that no
 // longer means anything: the whole stay is then repriced at the current tariff. Extending or
@@ -339,7 +339,7 @@ function matchNightRule(rules, dateStr) {
 }
 
 // A per-range override wins over the season default; both default to 1
-// (specs/pricing-min-nights-per-range.md rule 2).
+// (specs/pricing/pricing-min-nights-per-range.md rule 2).
 function effectiveMinNightsOf(rule, range) {
   return Number(range?.minNights) >= 1
     ? Number(range.minNights)
@@ -347,7 +347,7 @@ function effectiveMinNightsOf(rule, range) {
 }
 
 // The minimum a single night imposes on any stay that touches it, or null when no rule covers the
-// date (the public calendar does not offer an unpriced night — specs/booking-drawer-friction.md rule 10).
+// date (the public calendar does not offer an unpriced night — specs/site/booking-drawer-friction.md rule 10).
 function effectiveMinNightsForDate(rules, dateStr) {
   const { matchedRule, matchedRange } = matchNightRule(rules, dateStr);
   return matchedRule ? effectiveMinNightsOf(matchedRule, matchedRange) : null;
@@ -372,11 +372,11 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
 
   let totalPrice = 0;
   const nightlyBreakdown = [];
-  // specs/tariff-recipes/spec.md §3 rule 59 — the nights no season covers. They keep the historical
+  // specs/pricing/tariff-recipes.md §3 rule 59 — the nights no season covers. They keep the historical
   // 100 € fallback price, but the quote names them so no flow can sell one without knowing.
   const unpricedNights = [];
   // Minimum-nights is resolved PER NIGHT: a night takes its covering range's own `minNights` when set,
-  // otherwise the season-level `minNights` (specs/pricing-min-nights-per-range.md). We keep the max over
+  // otherwise the season-level `minNights` (specs/pricing/pricing-min-nights-per-range.md). We keep the max over
   // the nights the stay actually touches, plus a per-label view so the message can name the season(s).
   const perNightMinNights = [];
   const minNightsByLabel = new Map();
@@ -394,7 +394,7 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
       const effectiveMin = effectiveMinNightsOf(matchedRule, matchedRange);
       perNightMinNights.push(effectiveMin);
       minNightsByLabel.set(label, Math.max(minNightsByLabel.get(label) || 1, effectiveMin));
-      // Maximum stay (specs/tariff-recipes/spec.md §3.4 rule 20bis), the mirror of the minimum:
+      // Maximum stay (specs/pricing/tariff-recipes.md §3.4 rule 20bis), the mirror of the minimum:
       // per-range override ⇒ season default ⇒ unlimited. NULL/0 = no ceiling, which is what every
       // existing property carries.
       const rangeMax = Math.floor(Number(matchedRange?.maxNights));
@@ -460,7 +460,7 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
 }
 
 /**
- * specs/tariff-recipes/spec.md §3 rule 59 — whether a quote prices a night no season covers. The
+ * specs/pricing/tariff-recipes.md §3 rule 59 — whether a quote prices a night no season covers. The
  * public quote and booking paths must refuse such a stay (the 100 € fallback is nobody's price); the
  * fiche warns and lets the operator decide.
  */
@@ -468,7 +468,7 @@ function hasUnpricedNights(quote) {
   return Array.isArray(quote?.unpricedNights) && quote.unpricedNights.length > 0;
 }
 
-// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('nights', scope).
+// specs/pricing/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('nights', scope).
 const settingsSchema = [
   {
     key: 'tariff', type: 'object', default: { rules: [] }, scope: 'property',

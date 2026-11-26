@@ -12,7 +12,7 @@ This file is loaded into Claude's context for every session in this repo.
 - **Frontend:** React 18, Material UI 5, Recharts, React Router 6
 - **Backend:** Node.js, Express 4
 - **Database:** SQLite (better-sqlite3), auto-migrated on startup
-- **Deploy:** versioned releases published by GitHub Actions on a tag; the running app installs them itself on the operator's click (`specs/self-update-and-releases.md`)
+- **Deploy:** versioned releases published by GitHub Actions on a tag; the running app installs them itself on the operator's click (`specs/hosting/self-update-and-releases.md`)
 
 See `README.md` for setup, dev, and deployment details.
 
@@ -34,7 +34,7 @@ The default loop is **spec-driven, plan-validated, autonomously implemented**.
 ### 3.1 Standard loop
 
 1. **Discuss the need** in chat (French).
-2. **Write the spec** in `/specs/<feature-name>.md` using `/specs/TEMPLATE.md`.
+2. **Write the spec** in `/specs/<domain>/<feature-name>.md` using `/specs/TEMPLATE.md`, and add its line to `/specs/<domain>/INDEX.md`.
 3. **User validates the spec.**
 4. **Produce an implementation plan** (via `ExitPlanMode`) covering files to touch, DB impact, test plan, UI changes.
 5. **User validates the plan.**
@@ -71,7 +71,9 @@ Plain French prose is only for free-form clarifications that genuinely have no d
 
 ## 4. Specifications (`/specs/`)
 
-- **Location:** `/specs/<short-kebab-name>.md`, versioned with the code.
+- **Location:** `/specs/<domain>/<short-kebab-name>.md`, versioned with the code. The name is unique across `specs/` (it is the spec's identity for the coverage script). Only Markdown lives in `specs/`: mock-ups and HTML summaries go to `docs/specs/`, studies and one-off reports to `docs/rapports/`. Method: `specs/README.md`.
+- **Finding a spec — read the index, not the folder:** open `specs/INDEX.md` (domains, with keywords), then the domain's `INDEX.md` (one line per spec: what it governs, key code paths), then only the spec you need. Never grep the whole of `specs/` or open specs one after another to find the right one.
+- **Index maintenance:** every commit that creates, deletes, renames or changes what a spec governs updates its line in the domain `INDEX.md` in the same commit. A spec replaced by a later one is deleted (git keeps it) and its citations redirected; one only amended is updated in place. After moving a spec or merging master into an old branch, `node scripts/rewrite-spec-paths.mjs <files>` fixes the stale paths in the files named (the `spec rules` job refuses a citation to a path that does not exist).
 - **Template:** every spec uses `/specs/TEMPLATE.md`. Mandatory sections: Context, Goal, Functional Rules, **Architecture (Server / Client / API)**, Data Model, UI / UX, Test Plan, Out of Scope, Open Questions.
 - **Architecture section is non-negotiable:** every spec must list explicitly which server layers (routes/controllers/models/middleware/utils/tasks/database) and which client layers (pages/components/hooks/services/utils/constants) are touched or created, with a one-line responsibility each. A reader should be able to picture the full code map before reading any code.
 - **Status field:** `Draft` → `Approved` → `Implemented`. Keep it up to date.
@@ -94,7 +96,7 @@ If a feedback proves the spec was *wrong* (vs. *incomplete*), the spec fix is ev
 
 **Pre-commit checklist — must run for EVERY user-requested change, no matter how small:**
 
-1. Is there a `/specs/<name>.md` that covers this feature? → If yes, the spec MUST be updated in the same commit (or a follow-up commit on the same PR before push). If no, write one even retroactively.
+1. Is there a `/specs/<domain>/<name>.md` that covers this feature (look it up in `specs/INDEX.md`)? → If yes, the spec MUST be updated in the same commit (or a follow-up commit on the same PR before push). If no, write one even retroactively.
 2. Did this change add / move / remove a route, an endpoint, a page, a sidebar item, a column, a field, a button, a behavior? → Add it to the Functional rules, Architecture, API contract, or UI / UX section as appropriate.
 3. Did this change resolve an Open Question? → Move it from §9 to a "Resolved" answer with the date + the actual choice.
 4. Did the test count change? → Update the Test plan counts (and the Implementation progress §10).
@@ -163,6 +165,7 @@ Full detail: [docs/agent/git-squash-merge-check.md](docs/agent/git-squash-merge-
 - Release notes are mandatory; the French `### Summary` digest (≤ 6 lines × 160 chars) is the one exception to §2.
 - **Publishing is not deploying**: never trigger an install, never SSH into production to finish a release.
 - **Never add `runs-on: self-hosted`** (security regression). The only allowed force-push is re-pointing a release **tag**.
+- **The repository is public, the code is not free**: public for now because it keeps the CI simple, under a proprietary licence (`LICENSE`: reading only, no use, copy or distribution without written permission); going private is still planned. Never add an open-source licence header to a file, except the GPL WordPress plugins under `integrations/wordpress/`.
 
 Full detail: [docs/agent/releases.md](docs/agent/releases.md).
 
@@ -248,7 +251,7 @@ styles/         Theme overrides
 reference of GuestFlow: tokens, named rules, interaction and motion, the « Before the PR » checklist.
 It replaces the `apple-design` and `impeccable` skills on this repository — do not load them; run
 `DESIGN.md`'s checklist instead of `/impeccable audit` + `polish`. Token source of truth stays
-`client/src/theme.js`; a change there or to `specs/design-system-reference.md` updates `DESIGN.md`
+`client/src/theme.js`; a change there or to `specs/design-system/design-system-reference.md` updates `DESIGN.md`
 in the same PR.
 
 ### General

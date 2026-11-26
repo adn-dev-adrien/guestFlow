@@ -1,6 +1,6 @@
 /**
  * SETTLEMENT — how the amounts the stay asks for are filed by the moment they are collected, and what money already in
- * says about them (specs/pricing-components.md §3 rules 18-23, 29, 42, 48).
+ * says about them (specs/pricing/pricing-components.md §3 rules 18-23, 29, 42, 48).
  *
  * Contract:
  * - `readInComplement({ finalOptionLines, resourceLines, extraGuestComplementSurcharge, midStayForced })` →
@@ -22,11 +22,11 @@ const { ADDED_GUESTS_TAX_LABEL } = require('../platformPaidGuests');
 const { roundMoney } = require('./money');
 const { extraLineKey, parseNotes, settledByKey, parseDetail } = require('./storedLines');
 
-// specs/direct-installments.md rule 58 — the arrival complement's line for what a closed installment plan does not cover.
+// specs/payments/direct-installments.md rule 58 — the arrival complement's line for what a closed installment plan does not cover.
 const INSTALLMENT_REST_LABEL = 'Reste de l’échéancier';
 
 /**
- * Prestations vendues EN COURS DE SÉJOUR — specs/mid-stay-extras-to-end-of-stay-complement.md.
+ * Prestations vendues EN COURS DE SÉJOUR — specs/sas/mid-stay-extras-to-end-of-stay-complement.md.
  *
  * Every bucket of a reservation freezes once it is paid (deposit/balance at pricing.js, arrival
  * complement at `complementPaid`). An extra sold while the guest is already in the property therefore
@@ -46,11 +46,11 @@ const INSTALLMENT_REST_LABEL = 'Reste de l’échéancier';
 const { roundMoneyOrZero: round2 } = require('./money');
 
 // Tag carried by the end-of-stay detail lines this module owns. The departure SAS re-sends every
-// `source`-tagged line verbatim (specs/sas-bath-linen-upsell.md §3.3), so tagging is what makes a
+// `source`-tagged line verbatim (specs/linen/sas-bath-linen-upsell.md §3.3), so tagging is what makes a
 // mid-stay line survive a check-out commit.
 const MID_STAY_SOURCE = 'midStayExtra';
 
-// specs/mid-stay-extras-to-end-of-stay-complement.md rule 20 — what the stay gained after its arrival
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20 — what the stay gained after its arrival
 // complement was collected, billed at check-out on a line of its own. It was routed to the arrival
 // complement, so once frozen it counts as « forced » (out of the acompte/solde split), like the
 // complement it could not join.
@@ -137,7 +137,7 @@ function parseBaseline(raw) {
  * @param {object|string|null} baselineRaw `arrivalExtrasBaseline` (JSON string or object). null/absent
  *        → the stay has not started yet: nothing is mid-stay, the split is a no-op.
  * @param {Array|string|null} notesRaw `midStaySettledNotes` — what was already collected during the
- *        stay (specs/mid-stay-notes.md §3.3 rule 9). Deducted from the REMAINDER only: the whole
+ *        stay (specs/sas/mid-stay-notes.md §3.3 rule 9). Deducted from the REMAINDER only: the whole
  *        mid-stay amount keeps being carved out of the frozen buckets, money already in the till
  *        never flows back into the acompte/solde/complément d'arrivée.
  * @returns {{ total:number, forced:number, unforced:number, byKey:object,
@@ -205,7 +205,7 @@ function splitMidStayExtras(lines, baselineRaw, notesRaw) {
 }
 
 /**
- * specs/pricing-components.md rule 104 (stabilisation loop t4, S4-3) — what the notes collected on a key beyond what that key now carries
+ * specs/pricing/pricing-components.md rule 104 (stabilisation loop t4, S4-3) — what the notes collected on a key beyond what that key now carries
  * (the line offered or discounted after it was paid): money in the till no line claims any more. It is exposed as `unclaimed` (absent when
  * 0); the schedule credits it to the stay's open buckets (`planSchedule`). The carve-out itself is unchanged. The arrival-complement-excess
  * key has its own reading in the schedule; the collected split (`splitFromStoredLines`) already carves every note in full.
@@ -223,7 +223,7 @@ function withUnclaimedNotes(result, settled, paidByKey, notesRaw) {
 }
 
 /**
- * specs/pricing-components.md rule 110 (loop t7 B7-1) — the note money no line claims, less what a refund on the trop-perçu already gave
+ * specs/pricing/pricing-components.md rule 110 (loop t7 B7-1) — the note money no line claims, less what a refund on the trop-perçu already gave
  * back (`refunded`, euros: the settled `lineLowered` rows, the subtraction `paidLineJudgment.noteExcessCents` makes): money refunded is
  * no credit any more, so a line charged after the refund is asked in full. `unclaimed` disappears at 0, never below.
  */
@@ -237,7 +237,7 @@ function lessRefundedCredit(split, refunded) {
 }
 
 /**
- * specs/pricing-components.md rule 116, reading of 2026-11-16 (loop t9 B9-3) — a platform stay's collected arrival complement claims what it
+ * specs/pricing/pricing-components.md rule 116, reading of 2026-11-16 (loop t9 B9-3) — a platform stay's collected arrival complement claims what it
  * collected on each line (`claims`: `complementPaidSplit.lines`, `{ key, cents, label }`), exactly as a note does: what it collected on a line
  * beyond what the line charges now (`lines`, the engine's) is credit too, less what a refund on the trop-perçu already gave back of it
  * (`refunded`, euros). Exposed apart (`complementUnclaimed`, its labels `complementUnclaimedLabels`): the schedule bounds it by what the
@@ -300,7 +300,7 @@ function nextNoteId(notesRaw) {
  * must keep being carved out of the other buckets, but must never be re-priced. The forced/unforced
  * routing is read from the current lines (a line's `inComplement` flag can still be flipped).
  * The settled notes are added ON TOP of the stored remainder: both must stay out of the frozen
- * buckets (specs/mid-stay-notes.md §3.3 rule 9).
+ * buckets (specs/sas/mid-stay-notes.md §3.3 rule 9).
  */
 function splitFromStoredLines(storedLines, currentLines, notesRaw) {
   const forcedKeys = new Set();
@@ -353,7 +353,7 @@ function sasDetailAmount(detailRaw) {
     .reduce((s, l) => s + (Number(l.amount) || 0), 0));
 }
 
-// Same sum, without the « Ajustement » line (specs/adjustable-complement-amounts.md §3.3) — c'est le
+// Same sum, without the « Ajustement » line (specs/sas/adjustable-complement-amounts.md §3.3) — c'est le
 // complément de fin de séjour AVANT l'ajustement de l'opérateur, celui que la fiche affiche sous le
 // champ en « Calcul auto (X €) ».
 function sasDetailAmountAuto(detailRaw) {
@@ -361,7 +361,7 @@ function sasDetailAmountAuto(detailRaw) {
 }
 
 /**
- * specs/pricing-components.md §3 rule 90.2 — the departure charges of a stay, read from its stored end-of-stay detail (a row, its
+ * specs/pricing/pricing-components.md §3 rule 90.2 — the departure charges of a stay, read from its stored end-of-stay detail (a row, its
  * detail JSON or the parsed array): every entry the departure SAS owns, in stored order — not the mid-stay lines, not the « Ajustement ».
  * The one reading of the charges: a stay stored before rule 90.2 has only its detail; a later one has its departure lines too
  * (`utils/departureChargeLines`), written from these very entries by the detail's single write point.
@@ -395,13 +395,13 @@ function mergeMidStayIntoDetail(detailRaw, midStayLines) {
 
 
 /**
- * Complements ranked by the MOMENT they are collected — specs/complement-buckets-by-moment.md.
+ * Complements ranked by the MOMENT they are collected — specs/sas/complement-buckets-by-moment.md.
  *
  * The database stores complements by bucket of origin (`complementAmount` = arrival,
  * `endOfStayComplementAmount` = check-out, settled notes = during the stay). What the operator reads
  * on the fiche is a different question: *when* is this money taken? That question has exactly one
  * answer, and it is the operator's: the « Percevoir en fin de séjour » marker
- * (specs/defer-arrival-complement-to-checkout.md §3.3).
+ * (specs/sas/defer-arrival-complement-to-checkout.md §3.3).
  *
  * It used to be inferred instead — « the stay has started and nobody collected, so it will be taken
  * at the door ». The inference was right in the common case and infuriating in every other: it moved
@@ -514,7 +514,7 @@ function readInComplement({
     )
     + extraGuestComplementSurcharge,
   );
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.3 — the mid-stay part leaves BOTH the
+  // specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.3 — the mid-stay part leaves BOTH the
   // pre-arrival split (its unforced share) and the arrival complement (its forced share). Everything
   // below reduces to the former formulas when nothing was sold mid-stay (`midStay* = 0`).
   const complementForcedItemsTotal = roundMoney(Math.max(0, forcedItemsTotal - midStayForced));
@@ -533,7 +533,7 @@ function planSettlement({
   receipts: { complementPaid, complementCollected, complementDeferredToCheckout },
 }) {
 
-  // Itemisation LIVE du complément d'arrivée (specs/defer-arrival-complement-to-checkout.md §3.2
+  // Itemisation LIVE du complément d'arrivée (specs/sas/defer-arrival-complement-to-checkout.md §3.2
   // rule 7bis) — la carte fusionnée rend la fiche telle qu'elle est en cours d'édition, donc son
   // détail doit sortir du moteur, pas de la ligne stockée du dernier enregistrement. Même contrat que
   // `buildArrivalComplementDetail` : chaque ligne « en complément » à sa part ARRIVÉE (la part vendue
@@ -580,7 +580,7 @@ function planSettlement({
         ...(isAddition ? { addedGuests: true } : {}),
       });
     }
-    // specs/direct-installments.md rule 58 — what the installment plan leaves to the arrival has a line of its own.
+    // specs/payments/direct-installments.md rule 58 — what the installment plan leaves to the arrival has a line of its own.
     const listedBefore = roundMoney(complementDetailLines.reduce((sum, l) => sum + l.amount, 0));
     const planRest = roundMoney(Math.min(Number(installmentRest) || 0, resolvedComplementAmount - listedBefore));
     if (planRest > 0.01) {
@@ -592,7 +592,7 @@ function planSettlement({
       complementDetailLines.push({ kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: rem, amount: rem });
     }
   }
-  // specs/complement-buckets-by-moment.md — the same three amounts, filed under the MOMENT they are
+  // specs/sas/complement-buckets-by-moment.md — the same three amounts, filed under the MOMENT they are
   // collected rather than the column that stores them: an arrival complement left unsettled once the
   // guest is in is taken at the door, so it reads under « fin de séjour ». Presentation-only: the
   // three buckets always sum to the same total.
@@ -617,7 +617,7 @@ function linkAllowed({ ownChannel, convertedOwnChannel = true }) {
 }
 
 /**
- * The money SCHEDULE sees received above what the stay now asks (specs/reservation-refunds.md rules 34 and 38; specs/pricing-components.md rule 72), in euros — the
+ * The money SCHEDULE sees received above what the stay now asks (specs/payments/reservation-refunds.md rules 34 and 38; specs/pricing/pricing-components.md rule 72), in euros — the
  * keys `overCollectedTtc` and `complementCollectedExcess` of the 137. What is received beyond the schedule is a reading of the receipts, so it lives in SETTLEMENT; REFUNDS' `overpayment` gives it back.
  *   scheduleOverCollectedTtc   what the paid acompte, solde and installments hold beyond the schedule's own total
  *   complementCollectedExcess  what a collected arrival complement holds beyond what it now asks (never on a platform stay, never on an adjusted amount);

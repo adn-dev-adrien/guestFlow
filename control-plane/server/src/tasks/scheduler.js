@@ -1,5 +1,5 @@
 /**
- * The console's jobs (specs/control-plane-plans-and-access.md rules 9, 14, 17, 18, 20, 34).
+ * The console's jobs (specs/hosting/control-plane-plans-and-access.md rules 9, 14, 17, 18, 20, 34).
  *
  * Daily, at 04:00 Paris time — or at start-up when today's run was missed:
  *   1. every customer's state is recomputed and its licence re-issued (a licence is valid 7 days, so
@@ -13,7 +13,7 @@
  * hour even when the webhook never came.
  *
  * Every minute: the directory is read from the instances' active accounts (rule 26), and the probe
- * measures the instances and raises the host alerts (specs/hosting-h1-fleet-runtime.md rules 15–17).
+ * measures the instances and raises the host alerts (specs/hosting/hosting-h1-fleet-runtime.md rules 15–17).
  *
  * The hosting adds to the daily run: the uploads synced to the backup storage (H1 rule 12), the
  * weekly restore check on Sundays (rule 13), and the 301 of renamed addresses past their 90 days

@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 61 (rules 10, 31, 37 at the upgrade; plan decision (a), Adrien 2026-10-30) — the links
+// specs/payments/payment-link-lifecycle.md rule 61 (rules 10, 31, 37 at the upgrade; plan decision (a), Adrien 2026-10-30) — the links
 // already on nights a stay holds when this version first boots are withdrawn once (`dates-taken`, deactivation owed,
 // no network call), and each stay gets one `dates_taken_notices` row `not-sent` / `upgrade`: the dashboard's
 // « client non prévenu », never a guest e-mail (rule 43 claims that row before any send and finds it taken).

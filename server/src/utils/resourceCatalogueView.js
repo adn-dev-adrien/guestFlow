@@ -1,5 +1,5 @@
 /**
- * The admin resource catalogue, shaped for the screen (specs/options-resources-ux.md rules 18-19).
+ * The admin resource catalogue, shaped for the screen (specs/options/options-resources-ux.md rules 18-19).
  *
  * Pure. A plugin adds lines and a footer to a resource through `ctx.resourceCatalogueLines`; the core
  * knows nothing of the hourly resources beyond their price type.

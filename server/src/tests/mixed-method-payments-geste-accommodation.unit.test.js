@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 52 (audit R34 NEW-3) — a « Geste commercial » left by a payment with several
+// specs/payments/mixed-method-payments.md rule 52 (audit R34 NEW-3) — a « Geste commercial » left by a payment with several
 // methods comes off the ACCOMMODATION only, in the refund register as in the books: the export books the payment's
 // lines gross and the geste on 70900000 (rule 18), so `bucketSharesOf` / `collectedByLine` keep the tax and the extras
 // at their whole share and take the geste off the accommodation. A cancelled stay refunded in full then nets to zero on
@@ -55,7 +55,7 @@ function assertRefundedClean(id) {
 
 const taxLine = (id) => register(id).refundableLines.find((l) => l.key === 'touristTax');
 
-test('specs/mixed-method-payments.md rule 52 — acompte paid, solde split with a geste, cancelled and refunded in full: no tax left owed (P7)', BOOKS, async () => {
+test('specs/payments/mixed-method-payments.md rule 52 — acompte paid, solde split with a geste, cancelled and refunded in full: no tax left owed (P7)', BOOKS, async () => {
   const stay = fiche(WITH_ACOMPTE, 'direct');
   assert.equal(mark(stay.id, D).statusCode, 200);
   const bal = cents(rowOf(stay.id).balanceAmount);
@@ -68,7 +68,7 @@ test('specs/mixed-method-payments.md rule 52 — acompte paid, solde split with 
 });
 
 for (const kind of ['due', 'waived']) {
-  test(`specs/mixed-method-payments.md rule 52 — solde split with a ${kind === 'due' ? 'reste' : 'geste'}, 10 % off, cancelled and refunded in full: no tax left owed (P9)`, BOOKS, async () => {
+  test(`specs/payments/mixed-method-payments.md rule 52 — solde split with a ${kind === 'due' ? 'reste' : 'geste'}, 10 % off, cancelled and refunded in full: no tax left owed (P9)`, BOOKS, async () => {
     const stay = fiche(NO_ACOMPTE, 'direct');
     const bal = cents(rowOf(stay.id).balanceAmount);
     assert.equal(mark(stay.id, { ...S, expectedAmountCents: bal, tenders: [card(bal - 8000)], shortfall: { kind } }).statusCode, 200);
@@ -79,7 +79,7 @@ for (const kind of ['due', 'waived']) {
   });
 }
 
-test('specs/mixed-method-payments.md rule 52 — a geste over caisse + books: each side keeps the tax whole, the geste comes off the accommodation', BOOKS, async () => {
+test('specs/payments/mixed-method-payments.md rule 52 — a geste over caisse + books: each side keeps the tax whole, the geste comes off the accommodation', BOOKS, async () => {
   const stay = fiche(WITH_ACOMPTE, 'direct');
   assert.equal(mark(stay.id, D).statusCode, 200);
   const bal = cents(rowOf(stay.id).balanceAmount);
@@ -89,7 +89,7 @@ test('specs/mixed-method-payments.md rule 52 — a geste over caisse + books: ea
   assertRefundedClean(stay.id);
 });
 
-test('specs/mixed-method-payments.md rule 52 — bucketSharesOf reads a geste gross and names it apart', () => {
+test('specs/payments/mixed-method-payments.md rule 52 — bucketSharesOf reads a geste gross and names it apart', () => {
   const settlement = {
     targetKind: 'bucket', targetKey: 'balance', parts: [{ kind: 'balance', key: 'balance', amountCents: 10000 }],
     tenders: [{ method: 'card', amountCents: 6000, internal: 0 }, { method: 'cash', amountCents: 2000, internal: 1 }],
@@ -100,7 +100,7 @@ test('specs/mixed-method-payments.md rule 52 — bucketSharesOf reads a geste gr
   assert.deepEqual(shares.balance, { books: 0.75, internal: 0.25, waivedBooks: 15, waivedInternal: 5 });
 });
 
-test('specs/mixed-method-payments.md rule 52 — live stay: the accommodation answers for what it collected net of the geste, the tax whole', () => {
+test('specs/payments/mixed-method-payments.md rule 52 — live stay: the accommodation answers for what it collected net of the geste, the tax whole', () => {
   const { refund } = require('./moneyLedgerFixture');
   const stay = fiche(NO_ACOMPTE, 'direct');
   const bal = cents(rowOf(stay.id).balanceAmount);

@@ -1,4 +1,4 @@
-// specs/security-hardening.md rule 12 — the production CSP lets the client forms reach the commune
+// specs/hosting/security-hardening.md rule 12 — the production CSP lets the client forms reach the commune
 // lookup they use, and nothing else (review 2026-10-18, F7: the city list stayed empty in production).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -15,7 +15,7 @@ test('rule 12 — connect-src is self plus the exact commune lookup origin', () 
 test('rule 12 — every cross-origin fetch of the client forms targets an allowed origin', () => {
   const { directives } = buildHelmetOptions({ isProduction: true, httpsEnabled: true }).contentSecurityPolicy;
   const allowed = directives.connectSrc.filter((o) => o.startsWith('https://'));
-  // specs/resource-booking-pricing-and-invoicing.md rule 27 — the lookup the two forms used is one shared hook now.
+  // specs/resources/resource-booking-pricing-and-invoicing.md rule 27 — the lookup the two forms used is one shared hook now.
   for (const page of ['hooks/usePostalCodeCities.js']) {
     const source = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'client', 'src', page), 'utf8');
     const origins = [...source.matchAll(/fetch\(`(https:\/\/[^/`]+)/g)].map((m) => m[1]);

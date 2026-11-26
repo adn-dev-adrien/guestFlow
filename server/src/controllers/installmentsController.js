@@ -1,5 +1,5 @@
 /**
- * Installments controller — the plan of a direct reservation (specs/direct-installments.md §3-§4).
+ * Installments controller — the plan of a direct reservation (specs/payments/direct-installments.md §3-§4).
  *
  * Decides what the operator may do (rules 1-3, 9a, 11), applies it through the model and the pure rules of
  * `utils/installmentPlan`, and answers with the `installmentPlan` payload the fiche renders. Every
@@ -64,7 +64,7 @@ function buildController({
   // Rules 4, 60 — what the plan covers: the pre-arrival amount less the acompte already collected.
   const targetOf = (row, quote) => Math.max(0, Math.round(Number(quote.preArrivalAmount || 0) * 100) - plan.collectedDepositCents(row));
 
-  // specs/payment-link-lifecycle.md rule 63 (Adrien, 2026-10-31) — once a plan exists, the only payment that can
+  // specs/payments/payment-link-lifecycle.md rule 63 (Adrien, 2026-10-31) — once a plan exists, the only payment that can
   // arrive is an échéance. So no plan is made or resized while an acompte / solde / séjour link of the stay is not
   // known dead at the provider: its deactivation (or last look) still owed, or a payment on it still to settle. An
   // open one is retired by the creation itself (direct-installments rule 35), and refuses only when it is still
@@ -376,7 +376,7 @@ function buildController({
     }
     if (row.kind !== 'reservation') return res.status(409).json({ error: 'RESERVATION_NOT_ACTIVE', message: 'Cette réservation n’est plus active.' });
     if (Number(installment.paid) === 1) return res.status(409).json({ error: 'ALREADY_PAID', message: 'Cette échéance est déjà payée. Relire la fiche.' });
-    // specs/mixed-method-payments.md rules 1, 12 — the installment paid with several methods: validated first,
+    // specs/payments/mixed-method-payments.md rules 1, 12 — the installment paid with several methods: validated first,
     // recorded as 'mixed', its lines in the settlement.
     const split = req.body && req.body.tenders !== undefined;
     let prepared = null;
@@ -436,7 +436,7 @@ function buildController({
    * What the unpaid installments would take on if this save went through, in euros: the same rebalance
    * syncAfterSave runs (rules 7-9a), read without writing; 0 without a plan or when the save leaves the own
    * channels (the plan is then deleted). Reading of 2026-11-06 (audit R26 D21 review L3) of
-   * specs/mid-stay-extras-to-end-of-stay-complement.md rule 20.
+   * specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20.
    */
   function planClaimOf(reservationId, quote, platform) {
     const rows = installmentsModel.listFor(reservationId);

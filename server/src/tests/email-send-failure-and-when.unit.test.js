@@ -1,4 +1,4 @@
-// specs/email-automation.md rules 15–16 — a failed send is told in French, never as a code or the
+// specs/emails/email-automation.md rules 15–16 — a failed send is told in French, never as a code or the
 // transport's own words (rule 15); the « Quand » of a template follows what it is tied to (rule 16).
 // The Paris time of the history is checked at the end, against its own spec.
 
@@ -81,14 +81,14 @@ test('rule 16: the templates list carries the label', async () => {
   assert.equal(byKey.arrival_reminder_1d, '2 jours avant l’arrivée');
 });
 
-test('specs/email-history-rolling-window.md rule 8: a SQLite UTC time reads in Paris', () => {
+test('specs/emails/email-history-rolling-window.md rule 8: a SQLite UTC time reads in Paris', () => {
   assert.equal(parisDateTimeLabel('2026-10-18 00:11:00'), '18/10/2026 02:11');
   assert.equal(parisDateTimeLabel('2026-01-15 23:30:00'), '16/01/2026 00:30');
   assert.equal(parisDateTimeLabel('2026-10-18T00:11:00.000Z'), '18/10/2026 02:11');
   assert.equal(parisDateTimeLabel(''), '');
 });
 
-test('specs/email-history-rolling-window.md rule 8: the history rows carry the Paris label', async () => {
+test('specs/emails/email-history-rolling-window.md rule 8: the history rows carry the Paris label', async () => {
   const { db, emails, reservationId, templateId } = emailsWith(null);
   await call(emails.send, { body: { reservationId, templateId } });
   db.prepare("UPDATE email_log SET sentAt = '2026-10-18 00:11:00'").run();

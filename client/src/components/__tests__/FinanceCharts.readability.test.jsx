@@ -1,6 +1,6 @@
 /**
- * Finance charts readability — specs/finance-dashboard-redesign.md rules 43, 44, 46 and
- * specs/booking-pace.md rules 14-15 (UI/UX review 2026-10-18, proposals 8, 9, 18, decisions 9-10).
+ * Finance charts readability — specs/accounting/finance-dashboard-redesign.md rules 43, 44, 46 and
+ * specs/pricing/booking-pace.md rules 14-15 (UI/UX review 2026-10-18, proposals 8, 9, 18, decisions 9-10).
  * Recharts draws nothing in jsdom: the ticks and labels are rendered directly inside an <svg>.
  */
 import React from 'react';

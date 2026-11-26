@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 4 — the fiche adopts a new version only for its own writes.
+// specs/reservations/reservation-fiche-concurrency.md rule 4 — the fiche adopts a new version only for its own writes.
 import { describe, expect, it } from 'vitest';
 import { versionAfterOwnWrite } from './ficheVersion';
 

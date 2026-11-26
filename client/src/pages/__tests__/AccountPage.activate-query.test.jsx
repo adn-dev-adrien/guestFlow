@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 51 — `/mon-compte?activer=deux-etapes` (the dashboard card's
+// specs/hosting/hosting-h2-account-security.md rule 51 — `/mon-compte?activer=deux-etapes` (the dashboard card's
 // « Activer ») opens the activation dialog at step 1 and the query is removed from the address.
 import React from 'react';
 import { vi } from 'vitest';

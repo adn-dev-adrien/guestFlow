@@ -1,5 +1,5 @@
 /**
- * STEP vat — VAT (specs/pricing-components.md §3 rule 52).
+ * STEP vat — VAT (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Splits the accommodation, options and resources TTC amounts into net and VAT through the VAT component.
  * `apply(ctx)` returns a new context and never mutates the one it receives.
@@ -24,7 +24,7 @@ const step = {
     // VAT calculations (all prices are TTC - VAT already included). Two global rates: accommodation
     // has its own; options, custom options and resources all use the standard rate.
     // For TTC prices: VAT amount = TTC × (vatRate / (100 + vatRate))
-    // specs/single-vat-rate.md rule 13 — the extra-guest supplement is a supplement on the nights: it is
+    // specs/accounting/single-vat-rate.md rule 13 — the extra-guest supplement is a supplement on the nights: it is
     // part of the accommodation's VAT base, as in the stored summary and the accounting export.
     const accommodationVatBase = roundMoney(accommodationAdjustedPrice + extraGuestSurcharge);
     const familyVat = vatOf([
@@ -34,7 +34,7 @@ const step = {
     ], { regime: vatRegime, settings: settings.vat });
     const [accommodationVat, optionsVat, resourcesVat] = ['accommodation', 'options', 'resources']
       .map((vatClass) => familyVat.groups.find((group) => group.vatClass === vatClass));
-    // The rate each group was taxed at (specs/single-vat-rate.md): the quote prints what the VAT component applied.
+    // The rate each group was taxed at (specs/accounting/single-vat-rate.md): the quote prints what the VAT component applied.
     const vatPercentageAccommodation = accommodationVat.rate;
     const vatPercentageOptions = optionsVat.rate;
     const vatPercentageResources = resourcesVat.rate;

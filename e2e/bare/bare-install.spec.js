@@ -1,5 +1,5 @@
 // @ts-check
-// specs/plugins-phase-0-foundation.md rule 28 — the bare install: a new customer with NO plugin
+// specs/plugins/plugins-phase-0-foundation.md rule 28 — the bare install: a new customer with NO plugin
 // (rule 11), after the start assistant. Nothing of a plugin shows, nothing calls a plugin's API, the
 // plugin pages say which plugin they need, and the core runs a stay from property to PDF quote,
 // planning, iCal feed, finance and emails. `npm run test:e2e:bare` (playwright.bare.config.js).
@@ -51,7 +51,7 @@ test('rules 28 + 30 — no core page shows a plugin, links to its page or calls 
     await page.waitForLoadState('networkidle');
     await expect(page.locator('main').first(), path).toBeVisible();
     // Rule 30: the planning is still empty here (this test runs first in the file): today says so and
-    // the days around it fold into « Rien de prévu · du … » lines (specs/dashboard-planning-scroll.md
+    // the days around it fold into « Rien de prévu · du … » lines (specs/planning/dashboard-planning-scroll.md
     // rule 15); it names no plugin's cards.
     if (path === '/planning') {
       await expect(page.getByText("Rien de prévu aujourd'hui")).toBeVisible();
@@ -72,8 +72,8 @@ test('rules 28 + 30 — no core page shows a plugin, links to its page or calls 
   expect(calls).toEqual([]);
 });
 
-// specs/plugins-phase-p-productisation.md rule 42 — for an administrator the address stays and reads
-// « Plugin inactif » (it amends specs/plugins-phase-0-foundation.md rule 19).
+// specs/plugins/plugins-phase-p-productisation.md rule 42 — for an administrator the address stays and reads
+// « Plugin inactif » (it amends specs/plugins/plugins-phase-0-foundation.md rule 19).
 test('a plugin page typed by hand says which plugin it needs', async ({ page }) => {
   for (const [path, name] of PLUGIN_PAGES) {
     await page.goto(path);
@@ -126,7 +126,7 @@ test('rule 28 — the core runs a stay: reservation, quote PDF, planning, iCal f
   const fiche = await page.locator('main').first().innerText();
   expect(fiche.match(PLUGIN_WORDS), 'the fiche names a plugin').toBeNull();
   expect(fiche).not.toMatch(/conditions générales acceptées/i);
-  // specs/normalize-platform-names.md (21) — the channel menu shows the label, not the stored value.
+  // specs/platforms/normalize-platform-names.md (21) — the channel menu shows the label, not the stored value.
   await expect(page.getByRole('combobox', { name: 'Plateforme' })).toHaveText('Direct');
 
   // A quote, saved, and its PDF downloaded through the bar.

@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 12, reading of 2026-11-03 (audit R20-C2) — a date that is not a real
+// specs/tech/reservations-backend-mvc.md rule 12, reading of 2026-11-03 (audit R20-C2) — a date that is not a real
 // `YYYY-MM-DD` day (a 5- or 6-digit year typed on the keyboard, 30 February) gets the server's own « Date de séjour
 // invalide. » under the dates and is never quoted. A year still being typed (0002, padded to four digits) is a
 // real day: it gets the window's message (rule 14). A stored date is a real day, so the stored-row exemption holds.

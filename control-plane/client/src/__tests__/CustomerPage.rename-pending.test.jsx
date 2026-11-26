@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 45 — a rename that is not finished: « Changer l'adresse » stays in its place,
+// specs/hosting/hosting-h1-fleet-runtime.md rule 45 — a rename that is not finished: « Changer l'adresse » stays in its place,
 // disabled, and says why; archived customers still have no such button.
 import React from 'react';
 import { fireEvent, screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rules 1 and 18 — the page asks with the dashboard's URL parameters, a link
+// specs/accounting/stay-profile.md §3 rules 1 and 18 — the page asks with the dashboard's URL parameters, a link
 // to a window refused on the client sends nothing, and a server refusal keeps the period selector
 // (never a dead end), as on the Suivi financier.
 import React from 'react';

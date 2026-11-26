@@ -1,5 +1,5 @@
 /**
- * Option category grouping (specs/option-categories.md §3 rules 1-3, 9).
+ * Option category grouping (specs/options/option-categories.md §3 rules 1-3, 9).
  *
  * Pure module — no DB access — so the same ordering rules serve the admin payload, the
  * reservation payload and the public catalogue payload, and can be unit-tested in isolation.
@@ -33,7 +33,7 @@ function byTitle(a, b) {
 /**
  * The cancellation insurance reads as the closing line of the stay's own conditions, not as an
  * « A » article at the top of the list: the operator sells it right after « Départ tardif », once
- * arrival and departure are settled (specs/cancellation-insurance.md §3.2 rule 17bis).
+ * arrival and departure are settled (specs/payments/cancellation-insurance.md §3.2 rule 17bis).
  *
  * So it is pulled out of the alphabetical order and pinned immediately after the late-checkout
  * auto-option — but only when both sit in the SAME category block, since « just after Départ
@@ -60,7 +60,7 @@ function pinCancellationInsurance(options) {
 
 /**
  * An option renders OUTSIDE its category's collapse when it is selected on the reservation, or
- * when it carries `alwaysVisible` (specs/option-categories.md §3 rules 9 + 9bis). The second case
+ * when it carries `alwaysVisible` (specs/options/option-categories.md §3 rules 9 + 9bis). The second case
  * is how the breakfast option keeps showing on every fiche now that it lives under
  * « Restauration »: a service the operator must be able to offer without hunting for it.
  *

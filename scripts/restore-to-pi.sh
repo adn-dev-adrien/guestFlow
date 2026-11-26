@@ -6,7 +6,7 @@
 # BEFORE restoring data, because that install creates `current/` and the symlinks that point it
 # at `data/guestflow.db`, `data/.env.local`, `data/uploads` and `data/private-documents`.
 #
-# Full disaster-recovery sequence on a fresh host — see specs/backup-restore.md §4.4:
+# Full disaster-recovery sequence on a fresh host — see specs/hosting/backup-restore.md §4.4:
 #   1. Reinstall the OS + node + pm2 (no CI runner: production makes outbound calls only).
 #   2. Install the published release by hand (README « Installing one manually »).
 #   3. Run this script — it stops PM2, drops the data in place, restarts PM2.
@@ -108,7 +108,7 @@ if [ -d "$FROM/uploads" ]; then
   rsync -aq "$FROM/uploads/" "$SSH_HOST:$REMOTE_DIR/current/server/uploads/"
 fi
 
-# Property documents sit beside uploads/, outside the public tree (specs/settings-rationalization.md rule 32).
+# Property documents sit beside uploads/, outside the public tree (specs/settings/settings-rationalization.md rule 32).
 if [ -d "$FROM/private-documents" ]; then
   echo "  · restoring property documents…"
   ssh "$SSH_HOST" "mkdir -p '$REMOTE_DIR/data/private-documents'"

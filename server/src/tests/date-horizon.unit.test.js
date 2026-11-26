@@ -1,7 +1,7 @@
-// specs/reservations-backend-mvc.md rule 13 (Adrien's decision of 2026-11-02) — no date is entered past today
+// specs/tech/reservations-backend-mvc.md rule 13 (Adrien's decision of 2026-11-02) — no date is entered past today
 // + 5 years, the Europe/Paris day: 400 INVALID_STAY_DATES « Date trop lointaine : 5 ans au plus. » on every
-// path rule 11 guards; the same message on closures (specs/establishment-closures.md rule 18, reading of
-// 2026-11-02) and the finance custom window (specs/finance-dashboard-redesign.md rule 51, reading of
+// path rule 11 guards; the same message on closures (specs/pricing/establishment-closures.md rule 18, reading of
+// 2026-11-02) and the finance custom window (specs/accounting/finance-dashboard-redesign.md rule 51, reading of
 // 2026-11-02). The past side of the window is date-window-past.unit.test.js; a stored date that is not edited is
 // never held to the horizon.
 process.env.DB_PATH = ':memory:';

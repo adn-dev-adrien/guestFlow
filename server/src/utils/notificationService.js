@@ -1,5 +1,5 @@
 /**
- * Booking-notification service (specs/site-booking-notifications.md §3 + §4.1).
+ * Booking-notification service (specs/site/site-booking-notifications.md §3 + §4.1).
  *
  * Sends a best-effort email when:
  *   - a new site-origin devis is created  → notifyNewSiteDevis(devisId)
@@ -32,11 +32,11 @@ function platformNameOf(resa) {
   return String(resa.sourceName || '').trim() || platformDisplay(resa.platform || resa.sourcePlatformKey);
 }
 
-// specs/public-request-abuse-and-grouping.md rule 9 — website requests are mailed one at a time only
+// specs/site/public-request-abuse-and-grouping.md rule 9 — website requests are mailed one at a time only
 // for the first of a 15-minute window; the following ones wait for one summary.
 const SITE_DEVIS_DIGEST = 'site-devis';
 
-// specs/public-request-abuse-and-grouping.md rule 33 — a value typed by a visitor or read from a feed is one
+// specs/site/public-request-abuse-and-grouping.md rule 33 — a value typed by a visitor or read from a feed is one
 // line of an operator e-mail: a line break would forge lines of its own (a fake instruction, a fake link).
 // The mails here are plain text; control characters and Unicode line separators become a space.
 function oneLine(value) {
@@ -148,7 +148,7 @@ function buildNotificationService({
       updated
         ? 'Le client a renvoyé sa demande depuis le site : le devis a été mis à jour.'
         : 'Nouvelle demande de devis reçue depuis le site.',
-      // specs/public-request-abuse-and-grouping.md rule 22.
+      // specs/site/public-request-abuse-and-grouping.md rule 22.
       ...(messageDropped ? ['Son message n’a pas été ajouté : 10 messages déjà ajoutés à ce devis.'] : []),
       '',
       `Logement : ${oneLine(devis.propertyName)}`,
@@ -163,7 +163,7 @@ function buildNotificationService({
       for (const o of devis.options) lines.push(lineLabel(o.title, o.totalPrice, o.offered));
     }
     // Planning-card options booked from the site have no scheduled slot — the operator must contact the
-    // guest to arrange the time (specs/public-planning-options.md §3 rule 5).
+    // guest to arrange the time (specs/site/public-planning-options.md §3 rule 5).
     const toSchedule = (devis.options || []).filter((o) => o.showsPlanningCard);
     if (toSchedule.length) {
       lines.push('', 'À planifier avec le client (horaire à convenir) :');
@@ -343,7 +343,7 @@ function buildNotificationService({
       const resa = loadReservation(reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
       // Push (independent of the email settings + the iCal email channel toggle). Body shows the
-      // guest + property + start date (specs/pwa-push-notifications.md §3.3 rule 11).
+      // guest + property + start date (specs/guest-app/pwa-push-notifications.md §3.3 rule 11).
       const platform = platformNameOf(resa);
       const guest = String(resa.icalOriginalSummary || '').trim()
         || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
@@ -373,8 +373,8 @@ function buildNotificationService({
   }
 
   // `origin` — 'payment' (a paid online booking landed on taken dates) or 'ical' (a feed event overlaps
-  // nights already held, specs/lodgify-decommission.md §3 rule 8, every feed since
-  // specs/ical-import-hardening.md rule 3).
+  // nights already held, specs/platforms/lodgify-decommission.md §3 rule 8, every feed since
+  // specs/platforms/ical-import-hardening.md rule 3).
   const CONFLICT_COPY = {
     payment: {
       title: 'Conflit de dates — paiement en ligne',
@@ -384,7 +384,7 @@ function buildNotificationService({
         'Action requise : remboursement ou relogement.',
       ],
     },
-    // specs/ical-import-hardening.md rule 3 — any feed, not only Booking's: the platform is named.
+    // specs/platforms/ical-import-hardening.md rule 3 — any feed, not only Booking's: the platform is named.
     ical: (resa) => {
       const platform = String(resa.platform || resa.sourceName || '').trim() || 'iCal';
       return {
@@ -402,7 +402,7 @@ function buildNotificationService({
     return typeof copy === 'function' ? copy(resa) : copy;
   };
 
-  // specs/payment-link-lifecycle.md rule 39 — a platform booking on nights another stay holds (an acompte paid,
+  // specs/payments/payment-link-lifecycle.md rule 39 — a platform booking on nights another stay holds (an acompte paid,
   // or another platform's stay): an over-booking, said as such, naming the stay that holds them.
   function heldCopyOf(resa, origin) {
     if (origin !== 'ical') return null;
@@ -450,7 +450,7 @@ function buildNotificationService({
   }
 
   // Admin alert when a paid online full-payment was converted onto now-unavailable dates
-  // (specs/public-online-payment.md §3 rule 5). Best-effort: never throws.
+  // (specs/site/public-online-payment.md §3 rule 5). Best-effort: never throws.
   async function notifyBookingConflict(reservationId, { origin = 'payment' } = {}) {
     try {
       const resa = loadReservation(reservationId);
@@ -470,7 +470,7 @@ function buildNotificationService({
     }
   }
 
-  // specs/plugins-phase-3a-online-payment.md rule 8 — a link GuestFlow had abandoned (stay cancelled,
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 8 — a link GuestFlow had abandoned (stay cancelled,
   // amount replaced) but could not deactivate was paid anyway. Nothing is recorded on the stay: the
   // admin refunds from the provider. Best-effort: never throws.
   // Rule 23 — `settledOn`: the link was retired because its amount was already settled another way on
@@ -483,10 +483,10 @@ function buildNotificationService({
   const PAID_TWICE_TITLE = '⚠️ Devis payé deux fois';
   const PAID_OTHER_AMOUNT_TITLE = '⚠️ Paiement reçu d’un autre montant que le devis';
   const eurosFr = (cents) => (Number(cents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
-  // specs/payment-link-lifecycle.md rule 42 (re-review of #902, R1) — a link withdrawn by hand, paid before, booked
+  // specs/payments/payment-link-lifecycle.md rule 42 (re-review of #902, R1) — a link withdrawn by hand, paid before, booked
   // later on nights closed since (`closed`) or taken by another stay (`taken`): the treatment of rule 33.
   const PAID_UNAVAILABLE_TITLES = { closed: '⚠️ Paiement reçu sur des dates fermées', taken: '⚠️ Paiement reçu sur des dates déjà prises' };
-  // specs/payment-link-lifecycle.md rule 63 (audit R11 M1) — beside an installment plan the payment is not the stay's.
+  // specs/payments/payment-link-lifecycle.md rule 63 (audit R11 M1) — beside an installment plan the payment is not the stay's.
   const PAID_BESIDE_PLAN_TITLE = '⚠️ Paiement à rembourser : échéancier en place';
   function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false, installmentPlan = false } = {}) {
     const amount = eurosFr(doublePaid && duplicateCents != null ? owedOnDuplicate({ paidCents: link.amountCents, ...duplicatePayment(duplicateCents) }).owedCents : link.amountCents);
@@ -498,7 +498,7 @@ function buildNotificationService({
     const soldeLine = amountMismatch && amountMismatch.balanceSettled
       ? `solde déjà perçu (${eurosFr(amountMismatch.balanceCents)})`
       : amountMismatch && `solde porté à ${eurosFr(amountMismatch.balanceCents)}`;
-    // specs/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
+    // specs/payments/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
     // deactivation reached the provider.
     const intro = installmentPlan
       ? [
@@ -593,7 +593,7 @@ function buildNotificationService({
     return { subject, text: lines.join('\n') };
   }
 
-  // specs/payment-link-lifecycle.md rule 4 — a payment on a link whose stay row is gone. There is no fiche
+  // specs/payments/payment-link-lifecycle.md rule 4 — a payment on a link whose stay row is gone. There is no fiche
   // to open, so the mail names everything the refund needs and carries no link at all.
   const ORPHAN_PAID_TITLE = 'Paiement reçu sur un lien sans séjour';
   const LINK_TYPE_LABELS = { deposit: 'acompte', balance: 'solde', full: 'séjour', installment: 'échéance', complement: 'complément' };
@@ -674,7 +674,7 @@ function buildNotificationService({
     }
   }
 
-  // specs/payment-link-lifecycle.md rule 20 — a lapsed link GuestFlow could not deactivate for 24 hours is
+  // specs/payments/payment-link-lifecycle.md rule 20 — a lapsed link GuestFlow could not deactivate for 24 hours is
   // still payable at the provider: the admin deactivates it by hand (plugins-phase-3a rule 9 wording). A
   // payment on it would still be booked (rule 14), so this is a chore, not a money alert.
   function buildDeactivationStuckEmail(resa, link, publicUrl, providerLabel) {
@@ -710,7 +710,7 @@ function buildNotificationService({
     }
   }
 
-  // specs/payment-link-lifecycle.md rule 64 (re-review of #912, R1) — a link withdrawn for taken dates still shows a
+  // specs/payments/payment-link-lifecycle.md rule 64 (re-review of #912, R1) — a link withdrawn for taken dates still shows a
   // payment in flight 24 h later: GuestFlow stops reading it and the guest is not told; the admin checks it by hand.
   const PAYMENT_IN_FLIGHT_ACTION = 'Paiement en cours depuis 24 h sur un lien retiré : à vérifier chez le prestataire.';
   function buildPaymentInFlightEmail(resa, link, publicUrl) {
@@ -744,7 +744,7 @@ function buildNotificationService({
   }
 
   /**
-   * Tells the operator of something that happened outside a stay (specs/site-outside-resource-booking.md rule 23): one push on `channel` (the toggle governs
+   * Tells the operator of something that happened outside a stay (specs/site/site-outside-resource-booking.md rule 23): one push on `channel` (the toggle governs
    * the push only) and one e-mail to the notification address typed by the operator (none typed: no e-mail; « notifications par email » off: none either), with a link on `publicUrl` built from `url`. Every value is a single line, whoever typed it.
    * `{ channel, title, body, url?, subject, lines }` → never throws.
    */

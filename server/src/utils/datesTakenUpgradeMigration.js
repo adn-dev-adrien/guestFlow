@@ -1,5 +1,5 @@
 /**
- * One-shot withdrawal of the links whose dates were already taken at the upgrade (specs/payment-link-lifecycle.md
+ * One-shot withdrawal of the links whose dates were already taken at the upgrade (specs/payments/payment-link-lifecycle.md
  * rules 10, 31, 37; decision (a) of the implementation plan, Adrien 2026-10-30).
  *
  * Before this version a stay holding its nights never withdrew anyone's link: an unpaid devis or reservation

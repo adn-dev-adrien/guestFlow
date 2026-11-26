@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 35 — typed sentences are not lost: the menu, « Retour »
+// specs/emails/guest-email-texts-made-simple.md rule 35 — typed sentences are not lost: the menu, « Retour »
 // and a link inside the page all ask first; a property's own text left empty reads « Texte commun
 // utilisé » with the shared text, never « Vide »; on a phone the title is « Textes ».
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/email-automation.md rule 20 (review of #869) — every writer of an email sentence applies the
+// specs/emails/email-automation.md rule 20 (review of #869) — every writer of an email sentence applies the
 // 20 000-character cap with the same 422 { field, message }: the stay texts, the mentions and the
 // resource sentence, as the template editor and the texts screen already did.
 

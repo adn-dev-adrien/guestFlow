@@ -1,4 +1,4 @@
-// Input ergonomics for bounded number fields (specs/settings-input-guards.md rules 2, 4-6, 8).
+// Input ergonomics for bounded number fields (specs/settings/settings-input-guards.md rules 2, 4-6, 8).
 // Pure presentation of a limits descriptor `{ min, max, integer?, decimals?, unit?, message? }` the
 // server sends; the server stays the authority and answers the same messages.
 

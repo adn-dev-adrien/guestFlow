@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 43 — « platform » is the ledger's: anything but `direct`.
+// specs/accounting/qonto-bank-reconciliation.md rule 43 — « platform » is the ledger's: anything but `direct`.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { db, addReservation, build, reset, dayAt } = require('./reconciliationFixture');

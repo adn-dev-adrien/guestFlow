@@ -22,7 +22,7 @@ const { readableLogo } = require("./logoImage");
 const { DEFAULT_RATE: DEFAULT_VAT_RATE } = require("../models/vatRegimeModel");
 const { roundMoneyStrict } = require('./pricing/money');
 
-// specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
+// specs/design-system/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
 // fir green, ink, warm paper, honey and the success soft fill. No navy left.
 const PDF_PALETTE = Object.freeze({
   brand: '#2F5D46',
@@ -84,7 +84,7 @@ function serifRuns(text, { serif = FACES.serif.name, bold = FACES.bold.name } = 
   return runs;
 }
 
-// specs/ui-review-2026-10-19-operations.md rule 46 — a character with no visible form that the body
+// specs/design-system/ui-review-2026-10-19-operations.md rule 46 — a character with no visible form that the body
 // face cannot draw never reaches the page: pasted text carries direction marks (« ‪+33 6…‬ » from a
 // phone's contacts), joiners, a Windows « \r » or a tab, and each printed as the empty box of the
 // face. A line separator or a carriage return becomes a line break, a space the face lacks becomes a
@@ -109,7 +109,7 @@ function printable(value) {
   return value;
 }
 
-// specs/ui-review-2026-10-19-operations.md rule 47 — a quantity prints rounded to the cent, with the
+// specs/design-system/ui-review-2026-10-19-operations.md rule 47 — a quantity prints rounded to the cent, with the
 // decimal mark of the document's language: a third of a unit read « 0.3333333333333333 » and ran
 // into the next row.
 function formatQuantity(qty, language) {
@@ -161,7 +161,7 @@ function drawSerifText(doc, names, text, x, y, options = {}) {
   });
 }
 
-// specs/devis-pdf-total-parity.md §3.2 rules 6–10 — single source of truth for the tax + grand-total
+// specs/devis/devis-pdf-total-parity.md §3.2 rules 6–10 — single source of truth for the tax + grand-total
 // numbers the PDF renders. Two principles, in order:
 //
 //   1. The document must agree with itself: the grand total is ALWAYS the stay the table actually
@@ -176,7 +176,7 @@ function drawSerifText(doc, names, text, x, y, options = {}) {
 // unconditionally. That rule's own bug (PDF tax 15,36 € vs. summary 16,80 €) stays fixed: a quote
 // that reconciles still wins. Exported under `__test` so the invariant is provable without parsing
 // the FlateDecode-compressed PDF stream.
-// specs/devis-pdf-total-parity.md rule 13 — the engine rounds the discounted accommodation ONCE, on
+// specs/devis/devis-pdf-total-parity.md rule 13 — the engine rounds the discounted accommodation ONCE, on
 // the whole stay; rounding each season group on its own drifted by a cent (89,26 printed for 89,25).
 // Every group but the last is rounded on its own; the last takes what is left of the stay's rounded
 // total, so the rows add up to the engine's figure.
@@ -211,7 +211,7 @@ function resolveLiveTaxTotals(full, quote, printedStayTtc) {
   };
 }
 
-// specs/devis-offered-resource-parity.md §3 rules 3-4 — what a line COSTS the client (`billed`, 0 € on
+// specs/devis/devis-offered-resource-parity.md §3 rules 3-4 — what a line COSTS the client (`billed`, 0 € on
 // a geste commercial) vs what it is WORTH (`real`, struck through next to the « Offert » badge). A
 // legacy row stored `offered = 1` WITH its phantom price is billed 0 here too, so an old devis prints
 // right without waiting for a re-save — and never eats into the accommodation row, whose amount is
@@ -226,7 +226,7 @@ function lineAmounts(line) {
   return { offered, billed: offered ? 0 : stored, real };
 }
 
-// specs/devis-pdf-row-layout.md §3 — pure geometry of one pricing-table row. Fed the measured
+// specs/devis/devis-pdf-row-layout.md §3 — pure geometry of one pricing-table row. Fed the measured
 // heights of what the row actually prints, it answers how tall the row is and where each piece goes
 // (offsets from the row's top edge). Row heights used to be a fixed 20 / 28 px, so a designation that
 // wrapped bled over the next row's band and the « Offert » badge landed on the label. Exported under
@@ -235,7 +235,7 @@ const ROW_PAD_TOP = 7;
 const ROW_PAD_BOTTOM = 6;
 const ROW_BADGE_GAP = 4;
 
-// A « was » price is struck only above the billed one (specs/review-2026-10-18-reservations.md rule 2).
+// A « was » price is struck only above the billed one (specs/design-system/review-2026-10-18-reservations.md rule 2).
 function showsStruckOriginal(originalTtc, billedTtc) {
   return Number(originalTtc || 0) > Number(billedTtc || 0) + 0.009;
 }
@@ -256,7 +256,7 @@ function resolveRowGeometry({
   };
 }
 
-// specs/settings.md rule 8 — a stored logo the PDF cannot read leaves the devis without it, never without a PDF.
+// specs/settings/settings.md rule 8 — a stored logo the PDF cannot read leaves the devis without it, never without a PDF.
 async function generateDevisPdf(storedFull, storedSettings, quote) {
   return renderDevisPdf(storedFull, storedSettings, quote, await readableLogo(storedSettings));
 }
@@ -265,7 +265,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
   return new Promise((resolve, reject) => {
   const full = printable(storedFull);
   const settings = printable(storedSettings);
-  // 2026-06-06 — bilingual rendering (specs/devis-english-language.md). The devis row
+  // 2026-06-06 — bilingual rendering (specs/devis/devis-english-language.md). The devis row
   // carries `pdfLanguage` ('fr' default, 'en' opt-in). Every literal goes through `L.<key>`
   // and every date through `fmtDate`. The "at" connector between date + time and the
   // option / resource label fallbacks (FR titles when the EN translation is empty) all
@@ -281,14 +281,14 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
 
   const property = full.property;
   const client = full.client;
-  // One VAT rate per sale (specs/single-vat-rate.md §4.1), the one of the regime the devis is quoted
-  // under (specs/vat-optional-mode.md rule 7). The three local bindings stay so the existing
+  // One VAT rate per sale (specs/accounting/single-vat-rate.md §4.1), the one of the regime the devis is quoted
+  // under (specs/accounting/vat-optional-mode.md rule 7). The three local bindings stay so the existing
   // `drawRow(..., rate, ...)` call sites read clearly; they all hold the same value.
   const vatRate = Number(full.vatRegime ? full.vatRegime.rate : DEFAULT_VAT_RATE);
   const vatAccommodation = vatRate;
   const vatOptions = vatRate;
   const vatResources = vatRate;
-  // « Sans TVA » (specs/vat-optional-mode.md rule 12b): no VAT column, no HT, one legal mention instead.
+  // « Sans TVA » (specs/accounting/vat-optional-mode.md rule 12b): no VAT column, no HT, one legal mention instead.
   const notSubject = Boolean(full.vatRegime) && full.vatRegime.regime === 'not_subject';
   const legalMention = notSubject
     ? (language === 'en' ? full.vatRegime.legalMentionTextEn : full.vatRegime.legalMentionText)
@@ -297,7 +297,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
   // Client phone (single column since the Clients bloc).
   const phones = client.phone ? [String(client.phone).trim()] : [];
 
-  // specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » identity of the app.
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 17 — the « Maison » identity of the app.
   const { brand: BRAND, paper: LIGHT_GRAY, rule: MID_GRAY, ink: TEXT_DARK, muted: TEXT_LIGHT, offered: OFFERED_GREEN } = PDF_PALETTE;
 
   // `full.__testCompress === false` keeps PDFKit's stream uncompressed so unit tests can grep
@@ -442,7 +442,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
   // Meta pills
   const metaItems = [
     { label: L.date,       value: fmtDate(createdAtIsoDate) },
-    // specs/ui-review-2026-10-19-operations.md rule 20 — the date alone: « (expiré) » is for the operator,
+    // specs/design-system/ui-review-2026-10-19-operations.md rule 20 — the date alone: « (expiré) » is for the operator,
     // who is warned on the fiche, never for the guest.
     { label: L.validUntil, value: fmtDate(validUntilIso) },
     { label: L.property,   value: property ? property.name : `#${full.propertyId}` },
@@ -500,7 +500,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
 
   // ── Pricing table ─────────────────────────────────────────────────────────
   // The rows are collected first and drawn after the page-1 summary block, whose total is the one
-  // the table adds up to (specs/ui-review-2026-10-19-operations.md rule 19).
+  // the table adds up to (specs/design-system/ui-review-2026-10-19-operations.md rule 19).
   const COL_DESC = LEFT;
   const COL_QTY = LEFT + PAGE_W * 0.5;
   const COL_HT = LEFT + PAGE_W * 0.6;
@@ -515,7 +515,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
   // Every line offered to the guest, printed once in one row (rule 18).
   const offeredLines = [];
 
-  // A row is exactly as tall as what it prints (specs/devis-pdf-row-layout.md §3): the designation is
+  // A row is exactly as tall as what it prints (specs/devis/devis-pdf-row-layout.md §3): the designation is
   // measured, so a long option label simply wraps and the row grows with it.
   const DESC_W = PAGE_W * 0.48;
 
@@ -538,7 +538,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
     const originalTtc = Number(meta.originalTtc || 0);
     // The original is struck only when it's higher: a strike-through reads as a reduction, so a lower
     // « was » price above a higher billed one reads as a discount that is not there
-    // (specs/review-2026-10-18-reservations.md rule 2).
+    // (specs/design-system/review-2026-10-18-reservations.md rule 2).
     const showOriginal = showsStruckOriginal(originalTtc, totalTtc);
     const hasBadge = Boolean(meta.badgeText);
     const descText = String(desc == null ? '' : desc);
@@ -731,7 +731,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
     });
   }
 
-  // specs/devis-pdf-total-parity.md §3.2 — the tax and the grand total are resolved against the stay
+  // specs/devis/devis-pdf-total-parity.md §3.2 — the tax and the grand total are resolved against the stay
   // the table prints, so the totals can never contradict the lines. Resolved BEFORE drawing, so the
   // page-1 summary and the totals block print the same figure.
   const subtotalTtc = roundMoney(subtotalTtcFromRows);
@@ -870,7 +870,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
   }
   totY = Math.max(totY, bankBottomY);
 
-  // specs/pricing-components.md §3 rule 15 — « Récapitulatif TVA »: one row per rate, the same template for one rate or several.
+  // specs/pricing/pricing-components.md §3 rule 15 — « Récapitulatif TVA »: one row per rate, the same template for one rate or several.
   // A « Sans TVA » stay prints none: its legal mention above is the whole VAT statement.
   if (!notSubject) {
     if (recapRows.length > 0) {
@@ -1044,7 +1044,7 @@ function __resolveResourceName(rsc, language) {
   return rsc && rsc.name ? rsc.name : `Resource #${rsc?.resourceId}`;
 }
 
-// specs/deposit-blocks-the-dates.md rules 1, 3 and 8 — who the payment block speaks to and what it
+// specs/payments/deposit-blocks-the-dates.md rules 1, 3 and 8 — who the payment block speaks to and what it
 // calls the money:
 //   • `securesDates` — only a DIRECT channel promises to hold the dates against a payment we collect;
 //     a platform booking is settled by the platform, so its block stays mention-free.
@@ -1065,7 +1065,7 @@ function __resolveFooterText(settings, language, defaultEn, defaultFr) {
   return lang === 'en' ? defaultEn : defaultFr;
 }
 
-// specs/ui-review-2026-10-19-operations.md rule 18 — the offered lines, as the one row that names them.
+// specs/design-system/ui-review-2026-10-19-operations.md rule 18 — the offered lines, as the one row that names them.
 function groupOffered(lines) {
   const list = (lines || []).filter((l) => l && String(l.name || '').trim());
   if (list.length === 0) return null;
@@ -1076,7 +1076,7 @@ function groupOffered(lines) {
   };
 }
 
-// specs/ui-review-2026-10-19-operations.md rule 19 — the schedule of the page-1 summary: the acompte,
+// specs/design-system/ui-review-2026-10-19-operations.md rule 19 — the schedule of the page-1 summary: the acompte,
 // then the solde (or the single payment of a direct quote with no acompte, named as such).
 function summarySchedule(full, L) {
   const deposit = Number(full?.depositAmount || 0);

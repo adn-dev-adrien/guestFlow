@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 108, reading of 2026-11-16 (stabilisation loop t9, B9-4, OLD) — the owner decision « a paid line offered
+// specs/pricing/pricing-components.md §3 rule 108, reading of 2026-11-16 (stabilisation loop t9, B9-4, OLD) — the owner decision « a paid line offered
 // whose money was refunded is sold anew, never put back » holds for a line the paid SOLDE carried, not only a note's: the beer ×5 (30 €) in a
 // paid solde of 330 €, offered, its 30 € trop-perçu refunded, then un-offered (or un-discounted) answers 409 `LINE_REFUNDED` on the line API
 // and the fiche, and the fiche is served the line in `refundedLoweredLines`. Before (master too), the save went through: total 330 €, nothing

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 16–20 — one file out, one file in with its summary
+// specs/emails/guest-email-texts-made-simple.md rules 16–20 — one file out, one file in with its summary
 // before anything is saved (a refused row shown with its line), and the translator offered only when
 // the platform has a key.
 import { vi } from 'vitest';

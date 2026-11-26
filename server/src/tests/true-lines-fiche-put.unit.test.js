@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 85 (the fiche PUT contract) — a posted line that names its `lineId` updates THAT row and never merges
+// specs/pricing/pricing-components.md §3 rule 85 (the fiche PUT contract) — a posted line that names its `lineId` updates THAT row and never merges
 // with another line of the article; a posted line without a name is the article's first line; a line the save appends (`newLine`) is a new
 // row; a client that posts fewer lines deletes only the lines it dropped. Same for the resource lines (and rule 13: one row per sale).
 const test = require('node:test');

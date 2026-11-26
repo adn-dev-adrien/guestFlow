@@ -1,5 +1,5 @@
 /**
- * The runtime trace of the environment (specs/server-test-isolation.md rule 13), the complement of rule 12's
+ * The runtime trace of the environment (specs/tech/server-test-isolation.md rule 13), the complement of rule 12's
  * grep guard: that one reads `src/` and misses the forms it has no pattern for; this one sees those too, but
  * only where the suite runs the code against the real `process.env` (not through a copy, not on an injected
  * `env`, not on a path no test runs).

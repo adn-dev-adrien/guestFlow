@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-4, UI3-5) — at « Payé maintenant » the booking dialog saves only once the
+// specs/sas/outside-booking-sas.md rule 54 (reading 2026-11-16, loop t3 UI3-4, UI3-5) — at « Payé maintenant » the booking dialog saves only once the
 // server has answered for the payment typed (never a save carrying no invoice because the answer was still on its way); a failed answer shows
 // « Facture non vérifiée pour ce paiement. » with « Réessayer »; « Caisse interne » and the other refusals are the server's words.
 // Reading 2026-11-16 (loop t4 UI4-3): the payment preview carries the draft, yet a refused draft has no price, so no payment preview, and a

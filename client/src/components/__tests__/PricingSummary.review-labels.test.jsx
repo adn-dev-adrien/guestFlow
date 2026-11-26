@@ -1,4 +1,4 @@
-// specs/review-2026-10-18-reservations.md rules 1 and 5 — the summary of an empty fiche shows no
+// specs/design-system/review-2026-10-18-reservations.md rules 1 and 5 — the summary of an empty fiche shows no
 // « (NaN nuit) », and a breakfast the server says counts mornings reads « · 3 matins », not « ×3 ».
 import React from 'react';
 import { render, screen } from '@testing-library/react';

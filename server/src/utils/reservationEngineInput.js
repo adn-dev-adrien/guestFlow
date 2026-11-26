@@ -50,7 +50,7 @@ function buildReservationEngineInput(db, reservation, { refreshTouristTax = fals
     children: reservation.children,
     teens: reservation.teens,
     babies: reservation.babies,
-    // specs/baby-bed-supplement.md — this quote must reprice IDENTICALLY to the fiche or the
+    // specs/options/baby-bed-supplement.md — this quote must reprice IDENTICALLY to the fiche or the
     // conservation invariant below fails, so the cots and the booking id travel with the rest.
     babyBeds: reservation.babyBeds,
     bookingId: reservation.id,
@@ -110,16 +110,16 @@ function buildReservationEngineInput(db, reservation, { refreshTouristTax = fals
     platformCommissionAmount: reservation.platformCommissionAmount,
     acompteCommissionAmount: reservation.acompteCommissionAmount,
     touristTaxInComplement: reservation.touristTaxInComplement,
-    // specs/tourist-tax-matches-the-office-calculation.md rule 2 — the brut derives the tourist-tax
+    // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 2 — the brut derives the tourist-tax
     // base again, so a replay that omitted it would price the stay on a different base than the
     // fiche and hand the « Suivi taxe de séjour » page a number the fiche never showed.
     platformGrossAmount: reservation.platformGrossAmount,
-    // specs/platform-tourist-tax-out-of-the-commission.md rule 25 — the fiche reads the brut net of
+    // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 25 — the fiche reads the brut net of
     // this amount; a replay without it puts the withheld tax back in the solde, and the payment
     // capture then refuses to mark that solde paid.
     platformTouristTaxAmount: reservation.platformTouristTaxAmount,
     platformPaidGuests: reservation.platformPaidGuests,
-    // specs/platform-added-guests-tourist-tax.md rules 1, 7 — without them a replay puts the added tax
+    // specs/tourist-tax/platform-added-guests-tourist-tax.md rules 1, 7 — without them a replay puts the added tax
     // back inside the brut, and the payment capture refuses the solde.
     platformPaidAdults: reservation.platformPaidAdults,
     platformPaidOccupants: reservation.platformPaidOccupants,

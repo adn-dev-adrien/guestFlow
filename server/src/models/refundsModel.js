@@ -1,6 +1,6 @@
 /**
  * Refunds model — sole DB access for `reservation_refunds` + `reservation_refund_lines`
- * (specs/reservation-refunds.md §5).
+ * (specs/payments/reservation-refunds.md §5).
  *
  * A refund never touches the reservation row: it is an independent, dated « avoir » that downstream
  * readers subtract (financeModel) or mirror as a reversed journal entry (accountingModel). Header and
@@ -157,9 +157,9 @@ function createRefundsModel(database) {
 
     // `{ book, withCash }` — book money (virement + espèces) vs everything including the caisse
     // interne. The two readings mirror what `complementPaidCash` does at each aggregate
-    // (specs/reservation-refunds.md §3.3 rule 19). A `retained` avoir counts in NEITHER: it reverses
+    // (specs/payments/reservation-refunds.md §3.3 rule 19). A `retained` avoir counts in NEITHER: it reverses
     // revenue in the journal but no money went back to the guest — we kept the acompte
-    // (specs/payment-schedule-and-cancellation.md §3.6).
+    // (specs/payments/payment-schedule-and-cancellation.md §3.6).
     totalsByReservation(reservationId) {
       const rows = prep('SELECT method, totalTtc FROM reservation_refunds WHERE reservationId = ?')
         .all(reservationId);
@@ -200,7 +200,7 @@ function createRefundsModel(database) {
 
     // TTC a cancelled stay gave back from its indemnity BEFORE `refund` (by date, then id) — the export splits each
     // indemnity share cumulatively, so the shares' HT add up to the compensation's HT to the cent
-    // (specs/reservation-refunds.md rule 48).
+    // (specs/payments/reservation-refunds.md rule 48).
     indemnityGivenBefore({ reservationId, refundDate, id }) {
       const row = prep(stayRefundLinesSumSql(`l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}
           AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`)).get(reservationId, refundDate, refundDate, id);
@@ -222,7 +222,7 @@ function createRefundsModel(database) {
 
     // Book-money refunds whose date falls in [from, nextMonth) — the accounting export's source.
     // Caisse-interne refunds are excluded here, exactly like the cash complements are excluded from
-    // `encaissementsByMonth` (specs/reservation-refunds.md §3.4 rule 26).
+    // `encaissementsByMonth` (specs/payments/reservation-refunds.md §3.4 rule 26).
     listByMonth({ from, nextMonth }) {
       const headers = prep(`
         SELECT rf.id, rf.reservationId, rf.refundDate, rf.method, rf.totalTtc, rf.reason,
@@ -234,7 +234,7 @@ function createRefundsModel(database) {
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
         WHERE ${refundScopeSql('journal', 'book', 'rf.method')}
-          -- specs/payment-schedule-and-cancellation.md §3.6 rule 34 — a cancelled stay keeps its
+          -- specs/payments/payment-schedule-and-cancellation.md §3.6 rule 34 — a cancelled stay keeps its
           -- booked money visible: its requalification avoir is precisely an entry of the cancellation
           -- month, so accounting reads both kinds while every operational query keeps its filter.
           AND r.kind IN ('reservation', 'cancelled')

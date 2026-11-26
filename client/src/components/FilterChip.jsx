@@ -1,6 +1,6 @@
 /**
  * FilterChip — the « active filter » chip of a list: « Écarts · 9 ✕ ». One click on the close button, or
- * `Échap` while the chip is mounted, leaves the filter (specs/reconciliation-assisted-matching.md rule 11).
+ * `Échap` while the chip is mounted, leaves the filter (specs/accounting/reconciliation-assisted-matching.md rule 11).
  * Generic: any list whose view can be narrowed by a counter or a toggle.
  *
  * Props: label (string, e.g. « Écarts »), count? (number), onClear () => void, clearLabel? (aria-label of the close button)

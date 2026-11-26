@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 3–9 — on an operator-managed space the plugin lifecycle
+// specs/plugins/plugin-operator-provisioning.md rules 3–9 — on an operator-managed space the plugin lifecycle
 // does not exist (the exact unknown-route 404, for every role, a support session included), the list
 // is narrowed to what a feature needs, the assistant has no plugin step; an unmanaged space (Solio,
 // development, E2E) is unchanged.

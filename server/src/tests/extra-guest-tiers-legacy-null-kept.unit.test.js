@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 67 (adversarial review of the 2026-10-27 spec-review fixes) —
+// specs/pricing/tariff-recipes.md §3 rule 67 (adversarial review of the 2026-10-27 spec-review fixes) —
 // a save replays the tier table the stay was sold under and stores it VERBATIM: a legacy `null`
 // (a Lodge stay sold at ≤ 2 guests before the fix, found by the operator's SQL) stays `null`, an
 // explicit `[]` stays `[]`, a sold table stays that table.

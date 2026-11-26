@@ -1,5 +1,5 @@
 // Shared fixtures for the « Assurance annulation (Neat) » suites
-// (specs/neat-cancellation-insurance-subscription.md §6.1).
+// (specs/plugins/neat-cancellation-insurance-subscription.md §6.1).
 //
 // A sibling non-test module, so a new subject never has to import — and therefore re-run — another
 // suite (CLAUDE.md §9 "one test file per subject"). `vi.mock('../../../api')` stays in each test file:

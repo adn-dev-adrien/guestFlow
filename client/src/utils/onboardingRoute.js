@@ -1,5 +1,5 @@
 /**
- * Where `/demarrage` leads (specs/plugins-phase-p-productisation.md rules 20, 22, 45).
+ * Where `/demarrage` leads (specs/plugins/plugins-phase-p-productisation.md rules 20, 22, 45).
  *
  *  - 'assistant' — an administrator while onboarding is open, or one who reopened it on purpose
  *    from Réglages › Système (router state `{ reopen: true }`);

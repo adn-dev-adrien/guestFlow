@@ -1,5 +1,5 @@
 /**
- * The figure set of one stay (specs/pricing-components.md §3 rules 68 and 70).
+ * The figure set of one stay (specs/pricing/pricing-components.md §3 rules 68 and 70).
  *
  * Pure: `figuresOf({ row, quote, fiche, cancellation, installments })` turns what the current code computed
  * for a stay into one flat object `{ 'path.of.the.figure': value }` of numbers read EXACTLY as the code produced them

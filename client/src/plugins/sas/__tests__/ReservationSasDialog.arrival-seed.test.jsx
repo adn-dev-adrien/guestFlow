@@ -1,4 +1,4 @@
-// specs/sas-offer-complement-lines.md §4.3 and specs/pricing-components.md rules 85, 107 (stabilisation loop t6, S6-3) — the arrival SAS reopens the
+// specs/sas/sas-offer-complement-lines.md §4.3 and specs/pricing/pricing-components.md rules 85, 107 (stabilisation loop t6, S6-3) — the arrival SAS reopens the
 // offered complement lines by the keys the server serves (`arrivalSeed`), a later line of an article named by its own line. Before, the
 // dialog seeded `option:<id>` for every offered line, which the commit read as the article's FIRST line: two lines of one article, the
 // second offered, came back with the first one offered and the second billed again.

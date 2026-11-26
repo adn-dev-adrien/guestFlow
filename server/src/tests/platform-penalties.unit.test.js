@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 23–27, 29–30 — platform penalties: scope, guards, the
+// specs/accounting/reconciliation-assisted-matching.md rules 23–27, 29–30 — platform penalties: scope, guards, the
 // « before » and « after » cases and their commission figures, previews with their warnings, removal,
 // the aggregate column, the history, the ledger line and the finance figures before / after.
 // Fictional data only.

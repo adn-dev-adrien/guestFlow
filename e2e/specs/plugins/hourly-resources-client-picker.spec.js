@@ -1,5 +1,5 @@
 // @ts-check
-// plugins/hourly-resources — specs/resource-booking-client-picker.md rules 1-8. In a new session of a resource, the
+// plugins/hourly-resources — specs/resources/resource-booking-client-picker.md rules 1-8. In a new session of a resource, the
 // « Client enregistré » list opens on the guest on site, then the one arriving within 7 days, then the later one, then
 // the past one and the client without a stay; typing narrows it on every word, accents ignored.
 import { test, expect } from '@playwright/test';

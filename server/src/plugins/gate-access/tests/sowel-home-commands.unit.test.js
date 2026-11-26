@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 8-10 — light commands: queued for the house, collected by its long poll,
+// specs/guest-app/guest-app-home-automation.md rules 8-10 — light commands: queued for the house, collected by its long poll,
 // expired when nobody collects them in 30 s, answered once, the same tap within 2 s counted once.
 const test = require('node:test');
 const assert = require('node:assert/strict');

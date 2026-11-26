@@ -1,4 +1,4 @@
-// The Calendrier submenu entries of plugin modules (specs/plugins-phase-3c-hourly-resources.md rule
+// The Calendrier submenu entries of plugin modules (specs/plugins/plugins-phase-3c-hourly-resources.md rule
 // 21, slot `calendar.menu`): `{ path, label }`, drawn above the properties' calendars. Each is visible
 // through `canSeeRoute`, like every page — its plugin active, its roles allowed.
 import PLUGIN_MODULES from '../plugins';

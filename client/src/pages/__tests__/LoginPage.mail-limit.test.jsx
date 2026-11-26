@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 62 — when the login code mail is limited, the login page says
+// specs/hosting/hosting-h2-account-security.md rule 62 — when the login code mail is limited, the login page says
 // so (not « Identifiants invalides ») and counts the wait down on the button.
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/admin-account-management.md rule 21, reading R35-CON-L1 (2026-11-09) — the console's SMTP client greets its server
+// specs/hosting/admin-account-management.md rule 21, reading R35-CON-L1 (2026-11-09) — the console's SMTP client greets its server
 // with the domain of `CP_SMTP_FROM`, as the instance's transports do (server smtp-ehlo-name), never nodemailer's default:
 // the machine's hostname, `[127.0.0.1]` on a VM whose name has no dot. Login codes, export links, closing and renewal
 // mails all leave through it.

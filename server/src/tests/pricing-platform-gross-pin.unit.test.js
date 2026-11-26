@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/platform-payment-entry.md — on a non-direct reservation a set `platformGrossAmount` (the brut the
+// specs/platforms/platform-payment-entry.md — on a non-direct reservation a set `platformGrossAmount` (the brut the
 // guest paid) PINS the total séjour: finalPrice = brut, the accommodation back-solved (= brut − options −
 // resources − extra-guest). Empty brut / direct → normal pricing.
 
@@ -85,7 +85,7 @@ test('a complement option is ADDITIONAL to the brut (collected on arrival), not 
   assert.equal(q.finalPrice, 707, 'total séjour = brut 687 + complement 20');
   assert.equal(q.complementAmount, 20, 'the lit bébé lands in the complément (collected on arrival)');
   // The platform settles the brut (minus commission); the complement (lit bébé, collected on arrival) is
-  // on top and NOT part of the platform's payout (specs/platform-payment-entry.md — écart bug fix).
+  // on top and NOT part of the platform's payout (specs/platforms/platform-payment-entry.md — écart bug fix).
   assert.equal(q.platformNetReceivedAmount, 626, 'net perçu = brut 687 − commission 61');
   db.close();
 });

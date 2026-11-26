@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 37 — on a phone the console's menu keeps two entries in
+// specs/hosting/control-plane-plans-and-access.md rule 37 — on a phone the console's menu keeps two entries in
 // the bar and puts the others under « Plus », named after the open page when it is one of them.
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';

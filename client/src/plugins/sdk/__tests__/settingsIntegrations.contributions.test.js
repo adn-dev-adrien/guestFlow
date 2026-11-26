@@ -1,4 +1,4 @@
-// specs/integrations-tab-per-plugin.md rules 4 and 8 — every plugin that contributes to Intégrations
+// specs/plugins/integrations-tab-per-plugin.md rules 4 and 8 — every plugin that contributes to Intégrations
 // names its tab with a short label and brings the search words that lead to it.
 import { allContributions } from '../registry';
 import { shippedPlugins } from '../testing';
@@ -19,7 +19,7 @@ test('rule 4: each contributing plugin declares a short tab label', () => {
     'airbnb-intake': 'Airbnb',
     'google-vacation-rentals': 'Google Vacation Rentals',
     'guest-app': 'Application clients',
-    // specs/resource-booking-pricing-and-invoicing.md rule 5 — « TVA des ventes hors séjour ».
+    // specs/resources/resource-booking-pricing-and-invoicing.md rule 5 — « TVA des ventes hors séjour ».
     'hourly-resources': 'Ressources à l’heure',
   };
   const shipped = shippedPlugins();

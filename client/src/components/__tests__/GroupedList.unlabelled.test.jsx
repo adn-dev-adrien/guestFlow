@@ -1,5 +1,5 @@
 // GroupedList — a group with an empty label renders its card with no header
-// (specs/clients-upcoming-past-directory.md rule 13: the name sort is a flat A → Z list).
+// (specs/clients/clients-upcoming-past-directory.md rule 13: the name sort is a flat A → Z list).
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import GroupedList from '../GroupedList';

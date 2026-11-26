@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 85 and 86, §5 and rule 36; specs/self-update-and-releases.md rule 57 — the PR C schema: the
+// specs/pricing/pricing-components.md §3 rules 85 and 86, §5 and rule 36; specs/hosting/self-update-and-releases.md rule 57 — the PR C schema: the
 // outside-sale tables, the nullable targets of payment_links and email_log, the line tables without their article key (rows copied in
 // rowid order), the schema floor; additions and rebuilds with the same rows, a second run changes nothing, no amount rewritten.
 process.env.DB_PATH = ':memory:';

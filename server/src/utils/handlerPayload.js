@@ -1,6 +1,6 @@
 /**
  * Runs an Express handler in-process and resolves with the JSON body it answers, so a summary can be
- * built from the very list a card reads (specs/shell-and-home-day-first.md rule 7).
+ * built from the very list a card reads (specs/planning/shell-and-home-day-first.md rule 7).
  *
  * Resolves — never rejects — `{ ok: true, body }`, or `{ ok: false, reason }` when the handler
  * answers an error status, throws, calls `next`, or returns without answering. The caller decides

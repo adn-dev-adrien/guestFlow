@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 13, 21 — the gate tile read without network says the connection is needed, never
+// specs/guest-app/guest-app.md rules 13, 21 — the gate tile read without network says the connection is needed, never
 // « Accès en préparation ».
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

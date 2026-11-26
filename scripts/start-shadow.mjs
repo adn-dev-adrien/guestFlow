@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Starts a shadow: a throwaway copy of a GuestFlow database running THIS checkout, the way production
- * runs it (specs/inte-performance.md rule 1).
+ * runs it (specs/tech/inte-performance.md rule 1).
  *
  *   node scripts/start-shadow.mjs --db <file> [--port 4104] [--dir <folder>] [--env <.env.local>] [--dev]
  *

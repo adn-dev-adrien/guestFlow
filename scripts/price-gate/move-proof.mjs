@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// specs/pricing-components.md §3 rule 73 — the per-commit proof that code MOVED and did not change:
+// specs/pricing/pricing-components.md §3 rule 73 — the per-commit proof that code MOVED and did not change:
 //
 //   node scripts/price-gate/move-proof.mjs [base]        base defaults to HEAD~1; the diff is base..HEAD
 //

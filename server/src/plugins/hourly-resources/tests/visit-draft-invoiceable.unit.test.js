@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 54 (stabilisation loop t2, B2-7; invoicing rules 13, 44, 45) — « Créer la facture dans Qonto » at « Payé maintenant » is the
+// specs/sas/outside-booking-sas.md rule 54 (stabilisation loop t2, B2-7; invoicing rules 13, 44, 45) — « Créer la facture dans Qonto » at « Payé maintenant » is the
 // server's answer for the payment typed: the arrival's quote and the booking dialog's preview judge the commit of the draft with the refusals `issue` would
 // answer, and write nothing.
 const test = require('node:test');

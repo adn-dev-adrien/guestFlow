@@ -1,9 +1,9 @@
 # Hosting host — runbook
 
 The host that runs the hosted GuestFlow fleet: one process per customer, behind Caddy, backed up by
-Litestream, driven by the console. Why it is built this way: [`specs/hosting-h1-fleet-runtime.md`](../../specs/hosting-h1-fleet-runtime.md)
+Litestream, driven by the console. Why it is built this way: [`specs/hosting/hosting-h1-fleet-runtime.md`](../../specs/hosting/hosting-h1-fleet-runtime.md)
 (decisions H-D1 to H-D6). Self-hosted installs (Solio) do **not** use any of this: they keep PM2 and
-the in-app update of [`specs/self-update-and-releases.md`](../../specs/self-update-and-releases.md).
+the in-app update of [`specs/hosting/self-update-and-releases.md`](../../specs/hosting/self-update-and-releases.md).
 
 ## Identities (rule 21)
 
@@ -102,7 +102,7 @@ SSH `REPO_URL`.)
 What bootstrap writes into `/srv/guestflow/console/env` by itself:
 - the session and proxy secrets;
 - **the licence key pair** (H1 rule 26): an Ed25519 private key in base64 DER (PKCS8) in
-  `CP_LICENCE_PRIVATE_KEY`, generated when it is empty (an optional `CP_REGISTRY_PRIVATE_KEY`, same format, signs the plugin registry's index instead — specs/plugins-phase-4-registry.md rule 42). It prints the public key for the record;
+  `CP_LICENCE_PRIVATE_KEY`, generated when it is empty (an optional `CP_REGISTRY_PRIVATE_KEY`, same format, signs the plugin registry's index instead — specs/plugins/plugins-phase-4-registry.md rule 42). It prints the public key for the record;
   nothing has to be done with it — the console writes it into every instance's environment;
 - **optional release signing** (self-update rule 41): `GUESTFLOW_RELEASE_PUBLIC_KEY` in the console env makes the
   console refuse any fleet release without a valid `SHA256SUMS.sig`. Bootstrap never sets it, and while it is unset the console logs a `[security]` line at boot and keeps a host alert open (self-update rule 47): signing is the only barrier against a malicious release; the maintainer

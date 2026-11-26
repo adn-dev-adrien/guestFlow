@@ -1,4 +1,4 @@
-// specs/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — an end-of-stay complement collected outside the
+// specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — an end-of-stay complement collected outside the
 // departure SAS takes no new charge: the server refuses the preview, the dialog says its reason with no « Réessayer » and
 // keeps « Valider et terminer » closed.
 //

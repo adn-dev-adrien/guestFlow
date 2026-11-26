@@ -1,5 +1,5 @@
 /**
- * Reads the catalogue for one language (specs/translation-catalogue.md rules 14-16).
+ * Reads the catalogue for one language (specs/site/translation-catalogue.md rules 14-16).
  *
  * The single place that answers « what does this label say in English? », for the three surfaces that
  * ask: the public API the site renders, the English e-mails, and the English devis PDF. Before this

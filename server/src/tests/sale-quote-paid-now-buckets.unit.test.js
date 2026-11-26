@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 30 (stabilisation loop t4, S4-4, 2026-11-16) — a quote paid now (cash, card terminal) announces the buckets the
+// specs/pricing/pricing-components.md §3 rule 30 (stabilisation loop t4, S4-4, 2026-11-16) — a quote paid now (cash, card terminal) announces the buckets the
 // sale writes: the note settles the departure remainder in the same transaction, so the departure does not move. Before: `{ departure: 4500 }`.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

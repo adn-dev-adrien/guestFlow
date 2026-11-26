@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 34 (audit r5, review of PR #874, R1) — imapflow hands a Date header it cannot
+// specs/platforms/gites-de-france-mail-intake.md rule 34 (audit r5, review of PR #874, R1) — imapflow hands a Date header it cannot
 // parse over as a raw string. One forged mail with such a header must not stop the pass: the genuine booking is applied
 // on a mailbox without a trusted server (OVH) and on one with it (Gmail), and the forged mail is remembered as `ignored`.
 const test = require('node:test');

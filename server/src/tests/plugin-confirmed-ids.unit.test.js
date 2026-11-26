@@ -1,11 +1,11 @@
-// specs/plugin-dependencies.md rule 22 (audit round 2, N6) — a cascade request carries the ids the operator
+// specs/plugins/plugin-dependencies.md rule 22 (audit round 2, N6) — a cascade request carries the ids the operator
 // confirmed (`withRequirements` / `withDependents` are id lists). The server recomputes the closure and
 // refuses 409 CONFIRMATION_STALE when it differs: nobody is switched on or off unseen.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['website-booking', 'google-vacation-rentals', 'sas'])) return;
 const h = require('./pluginPackagesFixture');

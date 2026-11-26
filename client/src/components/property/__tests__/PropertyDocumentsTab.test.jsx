@@ -1,5 +1,5 @@
 // PropertyDocumentsTab — one « Ajouter un document » button reveals Type, Nom, Parcourir and
-// Enregistrer; a missing name or file is refused (specs/settings-rationalization.md rule 21).
+// Enregistrer; a missing name or file is refused (specs/settings/settings-rationalization.md rule 21).
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

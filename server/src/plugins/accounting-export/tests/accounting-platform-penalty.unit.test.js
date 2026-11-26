@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rule 28 (and specs/accountant-accounting-export.md rule 36) —
+// specs/accounting/reconciliation-assisted-matching.md rule 28 (and specs/accounting/accountant-accounting-export.md rule 36) —
 // a platform penalty is an entry of its own: debit the penalty account, credit the client's account, no VAT,
 // no 70xxx line, dated on the penalty; the balance entry only carries the lowered commission when the
 // declaration moved the penalty out of the payout. Fictional data only.

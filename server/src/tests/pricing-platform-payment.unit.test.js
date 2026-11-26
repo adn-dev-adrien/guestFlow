@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 70 and 6 — PLATFORM PAYMENT alone: the commission from a statement or from the
+// specs/pricing/pricing-components.md §3 rules 70 and 6 — PLATFORM PAYMENT alone: the commission from a statement or from the
 // rent, each commission clamped to its instalment, the net received, the gross / acompte-net / payout / cancellation
 // helpers. No DB, plain objects.
 const test = require('node:test');

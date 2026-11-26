@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 25-26 — the billing address is optional, the postcode 5 digits.
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 25-26 — the billing address is optional, the postcode 5 digits.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed, book } = require('./standaloneBookingFixture');

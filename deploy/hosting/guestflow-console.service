@@ -1,5 +1,5 @@
-# The GuestFlow console (control plane), specs/control-plane-plans-and-access.md and
-# specs/hosting-h1-fleet-runtime.md. Runs as `guestflow`, a member of `guestflow-app` (to create and
+# The GuestFlow console (control plane), specs/hosting/control-plane-plans-and-access.md and
+# specs/hosting/hosting-h1-fleet-runtime.md. Runs as `guestflow`, a member of `guestflow-app` (to create and
 # read the instances' directories) and of `caddy` (to reach Caddy's admin socket). Its only root
 # commands are the two wrappers allowed by /etc/sudoers.d/guestflow.
 

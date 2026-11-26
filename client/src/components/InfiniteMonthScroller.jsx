@@ -1,6 +1,6 @@
 /**
  * InfiniteMonthScroller — stacked month blocks in one bounded scroll container, extended without limit
- * in both directions, each block under its own sticky month title (specs/calendar-property-parity.md
+ * in both directions, each block under its own sticky month title (specs/planning/calendar-property-parity.md
  * rules 13-15). It owns the scrolling, the « Aujourd'hui » button and the loading/error state of each
  * month; WHAT a month shows is the caller's `renderMonth`, and its data comes from a `useMonthDataCache`.
  *

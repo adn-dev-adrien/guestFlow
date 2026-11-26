@@ -1,5 +1,5 @@
 // @ts-check
-// DS phase-6 smoke (specs/ds-sweep-reservations.md §7). PropertyDetail's hand-rolled header migrated
+// DS phase-6 smoke (specs/design-system/ds-sweep-reservations.md §7). PropertyDetail's hand-rolled header migrated
 // to the shared PageActionBar: on /properties/new the create CTA is the bar's Save action (icon
 // button, aria-label « Créer le logement »), disabled until a name is typed into the first form field.
 import { test, expect } from '@playwright/test';

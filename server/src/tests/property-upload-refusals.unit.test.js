@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rules 59-60 (audit R24-I2, R24-I3, 2026-11-05) — through the real application: a photo
+// specs/settings/settings-input-guards.md rules 59-60 (audit R24-I2, R24-I3, 2026-11-05) — through the real application: a photo
 // the image library cannot read is a 400 that names it, nothing stored; a long document name is shortened, never an
 // error that shows the server's path; any upload failure other than the size answers a fixed message.
 const test = require('node:test');

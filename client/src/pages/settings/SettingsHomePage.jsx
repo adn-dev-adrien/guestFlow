@@ -1,12 +1,12 @@
 /**
- * SettingsHomePage — `/settings`, the summary of Paramètres (specs/settings-rationalization.md rules
+ * SettingsHomePage — `/settings`, the summary of Paramètres (specs/settings/settings-rationalization.md rules
  * 24–27; UI/UX review 2026-10-18, proposal 20 and decision 12).
  *
  * The four groups of constants/settingsMenu.js, each page on one row with its state line computed by
  * the server (GET /api/settings/summary), and a search that understands the owner's words (wifi,
  * iban, smtp, 2fa…). `/settings#<group>` — what a group of the sidebar opens — scrolls to that group
  * and marks it for a moment. The Intégrations row is searched with the words its plugins bring, and a
- * word of one plugin opens that plugin's tab (specs/integrations-tab-per-plugin.md rule 8).
+ * word of one plugin opens that plugin's tab (specs/plugins/integrations-tab-per-plugin.md rule 8).
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
@@ -24,7 +24,7 @@ import { useSlot } from '../../plugins/sdk/useSlot';
 import { matchSettingsRow } from '../../utils/settingsSearch';
 import api from '../../api';
 
-// Short enough for a 390 px phone (specs/settings-rationalization.md rule 31).
+// Short enough for a 390 px phone (specs/settings/settings-rationalization.md rule 31).
 const SEARCH_PLACEHOLDER = 'Chercher : wifi, iban, smtp…';
 const SEARCH_HINT = 'Essayer : wifi, iban, smtp, 2fa, caution.';
 

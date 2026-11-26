@@ -1,5 +1,5 @@
 /**
- * Push controller (specs/pwa-push-notifications.md §4.3). All handlers are scoped to the logged-in
+ * Push controller (specs/guest-app/pwa-push-notifications.md §4.3). All handlers are scoped to the logged-in
  * user (`req.user`, set by requireAuth). Thin: delegates to pushSubscriptionsModel + vapid.
  */
 
@@ -8,7 +8,7 @@ const vapid = require('../utils/vapid');
 const pushService = require('../utils/pushService');
 const { availablePushChannels, pluginPushChannels } = require('../utils/pushChannels');
 
-// specs/plugins-phase-3b-neat.md rule 13, specs/platform-settings-relay-and-review.md rule 8 — the
+// specs/plugins/plugins-phase-3b-neat.md rule 13, specs/platforms/platform-settings-relay-and-review.md rule 8 — the
 // toggles a user can set: the core's, then each live plugin's own, served with its label. A stored
 // preference of an inactive plugin is kept as it is.
 const pluginKeys = () => pluginPushChannels().map((c) => c.key);

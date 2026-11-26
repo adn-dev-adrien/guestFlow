@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../../theme';
 import DialogProvider from '../../../components/DialogProvider';
-// specs/reservation-payment-ledger.md rule 43 — an entry whose credits are all on the tourist-tax
+// specs/payments/reservation-payment-ledger.md rule 43 — an entry whose credits are all on the tourist-tax
 // account (no revenue, no VAT) is announced above the journal; the export itself is unchanged.
 
 vi.mock('../../../api', () => ({

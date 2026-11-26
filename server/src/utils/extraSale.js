@@ -1,5 +1,5 @@
 /**
- * extraSale — the one write path for an extra on a stay that exists (specs/pricing-components.md §3 rules 27-30, 39, 37, 23).
+ * extraSale — the one write path for an extra on a stay that exists (specs/pricing/pricing-components.md §3 rules 27-30, 39, 37, 23).
  *
  *   quote(reservationId, requests, { payment, now, source })  → { status: 200, lines, buckets, totalCents, refusals } | { status, body }   writes nothing
  *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents, atArrival })  → { status: 200, saleDetail } | { status, body }
@@ -557,7 +557,7 @@ function saleDetailOfAt(reservationId, now = new Date()) {
 
 // Rule 91 — the arrival complement the guest e-mails list, read from the sale detail: `{ amount, paid, detail }` like
 // `buildArrivalComplementDetail`, which stays the reading of a stay the engine cannot quote (null here).
-// specs/direct-installments.md rule 58 — what the plan's installments do not cover is not an anonymous « Complément d'arrivée »: it
+// specs/payments/direct-installments.md rule 58 — what the plan's installments do not cover is not an anonymous « Complément d'arrivée »: it
 // takes its own line out of the adjustment, so the e-mails and the SAS name it the same way.
 function withInstallmentRest(lines, row) {
   const at = lines.findIndex((line) => line.kind === 'remainder');

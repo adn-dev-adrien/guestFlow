@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 15, 18, 19, 20 — what a support session may not do,
+// specs/hosting/hosting-h2-account-security.md rules 15, 18, 19, 20 — what a support session may not do,
 // judged on the path Express really routes (any case, trailing slash), refused again by the
 // controller itself; what it may not change (users, credentials); and the trace of what it reads,
 // worded for the customer.

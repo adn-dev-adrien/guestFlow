@@ -1,6 +1,6 @@
 /**
  * DevisValidityChip — which promise a quote still carries, in the fiche's action bar
- * (specs/devis-extras-parity-and-price-lock.md §3 rule 16; specs/ui-review-2026-10-19-operations.md
+ * (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 16; specs/design-system/ui-review-2026-10-19-operations.md
  * rule 20).
  *
  * The date, the expiry verdict and whether the quote may be re-issued all come from the server; the

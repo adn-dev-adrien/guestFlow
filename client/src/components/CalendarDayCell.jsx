@@ -15,13 +15,13 @@ import { formatPlatformLabel } from '../constants/platforms';
 const NO_SHRINK = { flexShrink: 0, maxWidth: '100%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' };
 
 // The row of a cell that holds the day number, the « férié » marker, the note and the zone dots.
-// Stay names are drawn below it, by the grid (specs/calendar-property-parity.md rule 20).
+// Stay names are drawn below it, by the grid (specs/planning/calendar-property-parity.md rule 20).
 export const CELL_TOP_BAND_H = 22;
 
 /**
  * CalendarDayCell — renders a single day of the logement calendar: the diagonal check-in / check-out /
  * cleaning gradients, blocked-night bands, devis overlay, closure hatching (half a day at its start and
- * at its reopening, specs/calendar-property-parity.md rule 12), a top band with the day number, holiday
+ * at its reopening, specs/planning/calendar-property-parity.md rule 12), a top band with the day number, holiday
  * marker, calendar note and zone dots, and the click-zone hit-testing. Stay names are NOT drawn here:
  * the grid lays one ribbon per week segment over the cells.
  *

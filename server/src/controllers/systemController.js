@@ -1,5 +1,5 @@
 /**
- * System / self-update endpoints (specs/self-update-and-releases.md §4.3).
+ * System / self-update endpoints (specs/hosting/self-update-and-releases.md §4.3).
  *
  * Everything the client needs is computed here and shipped ready to render: whether an update
  * exists, its release notes already parsed into sections, the French label of the current phase,
@@ -33,11 +33,11 @@ const KEEP_RELEASES = 3;
 
 let lastManualCheckAt = 0;
 
-// specs/hosting-h1-fleet-runtime.md rule 9 — on a hosted instance the operator updates from the
+// specs/hosting/hosting-h1-fleet-runtime.md rule 9 — on a hosted instance the operator updates from the
 // console; the instance shows its version and nothing to press.
 const MANAGED_LABEL = 'Mises à jour gérées par l’hébergeur';
 const isManaged = (env = process.env) => env.GUESTFLOW_MANAGED === '1';
-// specs/self-update-and-releases.md rule 51 — the E2E servers read no release feed. Honoured under
+// specs/hosting/self-update-and-releases.md rule 51 — the E2E servers read no release feed. Honoured under
 // NODE_ENV=test only: a production instance that inherits the flag by mistake keeps checking.
 const outboundDisabled = (env = process.env) => env.GUESTFLOW_DISABLE_OUTBOUND === '1' && env.NODE_ENV === 'test';
 
@@ -278,7 +278,7 @@ async function startUpdate(req, res) {
   const current = getAppVersion();
   const targetVersion = req.body?.targetVersion;
 
-  // specs/self-update-and-releases.md rule 57 — judged first, before the host and « newer than the running version »: the floor is a property of the database.
+  // specs/hosting/self-update-and-releases.md rule 57 — judged first, before the host and « newer than the running version »: the floor is a property of the database.
   if (isValidVersion(targetVersion) && isBelowSchemaFloor(require('../database'), targetVersion)) {
     return res.status(422).json({ error: 'BELOW_SCHEMA_FLOOR', message: BELOW_FLOOR_MESSAGE });
   }

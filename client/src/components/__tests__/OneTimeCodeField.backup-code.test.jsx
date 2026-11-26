@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 7 — on the second-step screen, « Utiliser un code de
+// specs/hosting/hosting-h2-account-security.md rule 7 — on the second-step screen, « Utiliser un code de
 // secours » switches the code field to the letter keyboard, and the way back returns to the numeric
 // keypad; a field without backup codes offers no switch.
 import React, { useState } from 'react';

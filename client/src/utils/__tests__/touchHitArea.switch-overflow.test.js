@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 30 (audit R22-C7) — on touch only the height of a switch's input sticks out: its sides
+// specs/design-system/ds-components.md rule 30 (audit R22-C7) — on touch only the height of a switch's input sticks out: its sides
 // stay clipped, so it cannot scroll a container sideways nor take taps meant for the row's text.
 import theme from '../../theme';
 import { COARSE_POINTER } from '../touchHitArea';

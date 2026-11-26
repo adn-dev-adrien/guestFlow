@@ -1,11 +1,11 @@
 /**
  * The first administrator of a hosted instance, created by the control plane at onboarding
- * (specs/control-plane-plans-and-access.md rule 7). Run through `scripts/create-first-admin.js`.
+ * (specs/hosting/control-plane-plans-and-access.md rule 7). Run through `scripts/create-first-admin.js`.
  *
  * - The account is an admin with a temporary password and `mustChangePassword`, exactly like an
  *   account an admin creates from the Users page.
  * - It is idempotent: an email that already exists is left untouched (`created: false`), unless the
- *   console asks for a new provisional password (`reissue`, specs/hosting-h1-fleet-runtime.md
+ *   console asks for a new provisional password (`reissue`, specs/hosting/hosting-h1-fleet-runtime.md
  *   rule 24): `unused` gives one to an account nobody ever signed in to (an invitation that never
  *   arrived), `always` to any account (« Réinitialiser l'accès »), whose second step is also turned
  *   off and recorded in the account's history. A reissue ends every live session of the account,

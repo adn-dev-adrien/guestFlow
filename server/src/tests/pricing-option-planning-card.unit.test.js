@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/option-planning-card.md §3.4 — for a `showsPlanningCard` option the SELECTED occurrences
+// specs/options/option-planning-card.md §3.4 — for a `showsPlanningCard` option the SELECTED occurrences
 // REPLACE the automatic nights/days path: billedUnits = occurrences × (persons if per-person else 1).
 
 function createDb() {
@@ -99,7 +99,7 @@ test('3 slots/day × 3 days × 4 guests = 36 (per-person)', () => {
   db.close();
 });
 
-// specs/unscheduled-card-option.md rules 1 + 5 — an empty grid means « not placed yet », never « not
+// specs/options/unscheduled-card-option.md rules 1 + 5 — an empty grid means « not placed yet », never « not
 // sold ». Switching the option off (quantity 0) is the one gesture that removes it.
 test('no selected occurrences → the line survives, « à planifier »', () => {
   const db = createDb();
@@ -130,7 +130,7 @@ test('card option carries its occurrences on the line (for persistence)', () => 
   db.close();
 });
 
-// specs/devis-extras-parity-and-price-lock.md §3 rule 13bis — a card option is billed from its
+// specs/devis/devis-extras-parity-and-price-lock.md §3 rule 13bis — a card option is billed from its
 // occurrences, so it never went through the units-based locked merge and was silently re-priced at
 // today's tariff on every save of an already-sold booking.
 
@@ -210,7 +210,7 @@ test('a card option added to an existing booking is priced at today’s tariff',
   db.close();
 });
 
-// specs/card-option-served-persons.md §3.1 — a per-person card option is not always taken by the
+// specs/options/card-option-served-persons.md §3.1 — a per-person card option is not always taken by the
 // whole party (the children skip the meal): `cardPersons` says how many covers each moment serves.
 
 test('cardPersons lowers the covers: 2 moments × 2 served instead of × 4 guests', () => {

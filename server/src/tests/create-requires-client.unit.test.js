@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 10 (spec review 2026-10-27) — a stay posted without a client is
+// specs/tech/reservations-backend-mvc.md rule 10 (spec review 2026-10-27) — a stay posted without a client is
 // refused with a French 400 before anything is written, instead of a 500 from the NOT NULL constraint.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

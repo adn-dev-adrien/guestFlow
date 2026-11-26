@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import GateAccessCard from '../GateAccessCard';
 
-// specs/gate-access-sowel-connector.md §3.5 rule 26 — the fiche card reads the stored key and does
+// specs/guest-app/gate-access-sowel-connector.md §3.5 rule 26 — the fiche card reads the stored key and does
 // nothing else: every action lives in Sowel. It never shows an empty frame, and a key Sowel could
 // not make says so, with the reason.
 

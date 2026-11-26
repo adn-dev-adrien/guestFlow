@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 17 (audit R21-S5) — what a line sold at arrival leaves the field: an
+// specs/options/non-card-option-served-persons.md rule 17 (audit R21-S5) — what a line sold at arrival leaves the field: an
 // offered line is frozen at its count too, and a re-opened SAS reopens on what it sold, in nights as in people.
 
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/public-online-payment.md rule 7 — POST /booking-requests/:id/pay has its own budget: a guest
+// specs/site/public-online-payment.md rule 7 — POST /booking-requests/:id/pay has its own budget: a guest
 // who sends a request then retries the payment is never refused by the booking-request anti-spam
 // limiter, and the payment retries stay capped by their own limiter.
 

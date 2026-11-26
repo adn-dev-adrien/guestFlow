@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23, 37, 95, 104, 105 (stabilisation loop t5, S5-4 and S5-5, 2026-11-16) — a paid line once offered is still the
+// specs/pricing/pricing-components.md §3 rules 23, 37, 95, 104, 105 (stabilisation loop t5, S5-4 and S5-5, 2026-11-16) — a paid line once offered is still the
 // note's: it can be re-billed, never removed nor moved. Before: the offer netted its allocations to 0, so `removeLine` took it off (the note then
 // claimed the next line of the article, which read « Payée ») and `changeLine` moved it to the arrival of a validated stay, where un-offering it
 // was refused.

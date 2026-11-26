@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 67 (audit R21, public finding 3) — anonymous, no key: a login or a
+// specs/hosting/hosting-h2-account-security.md rule 67 (audit R21, public finding 3) — anonymous, no key: a login or a
 // reset whose fields are not strings is the normal refusal, not a 500 thrown by String({"toString":1}).
 const test = require('node:test');
 const assert = require('node:assert/strict');

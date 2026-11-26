@@ -1,5 +1,5 @@
 /**
- * Extra sales model — the database side of `utils/extraSale.js` (specs/pricing-components.md §3 rules 18, 27, 37, 39, 46).
+ * Extra sales model — the database side of `utils/extraSale.js` (specs/pricing/pricing-components.md §3 rules 18, 27, 37, 39, 46).
  *
  * It reads and writes the sale columns of the three line tables (`source`, `soldAt`, `collectAt`, `collectAtDefault`, `discountCents`)
  * and the stay's extras baseline; it prices nothing and decides no refusal other than the ones about a stored line.

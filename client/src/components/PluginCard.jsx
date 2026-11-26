@@ -1,6 +1,6 @@
 /**
- * PluginCard — one plugin on the Plugins page (specs/plugins-phase-0-foundation.md rules 22–23;
- * specs/plugins-phase-1-sdk.md rules 4 and 21–22; specs/control-plane-plans-and-access.md rules 11–12).
+ * PluginCard — one plugin on the Plugins page (specs/plugins/plugins-phase-0-foundation.md rules 22–23;
+ * specs/plugins/plugins-phase-1-sdk.md rules 4 and 21–22; specs/hosting/control-plane-plans-and-access.md rules 11–12).
  * Feature-specific: only the Plugins page lists plugins.
  *
  * Props:
@@ -8,14 +8,14 @@
  *             planChip, planHint } as GET /api/plugins returns it — `data` lists what an erasure
  *             would take, a line with `warning: true` being shown apart, before the choice; `outOfPlan` marks a plugin the subscription does not include, `planChip`
  *             names the plan that does and `planHint` says how to get it
- *             — and since specs/plugins-phase-4-registry.md: `version`, `update` ({ version,
+ *             — and since specs/plugins/plugins-phase-4-registry.md: `version`, `update` ({ version,
  *             changelog, refusal } | null), `offer` ({ version, requirements, refusal } for an available
  *             plugin), `incompatible` ({ message, compatibleVersion } | null), `rollback` ({ version,
  *             label, refusal } | null)
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
  *   bundleFailed boolean the browser could not load this plugin's bundle (rule 18)
- *   specs/plugin-dependencies.md rules 6–8: `dependencies` ({ requires: [{ id, name, status, label,
+ *   specs/plugins/plugin-dependencies.md rules 6–8: `dependencies` ({ requires: [{ id, name, status, label,
  *             updateAvailable }], usedBy: [{ id, name, state, label }] }) is printed under the
  *             description; `actions` ({ activate, deactivate, uninstall }, each { allowed, blockedBy,
  *             alsoActivates?, alsoDeactivates? }) says what the buttons would refuse before the click
@@ -26,7 +26,7 @@
  *   onOpenUpdate () => void  the « Mise à jour x.y.z » chip: opens the update dialog (rule 20)
  *   onOpenSettings (path) => void  the « Configurer » / « Réglages » button: opens the place the
  *             server names in `plugin.setup` ({ needed, label, path, action }) —
- *             specs/plugins-phase-0-foundation.md rule 25. « Désactiver » lives in the ⋯ menu, with
+ *             specs/plugins/plugins-phase-0-foundation.md rule 25. « Désactiver » lives in the ⋯ menu, with
  *             a confirmation; when the server refuses it (`blocker`) the menu item says why.
  */
 import React, { useState } from 'react';
@@ -94,7 +94,7 @@ export default function PluginCard({
   const update = plugin.update && !incompatible ? plugin.update : null;
   const outOfPlan = Boolean(plugin.outOfPlan);
   const eraseLines = (plugin.data || []).filter((line) => !line.warning).map((line) => line.label).join(' · ');
-  // specs/plugins-phase-3b-neat.md rule 18 — what an erasure cannot undo elsewhere (Neat: subscriptions
+  // specs/plugins/plugins-phase-3b-neat.md rule 18 — what an erasure cannot undo elsewhere (Neat: subscriptions
   // that stay in force at Neat), said before the operator chooses.
   const eraseWarnings = (plugin.data || []).filter((line) => line.warning);
 

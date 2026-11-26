@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md — the ledger shaper: rows, order, states, labels, origins and the
+// specs/payments/reservation-payment-ledger.md — the ledger shaper: rows, order, states, labels, origins and the
 // closing « Reste à percevoir » (rules 1-7, 24, 27-28). The server decides every row; these tests pin
 // what the fiche will print.
 
@@ -174,7 +174,7 @@ test('rule 24 — a platform row replaces the solde: « Versement <plateforme> �
   const r = rowOf(received, 'balance');
   assert.equal(r.stateLabel, 'Reçu le 23/10 · Booking');
   assert.equal(r.detail.reconciliation.label, '✓ cohérent avec le virement', 'rule 26 — the reconciliation chip is on the row');
-  // specs/platform-statement-after-payout.md rules 1, 3 — the received payout keeps its statement open, with the transfer.
+  // specs/platforms/platform-statement-after-payout.md rules 1, 3 — the received payout keeps its statement open, with the transfer.
   assert.equal(r.amountEdit.mode, 'statement');
   const paidOn = '2026-10-23'; // date-literal-ok: the balancePaidDate given to buildLedger above, never compared with today
   assert.deepEqual([r.amountEdit.received.date, r.amountEdit.received.net], [paidOn, 829.42]);
@@ -261,7 +261,7 @@ test('rule 12 — caution states: « Après réception » until received, then �
   assert.equal(rowOf(received, 'cautionReturned').action.after, '2027-07-22');
 });
 
-// specs/adjustable-complement-amounts.md rule 9 — a complement adjusted down to 0 € keeps its row,
+// specs/sas/adjustable-complement-amounts.md rule 9 — a complement adjusted down to 0 € keeps its row,
 // otherwise the operator could no longer clear the adjustment.
 test('adjustable-complement rule 9 — a complement adjusted to 0 € keeps its row', () => {
   const ledger = buildLedger({ row: directRow({ complementAmountOverride: 0 }), quote: directQuote({ complementAmount: 0 }), today: TODAY });

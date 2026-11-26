@@ -1,5 +1,5 @@
 /**
- * specs/translation-catalogue.md §3.2 rules 7-13 — the file the operator downloads, fills in and
+ * specs/site/translation-catalogue.md §3.2 rules 7-13 — the file the operator downloads, fills in and
  * sends back.
  *
  * This is the module that meets a hostile file. The suite is therefore heavier on *shapes* than on

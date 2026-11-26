@@ -1,8 +1,8 @@
 /**
  * The open payment links of a stay — and of the devis converted into it, whose links keep the devis id —
  * that bill an amount the stay no longer asks for are retired with the reason `'amount-changed'` and the
- * remote-deactivation marker, exactly as the fiche's save does (specs/reservation-payment-ledger.md
- * rule 29, specs/public-online-payment.md rule 16). A paid link is never touched.
+ * remote-deactivation marker, exactly as the fiche's save does (specs/payments/reservation-payment-ledger.md
+ * rule 29, specs/site/public-online-payment.md rule 16). A paid link is never touched.
  *
  * Used when a devis converts and by the boot migration; synchronous, no provider call — the poll
  * deactivates the retired links at the provider and books any the guest paid anyway.

@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — a request that created the direct stay, its throttle
+// specs/plugins/plugin-removal-resilience.md rule 11 — a request that created the direct stay, its throttle
 // trace, and the terms the guest accepted for it (terms are the stay's record, they stay on removal).
 module.exports = {
   seed(db, { stays }) {

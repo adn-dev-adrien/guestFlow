@@ -18,7 +18,7 @@ const { calculateReservationQuote } = require('../../../utils/pricing').__test;
 // dropped by the range whitelist, and the strip breaking re-apply idempotency — and both were
 // invisible to every isolated test.
 //
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3.1-§3.2.
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3.1-§3.2.
 
 const RECIPE_PATH = path.join(__dirname, '..', 'recipes', 'aventura-lodge-2026.json');
 

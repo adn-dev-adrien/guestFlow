@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md rules 56-59 (mock specs/tourist-tax-by-property-maquette.html) — the tax is declared per
+// specs/tourist-tax/tourist-tax-report-v2.md rules 56-59 (mock tourist-tax-by-property-maquette.html (mock-up, deleted 2026-11-26)) — the tax is declared per
 // logement: a section for each, its card then its own table ending with « Total {logement} »; « Marquer {logement} déclaré »
 // is one server call; « Exporter {logement} » is the export filtered on it. Every figure is the server's `byProperty`.
 import { vi } from 'vitest';

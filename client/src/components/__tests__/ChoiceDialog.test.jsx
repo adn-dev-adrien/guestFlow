@@ -1,4 +1,4 @@
-// specs/manual-price-on-placement-change.md §4.2, §6 — the generic « pick one of N » dialog: preselection, a disabled choice with
+// specs/reservations/manual-price-on-placement-change.md §4.2, §6 — the generic « pick one of N » dialog: preselection, a disabled choice with
 // its reason, confirm with the picked value, Escape and the cancel button both cancel (rule 14).
 import React from 'react';
 import { vi } from 'vitest';

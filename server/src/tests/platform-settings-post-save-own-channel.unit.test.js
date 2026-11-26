@@ -1,4 +1,4 @@
-// specs/airbnb-no-checkout-chores.md rule 10 (2026-10-27 spec review) — the « Plateformes » save judges a
+// specs/platforms/airbnb-no-checkout-chores.md rule 10 (2026-10-27 spec review) — the « Plateformes » save judges a
 // row's own-channel status on the state AFTER the save: ticking « Compté comme vente directe » and
 // « Sans corvées de départ » in the same batch stores no hidden chore-free flag on a direct-counted row.
 const path = require('path');

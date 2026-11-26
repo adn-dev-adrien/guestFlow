@@ -1,5 +1,5 @@
 // qontoClient — the invoicing calls the control plane uses to bill its customers
-// (specs/control-plane-plans-and-access.md rules 17, 32, 34). All HTTP is stubbed: the tests pin the
+// (specs/hosting/control-plane-plans-and-access.md rules 17, 32, 34). All HTTP is stubbed: the tests pin the
 // payloads we send and the parsing of what Qonto answers.
 
 const test = require('node:test');

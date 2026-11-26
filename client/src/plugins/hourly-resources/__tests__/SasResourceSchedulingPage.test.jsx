@@ -8,7 +8,7 @@ import api from '../../../api';
 
 vi.mock('../../../api', () => ({ default: { getResourceFreeSlots: vi.fn() } }));
 
-// specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 — the arrival-SAS picker. Every slot
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.4 — the arrival-SAS picker. Every slot
 // arrives already classified by the server; this page renders states and never derives them.
 
 const slot = (start, over = {}) => ({
@@ -61,7 +61,7 @@ function Harness({ scheduling = SCHEDULING }) {
   );
 }
 
-// The server answers the supplement and the hours left (specs/resource-supplements-total-server-side.md
+// The server answers the supplement and the hours left (specs/resources/resource-supplements-total-server-side.md
 // rule 17, Q3); the page renders both. Fake answer: the hours sold minus the blocks sent as `pending`.
 let soldHours;
 let answeredSupplement;
@@ -115,7 +115,7 @@ test('an evening slot carries its supplement badge', () => {
   expect(screen.getByText('+20 €')).toBeInTheDocument();
 });
 
-// specs/resource-supplements-total-server-side.md rules 17, 18, 19, 19bis, 20 — the card renders the server's
+// specs/resources/resource-supplements-total-server-side.md rules 17, 18, 19, 19bis, 20 — the card renders the server's
 // supplement and hours left; no cross-resource sum; the per-slot badges stay; dimmed while refreshing.
 test("the card shows the server's supplement, evening credit included — not the sum of the badges", async () => {
   answeredSupplement = 10; // the sold line already bills 10 € of evening; the badge says +20 €

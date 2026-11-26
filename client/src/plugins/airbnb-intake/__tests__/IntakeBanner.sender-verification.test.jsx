@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 22 — a proposal from an unauthenticated sender warns.
+// specs/platforms/airbnb-mail-intake.md rule 22 — a proposal from an unauthenticated sender warns.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/mid-stay-notes.md rules 5bis, 23 (D19) — a note on a started stay with no arrival marked stays open and says
+// specs/sas/mid-stay-notes.md rules 5bis, 23 (D19) — a note on a started stay with no arrival marked stays open and says
 // where the sale goes; the flag is the server's, read from the note's own preview.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

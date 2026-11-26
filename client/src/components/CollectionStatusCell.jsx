@@ -1,6 +1,6 @@
 /**
  * CollectionStatusCell — « what's left to collect at the door » for one reservation
- * (specs/dashboard-collection-alert.md §6).
+ * (specs/planning/dashboard-collection-alert.md §6).
  *
  * Renders the server-built `operationalCollection` block. Three exclusive visual states:
  *   - ALERT (red, bold): money to collect at the door — the arrival complement on the arrivals

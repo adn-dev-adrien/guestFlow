@@ -1,5 +1,5 @@
 /**
- * « Faire confiance à cet appareil 30 jours » (specs/hosting-h2-account-security.md rule 7).
+ * « Faire confiance à cet appareil 30 jours » (specs/hosting/hosting-h2-account-security.md rule 7).
  *
  * The cookie holds `<payload>.<mac>`: the payload names the user and the expiry, and the HMAC also
  * covers a fingerprint of the user's password hash and the date the second step was turned on. A new

@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 10, 22, 35, 39 and 40 — the review of 2026-11-06 on the real schema, through
+// specs/accounting/accounting-synthesis.md §3 rules 10, 22, 35, 39 and 40 — the review of 2026-11-06 on the real schema, through
 // the plugin's own routes: a cancellation that requalifies collected money moves no money (R2-1), the CSV is only
 // stamped by a same-origin download (R6-5), an exercise far ahead answers at once (R2-2), the tourist tax of a window
 // ahead of the server's month is « nothing yet » and a straddling window says up to when (R2-4), the VAT mention

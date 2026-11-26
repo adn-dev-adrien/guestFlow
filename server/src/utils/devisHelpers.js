@@ -12,7 +12,7 @@ function formatDateFR(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-// English-language date formatter used by the EN devis PDF (specs/devis-english-language.md §3 rule 3).
+// English-language date formatter used by the EN devis PDF (specs/devis/devis-english-language.md §3 rule 3).
 // Format: `D MMMM YYYY` (e.g. `5 June 2026`) — unambiguous internationally, unlike the numeric
 // `dd/mm/yyyy` which a US reader could parse as mm/dd.
 const EN_MONTH_NAMES = [
@@ -40,7 +40,7 @@ function formatCurrency(amount) {
   return `${Number(amount || 0).toFixed(2).replace('.', ',')} €`;
 }
 
-// specs/devis-offered-resource-parity.md §3 rule 2 — the stored `offered` flag wins when the line
+// specs/devis/devis-offered-resource-parity.md §3 rule 2 — the stored `offered` flag wins when the line
 // carries one: a legacy row persisted with the phantom price (offered = 1 AND totalPrice > 0) must
 // still print « Offert ». The historical heuristic stays for the lines that reach the renderer without
 // the flag — an engine quote line, or a devis written before the column existed.

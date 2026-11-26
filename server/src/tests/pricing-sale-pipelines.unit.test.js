@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 54 — a pipeline per caller, chosen by the caller: the fiche sells through `ficheSale`, the SAS
+// specs/pricing/pricing-components.md §3 rule 54 — a pipeline per caller, chosen by the caller: the fiche sells through `ficheSale`, the SAS
 // through `sasSale`, the guest app through `shopSale` (the `staySale` steps, rules 8, 9), the line gestures through `ficheSale`; no caller
 // assembles steps, and a sale naming no known pipeline is refused rather than priced as a stay edit.
 process.env.DB_PATH = ':memory:';

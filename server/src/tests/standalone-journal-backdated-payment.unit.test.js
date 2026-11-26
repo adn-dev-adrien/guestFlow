@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 62 (reading of loop t5 B5-1) and rule 99; specs/outside-booking-sas.md rules 30, 57 (a) — the journal of a counter document cuts
+// specs/pricing/pricing-components.md rule 62 (reading of loop t5 B5-1) and rule 99; specs/sas/outside-booking-sas.md rules 30, 57 (a) — the journal of a counter document cuts
 // each (class, rate) group's VAT on its cumulative TTC in the order the money was RECORDED: a payment recorded today and dated before an earlier payment
 // day books its own day and never re-cuts an entry written before it, so a month already exported does not move. Second half: the reviewer's multi-day
 // fuzz, bounded — after every step no past day but the one a back-dated payment lands on changes, and each group's VAT is still one cut on its TTC.

@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// Fixed at the 2026-10-27 spec review (specs/public-api.md rules 8, 17-19), on the real controllers and
+// Fixed at the 2026-10-27 spec review (specs/site/public-api.md rules 8, 17-19), on the real controllers and
 // database: what a public stay may ask for.
 //  - rule 17: an option or resource quantity is bounded by the stay (1e9 was priced and printed);
 //  - rule 18: the cot is never a resource line — `babyBeds` drives it, capped at the babies;

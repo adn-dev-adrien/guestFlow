@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading S14-3 + specs/devis-extras-parity-and-price-lock.md rule 13 (stabilisation loop t16, S16-1,
+// specs/pricing/pricing-components.md §3 rule 94 reading S14-3 + specs/devis/devis-extras-parity-and-price-lock.md rule 13 (stabilisation loop t16, S16-1,
 // 2026-11-17) — a unit override names an article (`<optionId>`) or one stored line (`line:<table>:<lineId>`), nothing else. The fiche once
 // sent a free line's unit under « undefined » (a free line has no article id) and the engine, reading `optionUnitOverrides[lineKey]` with an
 // undefined key, priced every option line without a stored snapshot — an option added, a quantity raised — at that free line's amount:

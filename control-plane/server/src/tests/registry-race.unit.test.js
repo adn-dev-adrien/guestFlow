@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 53 (audit r4, R4-1 + clock note) — two concurrent uploads of the
+// specs/plugins/plugins-phase-4-registry.md rule 53 (audit r4, R4-1 + clock note) — two concurrent uploads of the
 // same <id>-<version>.tgz leave the first one's file on disk, and an index date never runs more than a
 // day ahead of the console clock (the instances' own tolerance).
 

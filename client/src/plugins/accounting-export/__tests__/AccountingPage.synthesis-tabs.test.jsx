@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 23, 24, 34 and 43 — « Comptabilité » opens on « Synthèse »; a journal link
+// specs/accounting/accounting-synthesis.md §3 rules 23, 24, 34 and 43 — « Comptabilité » opens on « Synthèse »; a journal link
 // (month + year, the way back from a fiche) opens « Écritures », unchanged; the tabs count what the server counts;
 // the CSV is offered where its month is chosen; a refused period keeps the bar and says why; the accountant reads all.
 import React from 'react';

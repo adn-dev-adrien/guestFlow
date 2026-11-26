@@ -1,6 +1,6 @@
 /**
  * What would render badly in the guest emails, computed — never guessed
- * (specs/guest-email-texts-made-simple.md rules 6–7).
+ * (specs/emails/guest-email-texts-made-simple.md rules 6–7).
  *
  *   GET /api/email-readiness   { items: [{ id, check, label, section, propertyId, target, soon }], soonCount }
  *
@@ -172,7 +172,7 @@ function buildController({ database, settingsModel }) {
     return { items, soonCount: items.filter((i) => i.soon).length };
   }
 
-  // A published CGV version and the public site's address make the link (specs/terms-acceptance-record.md rule 27).
+  // A published CGV version and the public site's address make the link (specs/reservations/terms-acceptance-record.md rule 27).
   function cgvUrlKnown(settings) {
     let version = null;
     try { version = (database.prepare("SELECT MAX(version) AS v FROM terms_versions WHERE activity = 'lodging'").get() || {}).v; } catch { version = null; }

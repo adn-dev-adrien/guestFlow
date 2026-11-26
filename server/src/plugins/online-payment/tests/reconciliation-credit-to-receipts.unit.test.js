@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rule 14 — « Rattacher à des fiches » from a credit: plausible
+// specs/accounting/reconciliation-assisted-matching.md rule 14 — « Rattacher à des fiches » from a credit: plausible
 // receipts first, all open receipts folded, the same search, several receipts at once. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');

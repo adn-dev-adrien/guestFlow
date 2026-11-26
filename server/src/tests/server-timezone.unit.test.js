@@ -1,4 +1,4 @@
-// specs/server-timezone.md — the process declares the zone its schedulers compare wall-clock times in.
+// specs/hosting/server-timezone.md — the process declares the zone its schedulers compare wall-clock times in.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

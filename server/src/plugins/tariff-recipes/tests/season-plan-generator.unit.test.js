@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { buildYearPlan, buildHorizonPlan, materializeClosures } = require('../seasonPlan');
 const { validateRecipe } = require('../store');
 
-// specs/tariff-recipes/spec.md §3.7 rules 41-44 — the Aventura calendar derived to the day, plus the
+// specs/pricing/tariff-recipes.md §3.7 rules 41-44 — the Aventura calendar derived to the day, plus the
 // generic invariants of §3.3: shoulders on the anchor weekday, no overlap, full coverage, closure
 // skip, merged adjacent holiday blocks.
 
@@ -192,7 +192,7 @@ test('a between anchor with an empty span produces no range; the base season kee
   assert.deepEqual(plan.high, [r('2026-07-01', '2026-07-31')]);
 });
 
-// specs/tariff-recipes/spec.md §3.3 rule 16ter — a holiday landing on a SATURDAY.
+// specs/pricing/tariff-recipes.md §3.3 rule 16ter — a holiday landing on a SATURDAY.
 test('a Saturday holiday raises its own night, alone and with no minimum-stay constraint', () => {
   // It forms no bridge — Saturday is already a non-working day — which is why it was originally
   // skipped. But « le 1er mai » still fills the area whatever weekday it lands on: 1 AND 8 May 2027

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 2, 4, 5, 6, 9 — what a stay link, the fallback lookup and a session open. Pure,
+// specs/guest-app/guest-app.md rules 2, 4, 5, 6, 9 — what a stay link, the fallback lookup and a session open. Pure,
 // far-future dates: the instant is an argument and nothing is compared with today.
 const test = require('node:test');
 const assert = require('node:assert/strict');

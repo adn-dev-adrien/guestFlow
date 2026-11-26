@@ -1,5 +1,5 @@
 /**
- * The fiche's pricing request bodies (specs/pricing-components.md rule 94 reading, loop t16 S16-2).
+ * The fiche's pricing request bodies (specs/pricing/pricing-components.md rule 94 reading, loop t16 S16-2).
  *
  * `ReservationPage` asks the server for a quote in several places — the live preview, the quote taken at « Enregistrer » (whose
  * `resourceLines` the save stores), « Actualiser les tarifs », and the ledger's re-quote (built when sent, like the others). Each used to
@@ -27,10 +27,10 @@ export function selectedOptionsPayload(form, catalogue) {
     .filter((item) => Number((catalogue || []).find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
     .map((item) => {
       const line = { optionId: item.optionId, quantity: item.quantity, inComplement: routing(item.inComplement) };
-      // Option-driven planning cards (specs/option-planning-card.md §3.4): the CHECKED occurrences ({date,time}); the server derives
+      // Option-driven planning cards (specs/options/option-planning-card.md §3.4): the CHECKED occurrences ({date,time}); the server derives
       // billedUnits from them (authoritative).
       if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireOccurrences(item.cardOccurrences);
-      // Served persons of that card option (specs/card-option-served-persons.md §3.2 rule 9): an intent, never a price.
+      // Served persons of that card option (specs/options/card-option-served-persons.md §3.2 rule 9): an intent, never a price.
       if (item.cardPersons != null) line.cardPersons = Number(item.cardPersons);
       if (item.cardNights != null) line.cardNights = Number(item.cardNights);
       if (item.typedAtParty != null) line.typedAtParty = item.typedAtParty;
@@ -65,7 +65,7 @@ export function selectedResourcesPayload(form) {
       unitPrice: item.unitPrice,
       offered: Boolean(item.offered),
       inComplement: routing(item.inComplement),
-      // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md) — drive the server pricer.
+      // Hourly-scheduled sessions (specs/resources/resource-hourly-scheduling.md) — drive the server pricer.
       sessions: Array.isArray(item.sessions) ? item.sessions : [],
     }))
     .filter((item) => Number(item.quantity || 0) > 0 || (Array.isArray(item.sessions) && item.sessions.length > 0))
@@ -92,16 +92,16 @@ export function ficheQuoteBody(input, overrides = {}) {
     discountPercent: form.discountPercent,
     discountTarget: form.discountTarget,
     customPrice: form.customPrice,
-    platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (solde commission)
-    acompteCommissionAmount: form.acompteCommissionAmount, // specs/platform-per-echeance-commission.md (acompte commission)
-    platformGrossAmount: form.platformGrossAmount, // specs/platform-payment-entry.md (pins the total séjour)
-    platformTouristTaxAmount: form.platformTouristTaxAmount, // specs/platform-tourist-tax-out-of-the-commission.md (comes back out of the brut)
+    platformCommissionAmount: form.platformCommissionAmount, // specs/platforms/platform-commission-line.md (solde commission)
+    acompteCommissionAmount: form.acompteCommissionAmount, // specs/platforms/platform-per-echeance-commission.md (acompte commission)
+    platformGrossAmount: form.platformGrossAmount, // specs/platforms/platform-payment-entry.md (pins the total séjour)
+    platformTouristTaxAmount: form.platformTouristTaxAmount, // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md (comes back out of the brut)
     depositPaid: form.depositPaid,
     balancePaid: form.balancePaid,
     complementPaid: form.complementPaid,
     depositAmount: form.depositAmount,
     depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-    // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and every save, so the preview, the
+    // specs/sas/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and every save, so the preview, the
     // fiche total and the stored amount can never disagree.
     complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
     balanceAmount: form.balanceAmount,
@@ -119,10 +119,10 @@ export function ficheQuoteBody(input, overrides = {}) {
     refreshTouristTax,
     ...(reservationId ? { reservationId } : {}),
     // A saved devis locks its prices while it is still valid — the server replays its stored lines so the quote equals what the save
-    // will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+    // will store (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 13).
     ...(devisId ? { devisId } : {}),
     ...(newDevisQuoteMarker || {}),
-    // specs/reservation-payment-ledger.md rule 7 — the ledger follows the transfer typed on the fiche.
+    // specs/payments/reservation-payment-ledger.md rule 7 — the ledger follows the transfer typed on the fiche.
     platformPayoutAmount: form.platformPayoutAmount,
     // Rule 94 reading (loop t15 S15-1, t16 S16-2) — an admin-unlocked fiche is quoted as its save prices it: without the locked fiche's
     // routing, on every quote of the fiche.

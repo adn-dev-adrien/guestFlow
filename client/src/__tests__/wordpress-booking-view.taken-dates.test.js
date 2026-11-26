@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 36 (2026-11-12) — dates the quote answers `available: false` (a link's dates, or
+// specs/site/wordpress-plugin.md rule 36 (2026-11-12) — dates the quote answers `available: false` (a link's dates, or
 // nights booked since the calendar loaded) are refused IN THE CALENDAR, like a minimum-stay breach: the Solio drawer
 // gates its « Suivant » on that hint. No price is shown, no send is possible, and the calendar reloads its nights.
 // A quote refused with a 409 (times the neighbours cannot take) reads in the calendar too.

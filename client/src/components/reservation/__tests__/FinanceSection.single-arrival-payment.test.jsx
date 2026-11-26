@@ -10,7 +10,7 @@ import { makeMockContext } from './mockReservationForm';
 import api from '../../../api';
 import { dueRow, paidRow, ledgerOf } from './ledgerFixtures';
 
-// specs/single-payment-from-the-fiche.md — recording the single arrival payment WITHOUT re-opening
+// specs/payments/single-payment-from-the-fiche.md — recording the single arrival payment WITHOUT re-opening
 // the SAS. The fiche decides nothing about the money: it renders what the server says is collectible
 // and posts a mode plus the date the operator chose.
 
@@ -50,7 +50,7 @@ const GROUP = {
   ],
 };
 
-// Since specs/reservation-payment-ledger.md rule 4 the buckets the group covered read « paiement
+// Since specs/payments/reservation-payment-ledger.md rule 4 the buckets the group covered read « paiement
 // unique » on their rows, and the payment's detail folds under the first of them.
 const GROUP_LEDGER = ledgerOf([
   paidRow('balance', 'Solde', 720.82, { state: 'paid-group', stateLabel: 'Perçu le 30/08 · paiement unique' }),
@@ -100,7 +100,7 @@ test('« Caisse interne » posts the cash mode, and says it is off the books', a
   expect(api.settleArrivalPayment).toHaveBeenCalledWith(7, 'cash', expect.any(String));
 });
 
-// specs/single-payment-at-check-in.md rule 16
+// specs/payments/single-payment-at-check-in.md rule 16
 test('a group already recorded → the summary and its undo, and never the control', async () => {
   const user = userEvent.setup();
   renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: GROUP }, ledger: GROUP_LEDGER });
@@ -132,7 +132,7 @@ test('a refused date surfaces the server reason instead of failing silently', as
   expect(await screen.findByText(/daté dans le futur/)).toBeInTheDocument();
 });
 
-// specs/single-payment-from-the-fiche.md rule 1 — le contrôle vit AU-DESSUS des échéances, dans le
+// specs/payments/single-payment-from-the-fiche.md rule 1 — le contrôle vit AU-DESSUS des échéances, dans le
 // bloc où la ligne « Encaissé à l'arrivée » se rend déjà. La place n'est pas décorative : c'est la
 // première chose que l'opérateur lit quand le client règle tout à la porte, avant de descendre dans
 // les échéances qu'il n'aura pas à cocher une par une.
@@ -152,7 +152,7 @@ test('le contrôle se rend au-dessus des échéances du séjour', () => {
   expect(controlComesFirst).toBeTruthy();
 });
 
-// specs/single-payment-from-the-fiche.md rule 12 — il ne REMPLACE pas les boutons par échéance :
+// specs/payments/single-payment-from-the-fiche.md rule 12 — il ne REMPLACE pas les boutons par échéance :
 // l'opérateur qui a vraiment encaissé le solde mardi et le complément jeudi continue d'enregistrer
 // deux paiements, ce qui est la vérité.
 test('les boutons par échéance restent offerts à côté du contrôle', () => {

@@ -1,11 +1,11 @@
 /**
  * SettingsVatSection — the « TVA » card of Paramètres → TVA & exercice.
  *
- * The regime in force (specs/vat-optional-mode.md §6.1): under VAT, one rate applied to every revenue
- * stream (specs/single-vat-rate.md §6.1); without VAT, the legal mention printed on the documents. Both
+ * The regime in force (specs/accounting/vat-optional-mode.md §6.1): under VAT, one rate applied to every revenue
+ * stream (specs/accounting/single-vat-rate.md §6.1); without VAT, the legal mention printed on the documents. Both
  * save with the page's Save. « Changer de régime… » opens the switch, which never goes through that Save.
  * The commission and cancellation-indemnity rates are edited on Plan comptable, next to the accounts that
- * use them (specs/settings-rationalization.md rule 14).
+ * use them (specs/settings/settings-rationalization.md rule 14).
  *
  * Props:
  *   values:    { regime, rate, legalMention, franchiseThreshold, franchise: { setAt } } — the settings draft

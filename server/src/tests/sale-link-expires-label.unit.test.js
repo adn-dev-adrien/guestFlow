@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 39 (loop t1 UI-15) — the end of a sale link's validity is labelled by the server in Europe/Paris, whatever zone the screen runs in.
+// specs/sas/outside-booking-sas.md rule 39 (loop t1 UI-15) — the end of a sale link's validity is labelled by the server in Europe/Paris, whatever zone the screen runs in.
 process.env.TZ = 'America/New_York';
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 4 + specs/migrations-baseline.md — `complementCollectedTax` and
+// specs/reservations/reservation-save-keeps-pricing.md rule 4 + specs/tech/migrations-baseline.md — `complementCollectedTax` and
 // its three triggers live in schema.sql (a fresh install) and reach an upgraded database too, once each.
 
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rule 33 (review R1-05) — while a refused selection's reason is shown, a tick
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rule 33 (review R1-05) — while a refused selection's reason is shown, a tick
 // re-reads the selection ON SCREEN, so the bar takes the server's figures.
 import { vi } from 'vitest';
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';

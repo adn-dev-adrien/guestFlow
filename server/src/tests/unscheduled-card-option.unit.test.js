@@ -1,4 +1,4 @@
-// A card option sold without its moments keeps its line (specs/unscheduled-card-option.md).
+// A card option sold without its moments keeps its line (specs/options/unscheduled-card-option.md).
 //
 // The engine used to answer `null` for a planning-card option carrying no occurrence, unless the
 // public flag was set. Since that flag lives only for the duration of a booking request — the
@@ -135,7 +135,7 @@ test('rule 3 — a card option that is not per person bills its quantity as is',
 // ── Rule 4 — the flag now carries the public cap, and nothing else ───────────────────────────
 
 test('rule 4 — the public flow still clamps at what the stay can serve', () => {
-  // 2 persons × 3 mornings = 6 portions maximum (specs/site-meal-portions.md rule 3).
+  // 2 persons × 3 mornings = 6 portions maximum (specs/site/site-meal-portions.md rule 3).
   const line = breakfastOf(quote(seedDb(), {
     selectedOptions: [{ optionId: 6, quantity: 9 }], planningCardAsQuantity: true,
   }));

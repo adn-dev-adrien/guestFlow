@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 32 (audit R23-A2) — the catalogue's closed values: a price type, an automatic type,
+// specs/options/options-resources-ux.md rule 32 (audit R23-A2) — the catalogue's closed values: a price type, an automatic type,
 // a pricing mode, an hour and a property list, a stored value sent back exempt, the editors' own payloads accepted.
 const test = require('node:test');
 const assert = require('node:assert/strict');

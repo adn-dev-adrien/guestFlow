@@ -1,5 +1,5 @@
 /**
- * PAID LINE SESSIONS — a session added to an hourly line that is already paid is a NEW line (specs/pricing-components.md §3 rule 85, owner Q-C7).
+ * PAID LINE SESSIONS — a session added to an hourly line that is already paid is a NEW line (specs/pricing/pricing-components.md §3 rule 85, owner Q-C7).
  *
  * `splitPaidLineSessions(db, reservationId, body)` returns the PUT body with, for each posted resource line that names a PAID stored line
  * (`lineId`, settled by at least one payment allocation) and carries sessions the stored line does not hold, those sessions moved to a line the

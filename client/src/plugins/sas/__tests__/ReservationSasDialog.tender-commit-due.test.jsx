@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 verifier) — a commit sends the lines' report only while it answers
+// specs/payments/mixed-method-payments.md rule 59 (reading of 2026-11-19, loop t25 verifier) — a commit sends the lines' report only while it answers
 // the due on screen (`tendersForDue`). Between the recap's new due and the report the lines send for it (one render, an effect later), the
 // older report — its amounts and its « Geste commercial » chosen for the older due — is pending: « Encaisser » is never enabled on it, not
 // even for a frame, and the commit itself refuses it. Every TenderLines consumer, read from the code, goes through that guard.

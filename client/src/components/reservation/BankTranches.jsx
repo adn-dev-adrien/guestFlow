@@ -1,6 +1,6 @@
 /**
  * BankTranches — what a card payment leaves still to arrive on the bank, on the reservation fiche
- * (specs/mollie-rolling-reserve-and-incoming-payments.md rules 18-19): the dated tranches under a paid row of
+ * (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 18-19): the dated tranches under a paid row of
  * the payments ledger (`BankTranches`) and the one-line recap above the ledger (`BankScheduleSummary`).
  * Feature-specific: it reads the server's `row.bankTranches[]` and `ledger.schedule` as they are — every
  * label, amount, date, state and tone is the server's; `ScheduleLines` draws the tranches the way an

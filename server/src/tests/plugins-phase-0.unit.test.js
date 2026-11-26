@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md — plugin catalogue, seed, states, refusals, route/job gating,
+// specs/plugins/plugins-phase-0-foundation.md — plugin catalogue, seed, states, refusals, route/job gating,
 // and the active list carried by /me and /login.
 
 const { listenLocal } = require('./listenLocal');
@@ -60,10 +60,10 @@ function setup() {
 
 // ---------- catalogue (rules 1-3) ----------
 
-// Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md)
-// « Saisie Booking » (specs/booking-extranet-intake.md), « Saisie Airbnb » (specs/airbnb-mail-intake.md) and
-// « Google Vacation Rentals » (specs/google-vacation-rentals-feed.md), the first to require another plugin:
-// its landing page is the website — and « Vigilance Météo-France », which needs the SAS (specs/plugin-dependencies.md rule 20).
+// Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/platforms/gites-de-france-mail-intake.md)
+// « Saisie Booking » (specs/platforms/booking-extranet-intake.md), « Saisie Airbnb » (specs/platforms/airbnb-mail-intake.md) and
+// « Google Vacation Rentals » (specs/site/google-vacation-rentals-feed.md), the first to require another plugin:
+// its landing page is the website — and « Vigilance Météo-France », which needs the SAS (specs/plugins/plugin-dependencies.md rule 20).
 const SHIPPED_REQUIREMENTS = { 'google-vacation-rentals': ['website-booking'], 'weather-alerts': ['sas'] };
 
 test('catalogue: one entry per shipped plugin, with unique ids and every field', () => {
@@ -87,7 +87,7 @@ test('seed: an existing database gets the twelve former core features installed 
   const model = pluginsModel.buildModel(db);
   assert.equal(SEEDED_ON_EXISTING_IDS.length, 12);
   assert.deepEqual(model.listActiveIds().sort(), [...SEEDED_ON_EXISTING_IDS].sort());
-  // specs/gites-de-france-mail-intake.md, specs/booking-extranet-intake.md — not installed by default.
+  // specs/platforms/gites-de-france-mail-intake.md, specs/platforms/booking-extranet-intake.md — not installed by default.
   assert.equal(model.get('gites-de-france-intake'), null);
   assert.equal(model.get('booking-intake'), null);
 });
@@ -241,7 +241,7 @@ test('online payment: an open payment link blocks deactivate and uninstall', { s
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
 });
 
-// specs/payment-link-lifecycle.md rule 23 — a lapsed link whose deactivation is still owed is payable at the
+// specs/payments/payment-link-lifecycle.md rule 23 — a lapsed link whose deactivation is still owed is payable at the
 // provider: it blocks like a withdrawn one; once paid (markPaid clears the marker) it no longer does.
 test('online payment: a lapsed link still owed at the provider blocks deactivate and uninstall until it is paid', { skip: skipWithout(['online-payment']) }, () => {
   const { db, call } = setup();
@@ -259,7 +259,7 @@ test('online payment: a lapsed link still owed at the provider blocks deactivate
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
 });
 
-// specs/payment-link-lifecycle.md rule 52 (audit R8 plugins L-1) — a lapsed link deactivated unpaid still owes
+// specs/payments/payment-link-lifecycle.md rule 52 (audit R8 plugins L-1) — a lapsed link deactivated unpaid still owes
 // its one last look (rule 19): the payment it may catch is never booked once the plugin is gone, so the
 // look blocks like the marker; once taken (lastLookAt cleared) nothing does.
 test('online payment: a pending last look blocks deactivate and uninstall until it is taken', { skip: skipWithout(['online-payment']) }, () => {
@@ -280,7 +280,7 @@ test('online payment: a pending last look blocks deactivate and uninstall until 
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
 });
 
-// specs/payment-link-lifecycle.md rules 52, 64 (re-review of #912, n6) — a link withdrawn for taken dates owes its read
+// specs/payments/payment-link-lifecycle.md rules 52, 64 (re-review of #912, n6) — a link withdrawn for taken dates owes its read
 // after the deactivation too: it blocks until taken; a link withdrawn for another reason owes none.
 test('online payment: the last look of a link withdrawn for taken dates blocks too', { skip: skipWithout(['online-payment']) }, () => {
   const { db, call } = setup();
@@ -372,14 +372,14 @@ test('requirePlugin over HTTP: a mounted router disappears and comes back with i
 test('the plugin mounts and routes are wired in the server', () => {
   const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
   const index = read('index.js');
-  // specs/plugins-phase-3c-hourly-resources.md rule 10 — the external bookings come from their plugin.
+  // specs/plugins/plugins-phase-3c-hourly-resources.md rule 10 — the external bookings come from their plugin.
   assert.ok(!index.includes("'/api/resource-bookings'"));
-  // specs/plugins-phase-3b-neat.md rule 8 — /api/neat comes from the neat plugin.
+  // specs/plugins/plugins-phase-3b-neat.md rule 8 — /api/neat comes from the neat plugin.
   assert.ok(!index.includes("'/api/neat'"));
-  // specs/plugins-phase-3a-online-payment.md rules 5, 11 — the payment links are the core's, refused
+  // specs/plugins/plugins-phase-3a-online-payment.md rules 5, 11 — the payment links are the core's, refused
   // without a provider; Qonto's own routes come from its plugin.
   assert.ok(index.includes("app.use('/api/payments', require('./routes/payments'))"));
-  // specs/plugins-phase-2-hosts.md rule 23 — the whole /public/v1 tree comes from plugin modules,
+  // specs/plugins/plugins-phase-2-hosts.md rule 23 — the whole /public/v1 tree comes from plugin modules,
   // mounted in list order: gate-access before website-booking.
   assert.ok(!/app\.use\('\/public\/v1', (requirePlugin|require\()/.test(index), 'no core /public/v1 tree');
   assert.ok(index.includes('pluginLoader.mountPublic(app)'));
@@ -389,11 +389,11 @@ test('the plugin mounts and routes are wired in the server', () => {
   const order = ['gate-access', 'website-booking'].map((id) => modules.indexOf(`require('./${id}')`));
   if (order.every((i) => i >= 0)) assert.ok(order[0] < order[1], 'gate before website-booking');
   assert.ok(index.includes('pluginLoader.mountApi(app)'));
-  // specs/plugins-phase-2-hosts.md rule 19 — the export's routes left for its plugin module; the
+  // specs/plugins/plugins-phase-2-hosts.md rule 19 — the export's routes left for its plugin module; the
   // compensations stay core, ungated.
   assert.doesNotMatch(read('routes/accounting.js'), /'\/sales|'\/platforms|platform-accounts|requirePlugin/);
   assert.match(read('routes/accounting.js'), /router\.get\('\/cancellation-compensations', compensationsController\.list\)/);
-  // The SAS routes moved into the `sas` module (specs/plugins-phase-2-hosts.md rule 8).
+  // The SAS routes moved into the `sas` module (specs/plugins/plugins-phase-2-hosts.md rule 8).
   assert.doesNotMatch(read('routes/reservations.js'), /'\/:id\/sas/);
   assert.doesNotMatch(read('routes/planning.js'), /resource-cards/);
 });
@@ -413,7 +413,7 @@ test('whenPluginActive: the tick is skipped while inactive and resumes when acti
 test('the scheduler runs no plugin pass of its own', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scheduledTasks.js'), 'utf8');
   // Every plugin job runs through the loader (plugins-phase-1-sdk.unit.test.js): the payment poll
-  // (specs/plugins-phase-3a-online-payment.md rule 14), then Neat (specs/plugins-phase-3b-neat.md rule 9).
+  // (specs/plugins/plugins-phase-3a-online-payment.md rule 14), then Neat (specs/plugins/plugins-phase-3b-neat.md rule 9).
   assert.ok(!src.includes('runPaymentPollPass'));
   assert.ok(!src.includes('runNeatSubscriptionPass'));
   assert.ok(!src.includes('whenPluginActive('));

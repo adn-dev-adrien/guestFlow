@@ -1,6 +1,6 @@
 /**
  * AlignedDailyCumulativeCharts — an amount per period and its running total, as two charts stacked on
- * the same time axis with one shared cursor (specs/report-grammar.md rule 14): bars on top, the
+ * the same time axis with one shared cursor (specs/design-system/report-grammar.md rule 14): bars on top, the
  * cumulative line (light area, optional dashed last year, names at the line ends) below. Never one
  * chart with two y axes. The running totals come from the server, like the amounts.
  *

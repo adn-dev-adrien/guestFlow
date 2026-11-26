@@ -1,7 +1,7 @@
-// specs/public-api.md rule 22 (audit R21, public finding 1 and R14 L-1) — the parts of the public refusal that live
+// specs/site/public-api.md rule 22 (audit R21, public finding 1 and R14 L-1) — the parts of the public refusal that live
 // in the core: the language of a refusal reads strings only (`langOf` « never throws »), the site's return path
 // reads strings only, and a body the JSON parser refuses answers the nested envelope on /public/, the flat one
-// elsewhere (specs/express-5-upgrade.md rules 7 and 8).
+// elsewhere (specs/tech/express-5-upgrade.md rules 7 and 8).
 process.env.DB_PATH = ':memory:';
 const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
@@ -15,7 +15,7 @@ const { __test: { buildReturnUrl } } = require('../controllers/public/publicPaym
 
 const EVIL = JSON.parse('{"toString":1}');
 
-test('specs/public-api.md rule 22 — a language that is not a string reads as French and is not « stated »', () => {
+test('specs/site/public-api.md rule 22 — a language that is not a string reads as French and is not « stated »', () => {
   for (const value of [EVIL, {}, [], ['en'], true, 1]) {
     assert.equal(normalisePublicLang(value), 'fr', JSON.stringify(value));
     assert.equal(statesLang(value), false, JSON.stringify(value));
@@ -27,7 +27,7 @@ test('specs/public-api.md rule 22 — a language that is not a string reads as F
   assert.equal(statesLang(undefined), false);
 });
 
-test('specs/public-api.md rule 22 — a return path that is not a string gives no redirect, never a throw', (t) => {
+test('specs/site/public-api.md rule 22 — a return path that is not a string gives no redirect, never a throw', (t) => {
   t.mock.method(settingsModel, 'publicSiteOrigin', () => 'https://site.example.test');
   for (const value of [EVIL, {}, [], ['/merci'], true, 1]) assert.equal(buildReturnUrl(value), '', JSON.stringify(value));
   assert.equal(buildReturnUrl('/merci'), 'https://site.example.test/merci');
@@ -71,7 +71,7 @@ async function post(path, body, headers = {}) {
 }
 
 // R14 L-1
-test('specs/express-5-upgrade.md rule 8, specs/public-api.md rule 22 — a body the parser refuses on /public/ answers the nested envelope, in the caller\'s language', async () => {
+test('specs/tech/express-5-upgrade.md rule 8, specs/site/public-api.md rule 22 — a body the parser refuses on /public/ answers the nested envelope, in the caller\'s language', async () => {
   const bad = await post('/public/v1/quote', '{bad');
   assert.equal(bad.status, 400);
   assert.deepEqual(bad.json, { error: { code: 'INVALID_JSON', message: labels('fr').errors.bodyMalformed } });
@@ -92,7 +92,7 @@ test('specs/express-5-upgrade.md rule 8, specs/public-api.md rule 22 — a body 
   assert.equal(upper.json.error.code, 'INVALID_JSON', 'Express routes ignore the case');
 });
 
-test('specs/express-5-upgrade.md rule 7 — the internal API keeps its flat refusal', async () => {
+test('specs/tech/express-5-upgrade.md rule 7 — the internal API keeps its flat refusal', async () => {
   const bad = await post('/api/x', '{bad');
   assert.equal(bad.status, 400);
   assert.deepEqual(bad.json, { error: 'Requête invalide : le corps JSON est mal formé.', code: 'INVALID_JSON' });
@@ -109,7 +109,7 @@ async function raw(path, { method = 'POST', body = 'not gzip at all', headers = 
   } finally { server.closeAllConnections(); server.close(); }
 }
 
-test('specs/express-5-upgrade.md rule 9 (R22 public 1) — a compressed body that does not inflate is the caller\'s, no log', async () => {
+test('specs/tech/express-5-upgrade.md rule 9 (R22 public 1) — a compressed body that does not inflate is the caller\'s, no log', async () => {
   const gzip = require('node:zlib').gzipSync(JSON.stringify({ a: 1 }));
   for (const [encoding, body] of [['gzip', 'not gzip at all'], ['deflate', 'garbage'], ['br', 'garbage'], ['gzip', gzip.subarray(0, 8)]]) {
     const headers = { 'Content-Type': 'application/json', 'Content-Encoding': encoding };
@@ -123,7 +123,7 @@ test('specs/express-5-upgrade.md rule 9 (R22 public 1) — a compressed body tha
   }
 });
 
-test('specs/express-5-upgrade.md rule 9 (R22 public 1) — a dropped upload logs nothing', async () => {
+test('specs/tech/express-5-upgrade.md rule 9 (R22 public 1) — a dropped upload logs nothing', async () => {
   const logs = [];
   const server = await listenLocal(appWith(logs));
   try {
@@ -138,7 +138,7 @@ test('specs/express-5-upgrade.md rule 9 (R22 public 1) — a dropped upload logs
   } finally { server.closeAllConnections(); server.close(); }
 });
 
-test('specs/express-5-upgrade.md rule 9 (R22 public 2) — a badly encoded path parameter is a 404, no log', async () => {
+test('specs/tech/express-5-upgrade.md rule 9 (R22 public 2) — a badly encoded path parameter is a 404, no log', async () => {
   const pub = await raw('/public/v1/properties/%E0%A4%A', { method: 'GET', headers: {} });
   assert.equal(pub.status, 404);
   assert.deepEqual(pub.json, { error: { code: 'NOT_FOUND', message: labels('fr').errors.notFound } });
@@ -151,7 +151,7 @@ test('specs/express-5-upgrade.md rule 9 (R22 public 2) — a badly encoded path 
   assert.deepEqual(flat.logs, []);
 });
 
-test('specs/hosting-h2-account-security.md rule 68 — the last-resort net: that TypeError only', async () => {
+test('specs/hosting/hosting-h2-account-security.md rule 68 — the last-resort net: that TypeError only', async () => {
   const flat = await raw('/api/throws', { body: '{"value":{"toString":1}}', headers: { 'Content-Type': 'application/json' } });
   assert.equal(flat.status, 400);
   assert.deepEqual(flat.json, { error: 'Requête invalide.', code: 'INVALID_FIELD_TYPE' });

@@ -1,6 +1,6 @@
 /**
  * What each property's iCal export last published, and what recently left it
- * (specs/lodgify-decommission.md §3 rule 7).
+ * (specs/platforms/lodgify-decommission.md §3 rule 7).
  *
  * Booking.com re-imports GuestFlow's feed on its own schedule, so for a few hours after a stay is
  * cancelled, moved or deleted, Booking still exports those dates as « CLOSED - Not available ». A

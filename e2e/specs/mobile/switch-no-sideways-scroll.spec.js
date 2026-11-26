@@ -1,5 +1,5 @@
 // @ts-check
-// specs/ds-components.md rule 30 (audit R22-C7) — measured in a real browser at 390 px with touch: a switch's input
+// specs/design-system/ds-components.md rule 30 (audit R22-C7) — measured in a real browser at 390 px with touch: a switch's input
 // sticks out in height only. It kept the row's text from its own tap, and scrolled a dialog's content sideways.
 import { test, expect } from '@playwright/test';
 

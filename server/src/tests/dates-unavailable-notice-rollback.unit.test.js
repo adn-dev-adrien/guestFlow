@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 43, reading of 2026-11-01, and specs/payment-link-lifecycle.md rule 45 (audit
+// specs/hosting/self-update-and-releases.md rule 43, reading of 2026-11-01, and specs/payments/payment-link-lifecycle.md rule 45 (audit
 // R11 console N1) — a rollback to v3.19.0 must not offer « Dates plus disponibles » for every stay on its arrival day:
 // the template is seeded on the `datesTaken` anchor, which that release's queue never reads, and the one-shot
 // migration moves a row already seeded on `start`, once.

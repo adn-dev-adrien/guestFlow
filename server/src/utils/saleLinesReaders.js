@@ -1,5 +1,5 @@
 /**
- * Which stays the sale-line readers serve (specs/pricing-components.md §3 rules 31, 61, 63, 67, 91; owner reading of 2026-11-15).
+ * Which stays the sale-line readers serve (specs/pricing/pricing-components.md §3 rules 31, 61, 63, 67, 91; owner reading of 2026-11-15).
  *
  * Owner, 2026-11-15: « il faut éviter de toucher les anciens séjours ou les séjours déjà réservés. Mais si c'est pour une correction
  * d'erreur je suis d'accord pour le faire ». The readers that read the sale lines — the finance pages' earnings and HT, the VAT cut of

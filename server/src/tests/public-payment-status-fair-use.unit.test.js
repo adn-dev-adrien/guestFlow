@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 36 and 38 — the public /status makes few provider calls
+// specs/plugins/plugins-phase-3a-online-payment.md rules 36 and 38 — the public /status makes few provider calls
 // for a retired link, and answers `confirmed` when its own call converted the devis.
 
 process.env.DB_PATH = ':memory:';

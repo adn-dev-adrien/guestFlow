@@ -1,4 +1,4 @@
-// specs/hourly-extra-hour-rates.md rules 1-7 — a price for the following hours of a banded hourly resource, per audience and band:
+// specs/resources/hourly-extra-hour-rates.md rules 1-7 — a price for the following hours of a banded hourly resource, per audience and band:
 // the engine's rank-based rates, the free hour that is not a rank, the audience's rate grid, the words, the validation, the stored columns and
 // the conversion of the withdrawn percent table.
 const test = require('node:test');

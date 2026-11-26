@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 15 (decision D12, class C-E8) — the devis PDF prints a « Récapitulatif TVA » table:
+// specs/pricing/pricing-components.md §3 rule 15 (decision D12, class C-E8) — the devis PDF prints a « Récapitulatif TVA » table:
 // one row per rate, the same template for one rate or several, and nothing for a « Sans TVA » regime (its legal mention
 // is the whole VAT statement). The amounts are the VAT component's, summed per rate (`vatByRateOf`), never recut here.
 process.env.DB_PATH = ':memory:';

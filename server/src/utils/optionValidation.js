@@ -1,6 +1,6 @@
 /**
- * Authoritative validation of an option write (specs/options-resources-ux.md rule 16, and
- * specs/cancellation-insurance.md §3.1 rule 2 for the percentage bound).
+ * Authoritative validation of an option write (specs/options/options-resources-ux.md rule 16, and
+ * specs/payments/cancellation-insurance.md §3.1 rule 2 for the percentage bound).
  *
  * Returns `[{ field, message }]`, empty when the payload is acceptable. `field` is `title`, `price`
  * or `propertyPrices.<propertyId>`; the message is the French text the editor prints under the field.
@@ -30,7 +30,7 @@ const NEGATIVE_PRICE_CODE = 'NEGATIVE_OPTION_PRICE';
 
 const TOWEL_COUNTS = ['towelLargePerPerson', 'towelMediumPerPerson', 'towelSmallPerPerson'];
 
-// The closed values of an option (specs/options-resources-ux.md rule 32): what the editors offer and the seeds write.
+// The closed values of an option (specs/options/options-resources-ux.md rule 32): what the editors offer and the seeds write.
 const PRICE_TYPES = ['per_stay', 'per_person', 'per_night', 'per_person_per_night', 'per_participant_progressive', 'percent_of_stay', 'free'];
 const AUTO_TYPES = ['breakfast', 'cleaning', 'bed_linen', 'bathroom_linen', 'bath_mat', 'baby_bed', 'early_check_in', 'late_check_out'];
 const PRICING_MODES = ['fixed', 'proportional'];
@@ -50,7 +50,7 @@ const isBlank = (value) => value === undefined || value === null || (typeof valu
 
 /**
  * The message a price value deserves, or '' when it is a fine price. Past the usable range it is not a
- * number, unless it is the `stored` value sent back unchanged (specs/options-resources-ux.md rule 31).
+ * number, unless it is the `stored` value sent back unchanged (specs/options/options-resources-ux.md rule 31).
  */
 function priceProblem(raw, { percent = false, stored } = {}) {
   const value = readNumber(raw);
@@ -103,7 +103,7 @@ function validateOptionPayload(payload, { knownPropertyIds, stored, storedFreeUn
   }
 
   const percent = body.priceType === 'percent_of_stay';
-  // specs/options-resources-ux.md rule 34 (audit R25 N1) — a price type sent without its price keeps the stored price:
+  // specs/options/options-resources-ux.md rule 34 (audit R25 N1) — a price type sent without its price keeps the stored price:
   // that price is judged under the new type, as if it had been sent back.
   const typeChanged = Boolean(stored) && body.priceType !== undefined && body.priceType !== stored.priceType;
   const price = body.price === undefined && typeChanged ? stored.price : body.price;
@@ -126,7 +126,7 @@ function validateOptionPayload(payload, { knownPropertyIds, stored, storedFreeUn
       if (message) details.push({ field: `propertyPrices.${pid}`, message });
     }
   }
-  // specs/tariff-recipes/spec.md rule 69 — the row carries the free units: a save that would drop it (price blanked, property
+  // specs/pricing/tariff-recipes.md rule 69 — the row carries the free units: a save that would drop it (price blanked, property
   // no longer proposed, a price type with no per-property price) is refused on that row's price.
   if (body.propertyPrices !== undefined) {
     for (const pid of Object.keys(storedFreeUnits)) {

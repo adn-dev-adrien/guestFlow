@@ -1,4 +1,4 @@
-// Shared by the SAS « Plusieurs moyens » suites (specs/mixed-method-payments.md rule 59): the stays, the walks to each recap with the block
+// Shared by the SAS « Plusieurs moyens » suites (specs/payments/mixed-method-payments.md rule 59): the stays, the walks to each recap with the block
 // open, and the failed-recompute helper. Not a test file; each suite keeps its own `vi.mock` of the api.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import api from '../../../api';

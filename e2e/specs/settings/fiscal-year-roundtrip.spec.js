@@ -1,10 +1,10 @@
 // @ts-check
-// settings/fiscal-year-roundtrip — specs/fiscal-year-and-nights-sold.md §7 (E2E). Set the accounting
+// settings/fiscal-year-roundtrip — specs/accounting/fiscal-year-and-nights-sold.md §7 (E2E). Set the accounting
 // closing month, save, reload, assert it persisted, then check /finance reads its exercise from it.
 import { test, expect } from '@playwright/test';
 
 test('closing month round-trip via Paramètres → TVA & exercice, then applied on /finance', async ({ page }) => {
-  // Paramètres → TVA & exercice (specs/settings-rationalization.md rule 2).
+  // Paramètres → TVA & exercice (specs/settings/settings-rationalization.md rule 2).
   await page.goto('/settings/tva-exercice');
   await expect(page.getByRole('heading', { name: 'TVA & exercice' })).toBeVisible();
 
@@ -29,7 +29,7 @@ test('closing month round-trip via Paramètres → TVA & exercice, then applied 
 
   // …and the Suivi financier now bounds its exercise on that month: closing September ⇒ the exercise
   // opens in October, closing June ⇒ in July. The « Mois » selector lists the exercise's months in
-  // order (specs/finance-dashboard-redesign.md rule 1).
+  // order (specs/accounting/finance-dashboard-redesign.md rule 1).
   await page.goto('/finance');
   await expect(page.getByRole('combobox', { name: 'Exercice' })).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Mois', exact: true }).click();

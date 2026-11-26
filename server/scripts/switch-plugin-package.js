@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Switches one installed plugin of a hosted instance to a package the console pushes from its
- * registry (specs/hosting-h1-fleet-runtime.md rule 11). Run by the console, from the release the
+ * registry (specs/hosting/hosting-h1-fleet-runtime.md rule 11). Run by the console, from the release the
  * instance runs, while the instance is stopped — the console snapshots the database first and starts
  * the instance after:
  *

@@ -66,7 +66,7 @@ function buildClientFields(payload) {
     phone: String(payload.phone || '').trim(),
     email: storedEmail(payload.email),
     notes: capitalizeFirst(payload.notes),
-    // Per-client email language (specs/email-client-language-and-fiche-polish.md). Drives every email
+    // Per-client email language (specs/emails/email-client-language-and-fiche-polish.md). Drives every email
     // for this client. 'en' or 'fr' (default).
     emailLanguage: String(payload.emailLanguage || '').toLowerCase() === 'en' ? 'en' : 'fr',
   };
@@ -78,7 +78,7 @@ function createModel(database) {
     try { return database.prepare('PRAGMA table_info(clients)').all().some((c) => c.name === 'emailLanguage'); }
     catch { return false; }
   })();
-  // specs/guest-email-sequence.md rule 10 — optional in minimal schemas, like emailLanguage.
+  // specs/emails/guest-email-sequence.md rule 10 — optional in minimal schemas, like emailLanguage.
   const HAS_POST_STAY_FLAG = (() => {
     try { return database.prepare('PRAGMA table_info(clients)').all().some((c) => c.name === 'postStayEmailsDisabled'); }
     catch { return false; }
@@ -104,7 +104,7 @@ function createModel(database) {
     return database.prepare('SELECT * FROM clients ORDER BY lastName, firstName').all();
   }
 
-  // specs/clients-upcoming-past-directory.md §3 — the Clients page's own read (rules 11-22): each client
+  // specs/clients/clients-upcoming-past-directory.md §3 — the Clients page's own read (rules 11-22): each client
   // resolved into ONE view (upcoming / past / none), the stay that qualifies it, the groups the page
   // renders, the counts and the order of the current search. All of it server-side.
   //
@@ -248,7 +248,7 @@ function createModel(database) {
     };
   }
 
-  // specs/resource-booking-client-picker.md §3 — the options of a client picker, grouped and ordered
+  // specs/resources/resource-booking-client-picker.md §3 — the options of a client picker, grouped and ordered
   // against a reference day (the session's date): on site or arriving within 7 days, then the other
   // upcoming clients, then the past ones followed by the clients without any real stay.
   const PICKER_SOON_DAYS = 7;
@@ -339,7 +339,7 @@ function createModel(database) {
   }
 
   // Case-insensitive lookup by normalized email. Used by the public booking-request flow to
-  // reuse an existing client instead of duplicating one (specs/public-api.md §3, Q3). Returns
+  // reuse an existing client instead of duplicating one (specs/site/public-api.md §3, Q3). Returns
   // the first match or undefined when the email is empty/unknown.
   function findByEmail(email) {
     const normalized = String(email || '').trim().toLowerCase();
@@ -347,7 +347,7 @@ function createModel(database) {
     return database.prepare('SELECT * FROM clients WHERE lower(trim(email)) = ? ORDER BY id LIMIT 1').get(normalized);
   }
 
-  // specs/clients.md rule 12 — the client a new record would duplicate: same email
+  // specs/clients/clients.md rule 12 — the client a new record would duplicate: same email
   // (case-insensitive), else same phone (its last 9 digits, so « 06 12… » and « +33 6 12… » match).
   function findDuplicate({ email, phone } = {}) {
     const byEmail = findByEmail(email);
@@ -471,7 +471,7 @@ function createModel(database) {
   }
 
   // A client booked on a resource outside any stay (plugin `hourly-resources`, its table only once installed) is no
-  // orphan: the booking names him (specs/resource-booking-pricing-and-invoicing.md rule 34).
+  // orphan: the booking names him (specs/resources/resource-booking-pricing-and-invoicing.md rule 34).
   const noBookingOf = (alias) => noResourceBookingSql(database, alias);
 
   // List clients with neither a reservation nor a devis — the candidates surfaced in the selective

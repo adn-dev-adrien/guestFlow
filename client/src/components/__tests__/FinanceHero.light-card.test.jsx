@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 52 — the banner is a light card on theme tokens: white with
+// specs/accounting/finance-dashboard-redesign.md rule 52 — the banner is a light card on theme tokens: white with
 // a divider border and a fir rule on top, the figures' pills in their light-surface style, the « i » in
 // its light variant, and no ink token left in the theme.
 import React from 'react';

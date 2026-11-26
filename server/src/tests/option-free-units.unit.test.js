@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-recipes/spec.md §3.9 items 52bis-52ter — the first N units of an option are included
+// specs/pricing/tariff-recipes.md §3.9 items 52bis-52ter — the first N units of an option are included
 // in the rate (the direct welcome pack's two breakfasts). The operator adds the FULL quantity and
 // only the units beyond the free ones are billed; the prepared quantity is untouched so the Planning
 // and SAS cards still show everything to serve. Direct bookings only.
@@ -51,7 +51,7 @@ const BASE = {
 };
 const line = (q) => q.optionLines.find((l) => l.optionId === 10);
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('5 guests × 2 nights with 2 free: 10 breakfasts prepared, 8 billed', () => {
@@ -205,7 +205,7 @@ test('planning-card breakfast, a single morning for 2 guests → entirely covere
   db.close();
 });
 
-// specs/tariff-recipes/spec.md §3 item 69 (audit R24-DB-1, 2026-11-05) — an option save keeps the free units the recipe wrote: the
+// specs/pricing/tariff-recipes.md §3 item 69 (audit R24-DB-1, 2026-11-05) — an option save keeps the free units the recipe wrote: the
 // editor never shows nor sends them, and the save used to DELETE and re-insert the per-property prices without them.
 function savedOption() {
   const appDb = require('../database');

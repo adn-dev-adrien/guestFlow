@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 45 — the one email that leaves without validation shows its mode
+// specs/payments/payment-link-lifecycle.md rule 45 — the one email that leaves without validation shows its mode
 // « Automatique (exception) », read-only: no mode menu item, no mode select in its editor; other templates keep both.
 import React from 'react';
 import { vi } from 'vitest';

@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const reservationsModel = require('../models/reservationsModel');
 
 /**
- * listPendingPublicDevis (specs/site-booking-notifications.md §3 rule 5) — the data source for the
+ * listPendingPublicDevis (specs/site/site-booking-notifications.md §3 rule 5) — the data source for the
  * dashboard DevisPublicRequestAlert. It must return ONLY site-origin devis still awaiting handling:
  * requestOrigin='public', kind='devis', devisStatus='draft', not converted.
  */

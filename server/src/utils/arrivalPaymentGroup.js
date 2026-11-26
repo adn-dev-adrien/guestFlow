@@ -1,5 +1,5 @@
 /**
- * The single payment made at check-in (specs/single-payment-at-check-in.md §3.2).
+ * The single payment made at check-in (specs/payments/single-payment-at-check-in.md §3.2).
  *
  * A last-minute guest hands over ONE card for the stay AND the arrival complement. The two stay
  * separate buckets — they carry different revenue accounts and different VAT rates, and merging them
@@ -13,7 +13,7 @@
  * Pure — no DB access. Stored as JSON in `reservations.arrivalPaymentGroup`, NULL when there is none.
  */
 
-// specs/single-payment-from-the-fiche.md rule 2bis — the end-of-stay complement joins the list. It is
+// specs/payments/single-payment-from-the-fiche.md rule 2bis — the end-of-stay complement joins the list. It is
 // normally collected at the door on departure, but a guest who settles EVERYTHING on arrival has paid
 // it too, and the group records what happened rather than what was planned. Named exactly like the
 // accounting entry it belongs to (`endOfStayComplement`), so the journal can stamp it without a map.
@@ -70,7 +70,7 @@ function serialiseGroup(group) {
 }
 
 /**
- * The arrival buckets that can still be collected (specs/single-payment-from-the-fiche.md rule 2):
+ * The arrival buckets that can still be collected (specs/payments/single-payment-from-the-fiche.md rule 2):
  * applicable, worth something, and not yet paid. Shared by the fiche payload and the write, so the
  * operator can never be offered a bucket the server would then refuse.
  *
@@ -81,7 +81,7 @@ function serialiseGroup(group) {
  * departure, but a guest who pays everything on arrival has paid it as well — and on a platform
  * booking, where the acompte is disabled and nothing was sold at check-in, it is often the only other
  * money there is. Leaving it out made the control silently absent exactly when it was needed.
- * D20 (2026-11-06, specs/reservation-payment-ledger.md rule 68) — only once the guest has left: before the
+ * D20 (2026-11-06, specs/payments/reservation-payment-ledger.md rule 68) — only once the guest has left: before the
  * check-out the end-of-stay complement is never collected, so it is offered only when the caller says
  * `endOfStayCollectible` (utils/endOfStayCheckout `isCheckoutDone`). Absent = not offered.
  *

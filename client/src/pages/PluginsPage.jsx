@@ -1,18 +1,18 @@
 /**
- * PluginsPage — Paramètres › Plugins (specs/plugins-phase-0-foundation.md §3.E).
+ * PluginsPage — Paramètres › Plugins (specs/plugins/plugins-phase-0-foundation.md §3.E).
  *
  * Two tabs, « Installés » and « Disponibles », a search field and one PluginCard per plugin. Every
  * action is immediate (no Save): the server answers with the new state, or a refusal the card shows
  * in red. After each change the auth context is refreshed, so the menu and every PluginGate follow
  * without a reload.
  *
- * specs/plugins-phase-4-registry.md rules 9, 13, 18, 20–22: each card shows its version and, when a
+ * specs/plugins/plugins-phase-4-registry.md rules 9, 13, 18, 20–22: each card shows its version and, when a
  * newer one is offered, a « Mise à jour x.y.z » chip opening the update dialog; a banner offers
  * « Tout mettre à jour »; « Rechercher des mises à jour » reads the registry again. An update
  * restarts the instance: the page says « Redémarrage en cours » and reloads once the server answers
  * again. An install in a release reloads the page, so the browser loads the new plugin's bundle.
  *
- * specs/plugins-phase-0-foundation.md rule 25: each installed card tells its real state (« Actif ·
+ * specs/plugins/plugins-phase-0-foundation.md rule 25: each installed card tells its real state (« Actif ·
  * à connecter ») and opens its settings place; « À configurer (n) » keeps only those that lack
  * something (the count is the server's `toConfigure`).
  *
@@ -69,7 +69,7 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
   const [restartLate, setRestartLate] = useState(false);
   const [searching, setSearching] = useState(false);
 
-  // specs/ui-review-2026-10-19-operations.md rule 39: the list a « Rechercher » asked for must not land on the state an
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 39: the list a « Rechercher » asked for must not land on the state an
   // action wrote meanwhile.
   const beginLoad = useLatestRequest();
   const load = useCallback(async () => {

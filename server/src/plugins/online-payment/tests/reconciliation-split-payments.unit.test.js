@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rules 15–16 — a guest who pays in several transfers is proposed
+// specs/accounting/reconciliation-assisted-matching.md rules 15–16 — a guest who pays in several transfers is proposed
 // as one proposal over several credits; equal installments follow their plan's order. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');

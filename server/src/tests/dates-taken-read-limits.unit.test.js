@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 52, 64 (re-review of #912) — the read a `dates-taken` link owes after its
+// specs/payments/payment-link-lifecycle.md rules 52, 64 (re-review of #912) — the read a `dates-taken` link owes after its
 // deactivation has limits: a payment still in flight 24 h after the withdrawal stops the re-reads, closes the link
 // without a notice and alerts the operator once; a link withdrawn while it was being minted (never sent) never holds
 // the stay's real withdrawal back; a link withdrawn before the taker was recorded is closed once; a history row that

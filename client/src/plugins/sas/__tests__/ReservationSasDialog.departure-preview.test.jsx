@@ -1,4 +1,4 @@
-// The departure recap rendered from the server's preview — specs/sas-departure-recap-server-side.md rules
+// The departure recap rendered from the server's preview — specs/sas/sas-departure-recap-server-side.md rules
 // 13-20, 22: the money comes from the server only, the requests are coalesced and the latest wins, the
 // waiting and failing states are said, and a commit on another total is announced.
 //

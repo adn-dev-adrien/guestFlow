@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 
 import SettingsGateAccessSection from '../SettingsGateAccessSection';
 
-// specs/gate-access-sowel-connector.md §3.6 rule 29 — the card says whether Sowel reads the list,
+// specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29 — the card says whether Sowel reads the list,
 // when it last did, how many keys it created. Rules 29b-29c — it hands the admin the three values the
 // plugin needs, the two secrets masked until « Afficher ».
 

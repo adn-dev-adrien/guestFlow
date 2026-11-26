@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 19 — a platform counts as a direct sale by an attribute,
+// specs/plugins/plugins-phase-p-productisation.md rule 19 — a platform counts as a direct sale by an attribute,
 // not by its name: `direct` always, the others when the operator says so, read again on every save.
 
 const test = require('node:test');

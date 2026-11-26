@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md §3.B rule 57 — the schema floor: stored in the database, only ever raised, read by the updater, which refuses
+// specs/hosting/self-update-and-releases.md §3.B rule 57 — the schema floor: stored in the database, only ever raised, read by the updater, which refuses
 // a target below it with a short impersonal French message and stages nothing.
 process.env.DB_PATH = ':memory:';
 

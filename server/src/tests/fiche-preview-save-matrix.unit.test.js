@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading S14-3 (« the preview prices as the save ») — invariant harness of the stabilisation loop t16
+// specs/pricing/pricing-components.md §3 rule 94 reading S14-3 (« the preview prices as the save ») — invariant harness of the stabilisation loop t16
 // (sale `pa.js`, made permanent by the sale fixer, 2026-11-17). The fiche is reproduced from the client's OWN pure modules — the hydration
 // (`bookingFormHydration`, `cardOccurrences`), the quote write-back (`applyQuoteToForm`) and the one request body of every quote of the fiche
 // (`ficheQuoteBody`, S16-2) — and the PUT the page sends through the real route handler. For every fixture stay (direct, platform) × stay
@@ -153,7 +153,7 @@ for (const platform of ['direct', 'Booking']) {
   for (const [mName, momentOf] of Object.entries(MOMENTS)) {
     test(`${platform} × ${mName}: every fiche gesture saves what its live preview showed`, async (t) => {
       // The seeded stay is the same for every gesture: it is booked once per test, and each gesture runs and rolls back on it
-      // (specs/server-test-isolation.md rule 22).
+      // (specs/tech/server-test-isolation.md rule 22).
       db.exec('SAVEPOINT seed');
       try {
         const id = seeded(t, platform);

@@ -1,4 +1,4 @@
-// specs/plugins-phase-3b-neat.md rules 3, 5 (decisions P10, P13) — without an active Neat nothing new gets
+// specs/plugins/plugins-phase-3b-neat.md rules 3, 5 (decisions P10, P13) — without an active Neat nothing new gets
 // the cancellation insurance, and a line a stay or a devis already carries is kept exactly as stored,
 // read-only, through every later save.
 

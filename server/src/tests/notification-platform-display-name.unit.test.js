@@ -1,4 +1,4 @@
-// Fixed at the 2026-10-27 spec review (specs/site-booking-notifications.md rule 17): the operator's
+// Fixed at the 2026-10-27 spec review (specs/site/site-booking-notifications.md rule 17): the operator's
 // new-reservation e-mail and push name the platform as every page does — « GreenGo », « Gîtes de
 // France » — never the stored key « Greengo » / « GitesDeFrance », when the iCal source has no name.
 

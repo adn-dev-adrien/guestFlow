@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 25 — permanent non-regression for the quantities that
+// specs/options/non-card-option-served-persons.md rule 25 — permanent non-regression for the quantities that
 // turned decimal on a production reservation (24-26 December 2026). Driven through the real engine,
 // controller and schema: if a typed number ever moves again, or a decimal comes back, this file fails.
 

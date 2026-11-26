@@ -1,4 +1,4 @@
-// Generates the temporary password emailed to a newly-created user (specs/admin-account-management.md).
+// Generates the temporary password emailed to a newly-created user (specs/hosting/admin-account-management.md).
 // The alphabet purposely excludes I / O / l / 0 / 1 — characters that look alike on most fonts and
 // are a common source of "the password didn't work" support tickets. Each call returns an
 // independent random string built from a CSPRNG (crypto.randomInt).

@@ -1,5 +1,5 @@
 /**
- * Where a website booking request came from (specs/site-traffic-analytics.md §3.C).
+ * Where a website booking request came from (specs/site/site-traffic-analytics.md §3.C).
  *
  * Pure. The plugin only records raw facts (external referrer host, UTM parameters, landing path);
  * turning them into a channel is a business rule, so it lives here and nowhere in the browser.

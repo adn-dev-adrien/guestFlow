@@ -1,4 +1,4 @@
-// specs/deposit-blocks-the-dates.md §3.1 — the quote says what the payment buys: on a direct-channel
+// specs/payments/deposit-blocks-the-dates.md §3.1 — the quote says what the payment buys: on a direct-channel
 // quote the acompte box carries « le règlement bloque vos dates », and a quote with no acompte asks
 // for a « Paiement intégral » instead of a solde that never existed. PDFKit encodes text as glyph
 // indexes, so the rendered bytes can't be grep'd: the decision is proven on the pure resolver the
@@ -13,7 +13,7 @@ const { labels, FR, EN } = require('../utils/devisPdfLabels');
 const { resolvePaymentBlock } = __test;
 const NEW_KEYS = ['depositSecuresDates', 'fullPaymentLabel', 'fullPaymentSecuresDates'];
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('a direct quote with an acompte: the mention is printed, the block keeps its two rows', () => {

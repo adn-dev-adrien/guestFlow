@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 14 (amended 2026-10-18) — a fiche waiting for the operator to
+// specs/platforms/gites-de-france-mail-intake.md rule 14 (amended 2026-10-18) — a fiche waiting for the operator to
 // choose between two possible rents is listed on the dashboard too, not only in the fiche's banner
 // (review 2026-10-18, n5).
 const test = require('node:test');

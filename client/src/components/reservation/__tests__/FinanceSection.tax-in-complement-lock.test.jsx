@@ -1,4 +1,4 @@
-// specs/force-item-to-complement.md rule 20 (audit R23-N2) — a tax already collected cannot be switched to the complement: the
+// specs/sas/force-item-to-complement.md rule 20 (audit R23-N2) — a tax already collected cannot be switched to the complement: the
 // server says so (`touristTaxInComplementLockedReason`), the fiche greys the switch and gives the reason under it.
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

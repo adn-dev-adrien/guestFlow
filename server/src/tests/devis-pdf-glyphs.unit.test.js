@@ -1,9 +1,9 @@
 // What the devis PDF actually writes, read at the source: every `doc.text` call is recorded with the
 // face that draws it, so a glyph the face lacks, a wrapped line printed over the next one or a row that
 // does not add up is caught without rasterising the page.
-//   specs/tariff-events-and-extra-guest-tiers/spec.md §6 — the extra-guest row names the count only
+//   specs/design-system/ui-review-2026-10-19-operations.md rules 46, 47, 48, 49.
+//   specs/pricing/tariff-events-and-extra-guest-tiers.md §6 — the extra-guest row names the count only
 //     (reading of 2026-11-05: prod printed « 1ʳᵉ » as « 1+1Ô’ àuit »).
-//   specs/ui-review-2026-10-19-operations.md rules 46, 47, 48, 49.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const PDFDocument = require('pdfkit');

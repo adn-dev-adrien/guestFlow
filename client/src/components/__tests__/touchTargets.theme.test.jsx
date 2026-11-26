@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 21 — review #8: 370 icon buttons and 107 small buttons under 44 px on
+// specs/design-system/ds-components.md rule 21 — review #8: 370 icon buttons and 107 small buttons under 44 px on
 // mobile. On a finger-driven screen (pointer: coarse) the theme lifts every IconButton, Button,
 // Checkbox and Radio to 44 px, except the icon buttons inside a text field. jsdom has no pointer
 // media: these tests read the rules the theme emits; the e2e spec measures them on a touch screen.

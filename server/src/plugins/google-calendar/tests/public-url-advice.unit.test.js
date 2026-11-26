@@ -1,4 +1,4 @@
-// specs/settings-one-save-and-automatic-webhook.md rule 16 (audit R25-C3, 2026-11-06) — the Google consent refused for a
+// specs/settings/settings-one-save-and-automatic-webhook.md rule 16 (audit R25-C3, 2026-11-06) — the Google consent refused for a
 // missing public address names the page that holds it, Paramètres → Système, never « Paramètres » alone.
 const test = require('node:test');
 const assert = require('node:assert/strict');

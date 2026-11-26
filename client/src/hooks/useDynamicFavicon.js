@@ -13,7 +13,7 @@
  * `enabled` (default true): App passes « the user is an admin ». `GET /api/settings` is admin-only,
  * so any other role (and the login page) would only log a 403/401 in the console on every page —
  * seen at the 2026-10-27 spec review on every reception page, the arrival SAS included
- * (specs/reception-role-checkin-only.md rule 14). Those users keep the default favicon; in
+ * (specs/sas/reception-role-checkin-only.md rule 14). Those users keep the default favicon; in
  * production the server already serves the logo on `/favicon.ico`.
  *
  * Failure modes:

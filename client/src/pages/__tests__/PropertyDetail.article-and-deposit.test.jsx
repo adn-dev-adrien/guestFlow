@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 28 and 30 (2026-10-18) — saving the property page sends
+// specs/emails/guest-email-texts-made-simple.md rules 28 and 30 (2026-10-18) — saving the property page sends
 // neither an article nobody chose (it would confirm it) nor an empty deposit (it would reset it); the
 // article choices are the labels the server writes in the emails; the bed linen is a pending fact.
 

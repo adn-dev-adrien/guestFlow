@@ -1,5 +1,5 @@
 /**
- * STEP touristTax — TOURIST TAX (specs/pricing-components.md §3 rule 52).
+ * STEP touristTax — TOURIST TAX (specs/pricing/pricing-components.md §3 rule 52).
  *
  * The tax base, the tax itself (frozen, reversed or offered by the platform), the added guests' tax and where
  * it is collected.
@@ -44,7 +44,7 @@ const step = {
     } = ctx;
     const taxSettings = settings.touristTax;
 
-    // specs/tourist-tax-included-services-deduction.md rules 1-3 — the tax base is the DRY NIGHT: the
+    // specs/tourist-tax/tourist-tax-included-services-deduction.md rules 1-3 — the tax base is the DRY NIGHT: the
     // accommodation charged (the manual « Prix hébergement ajusté » when there is one, otherwise the
     // tariff nights after the discount), minus the reference value of the services structurally
     // included in that rate. The platform brut still does not derive it — that back-solve stays
@@ -66,7 +66,7 @@ const step = {
         units: Number(line.quantity || 0) * getTypeMultiplier(line.priceType, taxReferencePersons, nights),
       })),
     );
-    // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-three-way.md).
+    // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/tourist-tax/per-platform-tourist-tax-three-way.md).
     // Resolved HERE (before the declared tax base AND the brut back-solve) so both the withheld tax
     // (case 2) and the reversed tax (case 1) can be treated as parts of the brut.
     //   collectsFromGuest               = the platform charges the tax to the guest.
@@ -80,7 +80,7 @@ const step = {
     // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered.
     const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
 
-    // specs/platform-tourist-tax-out-of-the-commission.md rules 2-3 — in the OFFERED case the operator
+    // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rules 2-3 — in the OFFERED case the operator
     // may state, in euros, the tourist tax the platform kept out of its payout. That amount is the
     // PLATFORM's figure, never ours, which is exactly what makes subtracting it safe where subtracting
     // our own estimate was not (platform-brut-excludes-offered-tourist-tax.md). Empty → 0 → every term
@@ -107,7 +107,7 @@ const step = {
       touristTaxFixedAmount: taxSettings.fixedAmount,
       nights,
       adults: Number(adults || 0),
-      // specs/tourist-tax-matches-the-office-calculation.md rule 8 — babies are NOT occupants for the
+      // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 8 — babies are NOT occupants for the
       // divisor. They were, and since dividing by more occupants lowers the tax, every stay with a cot
       // was billed short of what the office's own form computes (checked against the Marchand
       // declaration, filed with 4 occupants where the engine counted 5). The cot still bills its
@@ -126,7 +126,7 @@ const step = {
         ? Number(frozenTouristTaxBaseHt)
         : null,
     });
-    // specs/tourist-tax-freeze-past-with-refresh.md — for a PAST reservation, freeze the tax AMOUNT to
+    // specs/tourist-tax/tourist-tax-freeze-past-with-refresh.md — for a PAST reservation, freeze the tax AMOUNT to
     // the reservation's stored values (passed in) instead of the recompute. Platform-mode routing below
     // still applies to this frozen amount; only the magnitude is pinned.
     if (freezeTouristTax) {
@@ -141,7 +141,7 @@ const step = {
         touristTaxBreakdown.touristTaxUnitAmount = Number(frozenTouristTaxRate || 0);
       }
     }
-    // specs/platform-added-guests-tourist-tax.md — on a platform that reverses the tax to us, it reversed
+    // specs/tourist-tax/platform-added-guests-tourist-tax.md — on a platform that reverses the tax to us, it reversed
     // the tax of the party it sold: what the added guests owe is collected in the complement. Reads the
     // platform's mode, never its name (rule 3). A tax already forced to the complement is whole there.
     let touristTaxAddedGuestsAmount = 0;
@@ -199,16 +199,16 @@ const step = {
     // brut ALREADY includes it. Count it as a brut line (like a pre-arrival option) and subtract it from
     // the accommodation back-solve — otherwise the tax is BOTH baked into the accommodation AND added
     // again as `totalStayPrice`, over-stating the total/balance and producing a « Paiement plateforme »
-    // écart equal to the tax (specs/platform-payment-tourist-tax-as-option.md).
+    // écart equal to the tax (specs/tourist-tax/platform-payment-tourist-tax-as-option.md).
     const touristTaxReversedByPlatform = collectsFromGuest && isTouristTaxRemittedByOwnerFlag && touristTaxTotal > 0;
-    // specs/platform-added-guests-tourist-tax.md rule 9 — the added tax was never on the platform's bill.
+    // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 9 — the added tax was never on the platform's bill.
     const reversedTouristTaxInBrut = (platformGrossPin != null && touristTaxReversedByPlatform)
       ? roundMoney(touristTaxTotal - touristTaxAddedGuestsAmount)
       : 0;
 
     // The tourist-tax breakdown + platform-mode routing (collectsFromGuest / remitted-by-owner / offered)
     // and the reversed-tax-as-brut handling are resolved earlier, alongside the brut back-solve
-    // (specs/platform-payment-tourist-tax-as-option.md). `touristTaxTotal` is final here.
+    // (specs/tourist-tax/platform-payment-tourist-tax-as-option.md). `touristTaxTotal` is final here.
 
     // Tax collected at check-in (→ "Complément à percevoir") ONLY when WE charge the guest directly,
     // i.e. the platform does NOT collect from the guest (case 3, `owner`). Case 1 (platform collects then

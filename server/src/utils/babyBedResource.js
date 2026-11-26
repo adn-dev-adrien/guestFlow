@@ -1,6 +1,6 @@
 /**
  * « Is this resource the cot? » — the one predicate, for every reader
- * (specs/translation-catalogue.md rule 22).
+ * (specs/site/translation-catalogue.md rule 22).
  *
  * The cot is a resource like any other in the database, but the booking funnel treats it apart: it is
  * couchage, driven by the `babyBeds` stepper, not a tickable supplement. Something therefore has to

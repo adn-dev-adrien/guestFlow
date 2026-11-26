@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 14 — the arrival SAS's « Offrir » is ONE input, `offered`: the refs of the lines it offers and the two
+// specs/pricing/pricing-components.md §3 rule 14 — the arrival SAS's « Offrir » is ONE input, `offered`: the refs of the lines it offers and the two
 // upsells (`{ kind: 'upsell', key }`), read into the one stored property. The three former fields (`cleaningOffered`, `bathLinenOffered`,
 // `offeredExtras`) are no input any more. Real controller, real model, in-memory database.
 process.env.DB_PATH = ':memory:';

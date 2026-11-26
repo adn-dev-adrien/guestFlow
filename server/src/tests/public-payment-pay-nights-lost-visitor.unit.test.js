@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 54, reading of 2026-11-01 (audit R11 public L-1) — the nights taken (rule 11)
+// specs/payments/payment-link-lifecycle.md rule 54, reading of 2026-11-01 (audit R11 public L-1) — the nights taken (rule 11)
 // or closed (rule 55) while the provider answers the public `pay` are refused in the visitor's language: 409
 // DATES_UNAVAILABLE with the site's « dates no longer available » sentence, the code the pre-check already answers,
 // never GuestFlow's operator text « … aucun lien créé ». The fresh link is still stored withdrawn.

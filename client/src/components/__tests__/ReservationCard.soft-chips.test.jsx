@@ -6,7 +6,7 @@ import ReservationCard from '../ReservationCard';
 import DepartureMiniRow from '../DepartureMiniRow';
 import theme from '../../theme';
 
-// specs/design-system.md §3.1 (2026-10-27 audit) — « never filled semantic Chips for statuses »:
+// specs/design-system/design-system.md §3.1 (2026-10-27 audit) — « never filled semantic Chips for statuses »:
 // ARRIVÉE / DÉPART pills, « Linge de lit non pris », « Caution à percevoir » rendered white on a
 // solid warning colour. They now use the soft background + dark text tokens.
 

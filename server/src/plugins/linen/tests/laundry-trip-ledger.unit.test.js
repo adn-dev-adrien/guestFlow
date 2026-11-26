@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { createTripLedger, emptyBlock } = require('../laundryTripLedger');
 const { constantSchedule } = require('./laundry-schedule-fixtures');
 
-// specs/laundry-extra-trip.md §3.2 — the pure trip-sequence + pool ledger, driven with an injected
+// specs/linen/laundry-extra-trip.md §3.2 — the pure trip-sequence + pool ledger, driven with an injected
 // `buildBlock` fake keyed by window, so every assertion reads as "which window, which pool".
 //
 // Calendar used throughout: laundry weekday = Tuesday (2). 2026-05-26, 06-02, 06-09, 06-16 are
@@ -12,7 +12,7 @@ const { constantSchedule } = require('./laundry-schedule-fixtures');
 
 const TUESDAY = 2;
 
-// The pick-up also names the drop dates it comes from (specs/linen-laundry-days.md rule 11); the
+// The pick-up also names the drop dates it comes from (specs/linen/linen-laundry-days.md rule 11); the
 // pre-feature assertions below are about the quantities.
 const counts = ({ fromTrips, ...quantities }) => quantities;
 

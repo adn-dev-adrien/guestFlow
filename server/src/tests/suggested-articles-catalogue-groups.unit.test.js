@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 11 and CLAUDE.md §7 (end review R3-7) — the « Autre article » answer comes grouped by the server, in the
+// specs/sas/outside-booking-sas.md rule 11 and CLAUDE.md §7 (end review R3-7) — the « Autre article » answer comes grouped by the server, in the
 // catalogue's order: `[{ category, articles }]`, the screen groups nothing.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

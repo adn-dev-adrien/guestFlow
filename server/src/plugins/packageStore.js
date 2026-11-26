@@ -1,5 +1,5 @@
 /**
- * Where plugin packages live on disk (specs/plugins-phase-4-registry.md rules 1, 10–11, 15–17).
+ * Where plugin packages live on disk (specs/plugins/plugins-phase-4-registry.md rules 1, 10–11, 15–17).
  *
  *   <release>/plugins-dist/                   the packages the release archive ships (P24, rule 10)
  *     SHA256SUMS                              one line per `<id>-<version>.tgz`
@@ -230,7 +230,7 @@ function createPackageStore({ dataDir, distDir, fetchImpl = fetch, now = () => n
 
   /**
    * A package file handed over on disk — the console pushing a version from its registry
-   * (specs/hosting-h1-fleet-runtime.md rule 11): the same checks as a download, then unpacked.
+   * (specs/hosting/hosting-h1-fleet-runtime.md rule 11): the same checks as a download, then unpacked.
    */
   async function installFile({ id, version, file, sha256: expected }) {
     let buf;

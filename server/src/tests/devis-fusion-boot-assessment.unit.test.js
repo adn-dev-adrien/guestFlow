@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { assessDevisFusion, dropLegacyDevisTables, LEGACY_DEVIS_TABLES } = require('../utils/devisFusionMigration');
 
-// specs/devis-reservation-fusion.md §4.1 (2026-06-17 fix) — the boot must decide robustly what to do
+// specs/devis/devis-reservation-fusion.md §4.1 (2026-06-17 fix) — the boot must decide robustly what to do
 // with the legacy devis_* schema so prod never floods the dir with `.pre-devis-fusion-*.bak` and never
 // loses data. Pins the four states of assessDevisFusion + the empty-leftover drop.
 

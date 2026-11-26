@@ -1,5 +1,5 @@
 // Arrival / departure SAS commit logic + priced linen items.
-// See specs/arrival-departure-sas.md §4.1.
+// See specs/sas/arrival-departure-sas.md §4.1.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -56,7 +56,7 @@ function makeDb() {
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0, inComplement INTEGER DEFAULT 0);
   `);
-  // specs/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
+  // specs/payments/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
   db.prepare("INSERT INTO reservations (id, propertyId, adults, teens, children, complementAmount, complementPaid, cautionAmount) VALUES (1, 7, 2, 0, 1, 30, 0, 300)").run();
   return db;
@@ -109,7 +109,7 @@ test('commitArrivalSas: caution marked received + items added inComplement + com
   const r = db.prepare('SELECT cautionReceived, cautionReceivedDate, cautionAmount, complementAmount, arrivalSasDoneAt FROM reservations WHERE id = 1').get();
   assert.equal(r.cautionReceived, 1);
   assert.ok(r.cautionReceivedDate);
-  // specs/caution-live-from-property.md §3 rule 2 — the live property caution (500) is frozen on receipt,
+  // specs/payments/caution-live-from-property.md §3 rule 2 — the live property caution (500) is frozen on receipt,
   // overwriting the stale stored 300.
   assert.equal(r.cautionAmount, 500);
   assert.equal(r.complementAmount, 75);
@@ -119,7 +119,7 @@ test('commitArrivalSas: caution marked received + items added inComplement + com
   assert.ok(customs.every((c) => c.inComplement === 1 && c.offered === 0));
 });
 
-// specs/adjustable-complement-amounts.md §3.1 rule 4 + §3.2 — le SAS écrit `complementAmount` EN
+// specs/sas/adjustable-complement-amounts.md §3.1 rule 4 + §3.2 — le SAS écrit `complementAmount` EN
 // DIRECT, hors moteur de prix. Sans rappel de l'ajustement, un passage au SAS effacerait
 // silencieusement le montant annoncé au client jusqu'au prochain enregistrement de la fiche.
 test('commitArrivalSas: un montant de complément ajusté survit au commit', () => {
@@ -147,7 +147,7 @@ test('commitArrivalSas: sans ajustement, le commit est strictement inchangé', (
 });
 
 test('commitArrivalSas re-commit: REPLACES the SAS-origin complement (no double-charge)', () => {
-  // specs/reopen-completed-sas.md §4 rule 4 — re-opening + re-validating must not stack lines.
+  // specs/sas/reopen-completed-sas.md §4 rule 4 — re-opening + re-validating must not stack lines.
   const db = makeDb();
   const model = createReservationsModel(db);
   model.commitArrivalSas(1, { complementItems: [{ label: 'Taie d\'oreiller', amount: 5 }] });
@@ -183,7 +183,7 @@ test('commitArrivalSas re-commit: preserves non-SAS complement lines + caution u
 });
 
 test('commitArrivalSas: a paid complement is frozen — amount unchanged, a new item is written and billed at check-out', () => {
-  // specs/reopen-completed-sas.md §4.3 — a settled complement is left untouched (no re-compute), so a re-opened SAS can't
+  // specs/sas/reopen-completed-sas.md §4.3 — a settled complement is left untouched (no re-compute), so a re-opened SAS can't
   // alter a paid complement; what the run adds rides the end-of-stay complement (arrival-departure-sas.md rule 35).
   const db = makeDb();
   db.prepare('UPDATE reservations SET complementPaid = 1, complementAmount = 30 WHERE id = 1').run();
@@ -246,7 +246,7 @@ test('commitArrivalSas: omitted breakfast fields default to 0 / null, breakfastT
   assert.equal(r.departureHandoverNote, null);
 });
 
-// ---- arrival bath-linen upsell (specs/sas-bath-linen-upsell.md) ----
+// ---- arrival bath-linen upsell (specs/linen/sas-bath-linen-upsell.md) ----
 
 // Reservation 1 = 2 adults + 1 child = 3 persons. Seed a per-person bath-linen option at 4 € → 12 €.
 function seedBathLinen(db, { price = 4, priceType = 'per_person' } = {}) {
@@ -254,11 +254,11 @@ function seedBathLinen(db, { price = 4, priceType = 'per_person' } = {}) {
   return 60;
 }
 
-// specs/sas-bath-linen-ghost-line.md §1.1 — everything the arrival SAS sells is a line ON THE FICHE.
+// specs/linen/sas-bath-linen-ghost-line.md §1.1 — everything the arrival SAS sells is a line ON THE FICHE.
 // The « réglé en fin de séjour » path that wrote a parallel billing line is gone, and every commit
 // erases what it left behind.
 
-// specs/sas-bath-linen-upsell.md rules 6 + 8 — the upsell rides the arrival complement, never the end of stay.
+// specs/linen/sas-bath-linen-upsell.md rules 6 + 8 — the upsell rides the arrival complement, never the end of stay.
 test('commitArrivalSas: never writes a bath-linen line into the end-of-stay complement', () => {
   const db = makeDb();
   seedBathLinen(db);
@@ -273,7 +273,7 @@ test('commitArrivalSas: never writes a bath-linen line into the end-of-stay comp
   assert.deepEqual(opts, [{ optionId: 60, totalPrice: 12, inComplement: 1, sasArrivalOrigin: 1 }]);
 });
 
-// specs/sas-bath-linen-upsell.md rule 8 — a legacy deferred line is removed on re-commit, the amount recomputed.
+// specs/linen/sas-bath-linen-upsell.md rule 8 — a legacy deferred line is removed on re-commit, the amount recomputed.
 test('commitArrivalSas: drops a legacy ghost line even when the bath-linen step is not part of the run', () => {
   const db = makeDb();
   seedBathLinen(db);
@@ -305,7 +305,7 @@ test('commitArrivalSas: leaves a ghost-free end-of-stay complement untouched, an
   assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((l) => l.label), ['Ménage de fin de séjour']);
 });
 
-// specs/sas-bath-linen-upsell.md rule 9 — the departure commit keeps a legacy line with its source tag, counted.
+// specs/linen/sas-bath-linen-upsell.md rule 9 — the departure commit keeps a legacy line with its source tag, counted.
 test('commitDepartureSas: preserves an arrival-added bath-linen line (source tag) sent back in the detail', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -324,7 +324,7 @@ test('commitDepartureSas: preserves an arrival-added bath-linen line (source tag
 
 // ---- departure commit ----
 
-// specs/arrival-departure-sas.md rule 18
+// specs/sas/arrival-departure-sas.md rule 18
 test('commitDepartureSas: caution returned + end-of-stay complement + detail set', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -342,7 +342,7 @@ test('commitDepartureSas: caution returned + end-of-stay complement + detail set
 });
 
 test('commitDepartureSas: cautionReturned=false clears the marker + its date (faithful edit)', () => {
-  // specs/reopen-completed-sas.md rule 6 — re-opening a departure and un-ticking « caution rendue »
+  // specs/sas/reopen-completed-sas.md rule 6 — re-opening a departure and un-ticking « caution rendue »
   // reverts the marker (e.g. a litige / dégât found after the fact).
   const db = makeDb();
   db.prepare("UPDATE reservations SET cautionReturned = 1, cautionReturnedDate = '2026-06-10' WHERE id = 1").run();
@@ -363,7 +363,7 @@ test('commitDepartureSas: cautionReturned omitted leaves the marker untouched', 
   assert.equal(r.cautionReturnedDate, '2026-06-10');
 });
 
-// specs/reopen-completed-sas.md rule 6 — a re-ticked caution keeps the date it was first marked on.
+// specs/sas/reopen-completed-sas.md rule 6 — a re-ticked caution keeps the date it was first marked on.
 test('re-commit with the caution still ticked keeps its first date (arrival and departure)', () => {
   const db = makeDb();
   db.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = '2026-06-01', cautionReturned = 1, cautionReturnedDate = '2026-06-10' WHERE id = 1").run();
@@ -374,7 +374,7 @@ test('re-commit with the caution still ticked keeps its first date (arrival and 
   assert.deepEqual(r, { cautionReceived: 1, cautionReceivedDate: '2026-06-01', cautionReturned: 1, cautionReturnedDate: '2026-06-10' });
 });
 
-// specs/reopen-completed-sas.md rule 7 — a re-commit refreshes `…SasDoneAt`; the SAS never reverts to « not done ».
+// specs/sas/reopen-completed-sas.md rule 7 — a re-commit refreshes `…SasDoneAt`; the SAS never reverts to « not done ».
 test('re-commit refreshes the done timestamps and never clears them', () => {
   const db = makeDb();
   db.prepare("UPDATE reservations SET arrivalSasDoneAt = '2026-01-01 08:00:00', departureSasDoneAt = '2026-01-02 08:00:00' WHERE id = 1").run();
@@ -386,9 +386,9 @@ test('re-commit refreshes the done timestamps and never clears them', () => {
   assert.ok(r.departureSasDoneAt && r.departureSasDoneAt > '2026-01-02 08:00:00', r.departureSasDoneAt);
 });
 
-// specs/arrival-departure-sas.md rule 19
+// specs/sas/arrival-departure-sas.md rule 19
 test('commitDepartureSas: end-of-stay re-commit OVERWRITES amount + detail (no accumulation)', () => {
-  // specs/reopen-completed-sas.md §4 — the end-of-stay complement is already overwrite-based.
+  // specs/sas/reopen-completed-sas.md §4 — the end-of-stay complement is already overwrite-based.
   const db = makeDb();
   const model = createReservationsModel(db);
   model.commitDepartureSas(1, { endOfStayComplementAmount: 48, endOfStayComplementDetail: [{ label: 'Ménage', amount: 40 }, { label: 'Serviette', amount: 8 }] });
@@ -398,7 +398,7 @@ test('commitDepartureSas: end-of-stay re-commit OVERWRITES amount + detail (no a
   assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((d) => d.label), ['Serviette']);
 });
 
-// ---- fire-extinguisher seal (specs/extinguisher-seal-and-repair-amounts.md) ----
+// ---- fire-extinguisher seal (specs/options/extinguisher-seal-and-repair-amounts.md) ----
 
 test('commitArrivalSas: records the seal baseline + never bills for it', () => {
   const db = makeDb();
@@ -431,7 +431,7 @@ test('commitDepartureSas: records the departure seal state (the bill rides endOf
   assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((d) => d.label), ['Plomb extincteur']);
 });
 
-// ---- extinguisher condition tariffs, server-priced (specs/extinguisher-seal-and-repair-amounts.md §3.2) ----
+// ---- extinguisher condition tariffs, server-priced (specs/options/extinguisher-seal-and-repair-amounts.md §3.2) ----
 
 test('commitDepartureSas: not-OK extinguisher prices each tariff × qty from repair_amounts and adds it to the end-of-stay complement', () => {
   const db = makeDb();
@@ -488,9 +488,9 @@ test('commitDepartureSas: a 0-qty or 0-priced extinguisher tariff produces no li
   assert.equal(r.endOfStayComplementDetail, null);
 });
 
-// ── planning coche + dashboard status flags (specs/arrival-departure-sas.md §3.6) ──────────────────
+// ── planning coche + dashboard status flags (specs/sas/arrival-departure-sas.md §3.6) ──────────────────
 
-// specs/arrival-departure-sas.md rule 22
+// specs/sas/arrival-departure-sas.md rule 22
 test('commitArrivalSas: completing the arrival SAS validates checkInReady (coche/Prêt) + checkInDone (Arrivé)', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -522,7 +522,7 @@ test('commitArrivalSas: re-committing keeps the flags validated (never auto-unti
   assert.equal(r.checkInDone, 1, 'completing the SAS re-affirms « Arrivé »');
 });
 
-// specs/arrival-departure-sas.md rule 22
+// specs/sas/arrival-departure-sas.md rule 22
 test('commitDepartureSas: completing the departure SAS validates checkOutDone (coche/Parti)', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -540,7 +540,7 @@ test('commitDepartureSas: does not touch the arrival « Prêt »/« Arrivé » f
   assert.equal(r.checkInDone, 0);
 });
 
-// ── specs/recall-unpaid-arrival-complement-at-checkout.md ──────────────────────────────────────────
+// ── specs/sas/recall-unpaid-arrival-complement-at-checkout.md ──────────────────────────────────────────
 
 test('commitArrivalSas: complementSettled marks the arrival complement paid (+ date); false clears it', () => {
   const db = makeDb();
@@ -557,7 +557,7 @@ test('commitArrivalSas: complementSettled marks the arrival complement paid (+ d
   assert.equal(r.complementPaidDate, null);
 });
 
-// ── specs/defer-arrival-complement-to-checkout.md ─────────────────────────────────────────────────
+// ── specs/sas/defer-arrival-complement-to-checkout.md ─────────────────────────────────────────────────
 
 test('commitArrivalSas: « En fin de séjour » sets the deferral marker; settling on the spot clears it', () => {
   const db = makeDb();
@@ -612,7 +612,7 @@ test('commitDepartureSas: bills the cleaning normally when it is NOT sold', () =
 });
 
 test('commitDepartureSas: re-running on an over-billed stay drops the duplicate cleaning line', () => {
-  // specs/defer-arrival-complement-to-checkout.md §3.1 rule 4 — self-healing, no data migration.
+  // specs/sas/defer-arrival-complement-to-checkout.md §3.1 rule 4 — self-healing, no data migration.
   const db = makeDb();
   const model = createReservationsModel(db);
   model.commitDepartureSas(1, { endOfStayComplementDetail: [{ label: 'Ménage de fin de séjour', amount: 40 }] });
@@ -701,7 +701,7 @@ test('arrivalComplementDetailFromReservation: itemises in-complement lines + tax
 });
 
 test('arrivalComplementDetailFromReservation: carries qty/unitPrice/kind for the SAS-style email list', () => {
-  // specs/j2-email-coffee-and-sas-complement.md — additive fields so the J-2 email can render
+  // specs/emails/j2-email-coffee-and-sas-complement.md — additive fields so the J-2 email can render
   // « label : qté × prix = total » and localise the system labels (tax / remainder) per language.
   const detail = arrivalComplementDetailFromReservation({
     complementAmount: 50.8, complementPaid: 0, touristTaxInComplementAmount: 4.8,
@@ -722,7 +722,7 @@ test('arrivalComplementDetailFromReservation: carries qty/unitPrice/kind for the
   assert.ok(!detail.detail.some((l) => l.kind === 'remainder'));
 });
 
-// ── specs/sas-upsells-activate-catalogue-option.md ────────────────────────────────────────────────
+// ── specs/sas/sas-upsells-activate-catalogue-option.md ────────────────────────────────────────────────
 // The ménage and the linge de toilette activate the CATALOGUE option instead of writing a custom
 // line — otherwise the laundry + linen stock (which join `reservation_options → options`) never see
 // the towels sold at check-in.

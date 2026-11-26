@@ -2,7 +2,7 @@ const express = require('express');
 const { httpError } = require('../utils/httpError');
 
 /**
- * specs/plugins-phase-4-registry.md rules 7–8.
+ * specs/plugins/plugins-phase-4-registry.md rules 7–8.
  *
  *   registryPublicRoutes   GET /registry/v1/index.json, /index.json.sig, /packages/<id>-<version>.tgz —
  *                          no authentication: a package holds no customer data, and the licence

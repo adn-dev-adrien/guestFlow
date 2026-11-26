@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 4 — « Rien à percevoir » is decided by the server from
+// specs/design-system/ui-review-2026-10-19-operations.md rule 4 — « Rien à percevoir » is decided by the server from
 // the stored buckets: never over a stay or a complement still owed.
 const test = require('node:test');
 const assert = require('node:assert/strict');

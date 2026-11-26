@@ -1,4 +1,4 @@
-// specs/upcoming-reservations-cards.md rule 7 (amended 2026-10-18) — the extra laundry trip proposes
+// specs/planning/upcoming-reservations-cards.md rule 7 (amended 2026-10-18) — the extra laundry trip proposes
 // the browser's calendar day, not the UTC one, which read yesterday between midnight and 2 a.m. in
 // Paris (review of PR #700, finding 4).
 import React from 'react';

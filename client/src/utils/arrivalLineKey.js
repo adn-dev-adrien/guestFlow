@@ -1,7 +1,7 @@
 /**
- * Keys of `editLock.arrivalLines` (specs/mid-stay-extras-on-locked-fiche.md rule 13): `opt:<id>` and
+ * Keys of `editLock.arrivalLines` (specs/sas/mid-stay-extras-on-locked-fiche.md rule 13): `opt:<id>` and
  * `res:<id>` for the first line of an article, `line:<table>:<lineId>` for a later sale of the same article
- * (specs/pricing-components.md §3 rule 85, mirror of the server's `utils/pricing/lineKeys.js`: pass the
+ * (specs/pricing/pricing-components.md §3 rule 85, mirror of the server's `utils/pricing/lineKeys.js`: pass the
  * line, which carries `lineKey` when it is not the article's first). Custom lines are frozen by id
  * (`editLock.frozenCustomOptionIds`), never by label.
  */

@@ -4,7 +4,7 @@
 
 const ADMIN = 'admin';
 const ACCOUNTANT = 'accountant';
-// specs/reception-role-checkin-only.md — on-site check-in/out staff; sees only the day's
+// specs/sas/reception-role-checkin-only.md — on-site check-in/out staff; sees only the day's
 // arrivals/departures + the Planning + the SAS, never any financial figure beyond the caution /
 // complement to collect at the door.
 const RECEPTION = 'reception';
@@ -25,7 +25,7 @@ function userHasRole(user, role) {
   return false;
 }
 
-// specs/reception-role-checkin-only.md §3.2 — every reception restriction (finance stripping, the
+// specs/sas/reception-role-checkin-only.md §3.2 — every reception restriction (finance stripping, the
 // payment-field allowlist, the SAS re-edit lock) keys on the SAME predicate: holds `reception` and
 // NOT `admin`. A combined reception+admin account is a full admin.
 function isReceptionOnly(user) {

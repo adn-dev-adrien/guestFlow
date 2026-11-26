@@ -1,4 +1,4 @@
-// specs/platform-extra-guest-complement.md, reading of 2026-11-05 (audit R22-5) — the added guests' supplement is stay
+// specs/platforms/platform-extra-guest-complement.md, reading of 2026-11-05 (audit R22-5) — the added guests' supplement is stay
 // revenue from its first entry: on the accommodation account in every order and every mode, whatever a later party
 // change does. Replays of the auditor's items125 and p7 probes.
 process.env.DB_PATH = ':memory:';

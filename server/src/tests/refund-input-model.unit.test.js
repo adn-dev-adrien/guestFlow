@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 48 and 76 — the loader that builds the `ctx` of REFUNDS / overpayment from the ports:
+// specs/pricing/pricing-components.md §3 rules 48 and 76 — the loader that builds the `ctx` of REFUNDS / overpayment from the ports:
 // allocations, the stored total, the free lines of origin `overpayment`, the adjusted complement and the departure's own sales.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

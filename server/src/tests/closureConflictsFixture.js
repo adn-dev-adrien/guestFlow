@@ -1,4 +1,4 @@
-// Shared fixture of the closure suites of specs/payment-link-lifecycle.md (rules 40, 41, 49): the baseline
+// Shared fixture of the closure suites of specs/payments/payment-link-lifecycle.md (rules 40, 41, 49): the baseline
 // schema with two logements, the closures controller bound to it, and a fake Express response.
 
 const { localIsoDate } = require('../utils/localDate');

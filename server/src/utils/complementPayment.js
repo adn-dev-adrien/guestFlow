@@ -1,6 +1,6 @@
 /**
  * Pure resolver for a complement's payment state from a payment-toggle payload
- * (specs/cash-complement-and-endofstay-finance.md §3.2). Shared by the arrival complement and the
+ * (specs/sas/cash-complement-and-endofstay-finance.md §3.2). Shared by the arrival complement and the
  * end-of-stay complement in `reservationsController.updatePayment`.
  *
  * Rules:

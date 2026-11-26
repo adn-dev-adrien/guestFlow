@@ -1,4 +1,4 @@
-// specs/ical-cancellation-approval.md rule 13 (audit 2026-10-27) — a stay already cancelled in GuestFlow
+// specs/platforms/ical-cancellation-approval.md rule 13 (audit 2026-10-27) — a stay already cancelled in GuestFlow
 // (`kind` ≠ 'reservation') that its feed later drops raises no cancellation alert; an alert raised before
 // the fix is closed without deleting the row. Approving it used to hard-delete the cancelled stay, and
 // the delete cascaded its refunds — the credit note owed to the guest was lost.
@@ -15,7 +15,7 @@ const cancellationModel = require('../models/icalCancellationModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function ics(events) {

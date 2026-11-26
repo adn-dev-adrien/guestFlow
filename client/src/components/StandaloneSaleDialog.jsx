@@ -1,5 +1,5 @@
 /**
- * StandaloneSaleDialog — « Vente hors séjour » (specs/pricing-components.md rules 53, 74; specs/outside-booking-sas.md rule 8a): a sale at the counter to someone with no stay. Articles marked
+ * StandaloneSaleDialog — « Vente hors séjour » (specs/pricing/pricing-components.md rules 53, 74; specs/sas/outside-booking-sas.md rule 8a): a sale at the counter to someone with no stay. Articles marked
  * « Vendable hors séjour », quantities bounded by the server, the external customer's VAT, the client « Passage » by default (a record only on an exact e-mail match or « Enregistrer comme
  * client »), then the money taken now with the fiches' tender lines or a payment link. After saving, « Nouvelle vente » starts the next one.
  *

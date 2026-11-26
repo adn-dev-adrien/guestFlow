@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 59 (loop t24, 2026-11-18) — the SAS « Plusieurs moyens » lines the operator typed are kept
+// specs/payments/mixed-method-payments.md rule 59 (loop t24, 2026-11-18) — the SAS « Plusieurs moyens » lines the operator typed are kept
 // when the block reappears: after a failed recompute and its recovery, after a step back and the return to the recap (arrival), and when
 // the departure's due comes back from 0. A line typed is never rewritten; the untyped last line still shows what the others leave of the
 // new due, and a line that no longer fits is left as typed for the meter to say.

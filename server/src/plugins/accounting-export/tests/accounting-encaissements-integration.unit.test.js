@@ -146,7 +146,7 @@ test('reservation with all three amounts = 0: emits zero entries (NOT three phan
   assert.equal(entries.length, 0);
 });
 
-// specs/accountant-accounting-export.md rule 6
+// specs/accounting/accountant-accounting-export.md rule 6
 test('normal deposit + balance flow (regression guard): both entries emitted with non-zero amounts', () => {
   // Sanity that the new null-guard doesn't accidentally drop legitimate entries.
   const db = createDb();
@@ -162,7 +162,7 @@ test('normal deposit + balance flow (regression guard): both entries emitted wit
   assert.equal(byKind.balance.encaissementTtc, 140);
 });
 
-// specs/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the caisse
+// specs/sas/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the caisse
 // interne is off the books, exactly like a cash complement: no encaissement, no export line.
 
 test('caisse interne on the solde: the balance entry is NOT emitted', () => {
@@ -187,7 +187,7 @@ test('caisse interne on the acompte only: the solde still books normally', () =>
   assert.equal(entries[0].encaissementTtc, 140);
 });
 
-// specs/platform-commission-line.md (2026-06-21) — the engine now stores the NET (total − commission)
+// specs/platforms/platform-commission-line.md (2026-06-21) — the engine now stores the NET (total − commission)
 // as the platform solde. The accounting reads `row.balanceAmount`, so the balance encaissement IS the
 // net the operator banked — i.e. the solde drives the compta, as requested.
 test('platform reservation: the balance entry encaissement is the stored (net) solde', () => {
@@ -257,7 +257,7 @@ test('platformsPreview: direct rows have null gross + null commission (rendered 
   assert.equal(directRow.net, 200);
 });
 
-// specs/platform-commission-line.md (2026-06-22) — the preview surfaces the NET (versement) so the
+// specs/platforms/platform-commission-line.md (2026-06-22) — the preview surfaces the NET (versement) so the
 // operator finds the amount actually wired by the platform. New model: revenu brut = total séjour,
 // commission = the entered field, net = revenu brut − commission.
 test('platformsPreview: a platform row exposes net (versement) = revenu brut − commission', () => {
@@ -345,7 +345,7 @@ test('platformsPreview: reservationId is populated so the AccountingPage row cli
   assert.equal(res.body.rows[0].reservationId, id);
 });
 
-// specs/accountant-accounting-export.md rule 10
+// specs/accounting/accountant-accounting-export.md rule 10
 test('platformsPreview: empty month → empty rows + zero totalCommission (defensive)', () => {
   const db = createDb();
   const controller = createAccountingController(createAccountingModel(db));
@@ -385,7 +385,7 @@ test('platformsPreview commission uses the STORED finalPrice, not the engine rec
   assert.equal(res.body.rows[0].commission, 40);
 });
 
-// ── Cash complements + end-of-stay complement (specs/cash-complement-and-endofstay-finance.md) ──
+// ── Cash complements + end-of-stay complement (specs/sas/cash-complement-and-endofstay-finance.md) ──
 
 test('cash arrival complement is excluded from accounting (off the books)', () => {
   const db = createDb();
@@ -398,7 +398,7 @@ test('cash arrival complement is excluded from accounting (off the books)', () =
   assert.deepEqual(entries.map((e) => e.kind).sort(), ['balance']);
 });
 
-// specs/accountant-accounting-export.md rule 28
+// specs/accounting/accountant-accounting-export.md rule 28
 test('non-cash arrival complement is still emitted', () => {
   const db = createDb();
   insertReservation(db, {
@@ -437,7 +437,7 @@ test('cash end-of-stay complement is excluded from accounting', () => {
 });
 
 // ── Prestations vendues en cours de séjour ───────────────────────────────────
-// specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 16. Before the fix the option sold
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 16. Before the fix the option sold
 // mid-stay was credited to the `complement` entry while its debit stayed frozen at the collected
 // amount: the journal entry credited more revenue than it debited.
 
@@ -489,10 +489,10 @@ test('regression: a forced option NOT sold mid-stay is still fully credited to t
   assert.equal(round2(complement.buckets.reduce((s, b) => s + b.ht + b.vat, 0)), 42);
 });
 
-// ── Notes en séjour (specs/mid-stay-notes.md §3.4 rule 14) ───────────────────
+// ── Notes en séjour (specs/sas/mid-stay-notes.md §3.4 rule 14) ───────────────────
 // One journal entry per SETTLED note, at its own payment date — the note IS the collection.
 
-// specs/adjustable-complement-amounts.md rule 39 — une note en séjour n'a rien à ventiler : une
+// specs/sas/adjustable-complement-amounts.md rule 39 — une note en séjour n'a rien à ventiler : une
 // écriture à plat, un seul poste, et le total ajusté de la note EST le montant booké.
 test('each settled note emits its own encaissement, at its own date, HT+VAT on the options bucket', () => {
   const db = createDb();
@@ -552,11 +552,11 @@ test('end-of-stay complement paid date drives the export month (not the stay dat
   assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 9, year: 2026 }).length, 1);
 });
 
-// ── One payment at check-in (specs/single-payment-at-check-in.md §3.3) ──────────────────────────
+// ── One payment at check-in (specs/payments/single-payment-at-check-in.md §3.3) ──────────────────────────
 // The ventilation must NOT change: two buckets, two entries, two revenue accounts, two VAT rates.
 // What is added is the sentence « these two were one collection », carried on both entries.
 
-// specs/single-payment-at-check-in.md rules 12 + 14 — le groupe estampille les écritures sans les
+// specs/payments/single-payment-at-check-in.md rules 12 + 14 — le groupe estampille les écritures sans les
 // fusionner : l'export du comptable garde UNE écriture par échéance, sa forme ne change pas.
 test('a single arrival payment stamps its group on every entry it named — and on no other', () => {
   const db = createDb();
@@ -580,7 +580,7 @@ test('a single arrival payment stamps its group on every entry it named — and 
   }
 });
 
-// specs/single-payment-at-check-in.md rule 12
+// specs/payments/single-payment-at-check-in.md rule 12
 test('an ordinary reservation carries no group at all', () => {
   const db = createDb();
   insertReservation(db, {
@@ -605,7 +605,7 @@ test('a caisse-interne group emits nothing: there is no entry to group', () => {
   assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 }).length, 0);
 });
 
-// specs/single-payment-at-check-in.md rule 11
+// specs/payments/single-payment-at-check-in.md rule 11
 test('the group survives the journal mapper — it is what the Comptabilité page reads', () => {
   // The model stamps `paymentGroup`, but the page reads the MAPPED entry, which rebuilds the object
   // from an explicit field list. A field dropped there is a field the UI never sees — which is
@@ -645,7 +645,7 @@ test('an ungrouped entry carries no paymentGroup through the mapper either', () 
   assert.equal(mapped[0].paymentGroup, undefined);
 });
 
-// specs/single-payment-at-check-in.md rule 11
+// specs/payments/single-payment-at-check-in.md rule 11
 test('a group covering the END-OF-STAY complement stamps that entry too', () => {
   // Reported 2026-08-31: a platform booking with the acompte disabled and nothing sold at check-in
   // still had 50 € scheduled for the door — and the guest paid it on arrival with the rest.

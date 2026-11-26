@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 72 — REFUNDS / collected: what each line of a stay collected, in the books or in the
+// specs/pricing/pricing-components.md §3 rule 72 — REFUNDS / collected: what each line of a stay collected, in the books or in the
 // caisse interne, moved unchanged (PR B reads SETTLEMENT's settledCents instead). Plain objects, no DB.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -59,7 +59,7 @@ test('rule 72 — collectedAfterArrival adds a settled end of stay and the settl
   assert.deepEqual([...collectedAfterArrival(withNote)], [['opt:7', { label: 'Bain', amount: 24 }]]);
 });
 
-// specs/pricing-components.md §3 rules 21, 74 (pass 4): where allocations name a line, the line collected what they say.
+// specs/pricing/pricing-components.md §3 rules 21, 74 (pass 4): where allocations name a line, the line collected what they say.
 test('rule 21 — collectedByLine reads the allocations that name a line; a line no allocation names keeps the stored-money reading', () => {
   const reservation = { depositPaid: 1, depositAmount: 100, finalPrice: 100, accommodationAcompteContribTtc: 70, touristTaxAcompteContribTtc: 0 };
   const options = [{ optionId: 5, lineId: 11, totalPrice: 30, acompteContribTtc: 30 }, { optionId: 6, lineId: 12, totalPrice: 20, acompteContribTtc: 0 }];

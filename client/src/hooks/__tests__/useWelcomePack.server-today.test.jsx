@@ -1,4 +1,4 @@
-// specs/welcome-pack-auto-options.md + specs/reservations-backend-mvc.md rule 13, second reading (review of PR #938,
+// specs/options/welcome-pack-auto-options.md + specs/tech/reservations-backend-mvc.md rule 13, second reading (review of PR #938,
 // F8) — the welcome pack is asked only for dates inside the window of the server's day the fiche hands it.
 import { vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';

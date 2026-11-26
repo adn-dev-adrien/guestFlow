@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 13 and 22 — a late reserve of a sale outside a stay
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 13 and 22 — a late reserve of a sale outside a stay
 // (reservationId null, saleKey set) is listed by the sale's name and opens no fiche.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

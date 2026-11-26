@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rule 51 (audit R42-EXT-L1, 2026-11-10) — « Écarter » on a stay id not yet given
+// specs/accounting/qonto-bank-reconciliation.md rule 51 (audit R42-EXT-L1, 2026-11-10) — « Écarter » on a stay id not yet given
 // stored a pair that later hid that stay's proposal; « Hors réservation » on a credit never read stored a row too.
 // Both name nothing: 404, nothing stored. The real pair of a shown proposal is still discarded.
 const test = require('node:test');

@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import QuantityField from '../QuantityField';
 
-// specs/reservation-quantity-stepper.md §3 — the generic stepper input:
+// specs/reservations/reservation-quantity-stepper.md §3 — the generic stepper input:
 // local draft (no per-keystroke commit), clamp to [min,max], − / ＋ steppers, allowEmpty semantics.
 
 // A controlled harness so multi-step interactions reflect committed values, mirroring real usage.

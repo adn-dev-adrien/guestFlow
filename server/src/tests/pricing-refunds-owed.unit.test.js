@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 23, 72 and 75 — REFUNDS / owed: the money that must leave and has not yet, in cents.
+// specs/pricing/pricing-components.md §3 rules 23, 72 and 75 — REFUNDS / owed: the money that must leave and has not yet, in cents.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { owedOnBasket, owedOnLinkPayment, owedOnDuplicate, owedOnLineLowered } = require('../utils/pricing/refunds/owed');

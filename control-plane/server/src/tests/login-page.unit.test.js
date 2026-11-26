@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 24, 25 and 27 over HTTP on the `app` host: a form
+// specs/hosting/control-plane-plans-and-access.md rules 24, 25 and 27 over HTTP on the `app` host: a form
 // with no password field, the 303 with its hint, the list, the remembered space, the 429 after ten
 // lookups, and the console and the login page each absent from the other's host.
 

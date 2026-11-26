@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 110 a, specs/pricing-components.md rule 103 (stabilisation loop t4, A4-1, 2026-11-16) — one judge of « the order is still
+// specs/guest-app/guest-app.md rule 110 a, specs/pricing/pricing-components.md rule 103 (stabilisation loop t4, A4-1, 2026-11-16) — one judge of « the order is still
 // changed at the door »: a stay whose false start was kept (a baseline stored, the arrival unticked before the check-in hour, nothing collected)
 // already carves its sales out to the departure, so the arrival SAS shows the app order read-only and the sale refuses `atArrival` with words that
 // say what happened (never « Arrivée déjà validée »). From the check-in hour the clock has started and the order is changed at the door again.

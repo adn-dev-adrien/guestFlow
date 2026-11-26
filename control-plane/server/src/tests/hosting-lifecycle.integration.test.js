@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md §7, integration — the whole lifecycle with the `local` drivers
+// specs/hosting/hosting-h1-fleet-runtime.md §7, integration — the whole lifecycle with the `local` drivers
 // (H-D6) and real instances: `node <release>/server/src/index.js` started from its env file, its real
 // database, its real first administrator.
 //
@@ -9,7 +9,7 @@
 //   rules 13, 14  a backup verified, then restored to a moment;
 //   rule 6   erase: no process, no route, no copies, no directory.
 //
-// specs/server-test-isolation.md rule 20 — required first: a run cut off before the `finally` below still stops the
+// specs/tech/server-test-isolation.md rule 20 — required first: a run cut off before the `finally` below still stops the
 // instance it started and removes its temp tree.
 require('./setup/fileTempRoot');
 

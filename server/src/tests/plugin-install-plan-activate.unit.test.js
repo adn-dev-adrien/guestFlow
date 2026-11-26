@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rules 5, 9, 10 and 15 — the install plan lists what to install and what
+// specs/plugins/plugin-dependencies.md rules 5, 9, 10 and 15 — the install plan lists what to install and what
 // to switch on, in order, in a release and in a development tree; a cycle is refused, never skipped.
 const test = require('node:test');
 const assert = require('node:assert/strict');

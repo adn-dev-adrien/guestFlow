@@ -1,4 +1,4 @@
-// Shared fixtures for the « Domotique » suites of the Sowel connector (specs/guest-app-home-automation.md). Not a
+// Shared fixtures for the « Domotique » suites of the Sowel connector (specs/guest-app/guest-app-home-automation.md). Not a
 // test file: a suite imports it without re-running another suite.
 
 const crypto = require('crypto');

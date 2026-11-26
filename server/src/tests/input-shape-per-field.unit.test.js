@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2, R23-A3, section 4 of the audit) — the whole
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2, R23-A3, section 4 of the audit) — the whole
 // route set from a valid baseline, one field wrong at a time, through the real application: no 5xx, no `[unhandled]` line, no
 // wrong type stored as text. Each baseline must reach its fields: a row refused on its own would prove nothing. This file
 // holds the stays, their money and their logements but the whole reservation, which input-shape-per-field-reservation-a

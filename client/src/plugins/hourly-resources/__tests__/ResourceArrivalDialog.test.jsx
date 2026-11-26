@@ -1,6 +1,6 @@
-// specs/outside-booking-sas.md rules 1, 9, 10, 13, 21 and specs/resource-booking-pricing-and-invoicing.md rules 25, 30-31 — the mini SAS of an outside client: the session and its
+// specs/sas/outside-booking-sas.md rules 1, 9, 10, 13, 21 and specs/resources/resource-booking-pricing-and-invoicing.md rules 25, 30-31 — the mini SAS of an outside client: the session and its
 // price lines, the offered time, one commit with the payment and the invoice, « Pas maintenant », and a refused invoice that keeps the rest.
-// specs/server-test-isolation.md rules 16, 17 — these walks run under the client suite's one 30 s budget.
+// specs/tech/server-test-isolation.md rules 16, 17 — these walks run under the client suite's one 30 s budget.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

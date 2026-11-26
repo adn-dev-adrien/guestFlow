@@ -1,5 +1,5 @@
 // Content migration: force-sync the `arrival_reminder_1d` row to the registry def when the arrival
-// reminder moved J-1 → J-2 (specs/j1-arrival-reminder-email.md). Adrien asked to OVERWRITE the row
+// reminder moved J-1 → J-2 (specs/emails/j1-arrival-reminder-email.md). Adrien asked to OVERWRITE the row
 // even if personalised, so name/subject/body/dayOffset are forced; sendMode/enabled are preserved.
 
 const test = require('node:test');
@@ -34,7 +34,7 @@ test('forces name/subject/body + EN subject/body + dayOffset to the registry def
   assert.equal(row.name, DEF.name);
   assert.equal(row.subject, DEF.subject);
   assert.equal(row.body, DEF.body);
-  // specs/j2-email-coffee-and-sas-complement.md — EN side is force-synced too (the coffee line must reach it).
+  // specs/emails/j2-email-coffee-and-sas-complement.md — EN side is force-synced too (the coffee line must reach it).
   assert.equal(row.subjectEn, DEF.subjectEn);
   assert.equal(row.bodyEn, DEF.bodyEn);
   assert.equal(row.dayOffset, -2);

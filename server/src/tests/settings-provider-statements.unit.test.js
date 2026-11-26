@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 48 — the ports prepare each SQL statement once per database handle, on first use:
+// specs/pricing/pricing-components.md §3 rule 48 — the ports prepare each SQL statement once per database handle, on first use:
 // a quote reads the same few statements for every article, and preparing them per call cost more than the reading.
 const test = require('node:test');
 const assert = require('node:assert/strict');

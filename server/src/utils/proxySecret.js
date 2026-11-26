@@ -1,6 +1,6 @@
 /**
  * Forwarded headers are believed only when they come through the hosting's proxy
- * (specs/hosting-h1-fleet-runtime.md rule 21, review 2026-10-17).
+ * (specs/hosting/hosting-h1-fleet-runtime.md rule 21, review 2026-10-17).
  *
  * On the host every process reaches every other on 127.0.0.1: another instance could call this one
  * directly and claim any client address in X-Forwarded-For, defeating the IP rate limiters that
@@ -36,7 +36,7 @@ function proxySecretGuard(secret) {
 }
 
 /**
- * What `trust proxy` is set to, from the environment (specs/hosting-h1-fleet-runtime.md rule 35).
+ * What `trust proxy` is set to, from the environment (specs/hosting/hosting-h1-fleet-runtime.md rule 35).
  * X-Forwarded-For is believed only when TRUST_PROXY_HOPS is set (a number of trusted hops), and then
  * only for a request that carries the proxy secret when GUESTFLOW_PROXY_SECRET is set. Hops without a
  * secret are legitimate behind a proxy that is the only way in, but spoofable by anyone who can reach

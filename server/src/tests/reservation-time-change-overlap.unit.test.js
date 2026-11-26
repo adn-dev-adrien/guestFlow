@@ -1,4 +1,4 @@
-// specs/edit-reservation-blocked-by-overlap.md rule 5 (spec review 2026-10-27) — a check-in / check-out
+// specs/reservations/edit-reservation-blocked-by-overlap.md rule 5 (spec review 2026-10-27) — a check-in / check-out
 // time change and a baby-bed increase on an existing fiche re-run the guards they can break.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

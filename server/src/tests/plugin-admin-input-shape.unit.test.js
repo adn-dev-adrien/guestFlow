@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 7, reading of 2026-11-04 (audit R22-P2) — the plugin admin routes answer their own
+// specs/plugins/plugins-phase-1-sdk.md rule 7, reading of 2026-11-04 (audit R22-P2) — the plugin admin routes answer their own
 // 400 to a wrong-shape body. The plugins are installed and switched on: each refusal comes from the route, not from the
 // plugin gate. A plugin absent from the tree has no row to judge (plugin-removal-resilience).
 const test = require('node:test');

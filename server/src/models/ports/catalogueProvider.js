@@ -1,5 +1,5 @@
 /**
- * CatalogueProvider — the lodging's catalogue as the pricing reads it (specs/pricing-components.md §3 rules 11, 48).
+ * CatalogueProvider — the lodging's catalogue as the pricing reads it (specs/pricing/pricing-components.md §3 rules 11, 48).
  *
  * Contract (plain functions over today's queries; `create(db)` binds them to a database):
  *   applicableOptions(propertyId)            the options sold at that lodging, each at its effective price and free units
@@ -24,19 +24,19 @@ function getApplicableOptions(db, propertyId, { keep = null } = {}) {
   const provider = settingsProvider.create(db);
   return options
     .map((option) => {
-      // Per-property price override (specs/per-property-option-prices.md): the effective unit price for
+      // Per-property price override (specs/options/per-property-option-prices.md): the effective unit price for
       // this property is the override row when present, else the option's base price. A schema without the
       // table keeps the base price. A row with price 0 is an explicit free.
       const settings = provider.for('articles', { propertyId: pid, articleRef: { kind: 'option', id: option.id } });
       return {
         ...option,
         price: Number(settings.price || 0),
-        // specs/tariff-recipes/spec.md §3.9 rule 52bis — units included in the rate for this property.
+        // specs/pricing/tariff-recipes.md §3.9 rule 52bis — units included in the rate for this property.
         freeUnits: Math.max(0, Number(settings.freeUnits || 0)),
         propertyIds: propStmt.all(option.id).map((row) => Number(row.propertyId)),
       };
     })
-    // specs/option-property-scope.md §3.3: an option is applicable ONLY to the properties it's explicitly
+    // specs/options/option-property-scope.md §3.3: an option is applicable ONLY to the properties it's explicitly
     // linked to. No link = available nowhere (the legacy « empty = all » rule is removed).
     .filter((option) => option.propertyIds.includes(pid) || (keep && keep.has(Number(option.id))));
 }

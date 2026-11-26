@@ -1,4 +1,4 @@
-// Shared fixtures of the guest app suites (specs/guest-app.md). Not a test file: a fetch stub that answers the
+// Shared fixtures of the guest app suites (specs/guest-app/guest-app.md). Not a test file: a fetch stub that answers the
 // guest API from a route table, the payloads the server sends, and a render of the whole app at a path.
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

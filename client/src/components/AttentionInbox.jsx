@@ -1,6 +1,6 @@
 /**
  * AttentionInbox — the home's « À traiter (n) » box, and `AttentionPinned`, the subjects that stay
- * unfolded above the day (specs/shell-and-home-day-first.md rules 3, 10–12).
+ * unfolded above the day (specs/planning/shell-and-home-day-first.md rules 3, 10–12).
  *
  * Props: the server's subjects, already counted and ordered (GET /api/dashboard/attention).
  *   AttentionInbox        { items: Subject[], total: number, unavailableLabel?: string }

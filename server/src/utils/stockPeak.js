@@ -1,5 +1,5 @@
 /**
- * What a shared stock has out on a range (specs/reservations-backend-mvc.md rule 21): the peak of one night, never the
+ * What a shared stock has out on a range (specs/tech/reservations-backend-mvc.md rule 21): the peak of one night, never the
  * sum of every stay touching the range, or two stays that never meet would hold it twice. The one reading of the cots
  * and of the per-stay resources, for the save, the fiche's hint, the conversion and « Rétablir ».
  */

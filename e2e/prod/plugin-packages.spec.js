@@ -1,5 +1,5 @@
 // @ts-check
-// specs/plugins-phase-4-registry.md rule 19 — the production build served by the server, every plugin
+// specs/plugins/plugins-phase-4-registry.md rule 19 — the production build served by the server, every plugin
 // loaded from its package (rules 17–18): the app renders its plugin surfaces without a console error;
 // a plugin installs from the test registry (rules 10–11, 13); an update restarts the instance and
 // leaves a rollback (rules 13, 16, 20); a package that does not match the signed index is refused

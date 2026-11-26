@@ -1,7 +1,7 @@
 /**
- * A platform stay never carries a direct payment (specs/payment-link-lifecycle.md rule 57, audit R9-M1): the
+ * A platform stay never carries a direct payment (specs/payments/payment-link-lifecycle.md rule 57, audit R9-M1): the
  * platform collects the stay, so a link would ask the guest to pay twice. The judgement is SETTLEMENT's `linkAllowed`
- * (specs/pricing-components.md §3 rule 3); this module only reads the rows it needs.
+ * (specs/pricing/pricing-components.md §3 rule 3); this module only reads the rows it needs.
  *
  *   platformStayRefusal(database, stayId) → { httpStatus: 409, error: 'PLATFORM_RESERVATION', message } | null
  *

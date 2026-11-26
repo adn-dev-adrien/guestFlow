@@ -1,6 +1,6 @@
 /**
  * How often the reconciliation pass runs.
- * See specs/payment-polling-fair-use.md §3 rule 11.
+ * See specs/payments/payment-polling-fair-use.md §3 rule 11.
  *
  * Three passes a day, not ninety-six: the webhook confirms payments in real time and the guest's own
  * success page reconciles on demand, so what is left for the cron is catching a webhook that never

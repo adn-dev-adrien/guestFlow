@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Page-load measurement (specs/inte-performance.md rule 6). A tool, not a gate: the numbers depend on
+ * Page-load measurement (specs/tech/inte-performance.md rule 6). A tool, not a gate: the numbers depend on
  * the machine.
  *
  *   GUESTFLOW_PERF_PASSWORD=... node e2e/perf/measure-pages.mjs <base-url> [--cpu 4] [--runs 3] [--width 1400] [route ...]

@@ -9,7 +9,7 @@ const { insuranceOffered } = require('../utils/quotePostProcessors');
 const { archiveBlockedReason } = require('../utils/optionArchiveGuard');
 const { scopePayload, withStoredScope } = require('../utils/optionPayloadScope');
 
-// specs/plugins-phase-3b-neat.md rule 21 — the catalogue hides the cancellation insurance while no plugin
+// specs/plugins/plugins-phase-3b-neat.md rule 21 — the catalogue hides the cancellation insurance while no plugin
 // offers it. The row and its settings stay; they come back with the plugin.
 const hiddenInsurance = (o) => Number(o && o.isCancellationInsurance ? 1 : 0) === 1 && !insuranceOffered();
 
@@ -39,13 +39,13 @@ function normalizeProgressiveOptionTiers(raw) {
 }
 
 function createOptionsModel(database) {
-  // Breakfast default time (specs/breakfast-time.md). Persisted via a dedicated guarded write so the
+  // Breakfast default time (specs/options/breakfast-time.md). Persisted via a dedicated guarded write so the
   // big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
   const HAS_OPTION_BREAKFAST_TIME = (() => {
     try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'breakfastTime'); }
     catch { return false; }
   })();
-  // Soft-delete (specs/option-soft-delete.md). Guarded so minimal test schemas without the column
+  // Soft-delete (specs/options/option-soft-delete.md). Guarded so minimal test schemas without the column
   // simply skip the "active only" filter. `ACTIVE_FILTER`/`ACTIVE_AND` are spliced into the offering
   // queries (list / listForProperty) so archived options stop being offered for new reservations.
   const HAS_OPTION_ARCHIVED = (() => {
@@ -59,7 +59,7 @@ function createOptionsModel(database) {
     const t = formatTimeShort(payload.breakfastTime) || '09:00';
     database.prepare('UPDATE options SET breakfastTime = ? WHERE id = ?').run(t, optionId);
   }
-  // Breakfast push notice in minutes (specs/sas-breakfast-bread-and-push.md rule 7). Same guarded
+  // Breakfast push notice in minutes (specs/sas/sas-breakfast-bread-and-push.md rule 7). Same guarded
   // idiom; clamped to [0, 240], default 30 on invalid input.
   const HAS_OPTION_BREAKFAST_LEAD = (() => {
     try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'breakfastNotifyLeadMinutes'); }
@@ -71,7 +71,7 @@ function createOptionsModel(database) {
     const lead = Number.isFinite(n) ? Math.min(240, Math.max(0, Math.round(n))) : 30;
     database.prepare('UPDATE options SET breakfastNotifyLeadMinutes = ? WHERE id = ?').run(lead, optionId);
   }
-  // Client-visibility flag (specs/laundry-bath-mat.md §3 rule 11). Generic per-option switch,
+  // Client-visibility flag (specs/linen/laundry-bath-mat.md §3 rule 11). Generic per-option switch,
   // persisted via a guarded write so the big INSERT/UPDATE (and minimal test schemas) stay
   // untouched. `undefined` payload → leave as-is (back-compat); the column defaults to 1 = visible.
   const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
@@ -82,7 +82,7 @@ function createOptionsModel(database) {
     if (!HAS_OPTION_DISPLAY_TO_CLIENT || payload.displayToClient === undefined) return;
     database.prepare('UPDATE options SET displayToClient = ? WHERE id = ?').run(payload.displayToClient ? 1 : 0, optionId);
   }
-  // Grouping label (specs/option-categories.md §3 rules 1, 6). Same guarded-write pattern.
+  // Grouping label (specs/options/option-categories.md §3 rules 1, 6). Same guarded-write pattern.
   // `undefined` payload → leave as-is, so a caller that doesn't know about categories (the SAS
   // upsell path, an older client) can't silently un-group an option.
   const HAS_OPTION_CATEGORY = (() => {
@@ -94,7 +94,7 @@ function createOptionsModel(database) {
     database.prepare('UPDATE options SET category = ? WHERE id = ?')
       .run(normalizeCategory(payload.category), optionId);
   }
-  // Pin outside the category collapse (specs/option-categories.md §3 rule 9bis). Same guarded
+  // Pin outside the category collapse (specs/options/option-categories.md §3 rule 9bis). Same guarded
   // write; `undefined` leaves it as-is so a caller unaware of the field can't silently unpin.
   const HAS_OPTION_ALWAYS_VISIBLE = (() => {
     try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'alwaysVisible'); }
@@ -105,7 +105,7 @@ function createOptionsModel(database) {
     database.prepare('UPDATE options SET alwaysVisible = ? WHERE id = ?')
       .run(payload.alwaysVisible ? 1 : 0, optionId);
   }
-  // THE cancellation insurance (specs/cancellation-insurance.md §3.2 rules 11-12). Same guarded
+  // THE cancellation insurance (specs/payments/cancellation-insurance.md §3.2 rules 11-12). Same guarded
   // write; `undefined` leaves it as-is so a caller unaware of the flag can't silently clear it.
   // Setting it clears every other row: the flag is exclusive, and the public API resolves it by
   // reading « the flagged option », not « a flagged option ».
@@ -122,7 +122,7 @@ function createOptionsModel(database) {
       database.prepare('UPDATE options SET isCancellationInsurance = 0 WHERE id = ?').run(optionId);
     }
   }
-  // Option-driven planning cards (specs/option-planning-card.md §3.1). Persisted via a dedicated
+  // Option-driven planning cards (specs/options/option-planning-card.md §3.1). Persisted via a dedicated
   // guarded write so the big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
   const HAS_OPTION_PLANNING_CARD = (() => {
     try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'showsPlanningCard'); }
@@ -131,7 +131,7 @@ function createOptionsModel(database) {
   function persistPlanningCard(optionId, payload) {
     if (!HAS_OPTION_PLANNING_CARD || payload.showsPlanningCard === undefined) return;
     const shows = payload.showsPlanningCard ? 1 : 0;
-    // Two day-based modes (specs/option-planning-card.md §3.1): « une fois par jour » (one slot) or
+    // Two day-based modes (specs/options/option-planning-card.md §3.1): « une fois par jour » (one slot) or
     // « plusieurs fois par jour » (N slots). Legacy 'daily' maps to multiple. No fixed-date mode.
     const repeat = (payload.cardRepeat === 'multiple_per_day' || payload.cardRepeat === 'daily')
       ? 'multiple_per_day'
@@ -147,7 +147,7 @@ function createOptionsModel(database) {
   }
   // Parse the stored planningCardTimes JSON into a clean HH:MM array for API consumers.
   /**
-   * The English title no longer lives on the row (specs/translation-catalogue.md §5): it comes from
+   * The English title no longer lives on the row (specs/site/translation-catalogue.md §5): it comes from
    * the catalogue, and is attached here so every consumer downstream — the pricing engine, the public
    * projections, the devis PDF — keeps reading `titleEn` exactly as it always has, `null` when there
    * is no translation.
@@ -180,7 +180,7 @@ function createOptionsModel(database) {
     .all(optionId)
     .map((r) => r.propertyId);
 
-  // Per-property price overrides (specs/per-property-option-prices.md). Returns { [propertyId]: price }
+  // Per-property price overrides (specs/options/per-property-option-prices.md). Returns { [propertyId]: price }
   // for the rows that exist; an absent property inherits the option's base price. Guarded so a
   // minimal test schema without the table degrades to "no overrides".
   const HAS_OPTION_PROPERTY_PRICES = (() => {
@@ -194,7 +194,7 @@ function createOptionsModel(database) {
       .all(optionId)
       .reduce((acc, row) => { acc[String(row.propertyId)] = Number(row.price || 0); return acc; }, {});
   };
-  // Per-property « inclus par défaut » (specs/per-property-default-options.md). Returns
+  // Per-property « inclus par défaut » (specs/options/per-property-default-options.md). Returns
   // { [propertyId]: { offered: bool } } for the properties where this option is a default. Guarded so a
   // minimal test schema without the table degrades to "no defaults".
   const HAS_PROPERTY_OPTION_DEFAULTS = (() => {
@@ -226,7 +226,7 @@ function createOptionsModel(database) {
     }
   }
 
-  // Per-property bath-mat quantity (specs/laundry-bath-mat.md §4). Returns { [propertyId]: qty }
+  // Per-property bath-mat quantity (specs/linen/laundry-bath-mat.md §4). Returns { [propertyId]: qty }
   // for the rows that exist; an absent property means 0. Strict mirror of propertyPricesFor.
   // Guarded so a minimal test schema without the table degrades to "no quantities".
   const HAS_OPTION_PROPERTY_BATH_MATS = (() => {
@@ -255,7 +255,7 @@ function createOptionsModel(database) {
     }
   }
 
-  // The free units a recipe wrote on each property's row (specs/tariff-recipes/spec.md rules 51, 69): { [propertyId]: n } for
+  // The free units a recipe wrote on each property's row (specs/pricing/tariff-recipes.md rules 51, 69): { [propertyId]: n } for
   // the rows that hold some. The editor never sends them. Guarded: several minimal test schemas have no such column.
   const HAS_FREE_UNITS = HAS_OPTION_PROPERTY_PRICES
     && database.prepare('PRAGMA table_info(property_option_prices)').all().some((c) => c.name === 'freeUnits');
@@ -291,12 +291,12 @@ function createOptionsModel(database) {
 
     list() {
       // Ungrouped options ('') come first, then the categories alphabetically — the same reading
-      // order the fiche and the public widget render (specs/option-categories.md §3 rule 3).
+      // order the fiche and the public widget render (specs/options/option-categories.md §3 rule 3).
       const order = HAS_OPTION_CATEGORY ? 'ORDER BY category, title' : 'ORDER BY title';
       const rows = database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}${order}`).all();
       const english = englishTitles();
       // Same reading order as the fiche: the cancellation insurance sits just after « Départ
-      // tardif » instead of under « A » (specs/cancellation-insurance.md §3.2 rule 17bis).
+      // tardif » instead of under « A » (specs/payments/cancellation-insurance.md §3.2 rule 17bis).
       return pinCancellationInsurance(rows.filter((o) => !hiddenInsurance(o))).map((o) => attachEnglish(decoratePlanningCard({
         ...o,
         propertyIds: propertyIdsFor(o.id),
@@ -320,14 +320,14 @@ function createOptionsModel(database) {
     },
 
     // Options applicable to a single property (via the property_options link). Used by the public
-    // API to expose only the options a visitor can pick for that property (specs/public-api.md).
+    // API to expose only the options a visitor can pick for that property (specs/site/public-api.md).
     listForProperty(propertyId) {
-      // Applicable options = those EXPLICITLY linked to this property (specs/option-property-scope.md
+      // Applicable options = those EXPLICITLY linked to this property (specs/options/option-property-scope.md
       // §3.3). The legacy « linked to no property = global » clause is removed: an option with no link is
       // available nowhere. Mirrors the pricing engine (getApplicableOptions: `propertyIds.includes(pid)`).
       // `price` is the EFFECTIVE price for this property: the per-property override
       // (property_option_prices) when present, else the option's base price
-      // (specs/per-property-option-prices.md). The LEFT JOIN is guarded by the table's existence at
+      // (specs/options/per-property-option-prices.md). The LEFT JOIN is guarded by the table's existence at
       // build time so minimal schemas degrade to the base price.
       const pid = Number(propertyId);
       const priceJoin = HAS_OPTION_PROPERTY_PRICES
@@ -353,14 +353,14 @@ function createOptionsModel(database) {
     },
 
     /**
-     * THE cancellation insurance for a property (specs/cancellation-insurance.md §3.2), or null.
+     * THE cancellation insurance for a property (specs/payments/cancellation-insurance.md §3.2), or null.
      *
      * Built on `listForProperty` so it inherits applicability, the archived filter AND the
      * effective per-property price (a percentage for a `percent_of_stay` insurance). Returns null
      * when no option carries the flag, when it isn't applicable to that property, or when it is
      * still unpriced — an insurance at 0 is not an offer (rule 15).
      */
-    // `dynamicPrice` (specs/plugins-phase-3b-neat.md rule 2): with a plugin pricing it per stay, the
+    // `dynamicPrice` (specs/plugins/plugins-phase-3b-neat.md rule 2): with a plugin pricing it per stay, the
     // insurance is sellable even at a static price of 0 — the static tariff is then only the
     // fallback. Without it, unpriced = invisible (rule 15).
     getCancellationInsurance(propertyId, { dynamicPrice = false } = {}) {
@@ -430,7 +430,7 @@ function createOptionsModel(database) {
     update(id, rawPayload = {}) {
       const storedRow = database.prepare('SELECT * FROM options WHERE id = ?').get(id);
       if (!storedRow) return { ok: true };
-      // specs/options-resources-ux.md rule 33 (audit R25-DB-1) — a key the save does not send keeps the stored value: the
+      // specs/options/options-resources-ux.md rule 33 (audit R25-DB-1) — a key the save does not send keeps the stored value: the
       // side panel never sends the auto-option columns, and `autoEnabled = 0` took « Lit bébé » off every new stay.
       const payload = scopePayload(withStoredScope(rawPayload, { ...storedRow, propertyIds: propertyIdsFor(id) }));
       const sentKey = (key) => rawPayload[key] !== undefined;
@@ -478,7 +478,7 @@ function createOptionsModel(database) {
       return { ok: true };
     },
 
-    // Soft-delete (specs/option-soft-delete.md): archive the option instead of deleting it, so the
+    // Soft-delete (specs/options/option-soft-delete.md): archive the option instead of deleting it, so the
     // reservations that already use it keep it (the `reservation_options → options` JOIN still resolves).
     // The row + reservation_options + property_options (applicability, for re-pricing existing
     // reservations) are kept; only the per-property DEFAULT rows are removed so the option stops being
@@ -487,7 +487,7 @@ function createOptionsModel(database) {
       const insuranceCol = HAS_OPTION_CANCELLATION_INSURANCE ? 'isCancellationInsurance' : '0 AS isCancellationInsurance';
       const row = database.prepare(`SELECT autoOptionType, ${insuranceCol} FROM options WHERE id = ?`).get(id);
       if (!row) return { error: 'OPTION_NOT_FOUND', status: 404 };
-      // specs/cancellation-insurance.md rule 14 — the insurance is not deletable, like the typed seeds.
+      // specs/payments/cancellation-insurance.md rule 14 — the insurance is not deletable, like the typed seeds.
       if (archiveBlockedReason(row)) return { error: 'AUTO_OPTION_NON_DELETABLE', status: 409 };
       database.transaction(() => {
         if (HAS_OPTION_ARCHIVED) {
@@ -503,7 +503,7 @@ function createOptionsModel(database) {
       return { ok: true, archived: HAS_OPTION_ARCHIVED };
     },
 
-    // specs/options-resources-ux.md rule 26 — the archived options, the latest archived first.
+    // specs/options/options-resources-ux.md rule 26 — the archived options, the latest archived first.
     listArchived() {
       if (!HAS_OPTION_ARCHIVED) return [];
       return database.prepare('SELECT * FROM options WHERE archivedAt IS NOT NULL ORDER BY archivedAt DESC, id DESC').all()
@@ -511,7 +511,7 @@ function createOptionsModel(database) {
     },
 
     // Rule 27 — an archived option comes back to the catalogue. The per-property defaults the archive
-    // dropped are not restored (specs/option-soft-delete.md rule 5): the operator decides again.
+    // dropped are not restored (specs/options/option-soft-delete.md rule 5): the operator decides again.
     restore(id) {
       if (!HAS_OPTION_ARCHIVED) return { error: 'OPTION_NOT_FOUND', status: 404 };
       const row = database.prepare('SELECT archivedAt FROM options WHERE id = ?').get(id);

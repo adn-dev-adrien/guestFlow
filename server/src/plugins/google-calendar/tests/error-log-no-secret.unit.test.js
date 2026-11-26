@@ -1,4 +1,4 @@
-// specs/google-calendar-oauth-rework.md rule 5, reading of 2026-11-04 (audit R22, E22-1) — a Google failure with no
+// specs/settings/google-calendar-oauth-rework.md rule 5, reading of 2026-11-04 (audit R22, E22-1) — a Google failure with no
 // response (DNS, network) is a GaxiosError whose `config.data` is the token request; gaxios masks the client secret,
 // not `refresh_token`. Every log site prints googleErrorForLog: the answer, or message / code / status.
 const test = require('node:test');

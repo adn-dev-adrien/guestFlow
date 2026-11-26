@@ -1,5 +1,5 @@
 // Remboursements dans les agrégats finance + le total de séjour du moteur.
-// specs/reservation-refunds.md §3.3 (rules 16–19) : l'argent rendu sort du « total de séjour » et de
+// specs/payments/reservation-refunds.md §3.3 (rules 16–19) : l'argent rendu sort du « total de séjour » et de
 // l'« encaissé », mais ne touche JAMAIS le statut de règlement — une résa payée puis partiellement
 // remboursée reste soldée.
 
@@ -19,7 +19,7 @@ const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8')
 function freshDb() {
   const db = new Database(':memory:');
   db.exec(SCHEMA);
-  // Columns added by a database.js migration after the schema.sql baseline (specs/migrations-baseline.md).
+  // Columns added by a database.js migration after the schema.sql baseline (specs/tech/migrations-baseline.md).
   db.exec('ALTER TABLE reservations ADD COLUMN midStaySettledNotes TEXT');
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte du Pré')").run();
@@ -156,7 +156,7 @@ test('rule 17 — le total de séjour de la fiche est net des remboursements, le
   assert.equal(refunded.totalStayPrice, plain.totalStayPrice);
 });
 
-// specs/reservation-refunds.md rule 20 — un remboursement est rattaché à la PÉRIODE DE LA
+// specs/payments/reservation-refunds.md rule 20 — un remboursement est rattaché à la PÉRIODE DE LA
 // RÉSERVATION pour les fenêtres finance, pas à sa propre date. Sans quoi rembourser en novembre un
 // séjour d'août ferait remonter le chiffre d'août rétroactivement dans un mois déjà clos, et
 // creuserait un trou dans un mois où il ne s'est rien passé.

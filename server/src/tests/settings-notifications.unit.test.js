@@ -6,7 +6,7 @@ const settingsModel = require('../models/settingsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 
 /**
- * Booking-notification settings (specs/site-booking-notifications.md §5). Non-secret columns
+ * Booking-notification settings (specs/site/site-booking-notifications.md §5). Non-secret columns
  * `notificationsEnabled` (default ON) + `notificationRecipientEmail` (empty → falls back to the
  * SMTP sender), surfaced under a `notifications` block in the settings payload.
  */
@@ -64,7 +64,7 @@ test('upsert persists the toggle + recipient and surfaces them', () => {
 });
 
 test('recipient falls back to the SMTP sender, resolved by notificationSettings', () => {
-  // specs/settings-rationalization.md rule 12 — the model resolves the recipient itself.
+  // specs/settings/settings-rationalization.md rule 12 — the model resolves the recipient itself.
   const { model } = freshModel();
   model.upsert({ smtpFromEmail: 'noreply@example.com' });
   const notif = model.notificationSettings();

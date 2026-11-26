@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-1, 2026-11-16) — the acceptance probe of the sale path, on fixtures: at every
+// specs/pricing/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-1, 2026-11-16) — the acceptance probe of the sale path, on fixtures: at every
 // moment of a stay (J-3, the arrival day at 09:00 as stored / ticked / ticked then unticked, 17:00 as stored / ticked / unticked, 21:30, the day after,
 // the departure day at 09:00 and 11:00, the day after the departure) and for a stay whose arrival complement was collected before the arrival, a sale,
 // an offer, a re-bill, a discount, a move there and back and a removal each agree with one judge: the moment the line says, the bucket its money lands

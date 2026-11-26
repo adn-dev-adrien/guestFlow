@@ -1,5 +1,5 @@
 /**
- * specs/server-test-isolation.md rule 20 (audit R39-S1) — rule 18 for the control-plane suite. Preloaded (`--require`)
+ * specs/tech/server-test-isolation.md rule 20 (audit R39-S1) — rule 18 for the control-plane suite. Preloaded (`--require`)
  * by `npm test` and required first by a test that starts real instances. In a test file's process (`NODE_TEST_CONTEXT`)
  * it gives the file its own temp root (`TMPDIR`, so every `os.tmpdir()` of the file lands in it) and a reaper: the
  * `local` process driver starts instances detached, like the systemd units it stands for, so a file cut off before its

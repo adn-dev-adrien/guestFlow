@@ -1,5 +1,5 @@
-// specs/reservation-refunds.md rules 6 and 48, specs/payment-schedule-and-cancellation.md rule 55 and
-// specs/calendar-property-parity.md rule 25, readings of 2026-11-02 (audit R15-C1 and its aside). A refund recorded on
+// specs/payments/reservation-refunds.md rules 6 and 48, specs/payments/payment-schedule-and-cancellation.md rule 55 and
+// specs/planning/calendar-property-parity.md rule 25, readings of 2026-11-02 (audit R15-C1 and its aside). A refund recorded on
 // a cancelled stay could never be deleted from the fiche: the ledger gave every refund row of a cancelled stay no
 // action. And the cancellation's own `retained` avoir could be deleted through the API, leaving the indemnity booked
 // while the 706 reversal was gone. Now: a refund made AFTER the cancellation is deleted like any other; the avoir and

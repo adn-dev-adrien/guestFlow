@@ -1,6 +1,6 @@
 /**
  * The line a Clients row prints under the name: when the guest comes, or came, or what is pending
- * (specs/clients-upcoming-past-directory.md rule 14). Pure and French, so the page renders it as is.
+ * (specs/clients/clients-upcoming-past-directory.md rule 14). Pure and French, so the page renders it as is.
  */
 
 const { bookingDayOf } = require('./vatRegime');

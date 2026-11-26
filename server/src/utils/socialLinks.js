@@ -1,5 +1,5 @@
 /**
- * Social links of the guest emails (specs/settings-input-guards.md §3.7): an ordered list of
+ * Social links of the guest emails (specs/settings/settings-input-guards.md §3.7): an ordered list of
  * `{ network, url }`, validated per entry, kept in sync with the legacy `instagramUrl` so a rollback
  * renders the same J+1 e-mail.
  */

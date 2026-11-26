@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 13–15 — the generic rendered-email viewer: the server's
+// specs/emails/guest-email-texts-made-simple.md rules 13–15 — the generic rendered-email viewer: the server's
 // text as is, its states (loading, error, notice), the language toggle, the stay selector with
 // « Exemple », and « M'envoyer un test ».
 import React from 'react';

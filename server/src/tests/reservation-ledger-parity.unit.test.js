@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md §7 — parity of the ledger with the money readers that already
+// specs/payments/reservation-payment-ledger.md §7 — parity of the ledger with the money readers that already
 // exist (rules 1, 4 and 5): for every stored reservation, each bucket's paid / unpaid state and amount
 // in the ledger equals `reservationSettlement.bucketStates`, the ledger's « Reste à percevoir » equals
 // `remainingToPay`, and building every ledger leaves the accounting export byte-identical.

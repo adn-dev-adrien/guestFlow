@@ -1,4 +1,4 @@
-// specs/tourist-tax-declared-checkbox.md rule 8 (D16) — the server's `declarable` flag: disabled with its caption while the stay
+// specs/tourist-tax/tourist-tax-declared-checkbox.md rule 8 (D16) — the server's `declarable` flag: disabled with its caption while the stay
 // is not paid and over, a stored tick can always go, a refusal from a stale tab reverts with the server's reason.
 import { vi } from 'vitest';
 import React from 'react';
@@ -17,7 +17,7 @@ import api from '../../api';
 import TouristTaxPage from '../TouristTaxPage';
 import { reportOf } from './touristTaxReportFixtures';
 
-// The legacy-shaped fixtures below, sent as the report payload (specs/tourist-tax-report-v2.md §4.3).
+// The legacy-shaped fixtures below, sent as the report payload (specs/tourist-tax/tourist-tax-report-v2.md §4.3).
 const asReport = (d) => reportOf(d.reservations);
 
 const CAPTION = 'Déclarable une fois le séjour payé et terminé.';

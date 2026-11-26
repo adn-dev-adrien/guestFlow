@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 46-51 (audit R23, console C1-C5) — during an unfinished rename nothing runs on
+// specs/hosting/hosting-h1-fleet-runtime.md rules 46-51 (audit R23, console C1-C5) — during an unfinished rename nothing runs on
 // the address the instance has not reached yet, and a customer refused at `dir` because another customer's database
 // sits at its address has no path into that directory or database.
 

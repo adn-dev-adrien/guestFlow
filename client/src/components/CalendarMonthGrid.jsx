@@ -24,7 +24,7 @@ const edgeOffset = (edge, isRight) => (edge % 1 !== 0 ? -GAP / 2 : (isRight ? -G
  * CalendarMonthGrid — one month block of the logement calendar: a weekday header, the month's whole
  * weeks of day cells (the greyed days of the previous / next month at either end are real, interactive
  * days — a selection can cross a month end), and one name ribbon per week segment of every stay
- * (specs/calendar-property-parity.md rules 16, 18-20). The ribbon is filled with the stay's own colour, so
+ * (specs/planning/calendar-property-parity.md rules 16, 18-20). The ribbon is filled with the stay's own colour, so
  * the diagonal halves under it never lower the contrast, and is truncated only by its width: the full
  * name, platform and dates are in its tooltip and its accessible name.
  * Pure layout; each day is rendered via `renderCell(day, year, month, outside)` (the page supplies a keyed

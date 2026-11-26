@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// specs/tourist-tax-report-v2.md §4.3 — the client functions of the tourist-tax report: the query string carries the
+// specs/tourist-tax/tourist-tax-report-v2.md §4.3 — the client functions of the tourist-tax report: the query string carries the
 // selection as given (empty values left out), the CSV is saved under the server's file name, and a refusal throws
 // the server's French reason; rule 36: a lost session reads « Session expirée. », a code alone never shows.
 

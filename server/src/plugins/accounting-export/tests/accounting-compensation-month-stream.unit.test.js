@@ -1,5 +1,5 @@
 // Le mois comptable réunit encaissements, avoirs ET indemnités d'annulation dans un seul flux
-// chronologique — CSV et aperçu JSON compris (specs/cancellation-compensation.md §3.3 rule 15).
+// chronologique — CSV et aperçu JSON compris (specs/payments/cancellation-compensation.md §3.3 rule 15).
 // Building the stream in the controller is what keeps the two outputs from drifting apart.
 
 // Keeps the default models off the real database file: parallel files would race on its migration.

@@ -1,4 +1,4 @@
-// specs/single-vat-rate.md rule 14 — the single rate is the rate of the period in force, and rule 12's
+// specs/accounting/single-vat-rate.md rule 14 — the single rate is the rate of the period in force, and rule 12's
 // retroactivity holds inside a period only: editing the rate re-rates the reservations of that period,
 // never those of an earlier one. With a single period nothing moves.
 

@@ -7,7 +7,7 @@ const devisModel = require('../models/devisModel');
 // Non-regression guard for the legacy bug where some devis rows ended up with
 // `createdAt = ''` and `validUntil = NULL`, breaking the PDF "Date du devis" pill and
 // making "Valable jusqu'au" ignore the operator's configured quoteValidityDays
-// (specs/devis-pdf-and-tourist-tax-fixes.md §3.1 + §3.2).
+// (specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.1 + §3.2).
 
 const DDL = `
   CREATE TABLE properties (

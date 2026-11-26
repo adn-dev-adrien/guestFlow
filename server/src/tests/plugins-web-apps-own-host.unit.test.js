@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 48, reading of 2026-11-10 (audit R36 A36-2 / R36-CON-M1 / R36-P1) — a host-bound web
+// specs/plugins/plugins-phase-1-sdk.md rule 48, reading of 2026-11-10 (audit R36 A36-2 / R36-CON-M1 / R36-P1) — a host-bound web
 // app never claims GuestFlow's own public host: set to the admin's address, the guest app took `/`, `/login`, the
 // settings and `/studio` over, with nothing left on that host to undo it. The core keeps its own host whatever a
 // plugin's `host()` answers; the app still answers on its own host.

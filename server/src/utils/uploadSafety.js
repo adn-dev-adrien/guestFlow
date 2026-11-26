@@ -11,7 +11,7 @@ const path = require('path');
  */
 
 const ALLOWED = {
-  // specs/settings.md rule 8 — the devis PDF embeds the logo, and PDFKit reads PNG and JPEG only.
+  // specs/settings/settings.md rule 8 — the devis PDF embeds the logo, and PDFKit reads PNG and JPEG only.
   image: {
     ext: ['.png', '.jpg', '.jpeg'],
     mime: ['image/png', 'image/jpeg'],
@@ -46,7 +46,7 @@ function allowedExtension(originalName, kind, fallback) {
   return cfg && cfg.ext.includes(ext) ? ext : fallback;
 }
 
-// specs/settings-input-guards.md rule 60 — a stored name stays under the 255 bytes of a file name, timestamp prefix
+// specs/settings/settings-input-guards.md rule 60 — a stored name stays under the 255 bytes of a file name, timestamp prefix
 // included: the last 200 characters of the base, then the extension.
 const NAME_BASE_MAX = 200;
 const NAME_EXT_MAX = 10;

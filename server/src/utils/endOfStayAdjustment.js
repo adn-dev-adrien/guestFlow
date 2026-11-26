@@ -1,5 +1,5 @@
 /**
- * Operator adjustment of the end-of-stay complement — specs/adjustable-complement-amounts.md §3.3.
+ * Operator adjustment of the end-of-stay complement — specs/sas/adjustable-complement-amounts.md §3.3.
  *
  * `endOfStayComplementAmount` must stay EXACTLY the sum of `endOfStayComplementDetail`: every
  * consumer downstream (the departure recap, the mid-stay remainder, the accounting line) assumes it.

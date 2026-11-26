@@ -20,7 +20,7 @@ const { isDirectChannel } = require('./platformNameFormat');
 const refundLinesReady = (db) => db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('reservation_refunds', 'reservation_refund_lines')").get().n === 2;
 const { create: createStayRepository } = require('../models/ports/stayRepository');
 
-// specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
 // baseline, the part of the end-of-stay complement the departure SAS owns, and (once that complement
 // is collected) the frozen mid-stay lines. All zeroed for a reservation-less quote (devis, public).
@@ -38,10 +38,10 @@ function midStayQuoteInputs(db, reservationId) {
     endOfStayComplementSettled: Number(row.endOfStayComplementPaid || 0) === 1
       || Number(row.endOfStayComplementPaidCash || 0) === 1,
     frozenMidStayLines: storedMidStayLines(row.endOfStayComplementDetail),
-    // specs/mid-stay-notes.md — already collected during the stay: out of the remainder, still out
+    // specs/sas/mid-stay-notes.md — already collected during the stay: out of the remainder, still out
     // of the frozen pre-arrival buckets.
     midStaySettledNotes: row.midStaySettledNotes || null,
-    // specs/pricing-components.md rule 110 (loop t7 B7-1) — what a refund on the trop-perçu gave back of that money: no credit any more.
+    // specs/pricing/pricing-components.md rule 110 (loop t7 B7-1) — what a refund on the trop-perçu gave back of that money: no credit any more.
     refundedNoteCredit: require('./paidLineJudgment').refundedLoweredCents(db, Number(reservationId)) / 100,
     // Rule 121 (loop t9 B9-2) — what the refunds on the trop-perçu gave back of the stay's OWN money (not a note's): no credit any more.
     refundedStayCredit: refundLinesReady(db) ? Math.max(0, Math.round(refundsModel.overpaymentRefundedTtc(Number(reservationId)) * 100)
@@ -52,14 +52,14 @@ function midStayQuoteInputs(db, reservationId) {
     refundedComplementCredit: isDirectChannel(row.platform) ? 0 : Math.max(0, require('./paidLineJudgment').settledLoweredCents(db, Number(reservationId))
       - require('./paidLineJudgment').refundedLoweredCents(db, Number(reservationId))) / 100,
     complementCollected: Number(row.complementPaid || 0) === 1,
-    // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
+    // specs/sas/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
     // the door reads under « fin de séjour » straight away, without waiting for the stay to start.
     complementDeferredToCheckout: Number(row.complementDeferredToCheckout || 0) === 1,
-    // specs/reservation-refunds.md §3.3 — book-money refunds only: a caisse-interne refund is off the
+    // specs/payments/reservation-refunds.md §3.3 — book-money refunds only: a caisse-interne refund is off the
     // books, exactly like the cash complements it mirrors.
     refundsTotal: refundsModel.totalsByReservation(Number(reservationId)).book,
     platformPenaltyAmount: row.platformPenaltyAmount,
-    // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée on the single
+    // specs/sas/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée on the single
     // arrival payment lowers the « total du séjour » exactly as a refund does (and a pourboire raises
     // it). Read from the row, never from the browser: it is money, and the helper already gates a
     // caisse-interne group out of the books.
@@ -68,13 +68,13 @@ function midStayQuoteInputs(db, reservationId) {
   };
 }
 
-// specs/payment-schedule-and-cancellation.md §3.1 — the booking context every engine call needs:
+// specs/payments/payment-schedule-and-cancellation.md §3.1 — the booking context every engine call needs:
 // the day the stay was booked (anchor of the acompte deadline) and the deadline already promised,
 // which no recompute may move. No stored row (creation, public quote) → the booking happens today.
 // `editedStartDate`, on the live quote of an unsaved devis edit: the validity date is the one the save will write
-// (specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1), never the raw stored one.
+// (specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1), never the raw stored one.
 // `newDevis`, on the live quote of a devis not saved yet: it is priced as the devis the create will store,
-// with the validity date the create will write (specs/deposit-blocks-the-dates.md rule 19, audit R33-M-L1).
+// with the validity date the create will write (specs/payments/deposit-blocks-the-dates.md rule 19, audit R33-M-L1).
 function scheduleQuoteInputs(db, bookingId, { editedStartDate, newDevis = false } = {}) {
   const fallback = { bookingDate: getTodayIsoDate(), existingDepositDueDate: null, kind: 'reservation', validUntil: null };
   if (!bookingId || bookingId <= 0) {
@@ -89,13 +89,13 @@ function scheduleQuoteInputs(db, bookingId, { editedStartDate, newDevis = false 
     kind: row.kind || 'reservation',
     validUntil: (editedStartDate && row.kind === 'devis' ? editedDevisValidUntil(db, row, editedStartDate) : row.validUntil) || null,
     devisPromise: row.kind === 'devis' ? null : devisPromiseOf(db, row.id),
-    // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9).
+    // specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9).
     paidSoldeCaptured: Number(row.balancePaid || 0) === 1 && row.accommodationSoldeContribTtc != null,
   };
 }
 
 // D23 — the devis a reservation was converted from: the dates it quoted, the day it promised them until, the
-// acompte it stored (0 = one payment, specs/deposit-blocks-the-dates.md rule 22) and its channel (an OTA devis
+// acompte it stored (0 = one payment, specs/payments/deposit-blocks-the-dates.md rule 22) and its channel (an OTA devis
 // promises no direct deadline, rule 24). A minimal suite schema without the devis columns has no devis to read: no promise.
 function devisPromiseOf(db, reservationId) {
   let devis = null;
@@ -121,21 +121,21 @@ function editedDevisValidUntil(db, row, startDate) {
   });
 }
 
-// specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
+// specs/platforms/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
 // platform name, to feed the pricing engine. Direct / unknown → 0 (no acompte).
 function resolvePlatformTakesDeposit(platform) {
   if (platform == null || String(platform).trim() === '' || String(platform).toLowerCase() === 'direct') return 0;
   try { return require('../models/platformsModel').getDepositMode(platform); } catch (_) { return 0; }
 }
 
-// specs/platform-payout-due-date.md rule 6 — resolve the GLOBAL per-platform payout delay from the
+// specs/platforms/platform-payout-due-date.md rule 6 — resolve the GLOBAL per-platform payout delay from the
 // platform name, to feed the pricing engine. Own channels and unknown platforms fall back to the
 // default; the engine ignores the value entirely on a direct booking.
 function resolvePlatformPayoutDueDays(platform) {
   try { return require('../models/platformsModel').getPayoutDueDays(platform); } catch (_) { return DEFAULT_PAYOUT_DUE_DAYS; }
 }
 
-// specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's call,
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's call,
 // not the client's: it depends on whether the instalment carrying the tax has been collected, which
 // the fiche cannot know better than the database. The client only ever asks for the opposite, through
 // « Recalculer la taxe de séjour » (`refreshTouristTax`). No reservation → nothing stored to pin, so a

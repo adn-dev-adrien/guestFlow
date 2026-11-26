@@ -1,4 +1,4 @@
-// specs/public-request-abuse-and-grouping.md, transition edge case — Paramètres › Intégrations › Site
+// specs/site/public-request-abuse-and-grouping.md, transition edge case — Paramètres › Intégrations › Site
 // says « Protection anti-robot inactive » until the WordPress plugin solves the proof of work.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — on the fiche, a paid link shows its tranches the way
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 18-19 — on the fiche, a paid link shows its tranches the way
 // an instalment plan shows its instalments, and the money summary reads the same split as a schedule. Both are built by
 // the server (the plugin contributes them through `ctx.ledgerBankTranches`); the client only draws them.
 const test = require('node:test');

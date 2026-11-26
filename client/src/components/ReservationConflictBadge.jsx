@@ -5,11 +5,11 @@ import StatusBadge from './StatusBadge';
 
 /**
  * ReservationConflictBadge — warning chip shown when a stay landed on dates another reservation holds:
- * an online full-payment confirmed onto dates that had become unavailable (specs/public-online-payment.md
- * §3 rule 5 / §6), or a platform feed announcing an overlapping stay (specs/ical-import-hardening.md
+ * an online full-payment confirmed onto dates that had become unavailable (specs/site/public-online-payment.md
+ * §3 rule 5 / §6), or a platform feed announcing an overlapping stay (specs/platforms/ical-import-hardening.md
  * rule 3). Renders nothing unless
  * `conflictAt` (the reservation's `bookingConflictAt`) is truthy. Uses the shared soft « Maison »
- * `StatusBadge` (specs/ds-sweep-reservations.md rule 33).
+ * `StatusBadge` (specs/design-system/ds-sweep-reservations.md rule 33).
  *
  * Props:
  *   - conflictAt?: string | null   — the reservation's bookingConflictAt timestamp

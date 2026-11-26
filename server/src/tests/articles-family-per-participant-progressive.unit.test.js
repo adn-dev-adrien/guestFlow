@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 47 and 57 — article family `perParticipantProgressive`: a unit price that changes with the participant rank
+// specs/pricing/pricing-components.md §3 rules 47 and 57 — article family `perParticipantProgressive`: a unit price that changes with the participant rank
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { family } = require('../utils/pricing/articles/families/perParticipantProgressive');

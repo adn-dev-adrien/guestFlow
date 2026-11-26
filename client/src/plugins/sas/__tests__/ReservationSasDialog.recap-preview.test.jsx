@@ -1,4 +1,4 @@
-// The arrival recap rendered from the server's preview — specs/sas-arrival-total-server-side.md rules
+// The arrival recap rendered from the server's preview — specs/sas/sas-arrival-total-server-side.md rules
 // 15-22: the money comes from the server only, the requests are coalesced and the latest wins, the
 // waiting and failing states are said, and a commit on another total is announced.
 //

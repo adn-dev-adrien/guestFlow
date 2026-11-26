@@ -1,8 +1,8 @@
 // @ts-check
-// specs/hosting-h2-account-security.md §7 E2E — the forgotten password through the dev mail
+// specs/hosting/hosting-h2-account-security.md §7 E2E — the forgotten password through the dev mail
 // catcher (rules 1-4), turning on the authenticator app and logging in with a computed code
 // (rules 6-7, 32-33, 38-45) and changing the app (rules 47-48). The support flow (rules 12-16) is `support-access.spec.js`: its request is a
-// banner of the whole app, so it runs in a project of its own (specs/e2e-playwright-smoke-suite.md rule 20).
+// banner of the whole app, so it runs in a project of its own (specs/tech/e2e-playwright-smoke-suite.md rule 20).
 import { test, expect } from '@playwright/test';
 import fixtures from '../../fixtures/accountSecurity.js';
 

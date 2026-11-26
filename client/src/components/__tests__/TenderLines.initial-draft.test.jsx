@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 59 (loop t24, 2026-11-18) — `initialDraft`: the lines an earlier mount reported come back as
+// specs/payments/mixed-method-payments.md rule 59 (loop t24, 2026-11-18) — `initialDraft`: the lines an earlier mount reported come back as
 // the operator left them. A typed line keeps its text whatever the new due; the untyped last line shows what the others leave of the new
 // due; nothing is rewritten silently, the meter says what no longer fits.
 import React from 'react';

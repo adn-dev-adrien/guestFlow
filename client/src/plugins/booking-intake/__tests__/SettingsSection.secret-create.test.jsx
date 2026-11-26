@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rule 25 — the secret is created by an explicit action: without one,
+// specs/platforms/booking-extranet-intake.md rule 25 — the secret is created by an explicit action: without one,
 // the card offers « Créer le secret » and no install link (the script would be refused); once created,
 // the install link and « Régénérer le secret » appear.
 import React from 'react';
@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.clearAllMocks());
 
-test('specs/booking-extranet-intake.md rule 25: without a secret, only « Créer le secret » is offered, and it creates it', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 25: without a secret, only « Créer le secret » is offered, and it creates it', async () => {
   api.getPluginSettings.mockResolvedValue({ hotelIds: '{}', sourceKeys: '["booking"]', keySet: false });
   api.createBookingIntakeSecret.mockResolvedValue({ ok: true, created: true });
   render(<SettingsSection />);
@@ -35,7 +35,7 @@ test('specs/booking-extranet-intake.md rule 25: without a secret, only « Créer
   expect(screen.getByText('Secret créé. Installer le script.')).toBeInTheDocument();
 });
 
-test('specs/booking-extranet-intake.md rule 25: a failed creation says so and keeps the button', async () => {
+test('specs/platforms/booking-extranet-intake.md rule 25: a failed creation says so and keeps the button', async () => {
   api.getPluginSettings.mockResolvedValue({ hotelIds: '{}', sourceKeys: '[]', keySet: false });
   api.createBookingIntakeSecret.mockRejectedValue(new Error('Accès refusé'));
   render(<SettingsSection />);

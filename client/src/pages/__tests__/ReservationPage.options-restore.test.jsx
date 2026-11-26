@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 31 — what the mid-stay note's « Annuler » puts back, on the real
+// specs/options/non-card-option-served-persons.md rule 31 — what the mid-stay note's « Annuler » puts back, on the real
 // page: its capture then its restore give back the lines, the offered set, the bed counters and the welcome
 // pack's refusals, each of which removing or adding a line moves. The dialog's half is MidStayNoteDialog.cancel-and-floor.
 import React from 'react';

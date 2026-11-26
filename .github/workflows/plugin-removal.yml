@@ -1,6 +1,6 @@
 name: Plugin removal matrix
 
-# specs/plugin-removal-resilience.md rules 7, 13, 15, 18.
+# specs/plugins/plugin-removal-resilience.md rules 7, 13, 15, 18.
 #
 # Nightly and on demand — never a pull-request check (decision of 2026-10-28). One cell per plugin: the
 # plugin, and the ones requiring it, are taken out of the code; the server suite, the build, the

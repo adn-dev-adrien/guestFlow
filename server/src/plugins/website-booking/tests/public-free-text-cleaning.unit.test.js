@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rule 22 and specs/site-traffic-analytics.md rule 15 (readings of 2026-11-05,
+// specs/site/public-request-abuse-and-grouping.md rule 22 and specs/site/site-traffic-analytics.md rule 15 (readings of 2026-11-05,
 // audit R23 public finding 6): one cleaner for the visitor's free text. Control and bidi characters leave the message and
 // the attribution before the length check and the fingerprint; line breaks and tabs stay in a message, joiners everywhere.
 const test = require('node:test');

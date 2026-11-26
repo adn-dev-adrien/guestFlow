@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 50 — « no component reads a property row »: every parameter reaches the pricing through
+// specs/pricing/pricing-components.md §3 rule 50 — « no component reads a property row »: every parameter reaches the pricing through
 // the SettingsProvider, so no file under `utils/pricing/` reads a field of a `property` (or `policy.property`).
 const test = require('node:test');
 const assert = require('node:assert/strict');

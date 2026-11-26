@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * seed-plugin-data.js — the data every plugin leaves behind, for the removal matrix
- * (specs/plugin-removal-resilience.md rule 11).
+ * (specs/plugins/plugin-removal-resilience.md rule 11).
  *
  *   DB_PATH=/tmp/x.db REMOVAL_SEED_OUT=/tmp/seed.json node server/scripts/seed-plugin-data.js
  *
@@ -46,7 +46,7 @@ function seedCore() {
     return { id: Number(id), propertyId: Number(propertyId), clientId: Number(clientId), resourceId: Number(resourceId), startDate };
   };
   const stays = { direct: stay('direct', 30), platform: stay('booking', 60) };
-  // A sent quote: the deposit reminder offers its open payment link (specs/plugin-removal-resilience.md rule 6).
+  // A sent quote: the deposit reminder offers its open payment link (specs/plugins/plugin-removal-resilience.md rule 6).
   const quoteStart = addDays(90);
   const quoteId = db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, platform, kind, devisStatus, validUntil, totalPrice, finalPrice, depositAmount, balanceAmount)
     VALUES (?, ?, ?, ?, 2, 'direct', 'devis', 'sent', ?, 600, 600, 180, 420)`).run(propertyId, clientId, quoteStart, addDays(93), addDays(20)).lastInsertRowid;

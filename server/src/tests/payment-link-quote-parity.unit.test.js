@@ -1,9 +1,9 @@
 /**
- * specs/payment-link-quote-parity.md — the Qonto payment link must ask for the amount the devis shows.
+ * specs/payments/payment-link-quote-parity.md — the Qonto payment link must ask for the amount the devis shows.
  *
  * `paymentsController` resolved its amounts from a hand-rolled engine input built in the controller,
  * instead of the authoritative replay `devisModel.recomputeQuote` that the devis screen and the PDF
- * read (specs/devis-pdf-total-parity.md §3.1). That input dropped the scheduled moments of a
+ * read (specs/devis/devis-pdf-total-parity.md §3.1). That input dropped the scheduled moments of a
  * planning-card option, the sessions of an hourly resource, the offered lines and the price lock — so
  * the guest was invoiced less (or more) than the quote they accepted.
  *
@@ -126,13 +126,13 @@ test('a devis carrying a scheduled card option: acompte, solde and total match t
   assert.equal(meal.totalPrice, 50, 'the meal IS on the devis the guest accepted');
 
   const row = { depositAmount: devis.depositAmount, balanceAmount: devis.balanceAmount, finalPrice: devis.finalPrice };
-  // A full link charges acompte + solde, tourist tax included (specs/deposit-blocks-the-dates.md rule 18).
+  // A full link charges acompte + solde, tourist tax included (specs/payments/deposit-blocks-the-dates.md rule 18).
   assert.equal(resolveAmountCents(devis.id, 'full', row, quoteOf(model)), cents(devis.depositAmount + devis.balanceAmount));
   assert.equal(resolveAmountCents(devis.id, 'deposit', row, quoteOf(model)), cents(devis.depositAmount));
   assert.equal(resolveAmountCents(devis.id, 'balance', row, quoteOf(model)), cents(devis.balanceAmount));
 });
 
-// ── The acompte/solde split: one rule, from the engine (specs/tourist-tax-on-solde.md rule 1) ──
+// ── The acompte/solde split: one rule, from the engine (specs/tourist-tax/tourist-tax-on-solde.md rule 1) ──
 
 test('the devis screen shows the engine split: acompte on the accommodation, tax on the solde', () => {
   const { model } = freshModel();
@@ -240,7 +240,7 @@ test('REGRESSION: an engine input without the scheduled moments mis-bills the me
   });
 
   // The meal no longer VANISHES — an unplaced card option keeps its line
-  // (specs/unscheduled-card-option.md rule 1) — but a naive input carries neither the moments nor
+  // (specs/options/unscheduled-card-option.md rule 1) — but a naive input carries neither the moments nor
   // the line's snapshot, so the engine has nothing to price it on but the bare quantity: 1 couvert
   // where the guest was billed 2. The line is wrong, which is why the controller replays instead.
   const naiveMeal = naive.optionLines.find((l) => Number(l.optionId) === MEAL);

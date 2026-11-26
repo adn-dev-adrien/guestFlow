@@ -1,15 +1,15 @@
 // SMTP transport wrapper used by the account-management flow
-// (specs/admin-account-management.md §3.4). The caller passes a fully-decrypted settings object;
+// (specs/hosting/admin-account-management.md §3.4). The caller passes a fully-decrypted settings object;
 // this module never touches `app_settings` or the encryption util — it just builds a nodemailer
 // transport and ships the mail. Lazy transport build so unit tests can stub `transportFactory`
 // and so a misconfigured SMTP never crashes the server at boot.
 //
-// A hosted instance without its own SMTP sends through the platform (specs/hosting-h1-fleet-runtime.md
+// A hosted instance without its own SMTP sends through the platform (specs/hosting/hosting-h1-fleet-runtime.md
 // rules 18–20): From the company's name at the platform's noreply address, Reply-To the company, and
 // at most the day's quota. A configured SMTP always wins — a host typed in Paramètres is « own ».
 //
 // `GUESTFLOW_MAIL_OUTBOX` outside production (utils/mailOutbox.js): whatever this service would send
-// lands in that folder instead — guest emails included (specs/guest-email-texts-made-simple.md
+// lands in that folder instead — guest emails included (specs/emails/guest-email-texts-made-simple.md
 // rule 26). It changes no answer: an unconfigured SMTP is still refused, so a recette behaves as the
 // real instance would, minus the emails leaving.
 
@@ -21,9 +21,9 @@ const { ehloName } = require('./smtpEhloName');
 
 // A login on a transport without implicit TLS requires STARTTLS: the UI promises it, and nodemailer would
 // otherwise send the password in clear to a server, or an on-path attacker, not offering the upgrade
-// (specs/admin-account-management.md rule 16, reading of 2026-11-04). A relay without a login is left alone.
+// (specs/hosting/admin-account-management.md rule 16, reading of 2026-11-04). A relay without a login is left alone.
 //
-// The client greets the server with the sender's domain (specs/admin-account-management.md rule 21):
+// The client greets the server with the sender's domain (specs/hosting/admin-account-management.md rule 21):
 // nodemailer's default is the machine's hostname, `[127.0.0.1]` on the production VM, which receiving
 // filters read in the `Received` header as a sender that does not know its own name.
 function transportOptions({ host, port, secure, auth, fromAddress }) {

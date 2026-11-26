@@ -1,5 +1,5 @@
 /**
- * specs/mid-stay-notes.md rule 22 (audit 2026-10-27) — the « Nouvelle note » amounts are the server's.
+ * specs/sas/mid-stay-notes.md rule 22 (audit 2026-10-27) — the « Nouvelle note » amounts are the server's.
  *
  * The dialog used to compute `added = live − base`, the ticked share, the rounding and the total in
  * React, and the server only checked `amount ≤ remaining`. It now sends the ticked keys and the

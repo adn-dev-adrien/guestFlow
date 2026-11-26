@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 17 — the closure check of a
+// specs/pricing/establishment-closures.md rule 17 — the closure check of a
 // new or moved stay reads the nights the stay really takes (early check-in / late check-out), exactly
 // like the overlap check against other stays and like closure creation does (audit 2026-10-28).
 const test = require('node:test');

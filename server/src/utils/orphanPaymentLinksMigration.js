@@ -1,5 +1,5 @@
 /**
- * One-shot withdrawal of the open orphan payment links (specs/payment-link-lifecycle.md rule 5).
+ * One-shot withdrawal of the open orphan payment links (specs/payments/payment-link-lifecycle.md rule 5).
  *
  * Links of stays deleted before the delete guard existed are still `open`, hence payable at the
  * provider. Each one becomes `cancelled` / `orphan`; one with a provider id gets the deactivation

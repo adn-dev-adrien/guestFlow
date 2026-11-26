@@ -1,4 +1,4 @@
-// The stay step after a credit — specs/pricing-components.md rules 117, 118 (stabilisation loop t9, O9-1).
+// The stay step after a credit — specs/pricing/pricing-components.md rules 117, 118 (stabilisation loop t9, O9-1).
 //
 // The stored row still asks 30 € of solde, but a paid line offered at the recap frees 45 € the plan credits to that solde: the plan's
 // « Séjour à régler » is 0 (`applicable: false`). The stay page never shows the stored 30 € in its place — before the first answer it reads

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 12, 13, 14 — the « Portail » tile is a door to the gate app that exists: the stay's key link
+// specs/guest-app/guest-app.md rules 12, 13, 14 — the « Portail » tile is a door to the gate app that exists: the stay's key link
 // as gate-access holds it (the e-mails' {{gateAccessUrl}}), for a stay session only; « Accès en préparation » while
 // Sowel has not read the key, with the arrival-day card that promises no time; gate-access off → no tile, 404.
 const test = require('node:test');

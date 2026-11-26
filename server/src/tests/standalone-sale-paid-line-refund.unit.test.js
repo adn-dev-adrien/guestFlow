@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 25, 41, 44, 45 (loop t1 B-1, UI-18) — a counter document's paid line offered or removed with the confirmation, or the paid document
+// specs/sas/outside-booking-sas.md rules 25, 41, 44, 45 (loop t1 B-1, UI-18) — a counter document's paid line offered or removed with the confirmation, or the paid document
 // cancelled, opens a `lineLowered` row for what it now owes back: the counter's « À rembourser » block lists it, « Marquer remboursé » closes it, and nothing is
 // owed twice.
 process.env.DB_PATH = ':memory:';

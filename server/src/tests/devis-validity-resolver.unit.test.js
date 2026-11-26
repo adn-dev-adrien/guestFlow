@@ -1,4 +1,4 @@
-// specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 (2026-11-09) — ONE reading of a devis's
+// specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 (2026-11-09) — ONE reading of a devis's
 // validity date for every save and preview. A quote moved earlier then back kept the lowered date (the R31 cap only
 // ever lowered it), and the fiche's live quote read the raw stored date, so the preview and the save disagreed.
 // `devisValidUntil` is now the one resolver of `devisModel.update`, of the engine input of `computeQuote`, of the

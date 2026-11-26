@@ -1,8 +1,8 @@
 // Spec review 2026-10-27 — the acompte's deadline and its hand-typed amount:
-//   - specs/disable-deposit-per-reservation.md rule 10: an acompte at 0 € carries no deadline;
-//   - specs/reservation-history-granular-diff.md rule 13: setting / clearing the typed acompte is a
+//   - specs/payments/disable-deposit-per-reservation.md rule 10: an acompte at 0 € carries no deadline;
+//   - specs/reservations/reservation-history-granular-diff.md rule 13: setting / clearing the typed acompte is a
 //     labelled history row;
-//   - specs/editable-deposit-amount.md rule 9: a negative acompte is refused in French.
+//   - specs/payments/editable-deposit-amount.md rule 9: a negative acompte is refused in French.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,7 +10,7 @@ const f = require('./reservationSaveFixture');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-// Every stay starts beyond the acompte window, whatever today is (specs/server-test-isolation.md rule 6).
+// Every stay starts beyond the acompte window, whatever today is (specs/tech/server-test-isolation.md rule 6).
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 test('switching the acompte off clears its deadline', async () => {

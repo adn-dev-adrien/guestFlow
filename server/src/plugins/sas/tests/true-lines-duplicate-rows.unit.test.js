@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 85 — the SAS plugin's quantity bounds on a stay holding TWO lines of one article.
+// specs/pricing/pricing-components.md §3 rule 85 — the SAS plugin's quantity bounds on a stay holding TWO lines of one article.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { bath } = require('../../../tests/trueLinesFixture');

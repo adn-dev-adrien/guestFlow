@@ -1,4 +1,4 @@
-// The departure wizard — specs/arrival-departure-sas.md, recall-unpaid-arrival-complement-at-checkout.md
+// The departure wizard — specs/sas/arrival-departure-sas.md, recall-unpaid-arrival-complement-at-checkout.md
 //
 // One file per subject (CLAUDE.md §9): two features appending their cases no longer collide on
 // the last line of a shared suite. Fixtures used by more than one subject live in ./sasFixtures.
@@ -9,7 +9,7 @@ import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // Mock the API the dialog consumes.
@@ -20,7 +20,7 @@ vi.mock('../../../api', () => ({
     previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
-    // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
+    // Weather alerts (specs/guest-app/checkin-weather-alerts.md) — fired in the background on arrival open.
     // Default to "no alert" so the wizard flow under test is unchanged.
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
@@ -28,12 +28,12 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
-// specs/arrival-departure-sas.md rule 13
+// specs/sas/arrival-departure-sas.md rule 13
 test('departure SAS: shows the read-only handover note left at arrival', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0, departureHandoverNote: 'Récupérer la 2e clé' },
@@ -45,7 +45,7 @@ test('departure SAS: shows the read-only handover note left at arrival', async (
   expect(screen.getByText('Récupérer la 2e clé')).toBeInTheDocument();
 });
 
-// specs/arrival-departure-sas.md rule 14
+// specs/sas/arrival-departure-sas.md rule 14
 test('departure SAS: cleaning page asks « fait correctement » (not the arrival UI) and commits the end-of-stay complement', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
@@ -80,7 +80,7 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  // specs/sas-departure-recap-server-side.md rules 6-7, 22 — the ménage is a yes/no priced by the
+  // specs/sas/sas-departure-recap-server-side.md rules 6-7, 22 — the ménage is a yes/no priced by the
   // server, the total the recap showed rides along to be compared; no line, no amount is sent.
   expect(arg.cleaningCharged).toBe(true);
   expect(arg.cleaningOffered).toBe(false);
@@ -89,13 +89,13 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   expect(arg.extinguisherSealOkAtDeparture).toBe(1);
   expect(arg.extinguisherCharges).toEqual([]);
   // Caution step skipped (cautionAmount 0) → no decision sent, the marker is left untouched
-  // (specs/reopen-completed-sas.md §6 tri-state).
+  // (specs/sas/reopen-completed-sas.md §6 tri-state).
   expect(arg.cautionReturned).toBeUndefined();
 });
 
-// specs/arrival-departure-sas.md rule 17
+// specs/sas/arrival-departure-sas.md rule 17
 test('departure SAS: an UNSETTLED arrival complement is recalled — detail + combined total + « Compléments encaissés »', async () => {
-  // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (12,50 €) was never
+  // specs/sas/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (12,50 €) was never
   // collected (paid: 0). The departure recap recalls it with its detail on top of the end-of-stay ménage,
   // shows the combined total, and ticking « Compléments encaissés » sends complementsSettled to the server.
   api.getReservationSas.mockResolvedValue(sasPayload({
@@ -125,7 +125,7 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
   // Combined total = 80 (ménage) + 12,50 (recalled arrival) — still includes the arrival amount.
   expect(await screen.findByText(/Total à percevoir : 92,50 €/)).toBeInTheDocument();
 
-  // Settle « CB / Chèque » (specs/sas-recap-payment-buttons.md) then validate.
+  // Settle « CB / Chèque » (specs/sas/sas-recap-payment-buttons.md) then validate.
   clickBtn('CB / Chèque');
   clickBtn('Valider et terminer');
 
@@ -186,9 +186,9 @@ test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay compleme
   expect(await screen.findByText(/Total à percevoir : 12,50 €/)).toBeInTheDocument();
 });
 
-// specs/arrival-departure-sas.md rule 18
+// specs/sas/arrival-departure-sas.md rule 18
 test('departure SAS: extinguisher not in good condition opens the tariff page; quantities ride to the payload as charges', async () => {
-  // specs/extinguisher-seal-and-repair-amounts.md §3.2 — answering « Non » at departure opens the
+  // specs/options/extinguisher-seal-and-repair-amounts.md §3.2 — answering « Non » at departure opens the
   // extinguisher tariff page; the per-tariff quantity is sent as extinguisherCharges (priced server-side).
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },

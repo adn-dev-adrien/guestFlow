@@ -1,4 +1,4 @@
-// « À vérifier » of the Suivi financier (specs/finance-data-checks.md). Read-only. Each check reads the rule
+// « À vérifier » of the Suivi financier (specs/accounting/finance-data-checks.md). Read-only. Each check reads the rule
 // that already defines its concept — the tax « Recalculer » would give (quoteStoredReservation), the stays the
 // tourist-tax page lists and their « Déclarée » tick (financeModel.getTouristTaxRows, the extraction's own rows), the platform stay
 // of the finance dashboard (isPlatformStay), the iCal placeholder client (isPlaceholderClient) — and only

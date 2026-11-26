@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 41 (UI/UX review 2026-10-18, decision 5) — a mistyped
+// specs/emails/guest-email-texts-made-simple.md rule 41 (UI/UX review 2026-10-18, decision 5) — a mistyped
 // variable is refused where it was typed, with the closest variable this text may use as the fix.
 
 const test = require('node:test');

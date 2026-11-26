@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13 (second reading, option occurrences and hourly sessions) — an option occurrence or an hourly session is dated on one of the
+// specs/tech/reservations-backend-mvc.md rule 13 (second reading, option occurrences and hourly sessions) — an option occurrence or an hourly session is dated on one of the
 // stay's days, arrival to departure morning inclusive, or it is refused with « Date hors du séjour. »
 // (`INVALID_STAY_DATES`, field `cardOccurrences` / `sessions`) before any pricing or write: on the price
 // preview, the reservation create and update, and the devis create and update. A date the line already

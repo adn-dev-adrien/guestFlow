@@ -1,10 +1,10 @@
 /**
- * PlatformChip — the one rendering for a booking-platform badge (specs/ds-components.md §3.1):
+ * PlatformChip — the one rendering for a booking-platform badge (specs/design-system/ds-components.md §3.1):
  * filled chip, platform color background, white text. Replaces both the ad-hoc filled Chips and
  * the hand-rolled outlined Boxes.
  *
  * The label goes through `formatPlatformLabel`: the server's display name (« Gîtes de France »,
- * specs/platform-settings-relay-and-review.md rule 12), else the stored spelling with its leading
+ * specs/platforms/platform-settings-relay-and-review.md rule 12), else the stored spelling with its leading
  * capital — so the badge never contradicts the calendar legend. It re-renders when the names arrive.
  *
  * Props:

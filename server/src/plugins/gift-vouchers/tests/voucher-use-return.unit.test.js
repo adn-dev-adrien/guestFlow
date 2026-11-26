@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 4, 14, 16, 23 — the redemption on the session page: the opening answer carries what the page needs of the voucher's activity (its step, its longest
+// specs/site/site-outside-resource-booking.md rules 4, 14, 16, 23 — the redemption on the session page: the opening answer carries what the page needs of the voucher's activity (its step, its longest
 // session, its party), the party is bounded by the resource's own limit, the remainder's return page reads the use by an unguessable reference (the recap chosen, no name), and the booking is
 // announced to the operator only once its transaction has committed.
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/finance-data-checks.md §3 rule 10 — the « À vérifier » read sends the exercise and the logement, nothing empty.
+// specs/accounting/finance-data-checks.md §3 rule 10 — the « À vérifier » read sends the exercise and the logement, nothing empty.
 import { vi } from 'vitest';
 import api from '../api';
 

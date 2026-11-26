@@ -1,4 +1,4 @@
-// specs/e2e-playwright-smoke-suite.md rule 20 — the specs that rewrite global state (VAT regime and rate,
+// specs/tech/e2e-playwright-smoke-suite.md rule 20 — the specs that rewrite global state (VAT regime and rate,
 // laundry schedule) run in projects of their own, after the main one, and the VAT ones in a chain.
 const test = require('node:test');
 const assert = require('node:assert/strict');

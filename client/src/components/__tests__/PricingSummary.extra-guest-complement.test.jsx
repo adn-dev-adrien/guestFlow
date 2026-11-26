@@ -1,4 +1,4 @@
-// Guests added after a platform booking — specs/platform-extra-guest-complement.md §3.5 rule 16.
+// Guests added after a platform booking — specs/platforms/platform-extra-guest-complement.md §3.5 rule 16.
 // The fiche shows the in-brut part (never offerable) apart from the added guests (in complement).
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

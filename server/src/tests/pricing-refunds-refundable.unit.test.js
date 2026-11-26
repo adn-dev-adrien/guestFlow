@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 72 — REFUNDS / refundable: the budget of a cancelled stay, the lines a refund can
+// specs/pricing/pricing-components.md §3 rule 72 — REFUNDS / refundable: the budget of a cancelled stay, the lines a refund can
 // still draw from, and the two allocations that stay different on purpose (rule 38): `capInOrder` takes the excess off the
 // lines in the order given, `spreadBucketRefund` spreads in proportion with the leftover cent on the earlier line.
 const test = require('node:test');

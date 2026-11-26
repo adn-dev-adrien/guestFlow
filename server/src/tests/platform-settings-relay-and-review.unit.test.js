@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md — « Adresse e-mail relais » and « Où laisser un avis » are
+// specs/platforms/platform-settings-relay-and-review.md — « Adresse e-mail relais » and « Où laisser un avis » are
 // platform settings: the one-shot migration writes what the code knew by name onto an existing database
 // (and nothing on a new one), the settings page serves and saves them, and the J+1 paragraph Solio's
 // guests receive is byte-identical to the one the hard-coded names produced (audit 2026-10-27).
@@ -88,7 +88,7 @@ function review(platform, lang, googleReviewUrl) {
   }).vars.reviewParagraph;
 }
 
-// specs/platform-settings-relay-and-review.md rule 7 and specs/guest-email-sequence.md rule 35 — proof of
+// specs/platforms/platform-settings-relay-and-review.md rule 7 and specs/emails/guest-email-sequence.md rule 35 — proof of
 // identity of the J+1 paragraph.
 test('J+1: after the migration, the paragraphs Solio sends are byte-identical to the hard-coded ones', () => {
   const mem = legacyDb(['GitesDeFrance', 'Airbnb', 'Booking']);

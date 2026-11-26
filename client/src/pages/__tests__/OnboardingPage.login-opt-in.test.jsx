@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 37 (audit 2026-10-27) — saving « Entreprise » never changes
+// specs/hosting/hosting-h2-account-security.md rule 37 (audit 2026-10-27) — saving « Entreprise » never changes
 // the login e-mail implicitly: an explicit « Utiliser aussi cette adresse pour se connecter », off by
 // default and offered only over the bootstrap login, decides it.
 import React from 'react';

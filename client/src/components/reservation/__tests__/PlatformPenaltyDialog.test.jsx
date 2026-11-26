@@ -1,6 +1,6 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
- * specs/reconciliation-assisted-matching.md rules 24–26, 29 — the penalty dialog: amount, motif, date, the
+ * specs/accounting/reconciliation-assisted-matching.md rules 24–26, 29 — the penalty dialog: amount, motif, date, the
  * before / after choice only when the server needs it, the server's figures and refusals, nothing computed here.
  */
 import React from 'react';

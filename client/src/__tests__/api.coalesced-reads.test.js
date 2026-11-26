@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 8 — identical GETs in flight are one request; a write never lets a
+// specs/tech/inte-performance.md rule 8 — identical GETs in flight are one request; a write never lets a
 // later read join an earlier one.
 import { vi } from 'vitest';
 import api from '../api';

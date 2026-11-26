@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 4 — a write on a stay tells the open fiche the version it
+// specs/reservations/reservation-fiche-concurrency.md rule 4 — a write on a stay tells the open fiche the version it
 // started from and the one it left.
 import { vi } from 'vitest';
 import api from '../api';
@@ -49,7 +49,7 @@ test('rule 8: a write from outside the stay puts the moved stays on the event', 
   expect(seen).toEqual([{ stays: [{ reservationId: 9, before: 'v1', after: 'v2' }] }]);
 });
 
-// specs/reservation-refunds.md rule 42 — the 409 OVERPAID body (overpaymentMethod included, server side:
+// specs/payments/reservation-refunds.md rule 42 — the 409 OVERPAID body (overpaymentMethod included, server side:
 // trop-percu-stored-measure.unit.test.js) reaches ReservationPage as fields of the thrown error.
 test('rule 42: the 409 OVERPAID body fields are on the error the fiche reads', async () => {
   const body = { code: 'OVERPAID', error: 'Trop-perçu', overpaymentTtc: 28, overpaymentMethod: 'internal', overpaymentLines: null };

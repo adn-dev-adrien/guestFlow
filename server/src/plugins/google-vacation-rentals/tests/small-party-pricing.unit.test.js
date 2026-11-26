@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rule 4 (2026-10-27 audit) — every party size from 1 is priced:
+// specs/site/google-vacation-rentals-feed.md rule 4 (2026-10-27 audit) — every party size from 1 is priced:
 // with no headcount tax, a per-person DEFAULT option still makes a smaller party cheaper on the site,
 // and the feed used to send it the included-guests price (260 € sent, 230 € on the site).
 process.env.DB_PATH = ':memory:';

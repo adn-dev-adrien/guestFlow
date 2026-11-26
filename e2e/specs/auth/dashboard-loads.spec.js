@@ -1,5 +1,5 @@
 // @ts-check
-// Test 1/24 — auth/dashboard-loads (specs/e2e-playwright-smoke-suite.md §3.4 row 1).
+// Test 1/24 — auth/dashboard-loads (specs/tech/e2e-playwright-smoke-suite.md §3.4 row 1).
 // The smoke baseline: the app boots, the cached admin session lets us reach `/`, the
 // Dashboard header is visible, and zero console errors of severity `error` fire during
 // the first paint. Pins `security-auth-encryption` + `security-hardening`.

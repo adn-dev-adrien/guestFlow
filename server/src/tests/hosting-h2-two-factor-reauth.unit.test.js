@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 47, 49 and 53 (UX review of 2026-10-28) — turning the step
+// specs/hosting/hosting-h2-account-security.md rules 47, 49 and 53 (UX review of 2026-10-28) — turning the step
 // off, minting new backup codes and changing the method ask the password AND a current code; the
 // password is limited to 5 wrong tries per 15 minutes; a support session cannot reach any of it.
 

@@ -1,5 +1,5 @@
 /**
- * Backups that are proven, and restores the operator can run (specs/hosting-h1-fleet-runtime.md
+ * Backups that are proven, and restores the operator can run (specs/hosting/hosting-h1-fleet-runtime.md
  * rules 13–14).
  *
  * Weekly (rule 13): each customer's latest backup is restored into a temporary folder, checked with

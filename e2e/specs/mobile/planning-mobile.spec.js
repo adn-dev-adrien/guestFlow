@@ -1,8 +1,8 @@
 // @ts-check
-// DS phase-5 mobile smoke (specs/ds-sweep-planning.md §7). /planning at 390px:
+// DS phase-5 mobile smoke (specs/design-system/ds-sweep-planning.md §7). /planning at 390px:
 //   - the page title is visible on arrival (on xs it is the top bar's heading,
-//     specs/shell-and-home-day-first.md rule 15);
-//   - no date strip any more (specs/dashboard-planning-scroll.md rule 22): « Aujourd'hui » is a bar action;
+//     specs/planning/shell-and-home-day-first.md rule 15);
+//   - no date strip any more (specs/planning/dashboard-planning-scroll.md rule 22): « Aujourd'hui » is a bar action;
 //   - no page-level horizontal scroll;
 //   - the page scrolls through the WINDOW (no own scroll container — rule 6), so the bar
 //     stays sticky after scrolling.

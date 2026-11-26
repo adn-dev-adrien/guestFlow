@@ -1,6 +1,6 @@
 /**
  * PublicSiteOriginCard — the public website's address, saved on its own
- * (specs/plugins-phase-3a-online-payment.md rule 15). It builds the CGV link of the emails and the
+ * (specs/plugins/plugins-phase-3a-online-payment.md rule 15). It builds the CGV link of the emails and the
  * return page of an online payment, so it lives with the CGV and outlives any payment plugin.
  *
  * Props:

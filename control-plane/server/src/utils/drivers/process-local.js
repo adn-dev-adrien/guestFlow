@@ -1,5 +1,5 @@
 /**
- * The `local` process driver (specs/hosting-h1-fleet-runtime.md H-D6): each instance is a child
+ * The `local` process driver (specs/hosting/hosting-h1-fleet-runtime.md H-D6): each instance is a child
  * `node <release>/server/src/index.js` started with the variables of its env file — for development
  * and the test suites, where there is no systemd.
  *

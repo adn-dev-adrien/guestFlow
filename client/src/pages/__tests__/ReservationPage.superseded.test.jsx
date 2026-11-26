@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rule 22 — the fiche of a duplicate set aside opens read-only with a banner
+// specs/planning/calendar-property-parity.md rule 22 — the fiche of a duplicate set aside opens read-only with a banner
 // « Doublon de la réservation … » (a link to the kept stay) and, for an admin only, « Rétablir »; a refusal
 // of the server (the dates were booked since) is shown and the stay stays set aside.
 import React from 'react';

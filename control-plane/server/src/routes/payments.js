@@ -2,7 +2,7 @@ const express = require('express');
 const { qontoConfig, qontoSettingsController, qontoWebhookSignature } = require('../utils/gf');
 
 // GuestFlow's Qonto settings routes, at the paths its Paiements page calls, over the console's
-// settings (specs/control-plane-plans-and-access.md rule 32). Mounted behind requireOperator.
+// settings (specs/hosting/control-plane-plans-and-access.md rule 32). Mounted behind requireOperator.
 function paymentsRoutes(ctx) {
   return qontoSettingsController.mountQontoSettingsRoutes(express.Router(), ctx.controllers.qontoSettings);
 }

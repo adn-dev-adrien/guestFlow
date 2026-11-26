@@ -1,9 +1,9 @@
 /**
- * What the operator must look at today (specs/control-plane-plans-and-access.md rule 18): the
+ * What the operator must look at today (specs/hosting/control-plane-plans-and-access.md rule 18): the
  * customers who entered a state that matters today, the customers already in read-only or
  * suspended, the failed steps, and from the billing (C2b) the missing Qonto connection, the invoices
  * not created, the failed payments and the emails awaiting approval — and, since the hosting
- * (specs/hosting-h1-fleet-runtime.md rule 16), the open host alerts. The home page shows it; the
+ * (specs/hosting/hosting-h1-fleet-runtime.md rule 16), the open host alerts. The home page shows it; the
  * daily email sends the same lines.
  */
 

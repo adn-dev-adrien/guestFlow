@@ -1,5 +1,5 @@
 /**
- * Removal of « Objets oubliés » (specs/guest-email-sequence.md rule 33, removed 2026-09-28).
+ * Removal of « Objets oubliés » (specs/emails/guest-email-sequence.md rule 33, removed 2026-09-28).
  *
  * Two idempotent steps:
  *   - `runStripLostItemsTokenMigration` — the stored templates (body / bodyEn) lose their

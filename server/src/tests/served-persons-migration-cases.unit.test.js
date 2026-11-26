@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 14, 16 and 19 (audit R21-S5) — the migration's ceiling and its
+// specs/options/non-card-option-served-persons.md rules 14, 16 and 19 (audit R21-S5) — the migration's ceiling and its
 // « equal, so it follows » on the cases that tell people from nights, and the boot that really runs it. Each line
 // starts as a stored base quantity, what a release before v3.20.0 wrote.
 

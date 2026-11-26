@@ -1,6 +1,6 @@
 name: Release
 
-# specs/self-update-and-releases.md §3.A + §4.4.
+# specs/hosting/self-update-and-releases.md §3.A + §4.4.
 #
 # Builds and publishes a GuestFlow release. Runs entirely on GitHub-hosted runners: nothing in this
 # workflow — and nothing in this repository — executes on the production machine any more. The VM
@@ -105,7 +105,7 @@ jobs:
           echo "✓ CHANGELOG section present and every fragment folded"
 
       - name: 🗒️ The section must carry the operator digest
-        # specs/self-update-and-releases.md §6.2 rule 20c. The update dialog shows this block and
+        # specs/hosting/self-update-and-releases.md §6.2 rule 20c. The update dialog shows this block and
         # folds everything else away, so a release without it offers the operator a wall of prose —
         # or nothing at all — at the one moment they have to decide whether to install it. The rule
         # lives in the script, not in this YAML, so the skill and a unit test apply the same one.
@@ -114,13 +114,13 @@ jobs:
           node scripts/build-changelog.mjs --check-digest "${{ steps.resolve.outputs.version }}"
 
       - name: 🔌 A plugin that changed carries a new version
-        # specs/plugins-phase-4-registry.md P26, rule 23 — an instance compares plugin versions to offer
+        # specs/plugins/plugins-phase-4-registry.md P26, rule 23 — an instance compares plugin versions to offer
         # an update; a changed plugin that kept its number would never be offered, or would install
         # different code under the same version. The release skill bumps them (`--bump`).
         run: node scripts/check-plugin-versions.mjs
 
   # ── Unit suites ──────────────────────────────────────────────────────────────────────────────
-  # specs/server-test-isolation.md rule 8 — the server suite and three client shards run side by side. In one
+  # specs/tech/server-test-isolation.md rule 8 — the server suite and three client shards run side by side. In one
   # job, one after the other, the suites of inte/plugins add up to 1030–1310 s against a 1200 s cap (audit R8
   # M-2): a release cancelled at its limit publishes nothing. `package` needs every one of them.
   # Two shards since 4.2.0 (rule 52, amended 2026-11-22): the whole suite took ≈24 min on the runner and the first
@@ -233,7 +233,7 @@ jobs:
         run: cd client && npm ci && npm run build
 
       - name: 📱 Build the plugins' web apps
-        # specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) ship
+        # specs/plugins/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) ship
         # inside its package as their Vite build (`server/assets/<name>`); a build missing here would answer 503.
         run: |
           for app in server/src/plugins/*/apps/*/; do
@@ -242,7 +242,7 @@ jobs:
           done
 
       - name: 🔌 Build the plugin packages
-        # specs/plugins-phase-4-registry.md rule 23 — one package per plugin, shipped inside the core
+        # specs/plugins/plugins-phase-4-registry.md rule 23 — one package per plugin, shipped inside the core
         # archive (`plugins-dist/`) and attached to the release for the registry. The manifests are read
         # with the server's own validator, hence its dependencies (semver).
         run: |
@@ -250,7 +250,7 @@ jobs:
           node scripts/build-plugin-packages.mjs --out plugins-dist
 
       - name: 🔌 A published plugin version keeps its content
-        # specs/plugins-phase-4-registry.md rule 27 — the packages of the previous release, compared by
+        # specs/plugins/plugins-phase-4-registry.md rule 27 — the packages of the previous release, compared by
         # content hash: a plugin whose built files changed under the same version would be cached as the
         # old one by every browser, so the release stops until the version is bumped. The downloaded
         # packages are only compared, never shipped again (release assets are mutable, audit r2 N4); the
@@ -280,7 +280,7 @@ jobs:
 
       - name: 🔌 Package the WordPress plugin
         # The plugin updates itself from WordPress admin against this asset
-        # (specs/wordpress-plugin-self-update.md). Its archive root must be the plugin folder name,
+        # (specs/site/wordpress-plugin-self-update.md). Its archive root must be the plugin folder name,
         # because that is the directory WordPress replaces on update.
         env:
           PLUGIN_VERSION: ${{ needs.verify.outputs.plugin_version }}

@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 63 (audit R45-DB-L2) — the seeded cancellation notice opened with
+// specs/payments/payment-schedule-and-cancellation.md rule 63 (audit R45-DB-L2) — the seeded cancellation notice opened with
 // « Faute de règlement du solde, … » (« As the balance was not paid, … ») for every cancellation: a guest who paid in
 // full and phoned to cancel was told in writing the stay was cancelled for non-payment. The seed opens neutral, and the
 // one-shot `cancellation_notice_neutral_opening_v1` rewrites that exact seeded sentence in a stored body, never a body

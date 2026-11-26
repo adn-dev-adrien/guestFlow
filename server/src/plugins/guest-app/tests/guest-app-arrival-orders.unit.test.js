@@ -1,8 +1,8 @@
-// specs/guest-app.md rules 71, 87 — the arrival SAS names the orders the stay took in the app before its arrival (the unpaid ones it
+// specs/guest-app/guest-app.md rules 71, 87 — the arrival SAS names the orders the stay took in the app before its arrival (the unpaid ones it
 // collects, the card-paid ones read-only), and the operator changes an unpaid one before it is collected: quantity, article, bath
 // session, the whole order — re-priced by the core, stock adjusted, journaled, the guest sees the new order.
-// Also specs/single-payment-at-check-in.md rule 19 (the orders ride the arrival complement the single payment collects) and
-// specs/guest-app.md rules 73 (a moved stay flags an order outside its dates) and 75 (the staff reads the day and the payment).
+// Also specs/payments/single-payment-at-check-in.md rule 19 (the orders ride the arrival complement the single payment collects) and
+// specs/guest-app/guest-app.md rules 73 (a moved stay flags an order outside its dates) and 75 (the staff reads the day and the payment).
 const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
@@ -167,7 +167,7 @@ withStay('rule 87: a bath session removed — the order\'s charge follows, the h
   assert.equal(JSON.parse(db.prepare('SELECT sessions FROM reservation_resources WHERE reservationId = ?').get(stayId).sessions).length, 1);
 }, { skip: !hasHourly });
 
-withStay('specs/single-payment-at-check-in.md rule 19: the orders taken before the arrival are part of the arrival complement — no end-of-stay line, nothing else moved', async ({ stayId, call }) => {
+withStay('specs/payments/single-payment-at-check-in.md rule 19: the orders taken before the arrival are part of the arrival complement — no end-of-stay line, nothing else moved', async ({ stayId, call }) => {
   await place(call, [{ kind: 'option', id: CIDER, quantity: 2 }]);
   const row = stayRow(stayId);
   assert.deepEqual([row.complementAmount, row.endOfStayComplementAmount, row.depositAmount, row.balanceAmount], [12, 0, 0, 400]);

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 62 (audit of 2026-10-28, finding L3) — the code mailed at
+// specs/hosting/hosting-h2-account-security.md rule 62 (audit of 2026-10-28, finding L3) — the code mailed at
 // an email-method login takes a mail slot like every other code mail (rule 55): a right password
 // repeated does not mail-bomb the owner. No real mail: the fixture's mailer only records.
 

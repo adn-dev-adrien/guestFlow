@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 31, 103 (stabilisation loop t4, S4-6, 2026-11-16) — the discount of an arrival line given back once the arrival
+// specs/pricing/pricing-components.md §3 rules 31, 103 (stabilisation loop t4, S4-6, 2026-11-16) — the discount of an arrival line given back once the arrival
 // is validated is carved out to the departure: « Ventes du séjour — au départ » lists that part (`departureCents` of the line), the arrival lists the
 // rest, and the arrival baseline stays where the arrival collected the line, so a later sale keeps the part at the departure. Before: the section
 // left the 10 € out, and a baseline raised at a validated arrival let the next save drop them from every bucket.

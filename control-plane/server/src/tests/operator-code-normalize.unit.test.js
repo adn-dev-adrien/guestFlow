@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 35 (console side, specs/control-plane-plans-and-access.md
+// specs/hosting/hosting-h2-account-security.md rule 35 (console side, specs/hosting/control-plane-plans-and-access.md
 // rule 31) — the operator's code is read as typed: an email code with a space in the middle, a backup
 // code without its dash.
 

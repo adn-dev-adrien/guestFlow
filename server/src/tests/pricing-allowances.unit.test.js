@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 41 — ALLOWANCES: the read-only form of the stay's free units and free minutes. The numbers
+// specs/pricing/pricing-components.md §3 rule 41 — ALLOWANCES: the read-only form of the stay's free units and free minutes. The numbers
 // are the engine's own: `consumeAllowance` equals `applyFreeUnitsToLine` on every grant, `releaseAllowance` gives a removed
 // line's share back, and the stay's ledger grants what the sold snapshot says.
 const test = require('node:test');

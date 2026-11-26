@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 38 + reservation-save-keeps-pricing.md rule 16 — audit R3 N1: the live
+// specs/payments/reservation-refunds.md rule 38 + reservation-save-keeps-pricing.md rule 16 — audit R3 N1: the live
 // preview of a platform stay (Airbnb, Gîtes de France) never announces a trop-perçu, whatever the edit.
 
 process.env.DB_PATH = ':memory:';

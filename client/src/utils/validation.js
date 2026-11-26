@@ -27,7 +27,7 @@ export function isValidPhone(value) {
 
   return /^[0-9]{10,15}$/.test(normalized);
 }
-// specs/finance-dashboard-redesign.md rule 27 — immediate feedback on an annual revenue goal, mirroring
+// specs/accounting/finance-dashboard-redesign.md rule 27 — immediate feedback on an annual revenue goal, mirroring
 // server/src/utils/revenueGoals.js (the server stays the authority and re-validates on save).
 // Returns the message to show under the field, or '' when the input is acceptable (empty = no goal).
 export function revenueGoalInputError(value) {
@@ -41,7 +41,7 @@ export function revenueGoalInputError(value) {
   return '';
 }
 
-// specs/vat-optional-mode.md rule 36 — immediate feedback on the franchise threshold, mirroring
+// specs/accounting/vat-optional-mode.md rule 36 — immediate feedback on the franchise threshold, mirroring
 // server/src/utils/vatFranchise.js (the server re-validates). '' when acceptable (empty = no threshold).
 export function vatThresholdInputError(value) {
   if (value == null || typeof value === 'number') return '';

@@ -7,7 +7,7 @@ const laundryScheduleModel = require('../laundryScheduleModel');
 const laundryScheduleController = require('../laundryScheduleController');
 const { addDays } = require('../laundryWindow');
 
-// specs/linen-laundry-days.md §4.3 — the three schedule handlers, driven with mock req/res on a real
+// specs/linen/linen-laundry-days.md §4.3 — the three schedule handlers, driven with mock req/res on a real
 // table. Role enforcement is `enforceRoleAccess`'s (see reception-role-access.unit.test.js).
 
 const MIGRATION = MIGRATIONS.find((m) => m.name === 'laundry_schedule_v1');
@@ -36,7 +36,7 @@ function fresh({ today = '2026-06-09', weekday = '2' } = {}) {
 
 const stripCycle = ({ cycle, longestWaitDays, ...rest }) => rest;
 
-test('specs/linen-laundry-days.md §4.3: GET returns the version in force, no pending version, and tomorrow', () => {
+test('specs/linen/linen-laundry-days.md §4.3: GET returns the version in force, no pending version, and tomorrow', () => {
   const { call } = fresh();
   const res = call('get');
   assert.equal(res.statusCode, 200);
@@ -47,7 +47,7 @@ test('specs/linen-laundry-days.md §4.3: GET returns the version in force, no pe
   assert.equal(res.body.tomorrow, '2026-06-10');
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: PUT writes the version effective tomorrow, and today keeps its rhythm', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: PUT writes the version effective tomorrow, and today keeps its rhythm', () => {
   const { call, model } = fresh();
   const res = call('set', { weekdays: [4, 2], turnaroundDays: 2 });
   assert.equal(res.statusCode, 200);
@@ -60,7 +60,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: PUT writes the version effective
   assert.equal(model.listAll().length, 2);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: saving again before tomorrow overwrites the pending version', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: saving again before tomorrow overwrites the pending version', () => {
   const { call, model } = fresh();
   call('set', { weekdays: [2, 4], turnaroundDays: 2 });
   const res = call('set', { weekdays: [1, 3, 5], turnaroundDays: 4 });
@@ -68,7 +68,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: saving again before tomorrow ove
   assert.deepEqual(stripCycle(res.body.pending), { effectiveFrom: '2026-06-10', weekdays: [1, 3, 5], turnaroundDays: 4 });
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 22: saving what is already in force deletes the pending version', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 22: saving what is already in force deletes the pending version', () => {
   const { call, model } = fresh();
   call('set', { weekdays: [2, 4], turnaroundDays: 2 });
   const res = call('set', { weekdays: [2], turnaroundDays: 1 });
@@ -79,7 +79,7 @@ test('specs/linen-laundry-days.md §3.3 rule 22: saving what is already in force
   assert.equal(model.listAll().length, 1);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: the next day the pending version has become the one in force, and a new save is dated a day later', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: the next day the pending version has become the one in force, and a new save is dated a day later', () => {
   const { call, clock, model } = fresh();
   call('set', { weekdays: [2, 4], turnaroundDays: 2 });
   clock.today = '2026-06-10';
@@ -92,13 +92,13 @@ test('specs/linen-laundry-days.md §3.1 rule 5: the next day the pending version
   assert.deepEqual(model.listAll().map((v) => v.effectiveFrom), ['0001-01-01', '2026-06-10', '2026-06-11']);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: tomorrow crosses a month and a year end', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: tomorrow crosses a month and a year end', () => {
   const { call } = fresh({ today: '2026-12-31' });
   assert.equal(call('get').body.tomorrow, '2027-01-01');
   assert.equal(call('set', { weekdays: [3], turnaroundDays: 1 }).body.pending.effectiveFrom, '2027-01-01');
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 3: every refusal is a 400 with the message, the code and the field — and writes nothing', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 3: every refusal is a 400 with the message, the code and the field — and writes nothing', () => {
   const { call, model } = fresh();
   const cases = [
     [{ weekdays: [], turnaroundDays: 1 }, 'LAUNDRY_WEEKDAYS_EMPTY', 'Au moins un jour.', 'weekdays'],
@@ -122,7 +122,7 @@ test('specs/linen-laundry-days.md §3.1 rule 3: every refusal is a 400 with the 
   assert.equal(model.listAll().length, 1);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 7: the preview describes the cycle and the first laundry day it applies to, with no side effect', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 7: the preview describes the cycle and the first laundry day it applies to, with no side effect', () => {
   const { call, model } = fresh();
   const res = call('preview', { weekdays: [2, 4], turnaroundDays: 3 });
   assert.equal(res.statusCode, 200);
@@ -134,7 +134,7 @@ test('specs/linen-laundry-days.md §3.1 rule 7: the preview describes the cycle 
   assert.equal(model.listAll().length, 1);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 7: firstTripOn is the first laundry day from tomorrow on', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 7: firstTripOn is the first laundry day from tomorrow on', () => {
   const { call } = fresh();
   assert.equal(call('preview', { weekdays: [3], turnaroundDays: 1 }).body.firstTripOn, '2026-06-10');   // tomorrow itself
   assert.equal(call('preview', { weekdays: [2], turnaroundDays: 1 }).body.firstTripOn, '2026-06-16');   // today is not "from tomorrow"

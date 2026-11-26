@@ -1,5 +1,5 @@
-// specs/finance-data-checks.md §3 rule 16 — a month item of « À vérifier » opens the tax page on that month.
-// Since specs/tourist-tax-report-v2.md rule 17 the page reads the period report: the month arrives as `period=month`.
+// specs/accounting/finance-data-checks.md §3 rule 16 — a month item of « À vérifier » opens the tax page on that month.
+// Since specs/tourist-tax/tourist-tax-report-v2.md rule 17 the page reads the period report: the month arrives as `period=month`.
 import { vi } from 'vitest';
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';

@@ -1,5 +1,5 @@
-// specs/neat-cancellation-insurance-subscription.md §3.3 rules 13-16, drawn by the neat plugin in the
-// `reservation.optionLine` slot (specs/plugins-phase-3b-neat.md rule 16). The block is server-shaped:
+// specs/plugins/neat-cancellation-insurance-subscription.md §3.3 rules 13-16, drawn by the neat plugin in the
+// `reservation.optionLine` slot (specs/plugins/plugins-phase-3b-neat.md rule 16). The block is server-shaped:
 // the plugin renders it, calls its two endpoints and hands the answer back to the fiche.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

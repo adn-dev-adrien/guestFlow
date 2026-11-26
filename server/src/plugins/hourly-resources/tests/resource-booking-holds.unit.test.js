@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 25, 29 (§4.1) — the booking offer of the outside bookings, asked of the core by another plugin (it names no voucher): free slots inside the
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 25, 29 (§4.1) — the booking offer of the outside bookings, asked of the core by another plugin (it names no voucher): free slots inside the
 // opening hours, the hold of 15 minutes that blocks every availability read until it is released or lapses, the job that tidies the lapsed ones, and the booking that consumes a hold.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

@@ -1,7 +1,7 @@
 /**
  * SettingsNotificationsSection — "Notifications de réservation" card in /parametres.
  * Pure presentational: master toggle + per-channel iCal toggle + recipient field.
- * See specs/site-booking-notifications.md §3 rule 9b + §6.
+ * See specs/site/site-booking-notifications.md §3 rule 9b + §6.
  */
 
 import React from 'react';

@@ -1,6 +1,6 @@
 /**
  * SettingsFormPage — the frame of every Paramètres page that edits settings
- * (specs/settings-rationalization.md rule 4 + §6): sticky PageActionBar with one Save / Cancel for
+ * (specs/settings/settings-rationalization.md rule 4 + §6): sticky PageActionBar with one Save / Cancel for
  * the page, the « unsaved changes » / « Réglages enregistrés le … » subtitle, a single readable column, the
  * load-error alert and the dirty-form guard dialog.
  *
@@ -12,7 +12,7 @@
  *   dirty?:        boolean           — overrides form.isDirty (a card saving through its own endpoint)
  *   saveBlocked?:  boolean           — a field is invalid client-side: Enregistrer stays disabled
  *   actionsBefore?: Action[]         — PageActionBar extra actions
- *   tabs?:         ReactNode         — a <PageTabs> node for the bar (specs/ds-tabs.md rule 2)
+ *   tabs?:         ReactNode         — a <PageTabs> node for the bar (specs/design-system/ds-tabs.md rule 2)
  *   children:      ReactNode         — the page's cards
  */
 import React from 'react';

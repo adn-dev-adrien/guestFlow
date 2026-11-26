@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 1 — review of #847, finding 1: the replay returns an
+// specs/reservations/reservation-save-keeps-pricing.md rule 1 — review of #847, finding 1: the replay returns an
 // engine-derived auto-option (early check-in, cot) as a plain locked line, the save returns it as a
 // derived one. Only what the line BILLS may decide whether the save moved a pricing input: 14 of 52
 // fiches were re-priced by a note.

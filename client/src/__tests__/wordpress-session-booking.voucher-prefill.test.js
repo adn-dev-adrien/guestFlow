@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md §3.G rules 28-31 — « Réserver une séance »: no hold notice, « Choisissez un horaire » (muted, red after a press without a slot), a voucher's contents
+// specs/site/site-outside-resource-booking.md §3.G rules 28-31 — « Réserver une séance »: no hold notice, « Choisissez un horaire » (muted, red after a press without a slot), a voucher's contents
 // listed at « 0 € · inclus dans le bon » before any slot and then from the quote, and the recipient's names filling the contact only where it is empty.
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import {

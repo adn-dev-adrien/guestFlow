@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 33 (audit R2, finding N2) — the email line of the Booking page is bounded.
+// specs/settings/settings-rationalization.md rule 33 (audit R2, finding N2) — the email line of the Booking page is bounded.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

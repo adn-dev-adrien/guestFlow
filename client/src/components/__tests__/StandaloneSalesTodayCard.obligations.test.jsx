@@ -1,5 +1,5 @@
 /**
- * StandaloneSalesTodayCard — « À rembourser » (specs/outside-booking-sas.md rule 41, end-review verification V-4): the counter's documents that still owe
+ * StandaloneSalesTodayCard — « À rembourser » (specs/sas/outside-booking-sas.md rule 41, end-review verification V-4): the counter's documents that still owe
  * money back, any day, as the server words them; « Marquer remboursé » asks a confirmation, closes the row and reads the card again.
  */
 import React from 'react';
