@@ -58,12 +58,18 @@ function seed(stay = {}) {
   return { db, model: financeModel.buildModel(db) };
 }
 
+// The line a real refund writes (utils/pricing/refunds/refundable.js, judge.js): the unit price is the party's tax
+// for one night rounded to the cent, the quantity the amount over that price to four decimals.
 function refundAmount(db, amount, method = 'transfer') {
+  const stay = db.prepare('SELECT touristTaxTotal, startDate, endDate FROM reservations WHERE id = 1').get();
+  const nights = Math.round((Date.parse(stay.endDate) - Date.parse(stay.startDate)) / 86400000);
+  const unitPrice = Math.round((stay.touristTaxTotal / nights) * 100) / 100;
+  const quantity = Math.round((amount / unitPrice) * 10000) / 10000;
   const { lastInsertRowid } = db.prepare(
     'INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc) VALUES (1, ?, ?, ?)',
   ).run(day(5), method, amount);
   db.prepare(`INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate)
-              VALUES (?, 'touristTax', 'Taxe de séjour', 'touristTax', ?, 0, ?, 0)`).run(lastInsertRowid, amount, amount);
+              VALUES (?, 'touristTax', 'Taxe de séjour', 'touristTax', ?, ?, ?, 0)`).run(lastInsertRowid, quantity, unitPrice, amount);
 }
 
 const extract = (model) => model.getTouristTaxExtraction({ month }).data.reservations;
