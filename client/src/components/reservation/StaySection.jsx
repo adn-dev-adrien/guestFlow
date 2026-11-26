@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Box, Card, CardContent, Typography, Stack, FormControl, InputLabel, Select,
-  MenuItem, TextField, FormHelperText
+  MenuItem, TextField, FormHelperText, Alert
 } from '@mui/material';
 import MiniPlanningStrip from '../MiniPlanningStrip';
 import DateField from '../DateField';
@@ -21,7 +21,7 @@ export default function StaySection() {
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange, isReservationLocked, formReadOnly,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
     datesUnavailableForProperty, datesUnavailableMessage, stayDatesHint, minNightsState, minNightsWarning,
-    liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
+    stayRuleNotes = [], liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
   } = useReservationForm();
 
   return (
@@ -135,6 +135,15 @@ export default function StaySection() {
               </FormControl>
             </Box>
           </Box>
+
+          {/* specs/reservations/platform-stays-always-saveable.md rules 5, 6 — what the platform's stay breaks, worded by the server: it informs, never asks. */}
+          {stayRuleNotes.length > 0 && (
+            <Stack spacing={1}>
+              {stayRuleNotes.map((note) => (
+                <Alert key={note} severity="info" sx={{ width: '100%' }}>{note}</Alert>
+              ))}
+            </Stack>
+          )}
 
           {(stayDatesHint || liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
             <Stack spacing={0.5}>

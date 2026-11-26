@@ -17,12 +17,15 @@ const pid = db.prepare("INSERT INTO properties (name, maxGuests) VALUES ('Gîte'
 const placeholder = db.prepare("INSERT INTO clients (firstName, lastName) VALUES ('Airbnb', 'Réservation')").run().lastInsertRowid;
 const rid = db.prepare(`INSERT INTO reservations (clientId, kind, propertyId, startDate, endDate, adults, platform, sourceType, checkInTime, checkOutTime)
   VALUES (?, 'reservation', ?, '2099-07-10', '2099-07-13', 2, 'Airbnb', 'ical', '16:00', '10:00')`).run(placeholder, pid).lastInsertRowid;
+// A platform stay's capacity is never judged (specs/reservations/platform-stays-always-saveable.md rule 3): the refusal comes from an overlap, which still is.
+db.prepare(`INSERT INTO reservations (clientId, kind, propertyId, startDate, endDate, adults, platform, sourceType, checkInTime, checkOutTime)
+  VALUES (?, 'reservation', ?, '2099-07-20', '2099-07-23', 2, 'Airbnb', 'ical', '16:00', '10:00')`).run(placeholder, pid);
 const clientCount = () => db.prepare('SELECT COUNT(*) AS n FROM clients').get().n;
 const guest = { firstName: 'Camille', lastName: 'Martin', email: 'camille.martin@example.test', phone: '+33600000000' };
 
 test('a refused fiche leaves no client behind', () => {
   const before = clientCount();
-  const result = core.reservations.update(rid, { adults: 40 }, { label: 'Mail Airbnb du 24/10', client: guest });
+  const result = core.reservations.update(rid, { startDate: '2099-07-21', endDate: '2099-07-24' }, { label: 'Mail Airbnb du 24/10', client: guest });
   assert.notEqual(result.status, 200, JSON.stringify(result.body));
   assert.equal(result.clientId, undefined);
   assert.equal(clientCount(), before, 'the guest client was rolled back with the refused update');

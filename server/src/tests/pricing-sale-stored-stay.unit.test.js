@@ -65,7 +65,8 @@ test('rule 9 — a stay sold under a minimum it no longer meets takes a sale; th
   const id = stay();
   db.prepare('UPDATE pricing_rules SET minNights = 7, pricePerNight = 150 WHERE id = ?').run(ruleId);
   try {
-    const edited = controller.performUpdate(id, { ...storedBody(id), restatePricing: true }, { dryRun: true });
+    // specs/reservations/platform-stays-always-saveable.md rule 8 — a save that moves nothing judges nothing: the edit is refused once its dates move.
+    const edited = controller.performUpdate(id, { ...storedBody(id), endDate: addDaysToIsoDate(storedBody(id).endDate, 1), restatePricing: true }, { dryRun: true });
     assert.equal(edited.status, 409);
     assert.equal(edited.body.code, 'MIN_NIGHTS');
     const sold = extraSale.sell(id, [{ articleRef: `option:${wine}`, quantity: 1 }], { source: 'fiche' });
@@ -83,7 +84,8 @@ test('rule 9 — a changeover day set after the sale is not judged by a later sa
   const arrivalDay = new Date(`${START}T12:00:00Z`).getUTCDay();
   db.prepare('UPDATE pricing_rules SET changeoverArrival = ? WHERE id = ?').run((arrivalDay + 1) % 7, ruleId);
   try {
-    const edited = controller.performUpdate(id, { ...storedBody(id), restatePricing: true }, { dryRun: true });
+    // specs/reservations/platform-stays-always-saveable.md rule 8 — a save that moves nothing judges nothing: the edit is refused once its dates move.
+    const edited = controller.performUpdate(id, { ...storedBody(id), endDate: addDaysToIsoDate(storedBody(id).endDate, 1), restatePricing: true }, { dryRun: true });
     assert.equal(edited.status, 409);
     const quoted = extraSale.quote(id, [{ articleRef: `option:${wine}`, quantity: 1 }]);
     assert.equal(quoted.status, 200, JSON.stringify(quoted.body));
