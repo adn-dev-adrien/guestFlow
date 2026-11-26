@@ -1,4 +1,4 @@
-// specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — when the tourist tax stops
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-12 — when the tourist tax stops
 // moving, and what it carries with it.
 //
 // The old rule froze a stay whose last night had gone by. That pinned bookings nobody had ever

@@ -8,7 +8,7 @@
 | **Created** | 2026-10-24 |
 | **Author** | Adrien |
 | **Related PR** | — |
-| **Decision page** | [docs/specs/2026-10-24-airbnb-mail-intake.html](../docs/specs/2026-10-24-airbnb-mail-intake.html) |
+| **Decision page** | [docs/specs/2026-10-24-airbnb-mail-intake.html](../../docs/specs/2026-10-24-airbnb-mail-intake.html) |
 
 ---
 
@@ -247,7 +247,7 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     `imap.` counterpart, or a host one label away under the same parent (never two labels, a public suffix or an
     IP), a configured host elsewhere being refused at save and ignored at use. The card shows the host used.
     `imapHost`, `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId` are declared `supportLocked`:
-    refused to a support session when changed (`specs/hosting-h2-account-security.md` rule 18, which also refuses a
+    refused to a support session when changed (`specs/hosting/hosting-h2-account-security.md` rule 18, which also refuses a
     plugin rollback). Test:
     `server/src/tests/mail-intake-credential-destination.unit.test.js`.
 

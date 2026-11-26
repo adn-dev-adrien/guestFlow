@@ -8,7 +8,9 @@
 | **Author** | Adrien |
 | **Related PR** | #561 |
 | **Decision record** | `docs/specs/2026-09-18-guest-email-sequence.html` — the interactive review (rendered mails on real cases, the decisions below) |
-| **Related** | `specs/email-automation.md`, `specs/no-automatic-email-without-approval.md`, `specs/email-history-rolling-window.md`, `specs/guest-gate-access.md` (PR #547, see rule 34) |
+| **Related** | `specs/emails/email-automation.md`, `specs/emails/no-automatic-email-without-approval.md`, `specs/emails/email-history-rolling-window.md`, `guest-gate-access` (PR #547, not merged) (PR #547, see rule 34) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 15, 16, 18, 19 and the Goal described the removed `emailAutoSendEnabled` master switch; they now state the per-template mode (`specs/settings/settings-rationalization.md` rule 17b; `server/src/utils/autoSendPolicy.js`, `emailTemplatesController.js:113`).
 
 ---
 
@@ -25,15 +27,16 @@ full-payment request, unpaid-balance cancellation notice) and are **no longer us
 every property is now paid in full at booking. The three others are the confirmation (sent when an
 online payment confirms a stay), the J-7 and the J-2 reminders. Nothing is sent after the stay.
 
-Since August 2026 (`specs/no-automatic-email-without-approval.md`) the master switch
-`emailAutoSendEnabled` is OFF in production: the 08:00 pass is not even scheduled, and every due
-email waits in « Emails à envoyer » for a click. That switch was the answer to a version that mailed
+Since August 2026 (`specs/emails/no-automatic-email-without-approval.md`) a master switch
+`emailAutoSendEnabled` was OFF in production (replaced on 2026-09-21 by each template's own mode,
+`specs/settings/settings-rationalization.md` rule 17b): the 08:00 pass was not even scheduled, and every due
+email waited in « Emails à envoyer » for a click. That switch was the answer to a version that mailed
 duplicate dunning emails to guests who had already paid.
 
 Two properties of the current email log make it unfit to guard a post-stay sequence:
 
 1. **`email_log` is purged 3 days after arrival** (`emailLogModel.purgeRealizedStays`,
-   `specs/email-history-rolling-window.md`). A J+1 logged there would be deleted a few days later,
+   `specs/emails/email-history-rolling-window.md`). A J+1 logged there would be deleted a few days later,
    and the queue's 7-day lookback would propose it again — the very mechanism of the August
    duplicates.
 2. **Nothing makes a (template, reservation) pair unique.** Every path checks the log, sends, then
@@ -49,7 +52,7 @@ réservé, il reste à votre charge » — false.
 
 ## 2. Goal
 
-Every guest receives, automatically and exactly once, a warm sequence of six emails — confirmation,
+Every guest receives, exactly once (automatically only for the templates the operator switched to « Automatique »; otherwise proposed for approval), a warm sequence of six emails — confirmation,
 J-7, J-2, J+1, the November gift-voucher email and the January greetings — whose content matches
 what their property includes and what they booked, and the operator can see in advance, without
 sending anything, what will leave, to whom and when.
@@ -126,19 +129,21 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 
 ### 3.4 Automatic sending — upcoming stays only
 
-15. The sequence sends automatically once the operator turns `emailAutoSendEnabled` ON (after
-    validating the simulation). It keeps consulting `utils/autoSendPolicy.autoSendAllowed` — the single
-    answer to « may GuestFlow mail a guest with nobody in the loop ».
-16. The first time the switch goes ON, `guestSequenceStartDate` is set to that day and shown in
-    Réglages. **No mail whose send date is before `guestSequenceStartDate` is ever sent**, and a
+15. A sequence template sends automatically only once the operator has switched **that template** to
+    « Automatique » (after validating the simulation); every sequence template ships `manual`. There is no
+    master switch (removed by `specs/settings/settings-rationalization.md` rule 17b): `utils/autoSendPolicy`
+    (`templateAutoSends`, fails closed) is the single answer to « may GuestFlow mail a guest with nobody
+    in the loop ».
+16. The first time a sequence template is switched to « Automatique », `guestSequenceStartDate` is set to
+    that day and shown in Réglages. **No mail whose send date is before `guestSequenceStartDate` is ever sent**, and a
     reservation whose stay ended before that date is out of the sequence entirely (no J+1, no
     November, no January). Past stays are never mailed retroactively.
 17. The daily 08:00 pass sends the mails due **today**, plus those due in the last 2 days that are
     still unclaimed (server down at 08:00) — never earlier than `guestSequenceStartDate`.
-18. While the switch is OFF, J-7 and J-2 keep today's behaviour (proposed in « Emails à envoyer »),
-    the confirmation keeps being queued on payment, and mails 4–6 are neither sent nor proposed.
-19. The legacy pass (`emailAutoSendRunner`) and the pending queue ignore the sequence keys when the
-    switch is ON, so a sequence mail has exactly one scheduler.
+18. A sequence template left in « Manuel »: J-7 and J-2 are proposed in « Emails à envoyer », the
+    confirmation is queued on payment, and mails 4–6 are neither sent nor proposed.
+19. The legacy pass (`emailAutoSendRunner`) and the pending queue ignore the sequence keys of the
+    templates that are « Automatique », so a sequence mail has exactly one scheduler.
 
 ### 3.5 Content rules
 
@@ -175,7 +180,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     GuestFlow does not apply them automatically: the operator adds the option as offered on the
     reservation (Out of scope).
     _Superseded for the shipped copy (noted at the 2026-10-27 spec review): since phase P (#672,
-    specs/plugins-phase-p-productisation.md) the shipped season templates are neutral and announce no
+    specs/plugins/plugins-phase-p-productisation.md) the shipped season templates are neutral and announce no
     gift; Solio's gifts, if any, are the operator's own wording in « Textes des emails »._
 29. The complement to collect on site, when any, is one sentence with the amount (« Un complément
     de 45 € reste à régler sur place à votre arrivée ») — no itemised list, no total line.
@@ -189,7 +194,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     vérifier`) and the reason. Same eligibility code as the real pass, no SMTP, no ledger write.
     *Reading of 2026-11-02 — the date window.* The simulation's `from` and `to` are real days (`02-30` used to pass)
     inside [today − 5 years, today + 5 years]: 400 `INVALID_RANGE` with the French `message`, shown by the tab;
-    the pending list's simulated `today` is held to the same window (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    the pending list's simulated `today` is held to the same window (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
     *Reading of 2026-11-03 (audit R20-C4) — the operator's day.* « Du » opens on the browser's own day and
     « Au » 60 days later (`utils/isoDay.localIsoToday` / `addIsoDays`), never the UTC day: between midnight and
     01:00 / 02:00 in Paris it used to open on yesterday. Test: `components/__tests__/EmailSequenceSimulation.local-day.test.jsx`.
@@ -202,7 +207,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     reservation, and a guest who forgot something writes anyway. The field, its endpoint, its column
     and the J+1 sentence (both the filled variant and the « Un objet oublié ? » fallback) are gone;
     the stored templates lose their `{{lostItemsParagraph}}` line at boot (§5).
-34. **Gate access** — when PR #547 (`specs/guest-gate-access.md` rule 23) lands, the J-2 « Pour
+34. **Gate access** — when PR #547 (`guest-gate-access` (PR #547, not merged) rule 23) lands, the J-2 « Pour
     venir » block carries the gate code and link. Whichever branch merges second wires it.
     > **Sans test** — nothing to test here yet: the rule commits the branch that merges second to
     > wire the two together, and the test lands with that wiring, in the J-2 render suite.
@@ -210,17 +215,17 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     the platform's « Adresse e-mail relais » switch, and the platform of the J+1 review sentence is its
     « Où laisser un avis » wording, both set in Paramètres › Plateformes; a migration wrote Solio's
     Airbnb / Booking / Gîtes de France knowledge onto its database, so its e-mails are byte-identical
-    (specs/platform-settings-relay-and-review.md rules 1–7).
+    (specs/platforms/platform-settings-relay-and-review.md rules 1–7).
 36. **« Déjà envoyé le … » is the operator's day** (2026-10-30, audit R9). The simulation dates an
     already-sent mail with the local day of the ledger's `sentAt` (a UTC `datetime('now')`), through
-    `vatRegime.bookingDayOf` (`specs/finance-dashboard-redesign.md` rule 50). *Why:* a mail sent between
+    `vatRegime.bookingDayOf` (`specs/accounting/finance-dashboard-redesign.md` rule 50). *Why:* a mail sent between
     00:00 and 01:00 / 02:00 in Paris read as sent the day before.
 37. **The unsubscribe page declares the language it speaks** (audit R42-PUB-L1, 2026-11-10). The page of rule 9, its
     confirmation and its « déjà fait » state carry `<html lang="en">` around the English copy, `lang="fr"` around the
     French one; the neutral unknown-token page stays `fr`. *Why:* it always declared `fr`, so a screen reader or a
     browser's translation offer read the English text as French, while the guest e-mails and the guest app declare
     their language. Test: `tests/email-preferences-lang.unit.test.js`.
-38. **The J-7 may say the guests can already order** (2026-11-10, `specs/guest-app.md` rules 70, 89, 90; reworded by Adrien's third
+38. **The J-7 may say the guests can already order** (2026-11-10, `specs/guest-app/guest-app.md` rules 70, 89, 90; reworded by Adrien's third
     message the same day). The core seed of the J-7 is unchanged and neutral; the guest-app plugin's operator script inserts a
     short paragraph into the *stored* `arrival_reminder_7d` (FR `body`, EN `bodyEn`), just before « Une question » / « Any
     question »: no word about paying, no app name, no tour of features — « Vous pouvez déjà commander ce que vous aimeriez trouver à
@@ -380,7 +385,7 @@ proper names: « La Granja » stayed « La granja » before), and « à » joins
 
 > _Noted at the 2026-10-27 spec review:_ this copy is no longer the source of truth. Since phase P
 > (#672) the registry ships neutral templates (`utils/defaultEmailTemplatesRegistry.js`) whose sentences
-> come from « Textes des emails » (specs/guest-email-texts-made-simple.md); the Solio wording below —
+> come from « Textes des emails » (specs/emails/guest-email-texts-made-simple.md); the Solio wording below —
 > the planche du terroir, the first-morning breakfast, the Solio-specific lines — is what Solio typed,
 > not what GuestFlow ships. The registry and the shipped texts win over this section.
 
@@ -555,7 +560,7 @@ Ne plus recevoir nos nouvelles : {{unsubscribeUrl}}
 - **Client form** — switch « Ne pas envoyer les mails après séjour » with helper text « Remerciement, bons cadeau et vœux ne lui seront pas envoyés ». When unsubscribed: `StatusBadge` « Désinscrit des nouvelles le … » (read-only).
 - **Property detail** — card « Dans les mails clients »: accroche FR / EN (`HelpedTextField`, multiline), distance du parking (m), switches « Wifi » and « Cafetière filtre familiale ».
 - **Réglages › Emails automatiques** — line « Séquence active depuis le … » (or « pas encore activée »), URL avis Google, URL Instagram, saison piscine (début / fin, JJ/MM).
-  **Amended 2026-10-28** (specs/settings-input-guards.md rules 35-44): « URL Instagram » became an
+  **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 35-44): « URL Instagram » became an
   ordered list « Réseaux sociaux » (network + URL, up to 8, validated server-side); one link renders the
   J+1 e-mail exactly as before.
 - **Public page** — « Vos préférences Domaine Solio »: one sentence and a button « Ne plus recevoir les nouvelles du domaine »; after POST, « C'est noté. Vous continuerez à recevoir les informations liées à vos séjours. » Mobile-first, no external asset.
@@ -598,7 +603,7 @@ Full server suite: 4 191 tests, all green (4 553 on 2026-09-28, after the rule 3
 
 ## 7bis. Operator setup after deploy
 
-Nothing leaves before the switch is turned on. Before turning it on:
+Nothing leaves before a sequence template is switched to « Automatique ». Before doing so:
 
 1. **Logements** — rename « Gite » → « La Granja » and « Aventura lodge » → « L'Estiva », article « à ».
 2. **Logements › Dans les mails clients** — accroche FR/EN of each property; L'Estiva: parking

@@ -9,6 +9,8 @@
 | **Related PR** | (link once opened) |
 | **Extends** | [hourly-resource-quantity-and-sas-scheduling.md](hourly-resource-quantity-and-sas-scheduling.md) §3.3, [resource-hourly-scheduling.md](resource-hourly-scheduling.md) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -50,7 +52,7 @@ séance qui ne peut pas être chauffée le jour même.
 4. **La tâche est une carte de planning comme les autres** : même thème « ressource », placée à son
    heure d'allumage dans le fil chronologique de sa journée — ou **en fin de journée** quand l'allumage
    tombe dans la nuit qui suit — avec sa **coche**, donc comptée dans le compteur de tâches du jour
-   ([planning-day-task-count.md](planning-day-task-count.md)).
+   ([planning-day-task-count.md](../planning/planning-day-task-count.md)).
 5. **Libellé** : « Démarrer <nom de la ressource> », suivi du client et du logement de la séance, et de
    la séance qu'elle prépare : « pour demain 09:00 » (ou « dans 2 jours » au-delà).
 6. **La coche est indépendante** de celle de la séance : allumer la veille et préparer le lendemain sont
@@ -111,7 +113,7 @@ avec le client et le logement, et sa coche. Rien d'autre ne bouge.
 
 ## 7. Test plan
 
-### Server unit tests (`server/src/tests/resource-ignition-task.unit.test.js`, 7 tests)
+### Server unit tests (`server/src/plugins/hourly-resources/tests/resource-ignition-task.unit.test.js`, 7 tests)
 - [x] Séance le matin (09:00) + 8 h de chauffe → carte la veille, en fin de journée, `ignitionAt = 01:00`.
 - [x] Séance l'après-midi → aucune carte (allumage le matin même).
 - [x] `heatUpMinutes = 0` → aucune carte (non-régression).

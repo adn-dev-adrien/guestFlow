@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { simulateInventory, ALL_TYPES } = require('../linenInventory');
 const { constantSchedule } = require('./laundry-schedule-fixtures');
 
-// specs/skip-laundry-trip.md §3.2 + §7.1 — engine-level coverage for the skip feature.
+// specs/linen/skip-laundry-trip.md §3.2 + §7.1 — engine-level coverage for the skip feature.
 //
 // A skip on date D means: don't pick up, don't drop off on D. The dirty stays dirty, the
 // at-laundry stays at the laundry. At the next non-skipped trip D', the engine picks up

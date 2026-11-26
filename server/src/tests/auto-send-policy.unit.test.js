@@ -1,6 +1,6 @@
 /**
  * utils/autoSendPolicy — the single predicate guarding every automatic guest email
- * (specs/no-automatic-email-without-approval.md §3 rule 1, specs/settings-rationalization.md
+ * (specs/emails/no-automatic-email-without-approval.md §3 rule 1, specs/settings/settings-rationalization.md
  * rule 17b: a template's own mode is the only switch).
  *
  * The behaviour that matters here is what happens when the answer is UNCLEAR: a missing template, a

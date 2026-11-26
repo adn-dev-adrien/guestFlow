@@ -15,7 +15,7 @@
 The « Extraction taxe de séjour » page (`/finance/tourist-tax`, `financeModel.getTouristTaxExtraction`)
 attributes a stay's tax to the **month its tax-carrying échéance was paid** (`balancePaidDate`, or
 `complementPaidDate` for tax collected on arrival) — a deliberate choice made in
-`specs/tourist-tax-on-solde.md` (« déclarer quand encaissé », 2026-06-23).
+`specs/tourist-tax/tourist-tax-on-solde.md` (« déclarer quand encaissé », 2026-06-23).
 
 In practice this is wrong for the commune declaration: a stay ending in June whose solde was paid in May
 shows up in the **May** declaration, even though the taxed nights are all in June. The declaration must
@@ -32,7 +32,7 @@ appears, so the operator never remits a tax that was not collected.
 
 1. **Eligibility unchanged:** only stays whose tax the operator must remit to the commune (direct,
    platform-reverses, owner-collected-at-arrival — `touristTaxRemittedByPlatform = 0` logic of
-   `specs/per-platform-tourist-tax-three-way.md`) are listed. `kind = 'reservation'` only.
+   `specs/tourist-tax/per-platform-tourist-tax-three-way.md`) are listed. `kind = 'reservation'` only.
 2. **Payment still required:** a stay appears only once its tax-carrying échéance is paid —
    `balancePaid = 1` normally, `complementPaid = 1` when the tax is collected on arrival
    (`TAX_ON_ARRIVAL_SQL` unchanged). Unpaid → absent from every month. *(Unchanged from
@@ -52,12 +52,12 @@ appears, so the operator never remits a tax that was not collected.
    accepted.
 6. **Single-month invariant preserved:** `max()` of two fixed dates is deterministic, so a reservation
    still appears in **exactly one** monthly extraction — the « Déclarée » per-reservation checkbox
-   (`specs/tourist-tax-declared-checkbox.md`) needs no change.
+   (`specs/tourist-tax/tourist-tax-declared-checkbox.md`) needs no change.
 7. **A stay with an installment plan enters at its stay month, whatever is paid** (2026-11-05, D14,
    Adrien's decision). The plan is read from `reservation_installments`: fully paid, partly paid or
    nothing paid yet, the stay is listed in the month of its last night and for its whole tax, payment
    dates playing no part, including a complement that carries the tax. *Why:* paying an installment
-   leaves `balancePaid` at 0 (`specs/direct-installments.md` rule 51), so a stay paid through a plan
+   leaves `balancePaid` at 0 (`specs/payments/direct-installments.md` rule 51), so a stay paid through a plan
    never reached the page and its tax was never offered for declaration. Listed is not declarable: the
    early-declaration reading first recorded here was withdrawn by Adrien on 2026-11-05 (D16), the tick waits
    for every installment paid and the stay over (`tourist-tax-declared-checkbox.md` rule 8). The row placement
@@ -104,7 +104,7 @@ appears, so the operator never remits a tax that was not collected.
 | `models/` | `financeModel.js` | T | Rule 9 (2026-11-06): `getTouristTaxRows` drops a stay whose frozen tax is 0 €. |
 | `tests/` | `tourist-tax-review-fixes.unit.test.js` | C | Rule 9, on the monthly page and the report. |
 | `tests/` | `fixtures/vat-regime/golden.json` | T | `tourist-tax/2027-07` regenerated, that key alone: the golden's stay 106 has a plan. |
-| `models/` | `financeModel.js` | T | 2026-11-05 (`specs/tourist-tax-report-v2.md` rule 1): this WHERE clause now lives in `getTouristTaxRows({ start, endExclusive })`, which the monthly extraction calls for its month and the period report for any window; the SQL is unchanged. |
+| `models/` | `financeModel.js` | T | 2026-11-05 (`specs/tourist-tax/tourist-tax-report-v2.md` rule 1): this WHERE clause now lives in `getTouristTaxRows({ start, endExclusive })`, which the monthly extraction calls for its month and the period report for any window; the SQL is unchanged. |
 | `routes/` / `controllers/` | — | — | (none — endpoint contract unchanged) |
 | `database.js` | — | — | (no schema change) |
 

@@ -1,5 +1,5 @@
 // An offered line sold at arrival keeps its floor on the count the field shows
-// (specs/non-card-option-served-persons.md rule 27, audit R21-L2). Its `quantity` stays 1 and it bills 0 €, so neither
+// (specs/options/non-card-option-served-persons.md rule 27, audit R21-L2). Its `quantity` stays 1 and it bills 0 €, so neither
 // the quantity nor the amount can see a reduction: only the typed count can.
 
 process.env.DB_PATH = ':memory:';

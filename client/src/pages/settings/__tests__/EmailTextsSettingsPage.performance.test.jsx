@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 50–52 (specs/inte-performance.md lot 1): the first preview
+// specs/emails/guest-email-texts-made-simple.md rules 50–52 (specs/tech/inte-performance.md lot 1): the first preview
 // does not wait for the typing debounce, a folded section's fields are not mounted, and each section's
 // « Email » selector holds its own email.
 import { vi } from 'vitest';

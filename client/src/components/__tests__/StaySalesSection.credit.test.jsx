@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 32 and 104 e (stabilisation loop t6, UI6-3) — the rule-104 credit under « Déjà payé » in « Ventes du séjour —
+// specs/pricing/pricing-components.md §3 rules 32 and 104 e (stabilisation loop t6, UI6-3) — the rule-104 credit under « Déjà payé » in « Ventes du séjour —
 // au départ » is money already received, not a line: it offers no « Offrir » (the server marks it `offerable: false`) and reads its label once.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

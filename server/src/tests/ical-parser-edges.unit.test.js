@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rule 16 (audit 2026-10-27) — three valid feeds the parser misread:
+// specs/platforms/ical-import-hardening.md rule 16 (audit 2026-10-27) — three valid feeds the parser misread:
 // `BEGIN:VEVENT` followed by blanks (0 events), `DURATION` instead of `DTEND` (1 night), and a stay
 // whose DESCRIPTION happens to say « non disponible » / « blocked » although its summary names a guest.
 process.env.TZ = 'Europe/Paris';
@@ -38,7 +38,7 @@ test('host blocks are still dropped: by their summary, or by their description w
   assert.equal(isUnavailableIcalEvent('', 'Not available'), true);
   assert.equal(isUnavailableIcalEvent('Reserved', 'blocked'), true);
   assert.equal(isUnavailableIcalEvent('Reserved', 'Reservation URL: https://x'), false);
-  // Booking's feed keeps them (specs/lodgify-decommission.md §3 rule 5).
+  // Booking's feed keeps them (specs/platforms/lodgify-decommission.md §3 rule 5).
   const closed = 'BEGIN:VEVENT\r\nUID:b\r\nDTSTART;VALUE=DATE:20270705\r\nDTEND;VALUE=DATE:20270710\r\nSUMMARY:CLOSED - Not available\r\nEND:VEVENT';
   assert.deepEqual(dates(closed), []);
   assert.deepEqual(dates(closed, { keepUnavailable: true }), [['2027-07-05', '2027-07-10']]);

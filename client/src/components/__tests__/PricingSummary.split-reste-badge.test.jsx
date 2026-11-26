@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rule 16 (audit R34-C-L3) — a solde paid with several methods that left a « Reste à
+// specs/payments/mixed-method-payments.md rule 16 (audit R34-C-L3) — a solde paid with several methods that left a « Reste à
 // percevoir » is not settled: the summary's badge reads the ledger's state, never the green « Solde payé ».
 import React from 'react';
 import { render, screen } from '@testing-library/react';

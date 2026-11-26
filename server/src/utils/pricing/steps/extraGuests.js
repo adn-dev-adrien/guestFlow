@@ -1,5 +1,5 @@
 /**
- * STEP extraGuests — EXTRA GUESTS (specs/pricing-components.md §3 rule 52).
+ * STEP extraGuests — EXTRA GUESTS (specs/pricing/pricing-components.md §3 rule 52).
  *
  * The supplement of the guests above what the rate includes, split between the platform's brut and the arrival
  * complement.
@@ -29,7 +29,7 @@ const step = {
     } = ctx;
     const guestSettings = settings.extraGuests;
 
-    // specs/tariff-recipes/spec.md §3.2 rule 12bis — a reservation is priced by the tariff in force
+    // specs/pricing/tariff-recipes.md §3.2 rule 12bis — a reservation is priced by the tariff in force
     // WHEN IT WAS SOLD. Nights and option lines were already frozen (per date, per line); the
     // property-level tariff was not, so editing an old reservation silently re-priced its supplement
     // with today's recipe. `lockedTariff` is that missing half, captured at creation and replayed on
@@ -44,7 +44,7 @@ const step = {
     const extraGuestPriceUnit = (lockedTariff?.extraGuestPriceUnit ?? guestSettings.extraGuestPriceUnit) === 'per_night'
       ? 'per_night' : 'per_stay';
     const isExtraGuestSurchargeOffered = Boolean(extraGuestSurchargeOffered);
-    // specs/platform-extra-guest-complement.md — a non-direct reservation counts no supplement until its
+    // specs/platforms/platform-extra-guest-complement.md — a non-direct reservation counts no supplement until its
     // brut is entered (rule 1); once it is, the guests above what the platform billed are collected on
     // arrival (rules 7-10) and only they can be offered (rule 13).
     const hasBrutPin = isBrutPinned(platform, platformGrossAmountInput);

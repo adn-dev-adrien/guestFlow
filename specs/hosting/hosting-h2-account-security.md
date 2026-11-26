@@ -7,9 +7,9 @@
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) §14 « Security » |
-| **Console** | [`specs/control-plane-plans-and-access.md`](control-plane-plans-and-access.md) — rule 25 (a password reset stays on the instance), rule 31 (operator 2FA, reused here) |
-| **Summary for review** | [`docs/specs/2026-10-08-hosting-h2-account-security.html`](../docs/specs/2026-10-08-hosting-h2-account-security.html) — rules 38–53: [`docs/specs/2026-10-28-account-two-factor-ux.html`](../docs/specs/2026-10-28-account-two-factor-ux.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) §14 « Security » |
+| **Console** | [`specs/hosting/control-plane-plans-and-access.md`](control-plane-plans-and-access.md) — rule 25 (a password reset stays on the instance), rule 31 (operator 2FA, reused here) |
+| **Summary for review** | [`docs/specs/2026-10-08-hosting-h2-account-security.html`](../../docs/specs/2026-10-08-hosting-h2-account-security.html) — rules 38–53: [`docs/specs/2026-10-28-account-two-factor-ux.html`](../../docs/specs/2026-10-28-account-two-factor-ux.html) |
 | **Amendment branch** | `feature/account-two-factor-ux` (from `inte/plugins`, 2026-10-28) |
 
 ---
@@ -164,7 +164,7 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       readable, and is refused to a support session only when the value sent **differs from the stored one**
       (the card's form sends every key, so an unchanged save passes) — the intake plugins' `imapHost`,
       `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId`, which decide where the SMTP password
-      is sent and who vouches for a sender (`specs/airbnb-mail-intake.md` rules 22–23). Also refused:
+      is sent and who vouches for a sender (`specs/platforms/airbnb-mail-intake.md` rules 22–23). Also refused:
       `POST /api/plugins/:id/rollback` and `POST /api/plugins/:id/update` with a chosen `version`, since a
       support session must not bring back code from before a security fix (the newest-version update stays
       allowed). Test: `mail-intake-credential-destination.unit.test.js`.
@@ -214,7 +214,7 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     guard refuses them with rule 18's « Identifiants et accès réservés au client. », whatever the case
     or a trailing slash. Declared today: the Booking userscript and its secret
     (`GET /api/booking-intake/userscript.user.js`, `POST /api/booking-intake/secret`,
-    `POST …/secret/regenerate`, `specs/booking-extranet-intake.md` rule 26) and the gate connector's
+    `POST …/secret/regenerate`, `specs/platforms/booking-extranet-intake.md` rule 26) and the gate connector's
     keys (`GET /api/settings/gate-connector/secrets`). The core also refuses rotating a property's iCal
     export token (`POST /api/ical/regenerate-token/:id`), which breaks the feed every platform imports.
     Audit of the other plugins on that date: the Météo-France key is a setting declared `secret`
@@ -826,12 +826,12 @@ cet appareil (30 jours) », six cells (one wide cell for a backup code), the mes
 (« Vérification… », « Nouveau code envoyé… » or the refusal), « Utiliser un code de secours », then
 « Retour » / « Renvoyer le code ». Same layout on a phone and on a desktop (the card is 400 px at
 most); at 390 px each cell is about 45 px wide. Interactive mock:
-[`docs/specs/2026-10-19-otp-field-and-guest-email-html.html`](../docs/specs/2026-10-19-otp-field-and-guest-email-html.html).
+[`docs/specs/2026-10-19-otp-field-and-guest-email-html.html`](../../docs/specs/2026-10-19-otp-field-and-guest-email-html.html).
 
 *2026-10-28 (rules 38–53):* the whole flow — card off, dialog steps 1–3 (computer and phone layouts),
 a wrong code with the tries left, the 5th refusal, the email fallback, the gated « Terminé », the card on
 with low codes, « Changer d’appli » and « Désactiver » with password + code — is mocked interactively in
-[`docs/specs/2026-10-28-account-two-factor-ux.html`](../docs/specs/2026-10-28-account-two-factor-ux.html)
+[`docs/specs/2026-10-28-account-two-factor-ux.html`](../../docs/specs/2026-10-28-account-two-factor-ux.html)
 (desktop and 390 px). Phone specifics are rule 52.
 
 ## 7. Test plan
@@ -996,7 +996,7 @@ Implemented 2026-10-08 on `feature/hosting-h2-account-security` (target `inte/pl
 - **E2E:** `e2e/specs/account-security/hosting-h2.spec.js` (3), through the dev outbox and a TEST-ONLY
   key pair (`e2e/fixtures/accountSecurity.js`). _2026-11-16 (pricing-components loop t3):_ the support flow (rules 12-16) moved to
   `account-security/support-access.spec.js`, a Playwright project of its own: its request is a banner of the whole app
-  (`specs/e2e-playwright-smoke-suite.md` rule 20).
+  (`specs/tech/e2e-playwright-smoke-suite.md` rule 20).
 - **Browser check** on a copy of the dev database at 1280 px and 390 px: forgotten password through
   the outbox, refusal of a short password, TOTP enrolment (wrong code refused), backup codes, login
   with a computed code, trusted device, backup code at login, lock after 5 codes, banner, support

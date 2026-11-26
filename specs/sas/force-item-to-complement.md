@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -18,7 +20,7 @@ The reservation page splits money owed into three encaissements: **acompte** (de
 - Deposit paid, balance unpaid → `depositAmount` locked at received value, `balanceAmount` derives from current preArrival minus the locked deposit, complement = 0.
 - Both paid → both locked, `complementAmount = max(0, totalStayTtc − depositAmount − balanceAmount)` absorbs anything added after.
 
-The accounting export ([accountingModel.js:134](server/src/models/accountingModel.js#L134)) emits one journal entry per actually-paid encaissement and pro-rates each entry's per-bucket HT/VAT (accommodation / options / resources) against the **current** quote totals using `fraction = encaissementTtc / totalStayTtc`. This works mathematically (totals conserve) but has two gaps Adrien wants to lift:
+The accounting export ([accountingModel.js:134](server/src/plugins/accounting-export/accountingModel.js#L134)) emits one journal entry per actually-paid encaissement and pro-rates each entry's per-bucket HT/VAT (accommodation / options / resources) against the **current** quote totals using `fraction = encaissementTtc / totalStayTtc`. This works mathematically (totals conserve) but has two gaps Adrien wants to lift:
 
 1. **No manual override per item.** No way to say "this option / resource / custom / tourist-tax belongs in complément, regardless of the auto rules." Use cases: an item added late and invoiced separately, a cleaning fee handled cash-on-arrival, a tourist tax the owner wants outside the encaissements.
 2. **Item growth pollutes earlier entries.** If an option starts at qty 1 (30 €), gets paid in acompte + solde, then the client adds qty 1 (now 60 €), the engine correctly absorbs the +30 € into `complementAmount`. But the journal pro-rates the **full 60 €** across all three entries, so the Acompte entry shows ~16 € of options even though the deposit was paid back when the option was only 30 €. Cross-bucket contamination. PricingSummary likewise shows ONE line "Ménage 60 €" with no visual indication of the split.

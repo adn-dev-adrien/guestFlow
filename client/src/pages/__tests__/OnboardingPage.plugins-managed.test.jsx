@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 8 — on an operator-managed space the start assistant has no
+// specs/plugins/plugin-operator-provisioning.md rule 8 — on an operator-managed space the start assistant has no
 // « Plugins » step: the other steps are numbered without a gap, and the last step drops the
 // « Plugins : … » link. An unmanaged space keeps the five steps.
 import React from 'react';

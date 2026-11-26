@@ -151,7 +151,7 @@ outside the reachable output directory, whereas the auto-named file appears in `
 and can be copied to the operator's Desktop. Never leave deliverables in a session scratchpad: the
 operator cannot open those paths.
 
-Design: honour `specs/design-system.md` — vert sapin `#2F5D46`, papier `#F8F5EF`, encre `#27251F`,
+Design: honour `specs/design-system/design-system.md` — vert sapin `#2F5D46`, papier `#F8F5EF`, encre `#27251F`,
 Source Serif 4 for headings, Inter for body, **amounts never in serif**, always `tabular-nums`,
 both themes. The faces are self-hosted in `client/node_modules/@fontsource/`; inline them as data
 URIs, never link a CDN (the artifact CSP blocks it).

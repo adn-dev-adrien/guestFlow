@@ -8,8 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) — target `inte/plugins` |
 | **Plugins** | `hourly-resources` (owner), `online-payment` (Qonto issuer), `accounting-export` (journal) |
-| **Builds on** | [`plugins-phase-3c-hourly-resources.md`](plugins-phase-3c-hourly-resources.md), [`resource-supplements-total-server-side.md`](resource-supplements-total-server-side.md), [`resource-hourly-scheduling.md`](resource-hourly-scheduling.md), [`qonto-bank-reconciliation.md`](qonto-bank-reconciliation.md), [`accountant-accounting-export.md`](accountant-accounting-export.md) |
-| **Summary for decision** | [`docs/specs/2026-11-09-resource-booking-invoicing.html`](../docs/specs/2026-11-09-resource-booking-invoicing.html) |
+| **Builds on** | [`plugins-phase-3c-hourly-resources.md`](../plugins/plugins-phase-3c-hourly-resources.md), [`resource-supplements-total-server-side.md`](resource-supplements-total-server-side.md), [`resource-hourly-scheduling.md`](resource-hourly-scheduling.md), [`qonto-bank-reconciliation.md`](../accounting/qonto-bank-reconciliation.md), [`accountant-accounting-export.md`](../accounting/accountant-accounting-export.md) |
+| **Summary for decision** | [`docs/specs/2026-11-09-resource-booking-invoicing.html`](../../docs/specs/2026-11-09-resource-booking-invoicing.html) |
 
 ---
 

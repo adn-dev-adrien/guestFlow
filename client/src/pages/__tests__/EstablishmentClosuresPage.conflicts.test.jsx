@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 40, 41 and 49 — the closure dialog asks the server what the closure
+// specs/payments/payment-link-lifecycle.md rules 40, 41 and 49 — the closure dialog asks the server what the closure
 // would meet as soon as the logement and both dates are set, shows the red and amber lines with « Ouvrir »,
 // keeps Save enabled, and renders the lists a refused save answers.
 import React from 'react';

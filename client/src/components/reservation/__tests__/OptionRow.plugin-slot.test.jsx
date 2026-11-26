@@ -1,4 +1,4 @@
-// specs/plugins-phase-3b-neat.md rules 16, 22 — a plugin draws under the lines it applies to, from its
+// specs/plugins/plugins-phase-3b-neat.md rules 16, 22 — a plugin draws under the lines it applies to, from its
 // own block; an option the catalogue hides but the stay carries is drawn read-only at its frozen price.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

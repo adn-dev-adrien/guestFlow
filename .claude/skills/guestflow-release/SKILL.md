@@ -44,7 +44,7 @@ node -p "require('./package.json').version" # the current version
 ### What each digit means
 
 `X.Y.Z` is not three counters. Each digit answers a different question
-(specs/self-update-and-releases.md §3.A rule 2):
+(specs/hosting/self-update-and-releases.md §3.A rule 2):
 
 | | Meaning | Derived from |
 |---|---|---|
@@ -107,7 +107,7 @@ The E2E suite needs ports 3000/4000. Free them without asking (`npm run stop`), 
 the dev database on the way through.
 
 Then the plugin packages, exactly as the release's `package` job will judge them — so that job can
-never stop the release after the tag (specs/plugins-phase-4-registry.md rule 27). The plugins' web apps are
+never stop the release after the tag (specs/plugins/plugins-phase-4-registry.md rule 27). The plugins' web apps are
 built first, as that job builds them: a package without its apps' build differs from the published one, and
 one with a stale local build is judged on stale content:
 
@@ -144,7 +144,7 @@ node scripts/build-changelog.mjs                  # preview the pending fragment
 node scripts/build-changelog.mjs --release X.Y.Z   # fold them into a dated section
 ```
 
-The release PR never edits a plugin manifest (specs/plugins-phase-4-registry.md rule 28): each pull
+The release PR never edits a plugin manifest (specs/plugins/plugins-phase-4-registry.md rule 28): each pull
 request that changes a plugin bumps its version and writes its French changelog lines in that
 plugin's `manifest.json`, and CI refuses it otherwise. If the check above fails, stop the release and
 fix the plugin's version in an ordinary PR first. A « would refuse these bundled plugins at boot » means
@@ -159,7 +159,7 @@ translate them, because `## [2.0.0]` onwards is English and a section that mixes
 accident. If the section is empty there is nothing to release — stop and say so.
 
 **3b — the digest, in French.** `--release` scaffolds a `### Summary` block holding a TODO. Replace
-it (specs/self-update-and-releases.md rule 20c):
+it (specs/hosting/self-update-and-releases.md rule 20c):
 
 - **French**, unlike the rest of the file — it is the one block written to be read inside the
   application, under the French heading « En bref », by a French operator;
@@ -312,7 +312,7 @@ CLAUDE.md §5.2 ban on force-pushing branches still stands.
 
 ## Step 8b — Sign the release (mandatory)
 
-Rule 41 of `specs/self-update-and-releases.md`. Production verifies signatures (`GUESTFLOW_RELEASE_PUBLIC_KEY`
+Rule 41 of `specs/hosting/self-update-and-releases.md`. Production verifies signatures (`GUESTFLOW_RELEASE_PUBLIC_KEY`
 set since 2026-11-25), so a published release without `SHA256SUMS.sig` is **refused at install**
 (`SIGNATURE_MISSING`). This step is never skipped.
 

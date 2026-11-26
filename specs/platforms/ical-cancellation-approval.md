@@ -35,7 +35,7 @@ A few observations on the live behavior:
 2. **The auto-delete path does NOT honour `icalSyncLocked`** — it deletes regardless of
    whether the user has manually edited the reservation. That is the safety problem Adrien
    ran into for date drifts (separate spec
-   [ical-sync-override-locked-dates.md](specs/ical-sync-override-locked-dates.md)), and
+   [ical-sync-override-locked-dates.md](ical-sync-override-locked-dates.md)), and
    it applies here too: a user-edited reservation can silently vanish if the platform
    drops the UID for any reason (re-issued UID + new event, transient feed glitch, the
    user cancelled and un-cancelled on the platform, etc.).
@@ -189,12 +189,12 @@ dropped the UID.
     in place, with no stay to read them from. This is the decision, not a leak: nothing reads a history
     without holding its stay's id, ids are never reused, and the audit trail of a deleted stay stays
     available to a database read. The **only** path that deletes history rows is the purge of an untouched
-    website request (`devisModel.purgePublicRequest`, specs/public-request-abuse-and-grouping.md rule 10):
+    website request (`devisModel.purgePublicRequest`, specs/site/public-request-abuse-and-grouping.md rule 10):
     that quote was never acted on by anyone, so its trail carries nothing worth keeping.
 16. **The pace ledger is written only for a stay that is really deleted** _(added 2026-10-29, audit R2)_.
-    Approving a cancellation records the `booking_pace_cancellations` row (specs/booking-pace.md §5) only
+    Approving a cancellation records the `booking_pace_cancellations` row (specs/pricing/booking-pace.md §5) only
     when the stay is hard-deleted. A stay kept as cancelled (rule 52 of
-    specs/payment-schedule-and-cancellation.md) is already counted as a cancelled row: a ledger row too would
+    specs/payments/payment-schedule-and-cancellation.md) is already counted as a cancelled row: a ledger row too would
     count it twice.
 
 **Edge cases:**

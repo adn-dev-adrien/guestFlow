@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance, dueRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » chosen at check-in: the
+// specs/sas/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » chosen at check-in: the
 // fiche shows ONE « Complément de fin de séjour » (arrival lines + end-of-stay lines, one total, one
-// paid action) instead of two that read like a double count. Since specs/reservation-payment-ledger.md
+// paid action) instead of two that read like a double count. Since specs/payments/reservation-payment-ledger.md
 // rule 22 it is one ledger row; the server settles both buckets (rule 8 of the defer spec).
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));

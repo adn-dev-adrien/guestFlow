@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-// specs/neat-cancellation-insurance-subscription.md §6.1 — the « Assurance annulation (Neat) »
+// specs/plugins/neat-cancellation-insurance-subscription.md §6.1 — the « Assurance annulation (Neat) »
 // Réglages card: status badge, credentials (secret 3-way), margin, discovery selects, mapping rows.
 
 vi.mock('../../../api', () => ({

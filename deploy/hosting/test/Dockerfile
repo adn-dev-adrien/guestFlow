@@ -1,5 +1,5 @@
 # A throwaway Debian 12 host with systemd as PID 1, for the real-host check of
-# specs/hosting-h1-fleet-runtime.md (deploy/hosting/test/README.md). Never used in production.
+# specs/hosting/hosting-h1-fleet-runtime.md (deploy/hosting/test/README.md). Never used in production.
 FROM debian:12
 ENV container=docker DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -qq && apt-get install -y -qq systemd systemd-sysv sudo curl ca-certificates gnupg git python3 \

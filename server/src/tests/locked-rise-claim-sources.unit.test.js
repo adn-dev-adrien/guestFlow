@@ -1,4 +1,4 @@
-// specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-06 (audit R27-RES-1) — on a started, still
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-06 (audit R27-RES-1) — on a started, still
 // locked fiche whose end of stay is collected, a rise of finalPrice + touristTaxTotal is refused only for the part nothing
 // claims. Every source that can claim it, one test each:
 //   - an unpaid acompte / solde / complement / end of stay: eos-paid-refuses-growth « finding 1 » (direct and the three
@@ -7,7 +7,7 @@
 //   - the trop-perçu still open before the save (the ledger's figure, net of the free refunds): eos-paid-refuses-growth
 //     « R27-RES-1 », and below, net of a refund, held in the caisse interne, on a fully paid plan;
 //   - a refund already made: not a claim, the money is gone (below);
-//   - a platform stay whose payout is received: no trop-perçu there (specs/reservation-refunds.md rule 38), nothing claims (below).
+//   - a platform stay whose payout is received: no trop-perçu there (specs/payments/reservation-refunds.md rule 38), nothing claims (below).
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -124,7 +124,7 @@ test('a platform payout still pending claims the rise: the discount typed by mis
   assert.equal(rowOf(stay.id).finalPrice, 590);
 });
 
-test('a platform payout received: no trop-perçu on a platform (specs/reservation-refunds.md rule 38), nothing claims the rise, refused', async () => {
+test('a platform payout received: no trop-perçu on a platform (specs/payments/reservation-refunds.md rule 38), nothing claims the rise, refused', async () => {
   const { stay, moved } = await typoAfterCollection({ platform: PLATFORM.remitted });
   assert.equal(overpayment(stay.id), 0);
   assertRefused(await save(stay, { ...moved, discountPercent: 5 }), stay, 500);

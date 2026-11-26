@@ -8,14 +8,16 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 2 now states that `auto` is a per-template operator choice (policy in `specs/emails/no-automatic-email-without-approval.md` rule 11); rule 6 no longer claims a single default template. Client file names in §4.2 are the `.jsx` ones (`client/src/pages/EmailTemplatesPage.jsx`).
+
 ---
 
 ## 1. Context
 
 GuestFlow already ships full SMTP infrastructure (settings UI in `/settings`,
-[`settingsModel.decryptedSmtpSettings()`](../server/src/models/settingsModel.js),
-[`utils/emailService.js`](../server/src/utils/emailService.js) wrapping `nodemailer`,
-plain-text body helpers in [`utils/emailTemplates.js`](../server/src/utils/emailTemplates.js)).
+[`settingsModel.decryptedSmtpSettings()`](../../server/src/models/settingsModel.js),
+[`utils/emailService.js`](../../server/src/utils/emailService.js) wrapping `nodemailer`,
+plain-text body helpers in [`utils/emailTemplates.js`](../../server/src/utils/emailTemplates.js)).
 The only thing it sends today is the admin "welcome / password-reset" email — there is **no
 mechanism to communicate with future guests** at scheduled times (arrival reminders,
 deposit reminders, post-stay messages…).
@@ -53,7 +55,10 @@ The operator can:
    `sendMode` (`'auto'` | `'manual'`), `enabled` (boolean), `createdAt`, `updatedAt`.
 2. **Send mode semantics.**
    - `auto` → the daily scheduled task sends the email automatically when a reservation
-     matches the offset day. The send is then logged.
+     matches the offset day. The send is then logged. Every template ships `manual`; `auto` is the
+     operator's explicit choice per template, and the only way a guest e-mail leaves without a click
+     (`specs/emails/no-automatic-email-without-approval.md` rule 11, `utils/autoSendPolicy.js`; payment-request
+     templates can never be `auto`).
    - `manual` → the daily task does NOT send. Instead, the template + reservation pair is
      listed on the **dashboard pending email widget** with a count badge; the operator
      reviews + sends (or dismisses) each one explicitly.
@@ -111,8 +116,8 @@ The operator can:
    one test case asserting the seed inserts it. No DB migration, no controller change.
    This is the explicit design goal so AI-assisted additions stay trivial.
 
-   **The PR ships exactly one default template** (the J-7 arrival reminder). The registry
-   structure invites more to land in follow-up PRs.
+   **The first PR shipped exactly one default template** (the J-7 arrival reminder); the registry now
+   holds the whole guest sequence and the payment templates (`specs/emails/guest-email-sequence.md`).
 7. **Scheduled cron task.** Runs every day at **08:00 server-local time**. For each
    enabled `auto` template + every reservation whose effective offset day matches today
    (`reservation.startDate + template.dayOffset === today`), the task:
@@ -178,7 +183,7 @@ The operator can:
     inferred from an arbitrary accommodation / brand name (gender isn't derivable from
     spelling; brand names aren't in any lexicon), so it is an **operator-chosen attribute
     on the property**: `properties.nameArticle ∈ { 'au', 'à la', "à l'", 'aux', 'à' }` (« à » added
-    2026-09-18 for names carrying their own article — « à La Granja », specs/guest-email-sequence.md §5), default
+    2026-09-18 for names carrying their own article — « à La Granja », specs/emails/guest-email-sequence.md §5), default
     `'au'`. The context builder exposes a `{{propertyWithArticle}}` token = article + name,
     where the apostrophe form **elides** (glued, no space) and the others get a space.
     `{{propertyName}}` (plain name) stays available for lines like "- Logement : …". The
@@ -233,18 +238,18 @@ The operator can:
     emails (« J-7 », « Jour J »), « Lendemain du départ » / « N j après le départ » for a template tied to
     the departure. The list, the mobile cards and the send dialog's template list read it.
     *2026-10-19 (UI/UX review 2026-10-18, decision 11):* the label is the « Quand » sentence of
-    specs/guest-email-texts-made-simple.md rule 43 without its « Envoyé »: « 2 jours avant l'arrivée »,
+    specs/emails/guest-email-texts-made-simple.md rule 43 without its « Envoyé »: « 2 jours avant l'arrivée »,
     « Le jour de l'arrivée », « Le 15 novembre », « Le lendemain du départ », « 3 jours après l'échéance
     du solde ». The dialog edits it as that sentence, no longer as a signed « Décalage en jours ».
 17. **The full template editor shows labels, like « Textes des emails ».** Subject and body (FR/EN) are
     edited through the same token field: each variable and condition by its French label (« ⟦Prénom du
     voyageur⟧ », « ⟦Si parking⟧ … ⟦fin si⟧ »), chips under the field, the raw `{{token}}` saved; never
-    a raw `{{#if}}` on screen. A refusal lands under its field, in labels (specs/guest-email-texts-made-simple.md
+    a raw `{{#if}}` on screen. A refusal lands under its field, in labels (specs/emails/guest-email-texts-made-simple.md
     rule 27).
     *2026-10-19 (UI/UX review 2026-10-18, decisions 5 and 12):* the chips leave the field: « + Variable »
-    or a typed `[` opens the list (specs/guest-email-texts-made-simple.md rule 41); FR | EN shows one
-    language at a time (specs/guest-email-texts-made-simple.md rule 42); the list of templates is the
-    timeline of specs/guest-email-texts-made-simple.md rule 44.
+    or a typed `[` opens the list (specs/emails/guest-email-texts-made-simple.md rule 41); FR | EN shows one
+    language at a time (specs/emails/guest-email-texts-made-simple.md rule 42); the list of templates is the
+    timeline of specs/emails/guest-email-texts-made-simple.md rule 44.
 18. **A pending email has its own « Envoyer » button.** The row still opens the send dialog; the button
     says so next to « Marquer comme envoyé » and « Ignorer ».
 19. **An iCal placeholder is greeted neutrally (2026-10-18).** When the reservation's client is an iCal
@@ -349,7 +354,7 @@ keys; everything else passes through as empty string.
 | `clientEmail` | `clients.email` | string |
 | `clientPhone` | `clients.phone` | string |
 | `clientAddress` | concat of `streetNumber` + `street` + `postalCode` + `city` | string |
-| `reservationNumber` | `reservations.reservationNumber` (gated by `{{#if hasReservationNumber}}`) | `AAAA-MM-###` — see `specs/reservation-number-and-search.md` |
+| `reservationNumber` | `reservations.reservationNumber` (gated by `{{#if hasReservationNumber}}`) | `AAAA-MM-###` — see `specs/reservations/reservation-number-and-search.md` |
 | `startDate` | `reservations.startDate` | `dd MMMM yyyy` (FR locale) |
 | `endDate` | `reservations.endDate` | same |
 | `checkInTime` | `reservations.checkInTime` ⇢ fallback `property.defaultCheckIn` | `HH:mm` |
@@ -827,7 +832,7 @@ inline property form just above the capacity fields. The value is stored on
   if needed.
 - **Inline images / PDF attachments.** ~~HTML bodies — plain text only.~~ Lifted 2026-10-19 (UI/UX
   review, decision 15): guest emails also carry an HTML part derived from the same text
-  (specs/guest-email-texts-made-simple.md rules 37–39).
+  (specs/emails/guest-email-texts-made-simple.md rules 37–39).
 - **Cancellation handling.** GuestFlow doesn't carry a cancelled flag today; the cron
   doesn't skip cancelled stays.
 - **Email open / click tracking.** No tracking pixels, no link rewriting.

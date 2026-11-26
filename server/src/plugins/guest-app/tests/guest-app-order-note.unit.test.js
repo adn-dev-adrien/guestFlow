@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 25, 27, 32-34, 37, 38, 44 — an order « sur la note » and a 0 € order through the real routes,
+// specs/guest-app/guest-app.md rules 25, 27, 32-34, 37, 38, 44 — an order « sur la note » and a 0 € order through the real routes,
 // written by the core's own save on a started stay: no name is ever asked, the lines land on the fiche and in the
 // end-of-stay complement, quantities add to the stay's line, the 0 € allowance holds across orders, the staff is pushed.
 const fx = require('./guestOrderFixtures');
@@ -48,7 +48,7 @@ withOrdering('rules 33, 34, 46: « Ajouter à ma note » asks no name — confir
   assert.equal(pushes[0].payload.body, 'La Granja · Marie — 2 × Cidre (sur la note)');
 });
 
-withOrdering('specs/pricing-components.md rules 13, 85: a second order is a line of its own — the first line is untouched, the end-of-stay owes both', async ({ stayId, call }) => {
+withOrdering('specs/pricing/pricing-components.md rules 13, 85: a second order is a line of its own — the first line is untouched, the end-of-stay owes both', async ({ stayId, call }) => {
   await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 1 }], payment: 'note' });
   await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 2 }], payment: 'note' });
   const lines = db.prepare('SELECT lineId, quantity FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(stayId, CIDER);

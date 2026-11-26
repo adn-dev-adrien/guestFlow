@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -22,7 +24,7 @@ A reservation carries **two complement buckets** (specs
 - **end-of-stay complement** — `endOfStayComplementAmount` / `endOfStayComplementDetail` (JSON lines).
   Written by the **departure SAS** (ménage non fait, linge manquant, extincteur).
 
-Since [sas-bath-linen-upsell.md](sas-bath-linen-upsell.md) §3.2 (PR #366, 2026-08-02), choosing
+Since [sas-bath-linen-upsell.md](../linen/sas-bath-linen-upsell.md) §3.2 (PR #366, 2026-08-02), choosing
 **« En fin de séjour »** on the arrival recap no longer moves anything: it leaves the **arrival**
 complement unpaid, and the departure SAS *recalls* it and collects both together
 ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)).
@@ -35,7 +37,7 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
    cleaning is already paid for on the arrival side. The arrival SAS hides its own ménage page when
    `cleaning.included` ([sas-hide-settled-steps.md](sas-hide-settled-steps.md) §3 rule 3) but the
    **departure page was explicitly left ungated** (same spec, §3 rule 5). Both amounts are summed by the
-   finance layer ([financeModel.js:86](../server/src/models/financeModel.js#L86)) → the guest is
+   finance layer ([financeModel.js:86](../../server/src/models/financeModel.js#L86)) → the guest is
    over-charged and « Reste à payer » is wrong.
 2. **The fiche shows two complements for one single collection.** Bath linen taken at check-in and
    deferred stays in « Complément à percevoir »; the ménage billed at check-out sits in « Complément de
@@ -56,8 +58,8 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
 1. **Departure ménage page gated on `cleaning.included`.** When the reservation already carries the
    cleaning — a booked cleaning option, a « Ménage » line added by the arrival SAS, or a property
    default, i.e. exactly the existing `cleaning.included` flag computed by
-   [`sasController.getSas`](../server/src/controllers/sasController.js#L38) via
-   [`isCleaningOption`](../server/src/utils/cleaningOption.js) — the **departure** `cleaning` page is
+   [`sasController.getSas`](../../server/src/plugins/sas/controller.js#L38) via
+   [`isCleaningOption`](../../server/src/utils/cleaningOption.js) — the **departure** `cleaning` page is
    **dropped from the departure key list**, exactly like the arrival one. The guest is not responsible
    for a cleaning the host was paid to do, so there is nothing to check and nothing to bill.
    **This revises [sas-hide-settled-steps.md](sas-hide-settled-steps.md) §3 rule 5** (which kept the
@@ -125,7 +127,7 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
    > rule 27. Test: `deferred-card-state-matrix`.
 9. **The DB split and the accounting stay untouched.** `complementAmount` and
    `endOfStayComplementAmount` remain two separate columns: the pricing engine recomputes
-   `complementAmount` on every fiche save ([reservationsModel.js:959](../server/src/models/reservationsModel.js#L959)),
+   `complementAmount` on every fiche save ([reservationsModel.js:959](../../server/src/models/reservationsModel.js#L959)),
    so a literal row move would be undone at the next save — and, more importantly, the **tourist tax
    must keep its 46710000 routing** (a debt to the commune, not revenue) and the SAS extras their
    70600010 line. **The merge is a presentation + collection contract, not a data move**: the operator
@@ -163,8 +165,8 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
 ### 3.3 Part C — la fiche décide aussi (2026-08-22)
 
 Le marqueur n'a aujourd'hui qu'un seul point d'écriture : le récap du SAS arrivée
-([reservationsModel.js:2148](../server/src/models/reservationsModel.js#L2148)). La fiche le **lit**
-([ReservationPage.jsx:795](../client/src/pages/ReservationPage.jsx#L795)) sans jamais pouvoir l'écrire.
+([reservationsModel.js:2148](../../server/src/models/reservationsModel.js#L2148)). La fiche le **lit**
+([ReservationPage.jsx:795](../../client/src/pages/ReservationPage.jsx#L795)) sans jamais pouvoir l'écrire.
 Le trou est donc précis : **avant le check-in, l'opérateur ne peut rien décider depuis la fiche** —
 alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au client.
 
@@ -215,7 +217,7 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     quand actif (« Perçu en fin de séjour ✓ »).
 17. **Les emails suivent.** `emailContextBuilder` écrit aujourd'hui « à régler directement sur place à
     **votre arrivée** » sans regarder le marqueur
-    ([emailContextBuilder.js:286](../server/src/utils/emailContextBuilder.js#L286)). Sur une
+    ([emailContextBuilder.js:286](../../server/src/utils/emailContextBuilder.js#L286)). Sur une
     réservation reportée, le J-2 et le J-1 disent « **à votre départ** » — même liste de prestations,
     même total, seul le moment change ; en anglais « on departure ». Les tokens de template ne bougent
     pas (`{{complementNotice}}`, `{{#if complementToCollect}}`), donc aucun template à ré-éditer.
@@ -230,7 +232,7 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
 19. **Traçabilité.** Le basculement depuis la fiche est écrit dans `reservation_history`
     (« Complément reporté en fin de séjour » / « Complément perçu à l'arrivée ») — c'est une décision
     d'argent, elle doit se relire. Le libellé existe déjà côté SAS
-    ([sasAudit.js:25](../server/src/utils/sasAudit.js#L25)).
+    ([sasAudit.js:25](../../server/src/plugins/sas/sasAudit.js#L25)).
 20. **Réservation annulée ou passée verrouillée** : interrupteur en lecture seule, mêmes gardes que le
     reste de la carte ; la raison « Réservation verrouillée. » s'affiche en légende sous
     l'interrupteur, comme celle de la règle 23 (2026-11-08).

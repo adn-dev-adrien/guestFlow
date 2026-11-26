@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 6 reading R30-RES-M1 (2026-11-08) — the site accepts an
+// specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 6 reading R30-RES-M1 (2026-11-08) — the site accepts an
 // arrival from today on (public-api rule 11): the draft devis a request for tomorrow or today creates stands,
 // and is due, on its issue day, never « born expired » before the operator even opens it.
 process.env.TZ = 'Europe/Paris';

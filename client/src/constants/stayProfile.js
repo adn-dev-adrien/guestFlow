@@ -1,4 +1,4 @@
-// « Profil des séjours » (specs/stay-profile.md §3.4) — the page's French strings. Every figure, label
+// « Profil des séjours » (specs/accounting/stay-profile.md §3.4) — the page's French strings. Every figure, label
 // and source caption of a panel comes from the server; these are the page's own words.
 
 export const STAY_PROFILE_PATH = '/finance/profil';

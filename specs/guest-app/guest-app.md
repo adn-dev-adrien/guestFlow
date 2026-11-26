@@ -7,13 +7,15 @@
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
 | **Related PR** | (slice A: link once opened) |
-| **Mock-ups** | [`specs/guest-app-maquettes.html`](guest-app-maquettes.html) |
-| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — v5 (2026-11-06): stock per article, delivered or picked up, studio read from GuestFlow, tablet / desktop — validated 2026-11-08, slices F-G unblocked |
-| **Plan** | [`specs/guest-app-plan.md`](guest-app-plan.md) |
-| **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` + `sowel-stays-in-keys.md` (gate keys), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
+| **Mock-ups** | `guest-app-maquettes.html` — folded into this spec and deleted 2026-11-26 (git history) |
+| **Review boards** | `guest-app-planches.html` (folded into this spec and deleted 2026-11-26, git history) — v5 (2026-11-06): stock per article, delivered or picked up, studio read from GuestFlow, tablet / desktop — validated 2026-11-08, slices F-G unblocked |
+| **Plan** | _(the implementation plan was deleted 2026-11-26: it was a finished slice-by-slice checklist; its lasting facts — SDK hooks, core modules, file map — are in §4)_ |
+| **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` (gate keys, incl. the `stay` block of rule 4b), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
 
-> Code references below point at `origin/inte/plugins` (HEAD `71d3b314`), the branch whose public API the
-> WordPress site uses today. In code and data the second lodging is **L'Estiva** (property #2) — La Granja
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 11bis lists the `home` (Domotique) module that `server/src/plugins/guest-app/modules.js:19` defines; header: plan row and the retired `inte/plugins` reference updated.
+
+> Code references below were written against `inte/plugins` (retired 2026-11-13; everything is on `master` now),
+> the branch whose public API the WordPress site used then. In code and data the second lodging is **L'Estiva** (property #2) — La Granja
 > is property #1.
 
 ---
@@ -137,7 +139,7 @@ is pushed every order.
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
     actif » (arrival day), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
-    the gate, the departure. _(Amended 2026-11-15 by specs/guest-app-bath-home-scheduling.md rule 6: the bath has no
+    the gate, the departure. _(Amended 2026-11-15 by specs/guest-app/guest-app-bath-home-scheduling.md rule 6: the bath has no
     highlight any more; the home's bath card says what the stay owns and, as an offer, « Un bain nordique ce soir ? » with
     « Premier créneau libre à 20 h ».)_
 
@@ -146,7 +148,7 @@ is pushed every order.
 11bis. **Modules per lodging.** Each lodging has its own list of modules, each **on / off** and ordered:
     `gate` (Portail), `wifi`, `shop` (Boutique), `bath` (Bain nordique shortcut), `soliomap` (tile « Activités »,
     Adrien 2026-11-06), `booklet`
-    (Livret), `orders` (Mes commandes), `contacts` (Urgences & contacts shortcut). The server resolves them:
+    (Livret), `orders` (Mes commandes), `contacts` (Urgences & contacts shortcut), and — since 2026-11-15, `specs/guest-app/guest-app-home-automation.md` rule 17 — `home` (Domotique, **off** by default until the operator configures it in the Studio). The server resolves them:
     a module is shown only if it is **on for the lodging** *and* its prerequisite holds (gate → `gate-access` active and the stay inside the gate window — before Sowel's key exists the tile reads « Accès en préparation », rule 13; shop → at least one item sold for this lodging; bath → an hourly resource
     sold for this lodging; wifi → wifi configured for this lodging, rule 11ter; soliomap → its URL set;
     contacts → at least one contact). The `bath` module is a shortcut tile only: the slot list, the quote and the orders belong to `shop`; `shop` off hides the bath tile too. A visitor has no `gate`, `shop`, `bath` or `orders`; a pre-arrival session
@@ -233,7 +235,7 @@ is pushed every order.
     thumbnail did not catch. The server draws it at 600 px with a one-module margin; the ticket shows it at
     104 px with « Toucher pour agrandir », and a tap opens it full screen on white with the network's name and
     « Scanner avec l'appareil photo d'un autre téléphone » — closed by a tap anywhere, « Fermer » or Escape, the
-    sheet underneath kept (mock-up: `specs/guest-app-wifi-qr-maquette.html`, variant B).
+    sheet underneath kept (mock-up: `guest-app-wifi-qr-maquette.html` (deleted 2026-11-26), variant B).
 19. **Languages.** Every text field has FR and EN. The app language is the guest's `clients.emailLanguage`
     for a stay session, else the browser's (`fr` default), switchable from the app bar. A missing EN text
     falls back to FR, flagged in the studio (« 3 textes non traduits »). Reading of 2026-11-10 (audit R36-C-L1): the
@@ -764,7 +766,7 @@ is pushed every order.
     evening supplement is said **inside** the bath's row (« Bain nordique » / « ven. 13 nov., 20 h – 21 h · offerte · + 10 € soirée »,
     its price added to the row's), never a row of its own; line keys have one namespace per kind (`opt:`, `res:`, `brk:`, `chg:`),
     so an option and a resource of the same id never share a React key nor a payload key. Amounts read in the app's price format
-    (« 12 € », « 4,50 € »). Rendered first in `specs/guest-app-j7-resume.html` (390 and 1280 px, headless Chromium).
+    (« 12 € », « 4,50 € »). Rendered first in `guest-app-j7-resume.html` (deleted 2026-11-26) (390 and 1280 px, headless Chromium).
     **Amended 2026-11-10 (Adrien, fourth and fifth messages).** The step is the stay's orders taken before the arrival,
     shown as a **collapsible list** under its line « Commandes Mon séjour — 2 commandes · 36,00 € à percevoir »: folded by
     default when every order is paid, unfolded otherwise; each order a group headed by its number, its delivery day and
@@ -1245,7 +1247,7 @@ devis PDF.
 Two new Vite apps, kept in the plugin's own folder (`server/src/plugins/guest-app/apps/guest/` and `…/apps/studio/`,
 2026-11-09: everything the feature needs lives in its plugin). `scripts/build-plugin-packages.mjs` finds any plugin's
 `apps/<name>/` (its own `package.json`), never ships its sources, and copies its `dist/` into the package's
-`server/assets/<name>` (`specs/plugins-phase-1-sdk.md` rule 48); a build not made is skipped with a warning and that
+`server/assets/<name>` (`specs/plugins/plugins-phase-1-sdk.md` rule 48); a build not made is skipped with a warning and that
 app answers 503. The release builds every plugin app first. Below, `apps/<name>` is short for that folder. Plus plugin
 contributions to the GuestFlow admin client.
 
@@ -1443,9 +1445,9 @@ through the existing mid-stay path. Changelog `Migration` note at implementation
 
 ## 6. UI / UX
 
-Review boards: **`specs/guest-app-planches.html`** (v2, 2026-11-05: every surface wired to one simulated state —
+Review boards: **`guest-app-planches.html`** (deleted 2026-11-26, its decisions are in this spec) (v2, 2026-11-05: every surface wired to one simulated state —
 the guest app on a bench of moments and conditions, the studio, the editor contribution, the orders page, the
-access proposal). The v1 charter board and prototype stay in `specs/guest-app-maquettes.html`.
+access proposal). The v1 charter board and prototype stayed in `guest-app-maquettes.html` (deleted 2026-11-26).
 
 ### 6.0 Two identities, one rule: who is looking
 
@@ -1844,7 +1846,7 @@ Decided by Adrien:
 
 Points the rules left open, decided in code:
 - The plugin owning a basket settles its payment through `ctx.paymentBasket({ source, paid })`
-  (`specs/plugins-phase-1-sdk.md` rule 47); with no live owner the effect is `basket-unallocated` and the usual admin
+  (`specs/plugins/plugins-phase-1-sdk.md` rule 47); with no live owner the effect is `basket-unallocated` and the usual admin
   alert fires.
 - A card payment is a settled mid-stay note (`midStaySettledNotes`, `source: guestOrder`, `ref` = the order id, the provider's reference
   and payment day). `paid_conflict` books no note (it would count as revenue): the link stays paid with `refundOwed`,
@@ -1900,7 +1902,7 @@ Points the rules left open, decided in code and recorded here:
   e-mail address gets no link from the e-mails.
 - The `sas.portal` slot: a contribution flagged `leadsStep: { title }` leads the step while its SAS data says
   `available`; the other contributions are passed to it as `gateStep`, so the keypad code shows once
-  (`specs/plugins-phase-1-sdk.md`, slots table).
+  (`specs/plugins/plugins-phase-1-sdk.md`, slots table).
 - The SAS line « Le lien vaut jusqu'au… » shows the end of the stay window (check-out + 2 h).
 
 ### Resolved (2026-11-09, « cœur générique »)

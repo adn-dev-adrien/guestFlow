@@ -1,5 +1,5 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
-// specs/payment-link-lifecycle.md rule 39 — approving an iCal date drift onto nights another stay holds says so
+// specs/payments/payment-link-lifecycle.md rule 39 — approving an iCal date drift onto nights another stay holds says so
 // first, with the stays to open: « Approuver quand même » applies it, « Annuler » sends nothing. A free drift is
 // approved at once, as before.
 import React from 'react';

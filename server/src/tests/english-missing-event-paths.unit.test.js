@@ -1,4 +1,4 @@
-// specs/email-language-fr-en.md rule 12 (adversarial review of the 2026-10-27 fixes) — the event paths
+// specs/emails/email-language-fr-en.md rule 12 (adversarial review of the 2026-10-27 fixes) — the event paths
 // of rule 9. A payment request minted the provider link and only then failed with 502 « Envoi du mail
 // impossible : ENGLISH_VERSION_MISSING »; it is now refused 422 with a French message before any link.
 // A cancellation whose notice could not leave answered `emailSent: false` that no screen read; it now

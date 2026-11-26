@@ -1,4 +1,4 @@
-// specs/plugins-phase-3b-neat.md rules 1–4 — a plugin adjusts a quote through one closed output, the
+// specs/plugins/plugins-phase-3b-neat.md rules 1–4 — a plugin adjusts a quote through one closed output, the
 // insurance unit price; the core re-runs its own engine with it, and a failing or absent plugin never
 // moves a price.
 

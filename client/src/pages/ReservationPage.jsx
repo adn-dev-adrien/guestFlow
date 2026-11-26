@@ -150,7 +150,7 @@ function parseCustomPrice(value) {
   return Number(value);
 }
 
-// specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values;
+// specs/payments/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values;
 // payment-schedule-and-cancellation §6 (audit R44-C-L2) — « Annuler le séjour » and « Supprimer » wait for the save too.
 const SAVE_FIRST_REASON = "Enregistrer d'abord les modifications.";
 // Pricing-components rule 101 (reading 2026-11-17, loop t14) — why a save-first action of the bar is disabled while the fiche re-reads.
@@ -166,7 +166,7 @@ const STALE_LOAD = Symbol('stale-load');
 const NO_ARRIVAL_LINES = {};
 const NO_FROZEN_CUSTOM_IDS = [];
 
-// specs/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
+// specs/payments/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
 // reservation without any refund reads.
 const EMPTY_REFUND_REGISTER = {
   refunds: [],
@@ -205,9 +205,9 @@ export default function ReservationPage() {
   const { reservationId } = useParams();
   const { user: currentUser } = useAuth();
   const isAdmin = userHasRole(currentUser, ADMIN);
-  // specs/reservations-backend-mvc.md rule 13 — the date window is judged from the server's day once known.
+  // specs/tech/reservations-backend-mvc.md rule 13 — the date window is judged from the server's day once known.
   const windowToday = useServerToday() || localIsoToday();
-  // Per-fiche unlock of a past reservation (specs/settings-rationalization.md rule 17a): an admin
+  // Per-fiche unlock of a past reservation (specs/settings/settings-rationalization.md rule 17a): an admin
   // clicks « Déverrouiller cette fiche »; it lasts as long as this fiche is open and every write it
   // sends carries `unlockPast`. Leaving or reloading the fiche puts the lock back.
   const [pastUnlocked, setPastUnlocked] = useState(false);
@@ -217,7 +217,7 @@ export default function ReservationPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
-  // Pure-info confirmations toast instead of modaling (specs/ds-components.md §3.2).
+  // Pure-info confirmations toast instead of modaling (specs/design-system/ds-components.md §3.2).
   const { showSuccess, showError } = useToast();
   const from = getFromParam(searchParams);
   
@@ -226,13 +226,13 @@ export default function ReservationPage() {
   const devisIdFromUrl = searchParams.get('devisId');
   const editingDevisId = isDevisMode && devisIdFromUrl ? Number(devisIdFromUrl) : null;
   const prefillDevis = isDevisMode && !editingDevisId ? location.state?.prefillDevis : null;
-  // specs/welcome-pack-auto-options.md §3.2 rules 4-5 — the pack is applied to a booking being
+  // specs/options/welcome-pack-auto-options.md §3.2 rules 4-5 — the pack is applied to a booking being
   // created from scratch and to nothing else: a saved reservation or devis carries its own option
   // set (history), and a fiche prefilled from a devis carries the devis'. A blank DEVIS is a
   // creation like any other and gets the pack too: same channel, same rate, same promise
-  // (specs/devis-extras-parity-and-price-lock.md §3 rule 5).
+  // (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 5).
   const isBlankNewBooking = !editingReservationId && !editingDevisId && !prefillDevis;
-  // specs/deposit-blocks-the-dates.md rule 19 — a devis not saved yet is quoted as the devis its create stores.
+  // specs/payments/deposit-blocks-the-dates.md rule 19 — a devis not saved yet is quoted as the devis its create stores.
   const newDevisQuoteMarker = isDevisMode && !editingDevisId ? { kind: 'devis' } : {};
 
   const theme = useTheme();
@@ -255,29 +255,29 @@ export default function ReservationPage() {
   // for the bold name; `clientSearchOpen` reveals the search to attach a DIFFERENT existing client;
   // `clientDialogMode` switches the shared FormDialog between create and edit.
   const [selectedClient, setSelectedClient] = useState(null);
-  // specs/clients.md rule 13 — a client typed for a stay not saved yet: sent as `newClient` with the
+  // specs/clients/clients.md rule 13 — a client typed for a stay not saved yet: sent as `newClient` with the
   // first save, written with it, never before.
   const [pendingClient, setPendingClient] = useState(null);
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [clientDialogMode, setClientDialogMode] = useState('create');
-  // specs/email-automation.md §6.6 — opens EmailManualSendDialog from the action bar.
+  // specs/emails/email-automation.md §6.6 — opens EmailManualSendDialog from the action bar.
   const [emailSendOpen, setEmailSendOpen] = useState(false);
-  // specs/payment-schedule-and-cancellation.md §3.5 rule 21 — « Annuler le séjour » from the bar.
+  // specs/payments/payment-schedule-and-cancellation.md §3.5 rule 21 — « Annuler le séjour » from the bar.
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
-  // specs/mid-stay-notes.md §3.5 rule 17 — l'état vit ICI et non dans FinanceSection : la fenêtre
+  // specs/sas/mid-stay-notes.md §3.5 rule 17 — l'état vit ICI et non dans FinanceSection : la fenêtre
   // s'ouvre depuis deux endroits, la barre d'actions collante (point d'entrée principal) et le bloc
   // « Encaissements en séjour » plus bas dans la carte Finance.
   const [midStayNoteOpen, setMidStayNoteOpen] = useState(false);
-  // specs/reservation-refunds.md — the refund register is SERVER-OWNED: it never joins `form` (which is
+  // specs/payments/reservation-refunds.md — the refund register is SERVER-OWNED: it never joins `form` (which is
   // the operator's editable draft), it is replaced wholesale by whatever the API returns.
   const [refundRegister, setRefundRegister] = useState(EMPTY_REFUND_REGISTER);
-  // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay, by plugin id
+  // specs/plugins/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay, by plugin id
   // (Neat: the subscription under the insurance line). Server-shaped; a plugin replaces its own.
   const [pluginBlocks, setPluginBlocks] = useState({});
   // Bumped by a plugin banner that changed the reservation server-side: re-runs the page load.
   const [reloadToken, setReloadToken] = useState(0);
-  // specs/pricing-components.md rule 27 — a re-read after a write of « Ventes du séjour » keeps the page on screen (no spinner, no lost
+  // specs/pricing/pricing-components.md rule 27 — a re-read after a write of « Ventes du séjour » keeps the page on screen (no spinner, no lost
   // scroll, the admin unlock kept): the fiche is clean then, since the panel holds its writes while it is dirty.
   const quietReloadRef = useRef(false);
   // Rule 101 (reading 2026-11-16) — while that re-read is in flight the fiche is busy: fields read-only, « Enregistrer » spinning.
@@ -319,9 +319,9 @@ export default function ReservationPage() {
   const setPluginBlock = useCallback((pluginId, block) => {
     setPluginBlocks((prev) => ({ ...prev, [pluginId]: block }));
   }, []);
-  // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance block, shaped by the server.
+  // specs/reservations/terms-acceptance-record.md rules 21-22 — the CGV acceptance block, shaped by the server.
   const [cgvBlock, setCgvBlock] = useState(null);
-  // specs/plugins-phase-3a-online-payment.md rule 18 — the payment buttons follow the server: null
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 18 — the payment buttons follow the server: null
   // while no payment provider is ready.
   const [onlinePayment, setOnlinePayment] = useState(null);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
@@ -332,18 +332,18 @@ export default function ReservationPage() {
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
   const newClientCityOptions = usePostalCodeCities(newClient.postalCode, newClient.city, { enabled: createClientOpen });
   const [propertyOptions, setPropertyOptions] = useState([]);
-  // Server-computed option grouping for the fiche (specs/option-categories.md §4.2) — `{ ungrouped,
+  // Server-computed option grouping for the fiche (specs/options/option-categories.md §4.2) — `{ ungrouped,
   // groups }`, already visibility-filtered and ordered. null until a property is loaded, and on
   // payloads that predate the feature: ExtrasSection then falls back to the flat list.
   const [propertyOptionGroups, setPropertyOptionGroups] = useState(null);
   const [availableResources, setAvailableResources] = useState([]);
-  // specs/plugins-phase-3c-hourly-resources.md rule 18 — the resources this stay carries that the
+  // specs/plugins/plugins-phase-3c-hourly-resources.md rule 18 — the resources this stay carries that the
   // catalogue now hides (sold by the hour, plugin off), drawn read-only beside the others.
   const [frozenResources, setFrozenResources] = useState([]);
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [pricingQuote, setPricingQuote] = useState(null);
   const pricingQuoteRef = useRef(null);
-  // Loop t24 S24-3 (specs/plugins-phase-1-sdk.md rule 54 reading) — a live quote that fails: its reason with « Réessayer », the finance
+  // Loop t24 S24-3 (specs/plugins/plugins-phase-1-sdk.md rule 54 reading) — a live quote that fails: its reason with « Réessayer », the finance
   // figures dimmed as not up to date, until a quote lands. The failure is about the quote it failed over (`over`): any new quote — this
   // effect's, the save's, a reset — ends it. « Réessayer » (`quoteRetry`) keeps it while it asks; a request for an edited fiche drops it.
   const [quoteFailure, setQuoteFailure] = useState(null);
@@ -352,7 +352,7 @@ export default function ReservationPage() {
   const [quoteRetry, setQuoteRetry] = useState(0);
   const quoteRetryRef = useRef(0);
   // What the last resource-availability read was for: the effect that follows the dates does not ask again
-  // for the answer the init just got, and a new property context forgets it (specs/inte-performance.md rule 23).
+  // for the answer the init just got, and a new property context forgets it (specs/tech/inte-performance.md rule 23).
   const availabilityKey = useRef('');
   const babyBedKey = useRef('');
   // Out-of-order answers (audit R22-C4, C6): only the latest question of each loader reaches the fiche.
@@ -365,11 +365,11 @@ export default function ReservationPage() {
   const shownQuote = pricingQuote || heldQuote;
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
-  // specs/tourist-tax-freeze-past-with-refresh.md — past reservations keep a FROZEN tourist tax; this
+  // specs/tourist-tax/tourist-tax-freeze-past-with-refresh.md — past reservations keep a FROZEN tourist tax; this
   // flag (set by the refresh button) forces a one-off live recompute until the reservation is reloaded.
   const [touristTaxRefreshRequested, setTouristTaxRefreshRequested] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
-  // specs/welcome-pack-auto-options.md rule 11 — options the operator took out of the pack's hands.
+  // specs/options/welcome-pack-auto-options.md rule 11 — options the operator took out of the pack's hands.
   // Unticking a pack line deletes it, tag included, so the tag alone cannot remember the refusal:
   // without this set the next context change (platform, dates, guests) would put the line back.
   const [welcomePackOptOut, setWelcomePackOptOut] = useState(() => new Set());
@@ -433,14 +433,14 @@ export default function ReservationPage() {
   // Every entry point goes through it — edit a reservation, edit a devis, create from the calendar
   // with dates, create blank (« Nouveau devis », Dashboard « + »), or switch the Logement select.
   // Before that, the blank path deliberately emptied the catalogue and no branch ever refilled it,
-  // so a new devis showed a fiche with no option at all (specs/devis-extras-parity-and-price-lock.md
+  // so a new devis showed a fiche with no option at all (specs/devis/devis-extras-parity-and-price-lock.md
   // §1 root cause 1). Returns the effective option list so callers can read an option's config
   // without re-fetching the catalogue.
   // `isCurrent` false once the load that asked is superseded: nothing is written (audit R33-C-L1).
   const loadPropertyContext = useCallback(async (propertyId, propertiesList = [], isCurrent = () => true) => {
     const numId = Number(propertyId);
     if (!numId) return { property: null, options: [] };
-    // The fiche reads no pricing season: `view=stay` leaves them out (specs/inte-performance.md rule 14).
+    // The fiche reads no pricing season: `view=stay` leaves them out (specs/tech/inte-performance.md rule 14).
     const propDetails = await api.getProperty(numId, 'stay');
     if (!isCurrent()) return { property: null, options: [] };
     // `propDetails.options` is the property-scoped, priced, grouped list.
@@ -460,7 +460,7 @@ export default function ReservationPage() {
     return { property: propDetails, options };
   }, []);
 
-  // specs/plugins-phase-3b-neat.md rule 22 — the options this stay carries that the catalogue now
+  // specs/plugins/plugins-phase-3b-neat.md rule 22 — the options this stay carries that the catalogue now
   // hides (the insurance without Neat), drawn read-only beside the others. Returns the full list.
   const addFrozenOptions = useCallback((options, frozen) => {
     const extra = (frozen || []).filter((f) => !options.some((o) => Number(o.id) === Number(f.id)));
@@ -473,15 +473,15 @@ export default function ReservationPage() {
   // Validity state of the devis being edited, straight from the server (`validUntil` + `expired`).
   // Drives the action-bar chip and the price lock — the fiche decides nothing here.
   const [devisValidity, setDevisValidity] = useState({ validUntil: null, expired: false, extendable: false, converted: false });
-  // specs/payment-link-lifecycle.md rule 48 — the server's « Dates prises » marker of this devis or unpaid stay.
+  // specs/payments/payment-link-lifecycle.md rule 48 — the server's « Dates prises » marker of this devis or unpaid stay.
   const [datesTaken, setDatesTaken] = useState(null);
 
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
-  // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the lock as the server decided it: whether the
+  // specs/sas/mid-stay-extras-on-locked-fiche.md rule 13 — the lock as the server decided it: whether the
   // fiche is locked, whether its extras are still editable, and the floor of each line sold at arrival.
   const [editLock, setEditLock] = useState(null);
-  // specs/pricing-components.md rule 108 — the server's `refundedLoweredLines`, by line key.
+  // specs/pricing/pricing-components.md rule 108 — the server's `refundedLoweredLines`, by line key.
   const [refundedLoweredKeys, setRefundedLoweredKeys] = useState(() => new Set());
   const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
   const [isIcalSource, setIsIcalSource] = useState(false);
@@ -494,7 +494,7 @@ export default function ReservationPage() {
   const [loadedSnapshot, setLoadedSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
-  // specs/manual-price-on-placement-change.md — the review the live quote returns when a move changed the tariff behind a manual
+  // specs/reservations/manual-price-on-placement-change.md — the review the live quote returns when a move changed the tariff behind a manual
   // price; the placement that price was decided against (rule 4); the last placement no review questioned, and the fiche as it was
   // there, which « Annuler le changement » puts back (rule 13).
   const [manualPriceReview, setManualPriceReview] = useState(null);
@@ -517,12 +517,12 @@ export default function ReservationPage() {
   // The catalogue lines the live quote was asked with: what `applyQuoteToBaseline` reads to pair that quote's answer with the form. No
   // quote body is ever kept to be sent again (rule 94 reading, loop t17 UI17-1): every request builds its own at call time.
   const lastQuoteAskedLinesRef = useRef(null);
-  // specs/reservation-payment-ledger.md rule 7 — the STORED ledger (GET), outside the form so that
+  // specs/payments/reservation-payment-ledger.md rule 7 — the STORED ledger (GET), outside the form so that
   // re-reading it never makes the fiche « modified ».
   const [storedLedger, setStoredLedger] = useState(null);
   const [storedHeadline, setStoredHeadline] = useState(null);
   const [storedSummary, setStoredSummary] = useState(null);
-  // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
+  // specs/payments/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
   const [storedDepositDisabledLockedReason, setStoredDepositDisabledLockedReason] = useState(null);
   // guest-app rule 113 a — the notes paid online the fiche neither adjusts nor puts back, served by the GET.
   const [midStayNoteLocks, setMidStayNoteLocks] = useState({});
@@ -530,44 +530,44 @@ export default function ReservationPage() {
   // The live quote reads the stored payments afresh; the GET answers until it arrives.
   const taxInComplementLockedReason = shownQuote && shownQuote.touristTaxInComplementLockedReason !== undefined
     ? shownQuote.touristTaxInComplementLockedReason : storedTaxInComplementLockedReason;
-  // specs/payment-link-lifecycle.md rule 46 — null while « Transformer en devis » can be tried.
+  // specs/payments/payment-link-lifecycle.md rule 46 — null while « Transformer en devis » can be tried.
   const [convertToDevisLockedReason, setConvertToDevisLockedReason] = useState(null);
-  // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
+  // specs/payments/direct-installments.md — the plan of a direct reservation, as the server last sent it.
   const [installmentPlan, setInstallmentPlan] = useState(null);
-  // specs/reservation-payment-ledger.md rule 23 — the ledger edit the next save carries for the history.
+  // specs/payments/reservation-payment-ledger.md rule 23 — the ledger edit the next save carries for the history.
   const ledgerEditMarkerRef = useRef(null);
 
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
     status: 'draft',
-    // Human-readable reservation number (specs/reservation-number-and-search.md). Generated server-side
+    // Human-readable reservation number (specs/reservations/reservation-number-and-search.md). Generated server-side
     // on first save; editable (overridable). '' for a new reservation until the first save returns it.
     reservationNumber: '',
-    bookingConflictAt: null, // online-payment date conflict (specs/public-online-payment.md §6)
-    // specs/payment-schedule-and-cancellation.md §3.5 — set once the stay was cancelled for
+    bookingConflictAt: null, // online-payment date conflict (specs/site/public-online-payment.md §6)
+    // specs/payments/payment-schedule-and-cancellation.md §3.5 — set once the stay was cancelled for
     // non-payment. The fiche then opens read-only: the dates are back on sale and the amounts are
     // history the accounting still reads.
     cancelledAt: null,
-    // specs/calendar-property-parity.md rule 22 — a duplicate set aside opens read-only, naming the stay it
+    // specs/planning/calendar-property-parity.md rule 22 — a duplicate set aside opens read-only, naming the stay it
     // duplicates; an admin can put it back.
     kind: 'reservation', supersededByReservationId: null, supersededByReservationNumber: null,
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, discountTarget: 'nights', finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
-    // Manual deposit override (specs/editable-deposit-amount.md). '' = automatic (percentage);
+    // Manual deposit override (specs/payments/editable-deposit-amount.md). '' = automatic (percentage);
     // a number freezes the deposit and lets the solde absorb tariff changes.
     depositAmountOverride: '',
-    // Operator-set complement amounts (specs/adjustable-complement-amounts.md §3.1). '' = automatic;
+    // Operator-set complement amounts (specs/sas/adjustable-complement-amounts.md §3.1). '' = automatic;
     // a number freezes the bucket at what was announced to the guest.
     complementAmountOverride: '',
     endOfStayComplementAmountOverride: '',
     endOfStayComplementAmountAuto: 0,
     complementAdjustment: null,
-    depositDisabled: false, // per-reservation opt-out (specs/disable-deposit-per-reservation.md)
+    depositDisabled: false, // per-reservation opt-out (specs/payments/disable-deposit-per-reservation.md)
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], customOptions: [], selectedResources: [], laterOptions: [], laterResources: [], checkInTime: '15:00', checkOutTime: '10:00',
-    // Desired breakfast time (specs/breakfast-time.md); '' = use the breakfast option's default.
+    // Desired breakfast time (specs/options/breakfast-time.md); '' = use the breakfast option's default.
     breakfastTime: '',
     startDate: '', endDate: '', propertyId: null,
     // Per-item routing to Complément (spec force-item-to-complement.md). The flag is binary:
@@ -578,15 +578,15 @@ export default function ReservationPage() {
     // wants routed to Complément. Auto-options aren't in `selectedOptions` (the engine derives
     // them from `option.autoEnabled`), so they need this parallel channel.
     autoOptionsInComplement: [],
-    // specs/platform-commission-line.md — operator-entered platform commission (€), '' = none. Drives
+    // specs/platforms/platform-commission-line.md — operator-entered platform commission (€), '' = none. Drives
     // the « total séjour − commission = net perçu » block on the fiche (platform reservations only).
     platformCommissionAmount: '',
-    // specs/platform-per-echeance-commission.md — commission on the acompte (platform only), '' = none.
+    // specs/platforms/platform-per-echeance-commission.md — commission on the acompte (platform only), '' = none.
     acompteCommissionAmount: '',
-    // specs/platform-payment-entry.md — brut (pins the total séjour) + virement (reconciliation), '' = unset.
+    // specs/platforms/platform-payment-entry.md — brut (pins the total séjour) + virement (reconciliation), '' = unset.
     platformGrossAmount: '',
     platformPayoutAmount: '',
-    // specs/platform-tourist-tax-out-of-the-commission.md rule 2 — '' means « the brut carries no
+    // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 2 — '' means « the brut carries no
     // tourist tax », which is what every reservation stored before this feature says. Never 0.
     platformTouristTaxAmount: '',
   });
@@ -617,23 +617,23 @@ export default function ReservationPage() {
 
   const newClientEmailError = !isValidEmail(newClient.email);
   const newClientPhoneError = !isValidPhone(newClient.phone);
-  // specs/force-extras-complement-on-platform.md §3 rule 4: non-direct platforms route every
+  // specs/sas/force-extras-complement-on-platform.md §3 rule 4: non-direct platforms route every
   // extras line to the Complément. Used below to project the pricing engine's preview before
   // the server enforces the same rule on save — see the `quoteInput` useMemo.
-  // Dynamic platform list (built-ins ∪ DB platforms, incl. iCal-added). specs/ical-platforms-in-dropdowns.md.
+  // Dynamic platform list (built-ins ∪ DB platforms, incl. iCal-added). specs/platforms/ical-platforms-in-dropdowns.md.
   const platforms = usePlatforms();
   // Guard against an out-of-range <Select> value: a just-saved reservation whose platform isn't
   // (yet) in the list still renders its own value.
   const platformOptions = form.platform && !platforms.includes(form.platform)
     ? [...platforms, form.platform]
     : platforms;
-  // specs/plugins-phase-p-productisation.md rule 45 — whether the stay is a platform SALE is the
+  // specs/plugins/plugins-phase-p-productisation.md rule 45 — whether the stay is a platform SALE is the
   // server's answer (a channel « Compté comme vente directe » is not one); before its first quote
   // comes back, any named channel reads as a platform so the panels do not flicker.
   const isPlatformReservation = shownQuote
     ? Boolean(shownQuote.platformSale)
     : Boolean(form.platform) && String(form.platform).toLowerCase() !== 'direct';
-  // A cancelled stay is read-only (specs/payment-schedule-and-cancellation.md §3.5 rule 25): the
+  // A cancelled stay is read-only (specs/payments/payment-schedule-and-cancellation.md §3.5 rule 25): the
   // server refuses every write on it, so the fiche must not offer any.
   const isCancelledReservation = Boolean(form.cancelledAt);
   const isSupersededReservation = form.kind === 'superseded';
@@ -649,15 +649,15 @@ export default function ReservationPage() {
   const saveBlocked = rereading || rereadFailed || switchingProperty || panelWriting || saving;
   const formReadOnly = isClosedFiche || saveBlocked;
   // `typedAtParty` / `typedAtNights` only say what a number was typed against during this edit: they
-  // are not a change of their own (specs/non-card-option-served-persons.md rule 23). A client typed for a stay not
-  // saved yet lives outside the form and is an edit too (specs/ui-review-2026-10-19-operations.md rule 40, R24-1).
+  // are not a change of their own (specs/options/non-card-option-served-persons.md rule 23). A client typed for a stay not
+  // saved yet lives outside the form and is an edit too (specs/design-system/ui-review-2026-10-19-operations.md rule 40, R24-1).
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     // A free line's row id is its identity, never an edit: the save that keeps the fiche open hands the form the ids it wrote (VS16-2).
     form: { ...form, selectedOptions: withoutTypedAtTags(form.selectedOptions), customOptions: withoutRowIds(form.customOptions) },
     pendingClient,
   }), [selectedProp, form, pendingClient]);
-  // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
+  // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
   // decision (has the instalment carrying the tax been collected? has the line been declared?), so the
   // page no longer derives it from the dates. It only ever asks for the opposite, through
   // « Recalculer la taxe de séjour », and reads back what the engine did in `quote.touristTaxFrozen`.
@@ -676,22 +676,22 @@ export default function ReservationPage() {
     adults: Number(form.adults || 0),
     children: Number(form.children || 0),
     teens: Number(form.teens || 0),
-    // specs/tourist-tax-included-services-deduction.md rule 16 — a baby is not a paying guest, but it
+    // specs/tourist-tax/tourist-tax-included-services-deduction.md rule 16 — a baby is not a paying guest, but it
     // IS an occupant, and the tourist tax divides the night by the occupants. Missing here, the live
     // preview divided by one head too few and announced a tax the save then contradicted.
     babies: Number(form.babies || 0),
-    // specs/baby-bed-supplement.md — the cot count is a PRICING input (5 € per cot for the stay), so
+    // specs/options/baby-bed-supplement.md — the cot count is a PRICING input (5 € per cot for the stay), so
     // the live quote must re-fire on it like it does on the guest counts.
     babyBeds: Number(form.babyBeds || 0),
     extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
     discountPercent: Number(form.discountPercent || 0),
     discountTarget: form.discountTarget,
     customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
-    // specs/platform-commission-line.md — recompute when the platform commission changes (it drives the
+    // specs/platforms/platform-commission-line.md — recompute when the platform commission changes (it drives the
     // « net perçu » line + the solde).
     platformCommissionAmount: form.platformCommissionAmount === '' ? '' : Number(form.platformCommissionAmount),
     acompteCommissionAmount: form.acompteCommissionAmount === '' ? '' : Number(form.acompteCommissionAmount),
-    // specs/platform-payment-entry.md — the brut pins the total séjour (recompute when it changes).
+    // specs/platforms/platform-payment-entry.md — the brut pins the total séjour (recompute when it changes).
     platformGrossAmount: form.platformGrossAmount === '' ? '' : Number(form.platformGrossAmount),
     platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? '' : Number(form.platformTouristTaxAmount),
     depositPaid: Boolean(form.depositPaid),
@@ -700,13 +700,13 @@ export default function ReservationPage() {
     depositAmount: form.depositPaid ? Number(form.depositAmount || 0) : null,
     balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
     complementAmount: form.complementPaid ? Number(form.complementAmount || 0) : null,
-    // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
+    // Manual deposit override (specs/payments/editable-deposit-amount.md): '' → null = automatic.
     depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-    // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+    // specs/sas/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
     // every save, so the preview, the fiche total and the stored amount can never disagree.
     complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
     depositDisabled: Boolean(form.depositDisabled),
-    // specs/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
+    // specs/sas/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
     // extras line is routed to the Complément server-side at save. We mirror that bit here
     // so the live preview shows the correct totals immediately, without mutating form state
     // (operators keep their toggles intact if they switch back to direct mid-edit). The server
@@ -722,7 +722,7 @@ export default function ReservationPage() {
         const line = { optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0) };
         // Include the checked occurrences so the live preview re-fetches when the selection changes.
         if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
-        // …and how many covers they serve (specs/card-option-served-persons.md §3.2 rule 9).
+        // …and how many covers they serve (specs/options/card-option-served-persons.md §3.2 rule 9).
         if (item.cardPersons != null) line.cardPersons = Number(item.cardPersons);
         if (item.cardNights != null) line.cardNights = Number(item.cardNights);
         if (item.typedAtParty != null) line.typedAtParty = item.typedAtParty;
@@ -752,7 +752,7 @@ export default function ReservationPage() {
     // The explicit operator set only — on a platform sale the engine routes every auto-option to
     // Complément by itself, exactly as on save.
     autoOptionsInComplement: [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
-    // specs/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
+    // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
   }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.discountTarget, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.laterOptions, form.laterResources, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
@@ -819,7 +819,7 @@ export default function ReservationPage() {
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
   // that promise has an end date: while the quote is valid its prices are frozen exactly like a
-  // reservation's, once expired everything re-prices (specs/devis-extras-parity-and-price-lock.md §3
+  // reservation's, once expired everything re-prices (specs/devis/devis-extras-parity-and-price-lock.md §3
   // rules 13-14). The server applies the same rule on save — this only keeps the preview honest.
   const isExistingReservationPricingLocked = Boolean(
     (editingReservationId || (editingDevisId && !devisValidity.expired))
@@ -885,7 +885,7 @@ export default function ReservationPage() {
     });
   };
 
-  // Browser back/forward (specs/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
+  // Browser back/forward (specs/design-system/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
   // utils/backGuard.js asks this handler before the router moves, and puts back the entry it answers, the
   // one the fiche stands on (read here: on a pop the browser's URL has already moved).
   const leavingByBackRef = useRef(false);
@@ -999,7 +999,7 @@ export default function ReservationPage() {
         if (!quiet) { setLoading(true); setStoredSaleDetail(null); }
         setRereadFailed(false);
         setHeldQuote(quiet ? pricingQuoteRef.current : null);
-        // A (re)load decides its manual price against what it loads (specs/manual-price-on-placement-change.md rule 4).
+        // A (re)load decides its manual price against what it loads (specs/reservations/manual-price-on-placement-change.md rule 4).
         customPriceReferenceRef.current = null;
         settledPlacementRef.current = null;
         setManualPriceReview(null);
@@ -1076,9 +1076,9 @@ export default function ReservationPage() {
             clientId: res.clientId,
             reservationNumber: res.reservationNumber || '',
             // Where this booking came from. Read-only on the fiche — it is a fact about the past,
-            // not a setting (specs/site-english-version.md rule 13).
+            // not a setting (specs/site/site-english-version.md rule 13).
             requestOrigin: res.requestOrigin || null,
-            // …and from which source, labelled by the server (specs/site-traffic-analytics.md rule 19).
+            // …and from which source, labelled by the server (specs/site/site-traffic-analytics.md rule 19).
             originLabel: res.originLabel || null,
             originDetail: res.originDetail || null,
             bookingConflictAt: res.bookingConflictAt || null,
@@ -1105,7 +1105,7 @@ export default function ReservationPage() {
             customPrice: importedBlankPrice ? '' : parseCustomPrice(res.customPrice),
             depositAmount: res.depositAmount || 0,
             depositDueDate: res.depositDueDate || '',
-            // Manual deposit override (specs/editable-deposit-amount.md): server returns '' when auto.
+            // Manual deposit override (specs/payments/editable-deposit-amount.md): server returns '' when auto.
             depositAmountOverride: res.depositAmountOverride === '' || res.depositAmountOverride == null ? '' : Number(res.depositAmountOverride),
             balanceAmount: res.balanceAmount || 0,
             balanceDueDate: res.balanceDueDate || '',
@@ -1133,7 +1133,7 @@ export default function ReservationPage() {
             depositDisabled: Boolean(res.depositDisabled),
             balancePaid: res.balancePaid || false,
             balancePaidDate: res.balancePaidDate || '',
-            // specs/collect-stay-payment-at-check-in.md §3.4 rule 20 — read-only markers: the séjour
+            // specs/sas/collect-stay-payment-at-check-in.md §3.4 rule 20 — read-only markers: the séjour
             // was collected at the door in the caisse interne. The choice is made in the SAS; the
             // fiche only says so (and the server clears the flag when a bucket is un-ticked here).
             depositPaidCash: Boolean(res.depositPaidCash),
@@ -1142,28 +1142,28 @@ export default function ReservationPage() {
             complementPaidDate: res.complementPaidDate || '',
             complementPaidCash: Boolean(res.complementPaidCash),
             // End-of-stay complement (departure SAS) — surfaced on the fiche like the arrival complement
-            // (specs/cash-complement-and-endofstay-finance.md §3.1).
+            // (specs/sas/cash-complement-and-endofstay-finance.md §3.1).
             endOfStayComplementAmount: Number(res.endOfStayComplementAmount || 0),
             endOfStayComplementPaid: Boolean(res.endOfStayComplementPaid),
             endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',
             endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
             endOfStayComplementDetail: res.endOfStayComplementDetail || null,
-            // specs/mid-stay-notes.md §3.1 — history of what was collected DURING the stay.
+            // specs/sas/mid-stay-notes.md §3.1 — history of what was collected DURING the stay.
             midStaySettledNotes: res.midStaySettledNotes || null,
-            // specs/single-payment-at-check-in.md §3.4 — the single payment made at the door, already
+            // specs/payments/single-payment-at-check-in.md §3.4 — the single payment made at the door, already
             // shaped by the server (amount, means, buckets covered). `null` when there was none.
             arrivalPayment: res.arrivalPayment || null,
-            // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — what the arrival complement contains.
+            // specs/sas/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — what the arrival complement contains.
             arrivalComplementLines: res.arrivalComplementLines || [],
-            // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » at check-in:
+            // specs/sas/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » at check-in:
             // the fiche then shows ONE complement, built server-side (amount + lines + paid state).
             complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
             checkoutComplement: res.checkoutComplement || null,
-            // specs/adjustable-complement-amounts.md §3.1 — '' when the bucket is on automatic.
+            // specs/sas/adjustable-complement-amounts.md §3.1 — '' when the bucket is on automatic.
             complementAmountOverride: res.complementAmountOverride == null ? '' : res.complementAmountOverride,
             endOfStayComplementAmountOverride: res.endOfStayComplementAmountOverride == null ? '' : res.endOfStayComplementAmountOverride,
             endOfStayComplementAmountAuto: Number(res.endOfStayComplementAmountAuto || 0),
-            // specs/adjustable-complement-amounts.md §3.6 — plancher + ventilation prêts à rendre.
+            // specs/sas/adjustable-complement-amounts.md §3.6 — plancher + ventilation prêts à rendre.
             complementAdjustment: res.complementAdjustment || null,
             platformCommissionAmount: res.platformCommissionAmount == null || res.platformCommissionAmount === '' ? '' : res.platformCommissionAmount,
             acompteCommissionAmount: res.acompteCommissionAmount == null || res.acompteCommissionAmount === '' ? '' : res.acompteCommissionAmount,
@@ -1180,7 +1180,7 @@ export default function ReservationPage() {
               .filter((o) => !o.isCustom && Number(o.autoEnabled || 0) === 1 && Number(o.inComplement || 0) === 1)
               .map((o) => Number(o.optionId)),
           });
-          // specs/reservation-refunds.md §4.3 — the register rides the fiche payload.
+          // specs/payments/reservation-refunds.md §4.3 — the register rides the fiche payload.
           setRefundRegister({
             refunds: res.refunds || [],
             refundableLines: res.refundableLines || [],
@@ -1273,7 +1273,7 @@ export default function ReservationPage() {
             cautionReturnedDate: '',
             notes: devis.notes || '',
             // Same mapper as the reservation branch above — occurrences, sessions, routing and
-            // custom-option ids all come back (specs/devis-extras-parity-and-price-lock.md §3 rule 12).
+            // custom-option ids all come back (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 12).
             selectedOptions: hydrateSelectedOptions(devis.options, devis, catalogueOptions, buildCardGridFromStored),
             customOptions: hydrateCustomOptions(devis.options),
             selectedResources: hydrateSelectedResources(devis.resources),
@@ -1282,7 +1282,7 @@ export default function ReservationPage() {
             startDate: devis.startDate,
             endDate: devis.endDate,
             propertyId: devis.propertyId,
-            // 2026-06-06 — bilingual PDF (specs/devis-english-language.md §3 rule 1).
+            // 2026-06-06 — bilingual PDF (specs/devis/devis-english-language.md §3 rule 1).
             pdfLanguage: devis.pdfLanguage || 'fr',
             depositPaid: false,
             depositPaidDate: '',
@@ -1344,7 +1344,7 @@ export default function ReservationPage() {
           current(await loadBabyBedAvailability(devis.startDate, devis.endDate, devis.propertyId, null));
         } else if (initialPropId) {
           // A brand-new booking — reservation OR devis. One branch for the three entry points
-          // (specs/devis-extras-parity-and-price-lock.md §3 rule 2): the calendar (propertyId +
+          // (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 2): the calendar (propertyId +
           // both dates), the dashboard « + » (a start date only) and the blank forms
           // (« Nouvelle réservation », « Nouveau devis »). Whatever the URL carries, the logement's
           // context — catalogue, categories, resources, defaults, caution, horaires — is loaded the
@@ -1490,9 +1490,9 @@ export default function ReservationPage() {
 
   // The availability used to refresh only at init and when the Logement select changed — so typing
   // the dates on a blank fiche never triggered it, and « déjà réservée » / the remaining quantity
-  // stayed stale (specs/hourly-resource-quantity-and-sas-scheduling.md §3.2 rule 9). Until both dates
+  // stayed stale (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.2 rule 9). Until both dates
   // are set the catalogue from the property context stands in, so the block is never empty. A range the server
-  // refuses (specs/reservations-backend-mvc.md rules 12-13) is not asked either.
+  // refuses (specs/tech/reservations-backend-mvc.md rules 12-13) is not asked either.
   useEffect(() => {
     if (loading) return;
     if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
@@ -1527,7 +1527,7 @@ export default function ReservationPage() {
     setBabyBedAvailability(data || { totalQuantity: 0, reserved: 0, available: 0 });
   };
 
-  // The cots follow the dates like the resources above (audit R22-C6; specs/reservations-backend-mvc.md
+  // The cots follow the dates like the resources above (audit R22-C6; specs/tech/reservations-backend-mvc.md
   // rule 17). A range the server would refuse has no answer: the hint waits and the ceiling stands aside.
   useEffect(() => {
     if (loading) return;
@@ -1552,7 +1552,7 @@ export default function ReservationPage() {
 
   // The list feeds the search box only: it is read when the box is what the page shows. An existing stay
   // shows its client by name until « changer » opens the search; while that client is being looked up
-  // the box is not shown yet, and if the lookup fails it is (specs/inte-performance.md rule 15).
+  // the box is not shown yet, and if the lookup fails it is (specs/tech/inte-performance.md rule 15).
   const [clientLookupFailed, setClientLookupFailed] = useState(false);
   const clientLookupPending = Boolean(reservationId) && (loading || (Boolean(form.clientId) && !selectedClient && !clientLookupFailed));
   const clientSearchShown = !(selectedClient && !clientSearchOpen) && !clientLookupPending;
@@ -1569,7 +1569,7 @@ export default function ReservationPage() {
     return () => { cancelled = true; };
   }, [form.clientId, clients, pendingClient]);
   // Load occupied dates from backend when property or dates change. A range the server refuses (reversed,
-  // too long, past the horizon — specs/establishment-closures.md rule 20) is not asked: it has none.
+  // too long, past the horizon — specs/pricing/establishment-closures.md rule 20) is not asked: it has none.
   useEffect(() => {
     const current = beginOccupiedRequest();
     if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
@@ -1590,7 +1590,7 @@ export default function ReservationPage() {
     loadOccupiedDates();
   }, [selectedProp, form.startDate, form.endDate, editingReservationId, windowToday]);
 
-  // specs/manual-price-on-placement-change.md rule 4 — the placement a manual price was decided against: the one it was typed or
+  // specs/reservations/manual-price-on-placement-change.md rule 4 — the placement a manual price was decided against: the one it was typed or
   // reviewed on, else the stored placement. The server prices it; no amount is sent.
   const manualPriceReferenceFor = (customPrice) => {
     if (customPrice === '' || customPrice == null) return null;
@@ -1653,7 +1653,7 @@ export default function ReservationPage() {
 
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T00:00:00`);
-    // specs/reservations-backend-mvc.md rule 12 — a stay the server refuses (reversed, too long) is not quoted.
+    // specs/tech/reservations-backend-mvc.md rule 12 — a stay the server refuses (reversed, too long) is not quoted.
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
       setMinNightsState({ breached: false, required: 0, nights: 0 });
       setQuotePending(false);
@@ -1687,7 +1687,7 @@ export default function ReservationPage() {
             return prev;
           }
           const next = applyQuoteToForm(prev, calc, preserveBlankPrice);
-          // specs/platform-tourist-tax-out-of-the-commission.md rules 4 + 21 — a fiche whose brut has
+          // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rules 4 + 21 — a fiche whose brut has
           // not been entered yet starts from the engine's figure, so everything typed from now on
           // follows the tax-inclusive convention. An iCal-imported booking is already saved, so the
           // test is the brut, not the fiche's age. The decision itself lives in a pure helper.
@@ -1727,7 +1727,7 @@ export default function ReservationPage() {
   const childrenCount = Number(form.children) || 0;
   const teensCount = Number(form.teens) || 0;
   const babiesCount = Number(form.babies) || 0;
-  // ONE total for everyone over 2, babies apart (specs/property-capacity-single-total.md §3).
+  // ONE total for everyone over 2, babies apart (specs/reservations/property-capacity-single-total.md §3).
   // Mirrors server/src/utils/capacity.js for the inline warning only — the server decides.
   const guestsCount = adultsCount + childrenCount + teensCount;
   // maxGuests 0 = capacity not configured (guard off); maxBabies 0 = no babies accepted (enforced).
@@ -1751,18 +1751,18 @@ export default function ReservationPage() {
     ? null
     : Math.max(0, babyAvailableNumber - selectedBabyBeds);
 
-  // specs/reservation-option-immutability.md rule 4 — the "forced ON / Inclus" property-default
+  // specs/reservations/reservation-option-immutability.md rule 4 — the "forced ON / Inclus" property-default
   // display applies ONLY when creating a new reservation. In edit mode an existing reservation is
   // frozen: its options render exactly as it carries them, so we never force a property default it
   // does not already have. (This reverses the former rule 4.bis, which forced the option on every
   // reservation of the property, including pre-default-era ones.)
   const propertyDefaultOptionIds = new Set(propertyOptionDefaults.map((d) => Number(d.optionId)));
-  // specs/tourist-tax-included-services-deduction.md rule 4 — a service INCLUDED IN THE RATE (a
+  // specs/tourist-tax/tourist-tax-included-services-deduction.md rule 4 — a service INCLUDED IN THE RATE (a
   // property default marked « offerte ») is not optional: it is sold inside the night, it leaves the
   // tourist-tax base, and its Switch reads ON and disabled. In EDIT mode the lock is limited to the
   // lines the reservation actually carries — one it never had stays a normal off Switch, or the
   // fiche would force an option onto a booking that predates the default
-  // (specs/reservation-option-immutability.md rules 3-4, unchanged).
+  // (specs/reservations/reservation-option-immutability.md rules 3-4, unchanged).
   const lockedIncludedOptionIds = (() => {
     const offeredDefaults = propertyOptionDefaults
       .filter((d) => d.offered)
@@ -1779,7 +1779,7 @@ export default function ReservationPage() {
           .map((opt) => opt.id),
       );
 
-  // specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed inputs live inside the FIRST
+  // specs/linen/bed-config-in-linen-card.md §3 rules 2 + 10 — bed inputs live inside the FIRST
   // enabled `countsAsBedLinen = 1` option card. The boolean drives the rendering on both
   // sides: `GuestsBedsSection` no longer renders bed inputs at all, and `ExtrasSection`
   // mounts the bed-inputs sub-block exactly once, under the card whose id matches
@@ -1803,7 +1803,7 @@ export default function ReservationPage() {
       setForm(prev => ({ ...prev, babyBeds: maxBabyBedsByRule }));
     }
     // The party moves the count, the answer alone never does: a move of the dates onto a range with no cot left
-    // keeps the fiche's number, and the save says why it is refused (specs/reservations-backend-mvc.md rule 17).
+    // keeps the fiche's number, and the save says why it is refused (specs/tech/reservations-backend-mvc.md rule 17).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.babies, form.children]);
 
@@ -1841,7 +1841,7 @@ export default function ReservationPage() {
     setForm(prev => {
       const parsed = Number(quantity);
       const normalizedQty = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-      // specs/welcome-pack-auto-options.md rule 11 — the operator just took ownership of this
+      // specs/options/welcome-pack-auto-options.md rule 11 — the operator just took ownership of this
       // option: the pack stops managing it (no removal on a platform change, no rebuild).
       const selected = releaseWelcomePackLine(prev.selectedOptions, optionId);
       if (selected !== prev.selectedOptions) didReleasePack = true;
@@ -1879,7 +1879,7 @@ export default function ReservationPage() {
     }
   };
 
-  // Option-driven planning cards (specs/option-planning-card.md §3.2). Set the working occurrence
+  // Option-driven planning cards (specs/options/option-planning-card.md §3.2). Set the working occurrence
   // grid ({date,time,slot,checked}[]) on a card-option's selected line. Adds the line if absent.
   const setOptionCardOccurrences = (optionId, occurrences) => {
     let didReleasePack = false;
@@ -1896,12 +1896,12 @@ export default function ReservationPage() {
     if (didReleasePack) releaseFromWelcomePack(optionId);
   };
 
-  // How many people a per-person card option actually serves (specs/card-option-served-persons.md
+  // How many people a per-person card option actually serves (specs/options/card-option-served-persons.md
   // §3.2 rule 7). Same welcome-pack release as the occurrence grid: adjusting the covers is an
   // operator act, so the line leaves the pack's hands. The server clamps the value and decides what
   // to persist — this only carries the intent.
   //
-  // specs/non-card-option-served-persons.md rules 8, 19, 23 and 26 — the same intent for a non-card
+  // specs/options/non-card-option-served-persons.md rules 8, 19, 23 and 26 — the same intent for a non-card
   // option, and for its nights. Equal to the party or the stay, the number is dropped: the line follows
   // them again, which is also what the circular-arrows button does. A line already flagged keeps its
   // reference, so retyping another number leaves it flagged.
@@ -1937,7 +1937,7 @@ export default function ReservationPage() {
   };
   const setOptionCardPersons = (optionId, persons) => setOptionTypedCount(optionId, 'persons', persons);
 
-  // specs/non-card-option-served-persons.md rule 31 — what the mid-stay note's « Annuler » puts back, whole:
+  // specs/options/non-card-option-served-persons.md rule 31 — what the mid-stay note's « Annuler » puts back, whole:
   // the lines with their grids and typed counts, plus what removing or re-adding a line moves elsewhere
   // (the offered set, the bed counters of a bed-linen option, the welcome pack's refusals).
   const captureOptionsState = () => ({
@@ -1967,7 +1967,7 @@ export default function ReservationPage() {
       return;
     }
     setOptionQuantity(optionId, 0);
-    // specs/bed-config-in-linen-card.md §3 rule 3 — disabling a `countsAsBedLinen = 1`
+    // specs/linen/bed-config-in-linen-card.md §3 rule 3 — disabling a `countsAsBedLinen = 1`
     // option zeroes the single/double bed counters in form state, mirroring the server invariant
     // on save (rule 7). Baby beds are NOT cleared (§10 follow-up 2026-06-08): they are independent
     // of the bed-linen option and stay editable in the Voyageurs card whenever babies > 0.
@@ -1977,7 +1977,7 @@ export default function ReservationPage() {
     }
   };
 
-  // Option-driven planning cards (specs/option-planning-card.md §3.4): when the stay dates change,
+  // Option-driven planning cards (specs/options/option-planning-card.md §3.4): when the stay dates change,
   // reconcile every enabled daily card-option's occurrence grid — new in-range days appear
   // pre-checked, out-of-range days drop, existing check/time state is preserved.
   useEffect(() => {
@@ -1997,7 +1997,7 @@ export default function ReservationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.startDate, form.endDate, form.checkInTime, form.checkOutTime, propertyOptions]);
 
-  // Welcome pack (specs/welcome-pack-auto-options.md). The server answers « what does the rate
+  // Welcome pack (specs/options/welcome-pack-auto-options.md). The server answers « what does the rate
   // already cover for THIS context » — own channel, party size, stay dates — and returns lines that
   // are safe to apply as-is; the effect below is the only thing the client decides: put them in,
   // take them back out. It is declared AFTER the grid reconcile above so that, on a date change,
@@ -2115,7 +2115,7 @@ export default function ReservationPage() {
     }));
   };
 
-  // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md §3.2): the fiche editor
+  // Hourly-scheduled resource sessions (specs/resources/resource-hourly-scheduling.md §3.2): the fiche editor
   // owns the [{date,start,end}] list; the server prices it from the time-banded grid.
   const setResourceSessions = (resourceId, sessions) => {
     setForm((prev) => {
@@ -2297,7 +2297,7 @@ export default function ReservationPage() {
       setSelectedClient(updated);
       setClients(prev => prev.map(client => (client.id === updated.id ? updated : client)));
     } else {
-      // specs/clients.md rule 12 — an email or phone already known: use that client, or — a couple or a
+      // specs/clients/clients.md rule 12 — an email or phone already known: use that client, or — a couple or a
       // family sharing one phone — create a second one anyway (rule 14).
       const duplicate = await api.findDuplicateClient({ email: payload.email, phone: payload.phone }).catch(() => null);
       if (duplicate?.client) {
@@ -2322,7 +2322,7 @@ export default function ReservationPage() {
         return;
       }
       if (!reservationId && !editingDevisId) {
-        // specs/clients.md rule 13 — nothing is written until the stay is.
+        // specs/clients/clients.md rule 13 — nothing is written until the stay is.
         setPendingClient(payload);
         setForm(prev => ({ ...prev, clientId: null }));
         setClientSearchOpen(false);
@@ -2343,7 +2343,7 @@ export default function ReservationPage() {
     if (!nextPropertyId) return;
     setSwitchingProperty(true);
     try {
-      // specs/reservations-backend-mvc.md rule 12 — only a complete, sound stay is quoted (the server refuses
+      // specs/tech/reservations-backend-mvc.md rule 12 — only a complete, sound stay is quoted (the server refuses
       // the rest): a « Nouveau devis » switched before its dates are typed has no quote yet, like on opening.
       const hasStayRange = isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday });
       const [{ property: prop }, calc, allRes] = await Promise.all([
@@ -2366,7 +2366,7 @@ export default function ReservationPage() {
           refreshTouristTax,
           ...(editingReservationId ? { reservationId: editingReservationId } : {}),
           // A saved devis locks its prices while it is still valid — the server replays its stored
-          // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+          // lines so this preview equals what the save will store (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 13).
           ...(editingDevisId ? { devisId: editingDevisId } : {}),
           ...newDevisQuoteMarker,
           ...unlockPayload,
@@ -2393,7 +2393,7 @@ export default function ReservationPage() {
         checkInTime: prev.checkInTime || calc?.defaultCheckIn || prop?.defaultCheckIn || '15:00',
         checkOutTime: prev.checkOutTime || calc?.defaultCheckOut || prop?.defaultCheckOut || '10:00',
       }));
-      // specs/per-property-default-options.md rule 11 — the offered set belongs to the option list just
+      // specs/options/per-property-default-options.md rule 11 — the offered set belongs to the option list just
       // cleared: kept, the previous logement's « offert » defaults would make the same option free here.
       setOfferedOptionIds(new Set());
 
@@ -2497,13 +2497,13 @@ export default function ReservationPage() {
     }
   };
 
-  // Saved: what was typed is the new reference, nothing stays flagged (specs/non-card-option-served-persons.md rule 23).
+  // Saved: what was typed is the new reference, nothing stays flagged (specs/options/non-card-option-served-persons.md rule 23).
   const clearTypedCountFlags = () => {
     setForm((prev) => ({ ...prev, selectedOptions: withoutTypedAtTags(prev.selectedOptions) }));
     setPricingQuote((prev) => (prev ? { ...prev, typedCountAlerts: [] } : prev));
   };
 
-  // specs/payment-link-lifecycle.md rules 46, 55 — a devis saved, moved or made from this stay onto held or closed
+  // specs/payments/payment-link-lifecycle.md rules 46, 55 — a devis saved, moved or made from this stay onto held or closed
   // nights: the stays that hold them, or the closure, each to open. True when the error was that refusal.
   const alertDevisDatesRefusal = async (err, title = 'Devis non enregistré') => {
     if (err?.code !== 'DATES_HELD' && err?.code !== 'CLOSED_DATES') return false;
@@ -2529,7 +2529,7 @@ export default function ReservationPage() {
       return false;
     }
 
-    // specs/reservations-backend-mvc.md rules 12-13 — a departure on or before the arrival, a stay too long or a date
+    // specs/tech/reservations-backend-mvc.md rules 12-13 — a departure on or before the arrival, a stay too long or a date
     // past the horizon is refused here too.
     const datesMessage = stayDatesMessage(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday });
     if (datesMessage) {
@@ -2547,7 +2547,7 @@ export default function ReservationPage() {
       return false;
     }
 
-    // specs/edit-reservation-blocked-by-overlap.md — on an EXISTING reservation, don't re-block on a
+    // specs/reservations/edit-reservation-blocked-by-overlap.md — on an EXISTING reservation, don't re-block on a
     // pre-existing overlap / capacity conflict the edit didn't introduce (mirrors the server guard).
     // Compare the current form against the loaded snapshot (initialSnapshot = JSON of { selectedProp, form }).
     let loadedSnapshot = null;
@@ -2562,7 +2562,7 @@ export default function ReservationPage() {
       && Number(loadedForm.teens || 0) === Number(form.teens || 0)
       && Number(loadedForm.babies || 0) === Number(form.babies || 0));
 
-    // specs/payment-link-lifecycle.md rule 46 — a devis blocks nothing and is refused only on nights a stay holds,
+    // specs/payments/payment-link-lifecycle.md rule 46 — a devis blocks nothing and is refused only on nights a stay holds,
     // which the server judges (409 DATES_HELD with the stays): the fiche's occupancy check is for reservations.
     if (!placementUnchanged && !isDevisMode) {
       const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
@@ -2628,7 +2628,7 @@ export default function ReservationPage() {
         return await saveReservationOnce(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
 
-      // specs/tariff-recipes/spec.md §3.4 rule 23 — changeover breach: same confirm + force-override
+      // specs/pricing/tariff-recipes.md §3.4 rule 23 — changeover breach: same confirm + force-override
       // pattern as the minimum-nights guard just above.
       if (quote.changeoverBreached && !forceChangeover) {
         const parts = [];
@@ -2645,7 +2645,7 @@ export default function ReservationPage() {
         return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
 
-      // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum guard.
+      // specs/pricing/tariff-recipes.md §3.4 rule 20bis — maximum stay, mirror of the minimum guard.
       if (quote.maxNightsBreached && !forceMaxNights) {
         const proceed = await confirm({
           title: 'Durée maximale dépassée',
@@ -2658,7 +2658,7 @@ export default function ReservationPage() {
         return await saveReservationOnce(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment, forceTypedCounts);
       }
 
-      // specs/non-card-option-served-persons.md rule 22 — same confirm + force-override as the stay
+      // specs/options/non-card-option-served-persons.md rule 22 — same confirm + force-override as the stay
       // guards above; the server decides which lines, and refuses the save without this answer.
       if (quote.typedCountAlerts?.length > 0 && !forceTypedCounts) {
         const proceed = await confirm({
@@ -2715,11 +2715,11 @@ export default function ReservationPage() {
           // hourly sessions, the billed units and the routing.
           selectedResources: quote.resourceLines,
           // « Actualiser les tarifs » is the one way to re-price a devis that is still valid — the
-          // server otherwise replays the prices it was quoted at (specs/devis-extras-parity-and-price-lock.md
+          // server otherwise replays the prices it was quoted at (specs/devis/devis-extras-parity-and-price-lock.md
           // §3 rules 13 + 15).
           refreshPricingToCurrent: useCurrentPricing,
           forceTypedCounts,
-          // 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md §3 rule 1).
+          // 2026-06-06 — bilingual devis PDF (specs/devis/devis-english-language.md §3 rule 1).
           // Defaults to 'fr' for new devis; persists whatever the operator picked.
           pdfLanguage: form.pdfLanguage || 'fr',
         };
@@ -2735,7 +2735,7 @@ export default function ReservationPage() {
           if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
           // Rule 48 — the marker is live: moved onto free nights, the devis is no longer « Dates prises ».
           setDatesTaken(savedDevis?.datesTaken || null);
-          // specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the chip shows the validity the save
+          // specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the chip shows the validity the save
           // wrote; a quote the save re-issued is re-read so its price lock follows the new promise.
           if (savedDevis) {
             setDevisValidity({
@@ -2800,13 +2800,13 @@ export default function ReservationPage() {
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
-          // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
+          // Manual deposit override (specs/payments/editable-deposit-amount.md): '' → null = automatic.
           depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-          // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+          // specs/sas/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
           // every save, so the preview, the fiche total and the stored amount can never disagree.
           complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
           endOfStayComplementAmountOverride: form.endOfStayComplementAmountOverride === '' ? null : Number(form.endOfStayComplementAmountOverride),
-          // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
+          // Per-reservation deposit opt-out (specs/payments/disable-deposit-per-reservation.md).
           // When ON, depositPaid + depositPaidDate are force-zeroed both client-side here
           // and server-side in reservationsController.update.
           depositDisabled: Boolean(form.depositDisabled),
@@ -2825,7 +2825,7 @@ export default function ReservationPage() {
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
           platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount,
           cautionAmount: form.cautionAmount,
-          // specs/reservation-payment-ledger.md rule 13 — the caution columns are not sent: only the
+          // specs/payments/reservation-payment-ledger.md rule 13 — the caution columns are not sent: only the
           // payment PATCH changes them. Rule 23 — the ledger edit this save carries, for the history.
           ledgerAmountEdit: ledgerEditMarkerRef.current || undefined,
           notes: form.notes,
@@ -2846,14 +2846,14 @@ export default function ReservationPage() {
         overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save (and the live
-        // « Dates prises » marker, specs/payment-link-lifecycle.md rule 48).
+        // « Dates prises » marker, specs/payments/payment-link-lifecycle.md rule 48).
         api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setMidStayNoteLocks(r.midStayNoteLocks || {}); setRefundedLoweredKeys(new Set((r.refundedLoweredLines || []).map((line) => line.key))); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); adoptStored(r.options); }).catch(() => {});
         clearTypedCountFlags();
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
           // locked fiche: elsewhere the after-save action is the ledger's mark, whose form must stay
-          // open to show a refusal (specs/reservation-payment-ledger.md rules 9-10) — a full reload
+          // open to show a refusal (specs/payments/reservation-payment-ledger.md rules 9-10) — a full reload
           // would close it — and a locked fiche never saves whole to mark a payment.
           if (isReservationLocked) setReloadToken((token) => token + 1);
         } else {
@@ -2892,9 +2892,9 @@ export default function ReservationPage() {
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
-          // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
+          // Manual deposit override (specs/payments/editable-deposit-amount.md): '' → null = automatic.
           depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
-          // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+          // specs/sas/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
           // every save, so the preview, the fiche total and the stored amount can never disagree.
           complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
           endOfStayComplementAmountOverride: form.endOfStayComplementAmountOverride === '' ? null : Number(form.endOfStayComplementAmountOverride),
@@ -2953,7 +2953,7 @@ export default function ReservationPage() {
         }
         return false;
       }
-      // specs/reservation-refunds.md rule 34 — the save would leave more collected than the stay now
+      // specs/payments/reservation-refunds.md rule 34 — the save would leave more collected than the stay now
       // costs. Confirmed, it is saved, the fiche stays open and the refund dialog opens on the amount.
       if (err?.code === 'OVERPAID' && !forceOverpayment) {
         const proceed = await confirm({
@@ -3006,7 +3006,7 @@ export default function ReservationPage() {
       if (await alertDevisDatesRefusal(err)) return false;
       await alert({ title: 'Erreur', message: err.message });
       // The end-of-stay complement was collected elsewhere while this fiche was open: reload it so the
-      // extras card shows its locked state (specs/mid-stay-extras-on-locked-fiche.md).
+      // extras card shows its locked state (specs/sas/mid-stay-extras-on-locked-fiche.md).
       if (err?.code === 'MID_STAY_EXTRAS_CLOSED') setReloadToken((token) => token + 1);
       return false;
     }
@@ -3037,7 +3037,7 @@ export default function ReservationPage() {
     }
   };
 
-  // specs/payment-schedule-and-cancellation.md §3.5 — cancelling for non-payment. Unlike a delete,
+  // specs/payments/payment-schedule-and-cancellation.md §3.5 — cancelling for non-payment. Unlike a delete,
   // the reservation survives: its dates go back on sale, its acompte is requalified into an
   // indemnity, and the fiche stays readable. So we reload rather than navigate away.
   const handleCancelReservation = async ({ reason, notifyClient }) => {
@@ -3056,9 +3056,9 @@ export default function ReservationPage() {
           result?.keptFromGuest > 0 && Math.round(result.keptFromGuest * 100) !== Math.round((result.indemnityAmount || 0) * 100)
             ? `Somme conservée : ${formatCurrency(result.keptFromGuest)}.`
             : null,
-          // specs/plugins-phase-3a-online-payment.md rule 9 — worded by the server.
+          // specs/plugins/plugins-phase-3a-online-payment.md rule 9 — worded by the server.
           result?.paymentLinksWarning,
-          // specs/email-language-fr-en.md rule 12 — the notice asked for and not sent, worded by the server.
+          // specs/emails/email-language-fr-en.md rule 12 — the notice asked for and not sent, worded by the server.
           result?.emailWarning,
         ].filter(Boolean).join(' '),
       });
@@ -3111,7 +3111,7 @@ export default function ReservationPage() {
   };
 
   // Bar-button entry point: handleSaveReservation toggles the `saving` flag around the (recursive) save so the bar Save shows a
-  // spinner and can't be double-submitted. specs/ds-sweep-reservations.md rule 1.
+  // spinner and can't be double-submitted. specs/design-system/ds-sweep-reservations.md rule 1.
   // Rule 101 — the quiet re-read after a write of « Ventes du séjour » (and its retry when it failed).
   // Rule 94 (reading 2026-11-17, loop t16 UI16-2) — the admin unlock re-asks the quote with `unlockPast`; what that quote writes
   // (an unlocked routing's balance) is not an edit: a clean fiche takes its baseline again once it lands, as after a mark.
@@ -3122,13 +3122,13 @@ export default function ReservationPage() {
   const rereadFiche = () => { quietReloadRef.current = true; setRereading(true); setReloadToken((token) => token + 1); };
 
   const handleSaveClick = () => {
-    // specs/manual-price-on-placement-change.md rule 16 — a pending review is answered before any save.
+    // specs/reservations/manual-price-on-placement-change.md rule 16 — a pending review is answered before any save.
     if (manualPriceReviewAwaited) return;
     if (manualPriceReview) { setMiniSelectionAnchor(''); return; }
     handleSaveReservation();
   };
 
-  // specs/mid-stay-notes.md §4.2 — a note validated with a catalogue addition must go through the
+  // specs/sas/mid-stay-notes.md §4.2 — a note validated with a catalogue addition must go through the
   // STANDARD save (pricing engine, planning cards, laundry counts…) before it can be settled: the
   // note never bypasses the normal pipeline. `handleSaveReservation(action)` runs the action instead
   // of navigating away, so the operator stays on the fiche.
@@ -3136,23 +3136,23 @@ export default function ReservationPage() {
 
   // Re-read the money the server owns after a note was settled / cancelled. Only the finance fields
   // are patched: the rest of the form is the operator's (possibly dirty) draft and must not move.
-  // Best effort (specs/mid-stay-notes.md rule 24 reading R32-C-L2): the re-read follows a write whose outcome is already
+  // Best effort (specs/sas/mid-stay-notes.md rule 24 reading R32-C-L2): the re-read follows a write whose outcome is already
   // known, so a failed one never turns a stored write into an error, nor leaves a dialog or a mark waiting.
   const reloadReservationFinance = useCallback(async () => {
     if (!editingReservationId) return;
     let res;
     try { res = await api.getReservation(editingReservationId); } catch { return; }
     setStoredLedger(res.ledger || null);
-    // specs/pricing-components.md rule 108 — a refund on the trop-perçu (or its deletion) moves the lines that are no longer put back.
+    // specs/pricing/pricing-components.md rule 108 — a refund on the trop-perçu (or its deletion) moves the lines that are no longer put back.
     setRefundedLoweredKeys(new Set((res.refundedLoweredLines || []).map((line) => line.key)));
-    // The sold lines moved with the write (specs/reservation-refunds.md rule 43): the refund dialog reads them.
+    // The sold lines moved with the write (specs/payments/reservation-refunds.md rule 43): the refund dialog reads them.
     setRefundRegister({
       refunds: res.refunds || [],
       refundableLines: res.refundableLines || [],
       refundTotals: res.refundTotals || { book: 0, withCash: 0 },
       collectedTtc: Number(res.collectedTtc || 0),
     });
-    // specs/qonto-bank-reconciliation.md rule 39 — the plugins' blocks follow a write that moved the money.
+    // specs/accounting/qonto-bank-reconciliation.md rule 39 — the plugins' blocks follow a write that moved the money.
     setPluginBlocks(res.pluginBlocks || {});
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
@@ -3169,7 +3169,7 @@ export default function ReservationPage() {
       complementPaid: Boolean(res.complementPaid),
       complementPaidDate: res.complementPaidDate || '',
       complementPaidCash: Boolean(res.complementPaidCash),
-      // specs/single-payment-from-the-fiche.md rule 11bis — les deux échéances du séjour aussi.
+      // specs/payments/single-payment-from-the-fiche.md rule 11bis — les deux échéances du séjour aussi.
       // « Encaisser en une fois » les marque payées côté serveur ; sans ce rafraîchissement le
       // formulaire gardait « non payé », l'affichage retombait dessus au premier re-rendu, et
       // l'enregistrement suivant renvoyait la valeur périmée — ce qui dissolvait le paiement unique.
@@ -3189,7 +3189,7 @@ export default function ReservationPage() {
       arrivalComplementLines: res.arrivalComplementLines || [],
       checkoutComplement: res.checkoutComplement || null,
       complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
-      // specs/reservation-payment-ledger.md — the caution is written by the PATCH only (rule 13), and
+      // specs/payments/reservation-payment-ledger.md — the caution is written by the PATCH only (rule 13), and
       // the ledger as stored (rule 1).
       cautionReceived: Boolean(res.cautionReceived),
       cautionReceivedDate: res.cautionReceivedDate || '',
@@ -3198,7 +3198,7 @@ export default function ReservationPage() {
       cautionAmount: res.cautionAmount,
       platformPayoutAmount: res.platformPayoutAmount == null ? '' : res.platformPayoutAmount,
       platformCommissionAmount: res.platformCommissionAmount == null ? '' : res.platformCommissionAmount,
-      // specs/platform-statement-after-payout.md rule 5 — the statement written by its own PATCH, and the solde it moved.
+      // specs/platforms/platform-statement-after-payout.md rule 5 — the statement written by its own PATCH, and the solde it moved.
       platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
       platformTouristTaxAmount: res.platformTouristTaxAmount == null ? '' : res.platformTouristTaxAmount,
       acompteCommissionAmount: res.acompteCommissionAmount == null ? '' : res.acompteCommissionAmount,
@@ -3226,12 +3226,12 @@ export default function ReservationPage() {
     setLoadedSnapshot(withServerWritten);
     // Le devis live dépend de l'état serveur qu'on vient de changer (report du complément, note
     // encaissée / ajustée) : sans ce rafraîchissement, le panneau de droite garderait l'ancien split
-    // pendant que la carte affiche déjà le nouveau (specs/defer-arrival-complement-to-checkout.md
+    // pendant que la carte affiche déjà le nouveau (specs/sas/defer-arrival-complement-to-checkout.md
     // §3.3 rule 16).
     setRefundsVersion((v) => v + 1);
   }, [editingReservationId]);
 
-  // ── specs/reservation-payment-ledger.md — the ledger's round-trips ───────────────────────────────
+  // ── specs/payments/reservation-payment-ledger.md — the ledger's round-trips ───────────────────────────────
   // Rule 21 — the amount editor asks the live quote; the server answers the refusal or the effects.
   // The body is the fiche's as it stands (rule 94 reading, loop t17 UI17-1), never the one the last live quote cached.
   const checkLedgerEdit = async (row, amount) => {
@@ -3272,7 +3272,7 @@ export default function ReservationPage() {
   });
 
   // Rule 28 — « Renvoyer la demande » on a still-due row whose link was retired. On LINK_ALREADY_PAID the
-  // server booked the payment (specs/payment-link-lifecycle.md rule 50): the fiche re-reads its money, like the
+  // server booked the payment (specs/payments/payment-link-lifecycle.md rule 50): the fiche re-reads its money, like the
   // solde and devis senders below.
   const resendPaymentRequest = async (type) => {
     try {
@@ -3285,7 +3285,7 @@ export default function ReservationPage() {
     }
   };
 
-  // specs/payment-link-lifecycle.md rule 42 — « Retirer le lien ». The fiche re-reads its finance; a devis
+  // specs/payments/payment-link-lifecycle.md rule 42 — « Retirer le lien ». The fiche re-reads its finance; a devis
   // re-runs its quote, whose ledger carries the links. A link just paid was booked by the server: re-read too.
   const withdrawPaymentLink = async (linkId) => {
     const reread = () => (editingReservationId ? reloadReservationFinance() : setRefundsVersion((v) => v + 1));
@@ -3299,7 +3299,7 @@ export default function ReservationPage() {
     }
   };
 
-  // specs/payment-link-lifecycle.md rule 56 — a payment received after a withdrawal by hand, settled by the operator.
+  // specs/payments/payment-link-lifecycle.md rule 56 — a payment received after a withdrawal by hand, settled by the operator.
   const settlePaymentLink = async (linkId, outcome) => {
     const reread = () => (editingReservationId ? reloadReservationFinance() : setRefundsVersion((v) => v + 1));
     try {
@@ -3311,7 +3311,7 @@ export default function ReservationPage() {
     }
   };
 
-  // specs/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the
+  // specs/payments/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the
   // server's answer and bump `refundsVersion` so the quote (and thus the fiche's « total de séjour »)
   // is recomputed. `createRefund` lets the API error bubble up: the dialog renders it inline.
   const applyRefundPayload = useCallback((payload) => {
@@ -3325,9 +3325,9 @@ export default function ReservationPage() {
     setRefundsVersion((v) => v + 1);
   }, []);
 
-  // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the paid
+  // specs/payments/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the paid
   // state and open the refund dialog on the amount the server announced.
-  // specs/pricing-components.md rule 112 — the cash part the server named (`overpaymentCash`) opens the dialog's two steps, as the ledger row does.
+  // specs/pricing/pricing-components.md rule 112 — the cash part the server named (`overpaymentCash`) opens the dialog's two steps, as the ledger row does.
   const openOverpaymentRefund = useCallback(async (overpaymentTtc, overpaymentLines, method, cashPart) => {
     await reloadReservationFinance();
     if (overpaymentTtc > 0) {
@@ -3517,10 +3517,10 @@ export default function ReservationPage() {
     updateForm({ status: nextStatus });
   };
 
-  // Online payments (specs/online-payments-qonto.md §3.4): create + open the payment link for this
+  // Online payments (specs/payments/online-payments-qonto.md §3.4): create + open the payment link for this
   // devis, then offer to poll for the payment (which converts the devis on success). What is asked
   // for — acompte or paiement intégral — is decided by the server and echoed back
-  // (specs/deposit-blocks-the-dates.md rules 10 + 12).
+  // (specs/payments/deposit-blocks-the-dates.md rules 10 + 12).
   const handleSendPaymentRequest = async () => {
     if (!editingDevisId) {
       await alert({ title: 'Devis à enregistrer', message: 'Enregistrement requis avant la demande de paiement.' });
@@ -3549,7 +3549,7 @@ export default function ReservationPage() {
     }
   };
 
-  // Online-deposit flow (specs/public-online-deposit.md §3 rule 8): manually send / re-send the balance
+  // Online-deposit flow (specs/site/public-online-deposit.md §3 rule 8): manually send / re-send the balance
   // payment request for a reservation whose deposit was collected online but whose solde is still due.
   const handleSendBalanceRequest = async () => {
     if (!editingReservationId) return;
@@ -3571,7 +3571,7 @@ export default function ReservationPage() {
       const summary = await api.pollPayments();
       const conv = (summary.results || []).find((x) => Number(x.reservationId) === Number(editingDevisId) && x.status === 'paid');
       // The link type says what was actually collected — an acompte, or the whole stay on a
-      // last-minute devis (specs/deposit-blocks-the-dates.md rule 12).
+      // last-minute devis (specs/payments/deposit-blocks-the-dates.md rule 12).
       const paidTitle = conv && conv.type === 'deposit' ? 'Acompte reçu ✓' : 'Paiement reçu ✓';
       if (conv && (conv.effect === 'converted' || conv.effect === 'already-converted')) {
         await alert({ title: paidTitle, message: 'Le devis a été converti en réservation (dates bloquées).' });
@@ -3615,7 +3615,7 @@ export default function ReservationPage() {
   const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
   const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
   const isReservationLocked = Boolean(reservationId && existingReservationLocked && !pastUnlocked);
-  // specs/reservation-payment-ledger.md rules 7, 39 — the stored money (ledger and headline) until the
+  // specs/payments/reservation-payment-ledger.md rules 7, 39 — the stored money (ledger and headline) until the
   // operator changes the fiche, never the live one on a locked fiche.
   const showLiveMoney = !storedLedger || (isDirty && !isReservationLocked);
   // The stay's own lock first: saving the draft would not lift it.
@@ -3637,7 +3637,7 @@ export default function ReservationPage() {
   const frozenCustomOptionIds = extrasWindowOpen ? (editLock.frozenCustomOptionIds || []) : NO_FROZEN_CUSTOM_IDS;
   // Rule 123 — the free lines a note or a collected complement paid, whatever the window: their label stays.
   const paidCustomOptionIds = editLock?.paidCustomOptionIds || NO_FROZEN_CUSTOM_IDS;
-  // specs/pricing-components.md rule 108 — the server names the offered paid lines whose money a refund gave back; they are not put back.
+  // specs/pricing/pricing-components.md rule 108 — the server names the offered paid lines whose money a refund gave back; they are not put back.
   const isRefundedOfferedLine = (kind, line) => {
     if (!refundedLoweredKeys.size) return false;
     if (kind === 'custom') return Boolean(line.key) && refundedLoweredKeys.has(line.key);
@@ -3714,10 +3714,10 @@ export default function ReservationPage() {
     ? (editingDevisId ? 'Modifier le devis' : 'Nouveau devis')
     : (reservationId ? 'Modifier la réservation' : 'Nouvelle réservation');
 
-  // Which promise this quote still carries (specs/devis-extras-parity-and-price-lock.md §3 rule 16).
+  // Which promise this quote still carries (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 16).
   // Both the date and the expiry verdict come from the server; the fiche only picks the wording — a
   // terser one on xs, where the bar shares its row with the language toggle and the action buttons.
-  // specs/ui-review-2026-10-19-operations.md rule 20 — « prolonger » announces the new price and the
+  // specs/design-system/ui-review-2026-10-19-operations.md rule 20 — « prolonger » announces the new price and the
   // new schedule (the server's preview) before re-issuing the quote, then reloads the fiche from it.
   const handleExtendDevis = async () => {
     let preview;
@@ -3760,7 +3760,7 @@ export default function ReservationPage() {
     />
   ) : null;
 
-  // specs/mid-stay-notes.md §3.5 rule 17 — « Nouvelle note » en TÊTE de barre : c'est l'action la
+  // specs/sas/mid-stay-notes.md §3.5 rule 17 — « Nouvelle note » en TÊTE de barre : c'est l'action la
   // plus fréquente d'un séjour en cours (le client prend une consommation au comptoir), et le bloc
   // qui la portait se trouvait à 81 % du défilement d'une fiche de 4500 px. Même règle d'affichage
   // que le bloc, partagée via `midStayNoteAccess` pour que les deux ne divergent jamais.
@@ -3803,7 +3803,7 @@ export default function ReservationPage() {
           // Focusable while blocked, so Tab reaches the reason in the tooltip.
           ariaDisabled: Boolean(convertToDevisBlockedReason),
         })] : []),
-    // specs/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
+    // specs/emails/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
     // when the client has no email; the dialog otherwise surfaces SMTP / template errors clearly.
     ...(!isDevisMode && reservationId
       ? [{
@@ -3826,7 +3826,7 @@ export default function ReservationPage() {
       ),
     }] : []),
     ...(isDevisMode ? [{
-      // Bilingual devis PDF (specs/devis-english-language.md §3 rule 1 + §6.1) — FR / EN toggle
+      // Bilingual devis PDF (specs/devis/devis-english-language.md §3 rule 1 + §6.1) — FR / EN toggle
       // beside the Statut Select. Default 'fr'. Marking the form dirty is handled by `updateForm`.
       node: (
         <Tooltip title="Langue du PDF de devis">
@@ -3846,11 +3846,11 @@ export default function ReservationPage() {
     }] : []),
     ...(isDevisMode
       ? [heldWhileRereading({ icon: <DescriptionIcon />, label: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId })] : []),
-    // specs/online-payments-qonto.md §3.4 — generate + send the deposit payment link for this devis,
-    // while a payment provider is ready (specs/plugins-phase-3a-online-payment.md rule 18).
+    // specs/payments/online-payments-qonto.md §3.4 — generate + send the deposit payment link for this devis,
+    // while a payment provider is ready (specs/plugins/plugins-phase-3a-online-payment.md rule 18).
     ...(onlinePayment && isDevisMode && editingDevisId
       ? [heldWhileRereading({ icon: <PaymentsIcon />, label: 'Envoyer la demande de paiement', onClick: handleSendPaymentRequest, color: 'success' })] : []),
-    // specs/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
+    // specs/site/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
     // collected online but the solde is still due (reservation, positive balance, not yet paid).
     // Réservation PLATEFORME exclue : le solde est encaissé par la plateforme et nous est reversé,
     // on ne le réclame jamais au client — envoyer ce lien serait une double demande de paiement.
@@ -3859,7 +3859,7 @@ export default function ReservationPage() {
       ? [heldWhileRereading({ icon: <RequestQuoteIcon />, label: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' })] : []),
   ];
 
-  // specs/calendar-property-parity.md rules 22, 24, 31 — « Rétablir » a duplicate set aside; the server refuses
+  // specs/planning/calendar-property-parity.md rules 22, 24, 31 — « Rétablir » a duplicate set aside; the server refuses
   // when its dates were booked since or its stock is gone.
   const handleRestoreSuperseded = async () => {
     setRestoring(true);
@@ -3879,9 +3879,9 @@ export default function ReservationPage() {
     : { ...action, tooltip: action.label });
 
   const actionBarAfter = [
-    // specs/payment-schedule-and-cancellation.md §3.5 rule 21 — cancelling from the fiche, for the
+    // specs/payments/payment-schedule-and-cancellation.md §3.5 rule 21 — cancelling from the fiche, for the
     // phone call that never turns into a payment. Direct channels only: a platform booking is
-    // cancelled through the iCal alert flow (specs/cancellation-compensation.md).
+    // cancelled through the iCal alert flow (specs/payments/cancellation-compensation.md).
     // Audit R44-C-L2 — held while the fiche has unsaved changes, as « Transformer en devis » (#918): the stay would leave
     // and the typed edits with it, or the leave guard would offer a save the server can only refuse.
     // Rule 101 (reading 2026-11-17, loop t15 UI15-1) — and held while the fiche is re-read: they act on a stay not read back.
@@ -3901,7 +3901,7 @@ export default function ReservationPage() {
     formSectionCardSx, lockedSectionSx, formSectionContentSx, sectionGridSx,
     // core
     form, updateForm,
-    // specs/plugins-phase-p-productisation.md rule 45 — the server's « platform sale » answer.
+    // specs/plugins/plugins-phase-p-productisation.md rule 45 — the server's « platform sale » answer.
     isPlatformSale: isPlatformReservation,
     // catalogs
     properties, propertyOptions, propertyOptionGroups, displayableResources,
@@ -3921,13 +3921,13 @@ export default function ReservationPage() {
     exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
     guestsCount, reservationBedCapacity, requiredRegularBeds,
     maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds,
-    // specs/bed-config-in-linen-card.md — drives the bed-inputs sub-block in ExtrasSection
+    // specs/linen/bed-config-in-linen-card.md — drives the bed-inputs sub-block in ExtrasSection
     // and suppresses the (now-removed) bed inputs from GuestsBedsSection.
     firstEnabledBedLinenOptionId, bedLinenOptionEnabled,
     // §3 rule 4.bis (hotfix follow-up) — bed-linen-flagged option IDs that are property
     // defaults. ExtrasSection forces the Switch ON + disabled for these.
     bedLinenForcedOptionIds,
-    // specs/tourist-tax-included-services-deduction.md rule 4 — the services included in the rate,
+    // specs/tourist-tax/tourist-tax-included-services-deduction.md rule 4 — the services included in the rate,
     // locked ON so they cannot be removed from the booking.
     lockedIncludedOptionIds,
     // extras
@@ -3935,13 +3935,13 @@ export default function ReservationPage() {
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption,
     setOptionInComplement, setResourceInComplement, setAutoOptionInComplement,
-    // Option-driven planning cards (specs/option-planning-card.md §3.2) — occurrence checklist.
+    // Option-driven planning cards (specs/options/option-planning-card.md §3.2) — occurrence checklist.
     setOptionCardOccurrences,
-    // specs/card-option-served-persons.md §3.2 — « Personnes servies » on a per-person card option.
+    // specs/options/card-option-served-persons.md §3.2 — « Personnes servies » on a per-person card option.
     setOptionCardPersons,
     setOptionTypedCount,
     captureOptionsState, restoreOptionsState,
-    // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md §3.2).
+    // Hourly-scheduled resource sessions (specs/resources/resource-hourly-scheduling.md §3.2).
     setResourceSessions,
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
@@ -3951,23 +3951,23 @@ export default function ReservationPage() {
     pricingQuotePending: quotePending,
     // The stored summary carries the stay's regime before the first live quote arrives.
     storedSummary,
-    // specs/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload
+    // specs/sas/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload
     // through the page (it owns the pipeline); the block itself holds no reservation logic.
     saveThenRun, reloadReservationFinance,
     // La fenêtre « Nouvelle note » s'ouvre depuis la barre d'actions ET depuis le bloc Finance :
     // l'état et la règle d'accès sont donc calculés ici, une seule fois.
     midStayNoteOpen, setMidStayNoteOpen, midStayNote,
-    // specs/reservation-refunds.md — server-owned register + the two mutations, consumed by the
+    // specs/payments/reservation-refunds.md — server-owned register + the two mutations, consumed by the
     // « Remboursements » block of the Finance card.
     refunds: refundRegister.refunds,
     refundableLines: refundRegister.refundableLines,
     refundTotals: refundRegister.refundTotals,
     refundCollectedTtc: refundRegister.collectedTtc,
-    // specs/reservation-refunds.md rule 34 — the trop-perçu, computed by the server with the live quote.
+    // specs/payments/reservation-refunds.md rule 34 — the trop-perçu, computed by the server with the live quote.
     refundOverpaymentTtc: Number(shownQuote?.overpaymentTtc || 0),
     refundOverpaymentLines: Array.isArray(shownQuote?.overpaymentLines) ? shownQuote.overpaymentLines : [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
-    // specs/reservation-payment-ledger.md — the ledger (live quote first, the stored one until then)
+    // specs/payments/reservation-payment-ledger.md — the ledger (live quote first, the stored one until then)
     // and its round-trips.
     // Rule 7 (review of #727) — the stored ledger by default, the live one only once the operator has
     // changed the fiche, never on a locked one; a fiche never saved has only the live one.
@@ -3979,7 +3979,7 @@ export default function ReservationPage() {
       ? shownQuote.depositDisabledLockedReason : storedDepositDisabledLockedReason,
     touristTaxInComplementLockedReason: taxInComplementLockedReason,
     midStayNoteLocks,
-    // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
+    // specs/plugins/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,
     pluginLineContext: {
@@ -4066,10 +4066,10 @@ export default function ReservationPage() {
             </>
           )
           : null}
-        // specs/review-2026-10-18-reservations.md rule 6 — at tablet width the centred client name
+        // specs/design-system/review-2026-10-18-reservations.md rule 6 — at tablet width the centred client name
         // overlapped the title: it shows from lg only.
         centerFrom="lg"
-        // specs/ui-review-2026-10-19-operations.md rule 12 — below lg, whose reservation is open.
+        // specs/design-system/ui-review-2026-10-19-operations.md rule 12 — below lg, whose reservation is open.
         identity={stayIdentity}
         identityBelow="lg"
         center={(selectedClient || form.reservationNumber) ? (
@@ -4101,7 +4101,7 @@ export default function ReservationPage() {
           py: 3,
           display: 'grid',
           // Two columns from lg only: at 900 px the form and the summary side by side overflowed the
-          // page (specs/review-2026-10-18-reservations.md rule 6). minmax(0, …) lets a long value
+          // page (specs/design-system/review-2026-10-18-reservations.md rule 6). minmax(0, …) lets a long value
           // ellipsise instead of widening the track.
           gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1fr) 320px' },
           gap: 3,
@@ -4119,7 +4119,7 @@ export default function ReservationPage() {
         {/* Colonne gauche : Formulaire */}
         <Box>
         {/* Banners of plugin modules, above everything the operator reads first
-            (specs/gites-de-france-mail-intake.md §4.1). A plugin that changed the reservation asks
+            (specs/platforms/gites-de-france-mail-intake.md §4.1). A plugin that changed the reservation asks
             for a reload through `onReservationChanged`. */}
         {editingReservationId && (
           <Slot
@@ -4201,7 +4201,7 @@ export default function ReservationPage() {
                   <>
                     {/* Attached client — bold name, click to edit the fiche (mirrors the inline
                         edit affordance). "Changer le client" reveals the search to attach another. */}
-                    {/* Highlighted client card (specs/email-client-language-and-fiche-polish.md §3 rule 7):
+                    {/* Highlighted client card (specs/emails/email-client-language-and-fiche-polish.md §3 rule 7):
                         soft primary tint + thin border so the guest's name stands out, harmonious with the theme. */}
                     <Box
                       role="button"
@@ -4211,7 +4211,7 @@ export default function ReservationPage() {
                       sx={{
                         display: 'inline-flex', alignItems: 'center', gap: 0.75, width: 'fit-content', maxWidth: '100%',
                         cursor: 'pointer', px: 1.25, py: 0.75, borderRadius: 2, mt: -0.25,
-                        // 35 px tall: a finger needs 44 (specs/ds-components.md rule 21, 2026-10-27 audit).
+                        // 35 px tall: a finger needs 44 (specs/design-system/ds-components.md rule 21, 2026-10-27 audit).
                         [COARSE_POINTER]: { minHeight: TOUCH_TARGET },
                         bgcolor: (t) => alpha(t.palette.primary.main, 0.08),
                         border: '1px solid',
@@ -4230,7 +4230,7 @@ export default function ReservationPage() {
                       <EditOutlinedIcon sx={{ fontSize: 16, color: (t) => alpha(t.palette.primary.main, 0.6) }} />
                     </Box>
                     {/* What this guest is written to in, and where the booking came from
-                        (specs/site-english-version.md §6). Both answer the same question at the
+                        (specs/site/site-english-version.md §6). Both answer the same question at the
                         moment it is asked: before writing to them. */}
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
                       <LanguageBadge
@@ -4244,7 +4244,7 @@ export default function ReservationPage() {
                           </span>
                         </Tooltip>
                       )}
-                      {/* specs/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
+                      {/* specs/site/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
                       {form.publicUpdatedAfterSendAt && (
                         <Tooltip title="Le client a écrit depuis le site après l’envoi du devis : son message est dans les notes">
                           <span><StatusBadge status="warning" label="Message du client après envoi" /></span>
@@ -4331,8 +4331,8 @@ export default function ReservationPage() {
             </Box>
           </FocusKeeper>
 
-          {/* Cards of plugin modules (specs/plugins-phase-1-sdk.md rule 13) — e.g. the key Sowel
-              reported for this stay (specs/gate-access-sowel-connector.md §3.5 rule 26). */}
+          {/* Cards of plugin modules (specs/plugins/plugins-phase-1-sdk.md rule 13) — e.g. the key Sowel
+              reported for this stay (specs/guest-app/gate-access-sowel-connector.md §3.5 rule 26). */}
           <Slot
             name="reservation.cards"
             reservationId={editingReservationId}
@@ -4378,7 +4378,7 @@ export default function ReservationPage() {
         )}
       </Box>
 
-      {/* specs/ui-review-2026-10-19-operations.md rules 10-11 — below lg the server's headline figure
+      {/* specs/design-system/ui-review-2026-10-19-operations.md rules 10-11 — below lg the server's headline figure
           stays on screen and opens the full summary in a sheet (decision 6: « Vous percevez » for a
           platform stay). */}
       {headline && (

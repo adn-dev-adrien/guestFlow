@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rules 23–25 (audit 2026-10-28, findings F2, F4, F6) — the guest's own
+// specs/platforms/gites-de-france-mail-intake.md rules 23–25 (audit 2026-10-28, findings F2, F4, F6) — the guest's own
 // name decides neither the party nor the amounts; dates are real; a cancelled fiche is never matched; a hostile
 // mail is parsed in milliseconds and remembered when it fails.
 const test = require('node:test');

@@ -1,10 +1,10 @@
 /**
- * NotFoundPage — the app-level 404 (specs/ds-components.md §3.4). For an administrator, an address
+ * NotFoundPage — the app-level 404 (specs/design-system/ds-components.md §3.4). For an administrator, an address
  * that belongs to a plugin that is not active reads « Plugin inactif » with a link to Plugins
- * instead (specs/plugins-phase-p-productisation.md rule 40): the server names the plugin, since a
+ * instead (specs/plugins/plugins-phase-p-productisation.md rule 40): the server names the plugin, since a
  * release does not ship the pages of a plugin that is not installed. On an operator-managed space there
  * is no Plugins page to open: the address reads « Page introuvable » for every role
- * (specs/plugin-operator-provisioning.md rule 7).
+ * (specs/plugins/plugin-operator-provisioning.md rule 7).
  *
  * Props: none — reads the current location and the signed-in user.
  */

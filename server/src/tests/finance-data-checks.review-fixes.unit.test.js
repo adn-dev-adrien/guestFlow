@@ -1,4 +1,4 @@
-// Review fixes of « À vérifier » (2026-11-06): specs/finance-data-checks.md §3 rules 18, 19, 20 and 21.
+// Review fixes of « À vérifier » (2026-11-06): specs/accounting/finance-data-checks.md §3 rules 18, 19, 20 and 21.
 //   R4-1 / D-HC10 — a tax frozen at 0 € is never listed as missing, whatever the platform's mode became;
 //   R4-5 / D-HC13 — a month's « reste » is the tax page's figure, the part not declarable yet named;
 //   R4-8 — a placeholder client with no name at all reads « Client sans nom »;

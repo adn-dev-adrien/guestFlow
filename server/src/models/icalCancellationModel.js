@@ -1,6 +1,6 @@
 /**
  * icalCancellationModel — pending cancellation approvals for iCal-imported reservations
- * (specs/ical-cancellation-approval.md §4.1, §5).
+ * (specs/platforms/ical-cancellation-approval.md §4.1, §5).
  *
  * Write paths called from the sync engine:
  *   - `recordPending({reservationId, sourceId, eventUid})` — UPSERT semantics per
@@ -10,13 +10,13 @@
  *     `(sourceId, eventUid)` matches an incoming feed event. Fires once at the top of
  *     every sync; if the platform un-cancels a booking the alert disappears silently.
  *   - `resolveForReservation(reservationId, sourceId)` — same, for a stay the feed re-issued under
- *     a new UID and that the sync re-claimed (specs/lodgify-decommission.md §3 rule 15).
+ *     a new UID and that the sync re-claimed (specs/platforms/lodgify-decommission.md §3 rule 15).
  *
  * Write paths called from the Dashboard controller:
  *   - `approve(id, compensation)` — atomic transaction: snapshot the reservation → history
  *     entry → DELETE FROM reservations → DELETE child ical_import_events mappings → flip the
  *     row to `outcome='approved'`. When `compensation` is given (the platform owes an
- *     indemnity for the cancelled stay, specs/cancellation-compensation.md §3.2), the
+ *     indemnity for the cancelled stay, specs/payments/cancellation-compensation.md §3.2), the
  *     compensation row is written in the SAME transaction, from a snapshot read BEFORE the
  *     delete — otherwise there would be nothing left to describe it. Returns 410-shaped error
  *     when the reservation is already gone, mapped by the controller to a 200 idempotent shape
@@ -146,7 +146,7 @@ function buildModel(database) {
   `);
   const reservationExists = database.prepare('SELECT * FROM reservations WHERE id = ?');
   // Everything a cancellation compensation needs to survive the reservation it came from
-  // (specs/cancellation-compensation.md §3.1 rule 1). Read INSIDE the approve transaction, before
+  // (specs/payments/cancellation-compensation.md §3.1 rule 1). Read INSIDE the approve transaction, before
   // the DELETE — after it there is nothing left to snapshot. Prepared LAZILY: it reaches for columns
   // (finalPrice, platform) that the cancellation unit tests' minimal schema doesn't define, and
   // merely building the model there must not throw — only actually asking for a snapshot may.
@@ -174,7 +174,7 @@ function buildModel(database) {
   const deleteReservation = database.prepare('DELETE FROM reservations WHERE id = ?');
   // Open payment links of the stay (and of the devis converted into it): abandoned in the transaction, with
   // the marker that keeps them on the poll's retry list; the caller deactivates them after the commit
-  // (specs/plugins-phase-3a-online-payment.md rule 7), as utils/cancelReservation does.
+  // (specs/plugins/plugins-phase-3a-online-payment.md rule 7), as utils/cancelReservation does.
   const abandonOpenLinks = (reservationId) => {
     let links;
     try {
@@ -183,7 +183,7 @@ function buildModel(database) {
       return links.map((l) => store.cancel(l.id, { remotePending: true }));
     } catch { return []; }
   };
-  // specs/booking-pace.md §5 — the deleted stay keeps counting « on the books » on the dates it was.
+  // specs/pricing/booking-pace.md §5 — the deleted stay keeps counting « on the books » on the dates it was.
   // Lazy: a schema without the ledger (older test fixtures) skips it.
   const recordPaceCancellation = (reservationId) => {
     const hasLedger = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'booking_pace_cancellations'").get();
@@ -232,14 +232,14 @@ function buildModel(database) {
       ackReservationGone.run(id);
       return { ok: true, outcome: 'reservation_gone', reservationId: cancellation.reservationId, compensationId: null };
     }
-    // specs/ical-cancellation-approval.md rule 13 — a stay already cancelled in GuestFlow is kept: deleting
+    // specs/platforms/ical-cancellation-approval.md rule 13 — a stay already cancelled in GuestFlow is kept: deleting
     // it would cascade its refunds (the credit note owed to the guest). Its mappings go, the alert closes.
     if ((r.kind || 'reservation') !== 'reservation') {
       deleteImportEvents.run(cancellation.reservationId);
       ackAlreadyCancelled.run(id);
       return { ok: true, outcome: 'already_cancelled', reservationId: null, compensationId: null };
     }
-    // THE delete guard (specs/payment-schedule-and-cancellation.md rule 52): a stay that carries money
+    // THE delete guard (specs/payments/payment-schedule-and-cancellation.md rule 52): a stay that carries money
     // (a refund, a penalty, a paid link, a compensation…) is never hard-deleted by a platform's
     // disappearance: it is cancelled and kept, its mappings go, the alert closes as approved.
     const keptAsCancelled = carriesMoney(database, [cancellation.reservationId])

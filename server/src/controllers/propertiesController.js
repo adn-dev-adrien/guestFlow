@@ -28,7 +28,7 @@ function respond(res, result) {
 }
 
 function list(req, res) {
-  // specs/reception-role-checkin-only.md §3.2 — a reception-only user gets the pricing-stripped
+  // specs/sas/reception-role-checkin-only.md §3.2 — a reception-only user gets the pricing-stripped
   // property view (id + name + photo) for the Planning columns; everyone else the full list.
   const properties = model.list();
   const receptionOnly = userHasRole(req.user, RECEPTION) && !userHasRole(req.user, ADMIN);
@@ -38,7 +38,7 @@ function list(req, res) {
 // The groups repeat each option of `options` in full (49 kB beside 28 kB on the shadow), and their
 // `pinned` / `foldable` slices again: the stay view names the options by id, drops the two slices (the
 // fiche recomputes them from the reservation) and the client joins the ids back to `options`
-// (specs/inte-performance.md rule 21).
+// (specs/tech/inte-performance.md rule 21).
 function referenceOptionGroups(groups) {
   if (!groups) return groups;
   const ref = (option) => ({ id: option.id });
@@ -53,7 +53,7 @@ function getOne(req, res) {
   const property = model.getByIdWithDetails(req.params.id);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
   // `?view=stay` — what a reservation fiche reads: the property without its pricing seasons, which only
-  // the tariff pages render (the bulk of the payload; specs/inte-performance.md rule 14).
+  // the tariff pages render (the bulk of the payload; specs/tech/inte-performance.md rule 14).
   if (req.query && req.query.view === 'stay') {
     const { pricingRules, ...stay } = property; // eslint-disable-line no-unused-vars
     return res.json({ ...stay, optionGroups: referenceOptionGroups(stay.optionGroups) });
@@ -62,14 +62,14 @@ function getOne(req, res) {
 }
 
 // GET /api/properties/limits — the bounds of the property form's numbers, for a new property too
-// (specs/settings-input-guards.md rule 8).
+// (specs/settings/settings-input-guards.md rule 8).
 function limits(req, res) {
   res.json(PROPERTY_LIMITS);
 }
 
 // GET /api/properties/article-labels?name= — the five articles as the guest emails write them
 // (« au Fournil »: the server contracts), so the property page shows what is sent
-// (specs/guest-email-texts-made-simple.md rule 30, 2026-10-18).
+// (specs/emails/guest-email-texts-made-simple.md rule 30, 2026-10-18).
 function articleLabels(req, res) {
   res.json({ labels: propertyArticle.choices(String((req.query && req.query.name) || '').slice(0, 200)) });
 }
@@ -79,7 +79,7 @@ function platformColors(req, res) {
 }
 
 // GET/PUT /api/properties/email-hooks — the J-7 hooks, edited from the J-7 template
-// (specs/settings-rationalization.md rule 17c).
+// (specs/settings/settings-rationalization.md rule 17c).
 function emailHooks(req, res) {
   res.json(model.listEmailHooks());
 }
@@ -95,7 +95,7 @@ function progressivePreview(req, res) {
   return res.json(buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14)));
 }
 
-// specs/settings-rationalization.md rule 23a — refused before anything is written, one message per field.
+// specs/settings/settings-rationalization.md rule 23a — refused before anything is written, one message per field.
 function refuseInvalid(res, body, existing) {
   const errors = validatePropertyInput(body || {}, existing);
   if (Object.keys(errors).length === 0) return false;
@@ -123,7 +123,7 @@ async function create(req, res) {
 
 async function update(req, res) {
   const stored = model.getByIdWithDetails(req.params.id);
-  // specs/reservations-backend-mvc.md rule 26 (audit R41-DB-L2) — a save on a logement that no longer exists is refused,
+  // specs/tech/reservations-backend-mvc.md rule 26 (audit R41-DB-L2) — a save on a logement that no longer exists is refused,
   // never a 200 « ok » on an UPDATE that touched nothing (with a photo written to /uploads for nobody).
   if (!stored) return void res.status(404).json({ error: 'Logement non trouvé' });
   req.body = cleanPropertyText(req.body, stored);
@@ -156,7 +156,7 @@ async function remove(req, res) {
   return res.json(outcome);
 }
 
-// specs/google-vacation-rentals-feed.md rule 12 — a write that succeeded announces itself; a refusal
+// specs/site/google-vacation-rentals-feed.md rule 12 — a write that succeeded announces itself; a refusal
 // announces nothing.
 function respondAndAnnounce(res, result, propertyId, source) {
   if (result && !result.error) emitPricingChanged(propertyId, source);
@@ -179,7 +179,7 @@ function deletePricing(req, res) {
   respondAndAnnounce(res, model.deletePricingRule(req.params.id, req.params.ruleId), req.params.id, 'pricing');
 }
 
-// « Prix plateformes » grid for the tarif page (specs/platform-price-from-commission.md).
+// « Prix plateformes » grid for the tarif page (specs/platforms/platform-price-from-commission.md).
 // Read endpoint → res.json directly (like list/getOne); the model returns clean data, not { data }.
 function platformPrices(req, res) {
   res.json(model.platformPrices(req.params.id));
@@ -190,7 +190,7 @@ function applyPricing(req, res) {
   respondAndAnnounce(res, model.applyPricingTo(Number(req.params.id), req.body), target, 'pricing');
 }
 
-// Calendar season painting (specs/pricing-min-nights-per-range.md): (re)assign a selected period to a
+// Calendar season painting (specs/pricing/pricing-min-nights-per-range.md): (re)assign a selected period to a
 // season with a minimum-nights, carving/splitting the covering season(s) server-side.
 function assignPricingDateRange(req, res) {
   const target = (req.body && req.body.target) || {};
@@ -215,7 +215,7 @@ function deleteDocument(req, res) {
 }
 
 function setOptions(req, res) {
-  // specs/settings-input-guards.md, hosting-h2 rule 68 — a list of ids or nothing; left out means an empty list, as before.
+  // specs/settings/settings-input-guards.md, hosting-h2 rule 68 — a list of ids or nothing; left out means an empty list, as before.
   const { optionIds } = req.body || {};
   if (optionIds !== undefined && optionIds !== null && !(Array.isArray(optionIds) && optionIds.every((id) => positiveId(id) !== null))) {
     return res.status(400).json({ error: 'Liste d’options invalide.' });

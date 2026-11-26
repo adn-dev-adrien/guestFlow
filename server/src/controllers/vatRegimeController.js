@@ -1,6 +1,6 @@
 /**
  * VAT regime controller — GET state, POST preview, POST switch, DELETE an unused period
- * (specs/vat-optional-mode.md §4.3). Thin: validation and effects live in `vatRegimeSwitchModel`.
+ * (specs/accounting/vat-optional-mode.md §4.3). Thin: validation and effects live in `vatRegimeSwitchModel`.
  * Admin only through the standard role guard, the accountant may read the state.
  */
 

@@ -1,8 +1,8 @@
 /**
  * One-shot repair of the « solde = net » schedule shape
- * (specs/legacy-net-solde-schedule-repair.md).
+ * (specs/accounting/legacy-net-solde-schedule-repair.md).
  *
- * Since specs/platform-per-echeance-commission.md the échéances store the GROSS amounts — what the
+ * Since specs/platforms/platform-per-echeance-commission.md the échéances store the GROSS amounts — what the
  * guest pays the platform — and the operator-entered commission is tracked beside them; the owner
  * banks `échéance − commission`. Reservations written before that convention stored the NET in the
  * échéance while ALSO carrying the commission, so every reader that nets the commission out (the

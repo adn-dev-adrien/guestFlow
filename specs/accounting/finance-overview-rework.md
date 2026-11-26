@@ -9,6 +9,8 @@
 | **Related PR** | (link once opened) |
 | **Touches** | `models/financeModel.js`, `controllers/*finance*`, `pages/FinancePage.js`, `api.js` |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Live: §3.1 (« total de séjour »), §3.3 (settled) and §3.7 (element-by-element HT), all in `financeModel`. The cards, graphs, upcoming list and operational tabs of §3.2, §3.4-3.6 were replaced by the dashboard of `specs/accounting/finance-dashboard-redesign.md`, and every « by `endDate` » window is now the attribution date (`specs/accounting/fiscal-year-and-nights-sold.md` rule 8).
+
 ---
 
 ## 1. Context
@@ -50,7 +52,7 @@ Rounded to cents. This is the per-reservation value summed everywhere below.
 4. **Encaissé** — total actually collected over the period = **accounting sum** of every paid component
    (acompte + solde + complément + fin de séjour) marked paid, **excluding caisse interne** (so it equals
    what the compta export shows). By `endDate` in range.
-5. **En attente de règlement** — *(redefined 2026-07-17, specs/finance-pending-global-remaining.md)*
+5. **En attente de règlement** — *(redefined 2026-07-17, specs/accounting/finance-pending-global-remaining.md)*
    Σ **remainingToPay** of **ALL** reservations with `endDate < today` AND not fully settled — the
    selected du/au range is **ignored** (a finished unpaid stay from a previous month still counts),
    and only the still-owed part counts (a paid deposit sits in « Encaissé », never here). Equals the
@@ -62,7 +64,7 @@ Each card also shows, in **smaller text under the TTC figure**, the matching **H
 
 > **Per-logement chart tabs (2026-07-18):** the « Revenu par logement » chart declines cards 1 and 3
 > per property via two tabs — « Sur la période » and « Depuis le début de l'année » — with TTC + HT
-> on each bar. See specs/finance-per-property-revenue-chart.md.
+> on each bar. See specs/accounting/finance-per-property-revenue-chart.md.
 
 ### 3.3 « Settled » definition (drives En attente + operational)
 A reservation is **settled** when every applicable component is paid **or** marked caisse interne:
@@ -81,7 +83,7 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
   of the page** (below « Suivi opérationnel ») and is a **collapsible accordion, folded by default**.
 
 ### 3.5 Upcoming list — payments table (superseded 2026-06-25)
-> **Superseded by [finance-upcoming-payments-table.md](finance-upcoming-payments-table.md) (2026-06-25).**
+> **Superseded by finance-upcoming-payments-table.md (the former `finance-upcoming-payments-table`, deleted) (2026-06-25).**
 > The « Réservations à venir » tab is now the **same payments table as « Paiements en attente »**,
 > read-only and **without** the « Compl. fin de séjour » column, with a green
 > « En attente de paiement : Σ reste à payer » chip top-right. The Planning arrival cards

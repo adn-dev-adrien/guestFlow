@@ -7,7 +7,7 @@
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Summary & mockup** | [docs/specs/2026-10-28-options-resources-ux.html](../docs/specs/2026-10-28-options-resources-ux.html) — two directions (A · Catalogue, B · Grille par logement), desktop + phone, real / worst-case / empty data. **Decision 2026-10-28: direction A.** |
+| **Summary & mockup** | [docs/specs/2026-10-28-options-resources-ux.html](../../docs/specs/2026-10-28-options-resources-ux.html) — two directions (A · Catalogue, B · Grille par logement), desktop + phone, real / worst-case / empty data. **Decision 2026-10-28: direction A.** |
 | **Amends (UI sections only)** | `option-categories.md` §6.2 · `per-property-option-prices.md` §6 · `per-property-default-options.md` §6 · `option-soft-delete.md` §6 · `resources.md` §6 · `resource-hourly-scheduling.md` §6 · `plugins-phase-3c-hourly-resources.md` §6 |
 
 ---
@@ -237,7 +237,7 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     the previous handler back, and its Back path keeps the page's own URL; a clean or closed form holds
     nothing. « Enregistrer et quitter » continues to the pending destination only when the save
     succeeded. Reading of 2026-11-05: the fiche and the logement hold the same slot
-    (specs/ui-review-2026-10-19-operations.md rule 40).
+    (specs/design-system/ui-review-2026-10-19-operations.md rule 40).
 30. Accessibility and feedback of the lists and panels: a row or card has one button, its name, stretched
     over the whole row (price, traits and the « ⋯ » menu are not nested inside a button); the panel is
     named by its visible title; a pristine form shows no error — they appear once it is edited; while a
@@ -364,7 +364,7 @@ cannot exist — the model already skipped them on write — so no backfill.
 
 ## 6. UI / UX
 
-Interactive mockup: [docs/specs/2026-10-28-options-resources-ux.html](../docs/specs/2026-10-28-options-resources-ux.html).
+Interactive mockup: [docs/specs/2026-10-28-options-resources-ux.html](../../docs/specs/2026-10-28-options-resources-ux.html).
 
 - **PageActionBar:** title « Options & ressources »; tabs Options · Ressources · « Proposés à l'arrivée » (core, `outside-booking-sas.md` rule 37, C38) · plugin tabs centred
   (`xs`: second row); one action `AddIcon` « Nouvelle option » / « Nouvelle ressource » (primary). No
@@ -400,7 +400,7 @@ Interactive mockup: [docs/specs/2026-10-28-options-resources-ux.html](../docs/sp
 
 ## 7. Test plan
 
-Rule citations use `specs/options-resources-ux.md rule N` so `check-spec-coverage.mjs` sees them.
+Rule citations use `specs/options/options-resources-ux.md rule N` so `check-spec-coverage.mjs` sees them.
 
 ### Server unit tests (`cd server && npm test`)
 

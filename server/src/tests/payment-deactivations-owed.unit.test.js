@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 67 — a withdrawn link whose deactivation is owed (whichever path withdrew it) is
+// specs/payments/payment-link-lifecycle.md rule 67 — a withdrawn link whose deactivation is owed (whichever path withdrew it) is
 // deactivated by the poll while the provider is connected, and listed in the home's « À traiter » until it is.
 // A mocked provider only: nothing leaves the process.
 

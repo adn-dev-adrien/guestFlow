@@ -1,5 +1,5 @@
 /**
- * The email templates of the renewal and their mode (specs/control-plane-plans-and-access.md rule
+ * The email templates of the renewal and their mode (specs/hosting/control-plane-plans-and-access.md rule
  * 33). The preview is the server's own rendering on a sample customer, so what the operator reads
  * while typing is what the customer would receive.
  */

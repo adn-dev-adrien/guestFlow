@@ -1,4 +1,4 @@
-// Fixtures of the complement-excess suites (specs/pricing-components.md §3 rules 74 and 76): a stay whose money was collected
+// Fixtures of the complement-excess suites (specs/pricing/pricing-components.md §3 rules 74 and 76): a stay whose money was collected
 // on lines that the stay no longer holds, built the way a payment flip leaves it — the frozen split of the arrival complement,
 // the contribs of removed paid lines — so the payment allocations name the lines and the poste split reads no audit log.
 const OPTION = (id) => `opt:${id}`;

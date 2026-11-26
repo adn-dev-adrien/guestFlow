@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 18-20 — the pieces of the connector around the tunnel: the alias block draws the same tunnel, the permanent link `/utiliser` leads to the page that holds
+// specs/site/site-outside-resource-booking.md rules 18-20 — the pieces of the connector around the tunnel: the alias block draws the same tunnel, the permanent link `/utiliser` leads to the page that holds
 // either block, the purchase page links to it (and only when a page holds it), and the voucher card stands straight.
 import fs from 'node:fs';
 import path from 'node:path';

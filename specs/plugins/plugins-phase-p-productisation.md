@@ -7,10 +7,12 @@
 | **Created** | 2026-10-06 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §7 « Specific to Solio, but not a plugin », §12 phase P, §13 Q2 |
-| **Previous phase** | [`specs/plugins-phase-3c-hourly-resources.md`](plugins-phase-3c-hourly-resources.md) (PR #661) |
-| **Feature specs** | [`specs/guest-email-sequence.md`](guest-email-sequence.md), [`specs/accountant-accounting-export.md`](accountant-accounting-export.md), [`specs/control-plane-plans-and-access.md`](control-plane-plans-and-access.md) — their rules hold, except where §3 below corrects them |
-| **Summary for review** | [`docs/specs/2026-10-06-plugins-phase-p-productisation.html`](../docs/specs/2026-10-06-plugins-phase-p-productisation.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — §7 « Specific to Solio, but not a plugin », §12 phase P, §13 Q2 |
+| **Previous phase** | [`specs/plugins/plugins-phase-3c-hourly-resources.md`](plugins-phase-3c-hourly-resources.md) (PR #661) |
+| **Feature specs** | [`specs/emails/guest-email-sequence.md`](../emails/guest-email-sequence.md), [`specs/accounting/accountant-accounting-export.md`](../accounting/accountant-accounting-export.md), [`specs/hosting/control-plane-plans-and-access.md`](../hosting/control-plane-plans-and-access.md) — their rules hold, except where §3 below corrects them |
+| **Summary for review** | [`docs/specs/2026-10-06-plugins-phase-p-productisation.html`](../../docs/specs/2026-10-06-plugins-phase-p-productisation.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 21: the assistant has five steps (`client/src/pages/OnboardingPage.jsx` `ALL_STEPS`). Still governs: stay texts and option mentions as data, neutral seeds for a new database, the start assistant, `productisation_v1`, the account plan as plugin settings.
 
 ---
 
@@ -195,7 +197,7 @@ Decisions taken on 2026-10-06:
 
 20. **An admin is sent to the assistant** when `app_settings.onboardingCompletedAt` is empty. This
     happens after the forced password change. Other roles never see it.
-21. **Four steps.** Each step saves when « Suivant » is pressed; the server validates every step,
+21. **Five steps** (four in phase P; « Emails » added by `specs/emails/guest-email-texts-made-simple.md` rule 21, between « Plugins » and « C'est prêt »; « Plugins » is absent on an operator-managed space, `specs/plugins/plugin-operator-provisioning.md` rule 8). Each step saves when « Suivant » is pressed; the server validates every step,
     and an error keeps the step open.
     1. **Entreprise**:
        - name (required);
@@ -228,7 +230,8 @@ Decisions taken on 2026-10-06:
        - a failure names the plugin and lets the others go through.
 
        _Since 2026-10-19 the step asks three questions instead of listing plugins (rule 43)._
-    4. **C'est prêt**: three links (Réglages › Emails, Tarifs, Plugins), and « Ouvrir le tableau de
+    4. **Emails**: « Vos emails » — see `specs/emails/guest-email-texts-made-simple.md` rules 21 and 28–32.
+    5. **C'est prêt**: three links (Réglages › Emails, Tarifs, Plugins), and « Ouvrir le tableau de
        bord », which records `onboardingCompletedAt`.
 22. **« Plus tard »**, on every step, records `onboardingCompletedAt` and leaves; what was saved stays
     (P21). The assistant can be reopened from Réglages › Système (« Assistant de démarrage »).
@@ -280,7 +283,7 @@ Decisions taken on 2026-10-06:
 
     `accountPlan.js` keeps the mapping logic and reads the numbers from the settings. The
     per-platform commission accounts already live on `/comptabilite/plateformes` and stay there.
-    **Amended 2026-10-28** (specs/settings-input-guards.md rules 32-34): the page shows them in one
+    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 32-34): the page shows them in one
     « Comptes » card, grouped, with the older default commission and indemnity accounts.
 28. **Validation:** an account is 3 to 12 digits, except the client auxiliary prefix, which stays as
     it is; a journal code is 1 to 4 uppercase letters or digits. Two different roles may share an
@@ -418,7 +421,7 @@ Decisions taken on 2026-10-06:
 
     | Question | « Oui » turns on | On a fresh instance |
     |---|---|---|
-    | « Des options payantes à l'arrivée : repas, linge, sauna ou spa ? » (neutral examples since the 2026-10-27 audit, specs/platform-settings-relay-and-review.md rule 10) | Ressources à l'heure, Linge et blanchisserie, Arrivée et départ guidés (the SAS is where options are sold and paid) | oui |
+    | « Des options payantes à l'arrivée : repas, linge, sauna ou spa ? » (neutral examples since the 2026-10-27 audit, specs/platforms/platform-settings-relay-and-review.md rule 10) | Ressources à l'heure, Linge et blanchisserie, Arrivée et départ guidés (the SAS is where options are sold and paid) | oui |
     | « Un site internet qui prend des réservations ? » | Réservation depuis le site | oui |
     | « Encaisser en ligne, par lien de paiement ? » | Paiement en ligne (Qonto) | non |
 
@@ -442,7 +445,7 @@ Decisions taken on 2026-10-06:
 
 44. **On a phone the assistant's primary action sits at the bottom, under the thumb** (integrated review
     of inte/plugins, 2026-10-19, L4 — the SAS rule of UI/UX review 2026-10-18, decision 5, now a
-    shared rule: specs/design-system-reference.md §9). Under `sm` the actions of `StepperPage` stack in
+    shared rule: specs/design-system/design-system-reference.md §9). Under `sm` the actions of `StepperPage` stack in
     a bar kept at the bottom of the screen (safe area included): « Plus tard » and « Précédent » first,
     neutral, then « Suivant » (or « Ouvrir le tableau de bord ») last, filled and full width. From `sm`
     they stay on one row, right-aligned, the primary one last. *Review of PR #728 (M3):* `sticky`
@@ -486,7 +489,7 @@ Decisions taken on 2026-10-06:
     onboarding is open (rule 20) or when it was reopened on purpose from Réglages › Système, which
     navigates with the router state `{ reopen: true }` (rule 22); any other visit of `/demarrage` is
     redirected to `/`. Step 1 no longer changes the login implicitly
-    (`specs/hosting-h2-account-security.md` rule 37).
+    (`specs/hosting/hosting-h2-account-security.md` rule 37).
 47. **The assistant's fields keep even gaps** (2026-10-27 audit). No blank helper line is reserved under
     a field any more: a message shows when there is one, and steps 1 and 2 use the same 16 px gap as
     the property grid. The reserved lines, added to the stack's and the grid's own gaps, gave uneven
@@ -551,7 +554,7 @@ Decisions taken on 2026-10-06:
 | `components/` | `TokenTextField.jsx` | C | **Generic**: a FR/EN text field with its token chips, insertion at the cursor, the server's refusal shown inline. The email template editor can adopt it later |
 | `components/` | `MentionEditor.jsx` | C | Specific: one mention, its options and its price source |
 | `components/` | `StepperPage.jsx` | C | **Generic**: a page-level stepper with the counter, « Plus tard », « Précédent » / « Suivant ». Reusable for any guided flow |
-| `components/property/` | `PropertyStayTexts.jsx` | C | Specific: « Textes propres à ce logement », saved text by text. _Superseded by #693 (`specs/guest-email-texts-made-simple.md`): the file was deleted; the per-property facts live in `PropertyArrivalFacts.jsx`._ |
+| `components/property/` | `PropertyStayTexts.jsx` | C | Specific: « Textes propres à ce logement », saved text by text. _Superseded by #693 (`specs/emails/guest-email-texts-made-simple.md`): the file was deleted; the per-property facts live in `PropertyArrivalFacts.jsx`._ |
 | `pages/settings/` | `SystemSettingsPage.jsx` | T | « Assistant de démarrage » reopens `/demarrage` (with the router state `{ reopen: true }` since rule 46) |
 | `components/` | `SettingsPushNotificationsSection.jsx` | T | Says when no address can sign push (rule 18) |
 | `plugins/sas/` | `ExtinguisherCheckCard.jsx` | C | The switch, in the « Facturables au SAS » tab |

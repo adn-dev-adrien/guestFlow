@@ -1,4 +1,4 @@
-// specs/dashboard-collection-alert.md §4.1 — `isSettled` / `remainingToPay` were extracted from
+// specs/planning/dashboard-collection-alert.md §4.1 — `isSettled` / `remainingToPay` were extracted from
 // financeModel.js so the dashboard's collection status shares the exact same bucket rules. These
 // cases pin the extracted behavior (the finance suite covers the same rules end-to-end through
 // getSummary / getOperational, this one covers the pure functions directly).
@@ -82,7 +82,7 @@ test('platformCommission: acompte + solde, 0 on a direct booking', () => {
   assert.equal(platformCommission({}), 0);
 });
 
-// ── Le séjour encaissé à la porte (specs/collect-stay-payment-at-check-in.md) ─────────────────
+// ── Le séjour encaissé à la porte (specs/sas/collect-stay-payment-at-check-in.md) ─────────────────
 
 test('stayDueAtArrival: a last-minute stay owes its whole solde (no acompte by construction)', () => {
   const due = stayDueAtArrival({ depositAmount: 0, balanceAmount: 480 });

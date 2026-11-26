@@ -1,6 +1,6 @@
 /**
  * useInfiniteEdgeScroll — the scroll machinery of an ordered feed that grows at both ends
- * (specs/dashboard-planning-scroll.md rules 13, 18, 19): it notices the scroller nearing an edge, asks
+ * (specs/planning/dashboard-planning-scroll.md rules 13, 18, 19): it notices the scroller nearing an edge, asks
  * the feed for more, keeps what the operator is looking at in place when content is added or released
  * ABOVE it, chains a bounded number of requests when the new content is short, and scrolls to a key.
  * It loads nothing and knows no item type: the feed owns its data and its in-flight state.

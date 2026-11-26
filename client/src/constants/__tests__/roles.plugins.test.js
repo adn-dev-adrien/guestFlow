@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md rules 13, 16-17, 21 — a page of a plugin that is not active
+// specs/plugins/plugins-phase-0-foundation.md rules 13, 16-17, 21 — a page of a plugin that is not active
 // (available or installed-inactive: only the active ids reach the client) is not visible, whatever the
 // role; the settings submenu drops the entries and the dividers left empty.
 import { canSeeRoute, canSeeAnyRoute, ROUTE_ROLES } from '../roles';
@@ -6,7 +6,7 @@ import { PLUGIN_IDS, ROUTE_PLUGINS, isRouteEnabled, isPluginEnabled } from '../p
 import { visibleSettingsMenu, SETTINGS_MENU } from '../settingsMenu';
 import PLUGIN_MODULES from '../../plugins';
 
-// An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
+// An admin of a managed instance, where « Accès du support » exists (specs/hosting/hosting-h2-account-security.md rule 17).
 const admin = (enabledPlugins) => ({ roles: ['admin'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true });
 
 describe('plugin gate on routes', () => {

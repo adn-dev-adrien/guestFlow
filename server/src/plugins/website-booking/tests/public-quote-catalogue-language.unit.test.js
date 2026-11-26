@@ -1,7 +1,7 @@
 require('./isolatedDb');
 /**
- * specs/translation-catalogue.md rule 21 — the live quote reads the catalogue, like every other
- * surface that names a label. Also specs/site-english-version.md rule 6, which said so first.
+ * specs/site/translation-catalogue.md rule 21 — the live quote reads the catalogue, like every other
+ * surface that names a label. Also specs/site/site-english-version.md rule 6, which said so first.
  *
  * The regression this suite exists for shipped in 3.3.0 and was visible in the tunnel: the catalogue
  * migration dropped `options.titleEn` / `resources.nameEn`, and `toPublicQuote` was the one projection

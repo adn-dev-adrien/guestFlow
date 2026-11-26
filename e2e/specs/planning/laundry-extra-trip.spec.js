@@ -1,5 +1,5 @@
 // @ts-check
-// specs/laundry-extra-trip.md §7 — Playwright smoke for the extra laundry trip.
+// specs/linen/laundry-extra-trip.md §7 — Playwright smoke for the extra laundry trip.
 //
 // Same discipline as skip-laundry-trip.spec.js: materialising a non-empty laundry card in the
 // E2E DB is non-trivial and the arithmetic is pinned by the server suites (ledger, engine,
@@ -8,7 +8,7 @@
 import { test, expect } from '../../fixtures/test.js';
 import { farYearWeekday } from '../../fixtures/farYear.js';
 
-// Inside the date window (specs/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.
+// Inside the date window (specs/tech/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.
 const FAR_FUTURE_THURSDAY = farYearWeekday(4); // a free date for the default Tuesday
 const FAR_FUTURE_TUESDAY = farYearWeekday(2); // the default laundry weekday
 
@@ -37,7 +37,7 @@ test('extra laundry trip — API round-trip + planning page still renders with a
   const listBody = await listResp.json();
   expect(listBody.trips.map((t) => t.date)).toContain(FAR_FUTURE_THURSDAY);
 
-  // The planning lists it as an extra trip (specs/linen-laundry-days.md rule 13: one card per date to draw).
+  // The planning lists it as an extra trip (specs/linen/linen-laundry-days.md rule 13: one card per date to draw).
   const summaryResp = await request.get(`/api/planning/laundry/days?from=${FAR_FUTURE_THURSDAY}&to=${FAR_FUTURE_THURSDAY}`);
   expect(summaryResp.ok()).toBeTruthy();
   const summary = await summaryResp.json();

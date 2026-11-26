@@ -7,8 +7,8 @@
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Summary for decision** | [docs/specs/2026-10-28-settings-input-guards.html](../docs/specs/2026-10-28-settings-input-guards.html) |
-| **Amends** | [property-deposit-switch.md](property-deposit-switch.md), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) §3.1–§3.3, [deposit-blocks-the-dates.md](deposit-blocks-the-dates.md), [guest-email-texts-made-simple.md](guest-email-texts-made-simple.md) rule 34, [settings-rationalization.md](settings-rationalization.md) (Plateformes page), [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) rule 27 + [accounting-platform-commission-and-no-deposit.md](accounting-platform-commission-and-no-deposit.md) rule 17 (Plan comptable layout), [guest-email-sequence.md](guest-email-sequence.md) §6.2 (Instagram link) |
+| **Summary for decision** | [docs/specs/2026-10-28-settings-input-guards.html](../../docs/specs/2026-10-28-settings-input-guards.html) |
+| **Amends** | [property-deposit-switch.md](../payments/property-deposit-switch.md), [payment-schedule-and-cancellation.md](../payments/payment-schedule-and-cancellation.md) §3.1–§3.3, [deposit-blocks-the-dates.md](../payments/deposit-blocks-the-dates.md), [guest-email-texts-made-simple.md](../emails/guest-email-texts-made-simple.md) rule 34, [settings-rationalization.md](settings-rationalization.md) (Plateformes page), [plugins-phase-p-productisation.md](../plugins/plugins-phase-p-productisation.md) rule 27 + [accounting-platform-commission-and-no-deposit.md](../accounting/accounting-platform-commission-and-no-deposit.md) rule 17 (Plan comptable layout), [guest-email-sequence.md](../emails/guest-email-sequence.md) §6.2 (Instagram link) |
 
 > **Why one umbrella spec.** Adrien's feedback of 2026-10-28 on the `inte/plugins` shadow lists six
 > settings defects that share one cause — a field accepts what the business cannot mean — and one cure,
@@ -36,33 +36,33 @@ What the code does today (`origin/inte/plugins` 714ed5e4):
 
 ### 1.1 Payment delays — a negative is *silently replaced*, not refused
 
-- [PropertyPaymentTab.jsx:13-26](../client/src/components/property/PropertyPaymentTab.jsx#L13) renders
+- [PropertyPaymentTab.jsx:13-26](../../client/src/components/property/PropertyPaymentTab.jsx#L13) renders
   the four numbers as raw `<TextField type="number">` with no `min`/`max` — the native field lets the
   operator type `-3`.
-- [propertyValidation.js](../server/src/utils/propertyValidation.js) checks `depositPercent`, the tourist
+- [propertyValidation.js](../../server/src/utils/propertyValidation.js) checks `depositPercent`, the tourist
   tax and the caution, but **none of the three day counts**.
-- [propertiesModel.js:79-91](../server/src/models/propertiesModel.js#L79) `dayCountOr()` (replaced by `delayOf`, rule 45) turns a negative
+- [propertiesModel.js:79-91](../../server/src/models/propertiesModel.js#L79) `dayCountOr()` (replaced by `delayOf`, rule 45) turns a negative
   or non-numeric value into the policy default (7 / 30 / 7). So `-3` is *saved as 7* with a success
   toast: the operator believes he stored something he did not. There is no upper bound at all — `400`
   days is stored as is.
-- [paymentSchedule.js:34-38](../server/src/utils/paymentSchedule.js#L34) `positiveDays()` repeats the
+- [paymentSchedule.js:34-38](../../server/src/utils/paymentSchedule.js#L34) `positiveDays()` repeats the
   same silent fallback when the schedule is derived.
 - Shadow data (2026-10-22): both properties hold `depositDueDays 7`, `balanceDaysBefore 30`,
   `cancelAfterBalanceDueDays 7` — inside the new bounds.
 
 ### 1.2 `depositDueDays = 0` — what it means today
 
-`resolveDepositDueDate` ([paymentSchedule.js:58-80](../server/src/utils/paymentSchedule.js#L58)) gives
+`resolveDepositDueDate` ([paymentSchedule.js:58-80](../../server/src/utils/paymentSchedule.js#L58)) gives
 `bookingDate + 0` = **the booking day**. Everything downstream already copes:
 
 | Path | Effect of 0 today |
 |---|---|
-| Devis (quote, website request) | No effect: a devis's acompte is due on its validity date (payment-schedule rule 5), and a devis **never holds the dates** — the paid link converts it ([paymentPollRunner.js:58-72](../server/src/utils/paymentPollRunner.js#L58)). The website's « Envoyer une demande sans payer » is a devis too. |
+| Devis (quote, website request) | No effect: a devis's acompte is due on its validity date (payment-schedule rule 5), and a devis **never holds the dates** — the paid link converts it ([paymentPollRunner.js:58-72](../../server/src/utils/paymentPollRunner.js#L58)). The website's « Envoyer une demande sans payer » is a devis too. |
 | Website « Payer » | Pays the acompte → converts → dates held. Already « paid to count ». |
 | Reservation created by the operator (fiche « Nouvelle réservation ») | **Holds the dates at once**, acompte due the same day, unpaid. |
-| Devis accepted by the operator (status « Accepté », [devisController.js:114](../server/src/controllers/devisController.js#L114)) | Converts **without payment**: dates held, acompte unpaid. |
-| Acompte request e-mail (`deposit_request`, anchor `depositDueDate`, [emailLogModel.js:265](../server/src/models/emailLogModel.js#L265)) | Proposed on the booking day (manual send mode). |
-| Dashboard deadlines ([paymentDeadlines.js:194-196](../server/src/utils/paymentDeadlines.js#L194)) | Acompte late from the next day. |
+| Devis accepted by the operator (status « Accepté », [devisController.js:114](../../server/src/controllers/devisController.js#L114)) | Converts **without payment**: dates held, acompte unpaid. |
+| Acompte request e-mail (`deposit_request`, anchor `depositDueDate`, [emailLogModel.js:265](../../server/src/models/emailLogModel.js#L265)) | Proposed on the booking day (manual send mode). |
+| Dashboard deadlines ([paymentDeadlines.js:194-196](../../server/src/utils/paymentDeadlines.js#L194)) | Acompte late from the next day. |
 | Rule 47 cap (acompte never after the solde) | Unchanged — a same-day acompte cannot fall after the solde. |
 | Platform reservations | Never concerned: `depositDueDate` is NULL off the own channels (rule 6). |
 
@@ -73,25 +73,25 @@ the booking day », with no blocking. §3.3 keeps only the label and the website
 
 ### 1.3 Pool season — no « all year », no order check
 
-[PropertyStayTab.jsx:52-116](../client/src/components/property/PropertyStayTab.jsx#L52): a « Piscine »
-switch and two `MonthDayField`s. The server ([propertyValidation.js:77-86](../server/src/utils/propertyValidation.js#L77))
+[PropertyStayTab.jsx:52-116](../../client/src/components/property/PropertyStayTab.jsx#L52): a « Piscine »
+switch and two `MonthDayField`s. The server ([propertyValidation.js:77-86](../../server/src/utils/propertyValidation.js#L77))
 checks each bound's format and « both or none », **never the order**. The J-7 overlap test
-([stayContentContext.js:255-262](../server/src/utils/stayContentContext.js#L255)) assumes `start ≤ end`
+([stayContentContext.js:255-262](../../server/src/utils/stayContentContext.js#L255)) assumes `start ≤ end`
 within one year, so `10-01 → 05-31` silently matches nothing. Also: switching « Piscine » on without
 dates saves *no pool* and the switch is off again after reload (`poolOpen` is client-only state).
 
 ### 1.4 Plateformes — the server refuses, the field does not say so
 
-[PlatformsSettingsPage.jsx:133-144](../client/src/pages/settings/PlatformsSettingsPage.jsx#L133): a free
-text field. The bulk save ([platformsController.js:101-105](../server/src/controllers/platformsController.js#L101))
+[PlatformsSettingsPage.jsx:133-144](../../client/src/pages/settings/PlatformsSettingsPage.jsx#L133): a free
+text field. The bulk save ([platformsController.js:101-105](../../server/src/controllers/platformsController.js#L101))
 **does** refuse `< 0` (« Entre 0 et 99,99 %. »), but only after Enregistrer, and the typed text stays.
-The legacy `PUT /api/platforms/:id/commission` ([platformsModel.js:215-218](../server/src/models/platformsModel.js#L215))
+The legacy `PUT /api/platforms/:id/commission` ([platformsModel.js:215-218](../../server/src/models/platformsModel.js#L215))
 *clamps* silently (`-5` → `0`); no client calls it any more. The page's slowness is handled by the
 `inte-performance` spec, not here.
 
 ### 1.5 Plan comptable — two generations of settings, two cards
 
-[PlatformAccountsPage.jsx:293-377](../client/src/plugins/accounting-export/PlatformAccountsPage.jsx#L293):
+[PlatformAccountsPage.jsx:293-377](../../client/src/plugins/accounting-export/PlatformAccountsPage.jsx#L293):
 « Comptes » renders the rows of the account plan made into plugin settings by
 `plugins-phase-p-productisation.md` rule 27 (2026-10). « Compte par défaut » and « Indemnités
 d'annulation » are **older** settings (`accounting-platform-commission-and-no-deposit.md` rule 17,
@@ -101,9 +101,9 @@ rule 27 added the new card above them instead of absorbing them. Same endpoint, 
 
 ### 1.6 Instagram link — one URL, one e-mail
 
-`app_settings.instagramUrl` (validated by `validatePublicUrl`, [settingsController.js:89](../server/src/controllers/settingsController.js#L89))
+`app_settings.instagramUrl` (validated by `validatePublicUrl`, [settingsController.js:89](../../server/src/controllers/settingsController.js#L89))
 is read in **one place**: the J+1 thank-you e-mail, paragraph `instagram` of the stay-text catalogue
-([stayTextCatalogue.js:92](../server/src/utils/stayTextCatalogue.js#L92)) — `{{#if hasInstagram}}{{instagramParagraph}}`
+([stayTextCatalogue.js:92](../../server/src/utils/stayTextCatalogue.js#L92)) — `{{#if hasInstagram}}{{instagramParagraph}}`
 in the J+1 template, `{{link}}` inside the sentence. The website does not read it (the WordPress footer
 has its own links; the public API does not expose it).
 
@@ -454,7 +454,7 @@ counts are left alone (rule 11).
 
 ## 6. UI / UX
 
-Interactive mockups: [docs/specs/2026-10-28-settings-input-guards.html](../docs/specs/2026-10-28-settings-input-guards.html)
+Interactive mockups: [docs/specs/2026-10-28-settings-input-guards.html](../../docs/specs/2026-10-28-settings-input-guards.html)
 (desktop and 390 px, every refusal state reachable by typing).
 
 ### 6.1 `BoundedNumberField` states

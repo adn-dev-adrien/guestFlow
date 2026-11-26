@@ -1,4 +1,4 @@
-// specs/mollie-settlement-receipts.md rules 2-3, 13 — the « Relevés dans Qonto » section of the Mollie card: drawn only when the
+// specs/accounting/mollie-settlement-receipts.md rules 2-3, 13 — the « Relevés dans Qonto » section of the Mollie card: drawn only when the
 // server says the feature exists, a switch that proposes the first day of the month, a date that refuses the future,
 // the counters and the reconnect hint.
 import React from 'react';

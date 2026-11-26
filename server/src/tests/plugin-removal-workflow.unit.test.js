@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 7 — the removal workflow runs nightly and on demand only,
+// specs/plugins/plugin-removal-resilience.md rule 7 — the removal workflow runs nightly and on demand only,
 // builds its matrix from the folders, never touches a self-hosted runner and leaves the pull-request
 // checks alone.
 
@@ -34,7 +34,7 @@ test('rule 7: a failing night opens or comments on one issue, and only a schedul
 });
 
 // The server suite used to stay serial here because the cell sets one `DB_PATH` for it; since
-// specs/server-test-isolation.md rule 24 the preload replaces it per process (`isolate({ force: true })`),
+// specs/tech/server-test-isolation.md rule 24 the preload replaces it per process (`isolate({ force: true })`),
 // so the cell runs four files at a time like everywhere else.
 test('review follow-up: GitHub-hosted runners only, eight cells at a time, and the server suite four files at a time', () => {
   assert.doesNotMatch(code, /self-hosted/);

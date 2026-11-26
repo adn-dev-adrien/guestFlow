@@ -7,7 +7,7 @@ import { makeMockContext } from './mockReservationForm';
 import { vi } from 'vitest';
 import api from '../../../api';
 
-// specs/mid-stay-notes.md §3.2 + rule 22 — la note se compose de ce qui reste à percevoir (cochable) et du
+// specs/sas/mid-stay-notes.md §3.2 + rule 22 — la note se compose de ce qui reste à percevoir (cochable) et du
 // catalogue, et se clôt par UN choix de règlement. Les montants et le total viennent du serveur : la
 // fenêtre n'envoie que les clés cochées et le reste à l'ouverture.
 

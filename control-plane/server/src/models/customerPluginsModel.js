@@ -1,6 +1,6 @@
 /**
  * The operator's choice of modules per customer, the erase orders, and the seed marker
- * (specs/plugin-operator-provisioning.md §5).
+ * (specs/plugins/plugin-operator-provisioning.md §5).
  */
 
 function buildCustomerPluginsModel(db) {

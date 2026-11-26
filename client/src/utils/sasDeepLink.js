@@ -1,5 +1,5 @@
 /**
- * SAS deep-link parsing for push notifications (specs/pwa-push-notifications.md §3.3 rule 10).
+ * SAS deep-link parsing for push notifications (specs/guest-app/pwa-push-notifications.md §3.3 rule 10).
  *
  * An arrival/departure push targets `/planning?sas=arrival|departure&reservationId=:id`. The Planning
  * page reads these params on mount and opens the matching SAS. This helper validates + extracts them.
@@ -18,7 +18,7 @@ export function readSasDeepLink(searchParams) {
 }
 
 /**
- * Breakfast deep-link parsing (specs/sas-breakfast-bread-and-push.md rule 10).
+ * Breakfast deep-link parsing (specs/sas/sas-breakfast-bread-and-push.md rule 10).
  *
  * A breakfast push targets `/planning?breakfast=:id&date=YYYY-MM-DD`; the Planning page opens the
  * preparation popup for that reservation/day.

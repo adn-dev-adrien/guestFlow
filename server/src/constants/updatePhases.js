@@ -1,6 +1,6 @@
 /**
  * The phases of a self-update and the French sentence the UI shows for each
- * (specs/self-update-and-releases.md §3.F rule 37).
+ * (specs/hosting/self-update-and-releases.md §3.F rule 37).
  *
  * The phase is the machine-readable field written to `data/update-status.json` — by this process
  * during staging, then by `apply-update.sh` during the swap. The label lives here, on the server

@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rule 54 (audit R22, 2026-11-04) — the prices of « Facturables au SAS » feed a
+// specs/settings/settings-input-guards.md rule 54 (audit R22, 2026-11-04) — the prices of « Facturables au SAS » feed a
 // departure's bill: a usable number ≥ 0, refused never clamped, on both lists; a stored price sent back passes.
 
 process.env.DB_PATH = ':memory:';

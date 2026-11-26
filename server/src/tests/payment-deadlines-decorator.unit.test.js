@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rule 22 — the core side of the « Échéances » decoration: a generic,
+// specs/accounting/reconciliation-assisted-matching.md rule 22 — the core side of the « Échéances » decoration: a generic,
 // inert hook. No decorator → rows unchanged; a decorator rewrites them; one that throws changes nothing.
 const test = require('node:test');
 const assert = require('node:assert/strict');

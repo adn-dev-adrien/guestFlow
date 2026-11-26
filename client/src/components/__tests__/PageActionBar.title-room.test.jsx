@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 19 (amended 2026-10-18) — with a `center`, the actions mirror the title's
+// specs/design-system/ds-components.md rule 19 (amended 2026-10-18) — with a `center`, the actions mirror the title's
 // share only while the centre sits beside the title. On a phone the centre is hidden and under 720 px
 // it takes its own row: the actions kept half the bar and « Planning ressources » read « Planning
 // ressou… » with 120 px free (review of PR #700, finding 2). jsdom does no layout: these tests pin

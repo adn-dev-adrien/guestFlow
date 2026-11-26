@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 15 and 29 — what the period pickers of the tourist-tax page offer, pure: every month,
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 15 and 29 — what the period pickers of the tourist-tax page offer, pure: every month,
 // quarter and year from the first stay to the current month, newest first and labelled, never before the date
 // window's start, and the month the page opens on; rule 29: the month the page opens on and the selection read are
 // always offered. Today is an input, built on a year from the real calendar.

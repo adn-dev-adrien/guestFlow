@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 2 and 72 — the stored-format parsers live in `utils/pricing/storedLines.js`: SETTLEMENT
+// specs/pricing/pricing-components.md §3 rules 2 and 72 — the stored-format parsers live in `utils/pricing/storedLines.js`: SETTLEMENT
 // re-exports them (so `midStayExtras` and every caller are unchanged) and REFUNDS reads them there, never through SETTLEMENT.
 const test = require('node:test');
 const assert = require('node:assert/strict');

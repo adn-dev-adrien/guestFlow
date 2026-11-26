@@ -67,11 +67,11 @@ import { PageTitleProvider, TopBarActionSlot, usePageTitle, useSetTopBarTitleRoo
 import RouteErrorBoundary from './components/ErrorBoundary';
 import NotFoundPage from './components/NotFoundPage';
 
-// Every page is loaded on demand (specs/inte-performance.md rule 2); the shell stays eager.
+// Every page is loaded on demand (specs/tech/inte-performance.md rule 2); the shell stays eager.
 const EmailTextsSettingsPage = lazyPage(() => import('./pages/settings/EmailTextsSettingsPage'));
 const UserManagementPage = lazyPage(() => import('./pages/UserManagementPage'));
 const SupportAccessPage = lazyPage(() => import('./pages/settings/SupportAccessPage'));
-// Dev-only workbench of the report grammar (specs/report-grammar.md rule 17): absent from a production build.
+// Dev-only workbench of the report grammar (specs/design-system/report-grammar.md rule 17): absent from a production build.
 const ReportGrammarPreview = import.meta.env.DEV ? lazyPage(() => import('./pages/ReportGrammarPreview')) : null;
 const SettingsHomePage = lazyPage(() => import('./pages/settings/SettingsHomePage'));
 const Dashboard = lazyPage(() => import('./pages/Dashboard'));
@@ -144,7 +144,7 @@ preloadRoute(PAGE_ROUTES, window.location.pathname);
 
 const MODULE_PAGES = allContributions('routes');
 
-// 256 px, labels wrap rather than being cut (specs/shell-and-home-day-first.md rule 17).
+// 256 px, labels wrap rather than being cut (specs/planning/shell-and-home-day-first.md rule 17).
 const DRAWER_WIDTH = 256;
 
 const coreNavItems = [
@@ -154,7 +154,7 @@ const coreNavItems = [
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
   { label: 'Emails', path: '/emails', icon: <MailOutlineIcon /> },
-  // « Clients » is the guest directory, not a setting (specs/settings-rationalization.md rule 5).
+  // « Clients » is the guest directory, not a setting (specs/settings/settings-rationalization.md rule 5).
   { label: 'Clients', path: '/clients', icon: <PeopleIcon /> },
   { label: 'Paramètres', path: '/settings', icon: <SettingsIcon /> },
 ];
@@ -169,7 +169,7 @@ const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const SETTINGS_CHILDREN  = ['/settings', ...SETTINGS_PATHS];
 
 // A group's chevron: its own button, beside the row, reachable with the keyboard and saying whether the
-// group is open (specs/shell-and-home-day-first.md rule 18).
+// group is open (specs/planning/shell-and-home-day-first.md rule 18).
 function NavChevron({ open, label, onToggle, controls }) {
   return (
     <IconButton
@@ -215,7 +215,7 @@ function NavContent({ onItemClick }) {
   const selectedCalendarPropertyId = new URLSearchParams(location.search).get('propertyId');
 
   // Read once, then again after a write (a property added or renamed), not on every page change
-  // (specs/inte-performance.md rule 13).
+  // (specs/tech/inte-performance.md rule 13).
   const readsProperties = userHasRole(user, ADMIN) || userHasRole(user, RECEPTION);
   useEffect(() => {
     if (!readsProperties) return undefined;
@@ -441,7 +441,7 @@ function NavContent({ onItemClick }) {
             {item.path === '/finance' && (
               <Collapse in={financeMenuOpen} timeout="auto" unmountOnExit>
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                  {/* Core entries and the `finance.menu` slot (specs/plugins-phase-2-hosts.md rule 19). */}
+                  {/* Core entries and the `finance.menu` slot (specs/plugins/plugins-phase-2-hosts.md rule 19). */}
                   {financeEntries.map((entry) => (
                   <ListItemButton
                     key={entry.key}
@@ -462,7 +462,7 @@ function NavContent({ onItemClick }) {
             {item.path === '/settings' && (
               <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                  {/* specs/settings-rationalization.md rule 26 — the four groups; the one of the open
+                  {/* specs/settings/settings-rationalization.md rule 26 — the four groups; the one of the open
                       page (or of the summary's #group) unfolds its pages. constants/settingsMenu.js. */}
                   {visibleSettingsGroups(can, (id) => (user?.enabledPlugins || []).includes(id)).map((group) => {
                     const ofPage = group.id === settingsGroupOf(location.pathname, location.hash);
@@ -556,7 +556,7 @@ function NavContent({ onItemClick }) {
         );
       })}
       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-        {/* « Mon compte » — every role (specs/settings-rationalization.md rule 6). */}
+        {/* « Mon compte » — every role (specs/settings/settings-rationalization.md rule 6). */}
         <ListItemButton
           component={Link}
           to="/mon-compte"
@@ -580,7 +580,7 @@ function NavContent({ onItemClick }) {
   );
 }
 
-// The page action button of a phone's top bar (specs/shell-and-home-day-first.md rule 23) is 44 px wide.
+// The page action button of a phone's top bar (specs/planning/shell-and-home-day-first.md rule 23) is 44 px wide.
 const TOP_BAR_ACTION_WIDTH = 44;
 
 /**
@@ -620,12 +620,12 @@ function useTopBarTitleRoom(toolbarRef, titleRef, title, active) {
 /**
  * Where a non-admin role is sent when the URL is outside its surface, or null when it may stay.
  * Computed during render so the forbidden page is never mounted (its calls would only be refused;
- * specs/reception-role-checkin-only.md rule 15). The server already 403s every other endpoint.
+ * specs/sas/reception-role-checkin-only.md rule 15). The server already 403s every other endpoint.
  * A user who also holds admin keeps the full app; combined non-admin roles get the union.
  * - Accountant: /comptabilite* + « Indemnités d'annulation » + /mon-compte while the accounting
- *   export is live, « Mon compte » alone otherwise (specs/plugins-phase-2-hosts.md rules 3, 21).
- * - Reception: / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
- * A page of an inactive plugin is not there (specs/plugins-phase-0-foundation.md rule 19): a URL
+ *   export is live, « Mon compte » alone otherwise (specs/plugins/plugins-phase-2-hosts.md rules 3, 21).
+ * - Reception: / + /planning + /mon-compte (specs/sas/reception-role-checkin-only.md).
+ * A page of an inactive plugin is not there (specs/plugins/plugins-phase-0-foundation.md rule 19): a URL
  * typed by hand lands on the home page, on « Comptabilité » for an accountant while the export is
  * live, or on « Mon compte » for a role with no home page. An
  * administrator stays on the address and reads « Plugin inactif » (phase P rule 42).
@@ -657,16 +657,16 @@ function AppShell() {
   const roleRedirect = location.pathname === LOGIN_PATH ? null : roleRedirectTarget(user, location.pathname);
   useEffect(() => prefetchOnIdle(IDLE_PAGES), []);
   // A page of an inactive plugin is never mounted (rule 18); in its place the 404, which an
-  // administrator reads as « Plugin inactif » (specs/plugins-phase-p-productisation.md rule 42).
+  // administrator reads as « Plugin inactif » (specs/plugins/plugins-phase-p-productisation.md rule 42).
   const pluginRoute = (path, element) => (isRouteEnabled(user, path) ? element : <NotFoundPage />);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   // On a phone the top bar names the open page; the home keeps the wordmark
-  // (specs/shell-and-home-day-first.md rule 15).
+  // (specs/planning/shell-and-home-day-first.md rule 15).
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const pageTitle = usePageTitle();
   const showPageTitle = isPhone && location.pathname !== '/' && Boolean(pageTitle);
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Global reservation search lives in the top bar (specs/reservation-number-and-search.md §6).
+  // Global reservation search lives in the top bar (specs/reservations/reservation-number-and-search.md §6).
   // On mobile it collapses behind a magnifier that expands into a full-width field.
   const [searchOpen, setSearchOpen] = useState(false);
   const toolbarRef = useRef(null);
@@ -681,7 +681,7 @@ function AppShell() {
   // middleware also serves the logo on /favicon.ico in prod, but the CRA dev server :3000 serves
   // public/favicon.ico directly without proxying — this hook covers both modes + sidesteps the
   // browser's aggressive favicon cache via a version-keyed buster.
-  // Settings are admin-only: no other role asks for them (specs/reception-role-checkin-only.md rule 14).
+  // Settings are admin-only: no other role asks for them (specs/sas/reception-role-checkin-only.md rule 14).
   useDynamicFavicon({ refreshKey: user && user.id, enabled: userHasRole(user, ADMIN) });
 
   useEffect(() => {
@@ -773,7 +773,7 @@ function AppShell() {
                   {pageTitle}
                 </Typography>
               ) : (
-                // Wordmark in the « Maison » serif (specs/ds-sweep-planning.md rule 25) — same face
+                // Wordmark in the « Maison » serif (specs/design-system/ds-sweep-planning.md rule 25) — same face
                 // as the page titles, keeps the primary green and the h6 size. On a phone's home it
                 // is the page's heading: the home's page bar is not drawn there (rule 15).
                 <Typography variant="h6" component={isPhone && location.pathname === '/' ? 'h1' : 'p'} sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, color: 'primary.main' }}>
@@ -793,13 +793,13 @@ function AppShell() {
                     <SearchIcon />
                   </IconButton>
                 )}
-                {/* The update offer (specs/self-update-and-releases.md §6.5); the installed version is at the
-                    foot of the drawer (specs/shell-and-home-day-first.md rule 16). */}
+                {/* The update offer (specs/hosting/self-update-and-releases.md §6.5); the installed version is at the
+                    foot of the drawer (specs/planning/shell-and-home-day-first.md rule 16). */}
                 <AppVersionBadge />
               </Box>
             </>
           )}
-          {/* A phone page's single action (specs/shell-and-home-day-first.md rule 23), placed before the
+          {/* A phone page's single action (specs/planning/shell-and-home-day-first.md rule 23), placed before the
               search by `order`; mounted, hidden, while the search covers the bar, so the page does not move. */}
           {isPhone && <TopBarActionSlot hidden={searchOpen} />}
         </Toolbar>
@@ -827,31 +827,31 @@ function AppShell() {
         </Box>
       </Drawer>
 
-      {/* A support session's red bar (specs/hosting-h2-account-security.md rule 16). */}
+      {/* A support session's red bar (specs/hosting/hosting-h2-account-security.md rule 16). */}
       <SupportSessionBar />
       <Box component="main" sx={{ flexGrow: 1, minWidth: 0, pl: { xs: 'max(12px, env(safe-area-inset-left, 0px))', sm: 'max(16px, env(safe-area-inset-left, 0px))', md: 'max(24px, env(safe-area-inset-left, 0px))' }, pr: { xs: 'max(12px, env(safe-area-inset-right, 0px))', sm: 'max(16px, env(safe-area-inset-right, 0px))', md: 'max(24px, env(safe-area-inset-right, 0px))' }, py: { xs: 2, md: 3 }, pb: user && user.supportSession ? `calc(${SUPPORT_BAR_HEIGHT + 24}px + env(safe-area-inset-bottom, 0px))` : undefined, mt: 'calc(64px + env(safe-area-inset-top, 0px))', bgcolor: 'background.default', minHeight: '100vh' }}>
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
-            address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
+            address. See specs/hosting/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />
-        {/* The plugin bundles could not be listed (specs/plugins-phase-4-registry.md rule 18). */}
+        {/* The plugin bundles could not be listed (specs/plugins/plugins-phase-4-registry.md rule 18). */}
         <PluginLoadBanner />
-        {/* Subscription due, in grace or read-only (specs/control-plane-plans-and-access.md §6). */}
+        {/* Subscription due, in grace or read-only (specs/hosting/control-plane-plans-and-access.md §6). */}
         <SubscriptionBanner />
-        {/* The support asks for access (specs/hosting-h2-account-security.md rule 12). */}
+        {/* The support asks for access (specs/hosting/hosting-h2-account-security.md rule 12). */}
         <SupportAccessBanner />
-        {/* Self-update progress (specs/self-update-and-releases.md §6.3). Mounted at app level so it
+        {/* Self-update progress (specs/hosting/self-update-and-releases.md §6.3). Mounted at app level so it
             takes over wherever the update was triggered from, and survives a reload mid-update. */}
         <UpdateProgressOverlay />
-        {/* Render-crash guard + catch-all 404 (specs/ds-components.md §3.4) — a component throw or
+        {/* Render-crash guard + catch-all 404 (specs/design-system/ds-components.md §3.4) — a component throw or
             an unknown URL used to leave the main area blank. */}
         <RouteErrorBoundary>
-        {/* A page of an inactive plugin is not even mounted (specs/plugins-phase-0-foundation.md
+        {/* A page of an inactive plugin is not even mounted (specs/plugins/plugins-phase-0-foundation.md
             rules 18-19): its API calls never leave, and the guard above sends the URL home — or,
             for an administrator, the 404 says « Plugin inactif » (phase P rule 42). */}
         {roleRedirect ? <Navigate to={roleRedirect} replace /> : (
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          {/* Pages of plugin modules (specs/plugins-phase-1-sdk.md rule 15), lazily loaded. */}
+          {/* Pages of plugin modules (specs/plugins/plugins-phase-1-sdk.md rule 15), lazily loaded. */}
           {MODULE_PAGES.map(({ path, Component }) => (
             <Route key={path} path={path} element={pluginRoute(path, <LazyPage><Component /></LazyPage>)} />
           ))}
@@ -872,7 +872,7 @@ function AppShell() {
           <Route path={COMPENSATIONS_PATH} element={<CompensationsPage />} />
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
-          {/* Paramètres (specs/settings-rationalization.md rule 2). */}
+          {/* Paramètres (specs/settings/settings-rationalization.md rule 2). */}
           {/* Rule 24 — the summary page, with its search. */}
           <Route path="/settings" element={<SettingsHomePage />} />
           <Route path="/settings/etablissement" element={<EstablishmentSettingsPage />} />
@@ -887,9 +887,9 @@ function AppShell() {
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/conditions-generales" element={<TermsSettingsPage />} />
-          {/* specs/plugin-operator-provisioning.md rule 3 — no Plugins page where the operator manages the plugins. */}
+          {/* specs/plugins/plugin-operator-provisioning.md rule 3 — no Plugins page where the operator manages the plugins. */}
           <Route path="/parametres/plugins" element={canSeeRoute(user, '/parametres/plugins') ? <PluginsPage /> : <NotFoundPage />} />
-          {/* specs/hosting-h2-account-security.md rules 13, 15, 17 — managed instances only. */}
+          {/* specs/hosting/hosting-h2-account-security.md rules 13, 15, 17 — managed instances only. */}
           <Route path="/parametres/acces-support" element={canSeeRoute(user, '/parametres/acces-support') ? <SupportAccessPage /> : <Navigate to="/" replace />} />
           {/* The pre-auth pages, reached with a session (a reset that logged in): home. */}
           <Route path={LOGIN_PATH} element={<SignedInLoginRoute />} />
@@ -914,7 +914,7 @@ function AppShell() {
 }
 
 // `/login` with a session: home, unless a page's prompt just sent the operator here from « Se déconnecter »
-// (specs/ui-review-2026-10-19-operations.md rule 42). A safe `?next=` (utils/navigation `safeReturnPath`) is
+// (specs/design-system/ui-review-2026-10-19-operations.md rule 42). A safe `?next=` (utils/navigation `safeReturnPath`) is
 // reopened instead, as a full page load: it may be a page the backend serves rather than a route of this app.
 function SignedInLoginRoute() {
   const { logout } = useAuth();
@@ -938,13 +938,13 @@ function AuthGate() {
     );
   }
   if (!user) {
-    // The forgotten password, before any session (specs/hosting-h2-account-security.md rules 1-4).
+    // The forgotten password, before any session (specs/hosting/hosting-h2-account-security.md rules 1-4).
     if (location.pathname === '/mot-de-passe-oublie') return <ForgotPasswordPage />;
     if (location.pathname === '/nouveau-mot-de-passe') return <ResetPasswordPage />;
     return <LoginPage />;
   }
   if (user.mustChangePassword) return <ForcedPasswordChangePage />;
-  // The start assistant, full screen and outside the side menu (specs/plugins-phase-p-productisation.md
+  // The start assistant, full screen and outside the side menu (specs/plugins/plugins-phase-p-productisation.md
   // rule 20): an admin lands there while it is open, and may reopen it from Réglages › Système (rule 22).
   // Rule 45 — once it is done, `/demarrage` reached by accident goes home instead of restarting at step 1.
   const onboarding = onboardingRoute({
@@ -960,7 +960,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
-        {/* Pages must open at the top with the sticky bar visible (specs/design-system.md §3.6). */}
+        {/* Pages must open at the top with the sticky bar visible (specs/design-system/design-system.md §3.6). */}
         <ScrollToTop />
         <DialogProvider>
           <AuthProvider>

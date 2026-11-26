@@ -1,7 +1,7 @@
 /**
  * ScheduleLines — the dated amounts of a staged payment, one line each: label · amount · state badge, with an
  * optional line of detail under it (a bank reference, a note). The same drawing serves the tranches of a card
- * payment (specs/mollie-rolling-reserve-and-incoming-payments.md rule 18), and any later payment made of parts.
+ * payment (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 18), and any later payment made of parts.
  *
  * It computes nothing: every label, amount text and state wording is the caller's, already shaped by the server.
  * Colour carries the STATE only (the badge); the label is always words.

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 37 — moving one line to the arrival leaves every other line where it was, and a refused move says
+// specs/pricing/pricing-components.md §3 rule 37 — moving one line to the arrival leaves every other line where it was, and a refused move says
 // that a move is refused (never the wording of a removal).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

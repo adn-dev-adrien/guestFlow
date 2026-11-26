@@ -1,5 +1,5 @@
 /**
- * specs/vat-optional-mode.md rule 45 — a failed regime load is shown with « Réessayer », never a page
+ * specs/accounting/vat-optional-mode.md rule 45 — a failed regime load is shown with « Réessayer », never a page
  * where the regime badge and the switch simply vanish.
  */
 import React from 'react';

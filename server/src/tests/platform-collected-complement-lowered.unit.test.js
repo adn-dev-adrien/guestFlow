@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 116 (stabilisation loop t8, B8-5 OLD, B8-6) — a platform stay's arrival complement is money the
+// specs/pricing/pricing-components.md §3 rule 116 (stabilisation loop t8, B8-5 OLD, B8-6) — a platform stay's arrival complement is money the
 // ESTABLISHMENT collected: once collected (a link or a transfer before the arrival), each line it named claims what it collected on it
 // (`complementPaidSplit.lines`), as a note does. A line of it offered, discounted or lowered is judged by the one paid-line judgment (rule
 // 105): 409 OVERPAID (« Prestations complémentaires »), confirmed → a `lineLowered` obligation the ledger shows « À rembourser » and the

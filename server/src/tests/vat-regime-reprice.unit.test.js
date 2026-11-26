@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 27 and 32 — a regime re-prices the stays whose proportional tourist
+// specs/accounting/vat-optional-mode.md rules 27 and 32 — a regime re-prices the stays whose proportional tourist
 // tax it moves with a TARGETED write: the engine's figures under the old and the new period are compared,
 // the stay is accepted only when every non-tax figure is unchanged, and only an allowlist of columns is
 // written (the tax and the amounts it rides on, updatedAt, the period, a history line). Every other column

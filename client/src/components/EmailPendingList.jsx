@@ -2,7 +2,7 @@
  * EmailPendingList — presentational table of the pending manual-email queue.
  *
  * Replaces the former EmailPendingDialog popup: the queue is now reviewed inline on the
- * Emails page (specs/email-automation.md §6.3 + §6.10). This component renders rows only —
+ * Emails page (specs/emails/email-automation.md §6.3 + §6.10). This component renders rows only —
  * the parent owns the data fetch, the EmailManualSendDialog, the acknowledge confirm and
  * the reservation navigation.
  *
@@ -96,7 +96,7 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
                 </TableCell>
                 <TableCell align="right">
                   <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                    {/* The row opens the send dialog too; the button says so (specs/email-automation.md rule 18). */}
+                    {/* The row opens the send dialog too; the button says so (specs/emails/email-automation.md rule 18). */}
                     <Button
                       size="small"
                       variant="outlined"

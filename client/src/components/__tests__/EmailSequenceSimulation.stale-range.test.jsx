@@ -1,4 +1,4 @@
-// Audit R5 (2026-10-30), specs/ui-review-2026-10-19-operations.md rule 39 — a slow simulation for a range already left never replaces the one shown.
+// Audit R5 (2026-10-30), specs/design-system/ui-review-2026-10-19-operations.md rule 39 — a slow simulation for a range already left never replaces the one shown.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';

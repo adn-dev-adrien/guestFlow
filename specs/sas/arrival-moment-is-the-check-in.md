@@ -26,7 +26,7 @@ guest here? ». On the arrival day, before anyone has checked in,
 `resolveArrivalExtrasBaseline` already **synthesizes** a baseline of the extras as they stand, and
 `captureArrivalExtrasBaselineIfDue` **stores** it on the next save. From that instant anything added
 stands « above the baseline » — i.e. sold *during* the stay — and
-`specs/mid-stay-extras-to-end-of-stay-complement.md` routes it, correctly, to the checkout complement.
+`specs/sas/mid-stay-extras-to-end-of-stay-complement.md` routes it, correctly, to the checkout complement.
 **The routing is right; the premise is wrong.**
 
 ## 2. Goal
@@ -49,7 +49,7 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
    end-of-stay, cash or not) and no settled mid-stay note. Those stays are still pre-arrival, so a
    stale baseline is exactly what misfiles their extras. Money-safe by construction — every excluded
    condition is a case where something has already been collected against that baseline.
-   > **Amended 2026-11-16** (stabilisation loop t4, D4-2, D4-3; [pricing-components.md](pricing-components.md) rules 102 a and
+   > **Amended 2026-11-16** (stabilisation loop t4, D4-2, D4-3; [pricing-components.md](../pricing/pricing-components.md) rules 102 a and
    > 103 b). The repair runs on every boot, and since rule 102 a save made once the stay clock has started (the check-in hour
    > passed, nothing ticked yet) lays a baseline of the stay's own. Clearing it at a restart sent the departure part of a line
    > that grew above it out of every bucket (306 + 0 + 45 = 351 € on a final price of 363 €). So the repair now also requires
@@ -72,7 +72,7 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
 - **Re-opened arrival SAS**: `arrivalSasDoneAt` stays set, so the baseline stays pinned — a re-commit
   never re-opens the pre-arrival window.
 
-> **Amendment 2026-11-12 — routing of new sales** ([pricing-components.md](pricing-components.md) rules 19-20 and 45,
+> **Amendment 2026-11-12 — routing of new sales** ([pricing-components.md](../pricing/pricing-components.md) rules 19-20 and 45,
 > PR B). Rule 1 above stays true for the arrival baseline; the **routing of a new sale** is decided by STAY CLOCK from
 > the date and the check-in time (« started » = the arrival date reached **and** the check-in time passed,
 > Europe/Paris), and by the `collectAt` the line is written with. A sale between the check-in time and a late
@@ -154,7 +154,7 @@ touched).
 
 ## 8. Out of scope
 
-- The routing itself (`specs/mid-stay-extras-to-end-of-stay-complement.md`): what a real mid-stay sale
+- The routing itself (`specs/sas/mid-stay-extras-to-end-of-stay-complement.md`): what a real mid-stay sale
   does is unchanged and correct — only *when* the window opens moves.
 - The duplicated line the operator also reported: already fixed on master by PR #486, awaiting release.
 - The « Complément d'arrivée » remainder line and the adjusted-complement ventilation: untouched.

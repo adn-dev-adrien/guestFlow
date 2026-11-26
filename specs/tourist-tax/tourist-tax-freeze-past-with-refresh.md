@@ -7,6 +7,8 @@
 | **Created** | 2026-06-20 |
 | **Author** | Adrien |
 
+> **Reviewed 2026-11-26 (spec reorganization).** The « past stay » freeze (rule 1) is retired: a tax freezes when the instalment carrying it is collected or the line is ticked « Déclarée » (`specs/tourist-tax/tourist-tax-matches-the-office-calculation.md` rules 10-12). The refresh button stays, shown on any frozen reservation.
+
 ---
 
 ## 1. Context
@@ -33,15 +35,14 @@ applies to future stays).
 
 ## 3. Functional rules
 
-1. **« Past » boundary.** A reservation is *past* (→ frozen) when its **last night**
-   (`endDate − 1 day`) is **before the 1st day of the current month**. Current-month and future stays
-   are *not* frozen (live recompute, as today).
+1. *(Retired 2026-11-26 — the « past stay » boundary is replaced by freezing on collection or on « Déclarée »; see specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-11.)*
+   > **Sans test** — retired rule
 2. **Freeze = use the stored amount.** When frozen, the quote returns the reservation's **stored**
    `touristTaxTotal` / `touristTaxRate` (and `touristTaxOriginalTotal = stored total`) instead of
    recomputing them. The **routing** of the tax (offered / balance / complement, driven by the
    platform's global mode) is unchanged — only the **amount** is frozen.
-3. **Refresh button.** Rendered in the `PricingSummary` tourist-tax block, **only for a past
-   reservation**. Clicking it sets a local `touristTaxRefreshRequested` flag → the next quote is
+3. **Refresh button.** Rendered in the `PricingSummary` tourist-tax block, **only for a frozen
+   reservation** (`quote.touristTaxFrozen`). Clicking it sets a local `touristTaxRefreshRequested` flag → the next quote is
    computed **unfrozen** → the recomputed tax replaces the frozen amount → the form becomes dirty.
    The operator then **saves** to persist (the button never auto-saves). The flag resets when the
    reservation is reloaded.
@@ -52,14 +53,12 @@ applies to future stays).
 5. **Future reservations** keep the current live-recompute behaviour (no button shown).
 
 **Edge cases**
-- A reservation with no stored tax (e.g. an old import) that is *past* → frozen at `0`; the refresh
+- A reservation with no stored tax (e.g. an old import) that is *frozen* → frozen at `0`; the refresh
   button lets the operator pull the computed value in.
-- Switching a reservation's dates from past to future (rare edit) → it stops being frozen (live again).
 
 ## 4. Architecture
 
-> **Fat backend.** The freeze decision value (`freezeTouristTax`) is computed on the client (it knows
-> the dates + the refresh state), but the **frozen amount is sourced server-side** from the stored
+> **Fat backend.** *(Reviewed 2026-11-26: the freeze decision is the server's — `frozenTouristTaxInputs` in `utils/reservationQuoteContext.js` — and the client only sends `refreshTouristTax`; the table rows below describe the original design.)* The **frozen amount is sourced server-side** from the stored
 > reservation, and the engine is the single place that returns either the frozen or the live tax — so
 > `PricingSummary` stays dumb (it always renders `quote`).
 
@@ -80,8 +79,7 @@ applies to future stays).
 
 ### 4.3 API
 
-`POST /api/reservations/calculate-price` gains an optional `freezeTouristTax: boolean`. When true with
-a `reservationId`, the response's `touristTaxTotal` / `touristTaxRate` / `touristTaxOriginalTotal`
+`POST /api/reservations/calculate-price` gains an optional `refreshTouristTax: boolean` (originally `freezeTouristTax`, now decided server-side). Without it, a `reservationId` whose tax is frozen gets a response whose `touristTaxTotal` / `touristTaxRate` / `touristTaxOriginalTotal`
 reflect the **stored** amount.
 
 ## 5. Data model
@@ -92,9 +90,9 @@ source.
 ## 6. UI / UX
 
 - The « Taxe de séjour » summary line gains a discreet **refresh icon** to its right, **only for a
-  past reservation**. Tooltip: « Recalculer la taxe de séjour (séjour passé — figée) ». Clicking it
+  frozen reservation**. Tooltip: « Recalculer la taxe de séjour (figée — déjà encaissée ou déclarée) ». Clicking it
   recomputes the tax; the value updates and the page becomes dirty (Save appears).
-- Future/current reservations: no icon, behaviour unchanged.
+- Unfrozen reservations: no icon, the tax tracks the current settings.
 - Responsive: the icon sits inline with the label; ≥44px touch target.
 
 ## 7. Test plan

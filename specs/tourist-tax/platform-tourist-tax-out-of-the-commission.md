@@ -154,7 +154,7 @@ counted.
     on 2026-06-20 that the case-2 amount is « shown **struck-through** with no « Offert » badge », and
     its §4.2 says the same. The code shipped it plain, under a comment asserting the opposite
     (« NOT struck-through (it isn't « offert ») ») — a rule written and never built, which is the
-    failure mode [spec-rule-coverage.md](spec-rule-coverage.md) exists to catch. The strike does not
+    failure mode [spec-rule-coverage.md](../tech/spec-rule-coverage.md) exists to catch. The strike does not
     say *free*, it says *not ours*. Found 2026-09-11 while implementing this spec.
 
 14. **The brut's label and helper state the convention**, because which number to copy off the
@@ -209,7 +209,7 @@ counted.
     « Montant Total » of the extranet, tourist tax included; the box below holds the tax Booking keeps
     for the commune, and « Calculer la commission » lands on everything else Booking withheld —
     commission and payment fees alike, which the fiche models as one commission
-    ([accounting-platform-commission-and-no-deposit.md](accounting-platform-commission-and-no-deposit.md)).
+    ([accounting-platform-commission-and-no-deposit.md](../accounting/accounting-platform-commission-and-no-deposit.md)).
     Measured on réservation 22219 (Booking, 17–19 July 2026, 8 guests) on 2026-09-25: Montant Total
     1 283,34 €, virement 1 075,27 €, and the 208,07 € withheld split into 188,87 € of commission and
     19,20 € of tourist tax (8 × 2 × 1,20 €). Entered with an empty box, that fiche books the 19,20 €
@@ -244,19 +244,19 @@ counted.
 > brut, the resulting revenue/VAT split and the published `platformTouristTaxWithheld` all live in the
 > pricing engine. The client renders the box, prints two server numbers, and computes the commission
 > in the « Calculer » button — a one-shot local arithmetic on values the operator just typed, which is
-> where that formula already lives ([platform-payment-calculer-button.md](platform-payment-calculer-button.md)).
+> where that formula already lives ([platform-payment-calculer-button.md](../platforms/platform-payment-calculer-button.md)).
 
 ### 4.1 Server side (`server/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `database.js` | [database.js](../server/src/database.js) | T | Idempotent, PRAGMA-guarded `ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL`. No backfill (rule 2). |
-| `schema.sql` | [schema.sql](../server/src/schema.sql) | T | The column on the `CREATE TABLE reservations` for fresh installs. |
-| `utils/pricing.js` | [pricing.js:2058](../server/src/utils/pricing.js#L2058) | T | Accept `platformTouristTaxAmount`. Resolve `withheldTouristTaxInBrut` = the amount when the box is set **and** `platformGrossPin != null` **and** `isTouristTaxOfferedByPlatform`, else `0`; subtract it in `pinnedAccommodation` beside the existing `reversedTouristTaxInBrut`. Publish `platformTouristTaxWithheld` in the quote (rule 9); `touristTaxOriginalTotal` keeps its meaning. |
+| `database.js` | [database.js](../../server/src/database.js) | T | Idempotent, PRAGMA-guarded `ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL`. No backfill (rule 2). |
+| `schema.sql` | [schema.sql](../../server/src/schema.sql) | T | The column on the `CREATE TABLE reservations` for fresh installs. |
+| `utils/pricing.js` | [pricing.js:2058](../../server/src/utils/pricing.js#L2058) | T | Accept `platformTouristTaxAmount`. Resolve `withheldTouristTaxInBrut` = the amount when the box is set **and** `platformGrossPin != null` **and** `isTouristTaxOfferedByPlatform`, else `0`; subtract it in `pinnedAccommodation` beside the existing `reversedTouristTaxInBrut`. Publish `platformTouristTaxWithheld` in the quote (rule 9); `touristTaxOriginalTotal` keeps its meaning. |
 | `utils/pricing.js` | — | T | 2026-10-27 (rule 26) — `withheldTouristTaxEntered` keeps « 0 » apart from an empty box in `platformTouristTaxWithheld`. |
-| `models/reservationsModel.js` | [reservationsModel.js:1337](../server/src/models/reservationsModel.js#L1337) | T | Persist `platformTouristTaxAmount` on insert/update (`NULL` on direct, rule 18); expose it from the reservation detail mapping. |
-| `controllers/reservationsController.js` | [reservationsController.js:612](../server/src/controllers/reservationsController.js#L612) | T | Validate it as money; forward it to the engine in `calculatePrice` **and** `create`/`update`, so the live preview and the persisted books price identically (the defect [platform-payment-entry.md](platform-payment-entry.md) §4.1 had to fix for `platformGrossAmount`). |
-| `utils/reservationEngineInput.js` | [reservationEngineInput.js](../server/src/utils/reservationEngineInput.js) | T | Carry `platformTouristTaxAmount` into every replay of a stored booking (rule 25). |
+| `models/reservationsModel.js` | [reservationsModel.js:1337](../../server/src/models/reservationsModel.js#L1337) | T | Persist `platformTouristTaxAmount` on insert/update (`NULL` on direct, rule 18); expose it from the reservation detail mapping. |
+| `controllers/reservationsController.js` | [reservationsController.js:612](../../server/src/controllers/reservationsController.js#L612) | T | Validate it as money; forward it to the engine in `calculatePrice` **and** `create`/`update`, so the live preview and the persisted books price identically (the defect [platform-payment-entry.md](../platforms/platform-payment-entry.md) §4.1 had to fix for `platformGrossAmount`). |
+| `utils/reservationEngineInput.js` | [reservationEngineInput.js](../../server/src/utils/reservationEngineInput.js) | T | Carry `platformTouristTaxAmount` into every replay of a stored booking (rule 25). |
 | `models/accountingModel.js` | — | — | (none — rule 8: mode `platform` books no tax.) |
 | `models/financeModel.js` | — | — | (none — rule 8: *Suivi taxe de séjour* excludes platforms that remit themselves.) |
 
@@ -264,10 +264,10 @@ counted.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | [reservation/FinanceSection.jsx:693](../client/src/components/reservation/FinanceSection.jsx#L693) | T | The « Taxe de séjour retenue » box + « Reprendre le calcul » (rules 1, 5), the tax-excluded caption (rule 12), the brut label/helper for mode `platform` (rule 14), and the withheld term in `computeCommissionFromPayout` (rule 10). |
-| `components/` | [PricingSummary.jsx:649](../client/src/components/PricingSummary.jsx#L649) | T | Read `platformTouristTaxWithheld ?? touristTaxOriginalTotal` for the tax line, for `grossTotal` and for the cascade's `offeredTax`; strike the amount through in mode `platform` (rule 13). |
-| `pages/` | [ReservationPage.jsx:365](../client/src/pages/ReservationPage.jsx#L365) | T | Form field + default, load from the reservation, add it to the quote signature and to the calc/save payloads, and pre-fill it from the server's `touristTaxOriginalTotal` on a never-saved fiche (rule 4). |
-| `utils/` | [platformTouristTaxPrefill.js](../client/src/utils/platformTouristTaxPrefill.js) | C | The pre-fill decision, pure. **Amended by rule 21**: the `isNewFiche` argument becomes `grossEntered` (« the brut already carries a value »), and the guard `if (!isNewFiche) return null` becomes `if (grossEntered) return null`. Every other guard — box empty, mode `platform`, estimate > 0 — is unchanged. |
+| `components/` | [reservation/FinanceSection.jsx:693](../../client/src/components/reservation/FinanceSection.jsx#L693) | T | The « Taxe de séjour retenue » box + « Reprendre le calcul » (rules 1, 5), the tax-excluded caption (rule 12), the brut label/helper for mode `platform` (rule 14), and the withheld term in `computeCommissionFromPayout` (rule 10). |
+| `components/` | [PricingSummary.jsx:649](../../client/src/components/PricingSummary.jsx#L649) | T | Read `platformTouristTaxWithheld ?? touristTaxOriginalTotal` for the tax line, for `grossTotal` and for the cascade's `offeredTax`; strike the amount through in mode `platform` (rule 13). |
+| `pages/` | [ReservationPage.jsx:365](../../client/src/pages/ReservationPage.jsx#L365) | T | Form field + default, load from the reservation, add it to the quote signature and to the calc/save payloads, and pre-fill it from the server's `touristTaxOriginalTotal` on a never-saved fiche (rule 4). |
+| `utils/` | [platformTouristTaxPrefill.js](../../client/src/utils/platformTouristTaxPrefill.js) | C | The pre-fill decision, pure. **Amended by rule 21**: the `isNewFiche` argument becomes `grossEntered` (« the brut already carries a value »), and the guard `if (!isNewFiche) return null` becomes `if (grossEntered) return null`. Every other guard — box empty, mode `platform`, estimate > 0 — is unchanged. |
 | `api.js` | — | — | (none — the reservation payloads pass through.) |
 
 **Component reuse declaration (mandatory):**

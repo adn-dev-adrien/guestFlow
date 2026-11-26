@@ -1,6 +1,6 @@
 /**
  * The number an operator types on a non-card option: people served, or nights
- * (specs/non-card-option-served-persons.md rules 8, 9 and 19). The client carries that number as it
+ * (specs/options/non-card-option-served-persons.md rules 8, 9 and 19). The client carries that number as it
  * is and never multiplies nor divides it (rule 11): what it bills comes back from the server.
  */
 const PERSON_TYPES = new Set(['per_person', 'per_person_per_night']);

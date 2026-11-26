@@ -1,5 +1,5 @@
 /**
- * Persistent state of the self-update engine (specs/self-update-and-releases.md §5).
+ * Persistent state of the self-update engine (specs/hosting/self-update-and-releases.md §5).
  *
  * Unusually for a model, this one is backed by JSON files rather than SQLite, for two reasons that
  * the database cannot satisfy:
@@ -25,7 +25,7 @@ const { isTerminal } = require('../constants/updatePhases');
 
 const LOCK_STALE_MS = 30 * 60 * 1000;
 const HISTORY_MAX = 5;
-// The poll's window of release notes (specs/self-update-and-releases.md rules 12b, 20d): enough to
+// The poll's window of release notes (specs/hosting/self-update-and-releases.md rules 12b, 20d): enough to
 // cover any realistic gap between the installed version and the one on offer, small enough that the
 // state file stays a few tens of kilobytes.
 const RELEASES_MAX = 30;
@@ -71,7 +71,7 @@ const EMPTY_STATE = {
   releases: [],
   releasesTruncated: false,
   // The WordPress plugin asset published alongside that release — the plugin polls for it through
-  // the public API (specs/wordpress-plugin-self-update.md).
+  // the public API (specs/site/wordpress-plugin-self-update.md).
   latestPlugin: null,
   lastCheckAt: null,
   dismissedVersion: null,

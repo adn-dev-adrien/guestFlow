@@ -2,7 +2,7 @@ const test = require('node:test');
 const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
-// specs/bed-config-in-linen-card.md §3 rule 7 + §7.1 (+ §10 follow-up 2026-06-08).
+// specs/linen/bed-config-in-linen-card.md §3 rule 7 + §7.1 (+ §10 follow-up 2026-06-08).
 // reservationsController.create AND update coerce single/double bed counts to 0 when the final
 // reservation_options list (after the property-defaults auto-merge on create; as-submitted on
 // update) contains no option with countsAsBedLinen = 1. BABY BEDS are EXEMPT — they are kept
@@ -54,7 +54,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
       };
     },
   };
-  // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
+  // The creation is one transaction (specs/reservations/reservation-number-and-search.md rule 13): run it inline.
   const dbMock = {
     transaction: (fn) => fn,
     prepare(sql) {
@@ -63,7 +63,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
         // `hasBedLinenOption`'s IN-query — returns `{1:1}` truthy iff any arg matches. (The
         // per-id `SELECT countsAsBedLinen` branch is retained for safety but is no longer
         // exercised: the update re-merge that used it was removed — see
-        // specs/reservation-option-immutability.md.)
+        // specs/reservations/reservation-option-immutability.md.)
         get(...args) {
           if (isSingleIdLookup) {
             return { countsAsBedLinen: bedLinenFlaggedIds.has(Number(args[0])) ? 1 : 0 };
@@ -205,7 +205,7 @@ test('update: bed-linen option kept ON + counts > 0 → counts persisted intact'
   assert.deepEqual(captures.updated, { id: 43, singleBeds: 2, doubleBeds: 1, babyBeds: 0 });
 });
 
-test('update: bed-linen property default is NOT re-merged → existing reservation is frozen (specs/reservation-option-immutability.md)', () => {
+test('update: bed-linen property default is NOT re-merged → existing reservation is frozen (specs/reservations/reservation-option-immutability.md)', () => {
   // The reservation belongs to a property where bed-linen is a default, but the operator submits a
   // payload with no bed-linen option. Per the immutability rule, `update` does NOT re-merge property
   // defaults: an existing reservation is never retro-fitted with an option it doesn't carry. The
@@ -227,7 +227,7 @@ test('update: bed-linen property default is NOT re-merged → existing reservati
 });
 
 test('update: NON-bed-linen property default is NOT re-merged either (historical preservation holds for all defaults)', () => {
-  // specs/reservation-option-immutability.md — on `update` NO property default is re-merged
+  // specs/reservations/reservation-option-immutability.md — on `update` NO property default is re-merged
   // (bed-linen included; this test pins a non-linen default). A "Ménage" or "Petit-déjeuner" default
   // the operator removed from this reservation stays removed; nothing silently reappears on edit.
   const captures = {};

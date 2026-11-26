@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rule 1 — everything ships in the plugin: no core file knows its tables, its
+// specs/platforms/booking-extranet-intake.md rule 1 — everything ships in the plugin: no core file knows its tables, its
 // routes or its folder, except the lists every plugin goes through.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,7 +22,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-test('specs/booking-extranet-intake.md rule 1: no core file mentions the plugin’s tables, routes or folder', () => {
+test('specs/platforms/booking-extranet-intake.md rule 1: no core file mentions the plugin’s tables, routes or folder', () => {
   const offenders = walk(SRC)
     .filter((f) => !ALLOWED.has(path.relative(SRC, f)))
     .filter((f) => /booking_intakes|booking_dismissals|\/api\/booking-intake|\/public\/booking-intake|booking-intake/.test(fs.readFileSync(f, 'utf8')));

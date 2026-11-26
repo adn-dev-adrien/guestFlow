@@ -1,10 +1,10 @@
 /**
  * TOTP (RFC 6238, over HOTP RFC 4226) on Node's crypto — no dependency. 6 digits, 30-second steps,
  * HMAC-SHA1 (what every authenticator app expects), one step of drift accepted either side
- * (specs/control-plane-plans-and-access.md rule 31) — and the single-use backup codes.
+ * (specs/hosting/control-plane-plans-and-access.md rule 31) — and the single-use backup codes.
  *
  * Shared by the instance's accounts and the console's operators
- * (specs/hosting-h2-account-security.md rule 11): the console requires it through `utils/gf.js`.
+ * (specs/hosting/hosting-h2-account-security.md rule 11): the console requires it through `utils/gf.js`.
  */
 
 const crypto = require('crypto');
@@ -96,7 +96,7 @@ function generateBackupCodes(count = BACKUP_CODE_COUNT) {
   return Array.from({ length: count }, () => `${pick()}-${pick()}`);
 }
 
-// What a person types or pastes, as the checks expect it (specs/hosting-h2-account-security.md rule 35):
+// What a person types or pastes, as the checks expect it (specs/hosting/hosting-h2-account-security.md rule 35):
 // « 123 456 » / « 123-456 » → « 123456 », a backup code without its dash or with spaces → « xxxxx-xxxxx ».
 function normalizeCode(code) {
   const value = asText(code).trim().toLowerCase();

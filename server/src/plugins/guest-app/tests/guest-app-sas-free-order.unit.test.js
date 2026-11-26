@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 100, 102, 103 (fifth pass, 2026-11-10) — the arrival SAS step and the bath slots:
+// specs/guest-app/guest-app.md rules 100, 102, 103 (fifth pass, 2026-11-10) — the arrival SAS step and the bath slots:
 //  - a 0 € order (the free bath hour) reads « Offert », never « À régler à l'arrivée », and is editable and removable like any unpaid order;
 //    removing it frees its slot;
 //  - an article with free units reads its true part (« 2 × 6,50 € · 2 offerts »), never « 4 × 6,50 € » beside a 13 € total;

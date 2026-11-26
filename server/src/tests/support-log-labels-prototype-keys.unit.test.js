@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 66 (audit r4, R4-2) — the support journal the customer reads
+// specs/hosting/hosting-h2-account-security.md rule 66 (audit r4, R4-2) — the support journal the customer reads
 // labels a request by the first segment of its path; `constructor` and `__proto__` name nothing.
 
 const test = require('node:test');

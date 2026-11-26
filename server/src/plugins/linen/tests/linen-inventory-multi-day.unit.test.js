@@ -5,8 +5,8 @@ const { simulateInventory, ALL_TYPES } = require('../linenInventory');
 const { createSchedule } = require('../laundrySchedule');
 const { constantSchedule } = require('./laundry-schedule-fixtures');
 
-// specs/linen-laundry-days.md §3.3 rules 15, 16 and 18 — the stock engine with several laundry days and a
-// laundry turnaround. It also carries the appended specs/linen-inventory-shortage-tracking.md rule 18
+// specs/linen/linen-laundry-days.md §3.3 rules 15, 16 and 18 — the stock engine with several laundry days and a
+// laundry turnaround. It also carries the appended specs/linen/linen-inventory-shortage-tracking.md rule 18
 // (the "week" of the initial state is the warm-up replay, whatever the rhythm).
 //
 // Calendar (June 2026): Tuesdays 02, 09, 16, 23, 30 — Thursdays 04, 11, 18, 25. 06-10 is a Wednesday.
@@ -58,7 +58,7 @@ const month = () => [
 
 // --- Rule 15: atLaundry is a list of batches, ready after the turnaround ------------------------
 
-test('specs/linen-laundry-days.md §3.3 rule 15: conservation holds every day of every rhythm and turnaround, every type', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 15: conservation holds every day of every rhythm and turnaround, every type', () => {
   const stock = { single: 12, double: 0, baby: 0, large: 0, medium: 0, small: 0, bathMat: 0 };
   const rhythms = [[TUE], [TUE, THU], [1, 3, 5], [0, 1, 2, 3, 4, 5, 6]];
   for (const weekdays of rhythms) {
@@ -70,7 +70,7 @@ test('specs/linen-laundry-days.md §3.3 rule 15: conservation holds every day of
   }
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 15: conservation also holds with a skip, a partial extra trip and manual lines', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 15: conservation also holds with a skip, a partial extra trip and manual lines', () => {
   const stock = { single: 12, double: 0, baby: 0, large: 0, medium: 0, small: 0, bathMat: 0 };
   const result = run({
     schedule: constantSchedule([TUE, THU], 3), stays: month(), stock: 12,
@@ -81,7 +81,7 @@ test('specs/linen-laundry-days.md §3.3 rule 15: conservation also holds with a 
   assertConservation(result, stock, 'mixed');
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 15: linen at the laundry before its readyFrom is not available — turnaround 3 makes the shortage a plain arithmetic of days', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 15: linen at the laundry before its readyFrom is not available — turnaround 3 makes the shortage a plain arithmetic of days', () => {
   // 3 singles in stock. A stay of 3 ends Tuesday 06-09; a new stay of 3 arrives Friday 06-12.
   const stays = [stay('2026-06-05', '2026-06-09', 3), stay('2026-06-12', '2026-06-14', 3)];
   // Turnaround 1: dropped Tue 06-09, back Thu 06-11 → clean for Friday.
@@ -98,7 +98,7 @@ test('specs/linen-laundry-days.md §3.3 rule 15: linen at the laundry before its
   assert.equal(slow.shortagesByType.single.maxMissing, 3);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 15: a trip day collects the ready batches, then the check-ins, then drops the whole pile as a new batch with its readyFrom', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 15: a trip day collects the ready batches, then the check-ins, then drops the whole pile as a new batch with its readyFrom', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 2), stay('2026-06-09', '2026-06-12', 1)];
   const result = run({ schedule: constantSchedule([TUE, THU], 2), stays, stock: 5 });
   const tue = day(result, '2026-06-09');
@@ -113,7 +113,7 @@ test('specs/linen-laundry-days.md §3.3 rule 15: a trip day collects the ready b
   assert.equal(thu.clean.single, 4);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 15: a day that is not a trip day moves nothing', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 15: a day that is not a trip day moves nothing', () => {
   const result = run({ schedule: constantSchedule([TUE, THU], 1), stays: month(), stock: 12 });
   const wed = day(result, '2026-06-10');
   assert.equal(wed.isTripDay, false);
@@ -121,7 +121,7 @@ test('specs/linen-laundry-days.md §3.3 rule 15: a day that is not a trip day mo
   assert.equal(wed.pickedUp.single, 0);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 6: a batch dropped under turnaround 1 is ready after 1 day even once the turnaround is raised', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 6: a batch dropped under turnaround 1 is ready after 1 day even once the turnaround is raised', () => {
   const schedule = createSchedule([
     { effectiveFrom: '0001-01-01', weekdays: [TUE, THU], turnaroundDays: 1 },
     { effectiveFrom: '2026-06-10', weekdays: [TUE, THU], turnaroundDays: 3 },
@@ -132,7 +132,7 @@ test('specs/linen-laundry-days.md §3.1 rule 6: a batch dropped under turnaround
   assert.equal(day(result, '2026-06-11').batches[0].readyFrom, '2026-06-14');    // dropped under 3
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: the past keeps its rhythm — a Thursday before the change is no trip, after it is', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: the past keeps its rhythm — a Thursday before the change is no trip, after it is', () => {
   const schedule = createSchedule([
     { effectiveFrom: '0001-01-01', weekdays: [TUE], turnaroundDays: 1 },
     { effectiveFrom: '2026-06-10', weekdays: [TUE, THU], turnaroundDays: 1 },
@@ -142,7 +142,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: the past keeps its rhythm — a 
   assert.equal(day(result, '2026-06-11').isTripDay, true);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 12: a skipped Tuesday with Tuesday + Thursday — the linen stays dirty until Thursday', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 12: a skipped Tuesday with Tuesday + Thursday — the linen stays dirty until Thursday', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 2)];
   const result = run({ schedule: constantSchedule([TUE, THU], 1), stays, stock: 5, skippedDates: new Set(['2026-06-09']) });
   assert.equal(day(result, '2026-06-09').dirty.single, 2);
@@ -152,7 +152,7 @@ test('specs/linen-laundry-days.md §3.2 rule 12: a skipped Tuesday with Tuesday 
   assert.equal(day(result, '2026-06-16').clean.single, 5);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 12: an extra trip stored on a regular day is inert, and it wakes up when the schedule changes', () => {
+test('specs/linen/linen-laundry-days.md §3.2 rule 12: an extra trip stored on a regular day is inert, and it wakes up when the schedule changes', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 2)];
   const extras = new Map([['2026-06-11', { pickUpAll: false, pickUp: { single: 0 } }]]);
   const withThursday = run({ schedule: constantSchedule([TUE, THU], 1), stays, stock: 5, extraTripsByDate: extras });
@@ -162,7 +162,7 @@ test('specs/linen-laundry-days.md §3.2 rule 12: an extra trip stored on a regul
   assert.equal(day(tuesdayOnly, '2026-06-11').pickedUp.single, 0);   // partial pick-up of nothing
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 15: a manual line on a date that is not a laundry day still reaches the next trip', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 15: a manual line on a date that is not a laundry day still reaches the next trip', () => {
   // The operator left a line on Wednesday, then Thursday left the schedule: the line must not vanish.
   const result = run({
     schedule: constantSchedule([TUE], 1), stays: [stay('2026-06-05', '2026-06-09', 1)], stock: 5,
@@ -172,7 +172,7 @@ test('specs/linen-laundry-days.md §3.3 rule 15: a manual line on a date that is
   assert.equal(day(result, '2026-06-16').dropped.single, 2);
 });
 
-test('specs/linen-laundry-days.md §3.5 rule 28: a negative manual line on a date that is not a laundry day waits for the next drop and is capped there', () => {
+test('specs/linen/linen-laundry-days.md §3.5 rule 28: a negative manual line on a date that is not a laundry day waits for the next drop and is capped there', () => {
   // 2 singles are dirty from Wednesday 06-17 (a stay ended that day). The operator washes 1 at home on that
   // Wednesday (not a trip day): nothing is taken off the pile before a drop, Thursday's drop carries 1.
   const stays = [stay('2026-06-10', '2026-06-17', 2)];
@@ -189,7 +189,7 @@ test('specs/linen-laundry-days.md §3.5 rule 28: a negative manual line on a dat
   assertConservation(capped, stock, 'negative capped');
 });
 
-test('specs/linen-laundry-days.md §3.5 rule 28: removing a weekday that holds a negative manual line keeps it — it reaches the next drop instead of vanishing', () => {
+test('specs/linen/linen-laundry-days.md §3.5 rule 28: removing a weekday that holds a negative manual line keeps it — it reaches the next drop instead of vanishing', () => {
   const stays = [stay('2026-06-10', '2026-06-16', 3)];
   const manual = new Map([['2026-06-18', { single: -2 }]]);   // a Thursday line…
   const withThursday = run({ schedule: constantSchedule([TUE, THU], 1), stays, stock: 6, manualAdditionsByDate: manual, from: '2026-06-12', to: '2026-06-30' });
@@ -201,7 +201,7 @@ test('specs/linen-laundry-days.md §3.5 rule 28: removing a weekday that holds a
 
 // --- Rule 16: the initial state is a replay -----------------------------------------------------
 
-test('specs/linen-laundry-days.md §3.3 rule 16: the state on `from` is what the day-by-day replay gives — starting later changes nothing from there on', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 16: the state on `from` is what the day-by-day replay gives — starting later changes nothing from there on', () => {
   const schedule = constantSchedule([TUE, THU], 3);
   const opts = { schedule, stays: month(), stock: 12, to: '2026-06-30', skippedDates: new Set(['2026-06-09']) };
   const early = run({ ...opts, from: '2026-05-20' });
@@ -211,7 +211,7 @@ test('specs/linen-laundry-days.md §3.3 rule 16: the state on `from` is what the
   }
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 16: batches still at the laundry on `from` are all there, whatever their age', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 16: batches still at the laundry on `from` are all there, whatever their age', () => {
   // Turnaround 10 on Tuesdays: on Wednesday 06-17, the batches of 06-09 and 06-16 are both at the laundry.
   const stays = [stay('2026-06-01', '2026-06-09', 2), stay('2026-06-10', '2026-06-16', 3)];
   const result = run({ schedule: constantSchedule([TUE], 10), stays, stock: 10, from: '2026-06-17', to: '2026-06-30' });
@@ -221,7 +221,7 @@ test('specs/linen-laundry-days.md §3.3 rule 16: batches still at the laundry on
   assert.equal(day(result, '2026-06-23').pickedUp.single, 2);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 16: a trip day that is `from` collects like any other day — no special case', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 16: a trip day that is `from` collects like any other day — no special case', () => {
   const stays = [stay('2026-06-01', '2026-06-04', 2), stay('2026-06-05', '2026-06-09', 3)];
   const result = run({ schedule: constantSchedule([TUE, THU], 1), stays, stock: 8, from: '2026-06-09' });
   const d0 = result.days[0];
@@ -230,7 +230,7 @@ test('specs/linen-laundry-days.md §3.3 rule 16: a trip day that is `from` colle
   assert.equal(d0.dropped.single, 3);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 16: days before `from` are neither emitted nor counted as shortages', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 16: days before `from` are neither emitted nor counted as shortages', () => {
   // Stock 1, a stay of 3 ends a week before `from`: that shortage is history.
   const stays = [stay('2026-05-25', '2026-05-30', 3)];
   const result = run({ schedule: constantSchedule([TUE], 1), stays, stock: 1, from: '2026-06-10', to: '2026-06-20' });
@@ -239,7 +239,7 @@ test('specs/linen-laundry-days.md §3.3 rule 16: days before `from` are neither 
   assert.equal(result.shortagesByType.single.maxMissing, 0);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 16: the warm-up reaches 42 days back — a stay in progress at the start of it is installed, a skipped trip 4 weeks back still defers its linen', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 16: the warm-up reaches 42 days back — a stay in progress at the start of it is installed, a skipped trip 4 weeks back still defers its linen', () => {
   // A long stay started before the warm-up: its linen is in circulation at `from`.
   const longStay = stay('2026-03-01', '2026-06-20', 4);
   const result = run({ schedule: constantSchedule([TUE], 1), stays: [longStay], stock: 6, from: '2026-06-10', to: '2026-06-25' });
@@ -255,7 +255,7 @@ test('specs/linen-laundry-days.md §3.3 rule 16: the warm-up reaches 42 days bac
 
 // --- Rule 18: a shortage says when it ends ------------------------------------------------------
 
-test('specs/linen-laundry-days.md §3.3 rule 18: lastShortageDate is the last day of the first spell — the day before a clean sheet exists for everyone again', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 18: lastShortageDate is the last day of the first spell — the day before a clean sheet exists for everyone again', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3), stay('2026-06-12', '2026-06-14', 3)];
   const slow = run({ schedule: constantSchedule([TUE, THU], 3), stays, stock: 3 });
   assert.equal(slow.shortagesByType.single.firstDate, '2026-06-12');
@@ -263,7 +263,7 @@ test('specs/linen-laundry-days.md §3.3 rule 18: lastShortageDate is the last da
   assert.equal(slow.shortagesByType.single.laterShortage, false);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 18: lastShortageDate is null while the first spell runs at the horizon, and for a type that is not short', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 18: lastShortageDate is null while the first spell runs at the horizon, and for a type that is not short', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3), stay('2026-06-12', '2026-06-14', 3)];
   const result = run({ schedule: constantSchedule([TUE, THU], 3), stays, stock: 3, to: '2026-06-14' });
   assert.equal(result.shortagesByType.single.firstDate, '2026-06-12');
@@ -273,7 +273,7 @@ test('specs/linen-laundry-days.md §3.3 rule 18: lastShortageDate is null while 
   assert.equal(result.shortagesByType.double.laterShortage, false);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 18: a shortage that comes back later is flagged, and the first spell keeps its own end', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 18: a shortage that comes back later is flagged, and the first spell keeps its own end', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3), stay('2026-06-12', '2026-06-14', 3), stay('2026-06-22', '2026-06-25', 5)];
   const result = run({ schedule: constantSchedule([TUE, THU], 3), stays, stock: 3 });
   assert.equal(result.shortagesByType.single.firstDate, '2026-06-12');
@@ -282,7 +282,7 @@ test('specs/linen-laundry-days.md §3.3 rule 18: a shortage that comes back late
   assert.ok(result.shortagesByType.single.maxMissing >= 2);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 18: a type with no stock is untracked — no shortage, no spell', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 18: a type with no stock is untracked — no shortage, no spell', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3)];
   const result = run({ schedule: constantSchedule([TUE], 1), stays, stock: 0 });
   assert.equal(result.shortagesByType.single.firstDate, null);

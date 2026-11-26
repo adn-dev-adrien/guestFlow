@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t16, VS16-1, 2026-11-17) — a free line typed on the fiche is sent `newLine`
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t16, VS16-1, 2026-11-17) — a free line typed on the fiche is sent `newLine`
 // until a save has stored it, and not after: a save that keeps the fiche open (« Envoyer la demande de solde », a PDF, a note, a ledger mark)
 // does not re-read the line's row id, so the next save must not send it as new again (the server would take it for a removed line re-typed:
 // a fresh lineId, or 409 LINE_PAID once a note paid it). A line typed after that save is new again.

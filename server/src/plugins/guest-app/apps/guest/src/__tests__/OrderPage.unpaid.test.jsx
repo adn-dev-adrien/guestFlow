@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 33, 35 — an unpaid card order: once the app has stopped following it, « Vérifier à
+// specs/guest-app/guest-app.md rules 33, 35 — an unpaid card order: once the app has stopped following it, « Vérifier à
 // nouveau » reads it again; abandoning it gives its lines back to the cart, merged with what the cart holds since.
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

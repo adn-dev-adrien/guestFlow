@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 25, 27, 37quater, 42 — the shop draws the server's free / included / sold-out states and
+// specs/guest-app/guest-app.md rules 25, 27, 37quater, 42 — the shop draws the server's free / included / sold-out states and
 // never offers what the stay cannot order.
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

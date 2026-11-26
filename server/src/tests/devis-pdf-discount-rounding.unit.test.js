@@ -1,4 +1,4 @@
-// specs/devis-pdf-total-parity.md rule 13 (audit 2026-10-27) — the discounted season rows of a devis
+// specs/devis/devis-pdf-total-parity.md rule 13 (audit 2026-10-27) — the discounted season rows of a devis
 // add up to the engine's discounted accommodation, rounded once on the whole stay.
 const test = require('node:test');
 const assert = require('node:assert/strict');

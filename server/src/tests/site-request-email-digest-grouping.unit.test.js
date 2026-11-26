@@ -1,4 +1,4 @@
-// specs/public-request-abuse-and-grouping.md rule 31 (fixed at the 2026-10-27 spec review) — the
+// specs/site/public-request-abuse-and-grouping.md rule 31 (fixed at the 2026-10-27 spec review) — the
 // 15-minute summary lists one line per QUOTE with how many requests it gathered (one stay sent 13 times
 // read as 13 lines), and both the immediate e-mail and the summary write the stay's dates in French
 // (the immediate one printed 2027-07-01).

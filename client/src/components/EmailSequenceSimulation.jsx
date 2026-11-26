@@ -1,6 +1,6 @@
 /**
  * EmailSequenceSimulation — what the guest email sequence would send over a period, and why an
- * email would not leave (specs/guest-email-sequence.md §3.6 rule 31, §6.2). Feature-specific: it
+ * email would not leave (specs/emails/guest-email-sequence.md §3.6 rule 31, §6.2). Feature-specific: it
  * renders the server's simulation rows verbatim (dates, statuses and French reasons are all decided
  * server-side) inside the shared DataPageScaffold, table on md+ and cards on xs.
  *
@@ -58,7 +58,7 @@ export default function EmailSequenceSimulation({ tabs }) {
   const willSend = result ? result.counts.send : 0;
 
   // Each sequence mail leaves by itself only when its template is « Automatique »
-  // (specs/settings-rationalization.md rule 17b); the server lists which ones.
+  // (specs/settings/settings-rationalization.md rule 17b); the server lists which ones.
   const autoCount = result ? (result.autoMailKeys || []).length : 0;
   const banner = result && (autoCount > 0 && result.startDate
     ? <Alert severity="success">Séquence active depuis le {displayDate(result.startDate)} : {autoCount} mail{autoCount > 1 ? 's' : ''} en mode « Automatique » partiront à leur date, à 8 h. Les autres sont proposés.</Alert>

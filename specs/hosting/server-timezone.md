@@ -67,7 +67,7 @@ winter — without each scheduler having to know about time zones.
 - Host already in `Europe/Paris` (the dev machines) → the assignment is a no-op in practice; the
   fix changes nothing locally, which is why local tests never caught the bug.
 - First pass after the restart that ships this fix → `firstRun` still stamps without sending
-  (`specs/pwa-push-notifications.md` rule 12), so already-due arrivals of that day are skipped, not
+  (`specs/guest-app/pwa-push-notifications.md` rule 12), so already-due arrivals of that day are skipped, not
   replayed. The arrival that triggered this spec is deliberately let go.
 
 ---

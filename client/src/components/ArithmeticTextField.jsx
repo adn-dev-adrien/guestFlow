@@ -4,7 +4,7 @@
  * The operator types e.g. `100+20` (or `(100+20)*2`, French comma OK) and on **Enter** or **blur**
  * the expression is evaluated and the numeric result committed (rounded to 2 decimals, clamped to
  * ≥0 by default). While typing, the raw text is shown untouched; an invalid/incomplete expression
- * on commit silently reverts to the last committed value. Specs/reservation-price-arithmetic.md.
+ * on commit silently reverts to the last committed value. specs/reservations/reservation-price-arithmetic.md.
  *
  * Props:
  *   - value: number | '' | null  — the committed numeric value (controlled by the parent form).
@@ -20,7 +20,7 @@ import { TextField } from '@mui/material';
 import { evaluateArithmetic } from '../utils/arithmetic';
 import { formatAmountInput } from '../utils/formatters';
 
-// The committed amount as money (« 7,20 », never « 7.2 ») — specs/reservation-price-arithmetic.md rule 10.
+// The committed amount as money (« 7,20 », never « 7.2 ») — specs/reservations/reservation-price-arithmetic.md rule 10.
 const toDisplay = formatAmountInput;
 
 export default function ArithmeticTextField({ value, onCommit, nonNegative = true, ...rest }) {

@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { resolveChangeover, checkChangeover } = require('../utils/changeover');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-recipes/spec.md §3.4 rules 21-24 — arrival resolved on the FIRST night, departure on
+// specs/pricing/tariff-recipes.md §3.4 rules 21-24 — arrival resolved on the FIRST night, departure on
 // the LAST night; per-range override wins over the season default; unrestricted by default; the quote
 // exposes the breach beside the min-nights fields. (2026-08-15 is a samedi.)
 

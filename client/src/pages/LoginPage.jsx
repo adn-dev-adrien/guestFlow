@@ -12,14 +12,14 @@ import api from '../api';
  * On success, AuthContext updates and the app (or the forced password-change screen) renders.
  *
  * Reads ?reason=password-changed once after a forced first-login change
- * (specs/admin-account-management.md §3.3 rule 15) and shows a green success Alert. The query
+ * (specs/hosting/admin-account-management.md §3.3 rule 15) and shows a green success Alert. The query
  * param is cleared after rendering so a refresh doesn't re-show it. `?reason=support-link` says a
- * support sign-in link was refused (specs/hosting-h2-account-security.md rule 14).
+ * support sign-in link was refused (specs/hosting/hosting-h2-account-security.md rule 14).
  *
  * `?login_hint=<email>` comes from the shared login page: the email is filled in and the focus goes
- * to the password (specs/control-plane-plans-and-access.md rule 24).
+ * to the password (specs/hosting/control-plane-plans-and-access.md rule 24).
  *
- * An account with a second step gets it after the password (specs/hosting-h2-account-security.md
+ * An account with a second step gets it after the password (specs/hosting/hosting-h2-account-security.md
  * rule 7); « Mot de passe oublié ? » shows when the instance can send the link (rule 5).
  */
 const REASONS = {
@@ -83,7 +83,7 @@ export default function LoginPage() {
         setBusy(false);
       }
     } catch (err) {
-      // specs/hosting-h2-account-security.md rule 62 — the code mail is limited: the refusal says when.
+      // specs/hosting/hosting-h2-account-security.md rule 62 — the code mail is limited: the refusal says when.
       if (err?.error === 'RESEND_TOO_SOON' && err.retryInSeconds) setWait(err.retryInSeconds);
       setError(err?.error === 'TOO_MANY_ATTEMPTS'
         ? 'Trop de tentatives. Nouvel essai plus tard.'

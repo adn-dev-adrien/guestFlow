@@ -12,9 +12,12 @@
 > **Superseded for the shipped copy** (noted at the 2026-10-27 spec review). The default templates this
 > spec wrote — the static Nespresso line and the itemised complement list with its « Total » — are no longer shipped: the guest-email-sequence rewrite (rule 29: the complement
 > is one sentence, no list) and the neutral templates of phase P (#672,
-> specs/plugins-phase-p-productisation.md, specs/guest-email-texts-made-simple.md) replaced them. The
+> specs/plugins/plugins-phase-p-productisation.md, specs/emails/guest-email-texts-made-simple.md) replaced them. The
 > mechanics stay: `complementNotice` still exists for a template of the operator's own. Read the rules below as
 > history for the copy.
+
+> **Reviewed 2026-11-26 (spec reorganization).** Added rule 8, folding the trigger and the sale-detail source of the breakdown from the two deleted J-1 / J-2 complement specs (`server/src/utils/reservationEmailGraph.js:20`, `emailContextBuilder.js:254,340`).
+
 ---
 
 ## 1. Context
@@ -96,6 +99,17 @@ Decisions taken with Adrien on 2026-07-16 (AskUserQuestion):
    currently overwrites only FR `subject`/`body`. Extend it to also force `subjectEn`/`bodyEn` from the
    registry so the coffee line + copy reach already-seeded EN rows. Consistent with the migration's
    existing « overwrite even if personalised » intent for this one template (keeps `sendMode`/`enabled`).
+
+8. **Trigger and source of the breakdown (folded 2026-11-26 from the former `j1-complement-to-collect` and
+   `j2-email-arrival-complement-line` specs).** The notice appears only when `complementAmount > 0` and
+   `complementPaid` is falsy (flag `complementToCollect`); a pure accommodation auto-gap, with no
+   identifiable item, stays the one-line amount sentence. The itemised lines are read from the sale detail
+   (`utils/extraSale.arrivalComplementDetailOf`, `specs/pricing/pricing-components.md` rule 91) through
+   `utils/reservationEmailGraph.loadArrivalComplementDetail`, shared by the e-mail graph and the auto-send
+   runner, so the e-mail and the arrival SAS never disagree; `buildArrivalComplementDetail` stays the reading
+   of a stay the engine cannot quote. Offered (free) in-complement items are excluded. When
+   `complementDeferredToCheckout` is set, the intro says
+   « à votre départ » instead of « à votre arrivée ».
 
 **Edge cases:**
 - Complement = pure tourist tax → single line `- Taxe de séjour : 11,96 €` + `Total : 11,96 €`.

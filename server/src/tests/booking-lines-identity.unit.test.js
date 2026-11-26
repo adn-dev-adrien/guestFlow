@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 79 — line identity: a fiche save keeps the number (`lineId`) and every column the
+// specs/pricing/pricing-components.md §3 rule 79 — line identity: a fiche save keeps the number (`lineId`) and every column the
 // writer does not know of each catalogue line it still sells, keeps the id of a custom line, writes exactly what the old
 // DELETE + INSERT wrote, in the same physical order, and deletes only the lines that left the booking.
 process.env.DB_PATH = ':memory:';

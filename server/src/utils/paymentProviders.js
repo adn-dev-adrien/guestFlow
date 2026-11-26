@@ -1,5 +1,5 @@
 /**
- * The payment provider the core's money path talks to (specs/plugins-phase-3a-online-payment.md
+ * The payment provider the core's money path talks to (specs/plugins/plugins-phase-3a-online-payment.md
  * rules 4, 5). A plugin declares it with `ctx.paymentProvider`; the core only asks here.
  *
  * Provider contract:
@@ -12,7 +12,7 @@
  *                                                 for the read after a `dates-taken` deactivation: an unpaid answer
  *                                                 whose `pending` is not `false` counts as in flight, so the guest is
  *                                                 never told « rien prélevé » on a provider that does not say
- *                                                 (specs/payment-link-lifecycle.md rule 64, audit R11-E1)
+ *                                                 (specs/payments/payment-link-lifecycle.md rule 64, audit R11-E1)
  *   getLinkStatus(linkId)                       → 'open' | 'expired' | 'cancelled'
  *   cancelLink(linkId)                          → resolves once the link can no longer be paid
  *   describeError(err)?                         → { httpStatus, error, message } for an error the

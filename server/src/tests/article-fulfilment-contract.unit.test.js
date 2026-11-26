@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 49, 57 — an article may name a downstream booking (`articleFulfilment`): the registry declares an adapter once, asks it
+// specs/pricing/pricing-components.md §3 rules 49, 57 — an article may name a downstream booking (`articleFulfilment`): the registry declares an adapter once, asks it
 // only while its owner is live, turns a throwing adapter into a refusal, and `extraSale` confirms the booking inside the sale transaction, before the line is
 // written — a taken slot refuses the sale (409 SLOT_TAKEN) and leaves nothing behind. The bath adapter is run through the same cases by the hourly-resources
 // plugin's own `bath-fulfilment-contract`.

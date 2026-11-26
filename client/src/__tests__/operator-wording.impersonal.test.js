@@ -1,5 +1,5 @@
 /**
- * specs/ui-review-2026-10-19-operations.md rule 36 — the operator's confirmations, alerts and
+ * specs/design-system/ui-review-2026-10-19-operations.md rule 36 — the operator's confirmations, alerts and
  * tooltips are short and impersonal: no « Veuillez », « Voulez-vous » or « Êtes-vous » in the client,
  * and no imperative of the 2nd person singular (« Enregistre », « clique », « vérifie »…) either.
  */

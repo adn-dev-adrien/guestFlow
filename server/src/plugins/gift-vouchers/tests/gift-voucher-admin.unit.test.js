@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 24-29 — the operator's API: the list, a voucher sold by hand, extend, cancel, adjust, the code
+// specs/gift-vouchers/gift-vouchers.md rules 24-29 — the operator's API: the list, a voucher sold by hand, extend, cancel, adjust, the code
 // masked and revealed with an audit row, the mail again, the PDF, the shapes refused, the reception kept out.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -192,7 +192,7 @@ test('rule 25: nothing is done to a cancelled voucher', () => withAdmin(async ({
   }
 }));
 
-test('specs/gift-vouchers.md rule 25, specs/gift-voucher-campaigns.md rules 20 and 49: « Renvoyer le mail » sends the voucher with its code, the recap and the PDF attached, and records it', () => withAdmin(async ({ server, sent, api }) => {
+test('specs/gift-vouchers/gift-vouchers.md rule 25, specs/gift-vouchers/gift-voucher-campaigns.md rules 20 and 49: « Renvoyer le mail » sends the voucher with its code, the recap and the PDF attached, and records it', () => withAdmin(async ({ server, sent, api }) => {
   const v = await fx.issueManual(server, { amountCents: 15000, email: 'paul@example.test', senderName: 'Paul <b>' });
   const plain = await fx.revealedCode(server, v.id);
   const res = await server.call('POST', url(v.id, '/resend'), {});

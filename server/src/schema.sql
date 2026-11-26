@@ -1,4 +1,4 @@
--- GuestFlow database schema — generated baseline (specs/migrations-baseline.md).
+-- GuestFlow database schema — generated baseline (specs/tech/migrations-baseline.md).
 -- Single source of truth for a FRESH database. Reproduces the production schema exactly
 -- (verified: a fresh DB built from this file is PRAGMA-identical to prod). Legacy ALTER
 -- migrations were removed once prod reached this schema. Keep CREATE … IF NOT EXISTS so an
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS ical_cancellation_alerts (
     outcome TEXT
   );
 
--- specs/cancellation-compensation.md §5 — what a platform owes (or has paid) for a cancelled stay.
+-- specs/payments/cancellation-compensation.md §5 — what a platform owes (or has paid) for a cancelled stay.
 -- Standalone on purpose: approving the cancellation deletes the reservation, so the row holds a
 -- frozen snapshot instead of foreign keys.
 CREATE TABLE IF NOT EXISTS cancellation_compensations (
@@ -421,7 +421,7 @@ CREATE TABLE IF NOT EXISTS reservation_nights (
 
 -- The three line tables (reservation_options, reservation_resources, reservation_custom_options) carry more than is declared
 -- here: `utils/pricingLinesMigration.js` adds a stable `lineId` (rule 79) and the sale columns of rule 74 at boot
--- (specs/pricing-components.md). The primary key declared below is the shape of a fresh baseline only: at boot
+-- (specs/pricing/pricing-components.md). The primary key declared below is the shape of a fresh baseline only: at boot
 -- `utils/pricingSalesMigration.js` rebuilds the two catalogue line tables WITHOUT it (rule 85, `lineId` is the key, the article an index) and
 -- raises the schema floor (self-update rule 57).
 CREATE TABLE IF NOT EXISTS reservation_options (
@@ -437,7 +437,7 @@ CREATE TABLE IF NOT EXISTS reservation_options (
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
   );
 
--- Remboursements (specs/reservation-refunds.md §5). An « avoir »: money returned to the guest AFTER
+-- Remboursements (specs/payments/reservation-refunds.md §5). An « avoir »: money returned to the guest AFTER
 -- the sale, at its own date, WITHOUT touching the sale (finalPrice, échéances, paid flags stay
 -- verbatim). One header + N lines; `vatRate` is stored per line at creation so a later settings
 -- change never re-prices an avoir already sent to the accountant; a VAT regime switch re-rates the lines
@@ -767,7 +767,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_users_email ON users(email);
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL;
 
--- Translation catalogue (specs/translation-catalogue.md §5). Two tables rather than a column per
+-- Translation catalogue (specs/site/translation-catalogue.md §5). Two tables rather than a column per
 -- language, so adding a third language is data and never a migration. The English that used to live
 -- in `options.titleEn` / `resources.nameEn` moved here; those columns are gone.
 CREATE TABLE IF NOT EXISTS translation_entries (
@@ -789,7 +789,7 @@ CREATE TABLE IF NOT EXISTS translation_values (
 
 CREATE INDEX IF NOT EXISTS idx_translation_values_lang ON translation_values(lang);
 
--- The tourist tax as stored when the arrival complement was collected (specs/reservation-save-keeps-pricing.md
+-- The tourist tax as stored when the arrival complement was collected (specs/reservations/reservation-save-keeps-pricing.md
 -- rule 4): stamped in the very statement that flips complementPaid, whatever the payment path.
 CREATE TRIGGER IF NOT EXISTS reservations_stamp_complement_collected_tax
 AFTER UPDATE OF complementPaid ON reservations
@@ -806,7 +806,7 @@ AFTER UPDATE OF complementPaid ON reservations
 WHEN COALESCE(NEW.complementPaid, 0) = 0 AND OLD.complementPaid = 1
 BEGIN UPDATE reservations SET complementCollectedTax = NULL WHERE id = NEW.id; END;
 
--- The split of the arrival complement's entry, frozen when it is collected (specs/accounting-books-the-money-collected.md
+-- The split of the arrival complement's entry, frozen when it is collected (specs/accounting/accounting-books-the-money-collected.md
 -- rule 16). Written by utils/complementPaidSplit at the flip, gone with it whatever the path that un-ticks it.
 CREATE TRIGGER IF NOT EXISTS reservations_clear_complement_paid_split
 AFTER UPDATE OF complementPaid ON reservations

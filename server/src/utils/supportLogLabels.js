@@ -1,5 +1,5 @@
 /**
- * The support access log as the customer reads it (specs/hosting-h2-account-security.md rule 20):
+ * The support access log as the customer reads it (specs/hosting/hosting-h2-account-security.md rule 20):
  * « Réservation 12 modifiée », « Page ouverte : Réservations », « Refusé » — never a method, a raw
  * path or an HTTP status. The table keeps the raw request (method, path, status); this module words
  * it when Paramètres › Accès du support asks for it.
@@ -127,7 +127,7 @@ function readTarget(method, path, summary) {
 }
 
 /**
- * specs/hosting-h2-account-security.md rule 25 — the log as the customer reads it: the successful reads
+ * specs/hosting/hosting-h2-account-security.md rule 25 — the log as the customer reads it: the successful reads
  * of one minute in a row (pages opened and the API calls behind them) fold into one line
  * « Consultation : Planning, Linge », each name once; writes and refusals keep their own line.
  * `rows` newest first, as stored. → [{ at, label, outcomeLabel }]

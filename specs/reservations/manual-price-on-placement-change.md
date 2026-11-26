@@ -19,7 +19,7 @@ figure instead (`server/src/utils/pricing/discounts.js` `allocateDiscount`).
 
 When the operator **moves** the booking — new dates through the date fields or the mini-calendar strip, or another
 logement — the fiche drops its price lock and re-prices at the new placement
-(`ReservationPage.jsx` `isExistingReservationPricingLocked`, specs/devis-extras-parity-and-price-lock.md rule 13).
+(`ReservationPage.jsx` `isExistingReservationPricingLocked`, specs/devis/devis-extras-parity-and-price-lock.md rule 13).
 But `applyQuoteToForm` keeps `customPrice` untouched, so the final price stays exactly what was typed for the
 **old** placement. Extending a stay from 3 to 5 nights keeps it at 350 € while the tariff went from 400 € to 650 €;
 nothing on screen says so, and the save stores it.
@@ -47,7 +47,7 @@ operator chooses: keep the manual price, keep the same gap to the new tariff, or
 3. It never opens for:
    - a platform sale (the « Prix ajusté » card is hidden: `isPlatform`, the brut is the single price lever);
    - a stay that has started (its price is frozen; an unlocked fiche keeps its final price —
-     specs/settings-rationalization.md rule 35, D21);
+     specs/settings/settings-rationalization.md rule 35, D21);
    - a change of anything other than the placement (occupants, options, discount): those already re-price live
      and the manual price is the operator's explicit input next to them.
 

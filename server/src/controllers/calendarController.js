@@ -1,6 +1,6 @@
 /**
  * Calendar controller — validates the range and the logement of `GET /api/calendar`, then serves the
- * shared read of both calendars (specs/calendar-property-parity.md rule 1).
+ * shared read of both calendars (specs/planning/calendar-property-parity.md rule 1).
  */
 const calendarModel = require('../models/calendarModel');
 const { isReceptionOnly } = require('../constants/roles');

@@ -7,9 +7,11 @@
 | **Created** | 2026-09-28 |
 | **Author** | Adrien |
 | **Related PR** | [#632](https://github.com/adn-dev-adrien/guestFlow/pull/632) (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §6 extension points, §8.2, phasing §12 |
-| **Previous phase** | [`specs/plugins-phase-0-foundation.md`](plugins-phase-0-foundation.md) (merged into `inte/plugins`, #629) |
-| **Summary for review** | [`docs/specs/2026-09-28-plugins-phase-1-sdk.html`](../docs/specs/2026-09-28-plugins-phase-1-sdk.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — §6 extension points, §8.2, phasing §12 |
+| **Previous phase** | [`specs/plugins/plugins-phase-0-foundation.md`](plugins-phase-0-foundation.md) (merged into `inte/plugins`, #629) |
+| **Summary for review** | [`docs/specs/2026-09-28-plugins-phase-1-sdk.html`](../../docs/specs/2026-09-28-plugins-phase-1-sdk.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 59 appended (SDK 2.33.0-2.35.0 pointers). Still governs: the plugin module contract, every `ctx` extension point, client slots, erasure and the money-dialog contract; its file maps are the as-moved layout (`server/src/plugins/<id>/`).
 
 ---
 
@@ -83,7 +85,7 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
    (rule 2) and the host side of the contract: the SDK and, on the server, the loader. Tests are exempt:
    they reach into both on purpose. A test walks the imports, on each side, and fails on any other
    import.
-   > **2026-10-08 (specs/plugins-phase-4-registry.md):** the host side grows with the packages — on the
+   > **2026-10-08 (specs/plugins/plugins-phase-4-registry.md):** the host side grows with the packages — on the
    > server `plugins/manifest.js`, `host.js`, `packageStore.js` and `registryClient.js`; on the client
    > `plugins/runtime.js` and `runtimeModules.js`. Both walks list them. A package build enforces the
    > same isolation on each plugin (phase 4 rule 4).
@@ -178,7 +180,7 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
       `{ tokens, flags }`.
     - The email context builder merges `build()` from **active** plugins only. An inactive plugin's
       variables render empty, and its `{{#if}}` blocks read false.
-    - *(2026-11-09, specs/guest-app.md rule 9bis b.)* A token or a flag may name the e-mails it belongs to,
+    - *(2026-11-09, specs/guest-app/guest-app.md rule 9bis b.)* A token or a flag may name the e-mails it belongs to,
       `in: ['j7', 'j2']` — the sections of the core catalogue's own `in` — and the template editor offers its chip
       in those e-mails only (still everywhere it is already used); without `in` it is offered in every e-mail.
     - The four email paths (preview, auto-send, guest sequence, manual send) all go through the builder,
@@ -205,11 +207,11 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
       - it deletes its `plugin:<id>:*` ledger rows, so a reinstall starts clean;
       - it runs any extra clean-up the plugin needs (rule 20).
 
-> 2026-10-19 (SDK 1.4.0, `specs/shell-and-home-day-first.md` rule 9): `ctx.attention({ key, rank,
+> 2026-10-19 (SDK 1.4.0, `specs/planning/shell-and-home-day-first.md` rule 9): `ctx.attention({ key, rank,
 > handler, summarize })` declares a subject of the home's « À traiter »; the client SDK exports
 > `AttentionCard`, and a `dashboard.alerts(.urgent)` contribution receives the server's `attention`.
 
-> 2026-10-28 (SDK 2.9.0, `specs/reconciliation-assisted-matching.md`): the SDK gains
+> 2026-10-28 (SDK 2.9.0, `specs/accounting/reconciliation-assisted-matching.md`): the SDK gains
 > - client export `FilterChip` (an active-filter chip, Escape and close button);
 > - server `ctx.paymentDeadlineDecorator(rows => rows)` — decorates, or drops, the rows of the home's « Échéances »
 >   card while the plugin is live; one per plugin, a throwing decorator changes nothing (rule 22 of that spec);
@@ -220,7 +222,7 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
 
 _Added 2026-10-19 (SDK 1.5.0)_ — **Setup state** — `ctx.setupStatus(() => null | '<what is missing>')`:
 the plugin says, from its own settings and without any remote call, what it still lacks; the Plugins
-page shows « Actif · <what> » and « Configurer » (`specs/plugins-phase-0-foundation.md` rule 25).
+page shows « Actif · <what> » and « Configurer » (`specs/plugins/plugins-phase-0-foundation.md` rule 25).
 Optional: a plugin that declares nothing reads « Actif ».
 
 ### 3.C What `contributes` offers — client extension points
@@ -233,14 +235,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     |---|---|---|
     | `routes` | `App.jsx` `<Routes>` | school-holidays (`/school-holidays`), tariff-recipes (`/parametres/recettes`) |
     | `settings.menu` | settings menu, after the entry named by `after` | tariff-recipes (Recettes tarifaires) |
-    | `settings.integrations` | Intégrations page sections, one tab per plugin (`tabLabel?`, `keywords?` — specs/integrations-tab-per-plugin.md rules 4, 8) | google-calendar, weather-alerts, gate-access |
+    | `settings.integrations` | Intégrations page sections, one tab per plugin (`tabLabel?`, `keywords?` — specs/plugins/integrations-tab-per-plugin.md rules 4, 8) | google-calendar, weather-alerts, gate-access |
     | `dashboard.alerts.urgent` | Dashboard alert stack, under the payment deadlines | gate-access (keys) |
     | `dashboard.alerts` | Dashboard alert stack, under the new iCal reservations | tariff-recipes (runs) |
     | `reservation.cards` | reservation page, after the finance section | gate-access, guest-app (« Lien Mon séjour ») |
     | `options.fields`, `resources.fields` | option and resource editors; with `section: { title }` a section of its own, saved after the core row (rule 49) | hourly-resources (`resources.fields`), guest-app |
     | `nav.items` | the side menu's top level, after the entry named by `after` (rule 49) | guest-app (Commandes clients) |
     | `sas.arrival.steps` | SAS dialog, just before the recap | weather-alerts |
-    | `sas.portal` | the SAS « Portail » step, when the SAS data says the plugin holds a key (rule 17). A contribution with `leadsStep: { title }` takes the whole step and its title while its plugin's SAS data says `available`, the others handed to it as `gateStep` (specs/guest-app.md rule 9bis, 2026-11-06) | gate-access, guest-app (`leadsStep`) |
+    | `sas.portal` | the SAS « Portail » step, when the SAS data says the plugin holds a key (rule 17). A contribution with `leadsStep: { title }` takes the whole step and its title while its plugin's SAS data says `available`, the others handed to it as `gateStep` (specs/guest-app/guest-app.md rule 9bis, 2026-11-06) | gate-access, guest-app (`leadsStep`) |
     | `calendar.dayMarkers` | month view, week view, property pricing calendar, their legends | school-holidays |
     | `closures.tabs` | Vacances & fermetures, before « Fermetures » | school-holidays |
     | `property.tariff` | pricing seasons page | tariff-recipes (the recipe card) |
@@ -266,29 +268,29 @@ Optional: a plugin that declares nothing reads « Actif ».
     client), `useAuth`, `usePlugin`, the dialogs and toasts, the generic components (`PageActionBar`,
     `StatusBadge`, `EmptyState`, `ConfirmDialog`, `FormDialog`, `LoadingState`, `ErrorAlert`,
     `SummaryItem`, `MaskedTextField`, `SecretRevealField`, `SasKeypadCode`, and since SDK 2.3.0
-    `IntakeBanner` — specs/airbnb-mail-intake.md §4.1) and `displayDate`. The HTTP
+    `IntakeBanner` — specs/platforms/airbnb-mail-intake.md §4.1) and `displayDate`. The HTTP
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
-> 2026-10-28 — SDK 2.12.0 (audit fixes, `specs/airbnb-mail-intake.md` rules 22–23): `sdk.mailbox.readMailsFrom`
+> 2026-10-28 — SDK 2.12.0 (audit fixes, `specs/platforms/airbnb-mail-intake.md` rules 22–23): `sdk.mailbox.readMailsFrom`
 > keeps only mails whose header From address equals `sender`, returns `authenticated` / `authReason` (DKIM pass in the
 > Authentication-Results of the mailbox's own server, found by `trustedAuthservId` or the provider's default name;
 > `allowedDomains`), requires TLS, and pins the IMAP host to the SMTP server's domain itself; new
 > `sdk.mailbox.resolveImapHost(smtpHost, configured)`; a setting may be declared `supportLocked`. Both intake plugins
 > declare `^2.12.0`.
 >
-> 2026-10-28 — SDK 2.11.0 (`specs/plugin-removal-resilience.md` rule 17): `ctx.onActivate(fn)` — runs in the
+> 2026-10-28 — SDK 2.11.0 (`specs/plugins/plugin-removal-resilience.md` rule 17): `ctx.onActivate(fn)` — runs in the
 > background each time a plugin goes from off to live: activated (Plugins API or reconciler), installed (after its
 > install hooks, once the whole install committed), or turned live by the licence (a plan upgrade, the row already
 > enabled; re-read after every provisioning pass). Never at boot. The bus drops events while a plugin is off, so the
 > plugin recovers from its own data here; `google-vacation-rentals` 1.0.2 (`sdk ^2.11.0`) re-sends everything to Google.
 
 > 2026-10-28 — SDK 2.10.0 (VAT optional mode): `coreModule('vatRegimeModel')` — `forRow(db, row)` and
-> `rateForRow(db, row)` answer the VAT regime and rate of one sale (`specs/vat-optional-mode.md` rule 8).
+> `rateForRow(db, row)` answer the VAT regime and rate of one sale (`specs/accounting/vat-optional-mode.md` rule 8).
 > `accounting-export` reads them per reservation instead of the global rate and declares `^2.10.0`. No
 > removal: `publicPaymentMode#globalVatRate` stays, answering the rate in force today.
 
-> 2026-10-28 — SDK 2.8.0 (`specs/options-resources-ux.md` rule 19): `ctx.resourceCatalogueLines(build)` —
+> 2026-10-28 — SDK 2.8.0 (`specs/options/options-resources-ux.md` rule 19): `ctx.resourceCatalogueLines(build)` —
 > `build(resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null`, synchronous,
 > called only while the plugin is live; the hourly plugin shows its evening / external rates, free first
 > hour and schedule on the resource card (hourly-resources 1.3.0, `sdk ^2.8.0`, `guestflow >=3.18.0`: the
@@ -296,24 +298,24 @@ Optional: a plugin that declares nothing reads « Actif ».
 
 > 2026-10-27 — SDK 2.7.0 (spec review): `ctx.core.reservations.update(id, patch, { label, client })` takes
 > the guest's find-or-create payload and creates the client in the same transaction as the update, so a
-> fiche the core refuses leaves no orphan client (`specs/airbnb-mail-intake.md` rule 21,
+> fiche the core refuses leaves no orphan client (`specs/platforms/airbnb-mail-intake.md` rule 21,
 > `gites-de-france-mail-intake.md` rule 19, `booking-extranet-intake.md` rule 32); the result then carries
 > `clientId`. No `coreModule` change.
 
 > 2026-10-27 — SDK 2.6.0 (audit fixes): `coreModule('installmentsModel')` (the installment plan read by
-> the bank reconciliation, `specs/qonto-bank-reconciliation.md` rule 45); `platformNameFormat` gains
+> the bank reconciliation, `specs/accounting/qonto-bank-reconciliation.md` rule 45); `platformNameFormat` gains
 > `isRelayChannel`, `setRelayChannels`, `platformReviewWhere`, `setPlatformReviewWhere`,
 > `refreshGuestContactChannels` and `platformsModel` gains `guestContactById`, `setRelaysGuestEmail`,
-> `setReviewWhere`, `refreshGuestContactChannels` (`specs/platform-settings-relay-and-review.md`);
+> `setReviewWhere`, `refreshGuestContactChannels` (`specs/platforms/platform-settings-relay-and-review.md`);
 > `ctx.pushChannel({ key, label })` lets a plugin declare its push channel. Recorded in
 > `coreModuleHistory.json`.
 
 > 2026-10-27 — SDK 2.5.0 (master v3.18.0 merged into `inte/plugins`): `coreModule('platformNameFormat')`
 > gains `isChoreFreeChannel` / `setChoreFreeChannels` / `refreshChoreFreeChannels`
-> (`specs/airbnb-no-checkout-chores.md` rule 8); `coreModule('platformsModel')` gains `choreFreeIds`,
+> (`specs/platforms/airbnb-no-checkout-chores.md` rule 8); `coreModule('platformsModel')` gains `choreFreeIds`,
 > `setForbidsGuestChores`, `refreshChoreFreeChannels`; `propertiesModel` gains `setPlatformCleaningFees`
-> (`specs/tariff-recipe-platform-cleaning-fee.md`). `sas` 1.6.0 and `tariff-recipes` 1.3.0 require it.
-> `coreModule('installmentPlan')` (`utils/installmentPlan.js`, `specs/direct-installments.md` rule 39) also
+> (`specs/pricing/tariff-recipe-platform-cleaning-fee.md`). `sas` 1.6.0 and `tariff-recipes` 1.3.0 require it.
+> `coreModule('installmentPlan')` (`utils/installmentPlan.js`, `specs/payments/direct-installments.md` rule 39) also
 > ships in 2.5.0: #794 added it without the SDK bump, while `accounting-export` kept `^2.0.0` — fixed at the
 > 2026-10-27 audit, `accounting-export` 1.0.13 declares `^2.5.0`. Since then `server/src/plugins/sdk/coreModuleHistory.json`
 > records what each SDK minor added to `coreModule()` (2.1.0 `departureSasPlan`, 2.4.0 `directQuote`, 2.5.0
@@ -321,12 +323,12 @@ Optional: a plugin that declares nothing reads « Actif ».
 > `tests/plugins-sdk-core-module-floor.unit.test.js` refuses a plugin that calls a module or a name newer than
 > the floor of its `sdk` range, or a contract module the history does not date.
 
-> 2026-10-26 — SDK 2.4.0 (`specs/google-vacation-rentals-feed.md` rule 12): `ctx.events.emit(name, payload)`
+> 2026-10-26 — SDK 2.4.0 (`specs/site/google-vacation-rentals-feed.md` rule 12): `ctx.events.emit(name, payload)`
 > lets a plugin announce `pricing.changed`, and only that event; `coreModule('directQuote')` exposes the
 > website's quote (`utils/directQuote.js`), shared by website-booking and google-vacation-rentals.
 
 > 2026-10-19 — `dashboard.alerts` / `dashboard.alerts.urgent` since SDK 1.4.0
-> (`specs/shell-and-home-day-first.md` rules 9, 22): the home no longer drops these slots in place.
+> (`specs/planning/shell-and-home-day-first.md` rules 9, 22): the home no longer drops these slots in place.
 > A contribution whose `key` the plugin also declared server-side with `ctx.attention` is drawn as a
 > pinned card or an « À traiter » row and receives the server's `attention`; a contribution whose key
 > the server did not declare — a package built for SDK < 1.4.0, which knows nothing of
@@ -453,20 +455,20 @@ Optional: a plugin that declares nothing reads « Actif ».
     `gites-de-france-intake` declare `lastRunAt`, `unreadMails` and `unreadStreak` that way: an operator
     (or a script holding an admin session) could set the unread counter shown on the home. Test:
     `plugin-internal-settings.unit.test.js`.
-35. *(Added 2026-10-30, specs/payment-link-lifecycle.md rule 16, SDK 2.18.0.)* **`paymentPollRunner` exports
+35. *(Added 2026-10-30, specs/payments/payment-link-lifecycle.md rule 16, SDK 2.18.0.)* **`paymentPollRunner` exports
     `runLinkLifecycle`.** The lifecycle pass of the payment links (lapse, withdraw, deactivate-then-read, last
     look) is core code; the `online-payment` plugin runs it from its `payment-link-lifecycle` job every 15
     minutes. A MINOR bump (a name added to `coreModules.json`, recorded under 2.18.0 in
     `coreModuleHistory.json`); `online-payment` 1.5.0 asks for `sdk ^2.18.0`. Test:
     `plugins/online-payment/tests/payment-link-lifecycle-job.unit.test.js`.
-36. *(Added 2026-11-02, specs/payment-schedule-and-cancellation.md rule 55, SDK 2.19.0.)* **`coreModule('storedMoneySplit')`
+36. *(Added 2026-11-02, specs/payments/payment-schedule-and-cancellation.md rule 55, SDK 2.19.0.)* **`coreModule('storedMoneySplit')`
     hands the stored-money split of an encaissement** (`buildPerLineData`, `splitByDestination`,
     `storedMoneyCollected`, `storedMoneyBucketTtcs`, `storedMoneyBuckets`). The split moved from the
     `accounting-export` plugin to the core (`utils/storedMoneySplit.js`) because the cancellation reverses a legacy
     acompte on the very buckets the export credited it on, and a bare install without the plugin cancels too. A MINOR
     bump (a name added to `coreModules.json`, recorded under 2.19.0 in `coreModuleHistory.json`); `accounting-export`
     1.0.23 asks for `sdk ^2.19.0`. Test: `plugin-core-hardening-floor.unit.test.js`.
-37. *(Added 2026-11-02, specs/reservations-backend-mvc.md rule 13, SDK 2.20.0.)* **`coreModule('stayDates')` hands
+37. *(Added 2026-11-02, specs/tech/reservations-backend-mvc.md rule 13, SDK 2.20.0.)* **`coreModule('stayDates')` hands
     the date window of every entered date** — [today − 5 years, today + 5 years], the Europe/Paris day: the messages
     (`DATE_INVALID_MESSAGE`, `ENTRY_DATE_INVALID_MESSAGE`, `HORIZON_MESSAGE`, `PAST_HORIZON_MESSAGE`,
     `ITEM_OUTSIDE_STAY_MESSAGE`, `ORDER_MESSAGE`, `TOO_LONG_MESSAGE`), the constants (`INVALID_STAY_DATES`,
@@ -499,7 +501,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     out of `options`, its « dans le complément » choice kept in `autoOptionsInComplement`, never doubled by `update`),
     `airbnb-intake/tests/card-lines-real-core.unit.test.js`, `gites-de-france-intake/tests/card-lines-real-core.unit.test.js`.
 39. *(Added 2026-11-03, audit R21-P1 and C4, SDK 2.21.0.)* **`sas` 1.7.6 asks for `sdk ^2.21.0`.** Its draft sends
-    `{ optionId, persons }` for a non-card per-person sale ([non-card-option-served-persons.md](non-card-option-served-persons.md)
+    `{ optionId, persons }` for a non-card per-person sale ([non-card-option-served-persons.md](../options/non-card-option-served-persons.md)
     rule 12), and a core before that SDK reads this as « no units » and drops the sale in silence. It is a change of
     contract rather than a hardening, read as [plugins-phase-4-registry.md](plugins-phase-4-registry.md) rules 51 and 54
     by extension. In the other direction, the core still reads the former `{ optionId, units }` (rule 28 of the same
@@ -510,10 +512,10 @@ Optional: a plugin that declares nothing reads « Actif ».
     office's `reservationsModel.validateAvailability` with those times and the nights they take
     (`getNightBlocksFromTimes`), a time not sent read as the property's default. `website-booking` 1.8.12 asks for
     `sdk ^2.22.0` and calls it on `/quote` and `/booking-requests`; the core's public `pay` calls it too
-    ([public-api.md](public-api.md) rule 24, [public-online-payment.md](public-online-payment.md) rule 17). A MINOR bump
+    ([public-api.md](../site/public-api.md) rule 24, [public-online-payment.md](../site/public-online-payment.md) rule 17). A MINOR bump
     (a name added to a core module); on an older core the plugin would load and throw on its first quote, hence the
     floor. Tests: `plugin-core-hardening-floor.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`.
-41. *(Added 2026-11-05, [accounting-synthesis.md](accounting-synthesis.md) rules 7-9, SDK 2.23.0.)* **`coreModule()` hands
+41. *(Added 2026-11-05, [accounting-synthesis.md](../accounting/accounting-synthesis.md) rules 7-9, SDK 2.23.0.)* **`coreModule()` hands
     the accounting synthesis the core's own finance readings**: `financeModel` (the stays' revenue of a window,
     `getSummary`, and the tourist-tax extraction's rows `getTouristTaxRows`, with `withTouristTaxInTotal` listed in the
     contract since 2026-11-06, V2-8), `financeDashboardModel` (`lastYearRange`, the one reading of
@@ -525,7 +527,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     `sdk ^2.23.0`. Tests: `plugins/accounting-export/tests/accounting-synthesis-books.unit.test.js`,
     `plugins-sdk-core-modules-contract.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`,
     `plugin-core-hardening-floor.unit.test.js`.
-42. *(Added 2026-11-09, [mixed-method-payments.md](mixed-method-payments.md) rules 26-28, 32, SDK 2.24.0.)*
+42. *(Added 2026-11-09, [mixed-method-payments.md](../payments/mixed-method-payments.md) rules 26-28, 32, SDK 2.24.0.)*
     **`coreModule()` hands the plugins the payments split over several methods**: `paymentTenders`
     (`settlementFigures`, what one settlement put on the books, in the caisse and at the bank),
     `paymentSettlementsModel` (`buildModel`, the stay's settlements) and `paymentSettlementService`
@@ -538,19 +540,19 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugins/online-payment/tests/reconciliation-mixed-method-payments.unit.test.js`,
     `plugins/sas/tests/sas-mixed-method-payments.unit.test.js`.
 
-43. *(Added 2026-11-05, specs/guest-app.md rule 2, SDK 2.26.0.)* **`coreModule('stayWindow')` and
+43. *(Added 2026-11-05, specs/guest-app/guest-app.md rule 2, SDK 2.26.0.)* **`coreModule('stayWindow')` and
     `coreModule('encryption')`.** The stay window leaves `gate-access` for `utils/stayWindow.js`, so the guest app reads
     it without that plugin; `gate-access` 1.3.5 and `guest-app` 1.0.0 ask for `sdk ^2.26.0`. `encryption` holds the
     lodging's wifi password at rest. (The guest app's limiters, first added to `coreModule('rateLimiters')`, live in the
     plugin since 2026-11-09: the core keeps only generic extension points.) A MINOR bump (modules and names added to `coreModules.json`, recorded under 2.26.0 in `coreModuleHistory.json`). Tests:
     `stay-window.unit.test.js` (the moved gate-window suite, its assertions unchanged).
-44. *(Added 2026-11-05, specs/guest-app.md rules 23-25, SDK 2.26.0.)* **`coreModule('publicCatalogProjection')`,
+44. *(Added 2026-11-05, specs/guest-app/guest-app.md rules 23-25, SDK 2.26.0.)* **`coreModule('publicCatalogProjection')`,
     `coreModule('midStayExtrasWindow')` and three `pricing` names.** `toPublicOption` / `toPublicResource` and their
     helpers leave `website-booking` for `utils/publicCatalogProjection.js` (website-booking 1.8.14 re-exports them
     unchanged and asks for `^2.26.0`); `pricing` adds `applyFreeUnitsToLine`, `getApplicableOptions`,
     `getApplicableResources`, so the guest app's shop reads the catalogue the engine prices. Tests:
     `guest-app-sellable`, `guest-app-shop` and every website-booking projection suite.
-45. *(Added 2026-11-05, specs/guest-app.md rules 28-31 and 35, SDK 2.26.0.)* **`ctx.resourceScheduler(provider)` and
+45. *(Added 2026-11-05, specs/guest-app/guest-app.md rules 28-31 and 35, SDK 2.26.0.)* **`ctx.resourceScheduler(provider)` and
     `ctx.resourceHolds(fn)`.** One scheduler app-wide (`{ slotsForStay, validateSessions }`, declared by
     `hourly-resources` 1.5.0), read through `ctx.core.resourceScheduler()`, null unless its plugin is live; any plugin
     may declare one holds source, collected by `ctx.core.resourceHolds({ resourceId, from, to })` (a source that throws
@@ -559,11 +561,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     `hourly-resources` reads « Créneau réservé, en attente ». A row of
     `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.26.0`. Tests:
     `resource-scheduler-hook.unit.test.js`, `guest-app-slots.unit.test.js`.
-46. *(Added 2026-11-05, specs/guest-app.md rules 15bis and 47-49, SDK 2.26.0.)* **`coreModule('safeFeedFetch')` and
+46. *(Added 2026-11-05, specs/guest-app/guest-app.md rules 15bis and 47-49, SDK 2.26.0.)* **`coreModule('safeFeedFetch')` and
     `coreModule('instancePaths')`.** The iCal import's public-only fetch (`fetchPublic`, `readCapped`,
     `FeedFetchError`) serves the guest app's Soliomap feed; `instancePaths` exposes `uploadsDir` for the studio's
     media. Tests: `guest-app-suggestion`, `guest-app-media`.
-47. *(Added 2026-11-06, specs/guest-app.md rules 24, 30, 33-36, SDK 2.26.0; generic since 2026-11-09.)*
+47. *(Added 2026-11-06, specs/guest-app/guest-app.md rules 24, 30, 33-36, SDK 2.26.0; generic since 2026-11-09.)*
     **`ctx.paymentBasket({ source, paid, labels? })`, `ctx.core.payments` and `coreModule('midStayOrderCommit')`.** A
     plugin bills its own basket (the guest app: an order) through a
     `complement` payment link: `ctx.core.payments.basketLink(reservationId, { source, ref, title, lines })` mints it at
@@ -593,7 +595,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     'ORDER_PERSONS_EXCEEDED', key, left } }` — for a per-person option whose persons (the stay's line, the pending lines
     and the order's) exceed the ceiling, and for a breakfast asking more persons than its line already serves (that
     line keeps its persons). Tests: `mid-stay-order-persons.unit.test.js`, `guest-app-order-persons`.
-48. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.26.0 — unreleased, recorded with the
+48. *(Added 2026-11-09, specs/guest-app/guest-app.md rules 47 and 52, plan step 50, SDK 2.26.0 — unreleased, recorded with the
     other guest-app entry points.)* **`ctx.webApp({ key, path?, host?, handler })` — a web app the plugin serves
     itself.** `path` is one segment of the plugin's own (`/studio`), answered on every host; `host()` is read on each
     request and claims every path of that hostname (the guest app on `sejour.domainesolio.com`); one of the two is
@@ -612,7 +614,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     equal to the hostname of GuestFlow's own public URL claims nothing — the back office, its login and its settings stay
     the core's on its own host whatever a plugin's setting says (`plugins-web-apps-own-host.unit.test.js`); the guest app
     also refuses such a host at save (guest-app rule 58).
-49. *(Added 2026-11-09, specs/guest-app.md rules 22, 37bis, 45 and 47, SDK 2.26.0.)* **Client points a plugin needs to
+49. *(Added 2026-11-09, specs/guest-app/guest-app.md rules 22, 37bis, 45 and 47, SDK 2.26.0.)* **Client points a plugin needs to
     keep its screens and calls in its own folder.** `options.fields` mirrors `resources.fields` in the option editor; a
     `*.fields` contribution may carry `section: { title }`: it gets a section of its own at the bottom, counted by
     « Enregistrer » and the unsaved guard, and is saved after the core row (an editor with only plugin changes no longer
@@ -624,7 +626,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     control character, never `/login`), for a backend page that needs a session. Tests:
     `OptionEditorPanel.plugin-fields.test.jsx`, `ResourceEditorPanel.plugin-fields.test.jsx`,
     `navMenu.plugin-entries.test.js`, `navigation.safe-return-path.test.js`.
-50. *(Added 2026-11-11, specs/pricing-components.md rules 5, 47 and 61, SDK 2.27.0.)* **A plugin reaches the VAT component
+50. *(Added 2026-11-11, specs/pricing/pricing-components.md rules 5, 47 and 61, SDK 2.27.0.)* **A plugin reaches the VAT component
     and declares an article family.** `coreModule('vat')` hands out the VAT component (`vatOf`, `resolveRate`, `splitTtc`,
     `netFirst`, `htOfPortion` and the Qonto basket's integer-cent helpers). `ctx.articleFamily(id, family)` registers a
     pricing family for the Articles head, `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx),
@@ -637,7 +639,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     > _Amended 2026-11-15 (stabilisation loop t1, AS-3, AS-4; rule 54):_ v4.1.0 shipped SDK 2.27.0 without `vat` nor `ctx.articleFamily`; both are
     > first shipped by 2.30.0, which `coreModuleHistory.json` records, the hardening floor holds (`ctx.articleFamily(` asks `^2.30.0`) and the SDK's
     > comments say. The in-tree plugins that use them range `^2.31.0` or `^2.32.0`.
-51. *(Added 2026-11-16, specs/mollie-rolling-reserve-and-incoming-payments.md rules 18, 23, 28, SDK 2.29.0.)* **A plugin
+51. *(Added 2026-11-16, specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 18, 23, 28, SDK 2.29.0.)* **A plugin
     tells the core what is still to arrive on the bank.** `ctx.ledgerBankTranches(({ reservationId }) → { rows: { [ledgerKey]:
     [tranche] }, schedule } | null)` adds dated tranches under a paid row of the payments ledger and a recap line to the
     money summary; `ctx.incomingPayments(({ recent }) → [item])` feeds « Versements à venir »; `ctx.journalEntries(({ from, to })
@@ -647,7 +649,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     1.8.0 and `accounting-export` 1.3.0 range `^2.29.0`; `coreModuleHistory.json` records 2.29.0 (`journalEntries`). Tests:
     `plugin-core-hardening-floor.unit.test.js`, `incoming-payments.unit.test.js`, `mollie-ledger-tranches.unit.test.js`,
     `accounting-mollie-journal.unit.test.js`.
-52. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.30.0.)* **A plugin sells through the same services as the
+52. *(Added 2026-11-12, specs/pricing/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.30.0.)* **A plugin sells through the same services as the
     core, and declares the booking an article needs.** `coreModule('extraSale')` hands out the sale service (`quote`, `sell`,
     `changeLine`, `saleDetailOf`, `departureSalesOf`), `coreModule('saleDetail')` its read model, `coreModule('articles')` the head's reads
     (`read` prices one candidate line for a stay with no free unit spent, `unitsPerQuantity` the billed units of one quantity),
@@ -664,7 +666,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     hourly-resources 1.6.0 and sas 1.10.0 are v4.1.0's packages and range lower.) The floor is 2.30.0: a plugin calling `ctx.articleFulfilment(` or
     `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.30.0. Tests:
     `article-fulfilment-contract`, `bath-fulfilment-contract`, `extra-sale-sas`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
-53. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.31.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
+53. *(Added 2026-11-12, specs/pricing/pricing-components.md rule 38, SDK 2.31.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
     hands out the exact variants of `money.js`: `roundMoney`, `roundMoneyOrZero`, `roundMoneyStrict`, `toCents`, `toCentsOrZero`, `toCentsStrict`,
     `fromCentsStrict`, `parseFrenchCents`, `parseFrenchEuros` and `eurosWithSpaces`. Each reproduces one of the private copies the plugins held, so no
     figure moves; the variant is picked by what the copy did with a blank or a non-number, never swapped for `roundMoney`. airbnb-intake, booking-intake,
@@ -678,7 +680,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     the unreleased 2.31.0 before it shipped: nothing consumed it, and its `open` was a raw insert into the refund register that would let a plugin
     open an obligation outside `paidLineJudgment` and the refund dialog's judgment.)
     Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`, `mollie-cents-shared-helper` (2, the Mollie client reads cents through the shared helper).
-54. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing-components.md rules 53, 74, 86, specs/outside-booking-sas.md rules 35-42,
+54. *(Added 2026-11-15, end review R3-3, R3-10, R3-11; specs/pricing/pricing-components.md rules 53, 74, 86, specs/sas/outside-booking-sas.md rules 35-42,
     SDK 2.32.0.)* **A plugin sells outside a stay, and suggests articles, through the core.** SDK 2.32.0 adds `coreModule('standaloneSale')`
     (quote / sell / offerLine / removeLine / pay / cancel / receive / documentOf / paymentsOf of a document with no reservation),
     `coreModule('standaloneSaleLinks')` (linkOf / draftLinkOf / mint / withdraw / emailLink of its payment link), `coreModule('suggestedArticles')`
@@ -688,7 +690,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     (`client/src/plugins/sdk/index.js`; `StaySalesSection` is SDK 2.30.0's). guest-app and hourly-resources range `^2.32.0`.
     _Reading of 2026-11-18 (loop t19 A19-1):_ the four sale blocks are handed out lazily (`components/LazySaleComponents.jsx`, the
     LazyReportCharts pattern): same names, same props, their code fetched on first render (« Vente hors séjour » on its first `open`), so
-    the SDK no longer puts them in every first page (specs/inte-performance.md rule 4: 315.3 → 309.1 kB gzip measured locally, budget
+    the SDK no longer puts them in every first page (specs/tech/inte-performance.md rule 4: 315.3 → 309.1 kB gzip measured locally, budget
     313.3 kB). Test `LazySaleComponents.lazy`.
     _Reading of 2026-11-18 (loop t20 UI20-1):_ fetched on first render, a block arrived one round trip after its dialog had drawn its own
     content and pushed it down (+186 px in the outside visit's arrival at 1280 px, « Récapitulatif » and « Encaisser » 126 px lower on a
@@ -827,14 +829,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     missing name. Enumerated from the code: the counter's e-mail, name and « Enregistrer comme client », and the penalty's « Motif », are
     the only fields of a hook consumer that decide no amount and reach its preview (the penalty keeps the reason in its draft — the server
     validates it — and never disables on it); the other consumers' drafts hold amount-relevant fields only (`resourceBookingDraft` checked
-    key by key). « Nouvelle note » now previews through the hook too (specs/mid-stay-notes.md rule 22 reading): it joins the
+    key by key). « Nouvelle note » now previews through the hook too (specs/sas/mid-stay-notes.md rule 22 reading): it joins the
     failed-recompute, pending-block, focus and commit-label tables. Tests `useLatestPreview.non-amount-fields` (8: the consumers read from
     the code each have their fields typed key by key or say why none; at every keystroke and 250 ms later the Total, the payment, the
     typed lines and the label are unchanged; `quoteCustomerOf`; the booking draft's keys), `useLatestPreview.failed-recompute` (24: +1 row
     `MidStayNoteDialog`).
     **The SDK history records what each shipped minor exposed:** v4.1.0 shipped SDK 2.27.0 without `vat`, `accountingOutput`, `legacyBucketSplit`,
     `refundJournal`, `csvJournal`, `salesJson` and `synthesisExporter`, and neither SDK 2.28.0 (the home-data extension points,
-    specs/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
+    specs/guest-app/guest-app-home-automation.md, merged first) nor SDK 2.29.0 (the Mollie tranches and journal, rule 51, merged first) recorded them,
     so `coreModuleHistory.json` records them under 2.30.0, the first minor of this branch (no in-tree plugin ranges below `^2.30.0` for them).
     This branch's minors were renumbered 2.28 → 2.29, 2.29 → 2.30, 2.30 → 2.31 on 2026-11-15 when master's 2.28.0 landed first, then
     2.29 → 2.30, 2.30 → 2.31, 2.31 → 2.32 on 2026-11-17 when master's 2.29.0 landed first (its rule 51 kept its number, this branch's
@@ -855,8 +857,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     a requalification, nothing left refundable on it). guest-app reads it for its staff list's « Remboursée » (`guest-app.md` rule 111 b); a
     plugin calling it ranges `^2.32.0` (`plugin-core-hardening-floor`). Test: `guest-order-cancelled-refunded-label`.
 57. *(Added 2026-11-16, loop t6 S6-3.)* **`ctx.core.reservations.buildArrivalSeed(reservationId)` (SDK 2.32.0)** — what the arrival SAS opens
-    with: `{ offeredKeys }`, the stored lines already offered, keyed by the recap's key rule (specs/sas-offer-complement-lines.md 4.3,
-    specs/pricing-components.md rule 85), so a later line of an article offered on the fiche reopens as exactly that line. `sas` 1.11.0 serves
+    with: `{ offeredKeys }`, the stored lines already offered, keyed by the recap's key rule (specs/sas/sas-offer-complement-lines.md 4.3,
+    specs/pricing/pricing-components.md rule 85), so a later line of an article offered on the fiche reopens as exactly that line. `sas` 1.11.0 serves
     it as `arrivalSeed` and ranges `^2.32.0` (`plugins-sdk-core-module-floor`); `coreModules.json` lists the name and `coreModuleHistory.json`
     records it under 2.32.0 (rule 35). Tests: `sas-arrival-paid-line-judged`, `plugins-sdk-core-names-census`, `plugins-sdk-core-module-floor`.
 58. *(Added 2026-11-19, loop t26; owner decision of 2026-11-19 « corriger les problèmes à la source… qu'on en finisse ».)* **The money-dialog
@@ -936,6 +938,15 @@ Optional: a plugin that declares nothing reads « Actif ».
     again showed it current for a frame (counter, SAS, visit, penalty, credit link, « Ajouter un produit »: seeds 368, 202, 208, 271, 250,
     275, 328, 209, 210 of the per-commit probe). And a tender block once unmounted reports nothing live: a « Plusieurs moyens » reopened no
     longer named, for its first commit, the amount of the lines just closed (fiche seeds 276, 310).
+59. *(Added 2026-11-26, spec reorganization — the SDK is at **2.35.0**, `server/src/plugins/sdk/version.js`.)* **SDK 2.33.0 to 2.35.0 are
+    specified where they were introduced, not here.** 2.33.0: `ctx.prepaid`, `core.payments.saleLink`, the outside-booking offer
+    (`ctx.core` outside-booking limits/`bookOutside`), per-activity core terms, `refuse(db)` on `ctx.data`, a stay-less e-mail, and the core
+    modules `bookingHorizon`, `pdfFonts`, `prepaidReceipts`, `prepaidSources`, `termsAcceptance`, `termsActivities`
+    (`specs/gift-vouchers/gift-voucher-campaigns.md`, `specs/payments/mixed-method-payments.md` rules 60-63). 2.34.0: client export `ReservationLinkLine`
+    (`specs/planning/mobile-dashboard-exercise-cash.md`). 2.35.0: `pushChannel({ shared })` and `notificationService.notifyOperator`
+    (`specs/site/site-outside-resource-booking.md` rule 24). The authoritative list of core modules and names per version is
+    `coreModuleHistory.json`.
+    > **Sans test** — pointer rule; the specs it names carry the tests.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
@@ -1174,7 +1185,7 @@ still in the core. Server: 4,611 tests after, of which 37 are new. Client: 1,416
   money field set from it, the reason with « Réessayer » (kept while the retry is asked), a disabled commit, every draft input still
   mounted, the focus never on the page or the dialog root, then the new answer; « Rattacher » disabled while the credit list is unknown.
 - `components/__tests__/LazySaleComponents.late-chunks.test.jsx` (3) — rule 54 (reading of 2026-11-18, loop t22 A22-1, loop t23 UI23-1;
-  specs/server-test-isolation.md rule 23): every TEST gets the four blocks' code cold and late (`src/setupLateSaleChunks.js` resets
+  specs/tech/server-test-isolation.md rule 23): every TEST gets the four blocks' code cold and late (`src/setupLateSaleChunks.js` resets
   them before each test), a later test of the same file included; the dialogs waiting for it, read from the code, each have a suite.
 - `components/__tests__/LazySaleComponents.consumers.test.jsx` (5) — rule 54 (loop t20 UI20-1): the consumers enumerated from the code
   equal the table; each asks for the blocks when opened, keeps its content back until they are there, and starts nothing when closed.

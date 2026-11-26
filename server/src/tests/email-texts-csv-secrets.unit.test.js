@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 32 — « Accès » may hold a door code typed by hand: it
+// specs/emails/guest-email-texts-made-simple.md rule 32 — « Accès » may hold a door code typed by hand: it
 // never leaves in the file, and a row naming it is refused on import. A text emptied by `-` reads
 // « (vidé) » in the summary, not as an empty cell.
 

@@ -8,12 +8,14 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
 On the **last page (recap)** of both SAS wizards, the operator records how the complement was settled. Until
-now this was **two checkboxes** ([ReservationSasDialog.js](../client/src/components/sas/ReservationSasDialog.js)):
+now this was **two checkboxes** ([ReservationSasDialog.js](../../client/src/plugins/sas/ReservationSasDialog.jsx)):
 
 - « Complément encaissé » (arrival) / « Compléments encaissés » (departure) → sets `complementPaid` resp.
   `endOfStayComplementPaid`;
@@ -44,7 +46,7 @@ stage to defer to).
    of leaving the operator in front of three unlit buttons. Clicking the active mode again therefore falls
    **back to « En fin de séjour »**, never to « nothing selected ».
    > **2026-10-27 (spec review):** when the recap settles the stay and the complement in one payment
-   > ([single-payment-at-check-in.md](single-payment-at-check-in.md), « Règlement »), the same third
+   > ([single-payment-at-check-in.md](../payments/single-payment-at-check-in.md), « Règlement »), the same third
    > button reads **« Plus tard »** (the stay stays due and the complement is recalled at check-out);
    > « En fin de séjour » remains the label of the complement-only « Règlement du complément ». Read
    > rules 3 and 4 and the UI section with that in mind: same `'defer'` mode, two labels.
@@ -65,7 +67,7 @@ stage to defer to).
      default and the fallback). The mapping would be identical anyway: unpaid → recalled.
    - **Departure, nothing selected** → complements stay unpaid (no later stage to defer to; the buttons stay
      unlit by default at check-out).
-4. **Re-open pre-fill** (specs/reopen-completed-sas.md): the button state is reconstructed from the stored
+4. **Re-open pre-fill** (specs/sas/reopen-completed-sas.md): the button state is reconstructed from the stored
    flags — `paid + cash → « Payé en liquide »`, `paid non-cash → « CB / Chèque »`, `unpaid → « En fin de
    séjour »` on arrival (an unpaid complement *is* collected at check-out, so it reopens on the same default
    as a fresh SAS) and `nothing selected` on departure.
@@ -87,7 +89,7 @@ stage to defer to).
 ### 4.1 Server side
 
 None. The commit endpoints (`commitArrival`/`commitDeparture` in
-[sasController.js](../server/src/controllers/sasController.js)) already accept the four boolean fields; the
+[sasController.js](../../server/src/plugins/sas/controller.js)) already accept the four boolean fields; the
 buttons just resolve to those same booleans.
 
 ### 4.2 Client side (`client/src/`)

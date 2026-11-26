@@ -1,7 +1,7 @@
 /**
  * EmailManualSendDialog — the dialog is reused from one row to the next and from one template to
  * the next: nothing of the previous row or of a superseded preview may leave in the email
- * (specs/email-automation.md rules 21-22, audit round 6).
+ * (specs/emails/email-automation.md rules 21-22, audit round 6).
  */
 
 import React from 'react';

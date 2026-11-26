@@ -1,6 +1,6 @@
 // Audit 2026-10-28 (authz L2, injection #5) — property documents are private: stored outside the public
 // /uploads tree, served only through the authenticated download route, deleted with their row, and the
-// files uploaded before the audit are moved at boot. specs/settings-rationalization.md rule 32.
+// files uploaded before the audit are moved at boot. specs/settings/settings-rationalization.md rule 32.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

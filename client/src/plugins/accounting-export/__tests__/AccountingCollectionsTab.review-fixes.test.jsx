@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 37, 42 and 44 — review of 2026-11-06: a share the server cannot read prints
+// specs/accounting/accounting-synthesis.md §3 rules 37, 42 and 44 — review of 2026-11-06: a share the server cannot read prints
 // « — » (R2-6); an empty breakdown says so; the folded « Autres » row; the refunds line names its unit (R2-10).
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

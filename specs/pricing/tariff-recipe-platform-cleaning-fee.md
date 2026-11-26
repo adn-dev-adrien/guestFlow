@@ -8,12 +8,14 @@
 | **Author** | Adrien |
 | **Related PR** | [#788](https://github.com/adn-dev-adrien/guestFlow/pull/788) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Recipe file path and shipped recipe versions in §4.1 updated (gite-2027 is at 3.7.0).
+
 ---
 
 ## 1. Context
 
 Since Airbnb's checkout-chores policy (bookings made from 2026-11-20, see
-[airbnb-no-checkout-chores.md](airbnb-no-checkout-chores.md)), an Airbnb guest can no longer be asked to
+[airbnb-no-checkout-chores.md](../platforms/airbnb-no-checkout-chores.md)), an Airbnb guest can no longer be asked to
 wash the dishes, strip the beds or take the trash out. The work moves to the host, and on 2026-10-26 its
 cost was put into the **Airbnb cleaning fee**, set by hand in the Airbnb console:
 
@@ -25,7 +27,7 @@ cost was put into the **Airbnb cleaning fee**, set by hand in the Airbnb console
 A first figure of 108 € for the Gîte forgot that Airbnb's commission is also taken on the cleaning fee;
 it netted 91.26 € for a 102.92 € cost. That is exactly the slip a recipe exists to prevent.
 
-Today a tariff recipe (`server/src/recipes/*.json`, [tariff-recipes/spec.md](tariff-recipes/spec.md))
+Today a tariff recipe (`server/src/plugins/tariff-recipes/recipes/*.json`, [tariff-recipes/spec.md](tariff-recipes.md))
 knows nothing about cleaning fees. The « Prix plateformes » grid (`PlatformPriceCard`) shows, per
 channel, the nightly price and the extra-guest price to configure — not the cleaning fee. At the next
 tariff update, nothing reminds the operator that Airbnb carries one, nor how much it must be.
@@ -140,7 +142,7 @@ plateformes » grid stay in the core, inert without a recipe (an empty list, no 
 | `plugins/tariff-recipes/` | `model.js` | T | 2026-10-27 (rule 15) — an unknown channel is skipped with a non-blocking warning; rule 6's block is gone. |
 | `models/` | `propertiesModel.js` | T | `setPlatformCleaningFees`; `platformPrices` serves `cleaningFee` + detail (rules 8–9). |
 | `database.js` | `database.js` | T | Idempotent `properties.platformCleaningFees TEXT DEFAULT '[]'`. |
-| `plugins/tariff-recipes/recipes/` | `gite-2027.json` | T | 3.6.0 — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }. |
+| `plugins/tariff-recipes/recipes/` | `gite-2027.json` | T | 3.6.0 (3.7.0 today) — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }. |
 | `plugins/tariff-recipes/recipes/` | `aventura-lodge-2026.json` | T | 1.2.0 — `cleaning` { 30, 25, Airbnb chores only, 25 min }. |
 | `plugins/tariff-recipes/tests/` | `tariff-recipe-platform-cleaning-fee.unit.test.js` | C | Rules 1–9, including 122 € and 13 €. |
 

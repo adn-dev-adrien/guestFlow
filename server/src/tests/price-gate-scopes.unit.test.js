@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 81 — the allowlist scopes of the price gate and the replay's --expect list.
+// specs/pricing/pricing-components.md §3 rule 81 — the allowlist scopes of the price gate and the replay's --expect list.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { compareFigures, allowlistProblems, SCOPES } = require('./helpers/priceGateCompare');

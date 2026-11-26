@@ -27,7 +27,7 @@ stored: Arrivée annoncée entre 20:00 et 21:00 (acceptée sur booking).
 ```
 
 Proper nouns, platform names, acronyms (« SAS », « TVA ») and every line after the first lose their
-capitals. The `booking-intake` plugin (`specs/booking-extranet-intake.md`) appends guest requests to
+capitals. The `booking-intake` plugin (`specs/platforms/booking-extranet-intake.md`) appends guest requests to
 the notes, so it would make this worse on every Booking stay.
 
 ## 2. Goal

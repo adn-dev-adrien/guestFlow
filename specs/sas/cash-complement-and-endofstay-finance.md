@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -21,8 +23,8 @@ Two gaps:
 
 1. **The end-of-stay complement is financially isolated.** It is stored by `commitDepartureSas` and
    shown on the departure SAS/planning, but it is **not** in the accounting export
-   ([accountingModel.js](../server/src/models/accountingModel.js)), **not** in the financial tracking
-   ([financeModel.js](../server/src/models/financeModel.js) `getSummary`), **not** on the reservation
+   ([accountingModel.js](../../server/src/plugins/accounting-export/accountingModel.js)), **not** in the financial tracking
+   ([financeModel.js](../../server/src/models/financeModel.js) `getSummary`), **not** on the reservation
    fiche with a « payé » toggle, and `endOfStayComplementPaid` is **never written**. The operator wants
    it handled **exactly like the arrival complement** financially.
 2. **No way to record a complement collected in the « caisse interne ».** Some complements are settled
@@ -157,7 +159,7 @@ absent until set + paid). No backfill, no loss.
 
 ## 6. UI / UX
 
-- **Reservation fiche ([FinanceSection.js](../client/src/components/reservation/FinanceSection.js)):**
+- **Reservation fiche ([FinanceSection.js](../../client/src/components/reservation/FinanceSection.jsx)):**
   - The existing **arrival complement** block gains a « Caisse interne » control. When set it turns
     **green (`success`), like the « payé » button** — it implies paid (§3.2 rule 8) — and reads « Caisse
     interne ✓ » with a short hint « compté dans le suivi, hors compta ».

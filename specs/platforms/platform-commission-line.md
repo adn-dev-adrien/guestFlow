@@ -7,6 +7,8 @@
 | **Created** | 2026-06-20 |
 | **Author** | Adrien |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 3: summary labels replaced by the cascade of `specs/tourist-tax/platform-offered-tax-passthrough-and-cascade.md` rule 7 (`PricingSummary.jsx:966-985`).
+
 > **Updated 2026-10-27 (spec review) — rule 5, rule 6 and the « solde = net » part of the 2026-06-22
 > revision are superseded.** The engine no longer stores the net in the solde:
 > [platform-per-echeance-commission.md](platform-per-echeance-commission.md) rule 2 made the acompte and
@@ -60,8 +62,8 @@ Both the commission and the net are **engine-authoritative** (`quote.platformCom
    by us at check-in, never by the platform. For tax-collecting platforms the tax rides the balance and the
    complement is 0, so `preArrivalAmount = totalStayPrice` and the value is unchanged. (Fixed 2026-06-23:
    basing it on `totalStayPrice` made the « Paiement plateforme » reconciliation always show an écart equal
-   to the tourist tax — see specs/platform-payment-entry.md.)
-3. **Summary display.** When `platformCommissionAmount > 0`, the « Total du séjour » block becomes three
+   to the tourist tax — see specs/platforms/platform-payment-entry.md.)
+3. **Summary display.** *(Labels superseded 2026-11-26: the summary is the running-subtotal cascade « Total du séjour » → deductions → « Commission acompte/solde » → « Versement plateforme » → « Total perçu sur le séjour », `specs/tourist-tax/platform-offered-tax-passthrough-and-cascade.md` rule 7; the commission is deducted only when `platformCommissionAmount > 0`.)* When `platformCommissionAmount > 0`, the « Total du séjour » block becomes three
    lines: **Total du séjour TTC (brut)** = `totalStayPrice` (the full stay: nights + options + resources),
    **Commission plateforme** = `− commission`, **Net perçu TTC** = `platformNetReceivedAmount`. When it's
    0, the single « Total du séjour TTC » line is shown exactly as before.

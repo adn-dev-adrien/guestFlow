@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 10-12, 14 — the lines of a visit: the session line priced by the `hourly` family with its parts (day band, evening band,
+// specs/sas/outside-booking-sas.md rules 10-12, 14 — the lines of a visit: the session line priced by the `hourly` family with its parts (day band, evening band,
 // offered time) and its fulfilment, the extras in sale order, the articles suggested for the resource (never one that needs a stay), the quantity bounds, a
 // committed line frozen and more of the same article a new line once committed.
 const test = require('node:test');

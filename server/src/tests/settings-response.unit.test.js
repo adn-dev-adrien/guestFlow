@@ -45,7 +45,7 @@ test('shapeResponse: wraps under company / quote — googleCalendar group is gon
   assert.equal(out.quote.footerText, 'Merci');
   assert.equal(out.quote.validityDays, 45);
   // Google Calendar moved to GET /api/google-calendar/status
-  // (specs/google-calendar-oauth-rework.md) — the settings payload must not carry it anymore.
+  // (specs/settings/google-calendar-oauth-rework.md) — the settings payload must not carry it anymore.
   assert.equal(out.googleCalendar, undefined);
   assert.match(out.updatedAtLabel, /^\d{2}\/\d{2}\/\d{4} à \d{2}:\d{2}$/);
 });
@@ -60,7 +60,7 @@ test('shapeResponse: empty row → empty wrapped payload + defaults', () => {
   assert.equal(out.updatedAtLabel, null);
 });
 
-// Accounting block (specs/fiscal-year-and-nights-sold.md §4.3).
+// Accounting block (specs/accounting/fiscal-year-and-nights-sold.md §4.3).
 test('shapeResponse: accounting.fiscalYearEndMonth round-trips, defaulting to December', () => {
   assert.equal(shapeResponse({ fiscalYearEndMonth: 9 }).accounting.fiscalYearEndMonth, 9);
   // A pre-migration row (column NULL) reads as the calendar year, i.e. the pre-spec behaviour.

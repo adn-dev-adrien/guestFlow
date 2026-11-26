@@ -8,20 +8,22 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
 Two specs built the single arrival payment:
 
-- [single-payment-at-check-in.md](single-payment-at-check-in.md) (v2.9.0) — the SAS collects the stay
+- [single-payment-at-check-in.md](../payments/single-payment-at-check-in.md) (v2.9.0) — the SAS collects the stay
   and the arrival complement in one gesture and records the **group**;
-- [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md) (v2.10.x) — the same payment
+- [single-payment-from-the-fiche.md](../payments/single-payment-from-the-fiche.md) (v2.10.x) — the same payment
   can be recorded from the fiche, at the operator's date, and the **end-of-stay complement** joined
   the groupable buckets (rule 2bis).
 
 The block that carries it on the fiche
-([FinanceSection.jsx:594-666](../client/src/components/reservation/FinanceSection.jsx#L594-L666))
+([FinanceSection.jsx:594-666](../../client/src/components/reservation/FinanceSection.jsx#L594-L666))
 reads, once a group exists:
 
 > Encaissé à l'arrivée : paiement unique de 852,82 € le 30/08 — CB / Chèque
@@ -33,9 +35,9 @@ Two things are missing from it.
 this money*. The operator — and the guest asking « c'est quoi les 852 € ? » — wants *what did he pay
 for*: the nights, le linge, le ménage, le repas des trappeurs, la taxe de séjour. The SAS renders
 exactly that list at the end of the check-in
-([ReservationSasDialog.jsx](../client/src/components/sas/ReservationSasDialog.jsx)), from
+([ReservationSasDialog.jsx](../../client/src/plugins/sas/ReservationSasDialog.jsx)), from
 `arrivalComplementDetailFromReservation`
-([reservationsModel.js:129](../server/src/models/reservationsModel.js#L129)). The fiche shows none of
+([reservationsModel.js:129](../../server/src/models/reservationsModel.js#L129)). The fiche shows none of
 it: the arrival complement is the only one of the three cards built without its `lines`.
 
 **2. There is no way to say « il a payé 800, pas 852,82 ».** A price settled at the door — a guest who
@@ -47,7 +49,7 @@ arrives at 23 h, a night that went wrong, a regular one rewards, a rounded amoun
 | `discountPercent` | A rate on the tariff — a grid decision taken before the stay, not a gesture at the door. |
 | Ajustement de complément ([adjustable-complement-amounts.md](adjustable-complement-amounts.md)) | Corrects an **announced amount** and absorbs the écart with no compensating line (rule 5). It deliberately refuses the accommodation first (§3.6 rule 32). |
 | « Offrir » une ligne ([sas-offer-complement-lines.md](sas-offer-complement-lines.md)) | All-or-nothing on one prestation, and only on the lines the SAS knows. |
-| Un remboursement ([reservation-refunds.md](reservation-refunds.md)) | Money that actually left the bank, with a date and a means. Nothing left the bank here: it was never collected. |
+| Un remboursement ([reservation-refunds.md](../payments/reservation-refunds.md)) | Money that actually left the bank, with a date and a means. Nothing left the bank here: it was never collected. |
 
 So the operator either types a `customPrice` nobody can trace, or collects the full amount and hands
 cash back off the books.
@@ -68,7 +70,7 @@ computed total records a **« Réduction accordée »** on the accommodation; mo
 1. When a group exists, the block renders a **detail** in place of today's bucket caption: one line
    per prestation the payment covered, then the total. The header line is unchanged (date, means,
    caisse interne), and « Annuler ce paiement »
-   ([single-payment-from-the-fiche.md](single-payment-from-the-fiche.md) rule 10) stays where it is.
+   ([single-payment-from-the-fiche.md](../payments/single-payment-from-the-fiche.md) rule 10) stays where it is.
 2. **The lines, in this order:**
    1. **Hébergement — N nuits**, the accommodation share of the stay buckets the payment settled;
    2. the **options and ressources billed with the stay** (the pre-arrival lines), each `label ·
@@ -86,7 +88,7 @@ computed total records a **« Réduction accordée »** on the accommodation; mo
    exactly as the SAS recap shows it. It is part of what the guest received; hiding it would make the
    detail lie by omission.
 4. **The per-bucket controls below are untouched.** The block is a reading of the buckets, never a
-   replacement (rule 17 of [single-payment-at-check-in.md](single-payment-at-check-in.md)).
+   replacement (rule 17 of [single-payment-at-check-in.md](../payments/single-payment-at-check-in.md)).
 5. **The lines are shaped by the server** and rendered as they arrive (CLAUDE.md §6.0). The client
    sums nothing, derives nothing, labels nothing.
 6. The accommodation and tax shares come from the **contribution snapshots captured at payment time**
@@ -122,7 +124,7 @@ computed total records a **« Réduction accordée »** on the accommodation; mo
     échéances is a different question and stays out (§8).
 14. **Adjustable after the fact**, like every other amount of the fiche: realising a week later that
     the guest was given 50 € off is the ordinary case. A cancelled reservation stays read-only; a past
-    one follows [admin-unlock-past-reservations.md](admin-unlock-past-reservations.md); a
+    one follows [admin-unlock-past-reservations.md](../reservations/admin-unlock-past-reservations.md); a
     reception-only user never sees the block at all.
 15. **Clearing the field drops both lines** and restores the computed total.
 16. Server-side validation: finite, ≥ 0. A value under the floor is **raised to the floor**, never
@@ -134,7 +136,7 @@ computed total records a **« Réduction accordée »** on the accommodation; mo
 ### 3.3 What the adjustment moves — and what it does not
 
 > **The réduction is modelled on the refund, not on the price.** A refund
-> ([reservation-refunds.md](reservation-refunds.md)) is an independent dated object that **never
+> ([reservation-refunds.md](../payments/reservation-refunds.md)) is an independent dated object that **never
 > touches the reservation row**: the readers subtract it. The réduction is the same movement without
 > the bank transfer — money that was never collected rather than money given back. That is what keeps
 > it out of the pricing engine, where it would have had to fight the frozen acompte/solde: an amount
@@ -171,7 +173,7 @@ computed total records a **« Réduction accordée »** on the accommodation; mo
 25. **The pourboire is an entry of its own too**: **débit du compte client / crédit `75880000`
     (produit divers de gestion courante), hors TVA**. A freely given tip is not the consideration of a
     prestation — the same reasoning that put the indemnité d'annulation on that account
-    ([cancellation-compensation.md](cancellation-compensation.md) rule 16). It is never in the taxe de
+    ([cancellation-compensation.md](../payments/cancellation-compensation.md) rule 16). It is never in the taxe de
     séjour base and never accommodation revenue.
 26. **Both are stamped with the payment group**, so the Comptabilité renders them inside the same
     « Paiement unique » card as the buckets they adjust, under them. The card header total is the
@@ -179,7 +181,7 @@ computed total records a **« Réduction accordée »** on the accommodation; mo
 27. **A caisse-interne group is excluded whole**: its buckets are off the books, and so are its
     réduction and its pourboire. Off the books stays off the books.
 28. **The accountant's CSV gains the two entries.** Rule 14 of
-    [single-payment-at-check-in.md](single-payment-at-check-in.md) kept the export's shape
+    [single-payment-at-check-in.md](../payments/single-payment-at-check-in.md) kept the export's shape
     deliberately; this changes it, and it must be **announced to the accountant before the first
     export that carries one** (§9 Q1).
 
@@ -389,6 +391,6 @@ settlement buttons next to it, so the page's Save is not involved.
   the dev base on 2026-08-31 (réservation 22275: 852,82 € collected, 30 € still due, the fiche showing
   a red « Complément de fin de séjour »).
   - A: **Resolved** — rule 2bis of
-    [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md) (PR #518, 2026-08-31) made
+    [single-payment-from-the-fiche.md](../payments/single-payment-from-the-fiche.md) (PR #518, 2026-08-31) made
     the end-of-stay complement groupable, which is exactly that case. This spec follows it: the block
     lists that bucket's lines like any other (rule 2.4).

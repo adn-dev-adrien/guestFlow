@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 33 (§9 Q5) — a link withdrawn because its dates were taken, found paid by
+// specs/payments/payment-link-lifecycle.md rule 33 (§9 Q5) — a link withdrawn because its dates were taken, found paid by
 // the read that precedes its deactivation (payment in flight, webhook lost): the money is the stay's. The link goes
 // `cancelled → paid`, a devis is converted with `allowConflict` and a reservation records its bucket, the stay is
 // stamped `bookingConflictAt`, no confirmation leaves, and the admin is told « déplacer le séjour ou le rembourser ».

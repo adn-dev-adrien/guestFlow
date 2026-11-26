@@ -8,23 +8,25 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 6-7: `titleEn`/`nameEn` columns replaced by the translation catalogue (`database.js:2767`); rule 11 and the settings text: the keys are `quoteFooterText` / `quoteFooterTextEn` (`devisPdf.js:1063`).
+
 ---
 
 ## 1. Context
 
 Adrien receives quote requests from foreign customers and currently can only generate the PDF
-in French. [`server/src/utils/devisPdf.js`](../server/src/utils/devisPdf.js) hard-codes ~50
+in French. [`server/src/utils/devisPdf.js`](../../server/src/utils/devisPdf.js) hard-codes ~50
 French strings (`DEVIS`, `CLIENT`, `DÉTAIL DU SÉJOUR`, `Hébergement — N nuit(s)`, `RÉDUCTION
 LOGEMENT N%`, `OFFERT`, `Acompte`, `Solde`, `Caution`, `MODALITÉS DE RÈGLEMENT`,
 `COORDONNÉES BANCAIRES`, footer, …) plus French dates via `formatDateFR` from
-[`devisHelpers.js`](../server/src/utils/devisHelpers.js#L10-L14). The line items themselves
+[`devisHelpers.js`](../../server/src/utils/devisHelpers.js#L10-L14). The line items themselves
 display the option's `title` and the resource's `name` — also French because the operator
 typed them in French.
 
 The PDF generation pipeline:
-- Route [`server/src/routes/devis.js:13`](../server/src/routes/devis.js#L13) → controller
-  [`devisController.pdf()`](../server/src/controllers/devisController.js#L75-L127) → renderer
-  [`generateDevisPdf(full, settings, quote)`](../server/src/utils/devisPdf.js#L31) returning
+- Route [`server/src/routes/devis.js:13`](../../server/src/routes/devis.js#L13) → controller
+  [`devisController.pdf()`](../../server/src/controllers/devisController.js#L75-L127) → renderer
+  [`generateDevisPdf(full, settings, quote)`](../../server/src/utils/devisPdf.js#L31) returning
   a PDF Buffer.
 - No language parameter exists anywhere on this path today.
 
@@ -56,7 +58,7 @@ switched.
 5. **Translated discount / offered badges.**
    - `RÉDUCTION LOGEMENT N%` → `ACCOMMODATION DISCOUNT N%`.
    - `OFFERT` → `INCLUDED`.
-6. **Translated options — title only.** Each row in `options` gets a single new column:
+6. **Translated options — title only.** _(Reworked: since `specs/site/translation-catalogue.md` the English title no longer lives in an `options.titleEn` column — that column was moved into the translation catalogue and dropped; `devisModel` attaches the catalogue's English title under the same `titleEn` name, NULL when untranslated, and the options form has no English field.)_ The original design: each row in `options` had a column
    `titleEn` (string, default `''`). The option's `description` is intentionally NOT
    translated — it never appears in the devis PDF, only the title does, so a `descriptionEn`
    would be dead weight. The PDF renderer uses `titleEn` when `language === 'en'`; if it's
@@ -71,7 +73,7 @@ switched.
    On every boot, a backfill (idempotent, only touches rows where `titleEn` is empty) updates
    the matching prod rows that pre-date this column. The operator fills `titleEn` for custom
    options via the existing options form.
-7. **Translated resources.** Same shape: `resources.nameEn` column (default `''`), used
+7. **Translated resources.** Same shape, same rework as rule 6 (`nameEn` now comes from the translation catalogue, the `resources.nameEn` column is dropped): used
    when `language === 'en'`, falls back to `name`. The default "Lit bébé" seed gains
    `nameEn = 'Baby bed'`. Operators translate their custom resources via the form.
 8. **Translated early/late check-in suffix.** `(N heures suppl.)` in the option label becomes
@@ -81,9 +83,9 @@ switched.
 10. **Translated deposit/balance/caution rows.** `Acompte`, `À payer avant le DATE`, `Solde`,
     `Caution`, ` — à remettre le jour de votre arrivée` → `Deposit`, `Due before DATE`,
     `Balance`, `Security deposit`, ` — payable on arrival`.
-11. **Translated footer.** The settings-stored `pdfFooterText` is a single French string
-    today. We add a second setting `pdfFooterTextEn` that the operator fills in
-    `/settings`; when `language === 'en'` the PDF uses `pdfFooterTextEn` if non-empty, else
+11. **Translated footer.** The settings-stored `quoteFooterText` is a single French string
+    today. We add a second setting `quoteFooterTextEn` that the operator fills in
+    `/settings`; when `language === 'en'` the PDF uses `quoteFooterTextEn` if non-empty, else
     a sensible English default ("We thank you for your interest and remain at your disposal
     for any further information. We look forward to your confirmation. Have a great day.").
 12. **The PDF endpoint signature does not change.** `GET /api/devis/:id/pdf` keeps reading
@@ -100,7 +102,7 @@ switched.
 - **Option `description` is never translated.** It's not printed in the devis PDF (only the
   title is), so we don't carry a `descriptionEn`. A future PR that decides to print the
   description in the PDF should add the column at that time, not pre-emptively.
-- **Empty `pdfFooterTextEn` on a setting:** fall back to the hard-coded English default.
+- **Empty `quoteFooterTextEn` on a setting:** fall back to the hard-coded English default.
 - **Operator switches an existing devis from FR to EN before filling translations:** the PDF
   renders English labels with French option/resource names. That's an acceptable
   intermediate state — the alternative (blocking the download) would frustrate users for a
@@ -122,7 +124,7 @@ switched.
 | `routes/` | `devis.js` | — | Endpoint unchanged. |
 | `routes/` | `options.js` | T | Accept `titleEn` / `descriptionEn` in POST/PUT body. |
 | `routes/` | `resources.js` | T | Accept `nameEn` in POST/PUT body. |
-| `routes/` | `settings.js` | T | Accept `pdfFooterTextEn` (alongside `pdfFooterText`). |
+| `routes/` | `settings.js` | T | Accept `quoteFooterTextEn` (alongside `quoteFooterText`). |
 | `controllers/` | `devisController.js` | T | Read `pdfLanguage` from the devis row + pass it to `generateDevisPdf`. Default to `'fr'` when null/unknown. |
 | `controllers/` | `optionsController.js` (if present, else inline route) | T | Write `titleEn`/`descriptionEn` on create/update. |
 | `controllers/` | `resourcesController.js` (if present, else inline) | T | Write `nameEn` on create/update. |
@@ -140,7 +142,7 @@ switched.
 - Reuse the existing `tryAddOptionColumn` helper pattern that already lives in
   `database.js` to add the new option columns idempotently.
 - The settings table is single-row key/value style — no migration needed beyond accepting
-  the new `pdfFooterTextEn` key.
+  the new `quoteFooterTextEn` key.
 
 ### 4.2 Client side (`client/src/`)
 
@@ -149,7 +151,7 @@ switched.
 | `pages/` | `ReservationPage.js` | T | When `isDevisMode`, show a FR/EN segmented toggle next to the devis number; bind to `form.pdfLanguage`; default `'fr'` for new devis. Include in payload on save. |
 | `pages/` | `OptionsPage.js` | T | In the option create/edit dialog, add `Titre (anglais)` `TextField` + `Description (anglais)` `TextField` below the FR equivalents. |
 | `pages/` | `ResourcesPage.js` | T | In the resource create/edit dialog, add `Nom (anglais)` `TextField` below the FR field. |
-| `pages/` | `SettingsPage.js` | T | Add the `pdfFooterTextEn` field below `pdfFooterText`. |
+| `pages/` | `SettingsPage.js` | T | Add the `quoteFooterTextEn` field below `quoteFooterText`. |
 | `api.js` | `api.js` | — | No change — the PDF endpoint signature is unchanged. |
 
 **Component reuse declaration:**
@@ -168,7 +170,7 @@ switched.
 | PUT/POST | `/api/devis/...` | adds `pdfLanguage` to body | unchanged | New optional field, defaults to `'fr'`. Validates `'fr'\|'en'` — 400 on other values. |
 | PUT/POST | `/api/options/...` | adds `titleEn` | unchanged | Optional string, trimmed server-side. `descriptionEn` is deliberately NOT in the payload (description isn't printed in the PDF). |
 | PUT/POST | `/api/resources/...` | adds `nameEn` | unchanged | Optional string, trimmed server-side. |
-| PUT | `/api/settings` | adds `pdfFooterTextEn` | unchanged | Optional. |
+| PUT | `/api/settings` | adds `quoteFooterTextEn` | unchanged | Optional. |
 
 Auth: all under the existing global `requireAuth` (unchanged).
 

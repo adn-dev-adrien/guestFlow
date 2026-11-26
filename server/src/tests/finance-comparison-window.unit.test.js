@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 7, 9 and 10 — the comparable range of a
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 7, 9 and 10 — the comparable range of a
 // window, its one reason and its one notice, and each figure's comparison. Pure: today is passed in.
 // The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
 // will pass), on the day these figures were written against.

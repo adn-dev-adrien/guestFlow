@@ -84,7 +84,7 @@ add up — before the CSV goes to the accountant.
    on both sides, and is `{ current, previous, change }`, `change` in percent with one decimal, null when last year
    is 0 or less (never « +∞ % »). The revenue of last year is read `knownAt` a year ago when that snapshot is known,
    as the dashboard does. The sentence is the dashboard's own: `lastYearRange` returns the shared status of
-   `utils/financeComparison.comparisonWindow` (specs/finance-revpar-year-over-year.md rules 4-7), and
+   `utils/financeComparison.comparisonWindow` (specs/accounting/finance-revpar-year-over-year.md rules 4-7), and
    `comparison.notice` is its `notice` (`reasonCode` its `reason`, `comparableFrom` its date): without a comparable
    range every pill is null and the notice says why (no history, or « Comparaison avec l'an dernier à partir
    du … »); a partial range keeps its pills and the notice « Comparaison sur N mois sur M : … ». For the same window
@@ -247,7 +247,7 @@ add up — before the CSV goes to the accountant.
     TTC); the refunds line names its unit (« 1 remboursement · 28,22 € »).
 
 45. **Charts loaded on first use (R5-01).** The client SDK, which the host imports whole in the initial bundle, hands
-    plugins `TrendChart` and `AlignedDailyCumulativeCharts` as lazy wrappers (`components/LazyReportCharts.jsx`, `specs/report-grammar.md` rule 20, same
+    plugins `TrendChart` and `AlignedDailyCumulativeCharts` as lazy wrappers (`components/LazyReportCharts.jsx`, `specs/design-system/report-grammar.md` rule 20, same
     props, a box of the chart's height while it loads): exporting them directly put Recharts in every page's first
     load (412,8 kB gzip against a 313,3 kB budget; 298,1 kB after).
     > **Sans test** — a bundle-size property: `scripts/check-bundle-budget.mjs` is the gate; the chart tests of this

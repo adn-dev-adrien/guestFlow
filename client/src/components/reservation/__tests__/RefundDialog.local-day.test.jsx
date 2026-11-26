@@ -1,4 +1,4 @@
-// specs/upcoming-reservations-cards.md rule 7 (amended 2026-10-18) — a form that defaults to « today »
+// specs/planning/upcoming-reservations-cards.md rule 7 (amended 2026-10-18) — a form that defaults to « today »
 // takes the browser's calendar day, not the UTC one: at 01:54 in Paris on the 18th the refund date
 // read the 17th (review of PR #700, finding 4).
 import React from 'react';

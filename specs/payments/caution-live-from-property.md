@@ -18,17 +18,17 @@ amount currently configured on the property. It is a **frozen snapshot** copied 
 `reservations.cautionAmount` when the reservation is created:
 
 - Manual creation: `cautionAmount: prop.defaultCautionAmount ?? 500`
-  ([ReservationPage.js:947](../client/src/pages/ReservationPage.js#L947)).
+  ([ReservationPage.jsx:947](../../client/src/pages/ReservationPage.jsx#L947)).
 - iCal import: `property.defaultCautionAmount || 0`
-  ([propertyIcalModel.js:468](../server/src/models/propertyIcalModel.js#L468)).
+  ([propertyIcalModel.js:468](../../server/src/models/propertyIcalModel.js#L468)).
 
 Every read path then displays that stored snapshot:
-- SAS — `r.cautionAmount` ([ReservationSasDialog.js:527](../client/src/components/sas/ReservationSasDialog.js#L527)),
+- SAS — `r.cautionAmount` ([ReservationSasDialog.jsx:527](../../client/src/plugins/sas/ReservationSasDialog.jsx#L527)),
   fed by `reservationsModel.getByIdWithDetails`.
-- Fiche pricing card — `form.cautionAmount` ([PricingSummary.js:775](../client/src/components/PricingSummary.js#L775)),
+- Fiche pricing card — `form.cautionAmount` ([PricingSummary.jsx:775](../../client/src/components/PricingSummary.jsx#L775)),
   **display-only, no editable input exists**.
 - ReservationCard « Caution à percevoir » + Dashboard — `r.cautionAmount` from `reservationsModel.list`.
-- Reminder emails — `r.cautionAmount` ([emailContextBuilder.js:268](../server/src/utils/emailContextBuilder.js#L268)).
+- Reminder emails — `r.cautionAmount` ([emailContextBuilder.js:268](../../server/src/utils/emailContextBuilder.js#L268)).
 
 **Symptom (confirmed by the user):** the operator changed the property's « Caution par défaut »
 in Settings **after** reservations already existed. Those reservations keep the old snapshot, so the
@@ -65,7 +65,7 @@ again, even if the property's default changes afterwards.
 6. The SAS « caution » step still appears only when the (effective) amount `> 0` and the caution has not
    yet been received (arrival) / not yet returned (departure) — existing condition, new amount source.
 7. No editable per-reservation caution field is introduced. The property's « Caution par défaut »
-   ([PropertyDetail.js:871](../client/src/pages/PropertyDetail.js#L871)) remains the single place to set it.
+   ([PropertyDetail.jsx:871](../../client/src/pages/PropertyDetail.jsx#L871)) remains the single place to set it.
 8. No data migration: the column already exists; the freeze happens going forward, and not-yet-received
    reservations are computed live at read time.
 9. **Fixed at the 2026-10-27 spec review — the save never writes the amount.** The fiche shows the
@@ -73,7 +73,7 @@ again, even if the property's default changes afterwards.
    a phantom « Caution 0 € → 500 € » on the first save of a stay created without one, and — once the
    property's default had moved — a 400 PAST_RESERVATION_LOCKED on every started stay of that property,
    unchanged or not. The PUT now carries the stored `cautionAmount` back like the four caution flags
-   (specs/reservation-payment-ledger.md rule 13): only the receipt freeze of rule 2 writes it.
+   (specs/payments/reservation-payment-ledger.md rule 13): only the receipt freeze of rule 2 writes it.
 
 **Edge cases:**
 - Property caution = 0 and not received → no caution step in the SAS, no caution line in emails. Correct.

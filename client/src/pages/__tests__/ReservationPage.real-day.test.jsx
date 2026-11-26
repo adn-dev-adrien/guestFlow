@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 12, reading of 2026-11-03 (audit R20-C2) — a departure typed with a 5- or
+// specs/tech/reservations-backend-mvc.md rule 12, reading of 2026-11-03 (audit R20-C2) — a departure typed with a 5- or
 // 6-digit year (Chromium's year segment takes up to 6 digits) is not a real day: the fiche says « Date de séjour
 // invalide. » under the dates and asks neither a quote, nor the occupied dates, nor the resources' availability for it.
 import React from 'react';

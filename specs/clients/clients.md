@@ -7,7 +7,7 @@
 | **Created** | 2026-05-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 1 — Clients & Resources (spec 1 of 2: Clients). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 1 — Clients & Resources (spec 1 of 2: Clients). See `docs/rapports/ROADMAP.md`. |
 
 ---
 
@@ -70,7 +70,7 @@ list.
 7. **Cleanup orphans** unchanged in behavior: delete clients with **no** reservations **and no** devis;
    report `deletedCount` + `keptWithDevisCount`. Logic moves into the model.
 8. **Selective cleanup popup (added 2026-06-06).** Clicking **Cleanup clients** (labelled « Nettoyer
-   les clients » since 2026-10-18, specs/ds-components.md rule 25) no longer deletes
+   les clients » since 2026-10-18, specs/design-system/ds-components.md rule 25) no longer deletes
    immediately. The page fetches the orphan list (clients with no reservation **and** no devis), opens a
    popup listing one row per client (last name + first name + email + phone) with a **checkbox checked by
    default** on each row, plus a "Tout cocher / décocher" master toggle. Two actions:
@@ -144,7 +144,7 @@ list.
     refusal (no « supprimera aussi… » warning, no lists) and a « Fermer » button, no confirm button, so the
     operator never reaches a forced delete that would be refused; `DELETE /api/clients/:id` answers the same
     `409 CLIENT_KEEPS_HISTORY` / `CLIENT_CARRIES_MONEY` on the first, non-forced call
-    (`specs/payment-schedule-and-cancellation.md` rule 53).
+    (`specs/payments/payment-schedule-and-cancellation.md` rule 53).
 
 17. **An answer about a client the operator has left never lands on screen (2026-11-02, audit R18-C1).**
     The delete confirmation and the sheet's stay list each show only the answer of their latest request
@@ -258,7 +258,7 @@ drop is irreversible.
 
 - **Client form (`ClientFormFields`):** a single **Téléphone** field replaces the multi-number list
   (no "+ ajouter un numéro" / remove buttons). Same email/address/notes fields. French copy unchanged.
-  _(2026-08-12, `specs/client-contact-smart-input.md`: the `readOnly` **Adresse complète** field is
+  _(2026-08-12, `specs/clients/client-contact-smart-input.md`: the `readOnly` **Adresse complète** field is
   replaced by an editable **Adresse (saisie libre)** block placed under Nom / Prénom — the server splits
   it into the four address columns — and Email / Téléphone accept a dragged `mailto:` / `tel:` link,
   cleaned server-side.)_
@@ -372,7 +372,7 @@ drop is irreversible.
 
 ## 8. Out of scope
 
-- **Resources / ResourceBookings** refactor → Bloc 1 spec 2 (`specs/resources.md`).
+- **Resources / ResourceBookings** refactor → Bloc 1 spec 2 (`specs/resources/resources.md`).
 - Any change to reservation/devis behavior beyond the cascade already in place.
 - `propertyIds` JSON normalization (a Resources concern).
 

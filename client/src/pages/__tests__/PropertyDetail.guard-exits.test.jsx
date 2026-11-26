@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 42, reading of 2026-11-05 — a logement's « Enregistrer et quitter » leaves only
+// specs/design-system/ui-review-2026-10-19-operations.md rule 42, reading of 2026-11-05 — a logement's « Enregistrer et quitter » leaves only
 // after a successful save, and « Ouvrir la gestion tarifaire » is a way out like any other.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

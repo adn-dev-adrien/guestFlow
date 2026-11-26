@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 47, reading of 2026-11-10 (audit R36-M-H1, first used by specs/guest-app.md rule 55)
+// specs/plugins/plugins-phase-1-sdk.md rule 47, reading of 2026-11-10 (audit R36-M-H1, first used by specs/guest-app/guest-app.md rule 55)
 // — the core commit refuses an order asking more persons than the stay can still be served: the engine serves a
 // per-person line at most max(1, party, capacity) persons, so the persons above it were written and never billed (the
 // auditor's core probe: a second order of 5 billed 30 €, a third 0 €). Refused by `priceOrder` and `commitOrder` alike,

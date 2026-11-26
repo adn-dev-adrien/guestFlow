@@ -1,4 +1,4 @@
-// The SAS upsells: ménage and bath linen — specs/sas-bath-linen-upsell.md, sas-upsells-activate-catalogue-option.md
+// The SAS upsells: ménage and bath linen — specs/linen/sas-bath-linen-upsell.md, sas-upsells-activate-catalogue-option.md
 //
 // One file per subject (CLAUDE.md §9): two features appending their cases no longer collide on
 // the last line of a shared suite. Fixtures used by more than one subject live in ./sasFixtures.
@@ -9,7 +9,7 @@ import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // Mock the API the dialog consumes.
@@ -20,7 +20,7 @@ vi.mock('../../../api', () => ({
     previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
-    // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
+    // Weather alerts (specs/guest-app/checkin-weather-alerts.md) — fired in the background on arrival open.
     // Default to "no alert" so the wizard flow under test is unchanged.
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
@@ -28,17 +28,17 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
-// ---- arrival bath-linen upsell (specs/sas-bath-linen-upsell.md) ----
+// ---- arrival bath-linen upsell (specs/linen/sas-bath-linen-upsell.md) ----
 
 const BATH_LINEN_OFFER = { available: true, unitPrice: 4, priceType: 'per_person', persons: 3, nights: 2, amount: 12, label: 'Linge de toilette' };
 
-// specs/arrival-departure-sas.md rule 8
-// specs/sas-bath-linen-upsell.md rules 1 + 4-7 — the page shows the offer, « Ajouter » joins the arrival
+// specs/sas/arrival-departure-sas.md rule 8
+// specs/linen/sas-bath-linen-upsell.md rules 1 + 4-7 — the page shows the offer, « Ajouter » joins the arrival
 // complement (sent as intent), the recap line reads « persons × price », and the règlement is on the recap.
 test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds the line to the arrival complement; règlement is on the recap', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
@@ -64,16 +64,16 @@ test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds t
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  // specs/sas-bath-linen-ghost-line.md §1.1 — the SAS sells onto the fiche only: no end-of-stay
+  // specs/linen/sas-bath-linen-ghost-line.md §1.1 — the SAS sells onto the fiche only: no end-of-stay
   // billing line, hence no `endOfStayBathLinen` in the payload at all.
   expect(arg).not.toHaveProperty('endOfStayBathLinen');
-  // specs/sas-upsells-activate-catalogue-option.md §3.1 — the upsell is sent as INTENT; the server
+  // specs/sas/sas-upsells-activate-catalogue-option.md §3.1 — the upsell is sent as INTENT; the server
   // activates the catalogue option and prices it. `linenItems` carries only the linen elements.
   expect(arg.bathLinenAdded).toBe(true);
-  expect(arg.linenItems).toEqual([]); // specs/sas-arrival-total-server-side.md rule 6 — intent only
+  expect(arg.linenItems).toEqual([]); // specs/sas/sas-arrival-total-server-side.md rule 6 — intent only
 });
 
-// specs/sas-bath-linen-upsell.md rule 5 — « Non merci » adds nothing.
+// specs/linen/sas-bath-linen-upsell.md rule 5 — « Non merci » adds nothing.
 test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2, children: 1 },
@@ -94,11 +94,11 @@ test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', asy
   const arg = api.commitArrivalSas.mock.calls[0][1];
   expect(arg).not.toHaveProperty('endOfStayBathLinen');
   expect(arg.bathLinenAdded).toBe(false);
-  expect(arg.linenItems).toEqual([]); // specs/sas-arrival-total-server-side.md rule 6 — intent only
+  expect(arg.linenItems).toEqual([]); // specs/sas/sas-arrival-total-server-side.md rule 6 — intent only
 });
 
-// specs/arrival-departure-sas.md rule 8
-// specs/sas-bath-linen-upsell.md rule 1 — no offer, no page.
+// specs/sas/arrival-departure-sas.md rule 8
+// specs/linen/sas-bath-linen-upsell.md rule 1 — no offer, no page.
 test('arrival SAS: bath-linen page is skipped when the offer is unavailable', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1 },
@@ -113,8 +113,8 @@ test('arrival SAS: bath-linen page is skipped when the offer is unavailable', as
 });
 
 test('departure SAS: a bath-linen line deferred at arrival is shown and counted in the total; it is not re-sent', async () => {
-  // specs/sas-bath-linen-upsell.md rule 9 (§3.3) — the arrival SAS wrote a `source:'arrivalBathLinen'` end-of-stay
-  // line; the check-out recap must display + count it. specs/sas-departure-recap-server-side.md rule 9 —
+  // specs/linen/sas-bath-linen-upsell.md rule 9 (§3.3) — the arrival SAS wrote a `source:'arrivalBathLinen'` end-of-stay
+  // line; the check-out recap must display + count it. specs/sas/sas-departure-recap-server-side.md rule 9 —
   // the server keeps it from the stored detail: the draft only refers to it by key.
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: {
@@ -148,9 +148,9 @@ test('departure SAS: a bath-linen line deferred at arrival is shown and counted 
   expect(JSON.stringify(arg)).not.toMatch(/"amount"/);
 });
 
-// specs/arrival-departure-sas.md rule 14
+// specs/sas/arrival-departure-sas.md rule 14
 test('departure SAS: the ménage page is dropped when the cleaning is already sold — nothing is billed', async () => {
-  // specs/defer-arrival-complement-to-checkout.md §3.1 — the guest bought the cleaning (or it was
+  // specs/sas/defer-arrival-complement-to-checkout.md §3.1 — the guest bought the cleaning (or it was
   // added at check-in): the host does it, so the departure SAS must not ask, and must not bill it a
   // second time on top of the arrival complement.
   api.getReservationSas.mockResolvedValue(sasPayload({
@@ -173,7 +173,7 @@ test('departure SAS: the ménage page is dropped when the cleaning is already so
 
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.getByText(/Ménage déjà réglé/)).toBeInTheDocument();
-  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
+  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/design-system/ui-review-2026-10-19-operations.md rule 4
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
@@ -183,7 +183,7 @@ test('departure SAS: the ménage page is dropped when the cleaning is already so
 });
 
 test('departure SAS re-open: a cleaning line billed before the ménage was sold is dropped on re-commit', async () => {
-  // specs/defer-arrival-complement-to-checkout.md §3.1 rule 4 — re-running the departure SAS is how
+  // specs/sas/defer-arrival-complement-to-checkout.md §3.1 rule 4 — re-running the departure SAS is how
   // an already over-billed stay is corrected (no data migration).
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: {
@@ -254,7 +254,7 @@ test('departure SAS re-open: an offered preserved line comes back with its real 
   expect(api.commitDepartureSas.mock.calls[0][1].storedLines).toEqual([{ key: 'stored:0:test', offered: false }]);
 });
 
-// ── specs/sas-upsells-activate-catalogue-option.md §3.2 rule 7 ────────────────────────────────────
+// ── specs/sas/sas-upsells-activate-catalogue-option.md §3.2 rule 7 ────────────────────────────────────
 // The upsells are catalogue options now: while the row is the SAS's OWN (`sasOrigin`), the step stays
 // visible and pre-selected so the operator can undo it. An option taken at booking still hides it.
 

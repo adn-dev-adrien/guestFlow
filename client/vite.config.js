@@ -1,6 +1,6 @@
 // @ts-check
 // Client build + dev server config — replaces react-scripts 5.0.1.
-// Specs: specs/cra-to-vite-migration.md §3.1.
+// Specs: specs/tech/vite-8-oxc-migration.md.
 //
 // Migration acceptance criterion (§7.1): the Playwright E2E suite from PR #110 must
 // produce 18 passed / 1 skipped / 0 failed, identical to V02.01.00. Do NOT change the
@@ -13,7 +13,7 @@ import react from '@vitejs/plugin-react';
 const STATIC_PLUGIN_LIST = fileURLToPath(new URL('./src/plugins/index.js', import.meta.url));
 const RUNTIME_PLUGIN_LIST = fileURLToPath(new URL('./src/plugins/runtimeModules.js', import.meta.url));
 
-// specs/plugins-phase-4-registry.md rule 18, P27 — a production build ships no plugin code: every
+// specs/plugins/plugins-phase-4-registry.md rule 18, P27 — a production build ships no plugin code: every
 // import of the static module list (`src/plugins/index.js`, which imports the twelve source folders)
 // is redirected to the list `src/plugins/runtime.js` fills from each plugin's own bundle. The dev
 // server and the unit suites keep the static list (rule 19).
@@ -69,7 +69,7 @@ export default defineConfig({
     react({ include: /\.(jsx?|tsx?)$/ }),
   ],
 
-  // No JSX-in-`.js` shim any more (specs/vite-8-oxc-migration.md): every file containing JSX is
+  // No JSX-in-`.js` shim any more (specs/tech/vite-8-oxc-migration.md): every file containing JSX is
   // named `.jsx` since Vite 8. Vite 8 replaced esbuild with oxc AND rollup with rolldown, and both
   // decide JSX purely by extension (`isJSX = filepath.endsWith("x")`). There is no configuration
   // escape hatch: `lang` is omitted from `OxcOptions`, and rolldown exposes none either — the old
@@ -106,7 +106,7 @@ export default defineConfig({
     // Never ship sourcemaps to prod — security flag pinned by the 2026-06-01 audit
     // (was `GENERATE_SOURCEMAP=false` in CRA / CI). Equivalent here.
     sourcemap: false,
-    // specs/inte-performance.md rule 4 — scripts/check-bundle-budget.mjs reads the chunk graph from it.
+    // specs/tech/inte-performance.md rule 4 — scripts/check-bundle-budget.mjs reads the chunk graph from it.
     manifest: true,
     // Vite ships zero inline runtime scripts by default — already satisfies the
     // `script-src 'self'` CSP posture that `INLINE_RUNTIME_CHUNK=false` enforced

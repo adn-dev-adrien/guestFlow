@@ -1,6 +1,6 @@
 /**
  * The option editor's form model: the stored option ⇄ the form, the payload, and the inline checks that
- * mirror the server's (specs/options-resources-ux.md rule 16 — a UX hint, only the server rejects).
+ * mirror the server's (specs/options/options-resources-ux.md rule 16 — a UX hint, only the server rejects).
  *
  * Amounts live in the form as the text typed (« 12,5 »): a comma is accepted and sent as a number.
  */

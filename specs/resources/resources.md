@@ -7,7 +7,9 @@
 | **Created** | 2026-05-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 1 — Clients & Resources (spec 2 of 2: Resources). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 1 — Clients & Resources (spec 2 of 2: Resources). See `docs/rapports/ROADMAP.md`. |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Resource bookings left the core: their routes/controller/model are now `server/src/plugins/hourly-resources/{routes,controller,bookingsModel}.js` (no `routes/resourceBookings.js`, no `resourceBookingsController`); the Resources UI is `client/src/pages/OptionsResourcesPage.jsx` + `pages/options/`, not `PricedItemsPage` (specs/options/options-resources-ux.md). Rules 2-6 and 7 (pivot, delete impact) still hold.
 
 ---
 
@@ -45,7 +47,7 @@ except the delete confirmation now states the impact.
    `ResourcesPage` is unchanged. Empty pivot = global (applies to all logements), same semantics as today.
 3. **All applicability consumers read the pivot** (no JSON parsing left): resources list/availability,
    baby-bed availability (`resourcesModel` + `reservationsModel`, counted as the peak of one night since 2026-11-05,
-   `specs/reservations-backend-mvc.md` rule 21), the pricing engine
+   `specs/tech/reservations-backend-mvc.md` rule 21), the pricing engine
    (`utils/pricing.js` resource filter), and the baby-bed seed in `database.js`.
 4. **Create/Update** replace the resource's `resource_properties` rows and its `property_resource_prices`
    rows atomically (transaction), validate inputs (name required; quantity/price/freeMinutes
@@ -160,7 +162,7 @@ note in `CHANGELOG.md`. The drop is irreversible but lossless given the backfill
   not deletable.
 - **Responsive:** unchanged (no new layout).
 
-> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The resources list becomes cards (stock, all rates, plugin lines) and the form an editor panel in sections; delete moves to the card's « ⋯ » menu with the same impact confirmation. Scope semantics (« empty = all ») unchanged.
+> **Amended 2026-10-28 — [options-resources-ux.md](../options/options-resources-ux.md) (Implemented).** The resources list becomes cards (stock, all rates, plugin lines) and the form an editor panel in sections; delete moves to the card's « ⋯ » menu with the same impact confirmation. Scope semantics (« empty = all ») unchanged.
 
 ## 7. Test plan
 

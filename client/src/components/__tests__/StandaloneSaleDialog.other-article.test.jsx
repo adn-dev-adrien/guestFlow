@@ -1,5 +1,5 @@
 /**
- * StandaloneSaleDialog — « Autre article » on the counter (specs/outside-booking-sas.md rule 11, end-review verification V-1): the search renders the
+ * StandaloneSaleDialog — « Autre article » on the counter (specs/sas/outside-booking-sas.md rule 11, end-review verification V-1): the search renders the
  * server's `groups` and the chosen article joins the draft. The flat `articles` list stays the dialog's catalogue; the search never reads it.
  */
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 40, 42, 43, 45 — the activation dialog: the password
+// specs/hosting/hosting-h2-account-security.md rules 40, 42, 43, 45 — the activation dialog: the password
 // step stays put on a refusal, the code is sent at its 6th digit with no button, a wrong code says the
 // tries left, the 5th refusal offers « Recommencer », leaving steps 1-2 cancels the enrolment, and
 // step 3 closes on « Terminé » only.

@@ -1,4 +1,4 @@
-// specs/airbnb-no-checkout-chores.md rule 8 — « Sans corvées de départ » is a platform setting: served by
+// specs/platforms/airbnb-no-checkout-chores.md rule 8 — « Sans corvées de départ » is a platform setting: served by
 // the « Plateformes » settings page (`null` on an own channel), saved there (never on an own channel), and
 // read back by `isChoreFreeChannel` after every save.
 const path = require('path');

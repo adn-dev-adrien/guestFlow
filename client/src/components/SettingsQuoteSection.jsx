@@ -7,7 +7,7 @@
  *   onChange:  (key, value) => void
  *   disabled:  boolean
  *
- * Bilingual devis PDF (specs/devis-english-language.md §3 rule 11 + §6.4) — two stacked
+ * Bilingual devis PDF (specs/devis/devis-english-language.md §3 rule 11 + §6.4) — two stacked
  * footer fields, FR above EN. Either can be left empty; the empty one falls back to a
  * static default in the matching language.
  */

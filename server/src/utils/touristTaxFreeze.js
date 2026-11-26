@@ -1,7 +1,7 @@
 /**
  * When a tourist tax stops moving, and how to recover the base of one that already has.
  *
- * specs/tourist-tax-matches-the-office-calculation.md rules 10-14.
+ * specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 10-14.
  *
  * The tax is live for as long as the guest has not paid it: the brut of a platform booking often
  * lands after the reservation does, and the amount must be allowed to follow it right up to the
@@ -9,7 +9,7 @@
  * « Déclarée » — the amount is what the guest paid and what the commune was told, so it is pinned
  * for good, along with the base and the occupant count that produced it.
  *
- * That replaces the old « past stay » freeze (specs/tourist-tax-freeze-past-with-refresh.md rule 1):
+ * That replaces the old « past stay » freeze (specs/tourist-tax/tourist-tax-freeze-past-with-refresh.md rule 1):
  * a stay whose last night has gone by is not necessarily a stay anyone declared, and pinning it
  * there is what stopped an uncollected booking from ever being corrected.
  *
@@ -23,7 +23,7 @@ const { unitFromTotal } = require('./pricing/touristTax');
 const { roundMoneyEpsilon: round2 } = require('./pricing/money');
 
 // Which instalment carries the tax, in SQL — the three-way platform routing of
-// specs/per-platform-tourist-tax-three-way.md. Answered without pricing the stay, because the freeze
+// specs/tourist-tax/per-platform-tourist-tax-three-way.md. Answered without pricing the stay, because the freeze
 // has to be decided BEFORE the engine runs (the engine needs to know whether to freeze) and because
 // the backfill cannot afford to price several thousand reservations for one boolean per row.
 // `collectsTouristTax = 0` is case 3 — we collect at arrival, in the complement; everything else
@@ -124,7 +124,7 @@ function taxBucketPaid(db, reservation) {
 /**
  * Pinned by the fiche's own history: a stamp, a tick, or the bucket carrying the tax collected. The
  * VAT regime switch reads this one: a stay with a plan is reported for its plan before anything else
- * (specs/vat-optional-mode.md rule 27), so its paid installments must not hide it as merely frozen.
+ * (specs/accounting/vat-optional-mode.md rule 27), so its paid installments must not hide it as merely frozen.
  */
 function isTouristTaxFrozenAsidePlan(db, reservation) {
   if (!reservation) return false;
@@ -152,7 +152,7 @@ function isTouristTaxFrozen(db, reservation) {
 }
 
 /**
- * May « Déclarée » be ticked (specs/tourist-tax-declared-checkbox.md rule 8, D16)? The stay is paid and
+ * May « Déclarée » be ticked (specs/tourist-tax/tourist-tax-declared-checkbox.md rule 8, D16)? The stay is paid and
  * its end date is behind us: today > endDate. Paid is the page's own gate on a stay without a plan, every
  * installment on a plan, and the complement too when the tax rides it. Today is the server's local day, Europe/Paris (utils/localDate).
  */
@@ -166,7 +166,7 @@ function isTouristTaxDeclarable(db, reservation, today = todayIso()) {
 }
 
 /**
- * Why the tax cannot be switched to the complement (specs/force-item-to-complement.md rule 20): the
+ * Why the tax cannot be switched to the complement (specs/sas/force-item-to-complement.md rule 20): the
  * bucket holding it is collected, and moving it would rewrite a booked entry and ask the tax twice.
  * Null while the switch can go on, and for a stay whose tax already rides the complement.
  */
@@ -176,7 +176,7 @@ function taxInComplementLockedReason(db, reservation) {
   if (installmentPlanState(db, reservation.id).paidTaxShare) return 'collected-on-installment';
   if (Number(reservation.balancePaid || 0)) {
     const contrib = reservation.touristTaxSoldeContribTtc;
-    // No contribs on an older solde: the tax rode on it (specs/tourist-tax-on-solde.md).
+    // No contribs on an older solde: the tax rode on it (specs/tourist-tax/tourist-tax-on-solde.md).
     if (contrib == null ? Number(reservation.touristTaxTotal || 0) > 0 : Number(contrib) > 0) return 'collected-on-solde';
   }
   if (Number(reservation.depositPaid || 0) && Number(reservation.touristTaxAcompteContribTtc || 0) > 0) return 'collected-on-acompte';

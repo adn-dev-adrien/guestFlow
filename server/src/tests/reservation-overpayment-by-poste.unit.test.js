@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 35 — the trop-perçu is split by poste, so its refund is booked on
+// specs/payments/reservation-refunds.md rule 35 — the trop-perçu is split by poste, so its refund is booked on
 // what the guest paid too much for. Review 2026-10-18 (second pass), finding 1: reservation 22304 went
 // from 6 to 2 adults after being paid; the whole 14,40 € came from the tourist tax, yet the refund dialog
 // opened on one « Hébergement » line — accepted as is, it debited the turnover and the VAT and left the

@@ -1,5 +1,5 @@
 /**
- * The contribs of paid lines since removed from the fiche (specs/accounting-books-the-money-collected.md rule 17, D9-D11
+ * The contribs of paid lines since removed from the fiche (specs/accounting/accounting-books-the-money-collected.md rule 17, D9-D11
  * of 2026-11-05). Removing a paid line does not rewrite a booked entry: what it collected stays on the stay, per bucket,
  * in `reservations.removedLineContribs` (JSON), and every reader of the contribs sees it as a line billed 0 €.
  *

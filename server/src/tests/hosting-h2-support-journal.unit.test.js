@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 25 — the support journal the customer reads folds the
+// specs/hosting/hosting-h2-account-security.md rule 25 — the support journal the customer reads folds the
 // reads of one minute (the pages opened and the API calls behind them) into one line
 // « Consultation : Planning, Linge », each name once; writes, refusals and the sign-in keep their line.
 

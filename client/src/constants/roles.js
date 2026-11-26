@@ -7,7 +7,7 @@ import liveRecord from '../utils/liveRecord';
 
 export const ADMIN = 'admin';
 export const ACCOUNTANT = 'accountant';
-// specs/reception-role-checkin-only.md — on-site check-in/out staff, no financial access.
+// specs/sas/reception-role-checkin-only.md — on-site check-in/out staff, no financial access.
 export const RECEPTION = 'reception';
 
 export const ROLES = Object.freeze([ADMIN, ACCOUNTANT, RECEPTION]);
@@ -47,7 +47,7 @@ export function isReceptionOnly(user) {
 // only controls UI visibility. A user that hits a hidden route directly via URL still gets the
 // server's 403 (and the client-side AccountantConfinement guard sends them home).
 const CORE_ROUTE_ROLES = Object.freeze({
-  // specs/reception-role-checkin-only.md — the reception role sees only the finance-free home
+  // specs/sas/reception-role-checkin-only.md — the reception role sees only the finance-free home
   // (arrivals/departures), the Planning (+ SAS), and « Mon compte ».
   '/':                       [ADMIN, RECEPTION],
   '/planning':               [ADMIN, RECEPTION],
@@ -56,11 +56,11 @@ const CORE_ROUTE_ROLES = Object.freeze({
   '/finance':                [ADMIN],
   '/finance/tourist-tax':    [ADMIN],
   '/finance/profil':         [ADMIN],
-  // specs/plugins-phase-2-hosts.md rule 21 — core; read-only for the accountant. Comptabilité and
+  // specs/plugins/plugins-phase-2-hosts.md rule 21 — core; read-only for the accountant. Comptabilité and
   // Plan comptable are pages of the accounting-export module (MODULE_ROUTE_ROLES below).
   '/finance/indemnites':     [ADMIN, ACCOUNTANT],
   '/devis':                  [ADMIN],
-  // specs/email-automation.md — admin-only Emails page + history.
+  // specs/emails/email-automation.md — admin-only Emails page + history.
   '/emails':                 [ADMIN],
   '/emails/historique':      [ADMIN],
   '/settings':               [ADMIN],
@@ -72,9 +72,9 @@ const CORE_ROUTE_ROLES = Object.freeze({
   // Combined menu pages (tabs over the standalone pages above).
   '/parametres/options-ressources':  [ADMIN],
   '/parametres/vacances-fermetures': [ADMIN],
-  // specs/terms-acceptance-record.md — the CGV the site shows and the guests accept.
+  // specs/reservations/terms-acceptance-record.md — the CGV the site shows and the guests accept.
   '/parametres/conditions-generales': [ADMIN],
-  // specs/settings-rationalization.md rule 2 — the pages split out of the former « Générale ».
+  // specs/settings/settings-rationalization.md rule 2 — the pages split out of the former « Générale ».
   '/settings/etablissement': [ADMIN],
   '/settings/plateformes':   [ADMIN],
   '/settings/tva-exercice':  [ADMIN],
@@ -82,25 +82,25 @@ const CORE_ROUTE_ROLES = Object.freeze({
   '/settings/integrations':  [ADMIN],
   '/settings/systeme':       [ADMIN],
   '/settings/utilisateurs':  [ADMIN],
-  // specs/plugins-phase-0-foundation.md rule 21 — the Plugins page.
+  // specs/plugins/plugins-phase-0-foundation.md rule 21 — the Plugins page.
   '/parametres/plugins':     [ADMIN],
-  // specs/hosting-h2-account-security.md rules 15, 17 — on a managed instance only (ROUTE_CONDITIONS).
+  // specs/hosting/hosting-h2-account-security.md rules 15, 17 — on a managed instance only (ROUTE_CONDITIONS).
   '/parametres/acces-support': [ADMIN],
   // Rule 6 — « Mon compte » (my information, my password) for every role.
   '/mon-compte':             [ADMIN, ACCOUNTANT, RECEPTION],
 });
 
-// Pages of plugin modules, with the roles each declares (specs/plugins-phase-1-sdk.md rule 15) —
+// Pages of plugin modules, with the roles each declares (specs/plugins/plugins-phase-1-sdk.md rule 15) —
 // read live, since a production build loads the modules after this file
-// (specs/plugins-phase-4-registry.md rule 18).
+// (specs/plugins/plugins-phase-4-registry.md rule 18).
 export const ROUTE_ROLES = liveRecord(() => ({ ...CORE_ROUTE_ROLES, ...MODULE_ROUTE_ROLES }), () => Object.keys(MODULE_ROUTE_ROLES).length);
 
-// A page also needs its plugin active (specs/plugins-phase-0-foundation.md rule 16): the sidebar, the
+// A page also needs its plugin active (specs/plugins/plugins-phase-0-foundation.md rule 16): the sidebar, the
 // settings submenu and the route guard all go through this one predicate.
 // Routes that also need something of the instance, as the server says in `/auth/me`.
 const ROUTE_CONDITIONS = Object.freeze({
   '/parametres/acces-support': (user) => Boolean(user && user.supportAccessEnabled),
-  // specs/plugin-operator-provisioning.md rule 3 — the Plugins page exists only where the administrator manages the plugins.
+  // specs/plugins/plugin-operator-provisioning.md rule 3 — the Plugins page exists only where the administrator manages the plugins.
   '/parametres/plugins': (user) => Boolean(user && user.pluginsManageable),
 });
 

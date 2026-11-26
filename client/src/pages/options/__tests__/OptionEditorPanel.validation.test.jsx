@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rule 16 — the editor mirrors the server's checks inline and shows a 422
+// specs/options/options-resources-ux.md rule 16 — the editor mirrors the server's checks inline and shows a 422
 // detail on its field.
 import React from 'react';
 import { screen } from '@testing-library/react';

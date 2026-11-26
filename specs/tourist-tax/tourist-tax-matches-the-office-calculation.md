@@ -23,7 +23,7 @@ away from the office's definition:
   **unplugged the platform brut**: the base became the tariff nights (or the manual « Prix hébergement
   ajusté »), on a Lodgify or Abracadaroom booking as on a direct one;
 - the extra-guest surcharge had already been ruled out of the base
-  ([tariff-recipes/spec.md](tariff-recipes/spec.md) §9 Q2, 2026-08-12).
+  ([tariff-recipes/spec.md](../pricing/tariff-recipes.md) §9 Q2, 2026-08-12).
 
 Measured on the two stays the operator checked against the office's calculator:
 
@@ -41,10 +41,10 @@ Two aggravating findings from the same investigation:
 - **A frozen stay shows a base that contradicts its own amount.** For a past stay the *amount* is
   pinned ([tourist-tax-freeze-past-with-refresh.md](tourist-tax-freeze-past-with-refresh.md)) but the
   *base* is recomputed with today's rule — on the fiche
-  ([pricing.js:2043](../server/src/utils/pricing.js#L2043) leaves `touristTaxLabel` to the live
-  breakdown, rendered by [PricingSummary.jsx:657](../client/src/components/PricingSummary.jsx#L657))
+  ([pricing.js:2043](../../server/src/utils/pricing.js#L2043) leaves `touristTaxLabel` to the live
+  breakdown, rendered by [PricingSummary.jsx:657](../../client/src/components/PricingSummary.jsx#L657))
   and on the « Suivi taxe de séjour » page
-  ([financeModel.js:840](../server/src/models/financeModel.js#L840)). Papa's line reads « 24,73 €/occupant/nuit »
+  ([financeModel.js:840](../../server/src/models/financeModel.js#L840)). Papa's line reads « 24,73 €/occupant/nuit »
   next to « 21,00 € », and 24,73 € yields 20,40 €. The line cannot be re-entered anywhere.
 - **The occupant count differs from the office's.** GuestFlow divides by `adults + children + teens +
   babies`; the office's form was filled with 4 occupants on Marchand (22275) where GuestFlow counts 5,
@@ -132,7 +132,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
 ### The occupants
 
 8. **Babies do not count as occupants.** The divisor becomes `adults + children + teens`. A cot still
-   bills its supplement ([baby-bed-supplement.md](baby-bed-supplement.md)) and still occupies the
+   bills its supplement ([baby-bed-supplement.md](../options/baby-bed-supplement.md)) and still occupies the
    lodging — it just no longer divides the nightly cost, which is what the office's form does.
    `touristTaxOccupantsCount` reports the count actually used.
 
@@ -249,7 +249,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     the old figure. Both paths now share `frozenTouristTaxInputs`: a save that keeps the stay as it was
     sold (logement, dates, party) pins the collected tax. A save that changes the stay itself still
     re-prices it, on purpose — the difference is a trop-perçu or an amount owed
-    ([reservation-refunds.md](reservation-refunds.md) rules 34-36). « Recalculer la taxe de séjour »
+    ([reservation-refunds.md](../payments/reservation-refunds.md) rules 34-36). « Recalculer la taxe de séjour »
     (`refreshTouristTax`) still lifts the pin deliberately.
 
 ### Fixed at the 2026-10-27 spec review

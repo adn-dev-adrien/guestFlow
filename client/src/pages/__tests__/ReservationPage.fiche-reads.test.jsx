@@ -1,4 +1,4 @@
-// specs/inte-performance.md rules 14–15 — opening an existing reservation reads the property's `stay`
+// specs/tech/inte-performance.md rules 14–15 — opening an existing reservation reads the property's `stay`
 // view (no pricing seasons), no catalogue, and not the whole client list (the search box is hidden).
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';

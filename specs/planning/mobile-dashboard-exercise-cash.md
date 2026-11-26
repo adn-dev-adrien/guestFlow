@@ -7,7 +7,10 @@
 | **Created** | 2026-11-22 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Mock-up** | [mobile-dashboard-exercise-cash-maquette.html](mobile-dashboard-exercise-cash-maquette.html) |
+| **Mock-up** | none kept — the interactive mock-up (fiche total before / after, clickable « À traiter » rows, exercise cash tiles and chart in two shapes) was folded into §3 and removed in the 2026-11-26 reorganization |
+
+
+> **Reviewed 2026-11-26 (spec reorganization).** The mock-up `mobile-dashboard-exercise-cash-maquette.html` carried nothing beyond rules 1-20 (chart shape and card placement are settled by rule 18); its link is removed.
 
 ---
 
@@ -17,7 +20,7 @@ Three irritants found while using GuestFlow on an iPhone and planning the next i
 
 - **A. The fiche's total is cut by the screen's rounded corner.** The reservation fiche pins its
   headline figure to the bottom of the screen below `lg` (`StickyTotalBar`,
-  [ui-review-2026-10-19-operations.md](ui-review-2026-10-19-operations.md) rule 11). The bar pads its
+  [ui-review-2026-10-19-operations.md](../design-system/ui-review-2026-10-19-operations.md) rule 11). The bar pads its
   bottom with `env(safe-area-inset-bottom)`, but `client/index.html` declares
   `width=device-width, initial-scale=1` **without `viewport-fit=cover`**: iOS then reports every
   safe-area inset as `0`. In the home-screen app (manifest `display: standalone`, the way Adrien
@@ -89,9 +92,9 @@ Three irritants found while using GuestFlow on an iPhone and planning the next i
 
 **Scope.** The stays counted are the stays of the page's window (the exercise by default,
 `periode=fy`), attributed as everywhere else on the page
-([fiscal-year-and-nights-sold.md](fiscal-year-and-nights-sold.md) §3.2 rule 8), filtered by the
+([fiscal-year-and-nights-sold.md](../accounting/fiscal-year-and-nights-sold.md) §3.2 rule 8), filtered by the
 selected logement. All amounts are the « total perçu » basis of the page: net of platform
-commissions, caisse interne excluded ([finance-overview-rework.md](finance-overview-rework.md) §3.1).
+commissions, caisse interne excluded ([finance-overview-rework.md](../accounting/finance-overview-rework.md) §3.1).
 
 10. The tile **« Déjà payé » is renamed « Encaissé »** (key `collected`, same figure:
     Σ `comptaCollected` of the window's stays). Caption: « {n} % de {revenue} ».

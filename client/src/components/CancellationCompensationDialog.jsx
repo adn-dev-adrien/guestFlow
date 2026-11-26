@@ -1,6 +1,6 @@
 /**
  * CancellationCompensationDialog — the single dialog through which a cancellation compensation is
- * declared, corrected or banked (specs/cancellation-compensation.md §6.1, §6.2).
+ * declared, corrected or banked (specs/payments/cancellation-compensation.md §6.1, §6.2).
  *
  * Four modes, one component, because they ask for the same things in different orders:
  *   - `ask`     — shown when the operator approves an iCal cancellation: « indemnité attendue ? »

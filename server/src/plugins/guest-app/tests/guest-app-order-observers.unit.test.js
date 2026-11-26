@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 44 and specs/pricing-components.md rule 55 — the staff's push « Commandes clients » is an observer of the sale: a sale of source `shop`
+// specs/guest-app/guest-app.md rule 44 and specs/pricing/pricing-components.md rule 55 — the staff's push « Commandes clients » is an observer of the sale: a sale of source `shop`
 // that names an order tells the staff once; a sale of another source, or one that names no order, tells nobody. A cancelled stay cancels its orders (rule 72).
 const fx = require('./guestOrderFixtures');
 

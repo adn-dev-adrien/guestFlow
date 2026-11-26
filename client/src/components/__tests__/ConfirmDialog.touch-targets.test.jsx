@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 5 + CLAUDE.md responsive rules — every action of the shared
+// specs/reservations/reservation-fiche-concurrency.md rule 5 + CLAUDE.md responsive rules — every action of the shared
 // confirm dialog is a touch target of at least 44 px, with two or three actions.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

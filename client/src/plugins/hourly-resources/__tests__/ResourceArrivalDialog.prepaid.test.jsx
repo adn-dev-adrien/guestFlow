@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 15, 36 — the mini SAS shows the lines an instrument paid in advance in their own section, titled and marked by the server, counted paid by the
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 15, 36 — the mini SAS shows the lines an instrument paid in advance in their own section, titled and marked by the server, counted paid by the
 // server's recap; « Non pris » asks a confirmation, calls the server and adopts the visit it answers; « Ouvrir la fiche » is offered when the page gives a way.
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';

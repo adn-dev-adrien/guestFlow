@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 34, outside-booking-sas.md rule 34 (loop t1 D-3) — a visit whose money is on its sale document
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 34, outside-booking-sas.md rule 34 (loop t1 D-3) — a visit whose money is on its sale document
 // holds its booking: the resource, the lodging and the client it names refuse a forced delete, as a booking paid on itself does.
 const test = require('node:test');
 const assert = require('node:assert/strict');

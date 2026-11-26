@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | #405 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -39,7 +41,7 @@ same money is filed under two different headings on one page.
 | Sold during the stay, **still due** (mid-stay remainder) | **Complément de fin de séjour** |
 
 The last two are already collected together at the door
-(specs/recall-unpaid-arrival-complement-at-checkout.md + specs/defer-arrival-complement-to-checkout.md),
+(specs/sas/recall-unpaid-arrival-complement-at-checkout.md + specs/sas/defer-arrival-complement-to-checkout.md),
 so the display now matches what actually happens.
 
 ## 2. Goal
@@ -83,7 +85,7 @@ the same way in the summary panel and in the Finance cards.
    >
    > Ce qui ne change pas : les alertes du jour (tableau de bord, réception) continuent de lire
    > « ce qui reste à encaisser aujourd'hui » depuis l'état réel des buckets
-   > ([operationalCollection.js](../server/src/utils/operationalCollection.js)) — là, c'est bien un
+   > ([operationalCollection.js](../../server/src/utils/operationalCollection.js)) — là, c'est bien un
    > fait, pas une intention.
 5. _(retirée le 2026-08-22 — la définition de « le séjour a commencé » n'entre plus dans le split.)_
 6. **Invariant:** `arrival + duringStay + endOfStay` equals the total collected on site
@@ -222,7 +224,7 @@ of « Complément à percevoir », and the notes block is titled « Complément 
 - The dashboard « à percevoir à la porte » block and the J-2 email, which have their own wording
   (decision 2026-08-07: fiche only).
 - Moving any stored amount between columns — the two DB buckets keep their meaning
-  (specs/defer-arrival-complement-to-checkout.md §3.2 rule 9).
+  (specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 9).
 - Re-classifying a complement collected during the stay (see edge cases).
 - The accounting export, which books by payment date and bucket, not by heading.
 

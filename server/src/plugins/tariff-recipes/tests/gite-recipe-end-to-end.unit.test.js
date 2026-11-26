@@ -10,7 +10,7 @@ const { createTariffRecipeModel } = require('../model');
 const { grossFromNet } = require('../../../utils/pricing');
 const { calculateReservationQuote } = require('../../../utils/pricing').__test;
 
-// specs/tariff-recipe-gite/spec.md — THE SHIPPED RECIPE FILE, end to end. A recipe is data, and
+// specs/pricing/tariff-recipe-gite.md — THE SHIPPED RECIPE FILE, end to end. A recipe is data, and
 // data can be wrong: load server/src/recipes/gite-2027.json, derive 2026 and 2027 to the day,
 // check the two arithmetic identities the whole grid rests on (a week is four nights; the direct
 // row reproduces its own displayed price), then apply it to a property and quote the control cases.
@@ -36,6 +36,7 @@ function cumulativeTotals(season, upTo) {
   return totals;
 }
 
+// specs/pricing/tariff-recipe-gite.md §3.2 rules 26, 27, 7 and 8 — the week-based degressivity.
 test('the shipped recipe validates and prices a week at exactly four nights', () => {
   const recipe = loadShippedRecipe();
   assert.equal(recipe.id, 'gite-2027');
@@ -171,7 +172,7 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   // from 11 July to 21 August, which is what the quote assertions below pin down.
   assert.deepEqual(plan2026.peak, [
     // One range: the 14-juillet block and the Saturday 15 August add nothing to the summer core's
-    // 4-night minimum, so they no longer split it (rule 16quater, spec review 2026-10-27).
+    // 4-night minimum, so they no longer split it (tariff-recipes rule 16c, spec review 2026-10-27).
     r('2026-07-11', '2026-08-21', 4),
     // 25 December, out of Noël since 3.7.0: Très haute price, but the 2 nights its period declares
     // and not the season's 4 — the holiday modifier must not fold the season minimum back in.
@@ -279,7 +280,7 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
   `);
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   // The Gîte prices the whole house: no included-guest threshold, no extra-guest supplement, no
-  // welcome pack — exactly what the recipe does NOT own (specs/tariff-recipes/spec.md §3.1 rule 6).
+  // welcome pack — exactly what the recipe does NOT own (specs/pricing/tariff-recipes.md §3.1 rule 6).
   db.prepare(`INSERT INTO properties (id, name, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit, welcomePackCost)
     VALUES (1, 'Gite', 0, 0, 'per_stay', 0)`).run();
 

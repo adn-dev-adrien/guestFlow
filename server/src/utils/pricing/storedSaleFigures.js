@@ -1,6 +1,6 @@
 /**
  * STORED SALE FIGURES — what EXTRA GUESTS and TOURIST TAX gave a stay, kept so a sale reads them as stored
- * (specs/pricing-components.md §3 rule 8).
+ * (specs/pricing/pricing-components.md §3 rule 8).
  *
  * A stay edit runs the two units and stores what each provided (`reservations.storedExtraGuests`, `storedTouristTax`: the
  * extra-guest supplement and its share inside a platform price, the tax and its whole detail — base, rate, routing, the

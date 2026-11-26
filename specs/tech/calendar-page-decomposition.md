@@ -7,7 +7,9 @@
 | **Created** | 2026-05-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 3 — Réservations & Calendar (remainder). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 3 — Réservations & Calendar (remainder). See `docs/rapports/ROADMAP.md`. |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 5: `CalendarToolbar` no longer exists; the toolbar is the page's `PageActionBar` (property picker in `center`) since the design-system sweep (client/src/pages/CalendarPage.jsx:423).
 
 ---
 
@@ -16,7 +18,7 @@
 `CalendarPage.js` is **1255 LOC** in a single component. The roadmap flagged it as the worst
 thin-frontend offender because of a **client-side pricing engine** (`recalcPrice` + deposit/balance
 auto-calc) — but that engine was **already removed** with the dead reservation dialog
-([[calendar-reservation-dialog-dead]] / `specs/calendar-dead-dialog-removal.md`). What remains today is
+([[calendar-reservation-dialog-dead]] ). What remains today is
 **legitimately presentational** but **structurally unmanageable**:
 
 - **Pure helpers** at module top (date/percent/color/name math): `getDaysInMonth`, `formatDate`,
@@ -67,8 +69,8 @@ maintainable and each visual concern lives in one place.
 4. **Infinite-scroll month management → `hooks/useInfiniteMonthScroll.js`** — owns `months`, refs,
    scroll/preload/focus effects; exposes `{ months, scrollRef, handleScroll, prependMonth, appendMonth,
    scrollToToday, focusOnMonth, resetForProperty }`.
-5. **Rendering split into page-specific components**: `CalendarToolbar`, `CalendarDayCell`,
-   `CalendarMonthGrid`, `CalendarNoteDialog`. They are **feature-local** (calendar-specific), not generic
+5. **Rendering split into page-specific components**: `CalendarDayCell`,
+   `CalendarMonthGrid`, `CalendarNoteDialog` (the former `CalendarToolbar` was later replaced by the shared `PageActionBar`). They are **feature-local** (calendar-specific), not generic
    library components (justified in §4.2).
 6. **Data loading + drag selection stay in the page** (orchestration): the page owns data state +
    loaders and the drag handlers, passing data + callbacks down. (Limits coupling / regression surface;

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { refuseInvalidServedPersons } = require('../utils/lineInputBounds');
 
-// specs/card-option-served-persons.md §3 rules 3 and 19 — spec review 2026-10-27 (agent 7 F9). « A value ≤ 0
+// specs/options/card-option-served-persons.md §3 rules 3 and 19 — spec review 2026-10-27 (agent 7 F9). « A value ≤ 0
 // is refused »: the API priced `cardPersons: 0` (or −2) as the whole party, with a 200.
 
 test('0, a negative count or a non-number is refused with its code', () => {

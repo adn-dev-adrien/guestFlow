@@ -1,6 +1,6 @@
 /**
  * Token-safe translation of the guest email texts, French → English
- * (specs/guest-email-texts-made-simple.md rules 19–20).
+ * (specs/emails/guest-email-texts-made-simple.md rules 19–20).
  *
  * The key is the platform's (`GUESTFLOW_TRANSLATE_API_KEY`, set by the operator), never the owner's:
  * without it `isAvailable()` is false and nothing is offered. The call is the Anthropic Messages API

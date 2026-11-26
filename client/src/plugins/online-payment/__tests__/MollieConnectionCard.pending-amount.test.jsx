@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 14 — the card shows what Mollie still holds: the `pendingAmount`
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 14 — the card shows what Mollie still holds: the `pendingAmount`
 // of the primary balance (the reserves not released yet), read by the server; without a read the line is absent.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

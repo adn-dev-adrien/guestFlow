@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * ClientsPage — DS phase-6 sweep (specs/ds-sweep-reservations.md rule 15): the DataPageScaffold now
+ * ClientsPage — DS phase-6 sweep (specs/design-system/ds-sweep-reservations.md rule 15): the DataPageScaffold now
  * receives useCrudResource's loading/error, so a failed list surfaces a retryable ErrorAlert instead
  * of a silently-empty table.
  */
@@ -64,7 +64,7 @@ test('an empty clients list shows the empty state, not an error', async () => {
   expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
 });
 
-// specs/ds-components.md rule 25 — the button speaks French: « Nettoyer les clients », not « Cleanup clients ».
+// specs/design-system/ds-components.md rule 25 — the button speaks French: « Nettoyer les clients », not « Cleanup clients ».
 // Since the amendment of 2026-10-28 (rule 19) it lives in the « Sans séjour » view.
 test('the cleanup button is labelled in French', async () => {
   api.getClientsDirectory.mockResolvedValue(directoryPayload({ view: 'none', orphanCount: 2 }));

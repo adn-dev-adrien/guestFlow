@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 44 — a plugin tab that throws leaves the page bar and the other tab up.
+// specs/plugins/plugins-phase-4-registry.md rule 44 — a plugin tab that throws leaves the page bar and the other tab up.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

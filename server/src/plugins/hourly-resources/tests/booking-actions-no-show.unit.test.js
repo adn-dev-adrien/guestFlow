@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 27 (loop t1 UI-9) — the booking payload says whether « Client absent » can be asked now: an administrator, from the session's
+// specs/sas/outside-booking-sas.md rule 27 (loop t1 UI-9) — the booking payload says whether « Client absent » can be asked now: an administrator, from the session's
 // day on (the server's clock), never the reception, never a visit already absent.
 const test = require('node:test');
 const assert = require('node:assert/strict');

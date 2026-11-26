@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 15–17 and 20 — the fleet view shows real values; the probe
+// specs/hosting/hosting-h1-fleet-runtime.md rules 15–17 and 20 — the fleet view shows real values; the probe
 // raises console alerts at its thresholds (down 3 minutes, backup older than 1 h, disk above 85 %,
 // certificate within 14 days, memory above 90 %, the platform's daily email limit), each emailed
 // once, repeated every 24 h while open, and closed by itself when the condition clears.

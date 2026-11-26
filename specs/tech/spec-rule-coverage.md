@@ -163,6 +163,19 @@ no test?** » — and prevent a **new** rule from being delivered without its te
     its line removed, or it is sent to the next PR (`Pending — PR <Y>`). Pending lines naming a later PR are untouched. Every `Pending` line of a rule is examined, not only
     the last one: a rule may carry one line per PR.
     Test: `tests/spec-rule-coverage-pending-own-pr.unit.test.js`.
+20. **Specs live in domain folders; the name stays the identity** (added 2026-11-26, spec reorganization). The script
+    reads every `specs/<domain>/<name>.md`, sub-folders included; `INDEX.md`, `README.md`, `TEMPLATE.md` and
+    `ROADMAP.md` are not specs. A citation names its spec by the last segment of the path, so
+    `specs/payments/reservation-refunds.md rule 38` and the bare form `reservation-refunds rule 38` designate the same
+    rule. Two files with the same name in two folders fail the gate: a citation could not say which one it proves.
+    The diff of `--changed` is read with rename detection, so moving a spec to another folder adds no rule.
+    Test: `tests/spec-rule-coverage-folders.unit.test.js`.
+21. **A spec path that points to no file is caught** (added 2026-11-26, spec reorganization). The full report lists
+    every `specs/….md` path, in a git-tracked file, that designates no existing file (a spec moved or deleted);
+    `--changed` fails when a file the PR touches holds one. History keeps the paths of its time and is not read:
+    `docs/`, `changelog.d/`, `CHANGELOG.md`, and the script's own test fixtures. `node scripts/rewrite-spec-paths.mjs`
+    rewrites every stale path whose spec still exists, resolving it by name; a deleted spec's path is left for a human.
+    Test: `tests/spec-rule-coverage-folders.unit.test.js`.
 
 **Edge cases:**
 
@@ -220,7 +233,7 @@ None. Nothing is exposed to the application.
 prints French; quoted as printed):
 
 ```
-specs/single-payment-at-check-in.md      15/17 règles   manquantes : 10, 13
+specs/payments/single-payment-at-check-in.md      15/17 règles   manquantes : 10, 13
 specs/arrival-payment-detail-...md       27/28 règles   manquantes : 23
 ...
 Total : 2 815 règles, 1 042 couvertes (37 %), 118 exemptées.

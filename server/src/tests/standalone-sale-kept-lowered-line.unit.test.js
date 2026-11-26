@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 56 (a), (b) (stabilisation loop t4 B4-1, B4-2; owner decision 2026-11-16) — a paid line lowered, then its row
+// specs/sas/outside-booking-sas.md rule 56 (a), (b) (stabilisation loop t4 B4-1, B4-2; owner decision 2026-11-16) — a paid line lowered, then its row
 // closed « rien à rembourser », is money kept: a tip like a kept link surplus (rule 50). Kept allocations take it off the line (its revenue and VAT
 // leave the journal on the close day, the tip comes in), so the journal nets exactly the paid lines the Qonto invoice states, and what the document
 // owes afterwards follows its lines — no closed row is subtracted forever.

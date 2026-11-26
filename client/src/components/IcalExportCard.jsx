@@ -1,6 +1,6 @@
 /**
  * IcalExportCard — the property's public iCal export link, with a copy button. The feed carries the
- * dates only (specs/ical-export-guest-privacy.md), which the card says.
+ * dates only (specs/platforms/ical-export-guest-privacy.md), which the card says.
  *
  * Props: propertyId, propertyName
  */

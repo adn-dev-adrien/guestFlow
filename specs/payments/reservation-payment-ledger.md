@@ -7,8 +7,8 @@
 | **Created** | 2026-10-19 |
 | **Author** | Adrien |
 | **Related PR** | #718 (spec) |
-| **Amendment 2026-10-28** | Branch `feature/clients-directory-and-fiche-tariff` · summary [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html) |
-| **Summary page** | [docs/specs/2026-10-19-reservation-payment-ledger.html](../docs/specs/2026-10-19-reservation-payment-ledger.html) — interactive mocks at 390 and 1280 px |
+| **Amendment 2026-10-28** | Branch `feature/clients-directory-and-fiche-tariff` · summary [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html) |
+| **Summary page** | [docs/specs/2026-10-19-reservation-payment-ledger.html](../../docs/specs/2026-10-19-reservation-payment-ledger.html) — interactive mocks at 390 and 1280 px |
 
 ---
 
@@ -20,7 +20,7 @@ implémentation » — with one condition: « il faut quand même pouvoir setter
 pour la partie solde et acompte ».
 
 The « Finance » card of the reservation fiche
-([FinanceSection.jsx](../client/src/components/reservation/FinanceSection.jsx), 1 556 lines) mixes
+([FinanceSection.jsx](../../client/src/components/reservation/FinanceSection.jsx), 1 556 lines) mixes
 inputs, explanations and actions:
 
 - **State is never shown as a state.** Acompte, Solde and Caution are toggle buttons (« Marquer solde
@@ -34,10 +34,10 @@ inputs, explanations and actions:
 - **Nothing guards the order of events.** « Marquer caution restituée » works on a caution never
   received: `updatePayment` writes `cautionReturned` unconditionally, and `PUT /api/reservations/:id`
   writes the four caution columns straight from the browser's form
-  ([reservationsModel.js `updateReservation`](../server/src/models/reservationsModel.js); the
+  ([reservationsModel.js `updateReservation`](../../server/src/models/reservationsModel.js); the
   past-locked whitelist of `reservationsController.update` lets them through too). A paid date can be
   typed in the future for the acompte, the solde and the caution — only the single arrival payment
-  validates its date ([arrivalPaymentDate.js](../server/src/utils/arrivalPaymentDate.js)).
+  validates its date ([arrivalPaymentDate.js](../../server/src/utils/arrivalPaymentDate.js)).
 - **Caution writes are drafts, other marks are immediate.** Acompte, solde and complements are PATCHed
   at once (rule 11bis of [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md)); the
   caution waits for « Enregistrer » unless the fiche is locked. Same gesture, two behaviours.
@@ -51,10 +51,10 @@ inputs, explanations and actions:
   (`pricing.js` frozen-deposit branch) — the operator types 900 and sees 840 without a word.
 - **Payment links drift.** A Qonto link is minted for an amount (`payment_links.amountCents`). When the
   acompte or solde changes afterwards, the open link stays payable at the old amount until somebody
-  re-sends the request ([paymentRequestService.js](../server/src/utils/paymentRequestService.js)
+  re-sends the request ([paymentRequestService.js](../../server/src/utils/paymentRequestService.js)
   retires a stale link only on the next `ensurePaymentLink`). If the guest pays it in between, the poll
   records the bucket as paid at the **new** amount
-  ([paymentPollRunner.js `applyPaidEffect`](../server/src/utils/paymentPollRunner.js)). The fiche
+  ([paymentPollRunner.js `applyPaidEffect`](../../server/src/utils/paymentPollRunner.js)). The fiche
   never shows a link's status at all.
 - **The client derives states.** Paid/unpaid, « paiement unique », what can be edited and why: all
   computed in `FinanceSection` from raw flags (CLAUDE.md §6.0 anti-pattern).
@@ -105,7 +105,7 @@ next to the field.
    (see §9 Q2).
 5. **« Reste à percevoir »** closes the ledger. It is **`reservationSettlement.remainingToPay`** —
    the function the Finance « Suivi opérationnel » already uses
-   ([finance-operational-remaining-to-pay.md](finance-operational-remaining-to-pay.md) §3): the sum
+   ([finance-operational-remaining-to-pay.md](../accounting/finance-operational-remaining-to-pay.md) §3): the sum
    of the still-unsettled buckets (acompte, solde, both complements; a caisse-interne bucket counts
    as settled), **net of the commission of each unsettled platform échéance**, so a Booking stay
    shows what will reach the bank. One « reste dû » in the whole application: the ledger adds no
@@ -139,19 +139,19 @@ next to the field.
    return, « Marquer reçu » for a platform payout). It opens an inline form under the row — never a
    dialog — with the date prefilled to today and « Valider » / « Annuler ». The complement rows keep
    their existing « Caisse interne » toggle in that form
-   ([cash-complement-and-endofstay-finance.md](cash-complement-and-endofstay-finance.md)); the
+   ([cash-complement-and-endofstay-finance.md](../sas/cash-complement-and-endofstay-finance.md)); the
    acompte and solde rows have **none** — `depositPaidCash` / `balancePaidCash` are set only by the
    arrival SAS and shown read-only as the row's origin (rule 4), as today. Closing the form restores
    the row exactly.
 9. **The date is validated by the server**, for every mark: a real calendar day, **not in the
    future** (« Un encaissement ne peut pas être daté dans le futur. »). The refusal is shown under the
    date field and the form stays open with the typed value. The « not before the reservation
-   existed » bound of [arrivalPaymentDate.js](../server/src/utils/arrivalPaymentDate.js) is **not**
+   existed » bound of [arrivalPaymentDate.js](../../server/src/utils/arrivalPaymentDate.js) is **not**
    applied to ledger marks: reservations entered after the fact (Abritel stays typed by hand, iCal or
    intake imports) carry a `createdAt` later than real payments. It stays on the single arrival
    payment, unchanged.
    *Reading of 2026-11-02 — the date window.* Every mark date is also refused before today − 5 years, « Date trop
-   ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading); re-dating a note settled in the stay obeys the same rule (it was unchecked).
+   ancienne : 5 ans au plus. » (`specs/tech/reservations-backend-mvc.md` rule 13, second reading); re-dating a note settled in the stay obeys the same rule (it was unchecked).
 10. **Marking saves the fiche first.** « Valider » runs through the page's existing `saveThenRun`
     pipeline (as the mid-stay notes do), then PATCHes the mark. A mark can never be recorded against
     an amount the server has not stored.
@@ -189,9 +189,9 @@ next to the field.
 
 Notation for a direct stay: **P** = pre-arrival amount (acompte + solde), **H** = its accommodation
 part, **T** = the tourist tax riding on the solde (`P = H + T`,
-[tourist-tax-on-solde.md](tourist-tax-on-solde.md)). All amounts are euros rounded to the cent
+[tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md)). All amounts are euros rounded to the cent
 (`roundMoney`); the field accepts « 12,5 », « 12.5 » and arithmetic
-([reservation-price-arithmetic.md](reservation-price-arithmetic.md)), and a value with more than two
+([reservation-price-arithmetic.md](../reservations/reservation-price-arithmetic.md)), and a value with more than two
 decimals is rounded and shown rounded.
 
 15. **Every row says whether its amount can be edited, and why not.** The server sends
@@ -220,7 +220,7 @@ decimals is rounded and shown rounded.
     24,83 € ». Precisely:
     - **The whole engine is re-run** for each candidate price, not a formula: the tourist tax follows
       the accommodation, and so do the options priced on the stay (the cancellation insurance is a
-      percentage of the accommodation, [pricing.js `cancellationInsuranceBase`](../server/src/utils/pricing.js)).
+      percentage of the accommodation, [pricing.js `cancellationInsuranceBase`](../../server/src/utils/pricing.js)).
       The solver searches the cent price whose resulting solde equals S (bounded number of passes).
     - **When no cent price gives exactly S** (the tax or a percentage option rounds in steps), the
       server proposes the **nearest reachable solde** and says it: « Solde obtenu : 499,99 € (au
@@ -256,7 +256,7 @@ decimals is rounded and shown rounded.
     and computes nothing. The same validation runs again at save (`PUT /api/reservations/:id`), so a
     crafted request gets the same refusal (400 with the same French message).
 22. **Complements keep their own rules.** The arrival / end-of-stay / merged complement rows expose
-    the existing « Montant ajusté » ([adjustable-complement-amounts.md](adjustable-complement-amounts.md)
+    the existing « Montant ajusté » ([adjustable-complement-amounts.md](../sas/adjustable-complement-amounts.md)
     rules 1-30, floors and accounting split unchanged) through the same row editor; the mid-stay
     notes keep their per-note editing (§3.4 of that spec). Only the presentation moves.
 23. **History.** Every amount set from the ledger is traced in `reservation_history` with a readable
@@ -266,19 +266,19 @@ decimals is rounded and shown rounded.
 
 24. **The platform row replaces the solde.** Label « Versement <plateforme> », amount = the gross
     pre-arrival amount the platform settles, state from the payout due date
-    ([platform-payout-due-date.md](platform-payout-due-date.md)) — « Attendu le 22/10 » / « En retard
+    ([platform-payout-due-date.md](../platforms/platform-payout-due-date.md)) — « Attendu le 22/10 » / « En retard
     depuis le 22/10 ». Its detail line reads « Commission 157,97 € · net 829,42 € ». A platform with
-    acompte ([platform-deposit-toggle.md](platform-deposit-toggle.md)) shows both rows, each with its
+    acompte ([platform-deposit-toggle.md](../platforms/platform-deposit-toggle.md)) shows both rows, each with its
     own commission.
 25. **The platform's figures stay editable, in the row.** The amount of a platform row is not typed
     directly: « Modifier » opens the statement fields that are the levers today — « Total facturé
     par la plateforme » / « Montant total payé par le client », « Taxe de séjour retenue » and the
-    per-échéance commission ([platform-payment-entry.md](platform-payment-entry.md),
-    [platform-per-echeance-commission.md](platform-per-echeance-commission.md),
-    [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md)),
+    per-échéance commission ([platform-payment-entry.md](../platforms/platform-payment-entry.md),
+    [platform-per-echeance-commission.md](../platforms/platform-per-echeance-commission.md),
+    [platform-tourist-tax-out-of-the-commission.md](../tourist-tax/platform-tourist-tax-out-of-the-commission.md)),
     with their labels, helpers and server rules unchanged. ~~Once the payout is received they are
     locked like a paid row (rule 19).~~ **Amended 2026-11-16** by
-    [platform-statement-after-payout.md](platform-statement-after-payout.md): the statement stays open once the payout
+    [platform-statement-after-payout.md](../platforms/platform-statement-after-payout.md): the statement stays open once the payout
     is received and on a locked fiche, and is then written by its own PATCH (a re-split of the payout, never a re-price).
 26. **« Marquer reçu » asks for the transfer.** Its form holds the date and « Virement reçu »,
     prefilled with the expected net. When the typed transfer differs from the net, the form shows the
@@ -295,7 +295,7 @@ decimals is rounded and shown rounded.
     way out is on the row: « Détail » → the statement with « Calculer la commission » while the versement is unpaid, or
     « Annuler le versement » then retype it once received. No code change.
     **Reading of 2026-11-16:** the received case no longer needs the undo — « Détail » opens the statement on a received
-    payout too ([platform-statement-after-payout.md](platform-statement-after-payout.md) rules 1-4).
+    payout too ([platform-statement-after-payout.md](../platforms/platform-statement-after-payout.md) rules 1-4).
 27. **The pricing summary keeps the hero figure** (decision 6, « Vous percevez »). The ledger does not
     repeat « Net perçu » as a separate line any more.
 
@@ -305,14 +305,14 @@ decimals is rounded and shown rounded.
     `full` on the solde, `complement` on the arrival complement. The detail reads « Lien envoyé le
     03/08 · 252,00 € » (open), « Payé par lien le 05/08 » (paid), « Lien retiré · montant modifié »
     (rule 29) or « Lien retiré · perçu autrement » (settled another way,
-    [plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) rule 23). Sending a
+    [plugins-phase-3a-online-payment.md](../plugins/plugins-phase-3a-online-payment.md) rule 23). Sending a
     request stays where it is today (page actions); « Renvoyer la demande » is offered on the row
     **only while the row is still due** — never on a perceived one.
 29. **Changing an amount retires its open link.** At save, for every open link whose type maps to a
     row (rule 28) and whose `amountCents` differs from the row's new amount in cents, the server checks
     the link was not paid meanwhile (`assertNotPaid`), cancels it with `cancelReason =
     'amount-changed'` and deactivates it at the provider
-    ([plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) rules 7-9 — provider
+    ([plugins-phase-3a-online-payment.md](../plugins/plugins-phase-3a-online-payment.md) rules 7-9 — provider
     down: retired locally with `remoteCancelPendingAt`, the poll retries). §9 Q3.
 30. **A link paid before the save wins.** If `assertNotPaid` finds the open link paid, the save is
     refused (409 `LINK_ALREADY_PAID`, « Le lien de 252,00 € vient d'être payé : montant non
@@ -502,7 +502,7 @@ decimals is rounded and shown rounded.
   typed while the acompte is perceived (rule 18) changes the accommodation price, which the lock
   forbids: the editor refuses it (« Séjour commencé : déverrouiller la fiche pour changer le prix de
   l'hébergement. ») until an admin unlocks the fiche
-  ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)). Decided at implementation
+  ([admin-unlock-past-reservations.md](../reservations/admin-unlock-past-reservations.md)). Decided at implementation
   (2026-10-19): read-only would have blocked every payout.
   _Since 2026-11-06 (D21): the unlock keeps the final price too; the refusal reads « Séjour commencé : passer par
   « Réduction (%) ». », the only price field the locked fiche accepts (rule 18 reading, amended the same day)._
@@ -541,7 +541,7 @@ compris l'idée de cet affichage. »
 fiche (price, tourist tax, acompte, solde, complement, their due dates) differ from what the engine
 computes **today** for the same fiche. It is *not* an old tariff: the live quote already replays the
 nightly prices, option lines and tariff the stay was saved with (`getPricingSnapshot`,
-[tariff-recipes/spec.md](tariff-recipes/spec.md) rule 12bis), so a change of season prices never
+[tariff-recipes/spec.md](../pricing/tariff-recipes.md) rule 12bis), so a change of season prices never
 raises it. What raises it is a change of *rules or settings* since the save: the tourist tax (rate,
 platform collection mode), the payment schedule (acompte %, J-N, platform payout delay), or an engine
 fix. Measured on the shadow (prod copy of 2026-10-22): **4 fiches out of 9 upcoming** show it — four
@@ -606,8 +606,8 @@ acts on: on a direct stay it only says a setting moved since the save (the 4 Boo
 because of a tax convention, not because anything is wrong with them), and the existing « Actualiser
 tarifs » already re-prices a fiche on purpose. What *is* worth an alert is a platform that sells the
 stay far from the price GuestFlow tells it to list — the « Prix plateformes » grid of the property
-([platform-price-from-commission.md](platform-price-from-commission.md),
-[tariff-recipes/spec.md](tariff-recipes/spec.md) rules 31-34bis) — because that gap does not come from
+([platform-price-from-commission.md](../platforms/platform-price-from-commission.md),
+[tariff-recipes/spec.md](../pricing/tariff-recipes.md) rules 31-34bis) — because that gap does not come from
 our policy, it comes from a channel configured wrong. Comparing the platform's brut with our *own*
 tariff would fire on every platform stay (the brut is grossed up by the commission on purpose,
 `gross = ceil(net / (1 − c))`, plus a cleaning fee on some channels); comparing it with the grid price
@@ -625,7 +625,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     - **paid** — the part of the brut that pays the stay: `platformGrossAmount` minus the tourist tax
       inside it (withheld or reversed, as the engine routes it) minus the pre-arrival options and
       resources it carries. It is the accommodation the engine back-solves from the brut
-      ([platform-payment-entry.md](platform-payment-entry.md)) plus the in-brut extra-guest surcharge,
+      ([platform-payment-entry.md](../platforms/platform-payment-entry.md)) plus the in-brut extra-guest surcharge,
       so the platform's cleaning fee stays inside it;
     - **expected** — what the property's « Prix plateformes » grid says this channel should charge for
       these nights and these paid guests (rule 59).
@@ -638,7 +638,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     the exact number the grid displays). Using the ratio keeps the stay's degressivity, which platforms
     apply as a percentage of their nightly price (tariff recipes rule 54). Plus the in-brut extra-guest
     surcharge × `extraGrid / extraBilled` of the same seasons, plus the channel's cleaning fee grossed
-    up (`platformCleaningFees`, [tariff-recipe-platform-cleaning-fee.md](tariff-recipe-platform-cleaning-fee.md)
+    up (`platformCleaningFees`, [tariff-recipe-platform-cleaning-fee.md](../pricing/tariff-recipe-platform-cleaning-fee.md)
     rules 8-9). The guests the platform did not bill (`platformPaidGuests`, collected on arrival) are
     out of both sides. _Implementation: `paid` is `accommodationAdjustedPrice + extraGuestInBrutSurcharge`
     of the quote — the engine's own back-solve; the extra-guest ratio is the mean over the nights' seasons,
@@ -704,11 +704,11 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     platform stay has nothing to apply: its price is the brut.
 65. **The booking date of rule 61 is the operator's day** (2026-10-30, audit R9-1). The day the journal
     is compared with is the local day of the stay's `createdAt` (`vatRegime.bookingDayOf`,
-    `specs/finance-dashboard-redesign.md` rule 50), never its first ten characters: `createdAt` is UTC.
+    `specs/accounting/finance-dashboard-redesign.md` rule 50), never its first ten characters: `createdAt` is UTC.
     The journal is read on the Paris day too, but its `occurredAt` mixes two clocks:
     `tariffChangeJournalModel.hasEventAfter` reads `date(occurredAt, 'localtime')` for an `apply` or
     `backfill` event (stored UTC by `datetime('now')`) and `date(occurredAt)` for a `manual` one, which
-    already holds the Paris wall time typed in the form (`specs/tariff-change-journal.md` rule 7). *Why:* a
+    already holds the Paris wall time typed in the form (`specs/pricing/tariff-change-journal.md` rule 7). *Why:* a
     stay booked at 00:30 Paris read as booked the day before, so a tariff change made at 00:10 that same
     day, before the booking, counted as « after » and silenced the alert; and a manual platforms change
     declared at 23:30 Paris, shifted to 00:30 or 01:30 the next day, silenced the alert of a stay booked at
@@ -812,7 +812,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     - **UI:** the ledger row « Complément de fin de séjour » (and the merged card of a deferred complement holding an end of stay)
       keeps « Marquer perçu », sent by the server closed (`action.disabled`, `action.reason` « Après le départ. ») and
       drawn disabled with that caption under it, on desktop and mobile (`LedgerList`); the client computes nothing.
-    - **Payments during the stay stay open:** the mid-stay notes (specs/mid-stay-notes.md) collect consumptions by card or caisse
+    - **Payments during the stay stay open:** the mid-stay notes (specs/sas/mid-stay-notes.md) collect consumptions by card or caisse
       interne as they come, through `PATCH /payment { settleMidStayNote }`; they never mark the end of stay, and their only refusal
       (`END_OF_STAY_SETTLED`) cannot fire before the check-out any more.
     - Tests: `end-of-stay-after-checkout` (server, every path above), client `LedgerList.end-of-stay-after-checkout`.
@@ -977,7 +977,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `StatusBadge`, `ArithmeticTextField`, `DateField`, `ConfirmDialog`, `PageActionBar` | `PageActionBar` untouched. |
-| **Created (new generic)** | `LedgerList`, `LedgerAmountEditor` | Generic because the same « row = amount + state + one action » shape is wanted by the SAS recap payments ([sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)) and the finance « paiements à venir » table; neither knows about reservations. |
+| **Created (new generic)** | `LedgerList`, `LedgerAmountEditor` | Generic because the same « row = amount + state + one action » shape is wanted by the SAS recap payments ([sas-recap-payment-buttons.md](../sas/sas-recap-payment-buttons.md)) and the finance « paiements à venir » table; neither knows about reservations. |
 | **Specific (kept feature-local)** | `FinanceSection` | Reservation-specific orchestration only. `ComplementCard` and `ArrivalPaymentCard` become the `detail` content of their rows. |
 
 ### 4.3 API contract
@@ -1017,7 +1017,7 @@ Row shape:
 
 ## 6. UI / UX
 
-Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](../docs/specs/2026-10-19-reservation-payment-ledger.html).
+Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](../../docs/specs/2026-10-19-reservation-payment-ledger.html).
 
 **Card « Paiements »** (replaces the lower half of « Finance »; the price block stays above):
 
@@ -1249,24 +1249,24 @@ When this spec is approved and implemented, the same PR updates:
   (rule 16 here); **§8 Out of scope** loses « Editing the balance directly », now rules 17-18.
 - [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md) — rule 11bis extended to the
   caution columns (rule 13 here).
-- [plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) — a new retirement reason
+- [plugins-phase-3a-online-payment.md](../plugins/plugins-phase-3a-online-payment.md) — a new retirement reason
   `'amount-changed'` and its paid-after-retirement booking (rules 29-31 here).
 - `payment-link-visible-and-renewable` — a Draft summary of 2026-09-25
   (`docs/specs/2026-09-25-payment-link-visible-and-renewable.html`) exists only, untracked, in
   Adrien's main checkout. Rule 28 covers its « visible » half; its « renewable » half (re-sending
   from the row) is to be reconciled with it when that spec lands. Not copied here.
 
-**Amendment 2026-10-28** also updates [pricing-summary-extraction.md](pricing-summary-extraction.md)
-(rule 7: `PricingSummary` gains the stored mode and the `topNotice` slot), [platform-price-from-commission.md](platform-price-from-commission.md) (the grid cell
+**Amendment 2026-10-28** also updates [pricing-summary-extraction.md](../tech/pricing-summary-extraction.md)
+(rule 7: `PricingSummary` gains the stored mode and the `topNotice` slot), [platform-price-from-commission.md](../platforms/platform-price-from-commission.md) (the grid cell
 is now also the reference of the fiche's price check — rules 59-60 here) and
-[tariff-recipes/spec.md](tariff-recipes/spec.md) gets a rule 68 (appended) cross-referencing rule 57 here;
-[platform-price-from-commission.md](platform-price-from-commission.md) gets a rule 8.
+[tariff-recipes/spec.md](../pricing/tariff-recipes.md) gets a rule 68 (appended) cross-referencing rule 57 here;
+[platform-price-from-commission.md](../platforms/platform-price-from-commission.md) gets a rule 8.
 
 **D20 (2026-11-06, rule 68)** adds readings dated 2026-11-06 to [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md)
-rule 2bis (the end of stay is a bucket after the check-out only), [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md)
-rule 8 (the merged card waits for the check-out while it holds an end of stay), [qonto-bank-reconciliation.md](qonto-bank-reconciliation.md)
-rule 34 (an end-of-stay receipt is confirmed after the check-out) and [mid-stay-extras-to-end-of-stay-complement.md](mid-stay-extras-to-end-of-stay-complement.md)
-rule 20 (N4: the admin-unlock question answered by D20), and [finance-dashboard-redesign.md](finance-dashboard-redesign.md) rule 15
+rule 2bis (the end of stay is a bucket after the check-out only), [defer-arrival-complement-to-checkout.md](../sas/defer-arrival-complement-to-checkout.md)
+rule 8 (the merged card waits for the check-out while it holds an end of stay), [qonto-bank-reconciliation.md](../accounting/qonto-bank-reconciliation.md)
+rule 34 (an end-of-stay receipt is confirmed after the check-out) and [mid-stay-extras-to-end-of-stay-complement.md](../sas/mid-stay-extras-to-end-of-stay-complement.md)
+rule 20 (N4: the admin-unlock question answered by D20), and [finance-dashboard-redesign.md](../accounting/finance-dashboard-redesign.md) rule 15
 (« Tout solder » sends the server's `settleAllFields`).
 
 ## 9. Open questions

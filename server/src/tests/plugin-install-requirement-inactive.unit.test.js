@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 38 — install is install-and-activate, so it refuses a
+// specs/plugins/plugins-phase-4-registry.md rule 38 — install is install-and-activate, so it refuses a
 // plugin whose requirement is installed but switched off, like activate does (rule 37).
 const test = require('node:test');
 const assert = require('node:assert/strict');

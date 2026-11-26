@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 33 — last year « as it stood a year ago » is only known
+// specs/accounting/finance-dashboard-redesign.md rule 33 — last year « as it stood a year ago » is only known
 // once GuestFlow tracked booking dates a year ago (the booking pace's start). Before that, a month
 // already over compares on last year's final figure, and a month not over yet has no N-1 at all —
 // never « contre 0 € l'an dernier » (mega review #5, B1).

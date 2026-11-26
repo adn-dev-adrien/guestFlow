@@ -2,7 +2,7 @@
  * Devis validity — the two pure decisions that hang off `validUntil`.
  *
  * A devis is a price promise with an expiry date, and that date is what says whether its prices may
- * still move (specs/devis-extras-parity-and-price-lock.md §3 rules 13-14): while the quote is valid
+ * still move (specs/devis/devis-extras-parity-and-price-lock.md §3 rules 13-14): while the quote is valid
  * the prices it was issued at are frozen exactly like a saved reservation's, and once it has expired
  * every price is recomputed at the current tariffs on the next read/save.
  *
@@ -16,7 +16,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * `validUntil` = MAX(createdAt, MIN(createdAt + quoteValidityDays, startDate − 2 days)), per §3.2
- * rule 6 of specs/devis-pdf-and-tourist-tax-fixes.md (the floor: rule 6 reading R30-RES-M1). Both
+ * rule 6 of specs/devis/devis-pdf-and-tourist-tax-fixes.md (the floor: rule 6 reading R30-RES-M1). Both
  * inputs are ISO `YYYY-MM-DD`; output the same. Falls back to the un-capped value when `startDate`
  * isn't a valid ISO date.
  */
@@ -51,7 +51,7 @@ function isDevisExpired(validUntil, todayIso) {
 const OPEN_STATUSES = new Set(['draft', 'sent']);
 
 /**
- * May this quote be re-issued from today (specs/ui-review-2026-10-19-operations.md rule 20)? Only an
+ * May this quote be re-issued from today (specs/design-system/ui-review-2026-10-19-operations.md rule 20)? Only an
  * EXPIRED quote that is still open: a converted quote is a reservation now, and an accepted one is
  * a promise already taken — re-dating either would re-price a stay the guest has agreed to.
  */

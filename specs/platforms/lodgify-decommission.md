@@ -7,7 +7,7 @@
 | **Created** | 2026-09-21 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Decision page** | [docs/specs/2026-09-21-lodgify-decommission.html](../docs/specs/2026-09-21-lodgify-decommission.html) — rule 14: [docs/specs/2026-10-22-booking-tombstone-owner.html](../docs/specs/2026-10-22-booking-tombstone-owner.html) |
+| **Decision page** | [docs/specs/2026-09-21-lodgify-decommission.html](../../docs/specs/2026-09-21-lodgify-decommission.html) — rule 14: [docs/specs/2026-10-22-booking-tombstone-owner.html](../../docs/specs/2026-10-22-booking-tombstone-owner.html) |
 
 ---
 
@@ -39,7 +39,7 @@ Three facts shape the work:
    channel booking would be **duplicated** at the first native sync.
 3. **Booking.com labels every unavailable date `CLOSED - Not available` in its iCal export, real
    reservations included.** `isUnavailableIcalEvent`
-   ([icalParser.js](../server/src/utils/icalParser.js)) drops that summary on purpose, because on
+   ([icalParser.js](../../server/src/utils/icalParser.js)) drops that summary on purpose, because on
    Airbnb and Vrbo it only means a host block. On a Booking feed it would drop **every Booking
    reservation**: GuestFlow would never know about them, and its export would leave those dates open
    on every other channel — an overbooking machine.
@@ -87,7 +87,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 4bis. **Booking re-issuing a UID.** The Booking feed has no guest name, so the summary fallbacks are
    blind there. A Booking event with no mapping re-claims this source's own stay with the exact same
    dates when that stay's UID has left the feed and it is the only one. The summary-based re-claim of
-   a moved stay (step 3.5, specs/ical-summary-fallback-cross-uid.md) is **off** on a Booking feed:
+   a moved stay (step 3.5, specs/platforms/ical-summary-fallback-cross-uid.md) is **off** on a Booking feed:
    every Booking event shares its summary, so a cancelled stay A and a new stay B arriving in the same
    sync would hand A's fiche — notes, payments — to B.
 
@@ -125,7 +125,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    `bookingConflictAt = now` — the existing conflict badge (fiche + calendar) and admin notification
    do the rest. An overlap is never silently dropped.
    > **Amended 2026-10-18:** every feed now flags an overlap the same way, and a date change that moves
-   > a stay onto taken nights too (`specs/ical-import-hardening.md` rule 3). The Booking feed alone
+   > a stay onto taken nights too (`specs/platforms/ical-import-hardening.md` rule 3). The Booking feed alone
    > still skips a full echo.
 9. Booking reservations created from the native feed have no guest name (the feed has none): client
    « Booking », platform `Booking`, as the empty-summary fallback already does today.
@@ -148,7 +148,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     > `PUT /api/properties/<id>/ical-sources/<sourceId>` carrying `isActive: false` — which is not a
     > procedure to leave in a runbook, hence the arbitration.
     >
-    > **Amended 2026-10-18 (`specs/ical-import-hardening.md` rule 2):** an inactive source is now
+    > **Amended 2026-10-18 (`specs/platforms/ical-import-hardening.md` rule 2):** an inactive source is now
     > stopped on every path — the row's « Synchroniser » is refused (`409 « Calendrier arrêté. »`),
     > and the platforms tab shows « Arrêté » without that button. The arbitration above (one control
     > that writes `isActive`, or `disabled` honoured by the hourly job) stays open.
@@ -218,7 +218,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 
 15. **A stay re-claimed under a new UID drops its pending cancellation alert** _(amendment
     2026-10-22, from the review of rule 14)_. When a stay leaves a feed, its mapping is dropped and a
-    cancellation alert waits for the operator (specs/ical-cancellation-approval.md). If the feed then
+    cancellation alert waits for the operator (specs/platforms/ical-cancellation-approval.md). If the feed then
     carries the same stay under a **new** UID and the sync re-claims the fiche (rule 4bis, or the
     date + original-summary fallback, which on a Booking feed matches every « CLOSED » stay), the
     alert left by the old UID is resolved in the same sync — exactly as an alert is resolved when the
@@ -247,9 +247,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     or global) is skipped, counted « ignoré (fermeture) », no mapping, no alert — the closure coming
     back from a channel. Anything else follows the normal path:
     - a new event only **partly** inside a closure is created and flagged `bookingConflictAt` (badge
-      and notification of `specs/ical-import-hardening.md` rule 3), on every feed;
+      and notification of `specs/platforms/ical-import-hardening.md` rule 3), on every feed;
     - a **known** stay its platform moves onto a closure is updated when pristine and flagged in
-      conflict, or, when locked, raises its date-drift alert (`specs/ical-sync-override-locked-dates.md`);
+      conflict, or, when locked, raises its date-drift alert (`specs/platforms/ical-sync-override-locked-dates.md`);
     - a closure counts as a taken range in the overlap check of rule 8 / hardening rule 3, so a stay
       moved off it loses the flag (hardening rule 13).
     **Why:** the 2026-06-06 guard dropped every overlapping event before the matching cascade. A stay
@@ -842,7 +842,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     exists at 15 %, and no future Abritel stay exists at all — which makes this the cheapest
     possible moment to cut that channel.
   - *Handover.* The state of the world and the ordered remainder of the Abritel job are written in
-    [`docs/rapports/2026-10-16-abritel-handover.md`](../docs/rapports/2026-10-16-abritel-handover.md),
+    [`docs/rapports/2026-10-16-abritel-handover.md`](../../docs/rapports/2026-10-16-abritel-handover.md),
     for a session that picks the channel up from here.
 
 - 2026-10-16 (later the same morning) — **the three findings above are closed, and one of them bit
@@ -970,7 +970,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *Consequence: Google.* The Solio properties no longer appear in Google's « Locations de
     vacances » results. A lodging Business Profile has no booking-link field, so the only way back
     is a direct Google Vacation Rentals connection. The interest form was sent on 2026-10-26, and
-    GuestFlow's feed is the `google-vacation-rentals` plugin (`specs/google-vacation-rentals-feed.md`,
+    GuestFlow's feed is the `google-vacation-rentals` plugin (`specs/site/google-vacation-rentals-feed.md`,
     §11 holds the steps to resume when Google answers).
 
 - 2026-10-27 — **Abritel: the tent found online with no calendar import, then switched over.**

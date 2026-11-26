@@ -1,5 +1,5 @@
 /**
- * SQLite copies the hosting needs without stopping anyone (specs/hosting-h1-fleet-runtime.md rules
+ * SQLite copies the hosting needs without stopping anyone (specs/hosting/hosting-h1-fleet-runtime.md rules
  * 10, 13, 14): the online backup API of better-sqlite3 for a consistent copy of a live database, and
  * the check a restored copy must pass.
  */

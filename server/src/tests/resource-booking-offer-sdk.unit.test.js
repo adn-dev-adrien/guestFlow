@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 15, 29, 36, 53 (SDK 2.33.0, generic — it names no consumer): what the core gained so a plugin can book an outside session for another —
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 15, 29, 36, 53 (SDK 2.33.0, generic — it names no consumer): what the core gained so a plugin can book an outside session for another —
 // the booking offer a plugin declares and the core hands out, the prepaid source's optional `unused` call and its words, and the sale document paid in part by money an instrument
 // already collected (`takePrepaid`): filed on the lines it names, off the books, never taken for caisse-interne money, readable line by line.
 process.env.DB_PATH = ':memory:';

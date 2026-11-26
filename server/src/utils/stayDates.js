@@ -1,7 +1,7 @@
 /**
  * The one guard on a stay's dates, shared by every internal write and quote: reservation create and
  * update, restoring a duplicate set aside, an approved iCal date drift, devis create / update / extend /
- * convert, and the price preview (specs/reservations-backend-mvc.md rule 11).
+ * convert, and the price preview (specs/tech/reservations-backend-mvc.md rule 11).
  *
  * Each date is `YYYY-MM-DD` and a real calendar day (`2027-02-30` is not), and the departure follows
  * the arrival. A reversed or zero-night stay priced at 0 € and freed its nights for a second booking,
@@ -22,7 +22,7 @@ const INVALID_STAY_DATES = 'INVALID_STAY_DATES';
 const DATE_INVALID_MESSAGE = 'Date de séjour invalide.';
 const ORDER_MESSAGE = "La date de départ doit suivre la date d'arrivée.";
 const TOO_LONG_MESSAGE = 'Séjour trop long.';
-/** specs/reservations-backend-mvc.md rule 13 — Adrien's decision of 2026-11-02. */
+/** specs/tech/reservations-backend-mvc.md rule 13 — Adrien's decision of 2026-11-02. */
 const MAX_HORIZON_YEARS = 5;
 const HORIZON_MESSAGE = `Date trop lointaine : ${MAX_HORIZON_YEARS} ans au plus.`;
 /** The past side of the window — Adrien's decision of 2026-11-02, second reading of rule 13. */

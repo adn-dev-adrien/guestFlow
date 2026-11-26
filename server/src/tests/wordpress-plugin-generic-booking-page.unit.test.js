@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rules 25-26 — the generic booking page (no lodging fixed on its block):
+// specs/site/wordpress-plugin.md rules 25-26 — the generic booking page (no lodging fixed on its block):
 // the way back from the payment page shows that payment's status, never the lodging cards, and the
 // page found automatically is never a lodging's own page. PHP, so the suite checks the shapes that
 // carry it; the behaviour itself is exercised on a real WordPress (spec §7).

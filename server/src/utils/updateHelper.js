@@ -1,5 +1,5 @@
 /**
- * Spawning the detached swap helper (specs/self-update-and-releases.md §3.E rule 28).
+ * Spawning the detached swap helper (specs/hosting/self-update-and-releases.md §3.E rule 28).
  *
  * The helper must survive the PM2 restart it triggers, and a new *session* is not enough for that.
  * PM2 stops a process with `treekill` (its default): it walks the descendants of the process it is

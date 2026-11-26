@@ -32,29 +32,29 @@ Three consequences, all visible in daily operation:
    unpaid solde is noticed, the stay is 6 days away, the dates cannot be resold, and no cancellation
    is realistically possible.
 3. **Nothing is ever chased.** `computePaymentStatus`
-   ([paymentStatus.js:30-31](../server/src/utils/paymentStatus.js#L30-L31)) already computes
+   ([paymentStatus.js:30-31](../../server/src/utils/paymentStatus.js#L30-L31)) already computes
    `depositOverdue` / `balanceOverdue`, but **no screen consumes them**: rule 3 of
-   [dashboard-collection-alert.md](dashboard-collection-alert.md) deliberately excludes acompte and
+   [dashboard-collection-alert.md](../planning/dashboard-collection-alert.md) deliberately excludes acompte and
    solde from the dashboard's red signal ("chasing a late direct-booking balance belongs to the
    Finances page"), and the Finances page only *lists* a « Reste à payer » — it never says *late*.
    An unpaid direct booking can therefore reach its arrival date without a single alert.
 
 What already exists and is reused rather than rebuilt:
 
-- **Payment links + request emails.** [`paymentRequestService`](../server/src/utils/paymentRequestService.js)
+- **Payment links + request emails.** [`paymentRequestService`](../../server/src/utils/paymentRequestService.js)
   mints a Qonto link and sends `deposit_request` / `balance_request`
-  ([defaultEmailTemplatesRegistry.js:394-424](../server/src/utils/defaultEmailTemplatesRegistry.js#L394-L424)).
+  ([defaultEmailTemplatesRegistry.js:394-424](../../server/src/utils/defaultEmailTemplatesRegistry.js#L394-L424)).
 - **A daily solde pass.** [`balanceRequestRunner`](../server/src/utils/balanceRequestRunner.js) already
   emails the solde request at `balanceDueDate` — but **only** for reservations whose acompte was paid
   online (`payment_links.type = 'deposit' AND status = 'paid'`), i.e. only the public-website funnel.
 - **Two scheduling anchors for templates.** `email_templates.anchor` ∈ `start` | `validUntil`
-  ([emailLogModel.js:77-134](../server/src/models/emailLogModel.js#L77-L134)).
+  ([emailLogModel.js:77-134](../../server/src/models/emailLogModel.js#L77-L134)).
 - **A cancellation-indemnity register.** [cancellation-compensation.md](cancellation-compensation.md)
   shipped `cancellation_compensations`, the `75880000` / VAT-0 % settings, the dashboard card and the
   accounting entry (`direction: 'compensation'`). It was built for the money a *platform* pays back —
   but a **retained acompte after a désistement has exactly the same legal nature** (indemnity, outside
   the scope of VAT — CJUE *Société thermale d'Eugénie-les-Bains*, C-277/05, already cited in
-  [database.js:1142-1148](../server/src/database.js#L1142-L1148)).
+  [database.js:1142-1148](../../server/src/database.js#L1142-L1148)).
 - **An « avoir » register.** [reservation-refunds.md](reservation-refunds.md) books a dated credit
   note that mirrors an encaissement (`direction: 'refund'`) without touching the sale.
 
@@ -96,10 +96,10 @@ acompte is kept as an indemnity, and the books say so correctly.
 ### 3.0 Scope
 
 1. Everything in this spec applies to **direct-channel reservations only**
-   (`isDirectChannel(platform)`, [platformNameFormat.js:62](../server/src/utils/platformNameFormat.js#L62))
+   (`isDirectChannel(platform)`, [platformNameFormat.js:62](../../server/src/utils/platformNameFormat.js#L62))
    with `kind = 'reservation'`. Platform bookings (Airbnb / Booking / Lodgify…) are settled by the
    platform after the stay and carry no acompte
-   ([accounting-platform-commission-and-no-deposit.md](accounting-platform-commission-and-no-deposit.md));
+   ([accounting-platform-commission-and-no-deposit.md](../accounting/accounting-platform-commission-and-no-deposit.md));
    they never produce a deadline alert, a dunning email or a cancellation proposal.
 2. A reservation with `depositDisabled = 1`
    ([disable-deposit-per-reservation.md](disable-deposit-per-reservation.md)) has no acompte step:
@@ -123,7 +123,7 @@ acompte is kept as an indemnity, and the books say so correctly.
    conversion day), and the reservation's later saves keep it while its arrival stays the one quoted.
 6. `depositDueDate` is `NULL` when there is no acompte to collect (`depositDisabled`,
    `depositAmount = 0`, or a non-direct platform).
-   **Amended 2026-10-28** (specs/settings-input-guards.md rules 9, 11-12, 15): `depositDueDays` is a
+   **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 9, 11-12, 15): `depositDueDays` is a
    whole number from 0 to 30, refused (400) otherwise; 0 means « due on the booking day » (« à la
    réservation »), with no blocking (A1 = label only).
 
@@ -136,7 +136,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 9. **Late booking** (arrival less than `balanceDaysBefore` days away): the clamp of rule 7 makes the
    solde due on the booking day itself — acompte and solde are both immediately payable.
 10. `balanceDueDate` is `NULL` when `balanceAmount = 0` (nothing left to collect pre-arrival).
-   **Amended 2026-10-28** (specs/settings-input-guards.md rules 10-12): `balanceDaysBefore` is a whole
+   **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 10-12): `balanceDaysBefore` is a whole
    number from 0 to 60, refused (400) otherwise — no more silent fallback to 30 on a negative.
 
 ### 3.3 Cancellation deadline
@@ -151,12 +151,12 @@ acompte is kept as an indemnity, and the books say so correctly.
 13. The cancellation action is offered **only while `today < startDate`**. From the arrival day on,
     the row stays visible as an unpaid-arrival warning with no cancel button — cancelling a stay whose
     guest is at the door is not a decision the dashboard should suggest.
-    **Amended 2026-10-28** (specs/settings-input-guards.md rules 10-12): `cancelAfterBalanceDueDays` is a
+    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 10-12): `cancelAfterBalanceDueDays` is a
     whole number from 0 to 60, refused (400) otherwise.
 
 ### 3.4 Dashboard alert
 
-> 2026-10-19 (`specs/shell-and-home-day-first.md` rules 3, 6): the card is one of the two subjects
+> 2026-10-19 (`specs/planning/shell-and-home-day-first.md` rules 3, 6): the card is one of the two subjects
 > pinned unfolded above the day; its title, count, « N en retard · M à demander » and severity are
 > built by `GET /api/dashboard/attention`, and it is drawn by `AttentionCard`.
 
@@ -167,7 +167,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     forgotten — nothing else will send one.
 15. Six **guest-money** row states, most severe first. (The card also carries the two platform states
     `platform_payout_overdue` and `platform_amount_missing` shipped by
-    [platform-payout-due-date.md](platform-payout-due-date.md); they describe money owed *by* an OTA,
+    [platform-payout-due-date.md](../platforms/platform-payout-due-date.md); they describe money owed *by* an OTA,
     rank below every state here, and this amendment does not touch them.) A `*_to_request` state means
     the guest **has never been asked** for that money — `requestSent` is false, i.e. no `email_log` row
     with status `sent` for the matching request template. It always wins over the `*_overdue` twin: one
@@ -204,7 +204,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     disappears on its own).
 19. The card is **hidden for a reception-only user** and its endpoint refuses that role — it carries
     amounts and client names, like the « Paiements » column
-    ([reception-role-checkin-only.md](reception-role-checkin-only.md) §3.3).
+    ([reception-role-checkin-only.md](../sas/reception-role-checkin-only.md) §3.3).
 20. The card renders nothing when there is no row (no empty state, same as the iCal alerts).
 20bis. **Bounded list.** A stay whose `endDate` is more than 30 days in the past leaves the card. After
     a month of daily alerts the operator has seen it; the card is a to-do list, not an archive. The
@@ -231,7 +231,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     `tests/cancel-history-reason-french.unit.test.js`.
 24. **The dates are freed by construction.** Every operational query already filters
     `kind = 'reservation'` — availability check
-    ([reservationsModel.js:930](../server/src/models/reservationsModel.js#L930)), calendar, planning,
+    ([reservationsModel.js:930](../../server/src/models/reservationsModel.js#L930)), calendar, planning,
     laundry, linen, breakfast, resources, SAS, iCal export, Google Calendar, email queues. A row that
     leaves `kind = 'reservation'` therefore leaves all of them at once, with no query to hunt down and
     no risk of a forgotten one still blocking the dates. The Google Calendar event is deleted
@@ -269,7 +269,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     > retained money back later is a reduction of the indemnity, not a refund of the séjour: on the cancelled
     > stay the refund takes, after any collected money the cancellation did not requalify (a paid solde, still
     > booked 706 + VAT), the rest from the indemnity — debit 75880000 at its own rate (0 %), no 706, no VAT
-    > (specs/reservation-refunds.md rule 48). Only money collected can go back; the never-collected remainder
+    > (specs/payments/reservation-refunds.md rule 48). Only money collected can go back; the never-collected remainder
     > of the stay is not refundable. Revenue and VAT stay exact, the indemnity reads what was really kept.
 32. The avoir uses a **new refund method `retained`** (« Acompte conservé »), which is **book money**
     (unlike `internal`, which is off-books): it must appear in the journal. No bank movement is
@@ -282,7 +282,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     « Remboursements − 274,00 € », the exact opposite of what happened.)
     > **Reading of 2026-11-02 (audit R14-C1).** The fiche's payment ledger is such a reader: the `retained`
     > avoir is the row « Acompte conservé » (« Échéances conservées » for a plan), « Requalifié en indemnité le
-    > JJ/MM », not « Remboursement · Rendu le … » (specs/reservation-refunds.md rule 46, reading of 2026-11-02).
+    > JJ/MM », not « Remboursement · Rendu le … » (specs/payments/reservation-refunds.md rule 46, reading of 2026-11-02).
 33. The indemnity card gets a new `origin` field: `platform` (the existing iCal flow) or
     `retained_deposit` (this flow). The Comptabilité section and the dashboard card label it
     « Acompte conservé — annulation » and link to the cancelled reservation.
@@ -332,12 +332,12 @@ acompte is kept as an indemnity, and the books say so correctly.
     in both the manual pending queue (`emailLogModel.listPending`) and the auto-send cron
     (`emailAutoSendRunner`). A reservation with a NULL anchor date is never scheduled.
 42. All four respect the existing guarantees: per-reservation language
-    ([email-language-fr-en.md](email-language-fr-en.md)), `email_log` dedup (one send per
+    ([email-language-fr-en.md](../emails/email-language-fr-en.md)), `email_log` dedup (one send per
     template × reservation), silent skip when the client has no email, and no send for a cancelled
     reservation.
 43. New tokens for the bodies: `cancelOnDate` (the date the stay would be cancelled) and
     `retainedDepositAmount`. `depositDueDate`, `balanceDueDate`, `paymentLink` already
-    exist ([emailContextBuilder.js:360-364](../server/src/utils/emailContextBuilder.js#L360-L364)).
+    exist ([emailContextBuilder.js:360-364](../../server/src/utils/emailContextBuilder.js#L360-L364)).
 
     > **Corrigé le 2026-09-01** (relevé en écrivant `payment-email-contract.unit.test.js`) : la règle
     > annonçait un troisième jeton, `daysLate`, qui n'a jamais été construit — et qu'aucun corps
@@ -375,7 +375,7 @@ acompte is kept as an indemnity, and the books say so correctly.
   is cancelled, or 30 days after the departure (rule 20bis). The queue is a daily proposal, the card is
   the ledger of what is still owed.
 - **`requestSent` reads `email_log`, which is purged 3 days after the arrival**
-  ([email-history-rolling-window.md](email-history-rolling-window.md)). Harmless: every state that
+  ([email-history-rolling-window.md](../emails/email-history-rolling-window.md)). Harmless: every state that
   consumes it (`*_to_request`, `cancel_due`) is pre-arrival by construction, and `unpaid_at_arrival`
   — the only post-arrival state — does not look at it.
 - **A platform booking never produces a `*_to_request` row** and never enters the pending queue for a
@@ -400,7 +400,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 49. **`DELETE /api/reservations/:id` deletes a live, money-free stay only** _(added 2026-10-28, audit)_.
     The route used to bypass every guard of the fiche: it erased a cancelled stay with its refunds, a
     duplicate set aside, and a devis with its CGV acceptance (the FK cascade), though the fiche save
-    refuses all three (rule 25, `specs/terms-acceptance-record.md` rule 29). It now answers
+    refuses all three (rule 25, `specs/reservations/terms-acceptance-record.md` rule 29). It now answers
     `409 RESERVATION_NOT_DELETABLE` for any `kind` other than `reservation` (a devis is deleted from the
     Devis page; a cancelled stay is history), and `409 RESERVATION_CARRIES_MONEY` for a stay with any
     collected bucket (acompte, solde, complement, end-of-stay complement), a paid payment link, a paid
@@ -418,7 +418,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     `409 LINK_ALREADY_PAID`; a provider that cannot deactivate it (down, plugin off) answers
     `502 LINK_NOT_DEACTIVATED` and **nothing is deleted** (the links already deactivated stay cancelled).
     With **no provider at all** (plugin off) nothing can be asked: the links are marked
-    `remoteCancelPendingAt` for the poll's retry (`specs/plugins-phase-3a-online-payment.md` rule 8) and the
+    `remoteCancelPendingAt` for the poll's retry (`specs/plugins/plugins-phase-3a-online-payment.md` rule 8) and the
     delete goes on. **The guard is judged again after the awaits:** the poll can mark a link paid while the
     provider is being called, so the kind and `carriesMoney` are re-run synchronously, in the same
     transaction as the `DELETE` (`removeGuarded` on the reservations, clients and properties models); a stay
@@ -453,22 +453,22 @@ acompte is kept as an indemnity, and the books say so correctly.
       unused `DELETE FROM reservations` statement was removed.
 53. **A forced client or property delete never wipes protected history** _(added 2026-10-29, audit R2)_. The
     per-row routes refuse to delete a cancelled or set-aside stay (rule 25) and a devis that carries the CGV
-    acceptance of the stay it became (`specs/terms-acceptance-record.md` rule 29). The client delete (forced
+    acceptance of the stay it became (`specs/reservations/terms-acceptance-record.md` rule 29). The client delete (forced
     or not) and the property delete apply the same refusals to every row they would cascade
     (`deletionGuard.removesProtectedHistory`, judged again inside `removeGuarded`): `409 CLIENT_KEEPS_HISTORY` /
     `409 PROPERTY_KEEPS_HISTORY`, one short message per cause (« Ce client a une réservation annulée. »,
     « Ce client a une réservation écartée. », « Ce client a accepté des CGV. », and the same three for a
     property (« Ce logement a… », « …des CGV acceptées. »)). Money (rule 52) is judged first. The refusal is answered by the first, non-forced client
-    delete too, and the delete preview carries it as `blocker` (specs/clients.md rule 16). The client delete preview
+    delete too, and the delete preview carries it as `blocker` (specs/clients/clients.md rule 16). The client delete preview
     (`GET /api/clients/:id/delete-impact`) lists and counts what would really go, cancelled and set-aside
     stays included (each row carries its `kind`).
 54. **The schedule reads the booking day on the operator's calendar** _(added 2026-10-30, review of PR #899)_.
     `paymentSchedule.toIsoDay` keeps a date-only value as it is and reads a datetime through
     `vatRegime.bookingDayOf`: `createdAt` is a UTC timestamp, and its day is the local calendar day it fell
     on (Europe/Paris by default), the day the VAT regime and « today » already read
-    (`specs/devis-pdf-and-tourist-tax-fixes.md` rule 23, `specs/finance-dashboard-redesign.md` rule 37).
+    (`specs/devis/devis-pdf-and-tourist-tax-fixes.md` rule 23, `specs/accounting/finance-dashboard-redesign.md` rule 37).
     It covers every reader of a booking date in the schedule (acompte deadline, solde clamp, last-minute
-    threshold of `specs/deposit-blocks-the-dates.md` rule 4) on the devis and the reservation paths at
+    threshold of `specs/payments/deposit-blocks-the-dates.md` rule 4) on the devis and the reservation paths at
     once. *Why:* between 00:00 and 01:00 / 02:00 in Paris the first ten characters of `createdAt` are
     still yesterday. A devis created then (local day) flipped at its first unchanged save (UTC day): a stay
     booked 30 days out was sold as one single payment, then re-saved with a 30 % acompte and a solde due
@@ -478,7 +478,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     tourist tax. `cancelReservation` hands the stay's book refunds per bucket (`givenBack`) to
     `buildCancellationRequalification`, which keeps, bucket by bucket, only what they left: a paid solde absorbs
     them first (`saleCollected` = the bucket billed minus the acompte's share — the order rule 48 of
-    specs/reservation-refunds.md gives back a cancelled stay's money), the rest comes off the bucket's requalified
+    specs/payments/reservation-refunds.md gives back a cancelled stay's money), the rest comes off the bucket's requalified
     lines, the largest first (one line per installment and bucket on a plan), and what a bucket cannot hold comes
     off the other lines. The avoir, the indemnity card's `receivedAmount`, the history's « Acompte conservé » and
     `retainedDepositAmount` all carry that net amount; nothing left → no avoir and no card, as in rule 27. A
@@ -555,7 +555,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     > - **Only book money is requalified.** An acompte collected in the caisse interne (`depositPaidCash`) was never
     >   booked (`encaissementsByMonth` skips it): it writes no avoir line, no indemnity, and `retainedDepositAmount`
     >   leaves it out. A solde collected there absorbs no book refund (`saleCollected` is not read). That money is
-    >   given back in the caisse interne (specs/reservation-refunds.md rule 48, reading of the same day). *Why (probe
+    >   given back in the caisse interne (specs/payments/reservation-refunds.md rule 48, reading of the same day). *Why (probe
     >   P1):* acompte 274 € in caisse interne, cancelled → 70600000 +249,09 and 44571100 +24,91 debited on a sale
     >   never booked, 75880000 −274 for money off the books, and the register offered nothing.
     > - **The commissions withheld are requalified.** On the acompte and the solde paid to the books, the payment
@@ -573,7 +573,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     >   holding money, cancelled and given back whole, leave 706, 4457, 4671 and the client account at 0 (9 of them
     >   left revenue before). An avoir written before carries no `commission` line: past exports are byte-identical
     >   (all 36 months of 2025-2027, before and after the base code cancelled every paid stay of the shadow).
-    > - **The fiche deletes a refund made after the cancellation** (specs/reservation-refunds.md rule 6, reading of
+    > - **The fiche deletes a refund made after the cancellation** (specs/payments/reservation-refunds.md rule 6, reading of
     >   the same day): the second reading above said a cancelled fiche offered « Supprimer » on no refund; it now
     >   offers it on those, and still never on one the cancellation read, nor on the avoir, which the API refuses
     >   too (`REFUND_RETAINED_AVOIR`).
@@ -632,10 +632,10 @@ acompte is kept as an indemnity, and the books say so correctly.
     a 15-day validity) had its solde due first, the PDF asked for it first, and the converted reservation was
     listed « Solde à demander » then « À annuler » before its acompte fell due. Rule 47 capped only a
     reservation's fresh acompte. Such a devis now carries no acompte and owes ONE payment due on `validUntil`
-    (specs/deposit-blocks-the-dates.md rule 19); the conversion carries it (rule 5 amendment). Rule 47 for
+    (specs/payments/deposit-blocks-the-dates.md rule 19); the conversion carries it (rule 5 amendment). Rule 47 for
     reservations is unchanged.
     **Amended 2026-11-09 (audit R33 N1).** The devis's stored columns always say that single payment
-    (specs/deposit-blocks-the-dates.md rule 20: re-stored at boot and after a logement save, its stale links
+    (specs/payments/deposit-blocks-the-dates.md rule 20: re-stored at boot and after a logement save, its stale links
     withdrawn), so a conversion copies what the devis asks. One exception: an acompte link paid on columns that
     still held the acompte (before the re-store) converts at that stored split, the acompte paid.
     **Accepted 2026-11-09 (verification R33b, L3).** That stay keeps its stored split as it was: its acompte, paid,
@@ -643,13 +643,13 @@ acompte is kept as an indemnity, and the books say so correctly.
     date of a paid acompte (no dashboard card, no cancellation), so it is not rewritten.
 57. **A reservation keeps the single payment its devis promised** _(added 2026-11-09, audits R34-RES-L1 and
     R34-RES-L2)_. Rule 5's amendment held « later saves keep it » for a rule-56 devis only. A direct devis
-    stored with no acompte owes one payment on `validUntil` too (specs/deposit-blocks-the-dates.md rule 7): its
+    stored with no acompte owes one payment on `validUntil` too (specs/payments/deposit-blocks-the-dates.md rule 7): its
     converted stay now keeps that deadline across its saves while the arrival is the one quoted
     (deposit-blocks-the-dates rule 22), and the devis carrying the promise cannot be deleted while its stay
     exists (rule 21). A devis converted with an acompte outside the window is unchanged: the reservation rules
     apply at its saves. Rows stored before this rule keep their columns; their next save keeps the promise.
     **Decision D27 (Adrien, 2026-11-09): option (a).** The promise is kept, rows stored before this rule included
-    (production reservation 22306 stays due 23/10, see specs/deposit-blocks-the-dates.md rule 22). Once the stay
+    (production reservation 22306 stays due 23/10, see specs/payments/deposit-blocks-the-dates.md rule 22). Once the stay
     is cancelled its devis no longer holds a deadline and can be deleted (deposit-blocks-the-dates rule 23).
 58. **A settled mid-stay note and a held caution keep the stay** _(added 2026-11-10, audits R36-DB-M2 and
     R36-DB-L1)_. Rule 52's « carries money » also reads a stay whose `midStaySettledNotes` holds a note (a platform
@@ -757,7 +757,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     who had paid in full was told in writing the stay was cancelled for non-payment. Test:
     `tests/cancellation-notice-neutral-opening.unit.test.js`.
 
-> **Amendment 2026-11-12 — PR B of the pricing refonte** ([pricing-components.md](pricing-components.md) rule 78, owner
+> **Amendment 2026-11-12 — PR B of the pricing refonte** ([pricing-components.md](../pricing/pricing-components.md) rule 78, owner
 > O-9). The cancellation stores `reservations.cancellationKeptCents` and `cancellationIndemnityCents` and writes the
 > `refund_nettings` rows of the requalification avoir once; the notice reads the stored column (`storedKeptOf`)
 > instead of re-deriving the figure from the history. Backfilled from the `cancel` history entry (`keptFromGuest`,
@@ -996,13 +996,13 @@ leave guard then offered « Enregistrer et quitter » on a stay already cancelle
 - [x] `tests/devis-single-payment-by-validity.unit.test.js` (27, 2026-11-09, D23) — rules 5 amendment and 56: a
       devis 30 to 61 days out never owes its acompte after its solde, one payment due on `validUntil` inside the
       window, on the devis, its PDF, its link quote, its conversion and the converted stay's later saves; rule 47 for
-      a reservation unchanged (specs/deposit-blocks-the-dates.md rule 19).
+      a reservation unchanged (specs/payments/deposit-blocks-the-dates.md rule 19).
 - [x] `tests/devis-single-payment-restore.unit.test.js` (6, 2026-11-09, audit R33 N1) — rule 56 amendment: the
       stored columns re-stored as the single payment, an acompte link paid before the re-store converts at the
-      stored split (specs/deposit-blocks-the-dates.md rule 20).
+      stored split (specs/payments/deposit-blocks-the-dates.md rule 20).
 - [x] `tests/devis-converted-promise.unit.test.js` (6, 2026-11-09, audits R34-RES-L1, L2) — rule 57: the stay of
       a no-acompte devis keeps its single payment across saves, the devis carrying the promise is not deletable
-      while its stay exists (specs/deposit-blocks-the-dates.md rules 21, 22).
+      while its stay exists (specs/payments/deposit-blocks-the-dates.md rules 21, 22).
 - [x] `tests/stay-delete-settled-note.unit.test.js` (5, 2026-11-10, audit R36-DB-M2) — rule 58: a stay whose only
       money is a settled note is refused deletion, its client and logement too, an approved iCal cancellation keeps it
       cancelled, `stayMoney` reads it as money and nights held; no note, `[]` or blanks delete as before.

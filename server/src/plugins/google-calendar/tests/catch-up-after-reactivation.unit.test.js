@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 17 — a stay changed while the plugin was off sent no event the
+// specs/plugins/plugin-removal-resilience.md rule 17 — a stay changed while the plugin was off sent no event the
 // plugin could hear (the bus drops them while it is not live); its next reconcile pass pushes it.
 
 const test = require('node:test');

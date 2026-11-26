@@ -1,6 +1,6 @@
 /**
  * EmailManualSendDialog — a template with no English version, for an English-speaking guest
- * (specs/email-language-fr-en.md rule 9, operator decision of 2026-10-27): the dialog says so and
+ * (specs/emails/email-language-fr-en.md rule 9, operator decision of 2026-10-27): the dialog says so and
  * refuses to send; the template list marks it.
  */
 

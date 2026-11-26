@@ -1,5 +1,5 @@
 /**
- * SalePaymentLink — the « Envoyer un lien » block of a sale's reste (specs/outside-booking-sas.md rules 39-42): a Qonto payment link for what is still owed, shown, copied
+ * SalePaymentLink — the « Envoyer un lien » block of a sale's reste (specs/sas/outside-booking-sas.md rules 39-42): a Qonto payment link for what is still owed, shown, copied
  * and sent only by the operator's click. Generic: it renders the server's `paymentLink` payload and tells its parent what was clicked; the amount of a link is the server's
  * SETTLEMENT reste, never typed here.
  *

@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rules 3, 5, 10–12 — the « À traiter » box and the pinned cards draw
+// specs/planning/shell-and-home-day-first.md rules 3, 5, 10–12 — the « À traiter » box and the pinned cards draw
 // the server's subjects in the server's order; a row unfolds its subject's content in place.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

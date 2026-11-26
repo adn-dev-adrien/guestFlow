@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rule 25 — the home's day lists never hide a column: Départs and
+// specs/planning/shell-and-home-day-first.md rule 25 — the home's day lists never hide a column: Départs and
 // Arrivées switch to their cards TOGETHER as soon as their container cannot hold the arrivals table
 // (940 px), whatever the viewport.
 import React from 'react';

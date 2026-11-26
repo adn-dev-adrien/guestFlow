@@ -13,11 +13,11 @@
 ## 1. Context
 
 GuestFlow already records every email it sends in the `email_log` table
-([database.js:1049](../server/src/database.js#L1049)) — sent / failed / acknowledged-skip, with the
+([database.js:1049](../../server/src/database.js#L1049)) — sent / failed / acknowledged-skip, with the
 rendered subject + body, recipient, channel (`smtp` | `manual`). A read-only **history page already
 exists** at `/emails/historique` ([EmailHistoryPage.js](../client/src/pages/EmailHistoryPage.js)),
 reachable via the "Voir l'historique" button on the Emails page, backed by `emailLogModel.history()`
-([emailLogModel.js:88](../server/src/models/emailLogModel.js#L88)) and `GET /api/emails/history`.
+([emailLogModel.js:88](../../server/src/models/emailLogModel.js#L88)) and `GET /api/emails/history`.
 
 Two gaps vs. what the operator wants:
 - The history is an **unbounded audit** — it shows every send ever, ordered by `sentAt DESC`. The operator

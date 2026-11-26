@@ -1,5 +1,5 @@
 /**
- * Default email templates registry (specs/email-automation.md §3 rule 6).
+ * Default email templates registry (specs/emails/email-automation.md §3 rule 6).
  *
  * This is the **single source of truth** for every default template GuestFlow ships out
  * of the box. Each entry is a self-contained object — adding a new default email is
@@ -21,7 +21,7 @@
  * Supported tokens + conditional flags live in `utils/emailContextBuilder.js`.
  */
 
-// The six emails of the guest email sequence live in their own module (specs/guest-email-sequence.md
+// The six emails of the guest email sequence live in their own module (specs/emails/guest-email-sequence.md
 // §6.1). The historical constant names stay exported: migrations and tests key on them.
 const SEQUENCE = require('./guestEmailSequenceTemplates');
 
@@ -32,7 +32,7 @@ const ARRIVAL_REMINDER_1D_BODY_EN = SEQUENCE.J2_BODY_EN;
 const RESERVATION_CONFIRMATION_BODY = SEQUENCE.CONFIRMATION_BODY;
 const RESERVATION_CONFIRMATION_BODY_EN = SEQUENCE.CONFIRMATION_BODY_EN;
 
-// specs/payment-link-lifecycle.md rule 36 — every link a guest receives is valid 36 hours: the e-mail says
+// specs/payments/payment-link-lifecycle.md rule 36 — every link a guest receives is valid 36 hours: the e-mail says
 // until when, on the line right after the link. Rule 59 — in a block of its own, guarded by the flag the
 // sender sets with the date: a release that knows neither the token nor the flag (a rollback) drops the line
 // instead of writing « valable jusqu'au . ». Never nested: the renderer is single-level, so in a template
@@ -100,7 +100,7 @@ const DEPOSIT_REQUEST_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
-// Balance request — sent when only the acompte was collected online (specs/public-online-deposit.md):
+// Balance request — sent when only the acompte was collected online (specs/site/public-online-deposit.md):
 // automatically by the daily balance cron at the due date, and on demand by the host « Envoyer la
 // demande de solde » action. The payment link is injected per-send as {{paymentLink}} (extraContext).
 const BALANCE_REQUEST_BODY = [
@@ -150,7 +150,7 @@ const BALANCE_REQUEST_BODY_EN = [
 // Deposit reminder — MANUAL, anchored on the devis validity date (validUntil). Surfaces in the manual
 // pending queue for an open, deposit-unpaid devis; the host sends it by hand. Re-offers the existing
 // open deposit link, injected at send time as {{paymentLink}} (emailsController.buildPreview).
-// specs/payment-schedule-and-cancellation.md §3.7 rule 37 — the acompte reminder used to be scheduled
+// specs/payments/payment-schedule-and-cancellation.md §3.7 rule 37 — the acompte reminder used to be scheduled
 // off the devis validity date; it now fires on the acompte's own due date, which is anchored on the
 // BOOKING day. The copy therefore speaks of a confirmed reservation whose acompte is due, not of a
 // quote about to expire.
@@ -207,7 +207,7 @@ const DEPOSIT_REMINDER_BODY_EN = [
 ].join('\n');
 
 
-// specs/payment-schedule-and-cancellation.md §3.7 rule 39 — the solde was requested at J-30 and has
+// specs/payments/payment-schedule-and-cancellation.md §3.7 rule 39 — the solde was requested at J-30 and has
 // not arrived. This is the last message before the stay is cancelled: it names the exact date and
 // says plainly what happens to the acompte.
 const BALANCE_REMINDER_BODY = [
@@ -262,7 +262,7 @@ const BALANCE_REMINDER_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
-// specs/payment-schedule-and-cancellation.md §3.7 rule 40 — sent the moment the operator confirms the
+// specs/payments/payment-schedule-and-cancellation.md §3.7 rule 40 — sent the moment the operator confirms the
 // cancellation. The retained block only renders when something was actually kept: cancelling a reservation whose
 // acompte never arrived keeps nothing (rule 27). Rule 61 — it names « la somme », the cancellation's own figure: an
 // acompte, the échéances of a plan, a commission withheld. Rule 63 — it gives no reason: the same notice follows a
@@ -288,7 +288,7 @@ const CANCELLATION_NOTICE_BODY = [
   '{{senderName}}',
 ].join('\n');
 
-// specs/payment-link-lifecycle.md rules 44-45 — the guest whose payment request lost its dates to another stay is told
+// specs/payments/payment-link-lifecycle.md rules 44-45 — the guest whose payment request lost its dates to another stay is told
 // at once, by its one sender (utils/datesTakenNotice.js): warm and short, no link, no amount, nothing to sell.
 const DATES_UNAVAILABLE_NOTICE_BODY = [
   'Bonjour {{clientFirstName}},',
@@ -334,7 +334,7 @@ const CANCELLATION_NOTICE_BODY_EN = [
 ].join('\n');
 
 // Full-payment request — a last-minute stay owes ONE payment, so there is no acompte to ask for
-// (specs/deposit-blocks-the-dates.md rules 8 + 11). `{{paymentAmount}}` is the amount the Qonto link
+// (specs/payments/deposit-blocks-the-dates.md rules 8 + 11). `{{paymentAmount}}` is the amount the Qonto link
 // actually charges, injected per-send like `{{paymentLink}}`.
 const FULL_REQUEST_BODY = [
   'Bonjour {{clientFirstName}},',
@@ -385,7 +385,7 @@ const FULL_REQUEST_BODY_EN = [
 ].join('\n');
 
 // Installment request — one email per installment of a direct reservation's plan
-// (specs/direct-installments.md rules 18-21). `{{installmentSchedule}}` lists the whole plan; the link,
+// (specs/payments/direct-installments.md rules 18-21). `{{installmentSchedule}}` lists the whole plan; the link,
 // created per installment at its exact amount, is injected per-send like `{{paymentLink}}`.
 const INSTALLMENT_REQUEST_BODY = [
   'Bonjour {{clientFirstName}},',
@@ -444,10 +444,10 @@ const VISIT_PAYMENT_REQUEST_BODY_EN = [
 ].join('\n');
 
 const DEFAULT_TEMPLATES = Object.freeze([
-  // Guest email sequence (specs/guest-email-sequence.md §3.1). Scheduled by
+  // Guest email sequence (specs/emails/guest-email-sequence.md §3.1). Scheduled by
   // utils/guestEmailSequenceRunner and sent through the ledger. They ship « manual »: each one
   // leaves on its own only once the operator switches ITS template to « auto »
-  // (specs/settings-rationalization.md rule 17b) — until then it waits in the pending queue.
+  // (specs/settings/settings-rationalization.md rule 17b) — until then it waits in the pending queue.
   Object.freeze({
     stableKey: 'arrival_reminder_7d',
     name:      'Séquence — J-7 préparation',
@@ -637,7 +637,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // the model's exclusion and the senders stay in sync.
 const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'installment_request', 'cancellation_notice', 'dates_unavailable_notice', 'visit_payment_request']);
 
-// Every template that asks a guest for money (specs/payment-schedule-and-cancellation.md §1 amendment,
+// Every template that asks a guest for money (specs/payments/payment-schedule-and-cancellation.md §1 amendment,
 // rule 44). None of them may ever carry `sendMode: 'auto'`: a dunning email is a commercial act the
 // server cannot judge — it cannot know the acompte arrived by transfer this morning or that a delay was
 // agreed by phone. A request leaves on an operator click (dashboard card / reservation page); a reminder

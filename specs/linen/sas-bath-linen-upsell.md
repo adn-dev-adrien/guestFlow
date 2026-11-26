@@ -8,21 +8,23 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** SAS code moved to the `sas` plugin: `server/src/plugins/sas/controller.js`, `client/src/plugins/sas/ReservationSasDialog.jsx`; paths refreshed.
+
 ---
 
 ## 1. Context
 
-The **arrival SAS** ([ReservationSasDialog.js](../client/src/components/sas/ReservationSasDialog.js),
-[sasController.js](../server/src/controllers/sasController.js), spec
-[arrival-departure-sas.md](arrival-departure-sas.md)) already upsells **cleaning** when the reservation
+The **arrival SAS** ([ReservationSasDialog.js](../../client/src/plugins/sas/ReservationSasDialog.jsx),
+[plugins/sas/controller.js](../../server/src/plugins/sas/controller.js), spec
+[arrival-departure-sas.md](../sas/arrival-departure-sas.md)) already upsells **cleaning** when the reservation
 didn't include it: the « Ménage » page shows the property cleaning price and, on « Ajouter le ménage »,
-adds a line to the **arrival complement** ([reservationsModel.commitArrivalSas](../server/src/models/reservationsModel.js#L1111)).
+adds a line to the **arrival complement** ([reservationsModel.commitArrivalSas](../../server/src/models/reservationsModel.js#L1111)).
 
 **Bath linen** (« Linge de toilette ») is a catalogue option seeded with `autoOptionType = 'bathroom_linen'`
-([bathroomLinenSeed.js](../server/src/utils/bathroomLinenSeed.js)); Adrien prices it **`per_person`**. When a
+([bathroomLinenSeed.js](../../server/src/utils/bathroomLinenSeed.js)); Adrien prices it **`per_person`**. When a
 guest books it, the reservation pricing engine bills `persons × unitPrice`
-([pricing.js](../server/src/utils/pricing.js#L226) `getTypeMultiplier`, `per_person → persons`), with the
-per-property price override applied ([property_option_prices](per-property-option-prices.md)).
+([pricing.js](../../server/src/utils/pricing.js#L226) `getTypeMultiplier`, `per_person → persons`), with the
+per-property price override applied ([property_option_prices](../options/per-property-option-prices.md)).
 
 Today, if the guest **did not** take bath linen, nothing in the SAS lets the operator propose it on the spot.
 The operator wants the same upsell as for cleaning: **offer it or not**, priced **per person like the
@@ -37,13 +39,13 @@ check-in** on the recap, never at the moment the option is selected.
 > toilette » / « Non merci »**. When added, the line joins the **arrival complement** and is settled on the
 > recap like everything else; choosing **« En fin de séjour »** there defers the whole complement to check-out
 > via the existing unpaid-arrival-complement recall
-> ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)). The
+> ([recall-unpaid-arrival-complement-at-checkout.md](../sas/recall-unpaid-arrival-complement-at-checkout.md)). The
 > dedicated end-of-stay bath-linen routing is retired (§3.2). The check-out display of any **legacy** deferred
 > line already written by an old commit is preserved (§3.3).
 
 The reservation already has two distinct complements (spec
-[cash-complement-and-endofstay-finance.md](cash-complement-and-endofstay-finance.md),
-[recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)):
+[cash-complement-and-endofstay-finance.md](../sas/cash-complement-and-endofstay-finance.md),
+[recall-unpaid-arrival-complement-at-checkout.md](../sas/recall-unpaid-arrival-complement-at-checkout.md)):
 
 - **Arrival complement** — `complementAmount` / `complementPaid` / `complementPaidCash` (caisse interne).
   Items are `reservation_custom_options` with `inComplement = 1`, `sasArrivalOrigin = 1`.
@@ -71,7 +73,7 @@ option step.
    `bathroom_linen` catalogue option, applies the **per-property price override** (`property_option_prices`,
    else `options.price`), and bills `unitPrice × getTypeMultiplier(option.priceType, persons, nights)` with
    `quantity = 1`, rounded to 2 decimals. `persons = adults + teens + children` (**babies excluded**), exactly
-   as [pricing.js](../server/src/utils/pricing.js#L1062). For Adrien's `per_person` option this is
+   as [pricing.js](../../server/src/utils/pricing.js#L1062). For Adrien's `per_person` option this is
    `persons × unitPrice`; the rule respects whatever `priceType` the option carries so it never diverges from
    the engine.
 3. The SAS payload exposes the resolved bath-linen offer as `bathLinen: { available, unitPrice, priceType,
@@ -97,15 +99,15 @@ option step.
    > aggregators (they join `reservation_options → options WHERE countsAsBathroomLinen = 1`), so the towels
    > sold at check-in were never prepared nor deducted from the stock. The client now sends the intent
    > (`bathLinenAdded`) instead of a `complementItems` line. See
-   > [sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md).
+   > [sas-upsells-activate-catalogue-option.md](../sas/sas-upsells-activate-catalogue-option.md).
 7. **Règlement on the recap (not on the step).** The operator settles the whole arrival complement — bath
    linen included — with the recap's `PaymentModeButtons` (**CB/Chèque · Payé en liquide · En fin de séjour**,
-   spec [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)), which opens **pre-selected on
+   spec [sas-recap-payment-buttons.md](../sas/sas-recap-payment-buttons.md)), which opens **pre-selected on
    « En fin de séjour »**. **« En fin de séjour »** leaves the complement unpaid so it is recalled at check-out
-   ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)) — this
+   ([recall-unpaid-arrival-complement-at-checkout.md](../sas/recall-unpaid-arrival-complement-at-checkout.md)) — this
    is how bath linen is now deferred, without a dedicated end-of-stay routing. *(2026-10-27 spec review:
    when the recap settles the stay in the same payment, that button reads « Plus tard » —
-   [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md) rule 1.)*
+   [sas-recap-payment-buttons.md](../sas/sas-recap-payment-buttons.md) rule 1.)*
 8. **Retired end-of-stay routing + idempotency.** The arrival SAS **no longer writes** a
    `source='arrivalBathLinen'` line into `endOfStayComplementDetail`. `commitArrivalSas` still receives
    `endOfStayBathLinen`, but the client always sends **`false`** when the step is shown, so any **legacy**
@@ -131,7 +133,7 @@ option step.
 
 ### 3.4 Spec sync
 
-10. This spec plus [arrival-departure-sas.md](arrival-departure-sas.md) (add the new page to §3.1 and the
+10. This spec plus [arrival-departure-sas.md](../sas/arrival-departure-sas.md) (add the new page to §3.1 and the
     complement wiring to §3.3) are updated in the same PR. The page-order list, the API payload, and the
     end-of-stay recap fix are recorded there.
     > **Sans test** — a documentation obligation on the PR that shipped the spec, not a behaviour.
@@ -142,7 +144,7 @@ option step.
 - `complementPaid = 1` (arrival complement already settled) + « Ajouter » → the recap keeps its existing
   frozen-complement warning (« encaisser le supplément manuellement »); the operator collects the delta by
   hand, as for any other line added after the complement was marked paid. **Amended 2026-11-12**
-  ([arrival-departure-sas.md](arrival-departure-sas.md) rules 34-36): the row is written and the delta rides the end-of-stay
+  ([arrival-departure-sas.md](../sas/arrival-departure-sas.md) rules 34-36): the row is written and the delta rides the end-of-stay
   complement (« Ajouté au complément de fin de séjour : X € »); taking the line out again while that end of stay is collected is refused.
 - Re-open arrival SAS after the departure SAS already ran: the `source` tag is preserved through the departure
   commit (rule 9), so the arrival re-open still recognises and replaces its own line.
@@ -161,7 +163,7 @@ option step.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `models/` | `models/reservationsModel.js` | T | New `getBathLinenOfferForReservation(reservation)` — resolves the `bathroom_linen` option, per-property override, engine `priceType` multiplier, `persons`, returns `{ available, unitPrice, priceType, persons, nights, amount, label }`. `commitArrivalSas` gains an `endOfStayBathLinen` input: remove any `source='arrivalBathLinen'` line from `endOfStayComplementDetail`, optionally re-insert the current one, recompute `endOfStayComplementAmount`. |
-| `controllers/` | `controllers/sasController.js` | T | `getSas` adds `bathLinen: model.getBathLinenOfferForReservation(reservation)` to the payload. `commitArrival` forwards the new `endOfStayBathLinen` field (label + amount or null). |
+| `controllers/` | `plugins/sas/controller.js` | T | `getSas` adds `bathLinen: model.getBathLinenOfferForReservation(reservation)` to the payload. `commitArrival` forwards the new `endOfStayBathLinen` field (label + amount or null). |
 | `utils/` | `utils/pricing.js` | REUSE | `getTypeMultiplier` reused by the offer resolver so the per-person math never diverges from the engine. |
 | `models/` | `models/optionsModel.js` / `property_option_prices` | REUSE | Same per-property override lookup pattern as `getCleaningPriceForProperty`. |
 | `database.js` | `database.js` | — | **No migration** — reuses existing columns (`endOfStayComplementAmount/Detail`, `reservation_custom_options.inComplement/sasArrivalOrigin`). |
@@ -175,7 +177,7 @@ option step.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | `components/sas/ReservationSasDialog.js` | T | `bathLinen` step in `activeKeys` (arrival, after `cleaning`, when `data.bathLinen?.available`); page render + **2 buttons** (« Ajouter le linge de toilette » / « Non merci »); in-memory `bathLinenAdded` boolean; when added, pushes a line into `arrivalAddedLines` (arrival complement); the arrival commit always sends `endOfStayBathLinen: false` when the step is shown (drops legacy deferred lines). **Departure recap** (rule 9, legacy): read `source='arrivalBathLinen'` into a displayed `carriedEndOfStayLines` bucket, add to `endOfStayTotal`, re-send on commit. Re-open pre-fill: « added » is set from the `sasArrivalOrigin` line OR a legacy deferred line. |
+| `components/` | `plugins/sas/ReservationSasDialog.jsx` | T | `bathLinen` step in `activeKeys` (arrival, after `cleaning`, when `data.bathLinen?.available`); page render + **2 buttons** (« Ajouter le linge de toilette » / « Non merci »); in-memory `bathLinenAdded` boolean; when added, pushes a line into `arrivalAddedLines` (arrival complement); the arrival commit always sends `endOfStayBathLinen: false` when the step is shown (drops legacy deferred lines). **Departure recap** (rule 9, legacy): read `source='arrivalBathLinen'` into a displayed `carriedEndOfStayLines` bucket, add to `endOfStayTotal`, re-send on commit. Re-open pre-fill: « added » is set from the `sasArrivalOrigin` line OR a legacy deferred line. |
 | `services/` | `services/api.js` | — | `commitArrivalSas` already passes the whole payload object through; the new field rides along. |
 
 **Component reuse declaration (mandatory):**
@@ -245,7 +247,7 @@ reservations.
       `source='arrivalBathLinen'` line (kept in the detail + counted in the authoritative amount) when the
       operator runs the departure SAS.
 
-### Client IHM tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.js`)
+### Client IHM tests (vitest, `plugins/sas/__tests__/ReservationSasDialog.arrival.test.jsx`)
 - [x] Arrival: bath-linen page shows when `bathLinen.available`; « Ajouter le linge de toilette » adds the
       « Linge de toilette » line to `complementItems`, the recap total includes it, the recap règlement buttons
       (incl. « En fin de séjour ») are present, and `endOfStayBathLinen` is `false`.

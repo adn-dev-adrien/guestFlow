@@ -1,4 +1,4 @@
-// specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9, audit R22-1) — growth of a stay
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9, audit R22-1) — growth of a stay
 // after solde and arrival complement are paid is claimed on the end-of-stay complement once the buckets are known to
 // have agreed: the solde's contribs are captured and the pre-arrival money is settled. A legacy row stays unjudged.
 process.env.DB_PATH = ':memory:';

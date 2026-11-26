@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// specs/translation-catalogue.md rule 19 — the screens stop asking for translations. That is half of
+// specs/site/translation-catalogue.md rule 19 — the screens stop asking for translations. That is half of
 // what this change is for: the option and resource dialogs get shorter, and the one place to
 // translate is the file.
 //

@@ -15,7 +15,7 @@ function readCookie(req, name) {
   }
 }
 
-// The shared login page on `app.<domain>` (specs/control-plane-plans-and-access.md rules 24, 25, 27).
+// The shared login page on `app.<domain>` (specs/hosting/control-plane-plans-and-access.md rules 24, 25, 27).
 // Thin: the lookup is the login controller's; this file speaks HTML, forms and one cookie.
 function publicRoutes(ctx, { secureCookies = false } = {}) {
   const router = express.Router();

@@ -1,5 +1,5 @@
 /**
- * Phase P one-shot migration `productisation_v1` (specs/plugins-phase-p-productisation.md §3.E rules
+ * Phase P one-shot migration `productisation_v1` (specs/plugins/plugins-phase-p-productisation.md §3.E rules
  * 24–25): an existing database keeps, as data, every sentence the code wrote before phase P.
  *
  * This file is the only place in the product that knows Solio's wording, its catering seed keys and
@@ -297,7 +297,7 @@ function writeResourceSentences(db) {
 }
 
 function writeSettings(db, env) {
-  // Lodgify was hard-coded as a direct channel (specs/plugins-phase-p-productisation.md rule 19).
+  // Lodgify was hard-coded as a direct channel (specs/plugins/plugins-phase-p-productisation.md rule 19).
   // The platform row may be spelt « Lodgify » or « lodgify »: mark it whatever its case, and add one
   // only when none exists.
   const isLodgify = "LOWER(TRIM(name)) = 'lodgify'";

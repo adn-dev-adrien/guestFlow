@@ -7,7 +7,7 @@
 | **Created** | 2026-08-20 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [online-payments-qonto.md](online-payments-qonto.md) §3.7 (the last-minute rule, specified 2026-06-11 and still unimplemented), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) (acompte/solde deadlines), [public-online-deposit.md](public-online-deposit.md) (the deposit/full mode the website reads), [devis-english-language.md](devis-english-language.md) (the FR/EN label maps) |
+| **Related** | [online-payments-qonto.md](online-payments-qonto.md) §3.7 (the last-minute rule, specified 2026-06-11 and still unimplemented), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) (acompte/solde deadlines), [public-online-deposit.md](../site/public-online-deposit.md) (the deposit/full mode the website reads), [devis-english-language.md](../devis/devis-english-language.md) (the FR/EN label maps) |
 
 ---
 
@@ -15,21 +15,21 @@
 
 A quote promises dates. **What actually holds them is the deposit** — the app already behaves that way:
 a paid deposit link converts the devis into a reservation and blocks the dates
-([paymentPollRunner.js](../server/src/utils/paymentPollRunner.js) `applyPaidEffect`), and the deposit
+([paymentPollRunner.js](../../server/src/utils/paymentPollRunner.js) `applyPaidEffect`), and the deposit
 request email says it in as many words: *« le règlement de l'acompte bloque vos dates. Tant qu'il n'est
 pas payé, les dates restent disponibles et peuvent être réservées par un autre client. »*
-([defaultEmailTemplatesRegistry.js:230](../server/src/utils/defaultEmailTemplatesRegistry.js#L230)).
+([defaultEmailTemplatesRegistry.js:230](../../server/src/utils/defaultEmailTemplatesRegistry.js#L230)).
 
 **The quote itself never says it.** The PDF's « MODALITÉS DE RÈGLEMENT » block prints an amount and a
-deadline ([devisPdf.js:645](../server/src/utils/devisPdf.js#L645)) and nothing else — a guest reads a
+deadline ([devisPdf.js:645](../../server/src/utils/devisPdf.js#L645)) and nothing else — a guest reads a
 date, not a condition, and believes the stay is held.
 
 Second, related hole: **the last-minute rule was specified and never built.** [online-payments-qonto.md
 §3.7](online-payments-qonto.md) rule 18 says a stay starting inside the property's `balanceDaysBefore`
 window (30 days — already enforced on every property by the `balance_days_before_30_v1` migration,
-[database.js:1329](../server/src/database.js#L1329)) must drop the deposit and ask for the **full
+[database.js:1329](../../server/src/database.js#L1329)) must drop the deposit and ask for the **full
 amount in one payment**. Its checklist entry is still unticked, and nothing in
-[pricing.js](../server/src/utils/pricing.js) implements it. Today a quote issued 10 days before arrival
+[pricing.js](../../server/src/utils/pricing.js) implements it. Today a quote issued 10 days before arrival
 carries an acompte due on the quote's validity date **and** a solde due the day the quote was written —
 two deadlines for a stay that should simply be paid in full, once.
 
@@ -52,10 +52,10 @@ booking is settled by the platform and carries no such promise.
 
    Wording deliberately mirrors the `deposit_request` email so a guest reads the same sentence twice.
 2. **Fixed copy, not a setting.** Both strings live in
-   [devisPdfLabels.js](../server/src/utils/devisPdfLabels.js) like every other PDF literal — no new
+   [devisPdfLabels.js](../../server/src/utils/devisPdfLabels.js) like every other PDF literal — no new
    `app_settings` column, no operator input. The existing free-text quote footer is unaffected.
 3. **Direct channel only.** The mention is printed when `isDirectChannel(devis.platform)` is true
-   (`direct` + `Lodgify`, per [platformNameFormat.js](../server/src/utils/platformNameFormat.js) — never
+   (`direct` + `Lodgify`, per [platformNameFormat.js](../../server/src/utils/platformNameFormat.js) — never
    a `platform === 'direct'` string test). A quote carrying an OTA name prints the current block,
    unchanged and mention-free: the platform holds the dates, not us.
 
@@ -79,7 +79,7 @@ booking is settled by the platform and carries no such promise.
    6. otherwise → the usual `depositPercent` split.
 7. **Deadline of the single payment.** A **devis** owes it on its **validity date** (`validUntil`) —
    the day up to which the quote promises the dates, exactly as the acompte does today
-   ([paymentSchedule.js](../server/src/utils/paymentSchedule.js) rule 5. Printing the quote's issue day
+   ([paymentSchedule.js](../../server/src/utils/paymentSchedule.js) rule 5. Printing the quote's issue day
    instead, which the raw solde clamp would produce, would contradict the « Valable jusqu'au » pill on
    the same page). A **reservation** keeps the current solde derivation (`startDate −
    balanceDaysBefore`, clamped to the booking day).
@@ -107,7 +107,7 @@ booking is settled by the platform and carries no such promise.
 13. **The email announces what the link charges.** _(Amended 2026-08-20, during implementation: the
     guard first written here was unnecessary — the acompte reminder is anchored on `depositDueDate`,
     whose branch already filters `depositAmount > 0` and the direct channel
-    ([emailLogModel.js:93](../server/src/models/emailLogModel.js#L93)). The devis branch must keep
+    ([emailLogModel.js:93](../../server/src/models/emailLogModel.js#L93)). The devis branch must keep
     listing a last-minute quote, which still owes money.)_ The real gap was the amount: the email
     context exposed only `{{depositAmount}}` and `{{finalPrice}}` (tourist tax excluded) while the
     Qonto link charges stay + tax. The sender therefore injects **`{{paymentAmount}}`** — the link's
@@ -122,18 +122,18 @@ booking is settled by the platform and carries no such promise.
 15. **`balanceDaysBefore` stays operator-owned.** The 30-day policy is already applied in production by
     `balance_days_before_30_v1`; this spec adds no migration and no new setting. The value to verify per
     property is the « solde X jours avant » field of *Paramètres → logement → Acompte & solde*.
-16. **The public website follows for free.** [public-online-deposit.md](public-online-deposit.md) rule 2
+16. **The public website follows for free.** [public-online-deposit.md](../site/public-online-deposit.md) rule 2
     already resolves the payment mode as `deposit` only when `depositAmount > 0`; a last-minute stay
     therefore falls back to `full` — one charge, no Acompte/Solde lines — with no plugin change. Covered
     by a test, not by new code.
-    **Amended 2026-10-28** (specs/settings-input-guards.md rules 15, 21): `depositDueDays = 0` reads « à la
+    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 15, 21): `depositDueDays = 0` reads « à la
     réservation »; the website path is unchanged and nothing blocks the operator's paths (A1 = label only).
 
 **Edge cases:**
 - Stay starting **exactly** on the threshold (30 days out) → last-minute, full payment
   ([online-payments-qonto.md §3.7](online-payments-qonto.md) edge case, kept verbatim).
 - No `bookingDate` (stateless public preview) → no switch. The public quote controller already injects
-  `getTodayIsoDate()` ([publicQuoteController.js:73](../server/src/controllers/public/publicQuoteController.js#L73)),
+  `getTodayIsoDate()` ([publicQuoteController.js:73](../../server/src/plugins/website-booking/controllers/publicQuoteController.js#L73)),
   so the site and the devis it later creates agree.
 - Devis with no dates yet → no switch (nothing to compare), no mention beyond the acompte one.
 - Devis converted to a reservation → the stored split (deposit 0) is copied as-is; no acompte resurrects.
@@ -144,7 +144,7 @@ booking is settled by the platform and carries no such promise.
 **Review fixes (2026-10-18, mega review #5)**
 
 17. **A re-issued devis owes its single payment on its new validity date** (2026-10-18, mega review #5).
-    When a save re-issues an expired devis (`specs/devis-extras-parity-and-price-lock.md` rule 14), the
+    When a save re-issues an expired devis (`specs/devis/devis-extras-parity-and-price-lock.md` rule 14), the
     quote's due dates are computed from the validity date the save writes, never from the expired one
     it replaces. *Why:* after a save the fiche said « À payer avant : 08/10/2026 » while the PDF said
     02/11.
@@ -370,7 +370,7 @@ booking is settled by the platform and carries no such promise.
 **No schema change.** No new column, no index, no migration block.
 
 - `full_request` is inserted by the existing idempotent boot seed
-  ([defaultEmailTemplatesSeed.js](../server/src/utils/defaultEmailTemplatesSeed.js)) — insert-if-missing,
+  ([defaultEmailTemplatesSeed.js](../../server/src/utils/defaultEmailTemplatesSeed.js)) — insert-if-missing,
   operator edits never overwritten.
 - `balanceDaysBefore` is already 30 everywhere via `balance_days_before_30_v1`; this spec neither
   re-runs nor changes it.
@@ -417,7 +417,7 @@ envoyée ✓ » or « Demande de paiement envoyée ✓ » depending on what the 
 summary needs no change: a 0 € acompte already renders as no acompte.
 
 **Responsive:** no new screen surface. The action bar already collapses per
-[CLAUDE.md §7](../CLAUDE.md); the PDF is a fixed-width document.
+[CLAUDE.md §7](../../CLAUDE.md); the PDF is a fixed-width document.
 
 ## 7. Test plan
 
@@ -505,7 +505,7 @@ summary needs no change: a 0 € acompte already renders as no acompte.
 - **Renaming « Solde » on screen** (fiche finance, dashboard, accounting) for a last-minute stay. The
   amounts are right; only the PDF, which the guest reads, gets the new wording.
 - **Automatic dunning for the full payment.** No `full_reminder` template, no cron: per
-  [CLAUDE.md](../CLAUDE.md) and the no-automatic-dunning rule, money is chased by the operator.
+  [CLAUDE.md](../../CLAUDE.md) and the no-automatic-dunning rule, money is chased by the operator.
 - **Retroactive recompute** of existing devis/reservations (rule 14).
 - **Making the deposit gate the conversion in the app.** Marking the acompte received already converts
   the devis and blocks the dates; « Accepté » still converts on the operator's decision, by design.

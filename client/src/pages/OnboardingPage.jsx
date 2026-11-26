@@ -1,8 +1,8 @@
 /**
- * OnboardingPage — `/demarrage`, the start assistant (specs/plugins-phase-p-productisation.md §3.D
+ * OnboardingPage — `/demarrage`, the start assistant (specs/plugins/plugins-phase-p-productisation.md §3.D
  * rules 20–23). Five steps: Entreprise, Premier logement, Plugins (three yes/no questions the server
  * maps to plugins — rule 43; absent when the operator manages the plugins), Emails
- * (specs/guest-email-texts-made-simple.md rule 21), C'est prêt. Every step is
+ * (specs/emails/guest-email-texts-made-simple.md rule 21), C'est prêt. Every step is
  * validated and saved by the server when « Suivant » is pressed; an error keeps the step open.
  * « Plus tard » closes the assistant and keeps what was saved.
  *
@@ -23,7 +23,7 @@ import ErrorAlert from '../components/ErrorAlert';
 import OnboardingEmailsStep from '../components/OnboardingEmailsStep';
 import ReadinessList, { targetUrl } from '../components/ReadinessList';
 
-// specs/plugin-operator-provisioning.md rule 8 — an operator-managed space has no « Plugins » step.
+// specs/plugins/plugin-operator-provisioning.md rule 8 — an operator-managed space has no « Plugins » step.
 const ALL_STEPS = [
   { key: 'company', title: 'Entreprise' },
   { key: 'property', title: 'Premier logement' },
@@ -69,7 +69,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   // Rule 28 — the properties the instance already has, when the assistant did not create them.
   const [existingProperties, setExistingProperties] = useState(0);
   const [loginEmail, setLoginEmail] = useState('');
-  // specs/hosting-h2-account-security.md rule 37 — the login changes only when this is ticked, and
+  // specs/hosting/hosting-h2-account-security.md rule 37 — the login changes only when this is ticked, and
   // the box is offered only over the bootstrap login (the server says which).
   const [canAdoptLogin, setCanAdoptLogin] = useState(false);
   const [useAsLogin, setUseAsLogin] = useState(false);
@@ -190,7 +190,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     setFailure('');
     try {
       if (currentKey === 'company') {
-        // specs/hosting-h2-account-security.md rules 27, 37 — the company email becomes the login of
+        // specs/hosting/hosting-h2-account-security.md rules 27, 37 — the company email becomes the login of
         // the bootstrap account only when the box is ticked; the step says so once.
         const saved = await api.saveOnboardingCompany({
           ...company,

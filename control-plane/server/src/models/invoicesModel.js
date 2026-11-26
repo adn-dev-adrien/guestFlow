@@ -1,5 +1,5 @@
 /**
- * Invoices of a customer (specs/control-plane-plans-and-access.md rules 15, 17, 19, 34).
+ * Invoices of a customer (specs/hosting/control-plane-plans-and-access.md rules 15, 17, 19, 34).
  *
  * - `manual`: a payment the operator recorded by hand, born `paid`.
  * - `qonto`: the renewal invoice. `pending` until Qonto holds both the invoice and its payment link

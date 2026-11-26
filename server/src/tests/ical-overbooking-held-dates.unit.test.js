@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 38, 39 (§9 Q9) — the platform is the authority on its own booking: an iCal
+// specs/payments/payment-link-lifecycle.md rules 38, 39 (§9 Q9) — the platform is the authority on its own booking: an iCal
 // stay on nights another stay holds is still recorded, stamped `bookingConflictAt`, and the alert calls it an
 // over-booking, naming the stay that holds the nights. Approving an iCal date drift onto held nights is warned first.
 

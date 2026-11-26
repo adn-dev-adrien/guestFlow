@@ -1,4 +1,4 @@
-// specs/settings.md rule 8 (audit R24-I1, 2026-11-05) — the logo picker offers PNG and JPEG only, the formats the server
+// specs/settings/settings.md rule 8 (audit R24-I1, 2026-11-05) — the logo picker offers PNG and JPEG only, the formats the server
 // accepts, and says so under the field.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

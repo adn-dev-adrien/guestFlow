@@ -1,5 +1,5 @@
 /**
- * Article family `fixed` — one price per unit sold, whatever the stay (specs/pricing-components.md §3 rule 47).
+ * Article family `fixed` — one price per unit sold, whatever the stay (specs/pricing/pricing-components.md §3 rule 47).
  *
  * Contract: `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
  * `price` returns `{ quantity, unitPrice, billedUnits, typed, components, allowanceUsed, amounts }` before the head

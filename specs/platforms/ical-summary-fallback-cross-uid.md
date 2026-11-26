@@ -19,7 +19,7 @@ fails to recognise the move and produces two side-effects:
 1. The new event lands as a **fresh reservation** at the new dates (no link to the original).
 2. The old mapping becomes stale → the old reservation is either silently deleted (legacy
    master) or surfaces as a "to delete" Dashboard alert (since
-   [PR #106](specs/ical-cancellation-approval.md)). In neither case is the user told that
+   [PR #106](ical-cancellation-approval.md)). In neither case is the user told that
    the new reservation and the old one are **the same booking that moved**.
 
 The user has no audit trail, no Dashboard date-drift card, and (worse) any manual edits
@@ -66,7 +66,7 @@ the existing reservation** instead of inserting a duplicate + dropping the old o
 The existing date-drift detection then kicks in naturally: the reservation's persisted
 dates differ from the event's new dates → full update if unlocked, orange
 "Modifications de dates iCal" Dashboard card if locked
-([PR #104](specs/ical-sync-override-locked-dates.md)).
+([PR #104](ical-sync-override-locked-dates.md)).
 
 No new DB tables, no new endpoints, no new UI. One new SQL prepared statement, one new
 step in the existing cascade, gated by a uniqueness check to stay fail-safe on platforms
@@ -128,13 +128,13 @@ that ship generic summaries.
 7. **Never on a summary that names nobody** *(fixed at the 2026-10-27 audit)*. Step 3.5 is skipped
    when `parseGuestName(event.summary, event.description).isFallback` is true — Airbnb's « Reserved »,
    Gîtes de France's « BOOKED », any summary made only of the platform words of
-   `specs/ical-import-hardening.md` rules 8 and 11. Such a summary is shared by every stay of the feed,
+   `specs/platforms/ical-import-hardening.md` rules 8 and 11. Such a summary is shared by every stay of the feed,
    so guard (b) does not protect it: when guest A cancels and guest B books in the same sync, A is the
    one stale candidate and B inherited A's fiche — moved to B's dates without a word when unlocked;
    when locked, B was never created (its nights stayed open in the export to every other channel) and
    only a misleading date-drift alert appeared. Now B is created and A goes to the cancellation
    approval; a nameless stay moved under a new UID takes the same path, which loses nothing. The
-   Booking feed already had this exclusion (`specs/lodgify-decommission.md` rule 4bis).
+   Booking feed already had this exclusion (`specs/platforms/lodgify-decommission.md` rule 4bis).
 
 **Edge cases:**
 - **Summary normalisation collision**: two real bookings with the SAME numeric ID across
@@ -242,7 +242,7 @@ No client surface touched. Behaviourally, the user sees:
 No new test file; no rename.
 
 - [x] `tests/ical-nameless-summary-matching.unit.test.js` (rule 7, 2026-10-27 audit, 6 cases shared with
-  `specs/ical-import-hardening.md` rule 15): Airbnb « Reserved » and GdF « BOOKED » — a cancelled stay
+  `specs/platforms/ical-import-hardening.md` rule 15): Airbnb « Reserved » and GdF « BOOKED » — a cancelled stay
   keeps its dates, the new one is created, the old one gets its cancellation alert; locked: the new stay
   is created and exported, no drift alert; a named summary still re-claims a moved stay.
 

@@ -1,11 +1,11 @@
-// specs/direct-installments.md rule 46, reading of 2026-11-01 (audit R13-M1) — cancelling a stay paid through
+// specs/payments/direct-installments.md rule 46, reading of 2026-11-01 (audit R13-M1) — cancelling a stay paid through
 // an installment plan reverses each bucket the installments were booked on (their frozen `paidSplit`, rule 47),
 // not the whole stay part on « Location gîte ». The avoir used to put options and resources on the
 // accommodation line: 70600000 went negative, 70600010 kept revenue for a stay that never happened, and the
-// refund register still offered the requalified options (specs/reservation-refunds.md rule 45).
+// refund register still offered the requalified options (specs/payments/reservation-refunds.md rule 45).
 // Reading of 2026-11-01 after review: one avoir line per paid installment and bucket, split HT / VAT line by
-// line like each encaissement, so every account nets to the cent (specs/reservation-refunds.md rule 47); the
-// register tells requalified money apart and spreads a bucket by largest remainder (specs/reservation-refunds.md rule 46).
+// line like each encaissement, so every account nets to the cent (specs/payments/reservation-refunds.md rule 47); the
+// register tells requalified money apart and spreads a bucket by largest remainder (specs/payments/reservation-refunds.md rule 46).
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');

@@ -12,7 +12,7 @@
 > **Superseded for the shipped copy** (noted at the 2026-10-27 spec review). The default templates this
 > spec wrote — the default bed-linen message of the J-1/J-2 — are no longer shipped: the guest-email-sequence rewrite (rule 29: the complement
 > is one sentence, no list) and the neutral templates of phase P (#672,
-> specs/plugins-phase-p-productisation.md, specs/guest-email-texts-made-simple.md) replaced them. The
+> specs/plugins/plugins-phase-p-productisation.md, specs/emails/guest-email-texts-made-simple.md) replaced them. The
 > mechanics stay: the linen tokens still exists for a template of the operator's own. Read the rules below as
 > history for the copy.
 ---

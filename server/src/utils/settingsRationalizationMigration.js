@@ -1,5 +1,5 @@
 /**
- * Settings rationalization — schema and data migration (specs/settings-rationalization.md §5).
+ * Settings rationalization — schema and data migration (specs/settings/settings-rationalization.md §5).
  *
  * Three steps, in this order, every one safe to re-run:
  *   1. Email identity (rule 12) — once, recorded in `migrations`: a sending address, SMTP login,

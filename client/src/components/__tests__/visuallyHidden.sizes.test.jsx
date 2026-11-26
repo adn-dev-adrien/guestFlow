@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 35 — the screen-reader-only spans are 1px boxes: in MUI `sx`, a bare
+// specs/design-system/ui-review-2026-10-19-operations.md rule 35 — the screen-reader-only spans are 1px boxes: in MUI `sx`, a bare
 // `width: 1` is 100% and `margin: -1` is -8px, which stretched the settings pages to a horizontal scroll.
 import React from 'react';
 import { vi } from 'vitest';

@@ -10,9 +10,9 @@ const path = require('path');
 const { GF_SERVER } = require('./gf');
 
 function createFirstAdminRunner({ serverDir = GF_SERVER } = {}) {
-  // `release` — the server directory of the instance's own version (specs/hosting-h1-fleet-runtime.md
+  // `release` — the server directory of the instance's own version (specs/hosting/hosting-h1-fleet-runtime.md
   // H-D4): the script must be the one of the code that runs the database.
-  // `company`, `establishment` and `reissue` (specs/hosting-h1-fleet-runtime.md rules 24–25): a
+  // `company`, `establishment` and `reissue` (specs/hosting/hosting-h1-fleet-runtime.md rules 24–25): a
   // script of an older release ignores them.
   return function runFirstAdmin({ dbPath, email, name, company, establishment, reissue, serverDir: release }) {
     const dir = release || serverDir;

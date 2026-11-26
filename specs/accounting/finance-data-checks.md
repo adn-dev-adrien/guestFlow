@@ -83,7 +83,7 @@ look, how many, and opens each one from the list.
    optional control (platform-payment-entry rule 5) whose gaps the reconciliation already shows. No overlap with
    booking-intake's « À compléter », which lists stays not started yet.
    **Reading of 2026-11-16:** a finished stay is locked and its payout often already received; since
-   [platform-statement-after-payout.md](platform-statement-after-payout.md) the statement opens from the payout row's
+   [platform-statement-after-payout.md](../platforms/platform-statement-after-payout.md) the statement opens from the payout row's
    amount in both cases, so every line of this check can be cleared from the fiche without unlocking it.
 9. **`guest-name-missing` — « Séjours terminés sans nom de voyageur ».** A stay of rule 5 whose client is an iCal
    placeholder by `utils/placeholderClient.isPlaceholderClient` (« Ical … », or the platform's own words such as

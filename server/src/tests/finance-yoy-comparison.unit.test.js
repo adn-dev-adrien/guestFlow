@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 8, 10, 11 and 13 — the dashboard's
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 8, 10, 11 and 13 — the dashboard's
 // `comparison`: the headline figures against the comparable part of the window a year back, read by
 // the functions that compute the figures themselves, with their source.
 // The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar

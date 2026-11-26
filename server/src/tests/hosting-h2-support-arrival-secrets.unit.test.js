@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 18 — a support session cannot change the sender name
+// specs/hosting/hosting-h2-account-security.md rule 18 — a support session cannot change the sender name
 // through the start assistant (PUT /api/onboarding/emails), nor a property's access code or Wi-Fi
 // password, whether the start assistant or the property page writes them. The other fields of those
 // forms stay open to it.

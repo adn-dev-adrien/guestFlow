@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rules 15 and 21 — depositDueDays = 0 reads « due at booking » and
+// specs/settings/settings-input-guards.md rules 15 and 21 — depositDueDays = 0 reads « due at booking » and
 // blocks nothing (arbitration A1 = label only).
 
 const test = require('node:test');

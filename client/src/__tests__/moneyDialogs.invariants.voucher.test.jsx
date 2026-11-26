@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58, specs/gift-voucher-campaigns.md rules 41, 52 — the money-dialog invariants I1-I6, generated: « Nouveau bon »
+// specs/plugins/plugins-phase-1-sdk.md rule 58, specs/gift-vouchers/gift-voucher-campaigns.md rules 41, 52 — the money-dialog invariants I1-I6, generated: « Nouveau bon »
 // (`NewVoucherPage`): the server's price of the campaign chosen, its extra time and add-ons, and « Créer le bon ». The driver and the invariants
 // are in `moneyDialogsHarness.jsx`.
 import React from 'react';
@@ -42,7 +42,7 @@ function priceOf(body) {
   const totalCents = lines.reduce((sum, l) => sum + l.totalCents, 0);
   return { lines, totalCents, vat: [{ rate: 20, cents: Math.round((9000 + extra + drinks) / 6) }, { rate: 10, cents: 173 }] };
 }
-// specs/gift-voucher-campaigns.md rule 64: the extras sit in a fold, closed by default; the page is « ready » once the fold has been opened.
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 64: the extras sit in a fold, closed by default; the page is « ready » once the fold has been opened.
 const foldOpened = () => {
   const head = [...document.querySelectorAll('button[aria-expanded]')].find((b) => /Ajouter au bon/.test(b.getAttribute('aria-label') || ''));
   if (head && head.getAttribute('aria-expanded') === 'false') fireEvent.click(head);

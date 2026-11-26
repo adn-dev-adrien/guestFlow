@@ -1,6 +1,6 @@
 /**
  * ClientPickerField — pick a client from a server-ordered, grouped list, searchable by typing
- * (specs/resource-booking-client-picker.md §3, §6).
+ * (specs/resources/resource-booking-client-picker.md §3, §6).
  *
  * The options come from `GET /api/clients/picker` as they are: the order, the groups, the line under
  * each name and the searchable text are the server's. This component only renders them and keeps the

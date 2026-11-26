@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 12-16, 29 — the studio's Domotique screen: the channel, the six blocks in the
+// specs/guest-app/guest-app-home-automation.md rules 12-16, 29 — the studio's Domotique screen: the channel, the six blocks in the
 // lodging's order, the pickers the server shaped, « Pilotable » only for a light entrusted in Sowel, the server's
 // refusals inline (live, through the preview) and on save.
 import {

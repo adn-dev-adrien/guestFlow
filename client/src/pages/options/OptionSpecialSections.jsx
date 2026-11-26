@@ -1,6 +1,6 @@
 /**
  * The type-specific blocks of the option editor, moved unchanged from the former OptionsPage
- * (specs/options-resources-ux.md §4.2): the breakfast time and notice, the planning card, the bed-linen
+ * (specs/options/options-resources-ux.md §4.2): the breakfast time and notice, the planning card, the bed-linen
  * and towel settings of the linen plugin, the bath-mat quantities, the progressive tiers.
  * Each takes `{ form, setForm }` (and `properties` where it lists them); module-level so inputs keep focus.
  */
@@ -28,7 +28,7 @@ export function normalizeProgressiveTiers(raw) {
 }
 
 
-// Breakfast default time (specs/breakfast-time.md) + push notice (specs/sas-breakfast-bread-and-
+// Breakfast default time (specs/options/breakfast-time.md) + push notice (specs/sas-breakfast-bread-and-
 // push.md rule 7). Rendered only for the breakfast-typed option. The HH:MM value pre-fills the
 // "Heure souhaitée" field on each reservation that enables breakfast, and drives the planning
 // sort/display when a reservation has no per-reservation override.
@@ -66,7 +66,7 @@ export function BreakfastTimeField({ form, setForm }) {
 }
 
 
-// Option-driven planning cards (specs/option-planning-card.md §3.1 + §6). A toggle reveals the
+// Option-driven planning cards (specs/options/option-planning-card.md §3.1 + §6). A toggle reveals the
 // repetition mode: « Une fois » (a single default date + one time) or « Chaque jour du séjour »
 // (a list of time slots — the slot count is the number of cards per day). All values are defaults,
 // editable per reservation on the fiche. Module-level so the inputs keep focus across renders.
@@ -250,7 +250,7 @@ export function ProgressivePricingFields({ form, setForm }) {
 }
 
 
-// Bed-linen per-type checkboxes (specs/weekly-bed-linen-tracking.md §3.5.ter). Rendered
+// Bed-linen per-type checkboxes (specs/linen/weekly-bed-linen-tracking.md §3.5.ter). Rendered
 // exclusively when editing an option that carries `countsAsBedLinen = 1` — i.e. the seeded
 // "Linge de lit" by default. Each unchecked type is excluded from the LaundryDayCard counter
 // (the SQL aggregates with CASE WHEN includes_<type> = 1 …).
@@ -283,7 +283,7 @@ export function BedLinenIncludesFields({ form, setForm }) {
 }
 
 
-// Bathroom-linen per-person multipliers (specs/weekly-bed-linen-tracking.md §3.5.ter). Three
+// Bathroom-linen per-person multipliers (specs/linen/weekly-bed-linen-tracking.md §3.5.ter). Three
 // non-negative integers: how many of each towel size are provided per person. A zero hides that
 // size from the LaundryDayCard line at render time (rule 13.bis).
 export function BathroomTowelCountsFields({ form, setForm }) {
@@ -339,7 +339,7 @@ export function BathroomTowelCountsFields({ form, setForm }) {
 }
 
 
-// Bath-mat per-property quantity (specs/laundry-bath-mat.md §6). One integer field per applicable
+// Bath-mat per-property quantity (specs/linen/laundry-bath-mat.md §6). One integer field per applicable
 // property: how many bath mats one stay of that property sends to the laundry. Flat per stay (not
 // per person), counted when the "Tapis de bain" option is active on the reservation. Rendered only
 // when editing the option that carries `countsAsBathMat = 1` (the typed seed). Mirrors the

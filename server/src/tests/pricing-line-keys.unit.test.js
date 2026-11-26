@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 85 (line key scheme) — the resolver of utils/pricing/lineKeys.js.
+// specs/pricing/pricing-components.md §3 rule 85 (line key scheme) — the resolver of utils/pricing/lineKeys.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { lineRef, parseLineRef, keyLines, lineIdentityOf, resolveLineKey, articleKeyOf } = require('../utils/pricing/lineKeys');

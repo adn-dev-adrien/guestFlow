@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1 = R45-DB-L1) — a
+// specs/payments/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1 = R45-DB-L1) — a
 // cancellation confirmed with the optional « Motif » left empty stored the derived key (`unpaid_balance`) on its
 // history entry, and « Voir historique » printed « Motif : vide → unpaid_balance ». The key reads French at read time,
 // the stored row untouched; a reason the operator typed reads as typed.

@@ -45,7 +45,7 @@ the top bar says which page is open.
 
 1. The home reads, top to bottom: the page bar → the **pinned** subjects → « Départs » →
    « Arrivées » → the box « **À traiter** (n) » → the month calendar. Departures stay before arrivals
-   (specs/reception-role-checkin-only.md §6). A reception account sees the two lists only, as before.
+   (specs/sas/reception-role-checkin-only.md §6). A reception account sees the two lists only, as before.
    > **Amended 2026-10-28 (dashboard-planning-scroll.md rules 4–6):** the bar carries no date; the
    > lists are « Départs du jour » / « Arrivées du jour », and an empty list folds to one line.
 2. **The KPI tiles leave the home** (decision 1). Each figure stays reachable elsewhere, so nothing is
@@ -161,7 +161,7 @@ the top bar says which page is open.
     saisir ».
 22. **A plugin package built for SDK < 1.4.0 keeps its home alert.** The payload lists every key it
     asked (`declared`); a `dashboard.alerts(.urgent)` contribution whose key is not among them is
-    rendered as before, in card mode under the pinned subjects (`specs/plugins-phase-1-sdk.md` §3.C,
+    rendered as before, in card mode under the pinned subjects (`specs/plugins/plugins-phase-1-sdk.md` §3.C,
     note of 2026-10-19). The SDK 1.4.0 plugins state `guestflow >=3.10.0`, the convention of the 1.2.0
     bump (the core version of the branch that ships the SDK).
 23. **A phone page bar with one icon action gives it to the top bar** (integrated review of inte/plugins,

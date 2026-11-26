@@ -13,7 +13,7 @@
  *   - label?:    ReactNode          optional content rendered right of the swatch (e.g. the platform name)
  *   - title?:    string             tooltip on the swatch (default "Changer la couleur")
  *   - error?:    string             the server's refusal of the colour, shown under the swatch
- *                                   (specs/calendar-property-parity.md rule 7)
+ *                                   (specs/planning/calendar-property-parity.md rule 7)
  */
 
 import React, { useState } from 'react';
@@ -72,7 +72,7 @@ export default function PlatformColorPicker({ color, onChange, disabled = false,
         opacity: disabled ? 0.5 : 1,
         '&:hover': disabled ? {} : { boxShadow: 1 },
         // A finger gets a 44 × 44 hit area around the small swatch, without moving the layout
-        // (specs/ds-components.md rule 21).
+        // (specs/design-system/ds-components.md rule 21).
         ...touchHitArea,
       }}
     />

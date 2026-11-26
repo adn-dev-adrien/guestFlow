@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rule 27 (re-review of PR #805) — a guest who opened the
+// specs/site/public-request-abuse-and-grouping.md rule 27 (re-review of PR #805) — a guest who opened the
 // payment page, came back, changed the party and pays again must pay the new stay: the payment link
 // the guest's own drawer made does not make the quote « touched » for the holder of its token. The
 // quote is updated and re-priced, and the update retires the old link (deactivated at the provider after the commit);

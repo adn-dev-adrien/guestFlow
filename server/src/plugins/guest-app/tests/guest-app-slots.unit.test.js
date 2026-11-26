@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 11, 28-31, 35, §6.4 — `GET /public/v1/guest/shop/resources/:id/slots` through the real routes and
+// specs/guest-app/guest-app.md rules 11, 28-31, 35, §6.4 — `GET /public/v1/guest/shop/resources/:id/slots` through the real routes and
 // the real scheduler of hourly-resources: only bookable slots are listed, an ignition outside the service hours makes the
 // slot `staff` and unlisted, a warm slot is not constrained, a request is re-checked once a session leaves it, and an
 // order awaiting payment holds its slots until `heldUntil`.
@@ -91,7 +91,7 @@ if (requirePlugins(['hourly-resources'])) {
     assert.deepEqual((await get('?from=2099-07-08&to=2099-07-08')).body.data.days.map((d) => d.date), ['2099-07-08']);
   });
 
-  withSlots('rule 11 (specs/guest-app-bath-home-scheduling.md rule 6): the home\'s bath card offers the first slot still bookable today — « aujourd’hui » before 18 h, « ce soir » after, the stay\'s other days once today is full', async ({ db, get, call, clock }) => {
+  withSlots('rule 11 (specs/guest-app/guest-app-bath-home-scheduling.md rule 6): the home\'s bath card offers the first slot still bookable today — « aujourd’hui » before 18 h, « ce soir » after, the stay\'s other days once today is full', async ({ db, get, call, clock }) => {
     const stay = addStay(db);
     addBath(db);
     await get();

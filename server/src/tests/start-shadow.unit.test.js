@@ -6,7 +6,7 @@ const { pathToFileURL } = require('node:url');
 
 const SCRIPT = pathToFileURL(path.join(__dirname, '..', '..', '..', 'scripts', 'start-shadow.mjs')).href;
 
-// specs/inte-performance.md rule 1 — a shadow runs the production build, never the Vite dev server by
+// specs/tech/inte-performance.md rule 1 — a shadow runs the production build, never the Vite dev server by
 // default, and never with NODE_ENV=production (the mail outbox is off there).
 
 const options = (extra = []) => import(SCRIPT).then(({ parseArgs }) => parseArgs(['--db', '/data/shadow.db', '--port', '4104', '--dir', '/tmp/shadow-x', ...extra]));

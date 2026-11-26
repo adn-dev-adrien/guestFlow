@@ -1,6 +1,6 @@
 /**
  * ReservationCancelDialog — confirm a cancellation for non-payment
- * (specs/payment-schedule-and-cancellation.md §3.5 rule 22 / §6).
+ * (specs/payments/payment-schedule-and-cancellation.md §3.5 rule 22 / §6).
  *
  * Recaps what is being cancelled and, above all, what happens to the money: what was collected is kept
  * as an indemnity, what is still owed is written off. Both figures are the cancellation's own, asked

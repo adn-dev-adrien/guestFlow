@@ -114,7 +114,7 @@ label + the client + the property. Clicking the card opens the reservation fiche
     preview) and is **recomputed server-side on save** (the authority). The reservation's total + the
     devis/PDF follow. The « Personnes servies » field behaves exactly the same way.
 11.bis **`unitPrice` is the one the booking was sold at, not today's**
-    (`specs/devis-extras-parity-and-price-lock.md` §3 rule 13bis, added 2026-08-16). Only `billedUnits`
+    (`specs/devis/devis-extras-parity-and-price-lock.md` §3 rule 13bis, added 2026-08-16). Only `billedUnits`
     follows the selection; the price per unit is replayed from `reservation_options.unitPrice` for as long
     as the booking is price-locked. Raising a catalogue / per-property price never re-prices a card option
     on an existing reservation — that used to surface as an unexplained end-of-stay complement.

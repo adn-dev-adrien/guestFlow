@@ -8,11 +8,12 @@
 | **Author** | Adrien |
 | **Related PR** | #341 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** The chart and its tabs are gone (replaced by the Suivi financier dashboard, `specs/accounting/finance-dashboard-redesign.md`); only the server aggregates `revenueByProperty` / `yearToDateByProperty` of `financeModel.getSummary` (rules 5-7, 9) are live.
 ---
 
 ## 1. Context
 
-The finance overview (`/finance`, specs/finance-overview-rework.md) shows global KPI cards (annual
+The finance overview (`/finance`, specs/accounting/finance-overview-rework.md) shows global KPI cards (annual
 row + period row) and a per-logement bar chart fed by `summary.revenueByProperty` (period-scoped).
 All figures are Σ « total de séjour » (`totalSejour`: deposit + balance + complements excluding
 caisse interne, net of platform commission), counted by departure date (`endDate`).
@@ -32,31 +33,24 @@ du/au period and the year-to-date — with amounts explicitly TTC and their HT s
 
 ## 3. Functional rules
 
-1. **Chart title** is « Revenu par logement », with two tabs:
-   - **« Sur la période »** (default) — per-logement Σ `totalSejour`, `endDate ∈ [from, to]`
-     (the du/au selector). Data: `summary.revenueByProperty`.
-   - **« Depuis le début de l'année »** — per-logement Σ `totalSejour`,
-     `endDate ∈ [Jan 1 of current year, today]`, same basis and window as the global « Revenus depuis
-     le début de l'année » card. Data: `summary.yearToDateByProperty` (period-independent).
-2. **Caption** under the tabs states the active window and that amounts are TTC:
-   « Période du {du} au {au} · montants TTC » / « Du 1er janvier à aujourd'hui · montants TTC ».
-3. **In-bar labels:** each bar shows its TTC amount (bold, white, rounded €) with the **HT amount
-   beneath, discreet** (smaller, translucent white, « X € HT ») — mirroring the KPI cards' HT
-   sub-line. When the bar is too short for two lines, only the TTC line renders.
-4. **Tooltip** shows « {TTC} ({HT} HT) ».
+1. *(Retired 2026-11-26 — the « Revenu par logement » chart and its tabs no longer exist; the per-logement figures feed the Suivi financier dashboard, specs/accounting/finance-dashboard-redesign.md.)*
+   > **Sans test** — retired rule
+2. *(Retired 2026-11-26 — the chart caption went with the chart.)*
+   > **Sans test** — retired rule
+3. *(Retired 2026-11-26 — the in-bar labels went with the chart.)*
+   > **Sans test** — retired rule
+4. *(Retired 2026-11-26 — the chart tooltip went with the chart.)*
+   > **Sans test** — retired rule
 5. **HT basis:** per reservation via the existing `htAmount` helper (tourist tax bears no VAT),
    aggregated server-side as `revenueHt` on both arrays.
-6. **Zero-revenue logements are hidden from the bars** (both tabs). The server seeds both aggregates
-   from the `properties` table (a logement with no reservation appears at 0 in the payload); the
-   client filters `revenue > 0` presentationally so each tab's empty state still triggers:
-   « Aucun revenu sur la période sélectionnée. » / « Aucun revenu depuis le début de l'année. »
+6. **The server seeds both aggregates from the `properties` table**: a logement with no reservation appears at 0 in the payload (`revenueByProperty`, `yearToDateByProperty`). The consumer filters what it shows.
 7. **Ordering:** revenue descending, ties broken by property name (server-side, both arrays).
-8. **Tab choice is local UI state** (not persisted); switching tabs does not refetch — both arrays
-   ship in the same `GET /finance/summary` payload.
+8. *(Retired 2026-11-26 — no tabs any more; `GET /finance/summary` is gone, `financeModel.getSummary` is read internally by `financeDashboardModel`.)*
+   > **Sans test** — retired rule
 9. **All computation server-side.** The client maps `{propertyName, revenue, revenueHt}` to bars —
    no summing, filtering beyond rule 6, or sorting in React.
-10. **Global KPI cards are untouched** (5 clickable cards, breakdown dialog behavior unchanged).
-
+10. *(Retired 2026-11-26 — the KPI cards and their breakdown dialog are gone, see specs/accounting/finance-dashboard-redesign.md.)*
+   > **Sans test** — retired rule
 **Edge cases:**
 - No properties in DB → both tabs show their empty state.
 - Caisse-interne complements and platform commissions → handled exactly like the global cards

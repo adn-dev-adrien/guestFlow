@@ -6,7 +6,7 @@ process.env.GUESTFLOW_ENCRYPTION_KEY = process.env.GUESTFLOW_ENCRYPTION_KEY || c
 
 const { buildController } = require('../controller');
 
-// Controller-level OAuth flow tests (specs/google-calendar-oauth-rework.md §3 rules 4-8) —
+// Controller-level OAuth flow tests (specs/settings/google-calendar-oauth-rework.md §3 rules 4-8) —
 // everything injected: fake settings store, fake oauth factory, fake sync engine.
 
 function fakeSettingsStore() {
@@ -106,7 +106,7 @@ test('authorize: 400 when no redirect URI can be resolved', () => {
 
 // --- callback ---
 
-// specs/plugins-phase-1-sdk.md rule 19 — the callback lands on Intégrations, the page that shows
+// specs/plugins/plugins-phase-1-sdk.md rule 19 — the callback lands on Intégrations, the page that shows
 // its message (`/settings` redirects to Établissement and drops the query).
 test('callback: success → tokens stored + redirect ?google=connected', async () => {
   const settings = fakeSettingsStore();

@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 5 — at the first boot of this version every OPEN link whose stay row
+// specs/payments/payment-link-lifecycle.md rule 5 — at the first boot of this version every OPEN link whose stay row
 // is missing is withdrawn once (`cancelled` / `orphan`, deactivation owed when it has a provider id), with
 // one log line per link; paid and cancelled rows are untouched, no network call, a second boot does nothing.
 process.env.DB_PATH = ':memory:';

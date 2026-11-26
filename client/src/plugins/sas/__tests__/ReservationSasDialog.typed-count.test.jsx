@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 12 (audit R21-S5) — the dialog sells a non-card per-person option in
+// specs/options/non-card-option-served-persons.md rule 12 (audit R21-S5) — the dialog sells a non-card per-person option in
 // people served, as a card does: the stepper's number is what the commit carries.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

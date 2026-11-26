@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 17 and 33 — the emails of an invoice: the latest one
+// specs/hosting/control-plane-plans-and-access.md rules 17 and 33 — the emails of an invoice: the latest one
 // whose day has come, once; prepared for approval in « Manuel », sent in « Automatique »; dropped
 // when the invoice is paid or a later email replaces it; « Relancer maintenant » sends at once.
 

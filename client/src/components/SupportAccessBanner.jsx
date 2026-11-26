@@ -1,6 +1,6 @@
 /**
  * SupportAccessBanner — « Le support demande l'accès : <motif> » with « Autoriser 24 h » and
- * « Refuser », for every administrator (specs/hosting-h2-account-security.md rules 12-13). The
+ * « Refuser », for every administrator (specs/hosting/hosting-h2-account-security.md rules 12-13). The
  * duration can be 1 h, 24 h or 7 days. Renders nothing without a pending request, on an instance
  * without support access (rule 17), or inside the support's own session.
  */

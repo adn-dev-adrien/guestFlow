@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 1-4, 6-7 — the split of a Mollie card payment in an
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 1-4, 6-7 — the split of a Mollie card payment in an
 // immediate share and a reserve. Fictional data only; the measured cases are the 196,80 € pair and the 14,00 € sale.
 const test = require('node:test');
 const assert = require('node:assert/strict');

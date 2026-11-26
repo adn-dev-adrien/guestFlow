@@ -1,6 +1,6 @@
 /**
  * Email mentions model — sole DB access for `email_mentions`, `email_mention_options` and
- * `app_settings.bookedConfirmationOrder` (specs/plugins-phase-p-productisation.md §3.B).
+ * `app_settings.bookedConfirmationOrder` (specs/plugins/plugins-phase-p-productisation.md §3.B).
  *
  * The confirmation order is a JSON array of `mention:<id>`, `babyBed` and `towels` (rule 9).
  *

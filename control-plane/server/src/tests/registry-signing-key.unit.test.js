@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 42 (audit 2026-10-28): the registry index can be signed with a key
+// specs/plugins/plugins-phase-4-registry.md rule 42 (audit 2026-10-28): the registry index can be signed with a key
 // of its own (CP_REGISTRY_PRIVATE_KEY); the instances are told that key's public half. Unset, the licence key
 // signs it, as before.
 const test = require('node:test');

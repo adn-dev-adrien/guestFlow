@@ -1,8 +1,8 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
-// specs/ds-sweep-planning.md rule 28 — nothing loads before the server's date is known (the lists
-// themselves are the server's, specs/dashboard-planning-scroll.md rule 1); the attention subjects —
+// specs/design-system/ds-sweep-planning.md rule 28 — nothing loads before the server's date is known (the lists
+// themselves are the server's, specs/planning/dashboard-planning-scroll.md rule 1); the attention subjects —
 // email readiness included — are only loaded for an admin (an accountant would get a 403).
-// specs/upcoming-reservations-cards.md rule 7 — never the UTC date, which still read yesterday between
+// specs/planning/upcoming-reservations-cards.md rule 7 — never the UTC date, which still read yesterday between
 // midnight and 2 a.m. in Paris: when the server cannot be asked the home still loads.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -52,14 +52,14 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); });
 
-test('specs/ds-sweep-planning.md rule 28: the Dashboard loads once the server date is known', async () => {
+test('specs/design-system/ds-sweep-planning.md rule 28: the Dashboard loads once the server date is known', async () => {
   renderPage();
   await waitFor(() => expect(api.getPlanningToday).toHaveBeenCalledTimes(1));
   expect(await screen.findByText("Aucun départ aujourd'hui")).toBeInTheDocument();
   expect(screen.queryByLabelText('Date affichée')).not.toBeInTheDocument();
 });
 
-test('specs/ds-sweep-planning.md rule 28: nothing loads before the server date is known', async () => {
+test('specs/design-system/ds-sweep-planning.md rule 28: nothing loads before the server date is known', async () => {
   let answer;
   api.getToday.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
   renderPage();
@@ -69,7 +69,7 @@ test('specs/ds-sweep-planning.md rule 28: nothing loads before the server date i
   await waitFor(() => expect(api.getPlanningToday).toHaveBeenCalledTimes(1));
 });
 
-test('specs/guest-email-texts-made-simple.md rule 7: the email readiness alert is an admin read — not loaded for an accountant', async () => {
+test('specs/emails/guest-email-texts-made-simple.md rule 7: the email readiness alert is an admin read — not loaded for an accountant', async () => {
   const admin = renderPage();
   expect(await screen.findByText('Emails incomplets')).toBeInTheDocument();
   admin.unmount();
@@ -81,7 +81,7 @@ test('specs/guest-email-texts-made-simple.md rule 7: the email readiness alert i
   expect(screen.queryByText('Emails incomplets')).not.toBeInTheDocument();
 });
 
-test('specs/upcoming-reservations-cards.md rule 7: at 01:54 in Paris, when the server cannot answer, the home still loads on the browser\'s day', async () => {
+test('specs/planning/upcoming-reservations-cards.md rule 7: at 01:54 in Paris, when the server cannot answer, the home still loads on the browser\'s day', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date('2026-10-17T23:54:00Z'));
   api.getToday.mockRejectedValue(new Error('offline'));
@@ -91,7 +91,7 @@ test('specs/upcoming-reservations-cards.md rule 7: at 01:54 in Paris, when the s
   await waitFor(() => expect(api.getPlanningToday).toHaveBeenCalledTimes(1));
 });
 
-test('specs/upcoming-reservations-cards.md rule 7: day arithmetic stays on the calendar across the October time change', () => {
+test('specs/planning/upcoming-reservations-cards.md rule 7: day arithmetic stays on the calendar across the October time change', () => {
   expect(addIsoDays('2026-10-24', 1)).toBe('2026-10-25');
   expect(addIsoDays('2026-10-25', 1)).toBe('2026-10-26');
   expect(addIsoDays('2026-10-18', 30)).toBe('2026-11-17');

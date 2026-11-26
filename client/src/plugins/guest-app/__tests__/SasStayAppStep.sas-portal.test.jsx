@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 1 and 9bis (a) — while the guest app gives this stay a link, the SAS « Portail » step
+// specs/guest-app/guest-app.md rules 1 and 9bis (a) — while the guest app gives this stay a link, the SAS « Portail » step
 // becomes « Mon séjour »: the stay link's QR, the keypad code, Partager, Régénérer le lien, and « QR du portail
 // seul » for the gate key. Plugin inactive or no link for the stay → today's gate step, unchanged.
 // Lives with the guest app: the SAS's own suites test the `leadsStep` mechanism with a fake contribution.

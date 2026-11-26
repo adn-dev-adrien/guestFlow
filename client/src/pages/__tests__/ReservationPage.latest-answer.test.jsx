@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 16 (audit R22-C4) — an answer that a newer question has overtaken never
+// specs/tech/reservations-backend-mvc.md rule 16 (audit R22-C4) — an answer that a newer question has overtaken never
 // reaches the fiche: the occupied dates, the client search and the resources' availability.
 import React from 'react';
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rule 17, §7 « Accuracy check: sent amount vs public quote — zero
+// specs/site/google-vacation-rentals-feed.md rule 17, §7 « Accuracy check: sent amount vs public quote — zero
 // mismatch on fixtures; a forced mismatch is reported ». The feed is computed and « sent » in
 // simulation over the shipped recipes, then compared with the website's own quote.
 process.env.DB_PATH = ':memory:';

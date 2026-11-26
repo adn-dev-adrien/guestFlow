@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 104, 106-112 (stabilisation loop t7, B7-1..B7-3) — the stay's money conservation over random sequences of what a
+// specs/pricing/pricing-components.md §3 rules 104, 106-112 (stabilisation loop t7, B7-1..B7-3) — the stay's money conservation over random sequences of what a
 // stay's notes live through: notes paid by card or in cash, unpaid lines sold, paid lines offered (the trop-perçu confirmed), the trop-perçu refunded
 // the way the fiche proposes it (the cash part « Caisse interne » first, then the rest by its means, on the postes the server split), a refund deleted.
 // After EVERY step:

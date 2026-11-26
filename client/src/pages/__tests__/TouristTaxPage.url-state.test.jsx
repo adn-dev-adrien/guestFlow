@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 31 and 40 (reviews R5-10, R4-6, V1-3) — the period, the view and the filters live in the
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 31 and 40 (reviews R5-10, R4-6, V1-3) — the period, the view and the filters live in the
 // URL: a link (or the way back from a fiche) opens them, a change writes them, and a fiche keeps the whole way back;
 // rule 40 (review V1-3): under a refusal, the URL holds the selection on screen.
 import { vi } from 'vitest';

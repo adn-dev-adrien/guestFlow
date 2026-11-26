@@ -1,5 +1,5 @@
 /**
- * Public email-preferences page (specs/guest-email-sequence.md §4.3). Mounted OUTSIDE `/api` and
+ * Public email-preferences page (specs/emails/guest-email-sequence.md §4.3). Mounted OUTSIDE `/api` and
  * `/public/v1`: a guest opens it from an email, with no session and no API key. The token in the
  * link is the only credential, and a dedicated rate limiter keeps it from being brute-forced.
  */

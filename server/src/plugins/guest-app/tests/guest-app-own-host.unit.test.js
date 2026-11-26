@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 58 (audit R36 A36-2 = R36-CON-M1 = R36-P1) — the guest host is never GuestFlow's own address:
+// specs/guest-app/guest-app.md rule 58 (audit R36 A36-2 = R36-CON-M1 = R36-P1) — the guest host is never GuestFlow's own address:
 // the save refuses the host of its public URL and the hosts the saving request came through (its Host, its Origin),
 // 400 with the reason; the generic plugin settings route cannot write it at all; a stored value equal to GuestFlow's
 // own address is ignored (no link, no app on it), so the back office stays reachable.

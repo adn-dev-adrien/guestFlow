@@ -1,5 +1,5 @@
 /**
- * specs/email-history-rolling-window.md rule 11 — a failed load shows an error with « Réessayer » (no
+ * specs/emails/email-history-rolling-window.md rule 11 — a failed load shows an error with « Réessayer » (no
  * false empty list, no unhandled rejection), and a late response never replaces the current filter.
  */
 import React from 'react';

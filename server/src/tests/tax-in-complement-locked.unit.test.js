@@ -1,5 +1,5 @@
 // « Taxe de séjour en complément » cannot go on over a tax already collected (audit R23-N2):
-//   specs/force-item-to-complement.md rule 20 — else the guest is asked twice and a booked entry is rewritten.
+//   specs/sas/force-item-to-complement.md rule 20 — else the guest is asked twice and a booked entry is rewritten.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');

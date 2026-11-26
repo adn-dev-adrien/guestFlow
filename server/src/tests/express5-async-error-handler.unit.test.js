@@ -1,4 +1,4 @@
-// Le middleware d'erreur global ajouté avec express 5 (specs/express-5-upgrade.md §3 rule 4).
+// Le middleware d'erreur global ajouté avec express 5 (specs/tech/express-5-upgrade.md §3 rule 4).
 //
 // Pourquoi ce test : express 5 transmet le rejet d'une promesse d'un handler asynchrone au
 // middleware d'erreur, là où express 4 le laissait s'échapper en `unhandledRejection` — la requête

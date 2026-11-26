@@ -1,5 +1,5 @@
 /**
- * useMonthDataCache — per-month data for a month-by-month view (specs/calendar-property-parity.md rule 15).
+ * useMonthDataCache — per-month data for a month-by-month view (specs/planning/calendar-property-parity.md rule 15).
  *
  * A month is fetched once, the first time its block asks for it (`ensure`), and kept for as long as the
  * `scopeKey` (the logement shown) stays the same. Changing the scope drops every entry and aborts what is

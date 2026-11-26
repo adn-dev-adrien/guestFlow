@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 21-23 — a sale made outside any stay in the accountant's journal:
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 21-23 — a sale made outside any stay in the accountant's journal:
 // its part on the books, at its frozen VAT rate, the Qonto invoice number as « Pièce ».
 const test = require('node:test');
 const assert = require('node:assert/strict');

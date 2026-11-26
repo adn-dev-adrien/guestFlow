@@ -1,5 +1,5 @@
 /**
- * The home's « Échéances » rows, decorated by the live plugins (specs/reconciliation-assisted-matching.md
+ * The home's « Échéances » rows, decorated by the live plugins (specs/accounting/reconciliation-assisted-matching.md
  * rule 22), declared with `ctx.paymentDeadlineDecorator(rows => rows)`. A decorator that throws leaves the
  * rows as they were and costs a log line: a plugin never fails the home.
  */

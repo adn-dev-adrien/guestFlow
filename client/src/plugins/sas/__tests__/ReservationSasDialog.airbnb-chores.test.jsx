@@ -1,4 +1,4 @@
-// specs/airbnb-no-checkout-chores.md rule 3 — the « vaisselle / poubelles » reminder follows the
+// specs/platforms/airbnb-no-checkout-chores.md rule 3 — the « vaisselle / poubelles » reminder follows the
 // server's `cleaning.guestReminder`, never `cleaning.included`: a guest of a channel that forbids
 // checkout chores (Airbnb, rule 8) is not asked for any.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
@@ -52,7 +52,7 @@ test('other channel, ménage included: the recap keeps the reminder', async () =
   expect(screen.getByText(/vaisselle doit être faite/)).toBeInTheDocument();
 });
 
-// specs/airbnb-no-checkout-chores.md rule 7 — no « ménage fait correctement ? » page on such a departure.
+// specs/platforms/airbnb-no-checkout-chores.md rule 7 — no « ménage fait correctement ? » page on such a departure.
 test('chore-free channel departure without a cleaning line: straight to the missing-items question', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },

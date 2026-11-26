@@ -1,34 +1,34 @@
 /**
  * PaymentDeadlinesAlert — Dashboard card for missed payment deadlines
- * (specs/payment-schedule-and-cancellation.md §3.4 / §6).
+ * (specs/payments/payment-schedule-and-cancellation.md §3.4 / §6).
  *
  * Self-contained like the iCal alerts: fetches its own rows, renders nothing when there are none.
  * Each row offers « Envoyer la demande » / « Relancer » (mint the payment link and send the request —
  * the label depends on whether the guest was already asked), « Reporter » (hide it for a week without
  * moving any échéance) and, once the cancellation deadline is passed, « Annuler le séjour ». Since the
  * 2026-08-20 amendment no cron sends a money email, so this card is the ONLY thing that makes one
- * leave: a row left unattended is a guest who was never asked. A late PLATFORM payout (specs/platform-payout-due-date.md) offers « Reporter » alone:
+ * leave: a row left unattended is a guest who was never asked. A late PLATFORM payout (specs/platforms/platform-payout-due-date.md) offers « Reporter » alone:
  * the money is owed by the platform, so there is no guest to chase and no stay left to cancel — and a
  * platform booking whose amount was never entered carries no figure to print at all, only the row's
  * link to the fiche where the operator types it.
  *
- * The identity line of every row is a link to the fiche (`ReservationLinkLine`, specs/mobile-dashboard-exercise-cash.md
+ * The identity line of every row is a link to the fiche (`ReservationLinkLine`, specs/planning/mobile-dashboard-exercise-cash.md
  * rule 5); the buttons below it never navigate.
  *
- * Without online payment (specs/plugins-phase-3a-online-payment.md rule 25) the server marks the row
+ * Without online payment (specs/plugins/plugins-phase-3a-online-payment.md rule 25) the server marks the row
  * `remindByEmail` with the template to use: « Envoyer la demande » then opens that email in the send
  * dialog, for the operator to read before it leaves.
  *
- * A request refused 409 LINK_ALREADY_PAID (specs/payment-link-lifecycle.md rule 50) has booked the payment: the
+ * A request refused 409 LINK_ALREADY_PAID (specs/payments/payment-link-lifecycle.md rule 50) has booked the payment: the
  * card re-reads its rows, from the button and from the draft dialog alike.
  *
- * When the online-payment plugin reads the bank account (specs/reconciliation-assisted-matching.md rule 22),
+ * When the online-payment plugin reads the bank account (specs/accounting/reconciliation-assisted-matching.md rule 22),
  * an overdue row may carry a `bank` line — « Virement trouvé : … » with « Confirmer », or « Rien sur le
  * compte »; the card draws it and nothing otherwise.
  *
  * No business rule here: the state, the amounts, the days late, whether cancelling is offered — all
  * of it arrives ready to render from the server; the card's title, count, « N en retard · M à
- * demander » and severity come with `attention` (specs/shell-and-home-day-first.md rules 3, 6).
+ * demander » and severity come with `attention` (specs/planning/shell-and-home-day-first.md rules 3, 6).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Divider, Stack, Typography } from '@mui/material';
@@ -77,7 +77,7 @@ export default function PaymentDeadlinesAlert({ attention }) {
       await refresh();
     } catch (err) {
       showError(err.message || "Envoi impossible.");
-      // specs/payment-link-lifecycle.md rule 50 — the refusal booked the payment: the row is no longer owed.
+      // specs/payments/payment-link-lifecycle.md rule 50 — the refusal booked the payment: the row is no longer owed.
       if (isLinkAlreadyPaid(err)) await refresh();
     } finally {
       setBusyId(null);
@@ -117,7 +117,7 @@ export default function PaymentDeadlinesAlert({ attention }) {
     setBusyId(cancelRow.reservationId);
     try {
       const result = await api.cancelReservation(cancelRow.reservationId, { reason, notifyClient });
-      // specs/plugins-phase-3a-online-payment.md rule 9 — a link the provider still accepts outranks the
+      // specs/plugins/plugins-phase-3a-online-payment.md rule 9 — a link the provider still accepts outranks the
       // success: one toast at a time, so the warning carries the cancellation, and the deposit kept.
       const done = [
         result?.indemnityAmount > 0
@@ -128,7 +128,7 @@ export default function PaymentDeadlinesAlert({ attention }) {
           ? `Somme conservée : ${formatCurrency(result.keptFromGuest)}.`
           : null,
       ].filter(Boolean).join(' ');
-      // specs/email-language-fr-en.md rule 12 — a notice asked for and not sent is a warning too.
+      // specs/emails/email-language-fr-en.md rule 12 — a notice asked for and not sent is a warning too.
       const warnings = [result?.paymentLinksWarning, result?.emailWarning].filter(Boolean);
       if (warnings.length) showError([done, ...warnings].join(' '));
       else showSuccess(done);

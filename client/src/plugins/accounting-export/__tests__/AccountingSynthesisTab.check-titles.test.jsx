@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rule 53 — a check that does not hold says so in its title, not
+// specs/accounting/accounting-synthesis.md §3 rule 53 — a check that does not hold says so in its title, not
 // only by the colour of its dot; its « voir » is a 44 px target on touch.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

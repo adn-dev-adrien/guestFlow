@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/platform-payout-due-date.md §3.1 — end-to-end through the engine: on a NON-direct booking the
+// specs/platforms/platform-payout-due-date.md §3.1 — end-to-end through the engine: on a NON-direct booking the
 // solde is the platform's payout and falls `payoutDueDays` AFTER the departure, instead of the
 // guest-facing `arrival − balanceDaysBefore`. Own channels (direct, Lodgify) are unchanged.
 
@@ -40,9 +40,9 @@ const BASE = {
   depositPaid: false, balancePaid: false,
 };
 
-// specs/platform-payout-due-date.md rules 4 + 5 — le solde bascule après le départ ; l'ACOMPTE, lui,
+// specs/platforms/platform-payout-due-date.md rules 4 + 5 — le solde bascule après le départ ; l'ACOMPTE, lui,
 // n'est pas touché par cette règle et garde son propre calendrier (ici : une plateforme n'en prend pas).
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('a platform booking owes its solde after the departure, not a month before the arrival', () => {
@@ -86,7 +86,7 @@ test('a devis is never put on the payout schedule (rule 3)', () => {
   db.close();
 });
 
-// specs/platform-payout-due-date.md rule 11
+// specs/platforms/platform-payout-due-date.md rule 11
 test('nothing left to collect → no deadline at all', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb', customPrice: 0 });

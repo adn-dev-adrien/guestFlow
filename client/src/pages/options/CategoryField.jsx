@@ -1,7 +1,7 @@
 /**
  * « Catégorie » of the option editor — a free-text field with the labels already in use as one-tap
  * suggestions, so « Boissons » and « Boisson » do not diverge by a typo
- * (specs/option-categories.md §3 rule 6, specs/options-resources-ux.md rule 13). Typing a new label is how
+ * (specs/options/option-categories.md §3 rule 6, specs/options/options-resources-ux.md rule 13). Typing a new label is how
  * a category is created. « Toujours visible » appears once the option belongs to a category (rule 9bis).
  *
  * Props: form, setForm, suggestions (string[] — the category labels of the catalogue)

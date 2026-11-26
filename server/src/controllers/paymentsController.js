@@ -1,6 +1,6 @@
 /**
- * Payments controller — the payment links of reservations (specs/online-payments-qonto.md §3.4 / §4.1),
- * provider-neutral since specs/plugins-phase-3a-online-payment.md rules 4-5.
+ * Payments controller — the payment links of reservations (specs/payments/online-payments-qonto.md §3.4 / §4.1),
+ * provider-neutral since specs/plugins/plugins-phase-3a-online-payment.md rules 4-5.
  *
  * The core keeps the money path: what to ask for, the link record, the request email, the poll. The
  * link itself comes from the active payment provider (utils/paymentProviders), which a plugin declares
@@ -30,7 +30,7 @@ const installmentsModel = require('../models/installmentsModel');
 const { requestContext } = require('../utils/installmentPlan');
 const { linkAmountCents } = require('../utils/ledgerLinks');
 
-// ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
+// ----- Payment links on a reservation/devis (specs/payments/online-payments-qonto.md §3.2 / §3.4) -----
 
 const paymentRequestService = require('../utils/paymentRequestService');
 const { withdrawPaymentLink } = require('../utils/paymentLinkWithdrawal');
@@ -38,7 +38,7 @@ const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
 const { toCents: cents } = require('../utils/pricing/money');
 const { LINK_TYPES, LINK_TITLES } = paymentRequestService;
 
-// specs/email-language-fr-en.md rule 12 — the request template this guest would receive has no English
+// specs/emails/email-language-fr-en.md rule 12 — the request template this guest would receive has no English
 // version: checked before the link is minted, with the language the sender would resolve.
 function requestEnglishMissing(reservationId, stableKey) {
   const template = emailTemplatesModel.findByStableKey(stableKey);
@@ -68,12 +68,12 @@ function requestServiceDeps(provider) {
       reservationId, stableKey,
       installment: installment ? requestContext(installment, installmentsModel.listFor(reservationId)) : null,
       occurrenceKey: installment ? `installment:${installment.id}` : '',
-      // specs/deposit-blocks-the-dates.md rule 11 — the email announces, to the cent, what the link
+      // specs/payments/deposit-blocks-the-dates.md rule 11 — the email announces, to the cent, what the link
       // charges: the amount travels with the link rather than being re-derived from the row.
       extraContext: {
         vars: { paymentLink },
         amounts: { paymentAmount: Number(amountCents || 0) / 100 },
-        // specs/payment-link-lifecycle.md rule 36 — the end of THIS link, written in the guest's language.
+        // specs/payments/payment-link-lifecycle.md rule 36 — the end of THIS link, written in the guest's language.
         dates: { paymentLinkValidUntil: expiresAt },
         // Rule 59 — the sentence's own block, shown only with a known end.
         flags: { hasPaymentLink: true, hasPaymentLinkValidUntil: Boolean(formatMomentLong(expiresAt, 'fr')) },
@@ -83,7 +83,7 @@ function requestServiceDeps(provider) {
 }
 
 // The pricing-engine quote of a persisted devis — the SAME replay the devis screen and the PDF read
-// (specs/payment-link-quote-parity.md, amending specs/devis-pdf-total-parity.md §3.1 rule 1).
+// (specs/payments/payment-link-quote-parity.md, amending specs/devis/devis-pdf-total-parity.md §3.1 rule 1).
 //
 // This used to be a hand-rolled engine input built right here, and it silently dropped everything the
 // authoritative replay carries: the `cardOccurrences` of a planning-card option (a breakfast or a meal
@@ -102,14 +102,14 @@ function runDevisEngineQuote(id, model = devisModel) {
 // Falls back to the stored row for reservations or on failure.
 // A `full` link charges the acompte plus the solde — the pre-arrival amount, tourist tax included and the
 // arrival complement excluded — because that is exactly what its payment marks paid
-// (specs/deposit-blocks-the-dates.md rule 18, decided 2026-10-27).
+// (specs/payments/deposit-blocks-the-dates.md rule 18, decided 2026-10-27).
 function resolveAmountCents(id, type, row, quoteOf = runDevisEngineQuote) {
   const quote = quoteOf(id);
   const source = quote && (LINK_TYPES[type] || []).every((f) => quote[f] != null) ? quote : row; // fallback = stored columns
   return linkAmountCents(type, source) || 0;
 }
 
-// VAT basket components per link type (specs/payment-links-vat.md), from the engine quote. The tourist
+// VAT basket components per link type (specs/payments/payment-links-vat.md), from the engine quote. The tourist
 // tax is VAT-exempt and (for direct stays) rides on the solde, so `balance` and `full` (acompte + solde)
 // carry a 0 %-VAT tax line; the deposit (accommodation-only) is a single taxable line. The tax is left
 // out when it is paid on arrival (collected there, or forced to the complement).
@@ -134,7 +134,7 @@ function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote, storedOf 
   return { components, vatRatePercent };
 }
 
-// specs/payment-links-vat.md rule 8 — a reservation's basket, from its stored columns: the VAT
+// specs/payments/payment-links-vat.md rule 8 — a reservation's basket, from its stored columns: the VAT
 // rate of its regime, and the tourist tax on the solde unless it is collected on arrival (the Suivi taxe de séjour's
 // own predicate). Devis rows never reach here: the engine replays them.
 function storedReservationComponents(id, type, db = database) {
@@ -162,7 +162,7 @@ function onSaleLines(row, basket, detailOf = (id) => require('../utils/extraSale
   return saleLineComponents(basket, detail);
 }
 
-// specs/direct-installments.md rule 39 — the basket of ONE installment: the tourist tax (when it rides the
+// specs/payments/direct-installments.md rule 39 — the basket of ONE installment: the tourist tax (when it rides the
 // pre-arrival money) shared in proportion over the plan and exempt of VAT, the rest at the rate of the stay's regime.
 function resolveInstallmentComponents(id, installment, plan, db = database) {
   let row = null;
@@ -172,7 +172,7 @@ function resolveInstallmentComponents(id, installment, plan, db = database) {
         FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
   } catch { row = null; }
   if (!row) return null;
-  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
+  // specs/tourist-tax/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
   const taxCents = row.taxOnArrival ? 0 : Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100);
   const shares = require('../utils/installmentPlan').taxShares(taxCents, plan.map((p) => p.amountCents));
   const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;
@@ -186,7 +186,7 @@ function resolveInstallmentComponents(id, installment, plan, db = database) {
 const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
 
 // Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; an error the
-// provider knows is answered as the provider words it (`describeError`, specs/platform-settings-relay-and-review.md
+// provider knows is answered as the provider words it (`describeError`, specs/platforms/platform-settings-relay-and-review.md
 // rule 9); anything else is a provider/transport failure, never leaked as is.
 function sendError(res, err, provider) {
   if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
@@ -219,11 +219,11 @@ const createReservationPaymentLink = withProvider(async (req, res, provider) => 
 // the link AND emails the matching `<type>_request` template to the guest with the link injected.
 const sendPaymentRequestEmail = withProvider(async (req, res, provider) => {
   const id = Number(req.params.id);
-  // specs/deposit-blocks-the-dates.md rule 10 — an omitted type is resolved from the record by the
+  // specs/payments/deposit-blocks-the-dates.md rule 10 — an omitted type is resolved from the record by the
   // service (acompte when there is one, full payment otherwise); it is no longer assumed to be a deposit.
   const type = req.body && req.body.type ? String(req.body.type) : null;
   try {
-    // specs/direct-installments.md rule 20 — « Envoyer la demande » on an installment of the fiche.
+    // specs/payments/direct-installments.md rule 20 — « Envoyer la demande » on an installment of the fiche.
     if (type === 'installment') {
       const installmentId = Number(req.body.installmentId);
       if (!Number.isInteger(installmentId)) return res.status(400).json({ error: 'INVALID_INSTALLMENT', message: 'Échéance manquante.' });
@@ -245,7 +245,7 @@ async function sendBalanceRequestFor(id) {
 }
 
 // Same, for the acompte — fired automatically when a direct reservation is created
-// (specs/payment-schedule-and-cancellation.md §3.7 rule 36), and reusable by the dashboard's
+// (specs/payments/payment-schedule-and-cancellation.md §3.7 rule 36), and reusable by the dashboard's
 // « Relancer » action.
 async function sendDepositRequestFor(id) {
   const provider = paymentProviders.active();
@@ -262,16 +262,16 @@ const listReservationPaymentLinks = (req, res) => res.json({
   })),
 });
 
-// Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
+// Manual "poll now" trigger (specs/payments/online-payments-qonto.md §7 manual test). Runs the same pass the
 // cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
-// A human asked, so the per-link cadence is bypassed (specs/payment-polling-fair-use.md rule 10).
+// A human asked, so the per-link cadence is bypassed (specs/payments/payment-polling-fair-use.md rule 10).
 const pollPaymentsNow = withProvider(async (req, res, provider) => {
   try {
     return res.json(await runPaymentPoll({ ...buildPaymentEffectDeps(), provider, force: true }));
   } catch (err) { return sendError(res, err, provider); }
 });
 
-// POST /links/:id/withdraw — « Retirer le lien » (specs/payment-link-lifecycle.md rule 42). The declared provider:
+// POST /links/:id/withdraw — « Retirer le lien » (specs/payments/payment-link-lifecycle.md rule 42). The declared provider:
 // the service asks it only while it is connected, and a deactivation it cannot do leaves the marker for the poll.
 const withdrawLink = async (req, res) => {
   const provider = paymentProviders.declared();
@@ -288,7 +288,7 @@ const withdrawLink = async (req, res) => {
 };
 
 // POST /links/:id/settle — a payment received on a link withdrawn by hand, after its withdrawal
-// (specs/payment-link-lifecycle.md rule 56): `refunded`, or `stay` (booked as the stay's money, the late-booking path).
+// (specs/payments/payment-link-lifecycle.md rule 56): `refunded`, or `stay` (booked as the stay's money, the late-booking path).
 const settleLink = async (req, res) => {
   try {
     return res.json(await settleWithdrawnPayment(Number(req.params.id), {
@@ -315,13 +315,13 @@ async function withProviderLink(mint) {
   }
 }
 
-// The link of one installment, for its request email (specs/direct-installments.md rule 19).
+// The link of one installment, for its request email (specs/payments/direct-installments.md rule 19).
 const ensureInstallmentLinkFor = (id, installmentId) => withProviderLink((deps) => paymentRequestService.ensureInstallmentLink(deps, Number(id), Number(installmentId)));
 
-// The stay's link of a type, for a request or the acompte reminder sent by hand (specs/payment-link-lifecycle.md rules 26, 35).
+// The stay's link of a type, for a request or the acompte reminder sent by hand (specs/payments/payment-link-lifecycle.md rules 26, 35).
 const ensurePaymentLinkFor = (id, type) => withProviderLink((deps) => paymentRequestService.ensurePaymentLink(deps, Number(id), type));
 
-// specs/guest-app.md rule 35 — the link of a basket (a guest order) on a stay, at the stay's VAT rate, back to
+// specs/guest-app/guest-app.md rule 35 — the link of a basket (a guest order) on a stay, at the stay's VAT rate, back to
 // `redirectUrl` once paid.
 const ensureBasketLinkFor = (id, basket, { redirectUrl = null } = {}) => withProviderLink((deps) => paymentRequestService.ensurePaymentLink({
   ...deps,
@@ -342,6 +342,6 @@ module.exports = {
   sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, ensureBasketLinkFor, ensureSaleLinkFor, withdrawLink, settleLink,
 };
 
-// The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
+// The two money resolvers, with their quote source injectable (specs/payments/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
 module.exports.__test = { onSaleLines, sendError, requestServiceDeps, runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };

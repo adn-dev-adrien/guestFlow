@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 1 — a payment seen paid with no `reservation.paid` event has
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 1 — a payment seen paid with no `reservation.paid` event has
 // PROVISIONAL tranches on every read (the fiche, « Versements à venir », the journal), derived in memory and never stored.
 const test = require('node:test');
 const assert = require('node:assert/strict');

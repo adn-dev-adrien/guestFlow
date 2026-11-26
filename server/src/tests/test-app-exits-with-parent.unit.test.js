@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 18 (audit R37-S2) — an app a test file starts never outlives that file. The
+// specs/tech/server-test-isolation.md rule 18 (audit R37-S2) — an app a test file starts never outlives that file. The
 // file is killed (here SIGKILL, as `--test-timeout` or the exit watchdog end it) before its `after` hook stops the
 // app: the app child still exits within seconds, for the fuzz harness's fork (inputShapeApp) and for a spawned
 // `src/index.js` preloading setup/exitWithParent.js through an 'ipc' slot (property-documents-private).

@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) and rules 8, 16, 23, 28 — the card payments that
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) and rules 8, 16, 23, 28 — the card payments that
 // go through Mollie WITHOUT a GuestFlow payment link: a Qonto invoice paid by card (the measured 14,00 € of client Gruat,
 // invoice F-2026-013) and a card payment recorded on site from the date of « CB sur place via Mollie depuis ». Fictional
 // data only, except the measured amounts.

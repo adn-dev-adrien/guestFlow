@@ -1,4 +1,4 @@
-// specs/accounting-platform-commission-and-no-deposit.md rule 24 — `clientGrossAmount` is populated on a direct stay too: the gross
+// specs/accounting/accounting-platform-commission-and-no-deposit.md rule 24 — `clientGrossAmount` is populated on a direct stay too: the gross
 // is the stay's price, so no reader has to guess for a stay with no platform.
 process.env.DB_PATH = ':memory:';
 

@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md — what the core test used to read from this plugin's sources.
+// specs/plugins/plugins-phase-0-foundation.md — what the core test used to read from this plugin's sources.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

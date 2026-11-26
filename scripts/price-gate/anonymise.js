@@ -1,5 +1,5 @@
 /**
- * Copy-by-allow-list of the rows a price needs (specs/pricing-components.md §3 rule 68).
+ * Copy-by-allow-list of the rows a price needs (specs/pricing/pricing-components.md §3 rule 68).
  *
  * Pure over rows: `anonymise({ table: rows[] })` returns `{ table: rows[] }` holding ONLY the columns of
  * `ALLOW_LIST[table]`. A table or a column that is not named there is never copied, whatever the source

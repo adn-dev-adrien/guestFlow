@@ -12,7 +12,7 @@
 #     (`data/uploads`, linked into the release as `current/server/uploads`).
 #
 # Everything else (client build, node_modules, server code) comes from the published release
-# archive of the same version — the manifest records which one (specs/self-update-and-releases.md).
+# archive of the same version — the manifest records which one (specs/hosting/self-update-and-releases.md).
 #
 # Usage:
 #   scripts/backup-from-pi.sh --host pi@<pi-host>
@@ -27,7 +27,7 @@
 #   -h, --help          Show this help.
 #
 # Writes $DEST/guestflow-YYYYMMDD-HHMMSS/ (mode 0700 — it contains secrets) plus a `latest`
-# symlink. Restore with scripts/restore-to-pi.sh; see specs/backup-restore.md.
+# symlink. Restore with scripts/restore-to-pi.sh; see specs/hosting/backup-restore.md.
 
 set -euo pipefail
 
@@ -103,7 +103,7 @@ rsync -aq --exclude '_guestflow_uploads_backup' \
   "$SSH_HOST:$REMOTE_DIR/current/server/uploads/" "$DEST/uploads/" \
   || echo "  ! no uploads directory on the Pi — skipped"
 
-# Property documents live beside uploads/, outside the public tree (specs/settings-rationalization.md rule 32).
+# Property documents live beside uploads/, outside the public tree (specs/settings/settings-rationalization.md rule 32).
 rsync -aq "$SSH_HOST:$REMOTE_DIR/data/private-documents/" "$DEST/private-documents/" \
   || echo "  ! no private-documents directory on the Pi — skipped"
 

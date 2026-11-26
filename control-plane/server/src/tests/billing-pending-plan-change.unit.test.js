@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 40 (audit 2026-10-28, M1): a renewal invoice Qonto does not
+// specs/hosting/control-plane-plans-and-access.md rule 40 (audit 2026-10-28, M1): a renewal invoice Qonto does not
 // hold yet follows the customer's current plan, so a plan change cannot block it for good.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,17 +1,17 @@
 /**
  * Booking lines model — the SINGLE writer of a booking's line graph.
  *
- * Since `specs/devis-reservation-fusion.md` a devis and a reservation are the same row (`reservations`,
+ * Since `specs/devis/devis-reservation-fusion.md` a devis and a reservation are the same row (`reservations`,
  * discriminated by `kind`) and their lines live in the very same children: `reservation_options`,
  * `reservation_custom_options`, `reservation_resources`, `reservation_nights`. They nevertheless had two
  * separate persistence stacks, and every extras feature shipped since the fusion landed in the reservation
  * one only — planning-card occurrences and hourly-resource sessions were silently dropped from every devis
- * (specs/devis-extras-parity-and-price-lock.md §1). This module exists so a new line column can never again
+ * (specs/devis/devis-extras-parity-and-price-lock.md §1). This module exists so a new line column can never again
  * be written on one side and forgotten on the other.
  *
  * `reservationsModel` and `devisModel` both delegate here; neither writes those four tables directly.
  *
- * Line identity (specs/pricing-components.md §3 rule 79): every line row has a stable `lineId`, and a save keeps it. A save
+ * Line identity (specs/pricing/pricing-components.md §3 rule 79): every line row has a stable `lineId`, and a save keeps it. A save
  * stays a DELETE + INSERT in the engine's order (the rows are read back in that order by readers that sort nothing, and a
  * custom line's `id` is still renumbered), but each line that is sold again is written with the `lineId` and every column
  * this writer does not know, read from the row it replaces: by article for a catalogue line, by text for a custom line.
@@ -103,17 +103,17 @@ function createBookingLinesModel(database) {
     return byArticle;
   };
 
-  // Option-driven planning cards (specs/option-planning-card.md §3.2) — the selected occurrences.
+  // Option-driven planning cards (specs/options/option-planning-card.md §3.2) — the selected occurrences.
   const HAS_CARD_OCCURRENCES = hasColumn('reservation_options', 'cardOccurrences');
-  // « This option row was added by the arrival SAS » (specs/sas-upsells-activate-catalogue-option.md §3.2).
+  // « This option row was added by the arrival SAS » (specs/sas/sas-upsells-activate-catalogue-option.md §3.2).
   const HAS_SAS_ARRIVAL_ORIGIN = hasColumn('reservation_options', 'sasArrivalOrigin');
-  // Served persons of a per-person card option (specs/card-option-served-persons.md §5).
+  // Served persons of a per-person card option (specs/options/card-option-served-persons.md §5).
   const HAS_CARD_PERSONS = hasColumn('reservation_options', 'cardPersons');
-  // Nights typed on a per-night option (specs/non-card-option-served-persons.md rule 19). NULL = the stay.
+  // Nights typed on a per-night option (specs/options/non-card-option-served-persons.md rule 19). NULL = the stay.
   const HAS_CARD_NIGHTS = hasColumn('reservation_options', 'cardNights');
-  // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored as JSON.
+  // Hourly-scheduled resource sessions (specs/resources/resource-hourly-scheduling.md), stored as JSON.
   const HAS_RESOURCE_SESSIONS = hasColumn('reservation_resources', 'sessions');
-  // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11).
+  // Client-visibility flag on the options catalog (specs/linen/laundry-bath-mat.md §3 rule 11).
   const HAS_OPTION_DISPLAY_TO_CLIENT = hasColumn('options', 'displayToClient');
 
   // Rule 26 — the free units a line consumed stay with it (`{ freeUnits, amount }`), NULL when it used none.
@@ -129,7 +129,7 @@ function createBookingLinesModel(database) {
     Array.isArray(line.sessions) && line.sessions.length > 0 ? JSON.stringify(line.sessions) : null
   );
 
-  // Internal LINEN options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are NEVER
+  // Internal LINEN options (specs/linen/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are NEVER
   // persisted as a booking line — they're counted via the laundry/stock property-default fallback and never
   // billed/shown. Scoped to linen ON PURPOSE: a non-linen internal option (e.g. an internal breakfast) MUST
   // still be materialised so it keeps producing its planning card; only its client display is suppressed
@@ -148,7 +148,7 @@ function createBookingLinesModel(database) {
   const model = {
     // ── Catalogue options ────────────────────────────────────────────────────────────────────────
     // `inComplement` is carried on every write, authoritative as resolved by the pricing engine
-    // (specs/force-extras-complement-on-platform.md §3): the engine applies the platform default for
+    // (specs/sas/force-extras-complement-on-platform.md §3): the engine applies the platform default for
     // unflagged lines AND honours an explicit operator override, so the model trusts the value verbatim.
     // `acompteContribTtc`/`soldeContribTtc` are owned by the payment-flip path (`updatePayment` →
     // `captureContribsOnFlip`); regular saves preserve whatever the engine returned. Lines in Complément
@@ -175,7 +175,7 @@ function createBookingLinesModel(database) {
           allowanceUsed: allowanceUsedOf(opt),
           ...(HAS_CARD_OCCURRENCES ? { cardOccurrences: serializeCardOccurrences(opt) } : {}),
           // How many covers each moment of a per-person card option serves
-          // (specs/card-option-served-persons.md §3.1). NULL = the whole party; the engine resolves it
+          // (specs/options/card-option-served-persons.md §3.1). NULL = the whole party; the engine resolves it
           // and echoes it back, so a fiche re-save can never silently re-inflate a reduced count.
           ...(HAS_CARD_PERSONS ? { cardPersons: opt.cardPersons != null ? Number(opt.cardPersons) : null } : {}),
           ...(HAS_CARD_NIGHTS ? { cardNights: opt.cardNights != null ? Number(opt.cardNights) : null } : {}),
@@ -186,7 +186,7 @@ function createBookingLinesModel(database) {
 
     // A fiche save is a DELETE + INSERT (rule 79: the identity and the sale columns are carried too), so the SAS-origin marker must be carried over per optionId;
     // otherwise the arrival SAS loses the right to remove its own upsell at the first save
-    // (specs/sas-upsells-activate-catalogue-option.md §3.2 rule 9). Guarded: absent column → nothing to carry.
+    // (specs/sas/sas-upsells-activate-catalogue-option.md §3.2 rule 9). Guarded: absent column → nothing to carry.
     replaceOptions(bookingId, optionLines) {
       let sasOriginIds = [];
       if (HAS_SAS_ARRIVAL_ORIGIN) {
@@ -214,9 +214,9 @@ function createBookingLinesModel(database) {
     // The lines the arrival SAS wrote, one entry per row. A fiche save is a DELETE +
     // INSERT, so `insertCustomOptions` carries the marker over to the line that takes the row (by `id`, loop t17 D17-1); without it the SAS lost its
     // own lines at the first save and a re-opened SAS billed them again
-    // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 33).
+    // (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 33).
     // Each entry is `{ description, sasLineKey, quantity }`: the key of a line a plugin billed rides along
-    // (specs/plugins-phase-3c-hourly-resources.md rule 7).
+    // (specs/plugins/plugins-phase-3c-hourly-resources.md rule 7).
     sasOriginCustomLabels(bookingId) {
       if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
       const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
@@ -254,7 +254,7 @@ function createBookingLinesModel(database) {
           inComplement: forced,
           acompteContribTtc: forced ? null : (line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
-          // The count the SAS stored travels with its marker (specs/arrival-departure-sas.md rule 29).
+          // The count the SAS stored travels with its marker (specs/sas/arrival-departure-sas.md rule 29).
           ...(sasLine ? { sasArrivalOrigin: 1, sasLineKey: sasLine.sasLineKey, quantity: sasLine.quantity } : {}),
         });
         sortOrder += 1;
@@ -279,7 +279,7 @@ function createBookingLinesModel(database) {
 
     insertResourceLine(bookingId, rr, unitPrice, qty, priceType, carried = null) {
       const forced = rr.inComplement ? 1 : 0;
-      // specs/devis-offered-resource-parity.md §3 rule 1 — an OFFERED line is priced 0 € by the engine,
+      // specs/devis/devis-offered-resource-parity.md §3 rule 1 — an OFFERED line is priced 0 € by the engine,
       // and `||` used to read that legitimate zero as « no total supplied » and re-bill the resource at
       // its catalogue price. The line was then stored `offered = 1` WITH its price, so the devis PDF
       // printed it unmarked and subtracted it from the accommodation row. The fallback now only covers
@@ -358,7 +358,7 @@ function createBookingLinesModel(database) {
 
     // The dates each line of a booking already stores — `{ options: { [optionId]: dates }, resources:
     // { [resourceId]: dates } }` — which `stayDates.stayItemDatesRefusal` does not re-judge
-    // (specs/reservations-backend-mvc.md rule 13, second reading).
+    // (specs/tech/reservations-backend-mvc.md rule 13, second reading).
     getStoredItemDates(bookingId) {
       const datesOf = (list) => parseJsonArray(list).map((item) => String((item && item.date) || '').slice(0, 10));
       const options = {};
@@ -376,7 +376,7 @@ function createBookingLinesModel(database) {
       return { options, resources };
     },
 
-    // specs/non-card-option-served-persons.md rule 34 — the typed counts a booking stores: sent back
+    // specs/options/non-card-option-served-persons.md rule 34 — the typed counts a booking stores: sent back
     // unchanged, they are not re-judged.
     getStoredTypedCounts(bookingId) {
       if (!HAS_CARD_PERSONS && !HAS_CARD_NIGHTS) return {};
@@ -394,7 +394,7 @@ function createBookingLinesModel(database) {
 
     // The prices a booking was sold at, in the shape the pricing engine consumes as `locked*` inputs.
     // Kind-agnostic: a devis under its validity window locks exactly like a saved reservation
-    // (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+    // (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 13).
     getPricingSnapshot(bookingId) {
       const lockedNightlyBreakdown = database.prepare(`
         SELECT date, seasonLabel, pricingMode, price

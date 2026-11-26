@@ -1,5 +1,5 @@
 /**
- * PeriodSelector — specs/finance-dashboard-redesign.md rule 51: a custom window wider than the
+ * PeriodSelector — specs/accounting/finance-dashboard-redesign.md rule 51: a custom window wider than the
  * server's cap is refused on the spot with the server's message, and never sent.
  */
 

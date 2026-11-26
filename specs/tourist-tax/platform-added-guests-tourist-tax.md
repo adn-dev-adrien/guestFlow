@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-[platform-extra-guest-complement.md](platform-extra-guest-complement.md) bills the accommodation
+[platform-extra-guest-complement.md](../platforms/platform-extra-guest-complement.md) bills the accommodation
 supplement of guests added after the platform amounts were entered. Its §8 set the tourist tax aside
 as « already follows the composition ». On a platform in mode `platform_reversed` (it collects the tax
 from the guest and wires it to us) that is false: the platform collected and reversed the tax of the
@@ -41,7 +41,7 @@ is declared to the commune. The accommodation no longer pays for it.
 
 1. **The engine keeps the adults the platform billed**, `platformPaidAdults`, beside the existing
    `platformPaidGuests`. Same lifecycle as
-   [platform-extra-guest-complement.md](platform-extra-guest-complement.md) rules 4–6: captured on the
+   [platform-extra-guest-complement.md](../platforms/platform-extra-guest-complement.md) rules 4–6: captured on the
    save where the brut goes from empty to entered, kept when the brut is corrected, cleared with the
    brut and on a switch to direct, never read from a request body. No new field for the operator.
 
@@ -67,7 +67,7 @@ is declared to the commune. The accommodation no longer pays for it.
 7. **A collected complement stops moving.** With `complementPaid = 1` the engine reads the stored
    amount instead of recomputing it, and a guest added after that changes neither the tax nor the
    accommodation, exactly like the supplement
-   ([platform-extra-guest-complement.md](platform-extra-guest-complement.md) rule 12).
+   ([platform-extra-guest-complement.md](../platforms/platform-extra-guest-complement.md) rule 12).
 7bis. **A frozen tax does not stop it** (decision 2026-11-03). With the balance paid or the tax ticked
    « Déclarée » ([tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md)
    rules 10–13), the frozen amount is what the platform reversed and what the commune was told, and it
@@ -85,7 +85,7 @@ is declared to the commune. The accommodation no longer pays for it.
    brut.** The accommodation stops shrinking, and the fiche's revenue no longer depends on the party.
    Example above: accommodation 595,20, tax 7,20, complement 42,40, total 642,40.
 10. **It cannot be offered.** It is a debt to the commune: same reason as the untouchable tax poste of
-    [adjustable-complement-amounts.md](adjustable-complement-amounts.md) rule 32. Offering the
+    [adjustable-complement-amounts.md](../sas/adjustable-complement-amounts.md) rule 32. Offering the
     supplement leaves the tax line in place, and the complement adjustment cannot go below it.
 
 ### 3.4 What is declared and booked
@@ -115,7 +115,7 @@ is declared to the commune. The accommodation no longer pays for it.
 
 16. **Marking the solde paid works on a fiche with added guests.** Found on 2026-11-03 replaying the
     real path on `origin/master`: the payment capture counted the added guests' supplement
-    ([platform-extra-guest-complement.md](platform-extra-guest-complement.md) rule 10) in the
+    ([platform-extra-guest-complement.md](../platforms/platform-extra-guest-complement.md) rule 10) in the
     accommodation of the solde, found 640 € against the 600 € stored, and refused the flip with a 409.
     The supplement and the added tax are collected with the complement, so neither enters the solde's
     capture.
@@ -123,7 +123,7 @@ is declared to the commune. The accommodation no longer pays for it.
 ### 3.7 On `inte/plugins` (sync of v3.21.0, 2026-11-04)
 
 17. **The export lives in the `accounting-export` plugin, and a paid solde keeps what it collected**
-    ([accounting-books-the-money-collected.md](accounting-books-the-money-collected.md) rule 13). When
+    ([accounting-books-the-money-collected.md](../accounting/accounting-books-the-money-collected.md) rule 13). When
     the solde's contribs describe it, the balance entry books the frozen tax and the complement entry
     `touristTaxTotal − frozen`, which already holds the added tax; only a solde without trustworthy
     contribs reads `touristTaxTotal − addedTax` and `addedTax`. Plugin `accounting-export` 1.0.24.
@@ -333,7 +333,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 - Guests added once the arrival complement is collected (rule 7).
 - Reconciling a platform's own tax rate with ours.
 - Editing the composition from the SAS.
-- Notifying the guest automatically ([no-automatic-email-without-approval.md](no-automatic-email-without-approval.md)).
+- Notifying the guest automatically ([no-automatic-email-without-approval.md](../emails/no-automatic-email-without-approval.md)).
 
 ## 9. Open questions
 

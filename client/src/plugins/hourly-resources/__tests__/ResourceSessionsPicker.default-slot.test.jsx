@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rule 31 — « Ajouter une séance » proposes the first free
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 31 — « Ajouter une séance » proposes the first free
 // slot of the stay after the check-in on arrival day (review 2026-10-18, F4/F5: the second session
 // landed on the first one, and both before a 16:00 check-in).
 import React from 'react';

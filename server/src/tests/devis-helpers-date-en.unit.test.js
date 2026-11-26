@@ -1,5 +1,5 @@
 // English date formatter for the bilingual devis PDF.
-// See specs/devis-english-language.md §3 rule 3.
+// See specs/devis/devis-english-language.md §3 rule 3.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

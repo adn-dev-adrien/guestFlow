@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 42 — the e-mail banner's « Se déconnecter » asks the page first, as the menu does.
+// specs/design-system/ui-review-2026-10-19-operations.md rule 42 — the e-mail banner's « Se déconnecter » asks the page first, as the menu does.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';

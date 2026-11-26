@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 1, 11 and 42 — the loader (`models/pricingInputModel.js`) is the one place the quote of a
+// specs/pricing/pricing-components.md §3 rules 1, 11 and 42 — the loader (`models/pricingInputModel.js`) is the one place the quote of a
 // stay reads the database; the tourist-tax decision of the platform's stored mode is the unit's (`touristTax.js`).
 process.env.DB_PATH = ':memory:';
 

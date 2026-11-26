@@ -1,4 +1,4 @@
-// specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (verification R44 L4) — the two mid-stay note
+// specs/payments/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (verification R44 L4) — the two mid-stay note
 // refusals name the remainder in French money (« 12,50 € »), never a dot decimal: settling a note above what is left,
 // and raising a stored note above what its own lines have left.
 

@@ -1,5 +1,5 @@
 /**
- * The search of the Paramètres summary (specs/settings-rationalization.md rule 27): every word typed
+ * The search of the Paramètres summary (specs/settings/settings-rationalization.md rule 27): every word typed
  * must be found in the row's name, its state line or one of its keywords (constants/settingsMenu.js
  * SETTINGS_KEYWORDS). Accents, case and punctuation are ignored, so « wifi » finds « Wi-Fi », « 2fa »
  * finds « 2FA », and « j-2 » stays one word: it finds « J-2 », not every row with a 2. A row found through a keyword says which one.

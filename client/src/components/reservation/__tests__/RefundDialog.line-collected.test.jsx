@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import RefundDialog from '../RefundDialog';
 
-// specs/reservation-refunds.md rule 51 (D15) — sur un séjour vivant, le dialogue bloque d'après le chiffre du serveur
+// specs/payments/reservation-refunds.md rule 51 (D15) — sur un séjour vivant, le dialogue bloque d'après le chiffre du serveur
 // (`availableTtc`), sans calcul : ligne sans encaissement désactivée, plafond de la ligne, caisse interne non jugée.
 
 const LINES = [

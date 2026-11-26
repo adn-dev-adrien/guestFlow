@@ -1,5 +1,5 @@
 /**
- * STEP settlement — SETTLEMENT (specs/pricing-components.md §3 rule 52).
+ * STEP settlement — SETTLEMENT (specs/pricing/pricing-components.md §3 rule 52).
  *
  * The complement's detail lines and its split by moment.
  * `apply(ctx)` returns a new context and never mutates the one it receives.

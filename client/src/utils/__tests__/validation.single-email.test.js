@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 28 — the client mirrors the server: an e-mail is one address.
+// specs/plugins/plugins-phase-1-sdk.md rule 28 — the client mirrors the server: an e-mail is one address.
 import { describe, expect, it } from 'vitest';
 import { isValidEmail } from '../validation';
 

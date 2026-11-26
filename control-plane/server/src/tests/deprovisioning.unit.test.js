@@ -1,7 +1,7 @@
-// specs/control-plane-plans-and-access.md rule 20 — « Déprovisionner »: confirmed by the slug, the
+// specs/hosting/control-plane-plans-and-access.md rule 20 — « Déprovisionner »: confirmed by the slug, the
 // export first (database copy, uploads, CSV), its link emailed for 30 days, the stop step, archived,
 // erased after 90 days (or earlier on a second confirmation), and reactivation before erasure.
-// Since the hosting (specs/hosting-h1-fleet-runtime.md rules 3, 4, 7) the stop and the restart run
+// Since the hosting (specs/hosting/hosting-h1-fleet-runtime.md rules 3, 4, 7) the stop and the restart run
 // by themselves; a failed stop holds the erasure back until it is retried.
 
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 22 (audit R23-2) — a malformed propertyId used to close every property; only null, '' and
+// specs/pricing/establishment-closures.md rule 22 (audit R23-2) — a malformed propertyId used to close every property; only null, '' and
 // 'null' mean « all ». Through the real application, on the routes the fiche's dialog calls.
 const test = require('node:test');
 const assert = require('node:assert/strict');

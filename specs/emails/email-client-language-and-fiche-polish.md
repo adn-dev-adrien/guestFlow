@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-The bilingual-email feature (`specs/email-language-fr-en.md`) stores the email language on the
+The bilingual-email feature (`specs/emails/email-language-fr-en.md`) stores the email language on the
 **reservation** (`reservations.emailLanguage`), with a selector on the reservation fiche. In practice a
 guest's language is a property of the **person**, not of one stay — so it should live on the client and
 drive *every* communication with them.

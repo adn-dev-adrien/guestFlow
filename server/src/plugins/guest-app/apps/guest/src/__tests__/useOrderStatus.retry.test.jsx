@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 33 — the return from Qonto follows the order: without network it keeps trying, waiting
+// specs/guest-app/guest-app.md rule 33 — the return from Qonto follows the order: without network it keeps trying, waiting
 // longer each time, and after the try limit it stops and offers to check again.
 import { act, renderHook } from '@testing-library/react';
 import {

@@ -1,5 +1,5 @@
 /**
- * PaymentLedger — what a stay has been paid, as the pricing reads it (specs/pricing-components.md §3 rule 48).
+ * PaymentLedger — what a stay has been paid, as the pricing reads it (specs/pricing/pricing-components.md §3 rule 48).
  *
  * Contract (plain functions over today's reads; `create(db)` binds them to a database):
  *   installments(id)   the installment plan summary `{ count, scheduled, paid, allPaid }`, null without a plan

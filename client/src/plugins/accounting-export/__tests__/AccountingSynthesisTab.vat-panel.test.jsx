@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 28, 29 and 30 — the VAT to declare by rate or by account with the server's
+// specs/accounting/accounting-synthesis.md §3 rules 28, 29 and 30 — the VAT to declare by rate or by account with the server's
 // totals, the deductible VAT apart, and the collected running total against last year; each panel names its source.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
@@ -31,7 +31,7 @@ test('rule 28 — by rate, then by account, the same server total', async () => 
 
 test('rule 29 — the running total, last year dashed beside it only when the server sends it', async () => {
   const { unmount } = renderTab(synthesisPayload());
-  // The SDK hands the charts out lazily (specs/report-grammar.md rule 20): wait for the figure.
+  // The SDK hands the charts out lazily (specs/design-system/report-grammar.md rule 20): wait for the figure.
   expect(await screen.findByRole('figure', { name: 'Encaissements cumulés, T3 2099' }, { timeout: 10000 })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'N-1' })).toBeInTheDocument();
   unmount();

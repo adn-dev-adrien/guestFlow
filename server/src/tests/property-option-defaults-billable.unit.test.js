@@ -9,7 +9,7 @@ const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsMod
 // displayed, priced at 0, then silently dropped at save:
 //   - ARCHIVED options (withdrawn from the catalogue);
 //   - INTERNAL linen options (`displayToClient = 0`), which `reservationsModel.insertOptions`
-//     skips by construction (specs/laundry-bath-mat.md §3 rule 11).
+//     skips by construction (specs/linen/laundry-bath-mat.md §3 rule 11).
 // The laundry counters read `property_option_defaults` directly in SQL, so they are unaffected.
 
 function createDb() {

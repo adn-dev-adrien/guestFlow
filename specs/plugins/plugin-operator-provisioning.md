@@ -7,8 +7,10 @@
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Amends** | [`plugins-phase-4-registry.md`](plugins-phase-4-registry.md) P25, [`control-plane-plans-and-access.md`](control-plane-plans-and-access.md) rules 5 and 11, [`plugins-phase-p-productisation.md`](plugins-phase-p-productisation.md) rules 40 and 43 — on a managed instance only (notes added under each) |
-| **Summary for review** | [`docs/specs/2026-10-28-plugin-operator-provisioning.html`](../docs/specs/2026-10-28-plugin-operator-provisioning.html) |
+| **Amends** | [`plugins-phase-4-registry.md`](plugins-phase-4-registry.md) P25, [`control-plane-plans-and-access.md`](../hosting/control-plane-plans-and-access.md) rules 5 and 11, [`plugins-phase-p-productisation.md`](plugins-phase-p-productisation.md) rules 40 and 43 — on a managed instance only (notes added under each) |
+| **Summary for review** | [`docs/specs/2026-10-28-plugin-operator-provisioning.html`](../../docs/specs/2026-10-28-plugin-operator-provisioning.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 10: catalogue count updated (18 manifests under `server/src/plugins/*/manifest.json`); rules 1–43 otherwise match the code paths they cite.
 
 ---
 
@@ -114,7 +116,7 @@ screen or endpoint: the customer sees only the features themselves.
 
 ### 3.C What the operator decides (console)
 
-10. **The customer's page has a « Modules » section**: one line per plugin of the catalogue (16 today),
+10. **The customer's page has a « Modules » section**: one line per plugin of the catalogue (18 as of 2026-11-26: `guest-app` and `gift-vouchers` joined the original 16),
     grouped « Inclus » (allowed by the licence: plan, add-ons, grandfathered) then « Hors forfait »
     (folded, closed at first, with the plan that includes each: « Forfait Premium », or « Option à la
     carte »). Each « Inclus » line has a switch: on = the module runs on the space. A « Hors forfait »
@@ -318,7 +320,7 @@ screen or endpoint: the customer sees only the features themselves.
     _Added at second review; wording amended at follow-up._
 
 39. **An installed plugin whose code is gone stays until it is uninstalled.** A row without a module
-    (`PACKAGE_MISSING`, specs/plugin-removal-resilience.md rule 1) is outside the catalogue the reconciler
+    (`PACKAGE_MISSING`, specs/plugins/plugin-removal-resilience.md rule 1) is outside the catalogue the reconciler
     walks: it ignores it, whatever `activePlugins` says, and an erase order naming it is settled without
     touching anything (rule 23). The row stays — never live, never listed by the managed `GET /api/plugins`
     (rule 5) — until a release ships the plugin again or the row is removed from the database.
@@ -535,7 +537,7 @@ the ones its administrator could already do from the Plugins page, now driven by
 ## 6. UI / UX
 
 Skills loaded for the mockups: `apple-design`, `impeccable`. Interactive mockups:
-[`docs/specs/2026-10-28-plugin-operator-provisioning.html`](../docs/specs/2026-10-28-plugin-operator-provisioning.html).
+[`docs/specs/2026-10-28-plugin-operator-provisioning.html`](../../docs/specs/2026-10-28-plugin-operator-provisioning.html).
 
 ### 6.1 Console — customer page, « Modules » section
 

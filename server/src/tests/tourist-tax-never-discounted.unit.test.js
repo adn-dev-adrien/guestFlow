@@ -1,5 +1,5 @@
 // A price lever never discounts the tourist tax itself (study of HIPPOCAMP, 2026-11-05: a −10 % promotion
-// lowered a stay's tax there): specs/finance-data-checks.md §3 rule 11.
+// lowered a stay's tax there): specs/accounting/finance-data-checks.md §3 rule 11.
 //   - per adult and night: the tax reads the rate, the adults and the nights, nothing else — a discount, an
 //     adjusted price, an offered line, an offered extra-guest supplement, a pinned platform brut leave it whole;
 //   - percentage of the accommodation: the lever reaches the tax only through its legal base, the

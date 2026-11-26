@@ -1,4 +1,4 @@
-// specs/wp-booking-widget-redesign.md rule 30 + specs/public-api.md (UI/UX review 2026-10-18,
+// specs/site/wp-booking-widget-redesign.md rule 30 + specs/site/public-api.md (UI/UX review 2026-10-18,
 // decision 2) — when the calendar's window is all closed, the server says where the first bookable
 // arrival is: a free night the stay rules accept (minimum stay, changeover days), not just any free
 // night. Pure: the window's blocked nights come in, the lookup beyond it and the rules are injected.
@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const { findNextAvailableDate, stayRulesPredicate } = require('../nextAvailability');
 const { toPublicAvailability } = require('../publicProjections');
 
-// Twelve months ahead of today (the lodging's default setting, specs/gift-voucher-campaigns.md rule 51).
+// Twelve months ahead of today (the lodging's default setting, specs/gift-vouchers/gift-voucher-campaigns.md rule 51).
 const HORIZON = '2027-10-19'; // date-literal-ok: the suite runs on its own clock, never the real today
 
 function days(from, n) {

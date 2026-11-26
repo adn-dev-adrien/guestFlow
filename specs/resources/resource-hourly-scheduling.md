@@ -6,14 +6,14 @@
 | **Branch** | `feature/resource-hourly-scheduling` |
 | **Created** | 2026-06-17 |
 | **Author** | Adrien |
-| **Related** | `specs/option-planning-card.md` (the option mechanism this mirrors), resources system |
+| **Related** | `specs/options/option-planning-card.md` (the option mechanism this mirrors), resources system |
 
 ---
 
 ## 1. Context
 
 Options can be scheduled per-day from the reservation fiche and shown as Planning cards
-(`specs/option-planning-card.md`). **Resources** (e.g. « Bain nordique ») cannot: a resource on a
+(`specs/options/option-planning-card.md`). **Resources** (e.g. « Bain nordique ») cannot: a resource on a
 reservation is just a quantity (hours), with a flat per-hour price and an optional per-property free
 first hour (`property_resource_prices.freeMinutes`, rendered « 1ère heure offerte pour {logement} »).
 
@@ -189,7 +189,7 @@ unchanged). Existing `reservation_resources` rows have `sessions = NULL` (priced
 - **Planning**: a resource card per session (reuse `OptionDayCard`, distinct accent), with the time
   range + a « fait » toggle. Mobile = same card layout as option cards.
 
-> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The catalog block is rendered as the « Horaires » section of the resource editor panel (its paired fields already sit side by side from `sm`); the resource card shows the evening and external rates and the opening hours through the hourly plugin's catalogue lines. Fields and rules unchanged.
+> **Amended 2026-10-28 — [options-resources-ux.md](../options/options-resources-ux.md) (Implemented).** The catalog block is rendered as the « Horaires » section of the resource editor panel (its paired fields already sit side by side from `sm`); the resource card shows the evening and external rates and the opening hours through the hourly plugin's catalogue lines. Fields and rules unchanged.
 
 ## 7. Test plan
 ### Server unit tests (required — money logic)

@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 19, 41, 52, 55 — the sale of a composed voucher: NOTHING exists before the bank confirms the payment (no voucher, no code, no
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 19, 41, 52, 55 — the sale of a composed voucher: NOTHING exists before the bank confirms the payment (no voucher, no code, no
 // booking, no sale) but the order; the order is priced again by the engine at the moment of its payment link; a confirmation after the link was withdrawn still issues the
 // voucher at the price the order fixed; « Offert » records no sale; the operator's payment link is a site order and follows the standard path; a one-shot goes the same way.
 process.env.DB_PATH = ':memory:';
@@ -43,7 +43,7 @@ async function withServer(fn) {
 const paid = (orderId, linkId, amountCents) => api.orderPaid({ ref: String(orderId), linkId, amountCents });
 const order = (id) => db.prepare('SELECT * FROM gift_voucher_orders WHERE id = ?').get(id);
 
-test('specs/gift-vouchers.md rule 46 — nothing exists before the bank confirms: the order, its price and its link create no voucher, no code, no movement, no sale and no booking', () => withServer(async ({ site, place }) => {
+test('specs/gift-vouchers/gift-vouchers.md rule 46 — nothing exists before the bank confirms: the order, its price and its link create no voucher, no code, no movement, no sale and no booking', () => withServer(async ({ site, place }) => {
   const before = existing();
   const placed = await place();
   assert.equal(placed.status, 201, JSON.stringify(placed.body));

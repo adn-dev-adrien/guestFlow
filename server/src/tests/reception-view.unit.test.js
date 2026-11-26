@@ -10,7 +10,7 @@ const {
   toReceptionSasCommit,
 } = require('../utils/receptionView');
 
-// specs/reception-role-checkin-only.md §3.2 — the money guard. Door money (caution / complement) is
+// specs/sas/reception-role-checkin-only.md §3.2 — the money guard. Door money (caution / complement) is
 // kept; total / deposit / balance / remaining / commission / tourist-tax / contribs and client PII
 // are dropped. Whitelist, so a new financial field can never leak.
 
@@ -81,7 +81,7 @@ const FULL_RESERVATION = {
     // A séjour line (stay money): its prices must be stripped.
     { id: 1, optionId: 5, title: 'Ménage', description: 'Forfait ménage', quantity: 1, autoOptionType: 'cleaning', totalPrice: 60, unitPrice: 60, originalTotalPrice: 60, acompteContribTtc: 10, inComplement: 0, offered: 0, sasArrivalOrigin: 0 },
     // A complement line the arrival SAS itself added (door money): its amount must SURVIVE so the
-    // SAS reopens pre-filled (specs/reopen-completed-sas.md §5).
+    // SAS reopens pre-filled (specs/sas/reopen-completed-sas.md §5).
     { id: 2, customOptionId: 11, isCustom: 1, title: 'Linge de toilette', description: 'Linge de toilette', quantity: 1, unitPrice: 32, totalPrice: 32, originalTotalPrice: 32, acompteContribTtc: null, inComplement: 1, offered: 0, sasArrivalOrigin: 1 },
   ],
   resources: [
@@ -138,7 +138,7 @@ test('toReceptionReservationView strips prices off séjour option / resource lin
   }
 });
 
-// specs/reception-role-checkin-only.md rule 12bis — a complement line is DOOR money: its amount is
+// specs/sas/reception-role-checkin-only.md rule 12bis — a complement line is DOOR money: its amount is
 // exactly what reception collects (rule 3), and the reopened arrival SAS rebuilds its own lines
 // from it. The SAS reopen markers (complementPaidCash, endOfStayComplementPaidCash/Date/Detail,
 // departureHandoverNote, extinguisherSealOkAtDeparture) survive for the same reason — pinned by
@@ -186,7 +186,7 @@ test('toReceptionPropertyView keeps display fields, drops pricing', () => {
   }
 });
 
-// specs/reception-sas-today-only.md §3.2 rule 9 — the view also carries the SERVER-resolved locks, so
+// specs/sas/reception-sas-today-only.md §3.2 rule 9 — the view also carries the SERVER-resolved locks, so
 // the client never does date math. `now` is injected here to pin every branch.
 const at = (y, m, d, h = 0) => new Date(y, m - 1, d, h);
 const STAY = { id: 7, startDate: '2026-08-04', endDate: '2026-08-06', arrivalSasDoneAt: null, departureSasDoneAt: null };
@@ -226,7 +226,7 @@ test('toReceptionReservationList resolves the locks against the same instant', (
   assert.equal(view.departureSasLock, 'future');
 });
 
-// ── specs/collect-stay-payment-at-check-in.md §3.6 — the stay is admin-only ───────────────────────
+// ── specs/sas/collect-stay-payment-at-check-in.md §3.6 — the stay is admin-only ───────────────────────
 
 test('toReceptionStayPayment: the step is off and NO amount is served', () => {
   const view = toReceptionStayPayment();

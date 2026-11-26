@@ -1,5 +1,5 @@
 /**
- * The VAT golden database (specs/vat-optional-mode.md rule 23). Not a test file.
+ * The VAT golden database (specs/accounting/vat-optional-mode.md rule 23). Not a test file.
  *
  * Solio's six stays (`productisationGoldenFixture`) completed into a database every VAT reader has
  * something to read in: stored prices from the engine, a proportional tourist tax at L'Estiva (the one

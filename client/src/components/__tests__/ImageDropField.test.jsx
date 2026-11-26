@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 47 — the image upload field: a file is dropped or picked, previewed, removable; the server's refusal is shown under it.
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 47 — the image upload field: a file is dropped or picked, previewed, removable; the server's refusal is shown under it.
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

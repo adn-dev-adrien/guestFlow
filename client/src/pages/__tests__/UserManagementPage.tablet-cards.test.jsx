@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 35 — at a tablet width (900 px, side menu open) the
+// specs/plugins/plugins-phase-p-productisation.md rule 35 — at a tablet width (900 px, side menu open) the
 // accounts are cards, so « Dernière connexion » and the actions are never hidden in an inner scroll.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

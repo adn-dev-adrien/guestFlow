@@ -1,4 +1,4 @@
-// specs/ds-tabs.md rule 12 — the default plugin tab of Vacances & fermetures keeps the bar (title, tabs,
+// specs/design-system/ds-tabs.md rule 12 — the default plugin tab of Vacances & fermetures keeps the bar (title, tabs,
 // an action-sized slot) drawn while its chunk loads, instead of a bare skeleton; its page has no Save,
 // so the fallback shows none.
 import React, { lazy } from 'react';

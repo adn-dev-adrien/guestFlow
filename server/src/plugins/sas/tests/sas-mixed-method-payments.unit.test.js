@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 1, 10-11, 32 — « Plusieurs moyens » at the check-out SAS: the day's cleaning,
+// specs/payments/mixed-method-payments.md rules 1, 10-11, 32 — « Plusieurs moyens » at the check-out SAS: the day's cleaning,
 // 122 € = 50 € cash in the caisse + 72 € card, recorded on a real (in-memory) database.
 process.env.DB_PATH = ':memory:';
 

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 68 — `scripts/price-gate/anonymise.js` copies by allow-list: only the named tables
+// specs/pricing/pricing-components.md §3 rule 68 — `scripts/price-gate/anonymise.js` copies by allow-list: only the named tables
 // and columns leave the source, free text is replaced, the guest of an intake becomes a placeholder.
 const test = require('node:test');
 const assert = require('node:assert/strict');

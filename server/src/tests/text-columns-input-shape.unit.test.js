@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A3, R23-5, R23-I2, R23-I8) — on these routes
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A3, R23-5, R23-I2, R23-I8) — on these routes
 // a text field is a string, null or absent; the table is the auditor's. Only control characters leave the back office's
 // text: D13 judges the public form alone.
 const test = require('node:test');

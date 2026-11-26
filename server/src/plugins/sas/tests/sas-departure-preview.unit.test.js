@@ -1,4 +1,4 @@
-// specs/sas-departure-recap-server-side.md — the departure preview endpoint and what the commit does with
+// specs/sas/sas-departure-recap-server-side.md — the departure preview endpoint and what the commit does with
 // the operator's draft: one plan for both, nothing written by the preview, the displayed total compared
 // (never used), the reception's view, the body never trusted for money. Real controller, real model,
 // in-memory database; fictional figures.
@@ -162,7 +162,7 @@ test('rule 12 — the SAS read serves the departure seed, and only in departure 
   assert.equal('departureSeed' in read('arrival'), false);
 });
 
-test('specs/sas-departure-recap-server-side.md rule 27 — no departure money contract for plugin steps: a plugin payload changes nothing', () => {
+test('specs/sas/sas-departure-recap-server-side.md rule 27 — no departure money contract for plugin steps: a plugin payload changes nothing', () => {
   const id = stay();
   const plain = call('previewDeparture', id, DRAFT).body;
   const withStep = call('previewDeparture', id, { ...DRAFT, pluginSteps: { weather: { extra: 999 } } }).body;

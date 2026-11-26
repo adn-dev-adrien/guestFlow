@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 1 and 8 (sale outside a stay) — a proposal on the tranche of a sale
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 1 and 8 (sale outside a stay) — a proposal on the tranche of a sale
 // can be discarded like a confirmation can: the sale has no reservation row, its receipt (reservation id 0) is what proves it exists.
 const test = require('node:test');
 const assert = require('node:assert/strict');

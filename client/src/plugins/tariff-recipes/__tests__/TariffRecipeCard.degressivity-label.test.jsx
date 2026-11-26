@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import TariffRecipeCard from '../TariffRecipeCard';
 import api from '../../../api';
 
-// specs/tariff-recipes/spec.md §3.2 (2026-10-27 audit) — the card printed the recipe's raw
+// specs/pricing/tariff-recipes.md §3.2 (2026-10-27 audit) — the card printed the recipe's raw
 // fractional discount « 7 nuits −42.857142857142854 % »; it now renders the server's French label.
 
 vi.mock('../../../api', () => ({

@@ -1,5 +1,5 @@
 /**
- * The « Modules » of a customer (specs/plugin-operator-provisioning.md rules 10–14, 22, 25): which
+ * The « Modules » of a customer (specs/plugins/plugin-operator-provisioning.md rules 10–14, 22, 25): which
  * of the plugins the plan allows run on the customer's space. The choice is stored here, travels in
  * the signed licence, and the lines tell what the space reports back. Payloads are ready to render.
  */
@@ -66,7 +66,7 @@ function createCustomerModulesController(ctx, customersController) {
     return on ? g.requirementClosure(id).filter((r) => !chosen.has(r)) : g.activeDependantClosure(id);
   }
 
-  // specs/plugin-dependencies.md rule 22 — the flag is the list of ids the operator saw; a different
+  // specs/plugins/plugin-dependencies.md rule 22 — the flag is the list of ids the operator saw; a different
   // closure now is refused, never taken along unseen.
   const confirmedIds = (given) => (Array.isArray(given) ? given : null);
 

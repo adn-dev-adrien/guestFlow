@@ -1,5 +1,5 @@
 /**
- * Planning cleaning alerts model (specs/planning-arrival-alerts.md §3 rules 7–10): loads the stays
+ * Planning cleaning alerts model (specs/planning/planning-arrival-alerts.md §3 rules 7–10): loads the stays
  * around the window — including the ones that started before it, whose checkout can collide with an
  * arrival of the window — and the properties' cleaning hours, then hands them to the pure
  * `utils/planningArrivalAlerts`.

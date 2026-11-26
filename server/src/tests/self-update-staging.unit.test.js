@@ -17,7 +17,7 @@ const {
 } = require('../utils/updateStaging');
 const { resolvePaths } = require('../utils/deploymentPaths');
 
-// specs/self-update-and-releases.md §3.D rules 22-25. The archive is untrusted input: these tests
+// specs/hosting/self-update-and-releases.md §3.D rules 22-25. The archive is untrusted input: these tests
 // pin the refusals, because every one of them is the difference between "the update did not
 // install" and "something else installed itself".
 

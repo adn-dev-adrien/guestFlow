@@ -1,6 +1,6 @@
 // The Qonto connection settings of the instance — encrypted token storage, HTTP masking, connection
-// metadata. See specs/online-payments-qonto.md §3.1; stored in the plugin's settings since
-// specs/plugins-phase-3a-online-payment.md rule 13.
+// metadata. See specs/payments/online-payments-qonto.md §3.1; stored in the plugin's settings since
+// specs/plugins/plugins-phase-3a-online-payment.md rule 13.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

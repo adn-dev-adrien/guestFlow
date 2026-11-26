@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 41–42 (audit 2026-10-28, H2 and L1): what « Désinstaller »
+// specs/plugins/plugin-operator-provisioning.md rules 41–42 (audit 2026-10-28, H2 and L1): what « Désinstaller »
 // may promise, the removal flag in the licence, and an order the space already ran.
 const test = require('node:test');
 const assert = require('node:assert/strict');

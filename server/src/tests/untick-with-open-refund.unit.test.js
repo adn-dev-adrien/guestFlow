@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 52 (audit R23 N7, 2026-11-05) — D10's reverse order: a mark taken back must not leave book
+// specs/payments/reservation-refunds.md rule 52 (audit R23 N7, 2026-11-05) — D10's reverse order: a mark taken back must not leave book
 // refunds above what stays collected. PATCH and arrival undo answer 409, naming the refund to delete first.
 process.env.DB_PATH = ':memory:';
 

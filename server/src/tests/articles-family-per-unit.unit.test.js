@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 47 and 57 — article family `perUnit`: n moments placed on a planning card, or n portions still to place
+// specs/pricing/pricing-components.md §3 rules 47 and 57 — article family `perUnit`: n moments placed on a planning card, or n portions still to place
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { family } = require('../utils/pricing/articles/families/perUnit');

@@ -1,5 +1,5 @@
 /**
- * Reading a JSON body's fields (specs/hosting-h2-account-security.md rule 68), as the console does
+ * Reading a JSON body's fields (specs/hosting/hosting-h2-account-security.md rule 68), as the console does
  * (control-plane/server/src/utils/bodyText.js). `String()` and `Number()` throw on {"toString":1} and turn `{}` into
  * stored text; only a string is text, only a number or a string is a number. Absent and `null` read as empty, so a
  * form's untouched optional field stays fine.

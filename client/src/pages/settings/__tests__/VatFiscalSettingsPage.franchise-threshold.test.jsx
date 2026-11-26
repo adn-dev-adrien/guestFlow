@@ -1,6 +1,6 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
- * VatFiscalSettingsPage — the franchise threshold in the page's draft (specs/vat-optional-mode.md rules
+ * VatFiscalSettingsPage — the franchise threshold in the page's draft (specs/accounting/vat-optional-mode.md rules
  * 35, 36): an invalid amount blocks Save; a field that is not on screen blocks nothing and sends nothing
  * (typed amount, then another mention); Cancel gives the stored amount back.
  */

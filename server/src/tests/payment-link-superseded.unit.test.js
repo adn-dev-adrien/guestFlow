@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 12 — a stay set aside as a duplicate (`superseded`) withdraws its open links
+// specs/payments/payment-link-lifecycle.md rule 12 — a stay set aside as a duplicate (`superseded`) withdraws its open links
 // (`cancelReason = 'superseded'`, deactivation owed): in the lifecycle pass (rule 16, its own row or the stay its devis
 // became) and in `supersededDuplicates` when it sets the row aside. Rule 31: that one-shot reads « carries money » from
 // the shared stayMoney predicate, cash twins included.

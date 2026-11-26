@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.F rules 19–20 — « Traduire les textes manquants » fills
+// specs/emails/guest-email-texts-made-simple.md §3.F rules 19–20 — « Traduire les textes manquants » fills
 // every empty English from its French through the platform's key, with the variables protected; each
 // filled text is marked « à relire » until edited or confirmed; a failure leaves nothing half-done; no
 // key, no button.

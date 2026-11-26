@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rules 15, 16, 27 — the authoritative validation of an option write, the
+// specs/options/options-resources-ux.md rules 15, 16, 27 — the authoritative validation of an option write, the
 // payload clean-up the editor used to do in the browser, the catalogue endpoint and the restore.
 const test = require('node:test');
 const assert = require('node:assert/strict');

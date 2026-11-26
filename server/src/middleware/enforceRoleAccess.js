@@ -1,15 +1,15 @@
 /**
  * Role-based access guard for `/api/*` — runs after `requireAuth`.
  *
- * Multi-role aware (specs/admin-account-management.md): a user holds an array `roles` (loaded from
+ * Multi-role aware (specs/hosting/admin-account-management.md): a user holds an array `roles` (loaded from
  * the `user_roles` join table by `requireAuth`). `admin` short-circuits the check.
  *
  * - **Admin** → unrestricted (default).
  * - **Accountant** → may read the cancellation compensations (core) and call the self routes
  *   (`/auth/me`, `/auth/logout`, `/auth/change-password`, `/users/me`); the journal, the CSV and the
  *   account plan are the `accounting-export` plugin's entries, granted only while it is live
- *   (specs/plugins-phase-2-hosts.md rule 3). Anything else → **403 FORBIDDEN_ROLE**.
- * - **Reception** (specs/reception-role-checkin-only.md) → may only reach the operational surface
+ *   (specs/plugins/plugins-phase-2-hosts.md rule 3). Anything else → **403 FORBIDDEN_ROLE**.
+ * - **Reception** (specs/sas/reception-role-checkin-only.md) → may only reach the operational surface
  *   needed to run the on-site check-in / check-out: the finance-stripped reservation reads, the SAS
  *   read + commits, the check-in/out status toggle, the property list, and the Planning housekeeping
  *   reads + their done/skip writes. Anything else → **403 FORBIDDEN_ROLE**. Never any finance
@@ -29,23 +29,23 @@ const SELF_ENDPOINTS = new Set([
   '/users/me',
   '/users/me/email-status',
   '/version',
-  // The server's date (specs/ds-sweep-planning.md rule 28): every home page starts from it.
+  // The server's date (specs/design-system/ds-sweep-planning.md rule 28): every home page starts from it.
   '/today',
 ]);
 
-// specs/cancellation-compensation.md §6.3 — the accountant reads the compensations, on the core page
-// « Indemnités d'annulation » (specs/plugins-phase-2-hosts.md rule 21). Every write stays admin-only.
+// specs/payments/cancellation-compensation.md §6.3 — the accountant reads the compensations, on the core page
+// « Indemnités d'annulation » (specs/plugins/plugins-phase-2-hosts.md rule 21). Every write stays admin-only.
 const ACCOUNTANT_MATCHERS = [
   { method: 'GET', re: /^\/accounting\/cancellation-compensations$/ },
-  // specs/mollie-rolling-reserve-and-incoming-payments.md §4.3 — the accountant reads what the bank is about to receive.
+  // specs/payments/mollie-rolling-reserve-and-incoming-payments.md §4.3 — the accountant reads what the bank is about to receive.
   { method: 'GET', re: /^\/finance\/incoming$/ },
-  // specs/vat-optional-mode.md §4.3 — the VAT regime in force is read-only for the accountant.
+  // specs/accounting/vat-optional-mode.md §4.3 — the VAT regime in force is read-only for the accountant.
   { method: 'GET', re: /^\/settings\/vat-regime$/ },
   // Platform badge colours and names (non-sensitive display config, same entry as the reception role): the shell loads them for every role.
   { method: 'GET', re: /^\/properties\/platform-colors$/ },
 ];
 
-// specs/reception-role-checkin-only.md §3.6 rule 11 — the exact method+path allowlist for the
+// specs/sas/reception-role-checkin-only.md §3.6 rule 11 — the exact method+path allowlist for the
 // reception role. Anchored regexes so `:id` params match but sibling paths (`/history`, `/search`,
 // reservation create/update/delete, resource-booking CRUD) do NOT. A drift test pins this set.
 const RECEPTION_MATCHERS = [
@@ -66,14 +66,14 @@ const RECEPTION_MATCHERS = [
   { method: 'POST', re: /^\/planning\/option-cards\/done$/ },
 ];
 
-// Plugin modules add their own reception entries (specs/plugins-phase-1-sdk.md rule 5). An inactive
-// plugin contributes none (specs/plugins-phase-2-hosts.md rule 33): its routes answer 403 FORBIDDEN_ROLE.
+// Plugin modules add their own reception entries (specs/plugins/plugins-phase-1-sdk.md rule 5). An inactive
+// plugin contributes none (specs/plugins/plugins-phase-2-hosts.md rule 33): its routes answer 403 FORBIDDEN_ROLE.
 function isReceptionAllowed(method, path) {
   const pluginMatchers = require('../plugins/loader').roleMatchers('reception');
   return [...RECEPTION_MATCHERS, ...pluginMatchers].some((m) => m.method === method && m.re.test(path));
 }
 
-// specs/plugins-phase-2-hosts.md rule 3 — the core entries, plus those of the accounting export. While
+// specs/plugins/plugins-phase-2-hosts.md rule 3 — the core entries, plus those of the accounting export. While
 // the plugin is inactive it contributes none: its routes answer 403 FORBIDDEN_ROLE (rule 33).
 function isAccountantAllowed(method, path) {
   const pluginMatchers = require('../plugins/loader').roleMatchers('accountant');

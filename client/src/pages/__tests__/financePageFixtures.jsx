@@ -9,7 +9,7 @@ const month = (m, label, initial, revenue) => ({
 });
 export const MONTHS = [month('2026-06', 'juin 2026', 'J', 1200), month('2026-07', 'juillet 2026', 'J', 2400)];
 
-// The server's `cashProjection` (specs/mobile-dashboard-exercise-cash.md rule 18): two months, the first received, the second expected.
+// The server's `cashProjection` (specs/planning/mobile-dashboard-exercise-cash.md rule 18): two months, the first received, the second expected.
 const point = (date, label, x, over) => ({ date, label, x, received: 0, expected: 0, cumulative: 0, receivedCumulative: 0, expectedCumulative: 0, solid: null, dashed: null, ...over });
 export const CASH_PROJECTION = {
   // date-literal-ok: a server payload the component renders as given; nothing compares it with today

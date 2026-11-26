@@ -1,4 +1,4 @@
-// specs/guest-email-sequence.md rules 13 + 13bis — the operator paths of the emails controller go
+// specs/emails/guest-email-sequence.md rules 13 + 13bis — the operator paths of the emails controller go
 // through the ledger: « Envoyer » refuses a sequence email already sent unless the resend is
 // confirmed; « Marquer envoyé » and « Ignorer » close the key so the sequence never sends it after.
 
@@ -79,7 +79,7 @@ test('« Ignorer » and « Marquer envoyé » close the key: the sequence never 
 
 test('payment emails keep their own rules: no ledger key, sent again on demand', async () => {
   const { controller, db, mail, reservationId, templateId } = setup();
-  // The acompte reminder: a request without a provider is refused (specs/payment-link-lifecycle.md rule 26).
+  // The acompte reminder: a request without a provider is refused (specs/payments/payment-link-lifecycle.md rule 26).
   const body = { reservationId, templateId: templateId('deposit_reminder') };
   assert.equal((await call(controller.send, { body })).status, 200);
   assert.equal((await call(controller.send, { body })).status, 200);

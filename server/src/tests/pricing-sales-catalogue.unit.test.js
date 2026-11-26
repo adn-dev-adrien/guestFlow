@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 50 and 53 — `sellableExternally` is a catalogue column read into the article's config, default false;
+// specs/pricing/pricing-components.md §3 rules 50 and 53 — `sellableExternally` is a catalogue column read into the article's config, default false;
 // `vat.rate.resources.external` is the hourly-resources plugin's « TVA des ventes hors séjour », answered by the settings provider.
 process.env.DB_PATH = ':memory:';
 

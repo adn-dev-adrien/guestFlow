@@ -10,10 +10,10 @@
 
 > **Updated 2026-10-27 (spec review — drift only).** The code is shipped, but the Status line stays
 > `Approved`: moving it to `Implemented` requires every §3 rule to be cited by a test or declared
-> « Sans test » ([spec-rule-coverage.md](spec-rule-coverage.md) rule 14), and only rule 4 is today
+> « Sans test » ([spec-rule-coverage.md](../tech/spec-rule-coverage.md) rule 14), and only rule 4 is today
 > (`pricing-deposit-disabled.unit.test.js`). That coverage pass is left to a code PR. The flag, the engine consolidation and the past-lock
 > allowlist (rule 6) behave as written. Two things moved: the « unlock past reservations » toggle rule 6
-> refers to is now a per-fiche action ([settings-rationalization.md](settings-rationalization.md) rule 17a),
+> refers to is now a per-fiche action ([settings-rationalization.md](../settings/settings-rationalization.md) rule 17a),
 > and the fiche no longer has an « Acompte » block (rule 8, §6). The switch is **« Sans acompte »**, in the
 > row of split settings at the bottom of the « Paiements » section of `FinanceSection`
 > (`client/src/components/reservation/FinanceSection.jsx`), hidden when an instalment plan replaces the
@@ -56,7 +56,7 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 5. **Reversibility caveat (documented in the UI hint):** flipping OFF→ON loses the original deposit/balance split because Variant A was chosen over a flag-plus-preserved-values design. Going back ON→OFF re-derives the split from the property's `depositPercent`, which may differ from what was there originally if it was a manual override. Acceptable for the platform-handles-deposit use case where the original split was irrelevant anyway.
 6. The flag is included in the existing 14-field allowlist of `pastReservationLocked` so that an admin who realises *after the fact* that a past reservation was a platform booking can still disable the deposit without needing the broader "unlock past reservations" toggle (the two features compose).
    _(Updated 2026-10-27: that global toggle is gone — the broader unlock is now the per-fiche, admin-only
-   « Déverrouiller cette fiche » action, [settings-rationalization.md](settings-rationalization.md) rule 17a.
+   « Déverrouiller cette fiche » action, [settings-rationalization.md](../settings/settings-rationalization.md) rule 17a.
    `depositDisabled` is still in the past-lock allowlist, `server/src/controllers/reservationsController.js`
    `allowedLockedFields`, so the rule holds without unlocking.)_
 7. The flag is captured in `reservationAudit.buildAuditSnapshotFromPayload` + diffed by `computeAuditChanges` so the reservation history surfaces the toggle changes.
@@ -82,7 +82,7 @@ For each reservation, Adrien can flip a single switch in the reservation page to
     reading an overdue acompte of 0 €.
 12. **Fixed at audit R7 M1 (2026-10-30, Adrien's call) — an acompte link paid after « Sans acompte » re-enables
     the acompte.** Turning the acompte off retires its open link as stale
-    ([plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) rules 29-30), but the guest can
+    ([plugins-phase-3a-online-payment.md](../plugins/plugins-phase-3a-online-payment.md) rules 29-30), but the guest can
     still pay it: the Qonto deactivation failed (the rule 8 retry finds it paid) or the payment landed between the
     check and the deactivation (the live path). The booking (`utils/ledgerLinks.js`
     `bookPaidAfterAmountChange`) wrote `depositPaid = 1` on a `depositDisabled = 1` stay: the ledger showed the
@@ -105,7 +105,7 @@ For each reservation, Adrien can flip a single switch in the reservation page to
     stored row keep the acompte, its payment and its journal entry, and the row is written with
     `depositDisabled = 0`. The deliberate case of rule 3 stays: an acompte ticked by hand with no paid link behind
     it (the platform took it) is still zeroed by « Sans acompte ». Giving the link's money back goes through the
-    refund (specs/reservation-refunds.md rule 34), never through the switch.
+    refund (specs/payments/reservation-refunds.md rule 34), never through the switch.
     - **The refused switch keeps the acompte's metadata (re-review of PR #893, RQ1).** The fiche that ticks « Sans
       acompte » also clears the acompte amount it typed and still posts the deadline it showed. When the save
       refuses the flag (requested 1, applied 0), `depositAmountOverride` and `depositDueDate` are taken from the

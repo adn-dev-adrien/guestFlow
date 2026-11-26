@@ -29,18 +29,18 @@ The 595 € matches nothing on the page it is printed on — not even the PDF's 
 - The **table rows** are drawn from the *persisted* devis (`full.nights`, `full.options`,
   `full.resources`), which is why the sub-totals are right.
 - The **tourist tax + TOTAL** come from a *live re-quote* built inline in
-  [`devisController.pdf`](../server/src/controllers/devisController.js), then resolved by
-  `resolveLiveTaxTotals` in [`utils/devisPdf.js`](../server/src/utils/devisPdf.js) per
+  [`devisController.pdf`](../../server/src/controllers/devisController.js), then resolved by
+  `resolveLiveTaxTotals` in [`utils/devisPdf.js`](../../server/src/utils/devisPdf.js) per
   [devis-pdf-and-tourist-tax-fixes.md](devis-pdf-and-tourist-tax-fixes.md) §3.4 rule 20.
 
 That inline re-quote does **not** replay the state the devis was sold under. Compared with what the
 fiche sends to `POST /api/reservations/calculate-price`
-([`reservationsController.calculatePrice`](../server/src/controllers/reservationsController.js)) and
+([`reservationsController.calculatePrice`](../../server/src/controllers/reservationsController.js)) and
 with what `devisModel.computeQuote` uses on save, it drops:
 
 | Missing input | Consequence on the PDF |
 |---|---|
-| `offeredOptionIds` | Every **offered** option is re-billed at full price and loses its `includedInRate` tag, so the PDF prints a total the guest never agreed to — **and a tourist tax above the quoted one**, the untagged line no longer leaving the tax base ([tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md) rule 2, which reinstated that deduction on 2026-08-22). |
+| `offeredOptionIds` | Every **offered** option is re-billed at full price and loses its `includedInRate` tag, so the PDF prints a total the guest never agreed to — **and a tourist tax above the quoted one**, the untagged line no longer leaving the tax base ([tourist-tax-included-services-deduction.md](../tourist-tax/tourist-tax-included-services-deduction.md) rule 2, which reinstated that deduction on 2026-08-22). |
 | `lockedNightlyBreakdown` / `lockedOptionLines` / `lockedResourceLines` / `lockedTariff` | The stay is re-priced at **today's** tariff instead of the one it was quoted under (price lock, [devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md) §3 rule 13) |
 | engine-managed auto-option filtering | Auto-options persisted as lines are fed back as `selectedOptions` while the engine re-adds them |
 | `extraGuestSurchargeOffered` | An offered extra-guest surcharge is re-billed |
@@ -91,7 +91,7 @@ and the TOTAL TTC always agree with the lines printed just above them, for the l
    `generateDevisPdf`. The inline engine-input mapping (and the controller's direct `db` +
    `calculateReservationQuote` imports) disappears.
    5.bis **The payment links read the same replay** (added 2026-08-20,
-   [payment-link-quote-parity.md](payment-link-quote-parity.md) §3.1): `paymentsController` kept a
+   [payment-link-quote-parity.md](../payments/payment-link-quote-parity.md) §3.1): `paymentsController` kept a
    copy of the very mapping this rule deleted, and it decided how many euros a Qonto page asks for —
    a devis carrying a planning-card option was invoiced without it. Any new consumer that needs a
    persisted devis's quote calls `recomputeQuote`; rebuilding an engine input is the bug.
@@ -238,7 +238,7 @@ PDF only (no screen touched). The totals block keeps its exact layout:
         tourist tax; the replay equals the persisted devis (rules 1-2).
   - [x] executable description of the bug: the old naive input re-bills the 60 €, the replay does not.
         _(Until 2026-08-20 it also raised the tourist tax; since
-        [tourist-tax-base-accommodation-only.md](tourist-tax-base-accommodation-only.md) repealed the
+        [tourist-tax-base-accommodation-only.md](../tourist-tax/tourist-tax-base-accommodation-only.md) repealed the
         `includedInRate` deduction, the test asserts the tax is **unchanged**.)_
   - [x] tariff raised after the devis was saved, quote still valid → `recomputeQuote` replays the sold
         price (rule 3).

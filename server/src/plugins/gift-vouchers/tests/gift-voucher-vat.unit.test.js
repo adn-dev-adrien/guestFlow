@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 43-44 — the VAT of a voucher: the setting and its refusals, the rate frozen on the voucher when it is sold
+// specs/gift-vouchers/gift-vouchers.md rules 43-44 — the VAT of a voucher: the setting and its refusals, the rate frozen on the voucher when it is sold
 // (by hand or on the site), HT / VAT cut from the TTC to the cent, the receipt's variable, nothing on the printed voucher, the existing
 // vouchers backfilled to 10 %, and the sale as the books read it (HT + VAT at the frozen rate).
 const test = require('node:test');
@@ -15,7 +15,7 @@ const fx = require('./giftVoucherFixtures');
 
 const campaignRules = require('../campaignRules');
 
-// The rate is a lodging campaign's field (specs/gift-voucher-campaigns.md rule 3): its form judges it.
+// The rate is a lodging campaign's field (specs/gift-vouchers/gift-voucher-campaigns.md rule 3): its form judges it.
 const rateError = (value) => {
   const found = campaignRules.validateCampaign({
     name: 'N', title: 'T', kind: 'lodging', validityMonths: 18, minAmountCents: 2000, maxAmountCents: 200000, vatRatePercent: value,

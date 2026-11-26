@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md — the people served and the nights typed on a non-card option:
+// specs/options/non-card-option-served-persons.md — the people served and the nights typed on a non-card option:
 // the SAS sale, the arrival floor, the breakfast reader and the one-shot migration. The linen side lives
 // with its plugin (plugins/linen/tests/non-card-served-persons.unit.test.js).
 

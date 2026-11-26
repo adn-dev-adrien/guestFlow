@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 72 (owner O-3) — « Carte » is a means of refund; it asks for the provider's reference,
+// specs/pricing/pricing-components.md §3 rule 72 (owner O-3) — « Carte » is a means of refund; it asks for the provider's reference,
 // which rides the payload. No other means shows the field.
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';

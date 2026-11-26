@@ -1,5 +1,5 @@
 /**
- * Users routes — admin-only account management (specs/admin-account-management.md).
+ * Users routes — admin-only account management (specs/hosting/admin-account-management.md).
  *
  * `enforceRoleAccess` (mounted globally on `/api`) admits accountant only for `/users/me` (the self
  * route in its allowlist) and admin everywhere. So all the admin routes below get a free admin
@@ -23,7 +23,7 @@ router.put('/me', controller.updateSelf);
 router.post('/', controller.create);
 router.put('/:id', controller.update);
 router.post('/:id/reset-password', controller.resetPassword);
-// specs/hosting-h2-account-security.md rule 9 — turn another user's second step off.
+// specs/hosting/hosting-h2-account-security.md rule 9 — turn another user's second step off.
 router.delete('/:id/two-factor', controller.disableTwoFactor);
 
 router.delete('/:id', (req, res) => {

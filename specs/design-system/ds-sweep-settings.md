@@ -10,6 +10,8 @@
 | **Umbrella** | [design-system.md](design-system.md) — phase 3 of 6 (first sweep) |
 | **Reference** | [design-system-reference.md](design-system-reference.md) — the rules this sweep applies |
 
+> **Reviewed 2026-11-26 (spec reorganization).** File map is a phase-3 snapshot: `PricedItemsPage` is gone and the billable amounts live in `client/src/plugins/sas/BillableAmountsTab.jsx`; the rules still cited by tests (§3.1 rule 1) stand.
+
 ---
 
 ## 1. Context
@@ -80,7 +82,7 @@ flows — and the `/settings` console error and double-header tab pages are gone
 
 ### 3.2 One bar on the tab wrappers (kills the double header)
 
-6. _(superseded 2026-09-23 by `specs/ds-tabs.md`: the tabs now go to `PageActionBar`'s own `tabs`
+6. _(superseded 2026-09-23 by `specs/design-system/ds-tabs.md`: the tabs now go to `PageActionBar`'s own `tabs`
    slot through the generic `PageTabs`, the `barCenter` prop was renamed `barTabs`, and the wrapper
    no longer renders an xs strip of its own — the bar folds the tabs onto a second row and keeps the
    title visible.)_ `PageActionBar` gains an optional **`center` usage for Tabs**; `DataPageScaffold` and the two

@@ -1,5 +1,5 @@
-// Audit R24, console F1-F5: specs/control-plane-plans-and-access.md rule 51 (« Réessayer » on a failed export closes
-// like the main button), specs/hosting-h1-fleet-runtime.md rules 52-55 (a rename recorded before the slug moves, no
+// Audit R24, console F1-F5: specs/hosting/control-plane-plans-and-access.md rule 51 (« Réessayer » on a failed export closes
+// like the main button), specs/hosting/hosting-h1-fleet-runtime.md rules 52-55 (a rename recorded before the slug moves, no
 // licence download for a held customer, no creation resumed on a closed customer, the probe measures the address that
 // answers). Fake host drivers, fake Qonto, real files and SQLite.
 

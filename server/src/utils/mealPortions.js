@@ -1,6 +1,6 @@
 /**
  * Portions of a per-person planning-card option sold on the PUBLIC site
- * (specs/site-meal-portions.md).
+ * (specs/site/site-meal-portions.md).
  *
  * On the site the visitor cannot schedule slots, so the quantity they type IS what gets billed:
  * one unit = one breakfast, one cover. This module owns the two things that meaning needs — how
@@ -14,7 +14,7 @@ const BREAKFAST_TYPE = 'breakfast';
 const NOON = 12;
 
 // The words themselves live in `publicLabels`, beside every other string the site renders, so one
-// file answers « what does an English visitor read » (specs/site-english-version.md §3 rule 3).
+// file answers « what does an English visitor read » (specs/site/site-english-version.md §3 rule 3).
 const { labels: labelsFor } = require('./publicLabels');
 
 function isBreakfast(option) {
@@ -24,7 +24,7 @@ function isBreakfast(option) {
 /**
  * A per-person planning-card option: the ones whose quantity means portions on the site. The
  * cancellation insurance is excluded even when it carries a card — it is priced from the stay
- * (specs/cancellation-insurance.md §3.1 rule 5bis).
+ * (specs/payments/cancellation-insurance.md §3.1 rule 5bis).
  */
 function isPerPersonCardOption(option) {
   if (!option) return false;

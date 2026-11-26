@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 11, 35-37, 39-42 (C38) — what the counter dialog and the mini SAS read: the catalogue search of the articles a caller may sell, « Ventes du jour »,
+// specs/sas/outside-booking-sas.md rules 11, 35-37, 39-42 (C38) — what the counter dialog and the mini SAS read: the catalogue search of the articles a caller may sell, « Ventes du jour »,
 // the draft link block of a quote, the link block that comes back with a sale, and the link routes of a counter sale.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

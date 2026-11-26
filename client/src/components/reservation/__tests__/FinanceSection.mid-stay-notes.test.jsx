@@ -10,8 +10,8 @@ import { dueRow, editable, ledgerOf } from './ledgerFixtures';
 
 import api from '../../../api';
 
-// specs/mid-stay-notes.md §3.5 — les notes en séjour : total courant, entrée « Nouvelle note »,
-// historique dépliable et annulation. Depuis specs/reservation-payment-ledger.md rule 2 elles sont
+// specs/sas/mid-stay-notes.md §3.5 — les notes en séjour : total courant, entrée « Nouvelle note »,
+// historique dépliable et annulation. Depuis specs/payments/reservation-payment-ledger.md rule 2 elles sont
 // une ligne du registre (« Notes en séjour », présente dès qu'une note porte de l'argent), leur
 // historique replié sous « Détail », et « + Nouvelle note » sous le registre. Le bloc complément de fin de séjour, lui,
 // ne gagne AUCUN bouton par ligne (décision 2026-08-06 : ne pas charger la fiche).

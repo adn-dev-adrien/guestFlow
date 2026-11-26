@@ -1,5 +1,5 @@
 /**
- * Arrival / departure push pass (specs/pwa-push-notifications.md §3.3 + §3.4).
+ * Arrival / departure push pass (specs/guest-app/pwa-push-notifications.md §3.3 + §3.4).
  *
  * Pure + injectable so it can be unit-tested without timers. For the current local day it finds the
  * reservations whose check-in (resp. check-out) time has been reached and that haven't been push-notified
@@ -21,7 +21,7 @@ function hhmm(date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
-// specs/plugins-phase-2-hosts.md rule 12 (gap 6) — the push opens the SAS only while the plugin is
+// specs/plugins/plugins-phase-2-hosts.md rule 12 (gap 6) — the push opens the SAS only while the plugin is
 // live; otherwise it opens the reservation's page.
 const defaultIsSasLive = () => require('../plugins/sdk/registry').isLive('sas');
 

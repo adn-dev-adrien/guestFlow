@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 104 (stabilisation loop t4, S4-3, 2026-11-16) — a line paid now (cash, card terminal) then offered or
+// specs/pricing/pricing-components.md §3 rule 104 (stabilisation loop t4, S4-3, 2026-11-16) — a line paid now (cash, card terminal) then offered or
 // discounted: the money the note collected stays credited to the stay. It comes off what the stay still asks (the open arrival complement
 // first); what no open bucket can take is the trop-perçu of rule 23 (409 OVERPAID, then the `lineLowered` obligation); on a platform stay with
 // nothing left to ask the gesture is refused. Before: the note's surplus was clamped away and the SAS asked the guest again for it.

@@ -362,7 +362,7 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 
 **Resolved by default (2026-11-05):**
 - *The `/design` page asked for no longer exists* — it was removed on 2026-08-22
-  (`specs/design-system.md` §1: the design system is an internal contract, not an operator screen).
+  (`specs/design-system/design-system.md` §1: the design system is an internal contract, not an operator screen).
   Re-creating it would undo that decision. Default: a **dev-only** workbench at `/design/report-grammar`
   (rule 17), absent from production and menus. Dropping it later is one line in `App.jsx`.
 - *KPI tile: new component or extension?* Extension of `SelectableTile` (extend before you create).

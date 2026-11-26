@@ -1,5 +1,5 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §3.1 rules 4-5 — utils/neatFieldMapping.js.
+ * specs/plugins/neat-cancellation-insurance-subscription.md §3.1 rules 4-5 — utils/neatFieldMapping.js.
  *
  * Mapping validation (required coverage, type compatibility, dropdown options), payload building
  * from a stay snapshot, and the customer payload. Pure functions, no I/O.

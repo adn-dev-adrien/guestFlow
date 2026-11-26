@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 43 — the drinks revenue account is a setting of the export, empty by default: a journal export (CSV, sales JSON, synthesis) whose period holds a
+// specs/sas/outside-booking-sas.md rule 43 — the drinks revenue account is a setting of the export, empty by default: a journal export (CSV, sales JSON, synthesis) whose period holds a
 // drink line is refused with 409 DRINKS_ACCOUNT_REQUIRED, an export with no drink is not, and a filled setting lets the drink through on that account.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rule 16 — the return page (`?gf_session=<ref>`): it waits for the bank’s word by polling the booking’s status and then says « Séance réservée » with the
+// specs/site/site-outside-resource-booking.md rule 16 — the return page (`?gf_session=<ref>`): it waits for the bank’s word by polling the booking’s status and then says « Séance réservée » with the
 // day, the slot, the people and the paid recap — never a bare « Paiement reçu ». A lapsed or refunded payment says what became of it.
 import { screen, waitFor } from '@testing-library/react';
 import { setup, callsTo, flat, resetPage } from './wordpressSessionFixtures';

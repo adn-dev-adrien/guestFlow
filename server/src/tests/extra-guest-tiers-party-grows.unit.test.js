@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-events-and-extra-guest-tiers/spec.md §3 rule 23 — spec review 2026-10-27 (H2).
+// specs/pricing/tariff-events-and-extra-guest-tiers.md §3 rule 23 — spec review 2026-10-27 (H2).
 // A Lodge stay sold for 2 (nobody above the included guests) stored « no tiers » in its tariff
 // snapshot, because the tier table was only resolved when someone was billed. Adding a teen later
 // replayed that empty table and fell back to the property's single price, 0 €: the newcomer was

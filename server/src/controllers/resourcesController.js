@@ -19,7 +19,7 @@ const externalFields = require('../utils/externalArticleFields');
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 const HOURLY_RATES = ['hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
-// specs/hourly-extra-hour-rates.md rule 5 — the rate of the following hours, empty or 0 to 10 000 with at most two decimals.
+// specs/resources/hourly-extra-hour-rates.md rule 5 — the rate of the following hours, empty or 0 to 10 000 with at most two decimals.
 const NEXT_RATES = [
   ['hourlyNextDayRate', 'journée, hébergés'], ['hourlyNextEveningRate', 'soir, hébergés'],
   ['hourlyExternalNextDayRate', 'journée, extérieurs'], ['hourlyExternalNextEveningRate', 'soir, extérieurs'],
@@ -46,7 +46,7 @@ function isOpenDays(value) {
 }
 
 /**
- * specs/options-resources-ux.md rule 21 — `[{ field, message }]`, empty when the payload is acceptable.
+ * specs/options/options-resources-ux.md rule 21 — `[{ field, message }]`, empty when the payload is acceptable.
  * `field` is `name`, `quantity`, `price`, `propertyPricing.<propertyId>`, `propertyPrices.<propertyId>`, a
  * hourly rate, a duration in minutes or `closeTime`. `stored` is the resource being edited: a number it
  * holds, sent back unchanged, is not re-judged (rule 31).
@@ -113,7 +113,7 @@ function validateResourcePayload(body, stored = null, knownPropertyIds = null) {
   return details;
 }
 
-// specs/plugins-phase-p-productisation.md rules 4, 11 — the sentence once booked knows `{{slots}}` only.
+// specs/plugins/plugins-phase-p-productisation.md rules 4, 11 — the sentence once booked knows `{{slots}}` only.
 function sentenceError(body) {
   return tokenError('emailBookedText', (body || {}).emailBookedText, RESOURCE_BOOKED)
     || tokenError('emailBookedTextEn', (body || {}).emailBookedTextEn, RESOURCE_BOOKED)
@@ -122,7 +122,7 @@ function sentenceError(body) {
 }
 
 
-// specs/plugins-phase-3c-hourly-resources.md rule 18 — a resource sold by the hour is offered only
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 18 — a resource sold by the hour is offered only
 // while its plugin is live: hidden from the lists, 404 on its own URLs, its price type refused.
 const resourceOffer = require('../utils/resourceOffer');
 
@@ -220,7 +220,7 @@ function createController(model, {
     const impact = model.getDeleteImpact(id);
     if (!impact) return res.status(404).json({ error: 'Ressource non trouvée' });
 
-    // specs/resource-booking-pricing-and-invoicing.md rule 34 — a paid or invoiced booking is a sale: even forced, the
+    // specs/resources/resource-booking-pricing-and-invoicing.md rule 34 — a paid or invoiced booking is a sale: even forced, the
     // cascade never takes it.
     if (impact.saleBlocker) return res.status(409).json({ error: impact.saleBlocker, code: 'RESOURCE_CARRIES_MONEY' });
     const inUse = impact.reservationsCount > 0 || impact.bookingsCount > 0;

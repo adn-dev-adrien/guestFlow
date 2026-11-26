@@ -9,6 +9,8 @@
 | **Author** | Adrien |
 | **Related PR** | _(opened at the end of implementation — see commit log)_ |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -22,7 +24,7 @@ There is no in-app support for this routine. The reservation already carries the
 information needed (single / double / baby bed counts + the "linge de lit" option
 on / off) but it's not surfaced anywhere as a weekly aggregation.
 
-The Planning page (`client/src/pages/PlanningPage.js`) is the natural home: it's
+The Planning page (`client/src/pages/PlanningPage.jsx`) is the natural home: it's
 already the operational dashboard for the next 14 days, with one section per day
 showing arrivals + departures. The laundry day fits in as a small block under the
 day header of each laundry-day cell.
@@ -279,7 +281,7 @@ neither.
     pre-population uses `quantity: 1` + `offered: <row.offered>`.
 
 31. **UI edit + read-only mirror** (Adrien's UX choice, 2026-06-03; amended 2026-06-14 —
-    specs/reservation-option-immutability.md):
+    specs/reservations/reservation-option-immutability.md):
     - **OptionsPage (canonical edit)**: per-property defaults are configured when editing an option,
       via the per-property grid (`OptionDefaultsSection`) — *"Inclus par défaut"* + *"Offert
       (gratuit)"* per applicable property, saved with the option's own PUT payload

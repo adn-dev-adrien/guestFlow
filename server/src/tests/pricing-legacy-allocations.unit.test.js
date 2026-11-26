@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 36 and 74 — which payment covered which line, read from what a stay stored before
+// specs/pricing/pricing-components.md §3 rules 36 and 74 — which payment covered which line, read from what a stay stored before
 // `payment_allocations` existed. Per-line truth only; the rest is the stay-level backfill of the next commit.
 const test = require('node:test');
 const assert = require('node:assert/strict');

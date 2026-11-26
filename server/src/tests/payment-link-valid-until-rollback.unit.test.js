@@ -1,8 +1,8 @@
-// specs/payment-link-lifecycle.md rule 59 (audit R9 database N1) — the sentence stating the link's end lives in a
+// specs/payments/payment-link-lifecycle.md rule 59 (audit R9 database N1) — the sentence stating the link's end lives in a
 // block of its own, `{{#if hasPaymentLinkValidUntil}}…{{/if}}`, set by the sender with the date. A rolled-back
 // release knows neither the token nor the flag: it drops the line whole instead of mailing « Ce lien est valable
 // jusqu'au . ». The content migration v2 moves the sentence of untouched templates (as v1 left them) into that
-// block, never an operator-edited side, once, whatever v1 did before (specs/self-update-and-releases.md rule 53).
+// block, never an operator-edited side, once, whatever v1 did before (specs/hosting/self-update-and-releases.md rule 53).
 
 process.env.TZ = 'Europe/Paris';
 

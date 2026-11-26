@@ -1,7 +1,7 @@
 /**
- * TabDot — the small dot a tab carries after its label (`PageTabs` item `badge`, specs/ds-tabs.md
+ * TabDot — the small dot a tab carries after its label (`PageTabs` item `badge`, specs/design-system/ds-tabs.md
  * rule 8): a property tab that is modified or refused, an Intégrations tab that is modified, refused
- * or still to set up (specs/integrations-tab-per-plugin.md rules 10–11).
+ * or still to set up (specs/plugins/integrations-tab-per-plugin.md rules 10–11).
  *
  * Props:
  *   color  'error' | 'warning' | 'primary'  palette colour of the dot

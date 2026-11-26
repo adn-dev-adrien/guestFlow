@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a paid complement never reads as « whatever
+// specs/payments/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a paid complement never reads as « whatever
 // the solde did not hold » while the solde is unpaid: the register offers what each line collected, and giving everything
 // back nets every account to 0. Replays of the auditor's p2 / p3 / p5 / item2c probes.
 process.env.DB_PATH = ':memory:';

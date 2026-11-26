@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 87 (audit of the J-7 branch, item 6 / N10) — an unpaid order is no longer editable once the arrival complement
+// specs/guest-app/guest-app.md rule 87 (audit of the J-7 branch, item 6 / N10) — an unpaid order is no longer editable once the arrival complement
 // is collected, even when the arrival was never marked (« Marquer perçu » on the fiche): the amend is refused, nothing written, and the
 // amend's own answer carries the order's true `editable` flag while the stay still allows it.
 const fx = require('./guestOrderFixtures');

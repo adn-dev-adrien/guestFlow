@@ -1,6 +1,6 @@
 /**
  * LINE KEYS — how a sold line is named when an article can be sold more than once on a stay
- * (specs/pricing-components.md §3 rule 85, « Line key scheme »).
+ * (specs/pricing/pricing-components.md §3 rule 85, « Line key scheme »).
  *
  * Contract:
  *   `lineRef(table, lineId)`          `line:<table>:<lineId>`, the name of ONE stored line (rule 79).

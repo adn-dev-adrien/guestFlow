@@ -1,6 +1,6 @@
 /**
  * Where the running deployment lives on disk, and whether it can update itself
- * (specs/self-update-and-releases.md §3.D rule 21, §4.6).
+ * (specs/hosting/self-update-and-releases.md §3.D rule 21, §4.6).
  *
  * Target layout, created by `scripts/bootstrap-vm.sh`:
  *
@@ -114,7 +114,7 @@ function isFile(target) {
  */
 function selfUpdateSupported(env = process.env, paths = resolvePaths(env)) {
   // A hosted instance shares its release with the others: only the console updates it
-  // (specs/hosting-h1-fleet-runtime.md rule 9).
+  // (specs/hosting/hosting-h1-fleet-runtime.md rule 9).
   if (env.GUESTFLOW_MANAGED === '1') {
     return { supported: false, reason: 'Mises à jour gérées par l’hébergeur.' };
   }

@@ -40,8 +40,8 @@ ever calling Qonto again, so the page still showed the state recorded *before* t
 answer and did not go and get it.
 
 Finally, the reconciliation poll still ticks every 15 minutes
-([`scheduledTasks.js`](../server/src/scheduledTasks.js)), a cadence chosen when the webhook did not
-exist yet. Since `specs/public-online-payment.md` §3bis the webhook is the primary signal and the guest's
+([`scheduledTasks.js`](../../server/src/scheduledTasks.js)), a cadence chosen when the webhook did not
+exist yet. Since `specs/site/public-online-payment.md` §3bis the webhook is the primary signal and the guest's
 own success page triggers an on-demand check, so the cron is a safety net running 96 times a day for
 something that has to catch an outage, not a payment.
 
@@ -124,7 +124,7 @@ which « Enregistrer » writes which field.
     check succeeds: after Qonto answered (subscription adopted or created), with `lastSuccessAt` stamped; or when the
     record already points at the public address (no call), the failure alone is cleared. A check that succeeds never
     clears a failure of another origin, so rule 11's `recordSuccess: false` still keeps « Test »'s diagnosis. No new
-    field. *Why:* rule 13 of specs/qonto-settings-in-app.md cleared it at the next successful call, in practice the
+    field. *Why:* rule 13 of specs/settings/qonto-settings-in-app.md cleared it at the next successful call, in practice the
     poll that follows the check in the same pass. A consent without the `webhook` scope then left no trace on the
     only page that shows the webhook: no notification arrived, a paid link was seen at the guest's return or at the
     poll, up to 8 hours later, and nothing said why. Test: `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js`.
@@ -213,7 +213,7 @@ which « Enregistrer » writes which field.
   tested without a network or a database.
 - No new dependency: `crypto.randomBytes(32).toString('hex')` generates the secret.
 - The registrar is called through the existing `withQonto` choke point, so a failure is recorded and
-  surfaced by `specs/qonto-settings-in-app.md` rule 12 with no extra plumbing.
+  surfaced by `specs/settings/qonto-settings-in-app.md` rule 12 with no extra plumbing.
 
 ### 4.2 Client side (`client/src/`)
 
@@ -410,14 +410,14 @@ Neat card and one field from the SMTP card shortens both on mobile.
 - SMTP ports other than 587 and 465. An installation needing 25 or 2525 would need the field back; none
   does.
 - Anything about the reconciliation cadence beyond the tick itself — the per-link decay and the back-off
-  stay exactly as `specs/payment-polling-fair-use.md` defines them.
+  stay exactly as `specs/payments/payment-polling-fair-use.md` defines them.
 - The `PUBLIC_API_KEY`, Google and SMTP credentials, which still live in `.env.local`.
 
 ## 9. Open questions
 
 - Q: should the merged card keep the verified-state badge, since the four summary lines go away?
   - A (2026-09-16): yes. The badge is the one line that answers « does this work right now »
-    (`specs/qonto-settings-in-app.md` rule 11); the removed lines answered « how is it configured »,
+    (`specs/settings/qonto-settings-in-app.md` rule 11); the removed lines answered « how is it configured »,
     which the fields below already show.
 - Q: should the Neat card's « Tester la connexion » and « Charger les canaux de vente » move to the bar
   too?

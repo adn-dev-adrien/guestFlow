@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 1, 2, 15, 21 — who manages the plugins of a space, and
+// specs/plugins/plugin-operator-provisioning.md rules 1, 2, 15, 21 — who manages the plugins of a space, and
 // what the licence says the operator wants running.
 const test = require('node:test');
 const assert = require('node:assert/strict');

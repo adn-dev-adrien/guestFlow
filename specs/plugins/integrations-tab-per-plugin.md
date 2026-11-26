@@ -7,8 +7,10 @@
 | **Created** | 2026-10-22 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Summary for review** | [`docs/specs/2026-10-22-integrations-tab-per-plugin.html`](../docs/specs/2026-10-22-integrations-tab-per-plugin.html) |
-| **Builds on** | [`plugins-phase-1-sdk.md`](plugins-phase-1-sdk.md) rule 13 (slot `settings.integrations`), [`plugins-phase-0-foundation.md`](plugins-phase-0-foundation.md) rules 25–27 (`#plugin-<id>` anchor), [`ds-tabs.md`](ds-tabs.md) |
+| **Summary for review** | [`docs/specs/2026-10-22-integrations-tab-per-plugin.html`](../../docs/specs/2026-10-22-integrations-tab-per-plugin.html) |
+| **Builds on** | [`plugins-phase-1-sdk.md`](plugins-phase-1-sdk.md) rule 13 (slot `settings.integrations`), [`plugins-phase-0-foundation.md`](plugins-phase-0-foundation.md) rules 25–27 (`#plugin-<id>` anchor), [`ds-tabs.md`](../design-system/ds-tabs.md) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 4: label list extended to the eleven plugins that now contribute a tab (`client/src/plugins/*/index.js`); the rest still matches the code.
 
 ---
 
@@ -42,7 +44,8 @@ own, from the page or from any link that points at that plugin.
    section(s) directly, as today.
 4. **Tab label.** _(arbitration 1, 2026-10-22: short labels)_ A short label each plugin's client module
    declares on its contribution (`tabLabel`): Site, Google Agenda, Neat, Météo-France, Portail,
-   Gîtes de France, Booking. Without one, the tab falls back to the plugin's catalogue name.
+   Gîtes de France, Booking, Airbnb, Ressources à l’heure, Google Vacation Rentals, Application clients
+   (eleven plugins contribute as of 2026-11-26). Without one, the tab falls back to the plugin's catalogue name.
 5. **The open tab is in the URL** as `?tab=<pluginId>`. Changing tab replaces the history entry
    (`ds-tabs.md` behaviour: Back leaves the page). A missing, unknown or inactive `tab` opens the
    first tab and rewrites the URL with `replace`.
@@ -142,7 +145,7 @@ fade of the panel, none under `prefers-reduced-motion`.
   « à configurer » the amber one, « refusé » red. On `PropertyDetail` « modifié » stays amber: that
   page has no « to set up » state to tell apart, and its look is unchanged by this spec.
 - **Width.** The first version let `PageActionBar` push Save / Cancel onto a row of their own at
-  1400 px with seven tabs. Fixed generically (specs/ds-tabs.md rule 11, 2026-10-22): beside tabs the
+  1400 px with seven tabs. Fixed generically (specs/design-system/ds-tabs.md rule 11, 2026-10-22): beside tabs the
   bar's row does not wrap on `sm+`, the tab strip shrinks to the room left and scrolls with its
   arrows, and the title side keeps room for a one-line « Dernière mise à jour ». Checked at 900 /
   1200 / 1400 / 1600 px on every tabbed page; at 900 px (bar under 720 px) the tabs keep their second

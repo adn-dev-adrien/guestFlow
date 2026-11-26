@@ -1,5 +1,5 @@
 /**
- * A stay whose nights an establishment closure covers gets no payment link (specs/payment-link-lifecycle.md
+ * A stay whose nights an establishment closure covers gets no payment link (specs/payments/payment-link-lifecycle.md
  * rule 55): the guest could otherwise pay for closed nights, and a devis would convert onto them.
  *
  *   closedDatesRefusal(database, stayId) → { httpStatus: 409, error: 'CLOSED_DATES', message } | null
@@ -20,7 +20,7 @@ function closedDatesRefusal(database, stayId) {
 }
 
 /**
- * Whether the nights of the stay a link answers for can still be sold to it (specs/payment-link-lifecycle.md
+ * Whether the nights of the stay a link answers for can still be sold to it (specs/payments/payment-link-lifecycle.md
  * rules 42, 56; final check of #902, M1): 'closed' (rule 55), 'taken' (another stay holds them: `checkConflict`,
  * the poll's availability check), or null. A devis converted since answers as the reservation it became. The one
  * decision behind the ledger's « Enregistrer » message, « Enregistrer sur le séjour » and the poll's late booking.

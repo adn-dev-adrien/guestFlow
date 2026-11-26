@@ -1,9 +1,9 @@
 // A stay with an installment plan on « Suivi taxe de séjour » (D14, 2026-11-05):
-//   specs/tourist-tax-declaration-month-stay-end.md rule 7 — it enters at its stay month, whatever is paid;
-//   specs/tourist-tax-declaration-month-stay-end.md rule 8 — and in that month only, other stays keep their gate;
-//   specs/tourist-tax-declared-checkbox.md rule 7 — its tick works like any other, once rule 8 (D16) allows it;
-//   specs/platform-added-guests-tourist-tax.md rule 28 — main row and row of its own read as on any stay;
-//   specs/direct-installments.md rule 51 — paying an installment never touches balancePaid, so the gate cannot read it.
+//   specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 7 — it enters at its stay month, whatever is paid;
+//   specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 8 — and in that month only, other stays keep their gate;
+//   specs/tourist-tax/tourist-tax-declared-checkbox.md rule 7 — its tick works like any other, once rule 8 (D16) allows it;
+//   specs/tourist-tax/platform-added-guests-tourist-tax.md rule 28 — main row and row of its own read as on any stay;
+//   specs/payments/direct-installments.md rule 51 — paying an installment never touches balancePaid, so the gate cannot read it.
 // Everything goes through the real controllers. Each test has its month, so no stay collides with another.
 process.env.DB_PATH = ':memory:';
 
@@ -217,7 +217,7 @@ test('rule 7: an own channel that remits the tax itself stays off the page, plan
 
 // D16 withdrew D14's « can be declared early »: an installment still due refuses the tick (rule 8). A tick stored before
 // that decision is not rewritten, sent back unchanged it passes, and it can go.
-test('specs/tourist-tax-declared-checkbox.md rule 7: a stored tick on a plan with an installment still due keeps its date and can go', async (t) => {
+test('specs/tourist-tax/tourist-tax-declared-checkbox.md rule 7: a stored tick on a plan with an installment still due keeps its date and can go', async (t) => {
   const month = nextMonth();
   const stay = directStay(month);
   const plan = await planOf(stay.id);
@@ -244,7 +244,7 @@ test('specs/tourist-tax-declared-checkbox.md rule 7: a stored tick on a plan wit
   assert.equal(mainOf(page(month), stay.id).touristTaxDeclaredAt, null);
 });
 
-test('specs/tourist-tax-declared-checkbox.md rule 7: a ticked plan keeps the amount told to the commune when the commune\'s rate moves', async (t) => {
+test('specs/tourist-tax/tourist-tax-declared-checkbox.md rule 7: a ticked plan keeps the amount told to the commune when the commune\'s rate moves', async (t) => {
   const month = nextMonth();
   const stay = directStay(month);
   const plan = await planOf(stay.id);
@@ -326,7 +326,7 @@ test('rule 8: a plan removed again gives the stay its gate back, its tick kept',
   assert.ok(row.touristTaxDeclaredAt);
 });
 
-test('specs/platform-added-guests-tourist-tax.md rule 28: complement paid before the tick: one row holds it all, the stamp says so', async (t) => {
+test('specs/tourist-tax/platform-added-guests-tourist-tax.md rule 28: complement paid before the tick: one row holds it all, the stamp says so', async (t) => {
   const month = nextMonth();
   const stay = await addedGuestStay(month);
   const plan = await planOf(stay.id);
@@ -348,7 +348,7 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: complement paid before
   assert.equal(after.totals.taxAmount, 7.2);
 });
 
-test('specs/platform-added-guests-tourist-tax.md rule 28: ticked before the complement: main row at the paid party, then a row of its own', async (t) => {
+test('specs/tourist-tax/platform-added-guests-tourist-tax.md rule 28: ticked before the complement: main row at the paid party, then a row of its own', async (t) => {
   const month = nextMonth();
   const stay = await addedGuestStay(month);
   const plan = await planOf(stay.id);
@@ -391,7 +391,7 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: ticked before the comp
   assert.equal(rowsOf(page(month), stay.id).length, 1);
 });
 
-test('specs/platform-added-guests-tourist-tax.md rule 28: the row of its own is told in the month the complement was collected, the main row stays', async (t) => {
+test('specs/tourist-tax/platform-added-guests-tourist-tax.md rule 28: the row of its own is told in the month the complement was collected, the main row stays', async (t) => {
   const month = nextMonth();
   slot += 1;
   const stay = await addedGuestStay(month);
@@ -411,7 +411,7 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: the row of its own is 
   assert.equal(collectedMonth.totals.taxAmount, 2.4);
 });
 
-test('specs/platform-added-guests-tourist-tax.md rule 28: a guest added after the tick of a paid plan gets a row of its own', async (t) => {
+test('specs/tourist-tax/platform-added-guests-tourist-tax.md rule 28: a guest added after the tick of a paid plan gets a row of its own', async (t) => {
   const month = nextMonth();
   const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { ...twoNights(month), platformGrossAmount: 600 });
   const plan = await planOf(stay.id);
@@ -431,7 +431,7 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: a guest added after th
   assert.equal(data.totals.taxAmount, 7.2);
 });
 
-test('specs/platform-added-guests-tourist-tax.md rule 28: a NULL stamp reads the dates, the row and the SQL alike', async (t) => {
+test('specs/tourist-tax/platform-added-guests-tourist-tax.md rule 28: a NULL stamp reads the dates, the row and the SQL alike', async (t) => {
   const month = nextMonth();
   const stay = await addedGuestStay(month);
   await planOf(stay.id);
@@ -451,7 +451,7 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: a NULL stamp reads the
 });
 
 for (const [label, paid] of [['paid', true], ['unpaid', false]]) {
-  test(`specs/tourist-tax-declaration-month-stay-end.md rule 7: a rate moved before the tick moves nothing on a ${label} plan`, async (t) => {
+  test(`specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 7: a rate moved before the tick moves nothing on a ${label} plan`, async (t) => {
     const month = nextMonth();
     const stay = directStay(month);
     const plan = await planOf(stay.id);
@@ -485,7 +485,7 @@ test('rule 7: an added guest whose complement is paid: the plan row does not mov
 // Audit R23-S2, T1: without these a live replay of a percentage tax could come back unseen (27,28 on the complement, 43,64 on a
 // rate move). Own channel, one adult raised, plan paid, then complement, tick, untick and a commune rate moved to 8 %.
 for (const [mode, planPaid, settled] of [['percentage_accommodation', 27.3, 27.3], ['percentage_and_fixed', 28.08, 28.5]]) {
-  test(`specs/tourist-tax-declaration-month-stay-end.md rule 7: a plan on a ${mode} property: the row does not move on the complement, the tick, the untick or the rate`, async (t) => {
+  test(`specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 7: a plan on a ${mode} property: the row does not move on the complement, the tick, the untick or the rate`, async (t) => {
     const setRate = db.prepare('UPDATE properties SET touristTaxMode = ?, touristTaxPercentage = ?, touristTaxFixedAmount = 0.2, touristTaxPerDayPerPerson = ? WHERE id = ?');
     setRate.run(mode, 5, 4.6, NO_ACOMPTE);
     t.after(() => setRate.run('per_day_per_person', 0, 1.2, NO_ACOMPTE));
@@ -508,7 +508,7 @@ for (const [mode, planPaid, settled] of [['percentage_accommodation', 27.3, 27.3
 }
 
 for (const mode of ['percentage_accommodation', 'percentage_and_fixed']) {
-  test(`specs/tourist-tax-declaration-month-stay-end.md rule 7: a plan with nothing paid on a ${mode} property: a rate move does not reach the row`, async (t) => {
+  test(`specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 7: a plan with nothing paid on a ${mode} property: a rate move does not reach the row`, async (t) => {
     const setRate = db.prepare('UPDATE properties SET touristTaxMode = ?, touristTaxPercentage = ?, touristTaxFixedAmount = 0.2, touristTaxPerDayPerPerson = ? WHERE id = ?');
     setRate.run(mode, 5, 4.6, NO_ACOMPTE);
     t.after(() => setRate.run('per_day_per_person', 0, 1.2, NO_ACOMPTE));

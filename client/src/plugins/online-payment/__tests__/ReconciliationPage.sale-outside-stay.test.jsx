@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 1, 8, 13 — the reconciliation page with a sale outside a stay
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 1, 8, 13 — the reconciliation page with a sale outside a stay
 // (`reservation.id` null, `saleKey` set): the row is drawn under the sale's label, « Ouvrir la fiche » is not offered, and
 // « Écarter » names the sale by reservation id 0, the way the server keys its receipts.
 import React from 'react';

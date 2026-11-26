@@ -39,31 +39,31 @@ export function sasPayload(over = {}) {
   return {
     reservation: { ...BASE_RES, ...(over.reservation || {}) },
     portalCode: over.portalCode || '',
-    // specs/plugins-phase-1-sdk.md rule 17 — what live plugin modules add, by plugin id.
+    // specs/plugins/plugins-phase-1-sdk.md rule 17 — what live plugin modules add, by plugin id.
     pluginData: over.pluginData || {},
-    // specs/pricing-components.md rule 32 — the departure sales of a started stay; absent by default.
+    // specs/pricing/pricing-components.md rule 32 — the departure sales of a started stay; absent by default.
     staySales: over.staySales,
     cleaning: over.cleaning || { included: false, price: 80 },
     bathLinen: over.bathLinen || { available: false, unitPrice: 0, priceType: null, persons: 0, nights: 0, amount: 0, label: 'Linge de toilette' },
     linenItems: over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }],
     repairAmounts: over.repairAmounts || [],
-    // specs/plugins-phase-p-productisation.md rule 16 — the suites run with the check on, as Solio does.
+    // specs/plugins/plugins-phase-p-productisation.md rule 16 — the suites run with the check on, as Solio does.
     extinguisherCheck: over.extinguisherCheck ?? true,
     breakfast: over.breakfast, // undefined → breakfast page hidden
     arrivalComplement: over.arrivalComplement, // undefined → no recall at departure
-    // specs/sas-breakfast-and-catering-upsell.md — sale steps; nothing on offer by default.
+    // specs/sas/sas-breakfast-and-catering-upsell.md — sale steps; nothing on offer by default.
     sasSales: over.sasSales || { persons: 0, nights: 0, breakfast: { available: false }, catering: { available: false, options: [] } },
-    // specs/collect-stay-payment-at-check-in.md — nothing owed on the stay by default (the ordinary
+    // specs/sas/collect-stay-payment-at-check-in.md — nothing owed on the stay by default (the ordinary
     // prepaid case), so the « Séjour à régler » step is absent from every pre-existing flow.
     stayPayment: over.stayPayment || { applicable: false },
-    // specs/single-payment-at-check-in.md §3.1 — the only thing the server settles here: is the
+    // specs/payments/single-payment-at-check-in.md §3.1 — the only thing the server settles here: is the
     // arrival complement still to be collected? The recap adds « and the stay step is shown, and the
     // complement has a live total » before offering one settlement — so this default (an unpaid
     // complement, the ordinary case) changes nothing for a prepaid stay.
     arrivalPayment: over.arrivalPayment || { complementOpen: true, group: null },
-    // specs/ui-review-2026-10-19-operations.md rule 4 — the server's « nothing owed before this run »;
+    // specs/design-system/ui-review-2026-10-19-operations.md rule 4 — the server's « nothing owed before this run »;
     // derived here like the server does for the fixtures' direct, prepaid stays.
-    // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the check-out decided.
+    // specs/sas/sas-departure-recap-server-side.md rule 12 — what the stored detail says the check-out decided.
     // Loop t6 S6-3 — the arrival's offered lines by the recap's keys, as the server serves them.
     arrivalSeed: over.arrivalSeed || arrivalSeedFor({ ...BASE_RES, ...(over.reservation || {}) }),
     departureSeed: over.departureSeed || departureSeedFor({ ...BASE_RES, ...(over.reservation || {}) }, over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }]),
@@ -92,7 +92,7 @@ export const BREAKFAST_OFFER = {
   multiplier: 4, defaultUnits: 4, sasOrigin: false, selectedUnits: 0, selectedOccurrences: [], selected: [],
   occurrences: [{ date: '2026-07-11', time: '09:00', slot: 0 }, { date: '2026-07-12', time: '09:00', slot: 0 }],
   mornings: [{ date: '2026-07-11', time: '09:00', slot: 0 }, { date: '2026-07-12', time: '09:00', slot: 0 }],
-  // specs/card-option-served-persons.md — the party, the ceiling (property capacity) and the
+  // specs/options/card-option-served-persons.md — the party, the ceiling (property capacity) and the
   // per-person composition rule the wizard multiplies by the breakfasts actually sold.
   defaultPersons: 2, maxPersons: 5, selectedPersons: 2,
   perMorning: { persons: 2, amount: 16 },

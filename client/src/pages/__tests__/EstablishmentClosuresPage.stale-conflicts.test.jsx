@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 62 (audit R10-C1) — a « conflicts » answer that comes back after the
+// specs/payments/payment-link-lifecycle.md rule 62 (audit R10-C1) — a « conflicts » answer that comes back after the
 // dialog was closed, reopened, or its range made invalid is dropped: the lines only ever describe the
 // dates the dialog shows now.
 import React from 'react';

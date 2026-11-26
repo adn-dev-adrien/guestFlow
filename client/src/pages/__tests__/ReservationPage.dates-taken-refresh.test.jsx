@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 48 (reading of 2026-11-01, audit R11-C3) — the marker is live: a save that
+// specs/payments/payment-link-lifecycle.md rule 48 (reading of 2026-11-01, audit R11-C3) — the marker is live: a save that
 // leaves the fiche open shows the server's fresh « Dates prises » (gone once the devis moved onto free nights).
 import React from 'react';
 import { vi } from 'vitest';

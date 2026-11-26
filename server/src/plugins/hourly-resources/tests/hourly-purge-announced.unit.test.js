@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rule 17 — the erasure warning announces every resource
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 17 — the erasure warning announces every resource
 // setting the purge resets. A resource that only carries a heat-up / heat-retention time (the
 // thermal model, 240 / 480 min in production) is reset by the purge, so it is announced too.
 

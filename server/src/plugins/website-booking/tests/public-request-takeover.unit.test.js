@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rules 20-22 (review of PR #805, operator decision
+// specs/site/public-request-abuse-and-grouping.md rules 20-22 (review of PR #805, operator decision
 // 2026-10-27 « Brouillon seul, jamais le lien ») — knowing a guest's e-mail, property and dates must
 // not hand anyone their quote: an existing quote's id and payment token are only returned to a request
 // that already holds that token; only an untouched draft is updated in place; a quote the operator

@@ -54,7 +54,7 @@ const optionsResourcesText = (r) => {
 };
 
 // « D:1 / S:2 / B:0 », or null when the stay has no bed at all: the server zeroes the bed counts of a
-// stay without a bed-linen option (specs/bed-config-in-linen-card.md rules 7, 14), so « D:0 / S:0 / B:0 »
+// stay without a bed-linen option (specs/linen/bed-config-in-linen-card.md rules 7, 14), so « D:0 / S:0 / B:0 »
 // would only say « nothing to prepare » in a misleading way.
 const bedsLabel = (r) => {
   const [d, s, b] = [r.doubleBeds, r.singleBeds, r.babyBeds].map((n) => Number(n || 0));
@@ -65,19 +65,19 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { showError } = useToast();
   const { user } = useAuth();
-  // specs/reception-role-checkin-only.md §3.3 — a reception-only user gets a reduced, finance-free
+  // specs/sas/reception-role-checkin-only.md §3.3 — a reception-only user gets a reduced, finance-free
   // home: arrivals/departures lists only (no Paiements column, no attention subjects, no month
   // calendar). A row tap opens the SAS on the Planning via the deep-link.
   const receptionMode = isReceptionOnly(user);
-  // What asks for the operator, counted and ordered by the server (specs/shell-and-home-day-first.md §3.B).
+  // What asks for the operator, counted and ordered by the server (specs/planning/shell-and-home-day-first.md §3.B).
   // An admin read: any other role makes no call (it would collect a 403).
   const showAttention = userHasRole(user, ADMIN) && !receptionMode;
   const attention = useAttention({ enabled: showAttention });
   // A reception account only acts through the SAS: without it (outside the plan, failed) a row leads
   // nowhere, so it is not offered as a link.
   const sasOn = usePlugin(SAS);
-  // The server's date (specs/ds-sweep-planning.md rule 28); nothing loads before it is known, and the
-  // lists load again when it moves on (specs/dashboard-planning-scroll.md rule 7).
+  // The server's date (specs/design-system/ds-sweep-planning.md rule 28); nothing loads before it is known, and the
+  // lists load again when it moves on (specs/planning/dashboard-planning-scroll.md rule 7).
   const todayStr = useServerToday();
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
@@ -113,7 +113,7 @@ export default function Dashboard() {
   };
 
   // Only the latest load paints: the server's day moving on when the page comes back to the foreground,
-  // or « Réessayer », can answer out of order (specs/upcoming-reservations-cards.md rule 9).
+  // or « Réessayer », can answer out of order (specs/planning/upcoming-reservations-cards.md rule 9).
   const loadSeq = useRef(0);
   const loadDashboardData = async () => {
     const seq = ++loadSeq.current;
@@ -155,7 +155,7 @@ export default function Dashboard() {
     </Tooltip>
   );
 
-  // specs/reception-sas-today-only.md §3.3 rule 12 — the day window is resolved server-side and rides
+  // specs/sas/reception-sas-today-only.md §3.3 rule 12 — the day window is resolved server-side and rides
   // in the reception payload; the flags are absent for an admin, which reads as "always editable".
   const arrivalStatusLocked = (r) => r.checkInStatusEditable === false;
   const departureStatusLocked = (r) => r.checkOutStatusEditable === false;
@@ -312,7 +312,7 @@ export default function Dashboard() {
     <Box>
       <PageActionBar title="Tableau de bord" />
 
-      {/* The day first (specs/shell-and-home-day-first.md rules 1–3): the gate keys and the payment
+      {/* The day first (specs/planning/shell-and-home-day-first.md rules 1–3): the gate keys and the payment
           deadlines stay unfolded above it; everything else waits in « À traiter » below it. The KPI
           tiles left the home (decision 1) — their figures live in Suivi financier. */}
       {showAttention && <AttentionPinned subjects={attention.pinned} />}
@@ -326,7 +326,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Daily departures / arrivals — DEPARTURES FIRST (issue #427,
-              specs/reception-role-checkin-only.md §6): the day runs in that order, the departures are
+              specs/sas/reception-role-checkin-only.md §6): the day runs in that order, the departures are
               handled in the morning and the arrivals in the afternoon, so the first list is the one
               the operator needs first. */}
           <Stack spacing={3} sx={{ mb: 3 }}>

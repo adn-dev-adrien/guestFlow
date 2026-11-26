@@ -1,5 +1,5 @@
 /**
- * TenderLines — `shortfallKinds` (specs/outside-booking-sas.md rule 17, C38): the outside visit offers only « Reste à percevoir », « Geste commercial » being an offered line
+ * TenderLines — `shortfallKinds` (specs/sas/outside-booking-sas.md rule 17, C38): the outside visit offers only « Reste à percevoir », « Geste commercial » being an offered line
  * there. Default: both choices, as everywhere else.
  */
 import React from 'react';

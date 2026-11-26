@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 9 — « Taux de TVA (%) » keeps its meaning: it edits the rate of the
+// specs/accounting/vat-optional-mode.md rule 9 — « Taux de TVA (%) » keeps its meaning: it edits the rate of the
 // period in force, retroactively for the reservations of that period only; refused (422) when that
 // period is not subject. The settings column is only a mirror.
 
@@ -18,7 +18,7 @@ async function put(vat) {
   await updateSettings({ body: { vat }, user: { id: 1 } }, res);
   return res;
 }
-// specs/vat-optional-mode.md rule 44 — the settings payload names the follow-up, absent by default.
+// specs/accounting/vat-optional-mode.md rule 44 — the settings payload names the follow-up, absent by default.
 const NO_FRANCHISE = { applies: false, threshold: null, setAt: null };
 const rateOf = (id) => vatRegimeModel.forRow(db, { id }).rate;
 const mirror = () => db.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get().vatRate;

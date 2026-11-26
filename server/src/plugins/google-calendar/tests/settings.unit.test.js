@@ -1,4 +1,4 @@
-// specs/google-calendar-oauth-rework.md §5, stored per specs/plugins-phase-1-sdk.md rule 7 — the
+// specs/settings/google-calendar-oauth-rework.md §5, stored per specs/plugins/plugins-phase-1-sdk.md rule 7 — the
 // Google connection lives in plugin_settings: secrets encrypted at rest, tri-state last sync, full
 // reset on disconnect. Moved from settings-model-encryption.unit.test.js with the accessors.
 const test = require('node:test');

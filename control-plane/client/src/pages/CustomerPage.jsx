@@ -1,12 +1,12 @@
 /**
- * One customer (specs/control-plane-plans-and-access.md rules 7, 15, 17, 19, 20, 33, 34): the
+ * One customer (specs/hosting/control-plane-plans-and-access.md rules 7, 15, 17, 19, 20, 33, 34): the
  * subscription, the creation steps, the billing identity, the actions — record a payment, check the
  * payment in Qonto, send a reminder now, extend, put back to active, change plan, change the address
  * (rule 22), download the licence, deprovision, reactivate, erase — the invoices, the emails and the
  * history. Every rule is
  * the server's; a refused action shows its message as a toast and keeps the dialog open.
  *
- * Since the hosting (specs/hosting-h1-fleet-runtime.md rules 1, 2, 14, 15) the creation steps run by
+ * Since the hosting (specs/hosting/hosting-h1-fleet-runtime.md rules 1, 2, 14, 15) the creation steps run by
  * themselves — the page follows them while one runs — a failed one offers « Reprendre », and the
  * « Hébergement » card shows the instance's measures with « Restaurer à une date ».
  */
@@ -267,7 +267,7 @@ export default function CustomerPage() {
             <ProvisioningSteps steps={c.deprovisionSteps} onAction={stepAction} busy={busyStep} />
           </Section>
         )}
-        {/* specs/hosting-h2-account-security.md rules 12-14. */}
+        {/* specs/hosting/hosting-h2-account-security.md rules 12-14. */}
         <SupportAccessSection customerId={c.id} onChanged={load} />
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0,1fr)', md: 'minmax(0,1fr) minmax(0,1fr)' } }}>
           <Section title="Factures">

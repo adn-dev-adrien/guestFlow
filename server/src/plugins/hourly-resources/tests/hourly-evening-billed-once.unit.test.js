@@ -1,4 +1,4 @@
-// The evening of an hourly resource is billed once (specs/hourly-resource-quantity-and-sas-scheduling.md
+// The evening of an hourly resource is billed once (specs/resources/hourly-resource-quantity-and-sas-scheduling.md
 // §3.4 rules 26, 30-32).
 //
 // Three defects, all on money:
@@ -18,7 +18,7 @@ const { seed } = require('./hourlySchedulingFixture');
 const { createSasStep } = require('../sasStep');
 
 require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
-// The engine prices `per_hour` lines through this plugin's `hourly` family (specs/plugins-phase-3c-hourly-resources.md rule 11, specs/pricing-components.md rule 47).
+// The engine prices `per_hour` lines through this plugin's `hourly` family (specs/plugins/plugins-phase-3c-hourly-resources.md rule 11, specs/pricing/pricing-components.md rule 47).
 {
   const contributor = require('../pricing').createHourlyContributor();
   const context = require('../../sdk/createContext').createContext('hourly-resources', {});
@@ -175,14 +175,14 @@ function fakeRes() {
 }
 
 // The SAS controller, with this plugin's step declared: the commit contract runs it around the core
-// commit (specs/plugins-phase-3c-hourly-resources.md rule 6). It validates against the real clock:
+// commit (specs/plugins/plugins-phase-3c-hourly-resources.md rule 6). It validates against the real clock:
 // freeze it before the stay.
 function commitArrival(ctx, body, t) {
   t.mock.timers.enable({ apis: ['Date'], now: NOW });
   const writes = [];
   const reservation = { ...ctx.reservation, arrivalSasDoneAt: '2026-09-11 16:30:00' };
   // The intents are resolved and planned by the real model on the fixture's database
-  // (specs/sas-arrival-total-server-side.md rules 1, 7).
+  // (specs/sas/sas-arrival-total-server-side.md rules 1, 7).
   const realModel = require('../../../models/reservationsModel').create(ctx.db);
   const reservationsModelMock = new Proxy({}, { get: (_, k) => {
     if (k === 'getByIdWithDetails') return () => reservation;
@@ -222,7 +222,7 @@ function commitArrival(ctx, body, t) {
 }
 
 const step = (ctx, blocks) => ({ resourceScheduling: { blocks: blocks.map((b) => ({ ...b, resourceId: ctx.resourceId })), resourceIds: [ctx.resourceId] } });
-// specs/pricing-components.md rule 90.3 — the supplement names the session line's component it is; at 0 € too, so a component shrinks back
+// specs/pricing/pricing-components.md rule 90.3 — the supplement names the session line's component it is; at 0 € too, so a component shrinks back
 // (a stay holding the legacy `evening:` line, as here, drops a 0 € item and its line, as before).
 const SUPPLEMENT = (ctx, amount) => ({
   label: 'Bain nordique — supplément soirée', amount, sasLineKey: `hourly-resources:evening:${ctx.resourceId}`, component: { kind: 'evening', resourceId: ctx.resourceId },
@@ -230,7 +230,7 @@ const SUPPLEMENT = (ctx, amount) => ({
 
 // What the previous commit stored: the supplement, tagged as this plugin's line (rule 7; the
 // migration tags the lines written before the phase), and a linen line of the SAS itself.
-// A stale dialog that names the plugin's row in `keptLines` (specs/sas-arrival-total-server-side.md
+// A stale dialog that names the plugin's row in `keptLines` (specs/sas/sas-arrival-total-server-side.md
 // rule 7) gets nothing for it: only the SAS's own untagged rows can be kept.
 function seedReopened(ctx) {
   ctx.oldSupplementId = Number(ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin, sasLineKey)

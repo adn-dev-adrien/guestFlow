@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 15, 35-36 — the mini SAS of an outside visit paid in advance: the lines a prepaid tender paid are a section of their own, titled and marked with the
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 15, 35-36 — the mini SAS of an outside visit paid in advance: the lines a prepaid tender paid are a section of their own, titled and marked with the
 // words their instrument gave, counted as paid; one of them marked « non pris » is recorded, journaled and told to its instrument through the generic callback, never refunded.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

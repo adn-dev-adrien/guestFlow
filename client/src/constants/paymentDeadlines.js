@@ -1,5 +1,5 @@
 /**
- * Payment-deadline card copy (specs/payment-schedule-and-cancellation.md §3.4 / §6).
+ * Payment-deadline card copy (specs/payments/payment-schedule-and-cancellation.md §3.4 / §6).
  *
  * Presentation only: the server decides the state, the amounts, the days late and which actions are
  * available. Here we map a state to the French words and the colour that carry it.
@@ -7,16 +7,16 @@
 
 export const DEADLINE_STATE_LABELS = {
   // Nobody has asked the guest yet — the row is a to-do, not a debt
-  // (specs/payment-schedule-and-cancellation.md §1 amendment).
+  // (specs/payments/payment-schedule-and-cancellation.md §1 amendment).
   deposit_to_request: 'Acompte à demander',
   balance_to_request: 'Solde à demander',
   deposit_overdue: 'Acompte en retard',
   balance_overdue: 'Solde en retard',
-  // specs/direct-installments.md rule 22 — an installment of the plan, three days past its due date.
+  // specs/payments/direct-installments.md rule 22 — an installment of the plan, three days past its due date.
   installment_overdue: 'Échéance en retard',
   cancel_due: 'Solde impayé',
   unpaid_at_arrival: 'Arrivée non réglée',
-  // specs/platform-payout-due-date.md — the platform's transfer, not the guest's money.
+  // specs/platforms/platform-payout-due-date.md — the platform's transfer, not the guest's money.
   platform_payout_overdue: 'Virement plateforme',
   // …and the booking where even the amount is unknown: a hole in the books, not a debt.
   platform_amount_missing: 'Montant manquant',

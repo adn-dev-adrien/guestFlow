@@ -5,10 +5,10 @@
  * and starts on the first day of the next one — September ⇒ 1 October → 30 September. December (the
  * default) means the exercise is the calendar year. Every annual figure of the Suivi financier is
  * derived from it SERVER-side; the hint below the Select is pure presentational echo of the picked
- * value, not a business rule (specs/fiscal-year-and-nights-sold.md §3.1 + §6.1).
+ * value, not a business rule (specs/accounting/fiscal-year-and-nights-sold.md §3.1 + §6.1).
  *
  * Below it, the annual revenue goal of the current and the next exercise
- * (specs/finance-dashboard-redesign.md §3.8). Their labels and today's revenue come from the server
+ * (specs/accounting/finance-dashboard-redesign.md §3.8). Their labels and today's revenue come from the server
  * (`goalContext`); a field left empty means « no goal ». The red message is immediate feedback — the
  * server re-validates on save.
  *

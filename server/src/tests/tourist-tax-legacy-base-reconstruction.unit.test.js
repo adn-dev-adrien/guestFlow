@@ -1,4 +1,4 @@
-// specs/tourist-tax-matches-the-office-calculation.md rules 13-14 — the migration that draws the
+// specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 13-14 — the migration that draws the
 // line between what the guest has already paid and what is still to be collected, and the inversion
 // that recovers the base behind an amount computed under an older rule.
 //

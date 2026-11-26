@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 2 and 43 (F18) — the import-graph judgement proved on synthetic trees: every mutant
+// specs/pricing/pricing-components.md §3 rules 2 and 43 (F18) — the import-graph judgement proved on synthetic trees: every mutant
 // (a planted import or call) turns it red, the clean file stays green. Nothing here reads the real tree.
 const test = require('node:test');
 const assert = require('node:assert/strict');

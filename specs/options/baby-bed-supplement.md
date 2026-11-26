@@ -8,30 +8,32 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 1 and §5: the seeded « Lit bébé » price is 0 € (babyBedSupplementSeed.js DEFAULT_PRICE = 0, plugins-phase-p rule 15), not 5 €; engine still bills price × cots per stay. Code paths refreshed.
+
 ---
 
 ## 1. Context
 
 A baby cot is entered on a booking through the **Lits bébé** counter of the « Voyageurs » card
-([GuestsBedsSection.jsx:104-119](../client/src/components/reservation/GuestsBedsSection.jsx#L104-L119)),
+([GuestsBedsSection.jsx:104-119](../../client/src/components/reservation/GuestsBedsSection.jsx#L104-L119)),
 persisted on `reservations.babyBeds`. It is deliberately kept out of the « Linge de lit » card — a cot
-is an independent physical resource, not a linen item (specs/bed-config-in-linen-card.md §3 rule 1,
+is an independent physical resource, not a linen item (specs/linen/bed-config-in-linen-card.md §3 rule 1,
 follow-up 2026-06-08).
 
 Today that counter is **purely operational**: it feeds the availability check
-([`getBabyBedAvailability`](../server/src/models/resourcesModel.js#L168), stock held by the « Lit bébé »
-row of the *resources* catalogue), the J-7 e-mail notice (specs/j7-email-baby-beds.md) and the laundry
+([`getBabyBedAvailability`](../../server/src/models/resourcesModel.js#L168), stock held by the « Lit bébé »
+row of the *resources* catalogue), the J-7 e-mail notice (specs/emails/j7-email-baby-beds.md) and the laundry
 aggregation. **It bills nothing.** The public widget even advertises the cot as
 « Gratuit, selon disponibilité »
-([class-gf-blocks.php:144](../integrations/wordpress/guestflow-booking/includes/class-gf-blocks.php#L144)).
+([class-gf-blocks.php:144](../../integrations/wordpress/guestflow-booking/includes/class-gf-blocks.php#L144)).
 
 Adrien now sells the cot: **5 € per cot for the whole stay**, whatever the number of nights.
 
 The engine already knows how to derive an option line by itself: an option flagged
 `autoOptionType` + `autoEnabled = 1` is built by the pricing engine from the reservation's own fields
 and never appears in `selectedOptions` — that is how « Arrivée anticipée » / « Départ tardif » are priced
-([pricing.js:452-518](../server/src/utils/pricing.js#L452-L518),
-[pricing.js:1571-1612](../server/src/utils/pricing.js#L1571-L1612)). The baby-bed supplement is the
+([pricing.js:452-518](../../server/src/utils/pricing.js#L452-L518),
+[pricing.js:1571-1612](../../server/src/utils/pricing.js#L1571-L1612)). The baby-bed supplement is the
 same shape, driven by `babyBeds` instead of the check-in/out hour.
 
 ## 2. Goal
@@ -45,12 +47,12 @@ saved keeps exactly the price it was sold at.
 ### 3.1 The option
 
 1. A catalogue option **« Lit bébé »** (*Baby cot* in the translation catalogue since 3.3.0 — the
-   `titleEn` column it used to carry is gone, `specs/translation-catalogue.md` §5) carries
+   `titleEn` column it used to carry is gone, `specs/site/translation-catalogue.md` §5) carries
    `autoOptionType = 'baby_bed'`,
-   `autoEnabled = 1`, `priceType = 'per_stay'`, `price = 5`. It is seeded at boot (§5) and, like every
+   `autoEnabled = 1`, `priceType = 'per_stay'`, `price = 0` (the seed is free until the operator prices it — `specs/plugins/plugins-phase-p-productisation.md` rule 15; the 5 € of the first draft is Adrien's own configured price, not a product default). It is seeded at boot (§5) and, like every
    typed option, is **not deletable** in Paramètres → Options.
 2. Its price is edited like any other option: single price, or **per logement** via the existing
-   per-property price switch (specs/per-property-option-prices.md). The effective unit price for a
+   per-property price switch (specs/options/per-property-option-prices.md). The effective unit price for a
    booking is the property override when present, else the base price.
 3. The engine bills **`unitPrice × babyBeds`, once for the stay** — the option's `priceType` is not
    consulted (a cot is never per-night or per-person). `quantity` = `billedUnits` = `babyBeds`.
@@ -64,7 +66,7 @@ saved keeps exactly the price it was sold at.
 
 6. **Every channel.** Direct, Lodgify, Airbnb, Booking, … all bill the supplement. On a non-direct
    platform the line follows the standard extras routing and lands in the **Complément** collected on
-   site (specs/force-extras-complement-on-platform.md §3) — like every other extra.
+   site (specs/sas/force-extras-complement-on-platform.md §3) — like every other extra.
 7. **Every surface** the pricing engine feeds: fiche réservation, devis (admin *and* site), public
    website quote, devis PDF, accounting. One engine, one rule.
 8. The operator can **offer** it in one click: the « Offrir » button of the récapitulatif zeroes the
@@ -96,7 +98,7 @@ saved keeps exactly the price it was sold at.
 15. The unit price is frozen by the booking's pricing snapshot exactly like any other option line: a
     later catalogue price change never rewrites a saved booking. The **quantity** is always recomputed
     from the current `babyBeds` (rule 12). A devis re-prices when its validity expires, like the rest
-    of its lines (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+    of its lines (specs/devis/devis-extras-parity-and-price-lock.md §3 rule 13).
 
 ### 3.5 Public website
 
@@ -133,7 +135,7 @@ saved keeps exactly the price it was sold at.
   count is 0); re-adding a cot afterwards bills it. Deliberate: at that point the operator is
   re-selling the cot.
 - Devis → réservation conversion: the line graph is copied verbatim
-  ([devisModel.js:704](../server/src/models/devisModel.js#L704)), so a grandfathered devis becomes a
+  ([devisModel.js:704](../../server/src/models/devisModel.js#L704)), so a grandfathered devis becomes a
   grandfathered reservation (stored cots, no line) and a billed devis carries its 5 € across. No
   special case needed.
 - iCal import: the imported reservation has no cot (`babyBeds = 0`) → no line; adding one later bills
@@ -229,7 +231,7 @@ No new endpoint. Two request fields start being **read** where they were previou
 - Found by `seedKey = 'baby_bed'` **or** `autoOptionType = 'baby_bed'` → the row is left exactly as it
   is (the operator's title, price and price type are never overwritten); a wiped `seedKey` is
   re-stamped so the next boot cannot insert a twin beside it.
-- Otherwise it inserts « Lit bébé » / *Baby cot*, `per_stay`, `price = 5`, `autoOptionType = 'baby_bed'`,
+- Otherwise it inserts « Lit bébé » / *Baby cot*, `per_stay`, `price = 0`, `autoOptionType = 'baby_bed'`,
   `autoEnabled = 1`, `displayToClient = 1`.
 - **Links it to every logement on every boot** — same contract as the catering and cancellation-insurance
   seeds, so a logement created later is covered with no hook in `propertiesModel` (amended 2026-08-20:
@@ -329,7 +331,7 @@ No page-level action added. `ReservationPage` keeps its existing bar.
   - Grandfathered `bookingId` → no line, total unchanged, even when the count is raised (rules 10-12).
   - Never billed twice when a caller also sends the option in `selectedOptions`.
 - [x] `tests/baby-bed-supplement-seed.unit.test.js` (+8) — the seed
-  - First boot seeds one 5 € row linked to every property; re-boot never duplicates nor rewrites it;
+  - First boot seeds one row (0 € since plugins-phase-p rule 15) linked to every property; re-boot never duplicates nor rewrites it;
     a renamed/re-priced row survives; a property created later is linked; a wiped `seedKey` is
     re-stamped; a hand-made « Lit bébé » is reported, never hijacked; an unmigrated schema is skipped;
     an archived supplement is not resurrected.

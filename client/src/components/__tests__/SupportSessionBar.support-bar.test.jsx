@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 15-16 — the red bar of a support session: « Session
+// specs/hosting/hosting-h2-account-security.md rules 15-16 — the red bar of a support session: « Session
 // support — <expiry> » on every page, each page opened reported to the access log, and nothing in a
 // customer's own session.
 import React from 'react';

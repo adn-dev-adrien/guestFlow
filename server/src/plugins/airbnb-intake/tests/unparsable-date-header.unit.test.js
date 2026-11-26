@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 34 (audit r5, review of PR #874, R1) — a Date header imapflow cannot parse (it hands over
+// specs/platforms/airbnb-mail-intake.md rule 34 (audit r5, review of PR #874, R1) — a Date header imapflow cannot parse (it hands over
 // the raw string) must not stop the pass, and a mail that makes the intake step throw is remembered as `ignored`.
 const test = require('node:test');
 const assert = require('node:assert/strict');

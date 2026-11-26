@@ -20,7 +20,7 @@ moved whenever an extra was added, removed or re-routed to « Complément ». It
 1. the platform brut back-solve (`brut − supplément − options hors Complément`) — correctly removed,
    and it stays removed;
 2. the deduction of the **services included in the rate** (former rule 48 of
-   [tariff-recipes/spec.md](tariff-recipes/spec.md)) — removed too, and that half went too far.
+   [tariff-recipes/spec.md](../pricing/tariff-recipes.md)) — removed too, and that half went too far.
 
 Lever 2 is not an extra polluting the base: it is the opposite. On the Lodge, Ménage (30 €/séjour),
 Linge de lit (7 €/pers) and Linge de toilette (8 €/pers) are `property_option_defaults.offered = 1`.
@@ -29,7 +29,7 @@ They are **billed inside the nightly rate** — the guest pays them, invisibly, 
 A night rate that also buys cleaning and linen is not a dry night, and declaring it as such
 over-declares the tax.
 
-Since #470 the engine computes ([pricing.js:1973](../server/src/utils/pricing.js#L1973)):
+Since #470 the engine computes ([pricing.js:1973](../../server/src/utils/pricing.js#L1973)):
 
 ```
 base = customPrice ?? nights × (1 − remise)     →  ÷ nuits  ÷ 1,10 (TVA)  ÷ occupants  × 5 %  + 10 % dep
@@ -99,7 +99,7 @@ the same amount.
      offered default);
    - on an **existing** reservation / devis: only when the reservation **already carries** the line.
      One that does not carry it keeps rendering as a normal off Switch and is never force-added —
-     [reservation-option-immutability.md](reservation-option-immutability.md) rules 3-4 stand.
+     [reservation-option-immutability.md](../reservations/reservation-option-immutability.md) rules 3-4 stand.
 
 5. **The server is the authority on rule 4.** Saving a reservation cannot drop an included line the
    stored reservation carries: on update, a property default with `offered = 1` present in the stored
@@ -209,11 +209,11 @@ the same amount.
 
 **Notes:**
 - The whole pricing change sits in the block at
-  [pricing.js:1966-1980](../server/src/utils/pricing.js#L1966): `taxBaseBeforeDeduction` (the
+  [pricing.js:1966-1980](../../server/src/utils/pricing.js#L1966): `taxBaseBeforeDeduction` (the
   accommodation charged, as today) → `touristTaxIncludedInRateDeduction` → `taxBaseAccommodation =
   max(0, before − deduction)`. The deduction reads `finalOptionLines` (already tagged
-  `includedInRate` at [pricing.js:1755](../server/src/utils/pricing.js#L1755)) and the existing
-  `includedGuests` const ([pricing.js:1420](../server/src/utils/pricing.js#L1420)), which already
+  `includedInRate` at [pricing.js:1755](../../server/src/utils/pricing.js#L1755)) and the existing
+  `includedGuests` const ([pricing.js:1420](../../server/src/utils/pricing.js#L1420)), which already
   resolves the locked tariff.
 - The per-line reference value reuses the engine's own `getTypeMultiplier(priceType, persons,
   nights)` with `persons = includedGuests || realPersons` — no second pricing formula is written.
@@ -264,7 +264,7 @@ No endpoint signature changes. The quote payload returned by every pricing route
 | `includedServicesDeduction` | what the rate already covers, deducted from the declared base (0 outside percentage mode) |
 
 `accommodationAmount` keeps its name and, in percentage mode, becomes the **taxable** accommodation
-HT (net of the inclusions) — which is what `specs/reservation-refunds.md` §6 already called it.
+HT (net of the inclusions) — which is what `specs/payments/reservation-refunds.md` §6 already called it.
 `accommodationRawAmount` and `reductionAmount` are **removed**: they were artefacts of the SQL
 arithmetic rule 14 deletes, and no client or export read them. `taxRate` stays, now derived as
 `taxe ÷ (adultes × nuits)` — a frozen stay pins the engine's `touristTaxUnitAmount` to the stored
@@ -315,7 +315,7 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
   « dont 1 inclus dans le tarif », under the « + compl. » chip, reading as a label rather than a
   price) **into the amount column**: `variant="caption"`, `text.secondary`, struck through, directly
   above the `0,00 €` it explains. The count stays on the left. Detailed in
-  [welcome-pack-auto-options.md](welcome-pack-auto-options.md) §6.
+  [welcome-pack-auto-options.md](../options/welcome-pack-auto-options.md) §6.
 - **Copy:** « Inclus » (existing string), « Base : {X} − {Y} de prestations comprises » (the string
   removed by #470, restored verbatim).
 - **Responsive:** nothing moves. One caption more in a `flexDirection: column` stack that already
@@ -405,16 +405,16 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
       2 nuits = 5,40 €).
 
 ### Spec sync (CLAUDE.md §4.1)
-- [x] `specs/tourist-tax-base-accommodation-only.md` — rules 3 and 4 amended (the deduction returns, in
+- [x] `specs/tourist-tax/tourist-tax-base-accommodation-only.md` — rules 3 and 4 amended (the deduction returns, in
       its party-independent form), §4.3, §6 and §9 updated.
-- [x] `specs/tariff-recipes/spec.md` — rule 48 reinstated as **48ter** with the forfait formulation;
+- [x] `specs/pricing/tariff-recipes.md` — rule 48 reinstated as **48ter** with the forfait formulation;
       rule 49 gets its tax effect back; the §9 note amended with the 2026-08-22 decision.
-- [x] `specs/reservation-option-immutability.md` — rules 3 and 4 amended: the forced/disabled display
+- [x] `specs/reservations/reservation-option-immutability.md` — rules 3 and 4 amended: the forced/disabled display
       and the server-side restore now also apply in edit mode to a *carried* offered default, never to
       one the reservation lacks.
-- [x] `specs/per-property-default-options.md` — new rule 10, « Comprise » is mandatory.
-- [x] `specs/devis-pdf-total-parity.md` — the `offeredOptionIds` row states the tax effect again.
-- [x] `specs/welcome-pack-auto-options.md` §6 — where the covered value reads (feedback 2026-08-22).
+- [x] `specs/options/per-property-default-options.md` — new rule 10, « Comprise » is mandatory.
+- [x] `specs/devis/devis-pdf-total-parity.md` — the `offeredOptionIds` row states the tax effect again.
+- [x] `specs/options/welcome-pack-auto-options.md` §6 — where the covered value reads (feedback 2026-08-22).
 - [x] `changelog.d/fixed--tourist-tax-included-services-deduction.md`,
       `changelog.d/changed--welcome-pack-covered-value-placement.md` and
       `changelog.d/added--tourist-tax-night-base-column.md`.

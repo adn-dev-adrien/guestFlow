@@ -1,5 +1,5 @@
-// specs/pricing-components.md §3 rules 79 / 85 (stabilisation loop t9, B9-5, 2026-11-16) — inside the mid-stay window every body line keeps ITS
-// OWN stored routing (specs/mid-stay-extras-on-locked-fiche.md rule 8), addressed by `lineId`. A stay holding two lines of one article — the
+// specs/pricing/pricing-components.md §3 rules 79 / 85 (stabilisation loop t9, B9-5, 2026-11-16) — inside the mid-stay window every body line keeps ITS
+// OWN stored routing (specs/sas/mid-stay-extras-on-locked-fiche.md rule 8), addressed by `lineId`. A stay holding two lines of one article — the
 // beer paid in the solde (`inComplement` 0) and the same beer sold again before the arrival (arrival complement, `inComplement` 1) — never
 // shares one pin between them. Before, the routing was keyed by the article: the last row won for both, the solde's paid beer moved to the
 // complement and the end-of-stay complement asked its 30 € again.

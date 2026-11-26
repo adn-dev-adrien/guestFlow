@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 15, 48, 52 — Réglages › Application: the app's name and address, Soliomap and
+// specs/guest-app/guest-app.md rules 15, 48, 52 — Réglages › Application: the app's name and address, Soliomap and
 // « Synchroniser », the QR poster and « Régénérer » after a confirmation.
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';

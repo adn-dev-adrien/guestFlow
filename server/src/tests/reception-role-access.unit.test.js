@@ -4,11 +4,11 @@ const assert = require('node:assert/strict');
 
 const enforceRoleAccess = require('../middleware/enforceRoleAccess');
 
-// Plugin modules declare their own reception entries (specs/plugins-phase-1-sdk.md rule 5).
+// Plugin modules declare their own reception entries (specs/plugins/plugins-phase-1-sdk.md rule 5).
 require('../plugins/loader').registerAll({ db: null, isInstalled: () => false });
 require('../plugins/sdk/registry').configure({ isActive: () => true, allows: () => true });
 
-// specs/reception-role-checkin-only.md §3.6 rule 11 — pins the exact reachable set for the
+// specs/sas/reception-role-checkin-only.md §3.6 rule 11 — pins the exact reachable set for the
 // `reception` role, plus the combined-role edge cases.
 
 function fakeRes() {
@@ -51,10 +51,10 @@ const ALLOWED = [
   ['DELETE', '/laundry/skips/2026-07-22'],
   ['GET', '/laundry/manual-additions'],
   ['PUT', '/laundry/manual-additions/2026-07-22'],
-  // Extra laundry trips — READ only (specs/laundry-extra-trip.md §3.4 rule 16).
+  // Extra laundry trips — READ only (specs/linen/laundry-extra-trip.md §3.4 rule 16).
   ['GET', '/laundry/extra-trips'],
   ['GET', '/laundry/extra-trips/preview'],
-  // The laundry schedule — READ only (specs/linen-laundry-days.md §3.5 rule 23).
+  // The laundry schedule — READ only (specs/linen/linen-laundry-days.md §3.5 rule 23).
   ['GET', '/laundry/schedule'],
   ['GET', '/resource-bookings/planning-events'],
   // Self endpoints — reachable by every role.
@@ -89,10 +89,10 @@ const FORBIDDEN = [
   // A financial write disguised on an allowed-looking sibling.
   ['DELETE', '/properties/1'],
   ['POST', '/properties'],
-  // Extra laundry trips are admin-only to create / edit / delete (specs/laundry-extra-trip.md §3.4).
+  // Extra laundry trips are admin-only to create / edit / delete (specs/linen/laundry-extra-trip.md §3.4).
   ['PUT', '/laundry/extra-trips/2026-08-21'],
   ['DELETE', '/laundry/extra-trips/2026-08-21'],
-  // The laundry schedule is admin-only to change or preview (specs/linen-laundry-days.md §3.5 rule 23).
+  // The laundry schedule is admin-only to change or preview (specs/linen/linen-laundry-days.md §3.5 rule 23).
   ['PUT', '/laundry/schedule'],
   ['POST', '/laundry/schedule/preview'],
 ];
@@ -137,7 +137,7 @@ test('unknown / no role → fail-closed 403 (unchanged)', () => {
   assert.equal(call({ roles: null, method: 'GET', path: '/reservations' }).nextCalled, false);
 });
 
-// specs/payment-schedule-and-cancellation.md rule 19 — la carte « Échéances de paiement » est cachée
+// specs/payments/payment-schedule-and-cancellation.md rule 19 — la carte « Échéances de paiement » est cachée
 // pour un compte réception, ET son point d'entrée refuse ce rôle. Elle porte des montants dus, des
 // noms de clients et le geste « Relancer » qui envoie un email à un client : rien de tout cela n'est
 // du ressort de l'accueil. La garde ne tient pas à un test explicite dans le contrôleur mais à

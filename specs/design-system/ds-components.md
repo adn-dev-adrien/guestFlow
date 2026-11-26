@@ -14,7 +14,7 @@
 > **Superseded on 2026-08-22:** the `/design` showcase page this phase shipped has been removed
 > (route, Réglages entry, `pages/DesignPage.jsx`) — the design system is an internal contract, not an
 > operator-facing screen. Everything else below still stands; see
-> [design-system.md](design-system.md) §3.8. `specs/design-system-reference.md` is the living reference.
+> [design-system.md](design-system.md) §3.8. `specs/design-system/design-system-reference.md` is the living reference.
 
 ---
 
@@ -40,7 +40,7 @@ After this phase: any page can render loading/empty/error states and fire succes
 one import; every shared dialog is fullScreen on mobile; 4 pages (Clients, Historique emails,
 Options, Ressources) get the sticky `PageActionBar` in one move; a crash or unknown URL shows a
 recoverable screen; statuses and platforms have exactly one chip rendering each; and
-`specs/design-system-reference.md` + `/design` document it all. Sweeps 3-6 then only *apply* these pieces.
+`specs/design-system/design-system-reference.md` + `/design` document it all. Sweeps 3-6 then only *apply* these pieces.
 
 ## 3. Functional rules
 
@@ -100,7 +100,7 @@ recoverable screen; statuses and platforms have exactly one chip rendering each;
 
 ### 3.6 Reference deliverables
 
-15. **`specs/design-system-reference.md`** (named `-reference`: macOS case-insensitive
+15. **`specs/design-system/design-system-reference.md`** (named `-reference`: macOS case-insensitive
     filesystems forbid `DESIGN-SYSTEM.md` next to `design-system.md`) — tokens tables (from
     phase 1), typography roles, spacing scale,
     the canonical top-right actions (§3.4 umbrella), table conventions (§3.5 umbrella), component
@@ -234,7 +234,7 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
 |---|---|---|---|
 | components | `LoadingState.js`, `EmptyState.js`, `ErrorAlert.js`, `PlatformChip.js`, `UnsavedChangesDialog.js`, `ResponsiveTable.js`, `ErrorBoundary.js` | C | §3.1 + §3.4 generics (JSDoc each). |
 | components | `DialogProvider.js` | T | `useToast` (Snackbar) + fullScreen alert dialog. |
-| components | `FormDialog.js`, `ConfirmDialog.js` | T | fullScreen on xs. `FormDialog` prop `sheet` (2026-11-18, loop t22 UI22-2, specs/plugins-phase-1-sdk.md rule 54): from `sm` up the dialog hangs from the top at the screen's full height, for a form an answer grows — nothing drawn nor the actions move. `ConfirmDialog` prop `onExited` (2026-11-18, loop t22): called once the dialog has left; given, the focus is not put back where it was, the caller places it (specs/arrival-departure-sas.md §3.0 reading). |
+| components | `FormDialog.js`, `ConfirmDialog.js` | T | fullScreen on xs. `FormDialog` prop `sheet` (2026-11-18, loop t22 UI22-2, specs/plugins/plugins-phase-1-sdk.md rule 54): from `sm` up the dialog hangs from the top at the screen's full height, for a form an answer grows — nothing drawn nor the actions move. `ConfirmDialog` prop `onExited` (2026-11-18, loop t22): called once the dialog has left; given, the focus is not put back where it was, the caller places it (specs/sas/arrival-departure-sas.md §3.0 reading). |
 | components | `DataPageScaffold.js` | T | PageActionBar + EmptyState. |
 | components | `StatusBadge.js` | T | Soft-bg DS restyle + JSDoc. |
 | components | `TableCard.js` | T | JSDoc (ResponsiveTable composes it). |
@@ -242,7 +242,7 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
 | pages | `EmailHistoryPage.js` | T | Local StatusBadge deleted → shared. |
 | pages | `DesignPage.js` | T | v2 « Composants » catalogue. |
 | `App.js` | shell | T | ErrorBoundary wrap + `path="*"` NotFound. |
-| docs | `specs/design-system-reference.md` | C | Reference doc (§3.6). |
+| docs | `specs/design-system/design-system-reference.md` | C | Reference doc (§3.6). |
 
 **Component reuse declaration:** creates the 7 generics above (all designed for app-wide reuse — the
 whole point of the phase); consumes phase-1 tokens; no page-specific component created.
@@ -347,5 +347,5 @@ No schema change, no migration.
   now; call sites migrate per block.
 - **PaymentsSettings `error` Alert kept inline** (mixes load + action errors) — split in the
   phase-3 Réglages sweep.
-- **Reference doc named `specs/design-system-reference.md`** — macOS's case-insensitive filesystem
+- **Reference doc named `specs/design-system/design-system-reference.md`** — macOS's case-insensitive filesystem
   forbids `DESIGN-SYSTEM.md` next to `design-system.md`.

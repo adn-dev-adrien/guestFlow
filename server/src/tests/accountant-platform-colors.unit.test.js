@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rule 34 — the platform badge colours and names are non-sensitive
+// specs/plugins/plugins-phase-2-hosts.md rule 34 — the platform badge colours and names are non-sensitive
 // display config that the shell loads for every role: the accountant reads them (as reception does),
 // nothing else of the property routes, and no write.
 

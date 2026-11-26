@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 72 and 75 — the shapes the payment poll hands the register, the notifier and the alert are built by
+// specs/pricing/pricing-components.md §3 rules 72 and 75 — the shapes the payment poll hands the register, the notifier and the alert are built by
 // `refunds/owed.js`: the same keys, in the same order, as the literals the poller wrote inline.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -62,7 +62,7 @@ const DDL = `
     createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
   );
   /* Property option defaults + their target tables — the sync now applies them to a freshly
-     created iCal reservation (specs/bed-config-in-linen-card.md §10 follow-up 2026-06-08). */
+     created iCal reservation (specs/linen/bed-config-in-linen-card.md §10 follow-up 2026-06-08). */
   CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT, priceType TEXT, price REAL, countsAsBedLinen INTEGER DEFAULT 0);
   CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER DEFAULT 0, PRIMARY KEY (propertyId, optionId));
   CREATE TABLE reservation_options (reservationId INTEGER, optionId INTEGER, quantity INTEGER, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER);
@@ -92,7 +92,7 @@ function freshModel() {
   return { db, model, source };
 }
 
-// Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rule 3): a feed that suddenly
+// Empty-feed guard (specs/platforms/ical-sync-mapping-resilience.md §3 rule 3): a feed that suddenly
 // parses to 0 events while mappings exist is only trusted from the 2nd consecutive empty fetch.
 // Tests that legitimately empty a feed sync twice through this helper.
 async function syncEmptyConfirmed(model, source) {
@@ -126,7 +126,7 @@ test('create: a new iCal event becomes an ical reservation', async () => {
   assert.equal(row.endDate, '2026-07-13');
   assert.equal(row.sourceIcalEventUid, 'E1');
   // The genuinely-new reservation id is surfaced for the per-reservation email notification
-  // (specs/site-booking-notifications.md §3 rule 7).
+  // (specs/site/site-booking-notifications.md §3 rule 7).
   assert.deepEqual(result.createdReservationIds.map(Number), [Number(row.id)]);
 });
 
@@ -190,7 +190,7 @@ test('locked: a locked iCal reservation is NOT overwritten on re-sync', async ()
   assert.equal(result.updatedCount, 0);
   assert.equal(db.prepare('SELECT endDate FROM reservations').get().endDate, '2026-07-13'); // unchanged
   // New behavior: dates differ → a pending drift row was recorded for the Dashboard alert.
-  // See specs/ical-sync-override-locked-dates.md §3 rules 1-3.
+  // See specs/platforms/ical-sync-override-locked-dates.md §3 rules 1-3.
   const drifts = db.prepare('SELECT * FROM ical_date_drift_alerts WHERE acknowledgedAt IS NULL').all();
   assert.equal(drifts.length, 1);
   assert.equal(drifts[0].previousEndDate, '2026-07-13');
@@ -261,7 +261,7 @@ test('unlocked + dates change: NO drift row (full update path)', async () => {
 });
 
 test('cancellation: an event no longer in the feed records a pending alert (soft delete)', async () => {
-  // specs/ical-cancellation-approval.md §3 rule 1 — the engine no longer auto-deletes.
+  // specs/platforms/ical-cancellation-approval.md §3 rule 1 — the engine no longer auto-deletes.
   const { db, model, source } = freshModel();
   // Future-relative dates: a PAST stay falling out of the feed is deliberately NOT a cancellation
   // (past-stay carve-out) — hardcoded July-2026 dates made these tests rot once that month passed.
@@ -306,7 +306,7 @@ test('cancellation: repeated empty-feed sync keeps ONE pending row (UPSERT)', as
 });
 
 test('cancellation: auto-resolve when the UID reappears in the feed before the user reacts', async () => {
-  // specs/ical-cancellation-approval.md §3 rule 4 — the alert is dropped silently.
+  // specs/platforms/ical-cancellation-approval.md §3 rule 4 — the alert is dropped silently.
   const { db, model, source } = freshModel();
   // Future-relative dates: a PAST stay falling out of the feed is deliberately NOT a cancellation
   // (past-stay carve-out) — hardcoded July-2026 dates made these tests rot once that month passed.
@@ -326,7 +326,7 @@ test('cancellation: auto-resolve when the UID reappears in the feed before the u
 });
 
 test('cancellation: a PAST stay dropped from the feed is NOT flagged (platforms prune bygone bookings)', async () => {
-  // specs/ical-cancellation-approval.md §3 rule 1, past-stay carve-out. A reservation whose
+  // specs/platforms/ical-cancellation-approval.md §3 rule 1, past-stay carve-out. A reservation whose
   // checkout is already behind us is not a cancellation to validate when its UID leaves the feed.
   const { db, model, source } = freshModel();
   const start = isoOffset(-20);
@@ -381,7 +381,7 @@ test('update with a renamed guest does not create an orphan client', async () =>
 });
 
 test('summary fallback (step 3.5): unlocked moved booking with NEW UID → re-claim + dates rewritten', async () => {
-  // specs/ical-summary-fallback-cross-uid.md §7.
+  // specs/platforms/ical-summary-fallback-cross-uid.md §7.
   // Replays the Abracadaroom case: same booking #144253 reappears with a new UID and
   // new dates. Every prior fallback fails because they key on the new dates; step 3.5
   // matches by the stable summary and re-claims the existing reservation.
@@ -489,7 +489,7 @@ test('syncSourceAndRecord writes the source status row', async () => {
 });
 
 test('create: an iCal reservation gets the property bed-linen default, marked offered', async () => {
-  // specs/bed-config-in-linen-card.md §10 follow-up (2026-06-08). On "Gite", bed linen is a
+  // specs/linen/bed-config-in-linen-card.md §10 follow-up (2026-06-08). On "Gite", bed linen is a
   // property default flagged offered; a freshly-arrived iCal booking must carry that option
   // (offered=1) so it shows on the reservation immediately, free of charge.
   const { db, model, source } = freshModel();
@@ -515,7 +515,7 @@ test('create: a non-offered property default lands on the iCal reservation as no
   assert.equal(opt.offered, 0);
 });
 
-// ── Platform payout deadline (specs/platform-payout-due-date.md §3.1 rules 8-9) ───────────────
+// ── Platform payout deadline (specs/platforms/platform-payout-due-date.md §3.1 rules 8-9) ───────────────
 
 test('create: the import stamps the platform payout deadline — departure + 10 by default', () => {
   const { db, model, source } = freshModel();
@@ -574,7 +574,7 @@ test('locked: a drift the operator has not approved moves neither the dates nor 
   });
 });
 
-// specs/normalize-platform-names.md §3.2 (8bis) — the sync stores the platform's CANONICAL name
+// specs/platforms/normalize-platform-names.md §3.2 (8bis) — the sync stores the platform's CANONICAL name
 // in `reservations.platform`, not the feed slug. Writing the slug (`abracadaroom`, `gites-de-france`)
 // put a second spelling next to the `Abracadaroom` of manually-created reservations, and the calendar
 // legend listed the platform twice until the next boot healed it. `sourcePlatformKey` keeps the slug:

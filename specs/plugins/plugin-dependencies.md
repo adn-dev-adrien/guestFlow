@@ -7,7 +7,7 @@
 | **Created** | 2026-10-29 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) — builds on #844 (`fix/audit-plugins`, merged into `inte/plugins` as 53c60253: rules 36–41 of `plugins-phase-4-registry.md`) |
-| **Summary for decision** | [`docs/specs/2026-10-29-plugin-dependencies.html`](../docs/specs/2026-10-29-plugin-dependencies.html) |
+| **Summary for decision** | [`docs/specs/2026-10-29-plugin-dependencies.html`](../../docs/specs/2026-10-29-plugin-dependencies.html) |
 
 ---
 

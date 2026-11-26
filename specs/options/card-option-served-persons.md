@@ -7,8 +7,10 @@
 | **Created** | 2026-08-20 |
 | **Approved** | 2026-08-20 |
 | **Author** | Adrien |
-| **Amends** | [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) §3.1-§3.3 + §4.3, [option-planning-card.md](option-planning-card.md) §3.4, [breakfast-option-planning-card.md](breakfast-option-planning-card.md) rule 3, [arrival-departure-sas.md](arrival-departure-sas.md) §3.7 |
+| **Amends** | [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) §3.1-§3.3 + §4.3, [option-planning-card.md](option-planning-card.md) §3.4, [breakfast-option-planning-card.md](breakfast-option-planning-card.md) rule 3, [arrival-departure-sas.md](../sas/arrival-departure-sas.md) §3.7 |
 | **Related PR** | _(opened at the end of implementation)_ |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
 
 > **Amended 2026-11-03** by [non-card-option-served-persons.md](non-card-option-served-persons.md): rules 1, 5, 6 and 16 extend to non-card options, and « Personnes servies » turns red when the party changes (rules 20-26).
 
@@ -18,7 +20,7 @@
 
 A **card option** (`options.showsPlanningCard = 1`) is billed by the **moments** it is served on. When
 its price type is per-person, the pricing engine bills the whole party, always
-([pricing.js:1514](../server/src/utils/pricing.js#L1514)):
+([pricing.js:1514](../../server/src/utils/pricing.js#L1514)):
 
 ```
 billedUnits = moments × persons        // persons = adults + teens + children (babies never count)
@@ -33,7 +35,7 @@ Two options are configured that way today, both in the « Restauration » catego
 | **Petit déjeuner** (`autoOptionType = 'breakfast'`) | 8,00 €/pers./matin | `once_per_day`, 09:00 |
 | **Le repas des trappeurs** | 25,00 €/pers./repas | `multiple_per_day`, 12:00 + 19:30 |
 
-Since [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) the arrival SAS can
+Since [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) the arrival SAS can
 sell both at the door: the operator ticks the moments and the money joins the arrival complement.
 
 **The limitation this spec removes:** the number of covers is not a decision anybody can make. A party
@@ -47,7 +49,7 @@ kitchen to prepare 4 plates — even when the two children are not eating and th
 
 The same hole exists for the breakfast: children who don't have breakfast are billed anyway. The old
 lever for that case — a **fractional quantity** on the fiche (`0.6667` = « 2 of 3 want breakfast »,
-still honoured by [breakfastModel.js:130](../server/src/models/breakfastModel.js#L130)) — died when the
+still honoured by [breakfastModel.js:130](../../server/src/models/breakfastModel.js#L130)) — died when the
 breakfast became a card option: the moments now drive the quantity, so there is no fraction to type.
 
 ## 2. Goal
@@ -75,7 +77,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 3. **Bounds** (server clamps, the client only helps): `1 ≤ cardPersons ≤ property.maxGuests`. The
    maximum is the **capacity of the property** — not the party — so an extra guest invited to dinner can
    be served (decision 2026-08-20). When `maxGuests = 0` (capacity not configured,
-   [capacity.js:19](../server/src/utils/capacity.js#L19)) the bound falls back to the party size. A
+   [capacity.js:19](../../server/src/utils/capacity.js#L19)) the bound falls back to the party size. A
    value ≤ 0 is refused; **removing a prestation is done by switching the option off, never by serving
    0 person**.
    > **Amendé le 2026-09-23** — [unscheduled-card-option.md](unscheduled-card-option.md) rule 5 : cette
@@ -94,7 +96,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 
 7. On an enabled per-person card option, the reservation form shows a **« Personnes servies »** stepper
    where the « Qté » field is deliberately blanked out for card options
-   ([OptionRow.jsx:248](../client/src/components/reservation/OptionRow.jsx#L248)). Default = the party
+   ([OptionRow.jsx:248](../../client/src/components/reservation/OptionRow.jsx#L248)). Default = the party
    size; range = rule 3.
 8. The quantity caption under the moment grid names it: « Quantité : **4** (2 × 2 pers. servies) »
    (today: « (2 × 4 pers.) »).
@@ -104,34 +106,34 @@ planning card and the kitchen prep all follow that number instead of the party s
    keeps it ([non-card-option-served-persons.md](non-card-option-served-persons.md) rule 30).
 10. **Devis parity** — a quote carries the served count exactly like it carries the moments; the
     devis → réservation conversion (and back) copies it verbatim, and the PDF shows the quantity it
-    priced ([devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md)).
+    priced ([devis-extras-parity-and-price-lock.md](../devis/devis-extras-parity-and-price-lock.md)).
 
 ### 3.3 At the check-in (arrival SAS)
 
 11. **Page « Quels matins ? »** (breakfast) and **page « Restauration »** (each card option) gain the
     same stepper, right under the moment grid: « Personnes servies », pre-filled with the party size —
     or with what **this** SAS already sold when a committed check-in is re-opened
-    ([reopen-completed-sas.md](reopen-completed-sas.md)).
+    ([reopen-completed-sas.md](../sas/reopen-completed-sas.md)).
 12. The intent the wizard sends gains the count — still no price, ever
-    ([CLAUDE.md](../CLAUDE.md) §6.0):
+    ([CLAUDE.md](../../CLAUDE.md) §6.0):
     `soldOptions: [{ optionId, occurrences: [{date,time}], persons }]`. The server resolves the option,
     its per-property price, clamps `persons` (rule 3) and writes `cardPersons`.
 13. The amounts shown on the sale pages and on the recap remain a **preview** (« Quantité : 2 (1 × 2
     pers. servies) = 50,00 € ») — the server re-prices every line at commit, exactly as today.
 14. Re-running the SAS **replaces** the sale, so changing the served count on a re-open re-prices the
     line and moves the complement by the delta — it never stacks a second line
-    ([sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) §3.3 rule 11).
+    ([sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) §3.3 rule 11).
 15. The check-in history line « **Prestations vendues au check-in** » spells the count out:
     « Le repas des trappeurs — 1 moment × 2 pers. servies = 50,00 € ».
 
 ### 3.4 What the kitchen and the planning see
 
 16. **Breakfast prep follows the sale**: the morning head count served by
-    [breakfastModel.js](../server/src/models/breakfastModel.js) (`persons` on the breakfast card, on the
+    [breakfastModel.js](../../server/src/models/breakfastModel.js) (`persons` on the breakfast card, on the
     SAS breakfast page and in the planning summary) is `cardPersons ?? party` for a card-driven
     breakfast. The legacy fractional-quantity rule for non-card breakfasts is untouched.
 17. **Composition pre-fill** of a breakfast sold at check-in (viennoiseries = 1/pers., ½ baguette/pers.,
-    [sas-breakfast-bread-and-push.md](sas-breakfast-bread-and-push.md) rule 3) is derived from the
+    [sas-breakfast-bread-and-push.md](../sas/sas-breakfast-bread-and-push.md) rule 3) is derived from the
     **served** count, not from the party. The operator can still adjust every counter — the committed
     composition is stored verbatim.
     17.bis The covers are picked on the mornings page, i.e. **after** accepting the sale, so the pre-fill
@@ -144,7 +146,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 18. **The planning card of a card option** shows the served count when it differs from the party — a
     highlighted chip « **2 couverts** » beside the client name, next to the existing
     « Adultes / Enfants / Ados / Bébés » chips
-    ([OptionDayCard.jsx](../client/src/components/OptionDayCard.jsx)). Without an explicit count the card
+    ([OptionDayCard.jsx](../../client/src/components/OptionDayCard.jsx)). Without an explicit count the card
     is unchanged. This is the whole point of the feature: the cook must read the real number.
 
 **Edge cases:**
@@ -159,7 +161,7 @@ planning card and the kitchen prep all follow that number instead of the party s
   count stays `NULL`; the operator sets it when scheduling the real slots.
 - Welcome-pack auto options and every non-per-person card option → `NULL`, untouched.
 - Sale on a **frozen** arrival complement → unchanged route
-  ([sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) §3.4): the line is
+  ([sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) §3.4): the line is
   written with its served count and the money joins the end-of-stay complement.
 - Property capacity not configured (`maxGuests = 0`) → the stepper stops at the party size (rule 3).
 
@@ -201,7 +203,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 | `models/` | `models/breakfastModel.js` | T | `morningPersons` for a card-driven breakfast = `COALESCE(ro.cardPersons, party)`; the column joins the SELECTs (guarded). |
 | `models/` | `models/planningOptionCardsModel.js` | T | Card items gain `servedPersons` (`null` when the line follows the party). |
 | `utils/` | `utils/sasAudit.js` | T | « Prestations vendues au check-in » names the served count. |
-| `controllers/` | `controllers/sasController.js` | T | Passes the property capacity into `buildSasSaleOffers`; `commitArrival` forwards `soldOptions[].persons` (payload already passed through verbatim). |
+| `controllers/` | `plugins/sas/controller.js` | T | Passes the property capacity into `buildSasSaleOffers`; `commitArrival` forwards `soldOptions[].persons` (payload already passed through verbatim). |
 | `routes/`, `middleware/`, `scheduledTasks.js` | — | — | (none) |
 
 **Notes**
@@ -217,7 +219,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 |---|---|---|---|
 | `pages/` | `pages/ReservationPage.jsx` | T | `setOptionCardPersons(optionId, n)` setter (twin of `setOptionCardOccurrences`, same welcome-pack release), exposed on the form context; both payload builders (live preview + save) send `cardPersons`. |
 | `components/` | `components/reservation/OptionRow.jsx` | T | « Personnes servies » `QuantityField` for a per-person card option + the new quantity caption. |
-| `components/` | `components/sas/ReservationSasDialog.jsx` | T | Served-count `CountStepper` on the breakfast-mornings page and per card option on the « Restauration » page (the local `CountStepper` gains optional `min`/`max`, defaults unchanged for the composition counters); `persons` in `soldOptions`; preview amounts, the composition pre-fill (re-seeded while untouched, rule 17.bis) and the coherence warning (rule 17.ter) all follow the covers. |
+| `components/` | `plugins/sas/ReservationSasDialog.jsx` | T | Served-count `CountStepper` on the breakfast-mornings page and per card option on the « Restauration » page (the local `CountStepper` gains optional `min`/`max`, defaults unchanged for the composition counters); `persons` in `soldOptions`; preview amounts, the composition pre-fill (re-seeded while untouched, rule 17.bis) and the coherence warning (rule 17.ter) all follow the covers. |
 | `components/` | `components/OptionDayCard.jsx` | T | « N couverts » chip when `servedPersons` is set. |
 | `utils/` | `utils/bookingFormHydration.js` | T | Hydrates `cardPersons` onto the form line. |
 | `utils/` | `utils/applyQuoteToForm.js` | T | Carries `cardPersons` when a quote is applied to the form (same treatment as `cardOccurrences`). |
@@ -350,7 +352,7 @@ asserts the count survives.
 
 ### Client tests (vitest) — 15 new
 
-- [x] `components/sas/__tests__/ReservationSasDialog.test.jsx` (+4, 51 → 55) — lowering the covers of a
+- [x] `plugins/sas/__tests__/ReservationSasDialog.arrival.test.jsx` (+4, 51 → 55) — lowering the covers of a
       meal re-prices the preview, the recap and `soldOptions[].persons`; fewer breakfasts than guests
       drives the quantity, the amount AND the composition pre-fill (3 viennoiseries / 1,5 baguette);
       the stepper stops at the capacity; a re-opened SAS pre-fills the covers it sold. The 6 pre-existing

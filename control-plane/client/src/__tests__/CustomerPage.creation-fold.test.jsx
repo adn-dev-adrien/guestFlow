@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 38 — the « Création » card folds to one line once every
+// specs/hosting/control-plane-plans-and-access.md rule 38 — the « Création » card folds to one line once every
 // step is done, and opens on demand; a creation still in progress or failed stays open.
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';

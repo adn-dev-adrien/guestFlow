@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 22 — a sale outside a stay has no fiche: its block and its
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 22 — a sale outside a stay has no fiche: its block and its
 // lines carry `reservationId: null` and `saleKey`, and open nothing (no link, no crash).
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

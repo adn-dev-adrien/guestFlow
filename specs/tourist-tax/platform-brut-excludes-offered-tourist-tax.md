@@ -32,7 +32,7 @@ Two independent defects produce that gap.
 
 ### Defect 1 — GuestFlow subtracts its own tourist-tax estimate from an amount that never contained it
 
-`specs/platform-offered-tax-passthrough-and-cascade.md` rule 1 assumes that when a platform collects
+`specs/tourist-tax/platform-offered-tax-passthrough-and-cascade.md` rule 1 assumes that when a platform collects
 the tourist tax **and** remits it to the commune itself (the « offered » case —
 `collectsTouristTax = 1` + `touristTaxRemittedByPlatform = 1`: Gîtes de France, Booking, Airbnb), the
 amount the operator types in « Montant total payé par le client » **includes** that tax, and that the
@@ -51,10 +51,10 @@ Prix total client           784,05 €   (dont 36,65 € de frais de dossier)
 The operator naturally types the owner-facing total **733** (= 653 + 80), which excludes the tax. The
 engine then subtracts its own estimate of the tax (6 adults × 2 nuits × 1,20 € = 14,40 €) twice over:
 
-- from the brut back-solve ([pricing.js:2062](../server/src/utils/pricing.js#L2062)) → `finalPrice`
+- from the brut back-solve ([pricing.js:2062](../../server/src/utils/pricing.js#L2062)) → `finalPrice`
   lands on 718,60 instead of 733, so the CA and the VAT collected are both under-stated;
 - from « Calculer la commission »
-  ([FinanceSection.jsx:506](../client/src/components/reservation/FinanceSection.jsx#L506)) → the stored
+  ([FinanceSection.jsx:506](../../client/src/components/reservation/FinanceSection.jsx#L506)) → the stored
   commission is 50,60 instead of the real 65,00 (= 733 − 668, which the GdF invoice details as
   54,17 HT + 10,83 de TVA).
 
@@ -91,7 +91,7 @@ tourist-tax figure it estimated itself.
    `accommodation = max(0, brut − extraGuestSurcharge − pre-arrival options/resources − reversedTax)`;
    the `offeredTouristTaxInBrut` term is removed. Consequence for Victor: `finalPrice = 733,00`,
    accommodation = 653,00, options = 80,00.
-   **This supersedes rule 1 of `specs/platform-offered-tax-passthrough-and-cascade.md`**, which must be
+   **This supersedes rule 1 of `specs/tourist-tax/platform-offered-tax-passthrough-and-cascade.md`**, which must be
    annotated in the same commit.
 
 > **Amended 2026-09-11** by [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md): this reading is now the **empty-box** case, not the only case. When the operator states, in euros, the tourist tax the platform withheld, the brut is the guest-paid total again and that stated amount — the platform's, never our estimate — comes back out of it. An empty box keeps everything below exactly as written, which is what lets every reservation stored under this spec keep its amounts to the cent.

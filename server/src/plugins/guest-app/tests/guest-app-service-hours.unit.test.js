@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 39-42 — the service hours: weekly ranges, exceptions and all-properties closures (40), the
+// specs/guest-app/guest-app.md rules 39-42 — the service hours: weekly ranges, exceptions and all-properties closures (40), the
 // admin routes that store them, delivery times whose preparation lies after now inside one range between check-in and
 // check-out (41), the next opening and its banner, « Plus disponible pour votre séjour » (42). The clock is injected;
 // the dates the admin PUT stores are taken from today, the date window judges them.

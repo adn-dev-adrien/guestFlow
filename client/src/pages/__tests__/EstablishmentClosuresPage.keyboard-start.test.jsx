@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 21 (2026-11-02) — a start date typed on the keyboard keeps the focus in
+// specs/pricing/establishment-closures.md rule 21 (2026-11-02) — a start date typed on the keyboard keeps the focus in
 // « Début de fermeture »: the reopening calendar opens only on a pick in the start calendar. The reopening
 // date is pre-filled to start + 1 either way. With rule 18's reading of 2026-11-02 (date horizon): a start typed
 // past today + 5 years says so under its field, opens no calendar, and is not previewed.

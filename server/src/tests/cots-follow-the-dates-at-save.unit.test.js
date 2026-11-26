@@ -1,6 +1,6 @@
-// specs/reservations-backend-mvc.md rule 17 (audit R22-C6) — the save refuses a range with no cot left, on the real
+// specs/tech/reservations-backend-mvc.md rule 17 (audit R22-C6) — the save refuses a range with no cot left, on the real
 // model: moving a fiche's dates or its logement is judged even when the party did not move, and a range that did not
-// move still saves when its cots are already oversold (specs/edit-reservation-blocked-by-overlap.md).
+// move still saves when its cots are already oversold (specs/reservations/edit-reservation-blocked-by-overlap.md).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

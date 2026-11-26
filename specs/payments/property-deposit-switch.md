@@ -7,10 +7,10 @@
 | **Created** | 2026-09-20 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [public-online-deposit.md](public-online-deposit.md) (creates the toggle — this spec widens it), [disable-deposit-per-reservation.md](disable-deposit-per-reservation.md) (the per-reservation opt-out this reuses), [platform-deposit-toggle.md](platform-deposit-toggle.md) (the per-platform flag), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) (the due dates), [editable-deposit-amount.md](editable-deposit-amount.md) (the manual override) |
+| **Related** | [public-online-deposit.md](../site/public-online-deposit.md) (creates the toggle — this spec widens it), [disable-deposit-per-reservation.md](disable-deposit-per-reservation.md) (the per-reservation opt-out this reuses), [platform-deposit-toggle.md](../platforms/platform-deposit-toggle.md) (the per-platform flag), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) (the due dates), [editable-deposit-amount.md](editable-deposit-amount.md) (the manual override) |
 
 > **Updated 2026-10-27 (spec review — copy drift, no behaviour change).** The property page has since
-> become tabbed ([settings-rationalization.md](settings-rationalization.md) rule 21): both cards live in
+> become tabbed ([settings-rationalization.md](../settings/settings-rationalization.md) rule 21): both cards live in
 > the « Paiement & caution » tab (`client/src/components/property/PropertyPaymentTab.jsx`). The shipped
 > copy differs from rules 10–11 and §6: the switch reads **« Demander un acompte »** (card title still
 > « Acompte »), and the second card is titled **« Solde & caution »** when the switch is on and
@@ -22,12 +22,12 @@
 
 ## 1. Context
 
-`properties.publicDepositEnabled` was created by [public-online-deposit.md](public-online-deposit.md)
+`properties.publicDepositEnabled` was created by [public-online-deposit.md](../site/public-online-deposit.md)
 to answer one narrow question: *when a guest books on the website, do we charge the whole stay or
 just the acompte?* It governs nothing else. A reservation or a devis created **in the admin** still
 splits 30 % / 70 % from `depositPercent`, whatever the toggle says
-([pricing.js:2290](../server/src/utils/pricing.js#L2290),
-[devisModel.js:121](../server/src/models/devisModel.js#L121)).
+([pricing.js:2290](../../server/src/utils/pricing.js#L2290),
+[devisModel.js:121](../../server/src/models/devisModel.js#L121)).
 
 That split is a lie for Solio today: both logements have the toggle OFF and are paid in full at
 booking, yet every direct fiche still carries an acompte and a solde, and the property page still
@@ -77,11 +77,11 @@ website — and the property page stops asking for acompte settings that mean no
    frozen override would be an amount nobody can see or explain.
 6. Same in the platform branch: `!platformTakesDeposit || depositDisabled` still wins, then a paid
    acompte, then `depositEnabled = 0`, then the existing override / automatic split.
-7. The public payment mode ([publicPaymentMode.js](../server/src/utils/publicPaymentMode.js)) keeps
+7. The public payment mode ([publicPaymentMode.js](../../server/src/utils/publicPaymentMode.js)) keeps
    its current shape — `deposit` only when the property is enabled **and** the stored deposit is
    > 0. With rule 2 the second condition can no longer fire on its own, but it stays: it is the
    defensive read that already covers a missing column or an unknown property.
-8. The legacy devis derivation ([devisModel.js:121](../server/src/models/devisModel.js#L121)) — the
+8. The legacy devis derivation ([devisModel.js:121](../../server/src/models/devisModel.js#L121)) — the
    one that re-derives a split for an old row storing neither `depositAmount` nor `balanceAmount` —
    returns a zero acompte when the property is disabled.
 
@@ -107,7 +107,7 @@ website — and the property page stops asking for acompte settings that mean no
     d'indemnité. » OFF: « Délai avant de pouvoir annuler un séjour dont le paiement n'est pas réglé.
     Sans acompte, l'annulation suit les conditions des CGV. » — a property without an acompte has no
     acompte to keep.
-    **Amended 2026-10-28** (specs/settings-input-guards.md rules 1-14): the four numbers of the tab are
+    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 1-14): the four numbers of the tab are
     `BoundedNumberField`s fed by the server's limits (acompte days 0–30, solde and annulation 0–60).
 
 **Edge cases:**
@@ -292,7 +292,7 @@ Other labels and helper texts are carried over unchanged (`% acompte`,
   has no acompte. The domain word stays `solde` everywhere; only a helper text explains it.
 - **Migrating the existing reservations** that carry an unpaid acompte on a now-disabled property.
 - **The website copy** (plugin summary, success page): already mode-aware since
-  [public-online-deposit.md](public-online-deposit.md).
+  [public-online-deposit.md](../site/public-online-deposit.md).
 - **The « Relances » / balance-request cron**: untouched.
 
 ## 9. Open questions

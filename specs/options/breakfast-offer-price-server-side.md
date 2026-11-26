@@ -13,16 +13,16 @@
 ## 1. Context
 
 The arrival SAS (`client/src/plugins/sas/ReservationSasDialog.jsx`, plugin `sas`) sells the breakfast
-at the door in two pages ([sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md)
+at the door in two pages ([sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md)
 §3.1): the **offer** page (`breakfastSale` — « Le client n'a pas pris le petit déjeuner. Tarif :
 8,00 € par personne et par matin — 16,00 € le matin pour 2 pers. ») then the **mornings** page
 (`breakfastMornings` — the candidate mornings, the « Personnes servies » stepper, « Quantité : 4
 (2 × 2 pers. servies) » and « 4 petits déjeuners — 32,00 € »).
 
-[sas-arrival-total-server-side.md](sas-arrival-total-server-side.md) (#759, Implemented) moved the
+[sas-arrival-total-server-side.md](../sas/sas-arrival-total-server-side.md) (#759, Implemented) moved the
 recap and the sale-step **totals** to the server's preview. It left the offer price out on purpose
 (its §8: « the offer prices shown before a sale … on the breakfast offer page »). The owner's rule
-([CLAUDE.md](../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays money, it never
+([CLAUDE.md](../../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays money, it never
 computes it**, so that a figure is the same wherever it is read.
 
 ### 1.1 What is still computed in the client
@@ -74,7 +74,7 @@ public website (`integrations/wordpress/…/view.js`), which renders the server 
   formula as `roundMoney` (`pricing.js:29`). The total of a sale is `round2(unitPrice × billedUnits)`,
   never a sum of rounded per-morning figures.
 - Option prices are entered TTC under the **single global VAT rate** (`app_settings.vatRate`, default
-  10 %, [single-vat-rate.md](single-vat-rate.md) rule 1; `getGlobalVatRate`, `pricing.js:1243`). The
+  10 %, [single-vat-rate.md](../accounting/single-vat-rate.md) rule 1; `getGlobalVatRate`, `pricing.js:1243`). The
   VAT is extracted at quote/accounting level, never on a line shown to the operator. The tourist tax
   bites on the nights per adult, not on options. **The breakfast offer therefore carries no tax
   figure**, and this spec adds none.
@@ -125,7 +125,7 @@ that what the operator announces at the door is what the commit bills.
    only as the stepper's initial value and the draft's `persons` intent; it no longer feeds any
    displayed figure.
 8. **Guests changed while typing → the existing preview loop.** A tick or a stepper tap is a draft
-   change: the preview of [sas-arrival-total-server-side.md](sas-arrival-total-server-side.md) rules
+   change: the preview of [sas-arrival-total-server-side.md](../sas/sas-arrival-total-server-side.md) rules
    17-18 applies unchanged — 200 ms without a further change, one request, the previous one aborted,
    an answer that is not the latest discarded. No price table is shipped: the preview already prices
    every possible draft with the commit's own code, and a table would be a second source.

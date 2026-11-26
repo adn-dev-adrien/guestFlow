@@ -1,5 +1,5 @@
 /**
- * specs/site-english-version.md rules 48 and 49 — the plugin's own strings reach English, including
+ * specs/site/site-english-version.md rules 48 and 49 — the plugin's own strings reach English, including
  * the ones nothing on screen ever shows.
  *
  * Three of them did not, and the translation pass could not have caught them: two `aria-label`s and
@@ -66,7 +66,7 @@ test('every aria-label in the booking view is looked up, never written in place 
   assert.ok(labels.length > 0, 'no aria-label found at all — the file was restructured');
   // A literal is a quoted string with a word in it: a string a screen reader speaks, so it follows
   // the page. Computed names are fine — a day read through GF.dayLabel(), a stepper named after its
-  // line (specs/wordpress-plugin.md rule 15) — they are built from translated parts.
+  // line (specs/site/wordpress-plugin.md rule 15) — they are built from translated parts.
   const literals = labels.filter((value) => /^['"`]/.test(value) && /[A-Za-zÀ-ÿ]/.test(value));
   assert.deepStrictEqual(
     literals,
@@ -122,8 +122,8 @@ test('the terms link follows the language of the page (rule 48)', () => {
   );
 });
 
-// specs/wordpress-plugin.md rule 33 — the return page stops on a cancelled stay and says so, in both languages.
-test('specs/wordpress-plugin.md rule 33 — a cancelled status stops the polling and has an English string', () => {
+// specs/site/wordpress-plugin.md rule 33 — the return page stops on a cancelled stay and says so, in both languages.
+test('specs/site/wordpress-plugin.md rule 33 — a cancelled status stops the polling and has an English string', () => {
   assert.match(view, /d\.status === 'cancelled'[\s\S]{0,200}GF\.t\('paymentCancelled'\)[\s\S]{0,40}return;/);
   assert.match(blocks, /'paymentCancelled'\s*=>\s*__\('Cette réservation est annulée\.'/);
   assert.equal(catalogue()['Cette réservation est annulée.'], 'This booking has been cancelled.');

@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 39 (reading of 2026-11-11) — the dormant support account of
+// specs/hosting/self-update-and-releases.md rule 39 (reading of 2026-11-11) — the dormant support account of
 // hosting-h2-account-security.md rule 21 cannot be reactivated, re-keyed or unflagged by any writer, including
 // the previous release's user screens after a rollback (shadow trial of 4.0.0: it was listed and reactivable in v3.21.0).
 process.env.DB_PATH = ':memory:';

@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rule 20, reading of 2026-11-10 (audit R43-DB-L1) — the key is the logement's id
+// specs/site/google-vacation-rentals-feed.md rule 20, reading of 2026-11-10 (audit R43-DB-L1) — the key is the logement's id
 // as the page writes it: `{"01": {enabled, hotelCode}}` passed as logement 1, Envoi was accepted, and `properties()`,
 // which reads `stored[String(p.id)]`, enabled nothing.
 const test = require('node:test');

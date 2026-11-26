@@ -1,5 +1,5 @@
-// specs/plugins-phase-1-sdk.md rule 17 — the keypad code is a SAS fact: its field in Établissement
-// follows the `sas` plugin, not Sowel's. Since specs/platform-settings-relay-and-review.md rule 11 the SAS
+// specs/plugins/plugins-phase-1-sdk.md rule 17 — the keypad code is a SAS fact: its field in Établissement
+// follows the `sas` plugin, not Sowel's. Since specs/platforms/platform-settings-relay-and-review.md rule 11 the SAS
 // draws it itself, through the `settings.etablissement` slot.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

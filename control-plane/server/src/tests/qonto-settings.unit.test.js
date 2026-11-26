@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 32 — GuestFlow's own Qonto module and settings
+// specs/hosting/control-plane-plans-and-access.md rule 32 — GuestFlow's own Qonto module and settings
 // handlers, run over the console's settings: secrets encrypted at rest and masked, the OAuth flow
 // with the console's scopes and address, and the payment-link webhook behind Qonto's signature.
 

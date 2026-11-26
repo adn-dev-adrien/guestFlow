@@ -41,7 +41,7 @@ import {
 
 // Shared item shape for the breakfast card AND the preparation popup — the popup deep-link
 // (push notification) maps the API item exactly like the card does
-// (specs/planning-breakfast-prep-popup.md + sas-breakfast-bread-and-push.md rule 10).
+// (specs/planning/planning-breakfast-prep-popup.md + sas-breakfast-bread-and-push.md rule 10).
 function mapBreakfastItem(i, date) {
   return {
     reservationId: i.reservationId,
@@ -74,13 +74,13 @@ const todayKey = (today) => `day-${today}`;
 export default function PlanningPage() {
   const navigate = useNavigate();
   // Post-action failures surface through the shared toasts — the page used raw window.alert
-  // (specs/ds-components.md §3.2).
+  // (specs/design-system/ds-components.md §3.2).
   const { showError } = useToast();
   const { user } = useAuth();
-  // specs/reception-role-checkin-only.md §3.4 — a reception-only user runs the SAS on the Planning
+  // specs/sas/reception-role-checkin-only.md §3.4 — a reception-only user runs the SAS on the Planning
   // but has no client / reservation sheet access: the card body + client-name links are inert and
   // the SAS « Fiche » link is hidden. Everything else (SAS, caution/complement) is unchanged.
-  // The SAS locks themselves (specs/reception-sas-today-only.md) ride along in the reservation
+  // The SAS locks themselves (specs/sas/reception-sas-today-only.md) ride along in the reservation
   // payload — the cards read them directly, nothing to pass down from here.
   const receptionMode = isReceptionOnly(user);
   const sasOn = usePlugin(SAS);
@@ -92,9 +92,9 @@ export default function PlanningPage() {
     navigate(withFrom(`/reservations/${reservationId}`, '/planning'));
   }, [navigate, receptionMode]);
 
-  // The server's date (specs/ds-sweep-planning.md rule 28); the timeline waits for it.
+  // The server's date (specs/design-system/ds-sweep-planning.md rule 28); the timeline waits for it.
   const todayStr = useServerToday();
-  // Cards plugins add to the days (slot `planning.days`, specs/plugins-phase-2-hosts.md rule 5), each
+  // Cards plugins add to the days (slot `planning.days`, specs/plugins/plugins-phase-2-hosts.md rule 5), each
   // loaded by the contribution's own `load` for every window; buttons they add to the bar (rule 6).
   const dayContributions = useSlot('planning.days');
   const actionContributions = useSlot('planning.actions');
@@ -178,14 +178,14 @@ export default function PlanningPage() {
 
   const { items } = useMemo(() => buildTimeline(windows.filter((w) => w.status === 'loaded')), [timeline.version]); // eslint-disable-line react-hooks/exhaustive-deps
   // Cleaning alerts of the cards, computed by the server and keyed by card kind
-  // (specs/planning-arrival-alerts.md rules 7–10): an arrival card reads `arrivals`, a departure row
+  // (specs/planning/planning-arrival-alerts.md rules 7–10): an arrival card reads `arrivals`, a departure row
   // reads `departures` — a stay's two cards never share an alert.
   const alerts = useMemo(() => windows.reduce((acc, w) => ({
     arrivals: { ...acc.arrivals, ...w.alerts.arrivals },
     departures: { ...acc.departures, ...w.alerts.departures },
   }), { arrivals: {}, departures: {} }), [timeline.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Option-driven planning card « préparé » toggle (specs/option-planning-card.md §3.5). Optimistic:
+  // Option-driven planning card « préparé » toggle (specs/options/option-planning-card.md §3.5). Optimistic:
   // flip the matching occurrence in state, persist, revert on failure.
   const handleToggleOptionCardDone = useCallback(async (item, nextDone) => {
     if (!item) return;
@@ -206,7 +206,7 @@ export default function PlanningPage() {
     }
   }, [mapDays, showError]);
 
-  // The breakfast card shares the « fait » toggle (specs/breakfast-option-and-planning-card.md) — same
+  // The breakfast card shares the « fait » toggle (specs/options/breakfast-option-and-planning-card.md) — same
   // generic occurrence endpoint, but optimistic state lives in the day's breakfast (matched by reservation
   // + hour on the day). A breakfast without chosen mornings ticks the same way: the server keeps that
   // morning's flag apart (2026-10-27 spec review).
@@ -232,13 +232,13 @@ export default function PlanningPage() {
     }
   }, [mapDays, showError]);
 
-  // Arrival / departure SAS (specs/arrival-departure-sas.md). Clicking an arrival card opens the
+  // Arrival / departure SAS (specs/sas/arrival-departure-sas.md). Clicking an arrival card opens the
   // arrival SAS, a departure row the departure SAS. `{ reservationId, mode }` drives the dialog.
   const [sas, setSas] = useState(null);
   const openArrivalSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'arrival' }); }, []);
   const openDepartureSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'departure' }); }, []);
 
-  // Deep-link from a push notification (specs/pwa-push-notifications.md §3.3 rule 10):
+  // Deep-link from a push notification (specs/guest-app/pwa-push-notifications.md §3.3 rule 10):
   // /planning?sas=arrival|departure&reservationId=:id opens the matching SAS, then the params are
   // cleared (history replace) so a refresh / back doesn't reopen it. The dialog loads the reservation
   // by id, independent of the days shown.
@@ -255,11 +255,11 @@ export default function PlanningPage() {
   }, [searchParams, setSearchParams, openArrivalSas, openDepartureSas, sasOn]);
   const openClient = useCallback((clientId) => { if (clientId && !receptionMode) navigate(withFrom(`/clients?clientId=${clientId}`, '/planning')); }, [navigate, receptionMode]);
 
-  // specs/planning-breakfast-prep-popup.md — the breakfast card item whose preparation popup
+  // specs/planning/planning-breakfast-prep-popup.md — the breakfast card item whose preparation popup
   // is open (null = closed). The fiche stays reachable from the popup's « Fiche » button.
   const [breakfastPrepItem, setBreakfastPrepItem] = useState(null);
 
-  // Deep-link from a breakfast push (specs/sas-breakfast-bread-and-push.md rule 10):
+  // Deep-link from a breakfast push (specs/sas/sas-breakfast-bread-and-push.md rule 10):
   // /planning?breakfast=:id&date=YYYY-MM-DD opens the preparation popup for that day's item,
   // independent of the days shown; params cleaned first (history replace, SAS deep-link idiom).
   useEffect(() => {
@@ -308,7 +308,7 @@ export default function PlanningPage() {
   ));
 
   // Every card of the day as an orderable entry `{ key, time, node }`, sorted into one chronological
-  // stream (specs/planning-chronological-day-ordering.md). `time` is the card's HH:MM sort key; a null
+  // stream (specs/planning/planning-chronological-day-ordering.md). `time` is the card's HH:MM sort key; a null
   // time sends the card to the bottom.
   const dayEntries = (day, plugin) => {
     const entries = [];
@@ -372,7 +372,7 @@ export default function PlanningPage() {
     }));
     // The plugins' day cards (slot `planning.days`). A `timed` contribution gives a list of cards
     // for the day, each with its `time`, sorted among the day's own timed cards
-    // (specs/plugins-phase-3c-hourly-resources.md rule 22); the others give one time-less
+    // (specs/plugins/plugins-phase-3c-hourly-resources.md rule 22); the others give one time-less
     // card, placed among the day's other time-less cards by its `rank`.
     dayContributions.forEach((c) => {
       const entry = plugin[contributionId(c)];
@@ -411,7 +411,7 @@ export default function PlanningPage() {
 
   const renderDay = ({ key, day, plugin }) => {
     const entries = dayEntries(day, plugin);
-    // specs/planning-day-task-count.md — the chip counts EVERY tickable card of the day
+    // specs/planning/planning-day-task-count.md — the chip counts EVERY tickable card of the day
     // (arrivals + departures + resource sessions), not just the arrivals: a day of departures
     // used to read « 0/0 » and could never turn green.
     const tasks = countDayTasks({
@@ -433,7 +433,7 @@ export default function PlanningPage() {
           allDone={tasks.allDone}
         />
         {/* All of the day's cards, interleaved into one chronological stream by time
-            (specs/planning-chronological-day-ordering.md). Each card keeps its own component
+            (specs/planning/planning-chronological-day-ordering.md). Each card keeps its own component
             and behavior; only the vertical order changes. */}
         {entries.map((entry) => (
           <React.Fragment key={entry.key}>{entry.node}</React.Fragment>
@@ -461,7 +461,7 @@ export default function PlanningPage() {
   // A window in flight shows a skeleton at its edge; a failed one says so and offers to retry.
   // At the start edge the loading shows as a thin progress bar glued under the page bar (`progress` below),
   // out of the layout: nothing is inserted above the viewport, so no card moves
-  // (specs/dashboard-planning-scroll.md rule 20).
+  // (specs/planning/dashboard-planning-scroll.md rule 20).
   const renderEdge = (window, atStart = false) => {
     if (!window || window.status === 'loaded') return null;
     if (window.status === 'loading' && atStart) return null;
@@ -486,9 +486,9 @@ export default function PlanningPage() {
         <ErrorAlert message="Impossible de charger le planning." onRetry={timeline.reopen} sx={{ mb: 3 }} />
       )}
       {phase === 'opening' && <LoadingState variant="skeleton" rows={3} />}
-      {/* The timeline — normally-flowing content scrolled by the window (specs/ds-sweep-planning.md
+      {/* The timeline — normally-flowing content scrolled by the window (specs/design-system/ds-sweep-planning.md
           rule 6): no page-owned scroll container, so the sticky bar stays visible. Names no plugin's
-          cards: an instance without them reads it too (specs/plugins-phase-0-foundation.md rule 30). */}
+          cards: an instance without them reads it too (specs/plugins/plugins-phase-0-foundation.md rule 30). */}
       {phase === 'ready' && (
         <Box data-testid="planning-timeline" sx={{ overflowAnchor: 'none' }}>
           {renderEdge(windows[0], true)}

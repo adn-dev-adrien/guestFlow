@@ -1,5 +1,5 @@
 /**
- * Forgotten password (specs/hosting-h2-account-security.md rules 1–5).
+ * Forgotten password (specs/hosting/hosting-h2-account-security.md rules 1–5).
  *
  * - The answer to a request never says whether the address has an account (rule 1), and costs the
  *   same time either way: it is sent before the address is even looked up.

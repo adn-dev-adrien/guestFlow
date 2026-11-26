@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 15-22 retired (cards, chart and breakdown dialog replaced by the Suivi financier dashboard); `getBreakdown` no longer exists. Exercise definition (1-5), attribution date (6-10, via `attributionDate` in `utils/reservationSettlement.js`), nights (11-14) and the selector (23-24, URL param `exercice`) are live.
+
 ---
 
 ## 1. Context
@@ -17,8 +19,8 @@ match how the business is actually run:
 
 1. **The year is the calendar year.** `financeModel.getSummary()` and `getBreakdown()` hard-code
    `new Date().getFullYear()` → `YYYY-01-01` … `YYYY-12-31`
-   ([financeModel.js:151-153](../server/src/models/financeModel.js#L151-L153),
-   [financeModel.js:306-310](../server/src/models/financeModel.js#L306-L310)). The company closes its
+   ([financeModel.js:151-153](../../server/src/models/financeModel.js#L151-L153),
+   [financeModel.js:306-310](../../server/src/models/financeModel.js#L306-L310)). The company closes its
    books at the **end of September**, so the two annual KPI cards, the annual tab of the
    « Revenu par logement » chart and their breakdown dialogs all report a period that has no
    accounting meaning.
@@ -30,7 +32,7 @@ match how the business is actually run:
 On top of that, the page reports **money only**. There is no way to answer « combien de nuits ai-je
 vendues au gîte cette année ? » — a figure needed both to steer pricing and to sanity-check the
 turnover at closing time. The nights already computed in `getOperational()`
-([financeModel.js:431](../server/src/models/financeModel.js#L431)) never reach the overview cards.
+([financeModel.js:431](../../server/src/models/financeModel.js#L431)) never reach the overview cards.
 
 The rest of the financial area is unaffected by the year question: `/comptabilite` and
 `/finance/tourist-tax` both work month by month.
@@ -81,7 +83,7 @@ The operator can declare their **accounting closing month** once in the settings
    Attributing « réservations à venir » to a payment date would empty the table of every prepaid stay,
    which is the opposite of what it is for.
 10. « En attente de règlement » stays **global and period-free**
-    (specs/finance-pending-global-remaining.md): every finished, non-settled stay. Since a non-settled
+    (specs/accounting/finance-pending-global-remaining.md): every finished, non-settled stay. Since a non-settled
     stay has no solde payment date, rule 6 makes its attribution date its departure date, so the
     predicate is unchanged in practice.
 
@@ -90,7 +92,7 @@ The operator can declare their **accounting closing month** once in the settings
 11. The nights of a stay = `endDate − startDate` in days, floor 0 — the gross nights sold, whatever
     the payment status.
 12. A tourist-tax refund does **not** reduce the nights sold. Deducting a refunded night is a
-    *declaration* rule (specs/reservation-refunds.md §3.5) about what is owed to the commune; the
+    *declaration* rule (specs/payments/reservation-refunds.md §3.5) about what is owed to the commune; the
     nights sold measure commercial occupancy.
 13. Nights are attributed to a window by rule 6, exactly like the money, so « X € » and « N nuits » on
     a card always describe the same set of reservations.
@@ -100,31 +102,22 @@ The operator can declare their **accounting closing month** once in the settings
 
 ### 3.4 Where the figures are shown
 
-15. The two annual cards become exercise cards:
-    « **Revenus** depuis le début de l'exercice jusqu'à aujourd'hui » (start → today) and
-    « **Revenu total** sur l'exercice » (the whole exercise). The first caption spells out its upper
-    bound (2026-08-12 feedback): without « jusqu'à aujourd'hui » the two cards read as synonyms.
-16. On a **closed** exercise, « depuis le début de l'exercice » covers the whole exercise, so the two
-    cards carry the same amount. That is correct and no warning is shown.
-17. On a **future** exercise (selectable only if reservations already point into it),
-    « depuis le début de l'exercice » is 0.
-18. Two cards carry a per-property nights line under their value: « Revenus depuis le début de
-    l'exercice » and « Revenu total sur l'exercice ». The **period**'s nights are read off the
-    « Revenu par logement » chart instead (rule 21), so « Revenu total sur la période » stays a single
-    figure — decision 2026-08-12: the chart already splits the period per logement, repeating the
-    split on the card next to it was redundant.
-19. « Encaissé » and « En attente de règlement » get **no** nights line: their amount is a subset of
-    échéances, not a set of stays, so a nights figure would be ambiguous.
-20. A property with 0 night in the window is omitted from the card line. If no property has any night,
-    the line is not rendered at all.
-21. The « Revenu par logement » chart shows the **nights sold inside each bar, under the HT amount**,
-    on **both** windows (period and exercise) — this is where the period's nights are read. A bar too
-    short to hold the three lines does **not** drop the nights: they move just above the bar, in the
-    secondary text color. A low-revenue logement is exactly where nights-vs-revenue is worth reading,
-    so that line must survive a short bar. The chart's annual tab follows the selected exercise
-    (label + caption + data), and the tooltip carries the nights too.
-22. The breakdown dialog of a card gains a **« Nuits » column** and its footer total, for the three
-    metrics of rule 18. For « Encaissé » and « En attente », no nights column (rule 19).
+15. *(Retired 2026-11-26 — the exercise cards, the « Revenu par logement » chart and the breakdown dialog are replaced by the dashboard of specs/accounting/finance-dashboard-redesign.md.)*
+   > **Sans test** — retired rule
+16. *(Retired 2026-11-26 — same as rule 15.)*
+   > **Sans test** — retired rule
+17. *(Retired 2026-11-26 — same as rule 15.)*
+   > **Sans test** — retired rule
+18. *(Retired 2026-11-26 — same as rule 15.)*
+   > **Sans test** — retired rule
+19. *(Retired 2026-11-26 — same as rule 15.)*
+   > **Sans test** — retired rule
+20. *(Retired 2026-11-26 — same as rule 15.)*
+   > **Sans test** — retired rule
+21. *(Retired 2026-11-26 — same as rule 15.)*
+   > **Sans test** — retired rule
+22. *(Retired 2026-11-26 — same as rule 15.)*
+   > **Sans test** — retired rule
 
 ### 3.5 Exercise selector
 
@@ -133,9 +126,7 @@ The operator can declare their **accounting closing month** once in the settings
     exercise is the default.
 24. The selection is persisted in the URL (`/finance?exercice=2026`) so the back button restores it
     after opening a reservation. An unknown/invalid value falls back to the current exercise.
-25. The selector drives the two exercise cards, the annual tab of the chart and the breakdown dialogs
-    of the annual metrics. It does **not** touch the du/au period, the period cards, the operational
-    tables or the projection.
+25. The selector sets the exercise of the dashboard (`specs/accounting/finance-dashboard-redesign.md`): its window defaults to the whole exercise and every figure reads through it; the logement filter and the `periode` / `mois` / `du` / `au` params narrow it inside the exercise.
 
 **Edge cases:**
 - Solde marked paid with an empty `balancePaidDate` (legacy rows) → attribution falls back to the
@@ -239,7 +230,7 @@ ALTER TABLE app_settings ADD COLUMN fiscalYearEndMonth INTEGER NOT NULL DEFAULT 
 ```
 
 Added through the existing idempotent `tryAddAppSettingsCol(...)` helper in
-[database.js:257-320](../server/src/database.js#L257-L320).
+[database.js:257-320](../../server/src/database.js#L257-L320).
 
 - **Default for existing rows:** `12` → calendar year → the annual windows behave exactly as before
   the change until the operator sets September. No backfill.

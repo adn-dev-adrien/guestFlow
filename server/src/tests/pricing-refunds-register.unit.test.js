@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 72 — REFUNDS / register: what a refund is (book money, caisse interne, the `retained`
+// specs/pricing/pricing-components.md §3 rule 72 — REFUNDS / register: what a refund is (book money, caisse interne, the `retained`
 // requalification avoir), its lines (sale, indemnity, commission), the order of a refund relative to the cancellation and
 // the per-line sums. The legacy module re-exports the same functions; the register keeps its own `round2` (rule 38).
 const test = require('node:test');

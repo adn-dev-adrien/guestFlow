@@ -12,11 +12,11 @@
 
 ## 1. Context
 
-[`specs/tariff-recipes/spec.md` §3.9](tariff-recipes/spec.md) defines the **welcome pack** of an
+[`specs/pricing/tariff-recipes.md` §3.9](../pricing/tariff-recipes.md) defines the **welcome pack** of an
 own-channel booking: first-morning breakfast for 2 + a 1 L bottle of apple juice, « included by the
 unit, not by the line ». It is materialised as `property_option_prices.freeUnits` — 2 on « Petit
 déjeuner », 1 on « Jus de pomme 1L » for Aventura Lodge — and the pricing engine already honours it:
-[`applyFreeUnitsToLine`](../server/src/utils/pricing.js#L795) zeroes the first N units of an option on
+[`applyFreeUnitsToLine`](../../server/src/utils/pricing.js#L795) zeroes the first N units of an option on
 `direct` / `Lodgify` bookings and bills the rest.
 
 What is missing is the other half of the promise. **Nothing puts the pack on the reservation.** On
@@ -43,7 +43,7 @@ Changing the platform before saving takes it back off.
 2. Archived options, options not linked to the property, and options hidden from the client
    (`displayToClient = 0`) are excluded — same filter as `property.rateInclusions`.
 3. **Own channel only.** Eligibility is decided by
-   [`isDirectChannel`](../server/src/utils/platformNameFormat.js) — `direct` **and** `Lodgify` — the
+   [`isDirectChannel`](../../server/src/utils/platformNameFormat.js) — `direct` **and** `Lodgify` — the
    single helper the pricing engine already uses (recipe rule 53). Any other platform: empty pack.
 
 ### 3.2 When it applies
@@ -54,7 +54,7 @@ Changing the platform before saving takes it back off.
    history (option-planning rule 30), and the engine already stops covering the free units the moment
    the platform becomes a commissioned one.
 5. It runs on the **blank** new-booking path — « Nouvelle réservation » **and** « Nouveau devis »
-   (amended 2026-08-14, specs/devis-extras-parity-and-price-lock.md §3 rule 5: the quote must show the
+   (amended 2026-08-14, specs/devis/devis-extras-parity-and-price-lock.md §3 rule 5: the quote must show the
    guest the same package the reservation would, since it is the document the guest actually reads).
    A fiche pre-filled from a devis, from an iCal import or from a duplication carries its own option
    set and is left alone.
@@ -104,7 +104,7 @@ Changing the platform before saving takes it back off.
   *Reading of 2026-11-03 (review of PR #940, REG-1).* « Invalid » here means missing, reversed or too
   long: the pack is still asked and its per-stay lines apply. The one thing never sent is a date that is
   typed but is not a real `YYYY-MM-DD` day (5- or 6-digit year, 30 February) or lies outside the window of
-  specs/reservations-backend-mvc.md rule 13 — the fiche refuses such a date anyway, so the hook asks
+  specs/tech/reservations-backend-mvc.md rule 13 — the fiche refuses such a date anyway, so the hook asks
   nothing and holds no line until it is fixed.
 - Guest count raised above the free units after the pack was applied → the tagged card line is
   removed again (rule 7 is a live condition, not a one-shot check at creation).
@@ -210,7 +210,7 @@ never rewritten (rule 4).
 
 - The lines appear ticked with a `Chip size="small"` labelled **« Pack de bienvenue »** next to the
   option title. No new copy anywhere else: the pricing summary already prints « dont 2 inclus dans le
-  tarif » ([`PricingSummary.jsx`](../client/src/components/PricingSummary.jsx#L392)).
+  tarif » ([`PricingSummary.jsx`](../../client/src/components/PricingSummary.jsx#L392)).
 - **Where the covered value reads (amended 2026-08-22).** The summary line splits the information in
   two: the COUNT stays on the left, under the title and the « + compl. » chip (« dont 2 inclus dans le
   tarif »), and the VALUE reads in the **amount column** — `variant="caption"`, `text.secondary`,

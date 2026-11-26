@@ -7,7 +7,7 @@
 | **Created** | 2026-10-18 |
 | **Author** | Adrien |
 | **Related PR** | #703 |
-| **Depends on** | `specs/lodgify-decommission.md` (Booking echo filter, rules 5–10), `specs/ical-sync-mapping-resilience.md` (empty-feed guard), `specs/platforms-and-ical-rework.md` (the platforms tab), `specs/booking-extranet-intake.md` rules 27–28 |
+| **Depends on** | `specs/platforms/lodgify-decommission.md` (Booking echo filter, rules 5–10), `specs/platforms/ical-sync-mapping-resilience.md` (empty-feed guard), `specs/platforms/platforms-and-ical-rework.md` (the platforms tab), `specs/platforms/booking-extranet-intake.md` rules 27–28 |
 
 ---
 
@@ -21,7 +21,7 @@ v3.10.0:
 - **B1** — every iCal stay without a guest name shared one placeholder client per feed (« Closed Not
   available » behind every Booking stay, « Reserved Ical » behind every Airbnb stay). The Booking
   intake wrote the guest onto that client, and every other stay took the guest's name and e-mail. The
-  intake itself is fixed by `specs/booking-extranet-intake.md` rules 27–28; the shared placeholder is
+  intake itself is fixed by `specs/platforms/booking-extranet-intake.md` rules 27–28; the shared placeholder is
   this spec's.
 - **M2** — « Synchroniser » on an inactive source (`isActive = 0`, the state of both Lodgify sources
   since 16/10) imported it again and re-created a stay deleted after retirement; the row never showed
@@ -55,7 +55,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
    split: the first stay keeps it, each other stay gets a copy, and its history records « Client :
    <old name> → <new name> ». Every such placeholder is renamed « Ical <platform> ». A shared client
    carrying a guest's coordinates is **never** split: which stay it belongs to is the operator's call
-   (`server/scripts/diagnose-shared-clients.js`, `specs/booking-extranet-intake.md` rule 28). The pass
+   (`server/scripts/diagnose-shared-clients.js`, `specs/platforms/booking-extranet-intake.md` rule 28). The pass
    is idempotent.
 2. **A stopped source stays stopped.** An inactive source (`isActive = 0`) is skipped by the hourly
    pass and « Synchroniser tout » (unchanged) and its own « Synchroniser » is refused:
@@ -65,7 +65,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
    held by a reservation of another origin is created and flagged `bookingConflictAt` (badge on the
    fiche and the calendar), and the conflict notification is sent instead of the « nouvelle
    réservation » one. A pristine stay that a feed moves onto taken nights is flagged too, once, and
-   notified. Only the Booking feed still **skips** a full echo (`specs/lodgify-decommission.md` rules
+   notified. Only the Booking feed still **skips** a full echo (`specs/platforms/lodgify-decommission.md` rules
    6–8): other platforms do not mirror GuestFlow's export as stays. The notification and its e-mail
    name the platform (« Conflit de dates — flux Airbnb »); the badge's tooltip reads « Ces dates
    chevauchent une autre réservation : doublon à supprimer, remboursement ou relogement. »
@@ -108,7 +108,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
     again (rule 3). A locked stay keeps its flag: its dates only move through the drift approval.
     *(Added 2026-10-18, second review, mi2.)*
 14. **A placeholder nobody uses is deleted.** An intake moves the stay onto the guest's own client
-    (`specs/booking-extranet-intake.md` rule 27, `specs/gites-de-france-mail-intake.md`), leaving the
+    (`specs/platforms/booking-extranet-intake.md` rule 27, `specs/platforms/gites-de-france-mail-intake.md`), leaving the
     « Ical <platform> » placeholder without a stay. Every sync deletes the clients named « Ical … » with
     no e-mail, phone, address or note and no reservation or quote. *(Added 2026-10-18, second review.)*
 15. **A nameless summary never merges two platforms' stays.** The cross-source de-dup (the same booking
@@ -152,7 +152,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
     ends more than 1 095 days from now, or lasts more than 366 nights. `parseIcsEvents(ics, { now })` takes the
     reference day for the tests. Test: `server/src/tests/ical-import-dates-bounds.unit.test.js`.
     *Reading of 2026-11-02 (audit R19-L1):* the 366-night cap is now `utils/stayDates.MAX_STAY_NIGHTS`, the
-    constant the internal stay guard enforces too (`specs/reservations-backend-mvc.md` rule 11).
+    constant the internal stay guard enforces too (`specs/tech/reservations-backend-mvc.md` rule 11).
     *Reading of 2026-11-11 (shadow trial of 4.0.0):* the horizon is a **future** bound only, and that is intended: no
     spec asks for a past one. Platform-provided dates follow their own rules and are not held to the date window of
     `reservations-backend-mvc.md` rule 13 (decision D6). A feed seen for the first time is read whole, so its past
@@ -187,7 +187,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
 - A feed that times out resets the empty-feed streak like any failed fetch
-  (`specs/ical-sync-mapping-resilience.md` rule 4).
+  (`specs/platforms/ical-sync-mapping-resilience.md` rule 4).
 - A repeated-UID stay mapped before rule 6 is re-claimed by its dates and summary (step ②) or, on
   Booking, by its exact dates; the old mapping is dropped, no duplicate.
 - A client split by rule 1 whose stay is later deleted is deleted at the next sync (rule 14); one the
@@ -287,7 +287,7 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 ### Server unit tests — 2026-10-27 audit
 
 - `server/src/tests/ical-nameless-summary-matching.unit.test.js` (6 cases, with
-  `specs/ical-summary-fallback-cross-uid.md` rule 7) — rule 15: two platforms' « Reserved » on the same
+  `specs/platforms/ical-summary-fallback-cross-uid.md` rule 7) — rule 15: two platforms' « Reserved » on the same
   dates → two stays, the second flagged; a guest named on two feeds is still one stay.
 - `server/src/tests/ical-parser-edges.unit.test.js` (4 cases) — rule 16.
 - `server/src/tests/ical-safe-feed-fetch.unit.test.js` (11 cases, 2026-10-28) — rule 17: address classes, literal / name / redirect refusals, redirect cap, 5 MB cap (declared, streamed, text), the dev setting, the source-level message.
@@ -306,7 +306,7 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 ## 8. Out of scope
 
 - Unifying « Désactiver » (`disabled`) and « arrêté » (`isActive`) into one control: still the open
-  arbitration of `specs/lodgify-decommission.md` rule 10.
+  arbitration of `specs/platforms/lodgify-decommission.md` rule 10.
 - `DTSTAMP` as a DATE-TIME and `VALUE=DATE` on the export (review n2): left for after the
   `master` hotfix lands, so the export model merges cleanly between the two branches.
   **Re-examined at the 2026-10-27 audit and kept as is:** the export is read today by Booking,
@@ -322,7 +322,7 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 ## 9. Open questions
 
 - Q: Should « Désactiver » also stop the import, so that one flag exists for the operator?
-  - Open — `specs/lodgify-decommission.md` rule 10's arbitration.
+  - Open — `specs/platforms/lodgify-decommission.md` rule 10's arbitration.
 
 ## 10. Implementation progress
 

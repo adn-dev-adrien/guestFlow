@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 12, 31 and 74 — `saleDetail` reads a stored stay as it was sold: a stored line bills what it stores and
+// specs/pricing/pricing-components.md §3 rules 12, 31 and 74 — `saleDetail` reads a stored stay as it was sold: a stored line bills what it stores and
 // the accommodation is what the stored stay price leaves, even when today's engine would price the stay otherwise (a resource line priced before
 // the hourly grid, a platform stay whose payout moved). Measured on the prod copy of 2026-11-11: every stay's detail now sums to its stored
 // price and tax, line by line.

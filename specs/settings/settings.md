@@ -8,10 +8,12 @@
 | **Author** | Adrien |
 | **Spec type** | Retro-spec + MVC refactor + UX humanization |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 12–17 (service-account Google Calendar) retired in place: they described the mechanism replaced on 2026-07-18; Google Calendar lives in `specs/settings/google-calendar-oauth-rework.md`.
+
 > **⚠️ Google Calendar parts superseded (2026-07-18).** The service-account mechanism, the
 > 3-field Settings section, the `googleCalendar` group in `GET/PUT /api/settings` and rules
 > 12–17 below were replaced by an OAuth connect flow with its own endpoints — see
-> [[google-calendar-oauth-rework]] (`specs/google-calendar-oauth-rework.md`), now the source
+> [[google-calendar-oauth-rework]] (`specs/settings/google-calendar-oauth-rework.md`), now the source
 > of truth for everything Google Calendar. The sections below are kept as history.
 
 ---
@@ -82,15 +84,18 @@ UX kept simple: **one page, three cards stacked, all fields editable inline**, w
 11. `quoteFooterText`: free multiline text. No validation.
 
 ### Google Calendar (Synchronisation avec Google Agenda)
-12. Three fields: `calendarId`, `serviceAccountEmail`, `privateKey`. All three required for sync.
-13. **Private key** stored encrypted at rest is **out of scope** here (deferred to `[[settings-encryption]]` spec). For now: returned masked on GET, never echoed in clear.
-14. **GET response shape:** the section returns `calendarId`, `serviceAccountEmail` (raw, for the form to pre-fill), `serviceAccountEmailMasked` (truncated middle, for display elsewhere), `privateKeyMasked` (`"••••••••••" | ""`), `privateKeyFingerprint` (`<sha256-first-6-hex> | null`), `configured` (boolean), `statusLabel` (`"Synchronisation active" | "Configuration en cours" | "Synchronisation non configurée" | "Échec de la dernière synchro"`).
-15. **PUT 3-way semantics on `privateKey`:** absent/undefined → preserve; `""` → clear; non-empty string → validate (permissive PEM regex) + store.
-16. **Test connection action** (`POST /api/google-calendar/test-connection`): uses stored credentials, calls `calendar.calendars.get(calendarId)`, maps Google errors to friendly French messages:
-    - 200 `{ ok: true, message: "Connexion réussie. Agenda « <name> » accessible." }`
-    - 400 `{ ok: false, code: 'NOT_CONFIGURED' | 'INVALID_CREDENTIALS' | 'FORBIDDEN' | 'CALENDAR_NOT_FOUND', error: "..." }`
-    - 500 `{ ok: false, code: 'UNKNOWN', error: "..." }`
-17. `routes/googleCalendar.js` is **not** fully refactored here (deferred to Bloc 6) — only the new `test-connection` route gets a thin controller. Existing `/status` and `/sync-reservations` keep using the extracted `getGoogleCalendarConfig` helper.
+12. *(Retired 2026-11-26 — the service-account fields are gone, Google Calendar is an OAuth connection; see specs/settings/google-calendar-oauth-rework.md rule 1.)*
+    > **Sans test** — retired rule
+13. *(Retired 2026-11-26 — the private key no longer exists; see specs/settings/google-calendar-oauth-rework.md rule 6.)*
+    > **Sans test** — retired rule
+14. *(Retired 2026-11-26 — the `googleCalendar` group left `GET /api/settings`; see specs/settings/google-calendar-oauth-rework.md rule 25.)*
+    > **Sans test** — retired rule
+15. *(Retired 2026-11-26 — there is no private key to write; see specs/settings/google-calendar-oauth-rework.md rule 1.)*
+    > **Sans test** — retired rule
+16. *(Retired 2026-11-26 — `POST /api/google-calendar/test-connection` is now served by the plugin with OAuth; see specs/settings/google-calendar-oauth-rework.md rule 25.)*
+    > **Sans test** — retired rule
+17. *(Retired 2026-11-26 — the route was reworked with the OAuth flow; see specs/settings/google-calendar-oauth-rework.md rule 24.)*
+    > **Sans test** — retired rule
 18. **A replaced logo shows at once (audit R25-C4, 2026-11-06).** A new file of the same format is stored under the same path (`/uploads/company-logo.png`), so after each successful upload the preview of Paramètres → Établissement asks for that path with a `?v=<upload time>`, the same mark the tab icon gets; the saved `logoPath` stays the plain path, and the page Save is not lit by it. *Why:* the preview kept the former image until a reload (and a broken preview stayed broken), so the operator believed the upload had failed while the devis and the tab icon already used the new file. Test: `client/src/pages/settings/__tests__/EstablishmentSettingsPage.logo-replace.test.jsx`.
 
 ## 4. Architecture

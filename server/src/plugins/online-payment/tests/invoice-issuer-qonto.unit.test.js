@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 14, 16-19, 25 — Qonto as the invoice issuer. All HTTP is stubbed:
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 14, 16-19, 25 — Qonto as the invoice issuer. All HTTP is stubbed:
 // the tests pin what is sent to Qonto and how its answers and refusals are read.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 63 and 65 — the legacy read model of the accounting output keeps today's derivation
+// specs/pricing/pricing-components.md §3 rules 63 and 65 — the legacy read model of the accounting output keeps today's derivation
 // of an entry's buckets in ONE core module (`utils/accounting/legacyBucketSplit.js`), so a stay without per-line truth
 // exports the cents it always exported. Pure: runs without the accounting-export plugin installed.
 const test = require('node:test');

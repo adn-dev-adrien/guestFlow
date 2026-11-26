@@ -1,5 +1,5 @@
 /**
- * Schema of the guest email sequence (specs/guest-email-sequence.md §5) — the send ledger and the
+ * Schema of the guest email sequence (specs/emails/guest-email-sequence.md §5) — the send ledger and the
  * columns its emails read. Idempotent and additive: applied at boot by database.js, and by the test
  * fixtures on a fresh schema.sql database, so both always run the same DDL.
  */
@@ -29,7 +29,7 @@ function applyGuestEmailSequenceSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_guest_email_sends_client ON guest_email_sends(clientId, sentAt);
   `);
 
-  // The wording of the emails as data (specs/plugins-phase-p-productisation.md §5): stay texts,
+  // The wording of the emails as data (specs/plugins/plugins-phase-p-productisation.md §5): stay texts,
   // global (propertyId 0) or per property, NULL meaning « never edited » for that language; and the
   // sentences tied to options, with the options they cover.
   db.exec(`
@@ -82,7 +82,7 @@ function applyGuestEmailSequenceSchema(db) {
     ['guestSequenceStartDate', 'TEXT'],
     ['googleReviewUrl', "TEXT DEFAULT ''"],
     ['instagramUrl', "TEXT DEFAULT ''"],
-    // specs/settings-input-guards.md rule 41 — the ordered social links; `instagramUrl` stays in sync.
+    // specs/settings/settings-input-guards.md rule 41 — the ordered social links; `instagramUrl` stays in sync.
     ['socialLinks', "TEXT NOT NULL DEFAULT '[]'"],
     // Empty = no pool (rule 14). An existing row keeps the season it holds.
     ['poolSeasonStart', "TEXT DEFAULT ''"],
@@ -94,7 +94,7 @@ function applyGuestEmailSequenceSchema(db) {
     ['emailBookedTextEn', "TEXT NOT NULL DEFAULT ''"],
   ]);
 
-  // specs/guest-email-texts-made-simple.md §5 — the arrival facts of a property (rule 1, the code and
+  // specs/emails/guest-email-texts-made-simple.md §5 — the arrival facts of a property (rule 1, the code and
   // the Wi-Fi password encrypted, rule 2) and the « traduit automatiquement » marks (rule 19), keyed
   // by the text keys of models/emailTextsModel.js. An empty table means no paragraph: no backfill.
   db.exec(`
@@ -126,7 +126,7 @@ function applyGuestEmailSequenceSchema(db) {
     db.exec('UPDATE properties SET nameArticleConfirmed = 1');
   }
 
-  // specs/guest-email-texts-made-simple.md rule 28 — what the start assistant could not know about a
+  // specs/emails/guest-email-texts-made-simple.md rule 28 — what the start assistant could not know about a
   // property (`caution`, `cleaning`, `towels`, comma-separated) is left out of the emails until the
   // owner answers. Every property that exists when the column appears keeps its emails as they are.
   // `cleaningIncluded` / `towelsProvided`: the owner's answer, NULL leaving it to the options.

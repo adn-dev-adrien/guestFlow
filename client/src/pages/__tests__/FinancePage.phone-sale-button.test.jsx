@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 88 (UI-17) — on a phone the bar drops « Vente hors séjour »: the day's card carries it, and when no card is drawn (a refused window) a button of the page does.
+// specs/pricing/pricing-components.md rule 88 (UI-17) — on a phone the bar drops « Vente hors séjour »: the day's card carries it, and when no card is drawn (a refused window) a button of the page does.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';

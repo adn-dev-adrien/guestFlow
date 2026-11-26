@@ -1,5 +1,5 @@
 // @ts-check
-// specs/vat-optional-mode.md rules 35-41, §6.6-6.8 — the franchise threshold, against the real app:
+// specs/accounting/vat-optional-mode.md rules 35-41, §6.6-6.8 — the franchise threshold, against the real app:
 // under VAT there is no field and no card; under « Sans TVA · art. 293 B » the operator types the
 // threshold (refusals shown under the field), the Suivi financier draws the card with its level, and
 // emptying the field turns the card into an invitation. The card on a phone.

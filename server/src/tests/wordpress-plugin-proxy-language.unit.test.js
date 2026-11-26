@@ -1,5 +1,5 @@
 /**
- * specs/site-english-version.md rule 56 — the language reaches the browser's own calls.
+ * specs/site/site-english-version.md rule 56 — the language reaches the browser's own calls.
  *
  * A REST request carries no page, so Polylang has nothing to read: the plugin resolved the site's own
  * locale and asked GuestFlow in French, then cached the answer under that key. The English drawer

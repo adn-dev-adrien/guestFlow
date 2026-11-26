@@ -28,7 +28,7 @@ carry the same lines, and the ventilation per account matches the fiche's own li
 Gîtes de France billed the guest 994 € and transferred 903 €; the journal is right. The fiche is
 short by exactly the commission, and its « total du séjour » with it.
 
-**Why.** Since `specs/platform-per-echeance-commission.md` an échéance stores the **gross** — what the
+**Why.** Since `specs/platforms/platform-per-echeance-commission.md` an échéance stores the **gross** — what the
 guest pays the platform — and the operator-entered commission lives beside it; the owner banks
 `échéance − commission`. Réservation #7 predates that convention: its history shows the 2026-06-22
 save that entered the commission writing `finalPrice = 994` (the gross) and `balanceAmount = 903`
@@ -38,7 +38,7 @@ finance overview, the engine's `sejourNetTotal` — therefore deducts it a secon
 
 The accounting export already knows about that shape and repairs it on the fly: `buildEntry`'s
 `isLegacyNetSchedule` detects « the schedule is short and the commission is exactly what is missing »
-and grosses the stored amounts back up (`specs/accounting-books-the-money-collected.md` §3 rule 1,
+and grosses the stored amounts back up (`specs/accounting/accounting-books-the-money-collected.md` §3 rule 1,
 second bullet). That is why the books are right and the fiche is not.
 
 Production census — the shape is unique and closed. Of the 32 reservations carrying an entered
@@ -77,23 +77,23 @@ reads it.
    - a schedule that drifts from the total by something other than the commission (a fiche edited
      after collection — production #22224, #22226, #22209, #22275) is *not* this shape; the books
      follow the money there, and inventing revenue is exactly what
-     `specs/accounting-books-the-money-collected.md` rule 1 forbids;
+     `specs/accounting/accounting-books-the-money-collected.md` rule 1 forbids;
    - a reservation whose complement the operator adjusted (`complementAmountOverride` set) keeps its
-     stored ventilation (`specs/adjustable-complement-amounts.md` §3.6), so the export's denominator
+     stored ventilation (`specs/sas/adjustable-complement-amounts.md` §3.6), so the export's denominator
      is not the stored complement and the shape test would not mean the same thing;
    - a commission with no bucket to ride on (an acompte commission on a stay with no acompte) is
      *reported in the boot log* and left untouched — repairing it would create a bucket that collects
      a commission and nothing else.
 6. **One-shot.** The repair adds, and the shape it keys on is a fingerprint rather than an invariant,
    so it is guarded by the `migrations` table like the frozen-complement repair. The write path has
-   stored gross échéances since `specs/platform-per-echeance-commission.md`: no new row can take this
+   stored gross échéances since `specs/platforms/platform-per-echeance-commission.md`: no new row can take this
    shape, and nothing needs to keep watching for it.
 
 **Edge cases:**
 - A direct booking carrying a commission (degenerate data) → out of scope by rule 2; the export
   ignores its commission too.
 - A cancelled stay (`kind = 'cancelled'`) → repaired like any other: accounting still reads it
-  (`specs/payment-schedule-and-cancellation.md` §3.6 rule 34).
+  (`specs/payments/payment-schedule-and-cancellation.md` §3.6 rule 34).
 - A base with no such row (every dev/test base, and production after the first boot) → the migration
   logs nothing and records itself as run.
 
@@ -188,7 +188,7 @@ Responsive behavior: unchanged (no layout touched). No `PageActionBar` change.
 - The `clientGrossAmount` era rows (#1-#4, #8), which the export handles on its own path and whose
   schedules already sum to their total.
 - Any change to how the books recognise revenue (gross, with the commission as a charge) — that is
-  `specs/accounting-platform-commission-and-no-deposit.md` and stays as it is.
+  `specs/accounting/accounting-platform-commission-and-no-deposit.md` and stays as it is.
 
 ## 9. Open questions
 

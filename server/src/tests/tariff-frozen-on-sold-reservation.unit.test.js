@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-recipes/spec.md §3.2 rule 12bis — A RESERVATION IS PRICED BY THE TARIFF IT WAS SOLD
+// specs/pricing/tariff-recipes.md §3.2 rule 12bis — A RESERVATION IS PRICED BY THE TARIFF IT WAS SOLD
 // UNDER. Changing a recipe must never re-price what is already in the database, even when the
 // reservation is opened and saved again.
 //

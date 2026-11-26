@@ -1,6 +1,6 @@
 /**
  * SearchField — the one search input of a list page: magnifier, clear button, 16 px text so iOS does
- * not zoom on focus (specs/options-resources-ux.md §4.2). Escape clears it.
+ * not zoom on focus (specs/options/options-resources-ux.md §4.2). Escape clears it.
  *
  * Props:
  *   value         string                 controlled text

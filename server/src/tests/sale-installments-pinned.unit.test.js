@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 93 (loop t1 S-6) — a sale to the arrival leaves the instalment plan of a direct stay as it stands, even
+// specs/pricing/pricing-components.md §3 rule 93 (loop t1 S-6) — a sale to the arrival leaves the instalment plan of a direct stay as it stands, even
 // when the stay stores a plan the engine of today would restate at another figure.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 21, 27, 28, 29, 30 and 32 — review round R5: the fixed domain
+ * specs/design-system/report-grammar.md §3 rules 21, 27, 28, 29, 30 and 32 — review round R5: the fixed domain
  * reaches the axis, the copy holds what is shown (visible series, rates in percent), an empty period
  * says so, a hidden series stays readable, the chart is a figure the keyboard passes over, and a
  * sixth series never repeats a hue.

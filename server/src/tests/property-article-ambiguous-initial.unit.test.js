@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 30 (2026-10-18) — « y » and « h » are no vowels for the
+// specs/emails/guest-email-texts-made-simple.md rule 30 (2026-10-18) — « y » and « h » are no vowels for the
 // article: « la Yourte », « le Hameau » (h aspiré), « l'Hôtel »; such a name is offered the five
 // articles. The property page reads the articles as the emails write them from the server.
 

@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.E rules 24–25 — productisation_v1 runs only on a database
+// specs/plugins/plugins-phase-p-productisation.md §3.E rules 24–25 — productisation_v1 runs only on a database
 // with data, never twice, never overwrites, and writes each item listed.
 
 const test = require('node:test');

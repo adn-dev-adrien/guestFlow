@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Creates the first administrator of a hosted instance — run by the control plane at onboarding
- * (specs/control-plane-plans-and-access.md rule 7), with `DB_PATH` pointing at that instance's
+ * (specs/hosting/control-plane-plans-and-access.md rule 7), with `DB_PATH` pointing at that instance's
  * database:
  *
  *   DB_PATH=/srv/guestflow/<slug>/data/guestflow.db node scripts/create-first-admin.js --email a@b.fr --name "Claire Martin"
@@ -9,7 +9,7 @@
  * Prints one JSON line on stdout, `{ "created": true, "temporaryPassword": "…" }`, which the control
  * plane emails to the customer. The password is never logged anywhere else.
  *
- * Optional (specs/hosting-h1-fleet-runtime.md rules 24–25):
+ * Optional (specs/hosting/hosting-h1-fleet-runtime.md rules 24–25):
  *   --company "<name>"            the user's company, shown by the instance as the account's company
  *   --establishment '<json>'      { name, email, address, phone, tva } — fills the empty fields of the
  *                                 establishment (`seeded` lists the columns written)

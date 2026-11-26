@@ -1,4 +1,4 @@
-// specs/devis-accept-to-reservation.md rule 10 and specs/calendar-property-parity.md rule 31 (audit R23-1) — a devis holds
+// specs/devis/devis-accept-to-reservation.md rule 10 and specs/planning/calendar-property-parity.md rule 31 (audit R23-1) — a devis holds
 // no stock and a duplicate set aside neither, so the conversion and « Rétablir » are where the cots and the per-stay
 // resources are judged, on the peak of reservations-backend-mvc rule 21. The paid-link path keeps converting; a stored
 // oversold fiche keeps saving (reservations-backend-mvc rule 17).
@@ -147,7 +147,7 @@ test('rule 10 — the paid-link path keeps converting past the stock (allowConfl
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_resources WHERE reservationId = ?').get(result.data.reservationId).n, 1);
 });
 
-test('specs/calendar-property-parity.md rule 31 — « Rétablir » with a cot past the stock is refused, 409, the stay stays set aside', () => {
+test('specs/planning/calendar-property-parity.md rule 31 — « Rétablir » with a cot past the stock is refused, 409, the stay stays set aside', () => {
   cotsAllTaken();
   const id = setAside({ babies: 1, babyBeds: 1 });
   const res = restore(id);
@@ -158,7 +158,7 @@ test('specs/calendar-property-parity.md rule 31 — « Rétablir » with a cot p
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM reservation_history WHERE reservationId = ? AND eventType = 'unsuperseded'").get(id).n, 0);
 });
 
-test('specs/calendar-property-parity.md rule 31 — « Rétablir » with a per-stay resource past the stock is refused, 409', () => {
+test('specs/planning/calendar-property-parity.md rule 31 — « Rétablir » with a per-stay resource past the stock is refused, 409', () => {
   const bike = resourceAllTaken();
   const id = setAside();
   holdResource(id, bike);
@@ -168,7 +168,7 @@ test('specs/calendar-property-parity.md rule 31 — « Rétablir » with a per-s
   assert.equal(row(id).kind, 'superseded');
 });
 
-test('specs/calendar-property-parity.md rule 31 — « Rétablir » with the stock free goes through, its own lines not counted against it', () => {
+test('specs/planning/calendar-property-parity.md rule 31 — « Rétablir » with the stock free goes through, its own lines not counted against it', () => {
   cleanSlate();
   db.prepare("INSERT INTO resources (name, quantity, price, priceType) VALUES ('Lit bébé', 1, 0, 'free')").run();
   const bike = resource('per_stay', 1);
@@ -179,7 +179,7 @@ test('specs/calendar-property-parity.md rule 31 — « Rétablir » with the sto
   assert.equal(row(id).kind, 'reservation');
 });
 
-test('specs/calendar-property-parity.md rule 31 — taken dates still answer « Ces dates sont déjà prises. »', () => {
+test('specs/planning/calendar-property-parity.md rule 31 — taken dates still answer « Ces dates sont déjà prises. »', () => {
   cotsAllTaken();
   const propertyId = freshProperty();
   addStay({ propertyId, start: FROM, end: TO });

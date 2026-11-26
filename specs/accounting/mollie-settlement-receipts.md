@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Summary page** | `docs/specs/2026-11-17-mollie-settlement-receipts.html` |
-| **Extends** | [mollie-rolling-reserve-and-incoming-payments.md](mollie-rolling-reserve-and-incoming-payments.md), [qonto-bank-reconciliation.md](qonto-bank-reconciliation.md) |
+| **Extends** | [mollie-rolling-reserve-and-incoming-payments.md](../payments/mollie-rolling-reserve-and-incoming-payments.md), [qonto-bank-reconciliation.md](qonto-bank-reconciliation.md) |
 
 ---
 

@@ -4,7 +4,7 @@ import {
   reconcileGrid, toWireOccurrences, selectedCount, isPresent, subtractMinutes,
 } from '../cardOccurrences';
 
-// specs/option-planning-card.md §3.2 + §3.4 — occurrence grid helpers for the fiche checklist.
+// specs/options/option-planning-card.md §3.2 + §3.4 — occurrence grid helpers for the fiche checklist.
 
 const dailyOpt = { cardRepeat: 'daily', priceType: 'per_person', planningCardTimes: ['08:00', '12:30'] };
 const onceOpt = { cardRepeat: 'once', priceType: 'per_stay', planningCardDate: '2026-07-12', planningCardTimes: ['18:00'] };
@@ -129,7 +129,7 @@ describe('presence on the boundary days (check-in / check-out)', () => {
 });
 
 describe('breakfast departure-morning rule (check-out before the breakfast time)', () => {
-  // specs/option-planning-card.md §3.2 — the user must be able to activate « Petit déjeuner » even on a
+  // specs/options/option-planning-card.md §3.2 — the user must be able to activate « Petit déjeuner » even on a
   // short stay whose check-out precedes the breakfast time; the departure-morning occurrence is kept and
   // retimed to 30 min before the scheduled departure (regression for the « toggle bounces back off » bug).
   const breakfast = { autoOptionType: 'breakfast', cardRepeat: 'once_per_day', priceType: 'per_person_per_night', planningCardTimes: ['09:00'] };

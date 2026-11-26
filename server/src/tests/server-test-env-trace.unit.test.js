@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 13 (added 2026-11-02, review of #927): under `npm test` the preload
+// specs/tech/server-test-isolation.md rule 13 (added 2026-11-02, review of #927): under `npm test` the preload
 // replaces `process.env` with a Proxy that records, per test process, every name `src/` code reads and every
 // place it takes the environment whole; at exit the runner fails the run on a name that is on neither list of
 // `appEnvNames.js`. The runtime complement of rule 12's grep guard: it sees the forms that guard misses, but

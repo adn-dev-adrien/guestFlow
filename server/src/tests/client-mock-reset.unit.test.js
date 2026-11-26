@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 21 — a client test never inherits a mock another test set.
+// specs/tech/server-test-isolation.md rule 21 — a client test never inherits a mock another test set.
 // `vi.clearAllMocks()` clears calls, not implementations: on a loaded runner a `mockRejectedValue` of one
 // InstallmentPlanCard test answered an extra call of the next one. This pins the reset and the shuffle sweep.
 const test = require('node:test');

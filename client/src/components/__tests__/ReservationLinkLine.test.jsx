@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rules 5, 9 — the identity line of a row about one reservation is a link to its fiche.
+// specs/planning/mobile-dashboard-exercise-cash.md rules 5, 9 — the identity line of a row about one reservation is a link to its fiche.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router';

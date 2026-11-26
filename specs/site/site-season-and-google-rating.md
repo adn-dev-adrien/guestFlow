@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | solio-site#1 (code); this repository: spec and mock-up |
 
-Mock-up validated on 2026-10-28: [`docs/specs/2026-10-28-site-season-and-google-rating.html`](../docs/specs/2026-10-28-site-season-and-google-rating.html).
+Mock-up validated on 2026-10-28: [`docs/specs/2026-10-28-site-season-and-google-rating.html`](../../docs/specs/2026-10-28-site-season-and-google-rating.html).
 
 ---
 

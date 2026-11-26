@@ -1,5 +1,5 @@
 /**
- * Payment-request orchestration (specs/online-payments-qonto.md §3.2 / §3.4) — the testable core
+ * Payment-request orchestration (specs/payments/online-payments-qonto.md §3.2 / §3.4) — the testable core
  * behind the thin `paymentsController` HTTP handlers. Every dependency is injected so the branching
  * (type validation, link reuse, amount guard, error→HTTP mapping) is unit-testable without the prod
  * DB or the Qonto network.
@@ -22,7 +22,7 @@ const { unsettledWithdrawnRefusal } = require('./withdrawnPayments');
 const { platformStayRefusal } = require('./platformStayRefusal');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
-// dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
+// dates so the payment is identifiable in Qonto (specs/payments/qonto-payment-link-reference.md). Text only —
 // never touches amounts. Returns silently on any lookup failure (the generic titles stay).
 function enrichStayComponent(database, id, type, components) {
   if (!Array.isArray(components) || !components.length) return;
@@ -51,15 +51,15 @@ function enrichStayComponent(database, id, type, components) {
 }
 
 // The stored columns a link of each type charges. A full payment is the acompte plus the solde — what
-// its payment marks paid (specs/deposit-blocks-the-dates.md rule 18).
+// its payment marks paid (specs/payments/deposit-blocks-the-dates.md rule 18).
 const LINK_TYPES   = { deposit: ['depositAmount'], balance: ['balanceAmount'], full: ['depositAmount', 'balanceAmount'] };
 const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour', installment: 'Échéance séjour', complement: 'Prestations du séjour' };
 // Template per request type. Deposit (use case 1), balance (online-deposit solde,
-// specs/public-online-deposit.md) and full (a last-minute stay owes one payment,
-// specs/deposit-blocks-the-dates.md rule 11).
+// specs/site/public-online-deposit.md) and full (a last-minute stay owes one payment,
+// specs/payments/deposit-blocks-the-dates.md rule 11).
 const REQUEST_TEMPLATES = { deposit: 'deposit_request', balance: 'balance_request', full: 'full_request', installment: 'installment_request' };
 
-// specs/deposit-blocks-the-dates.md rule 10 — the SERVER decides what a payment request asks for: the
+// specs/payments/deposit-blocks-the-dates.md rule 10 — the SERVER decides what a payment request asks for: the
 // acompte when the record carries one, the whole stay when it does not (a last-minute quote never had
 // an acompte, and a 0 € link would only be refused). An explicit caller type always wins.
 function resolveRequestType(row, requested = null) {
@@ -86,11 +86,11 @@ function assertBucketOpen(database, id, type) {
 //           resolveItems?(id, type, row) → { components, vatRatePercent } | null, deactivateLinks?(links), now?() → Date,
 //           paymentEffect?() → the processPaidLink deps (utils/paymentEffectDeps by default) }
 // `provider.createLink` returns { id, url, status, expiresAt }; a stale link is deactivated at the
-// provider, not only closed here (specs/plugins-phase-3a-online-payment.md rule 7).
-// When resolveItems yields components, the link is created as a VAT basket (specs/payment-links-vat.md):
+// provider, not only closed here (specs/plugins/plugins-phase-3a-online-payment.md rule 7).
+// When resolveItems yields components, the link is created as a VAT basket (specs/payments/payment-links-vat.md):
 // Qonto shows the real TVA while the charged total stays exactly amountCents. Absent/mismatched → the
 // legacy single 0 %-VAT line (total-only) is used, so the charged amount is never at risk.
-// specs/payment-link-lifecycle.md rule 8 (re-review of #897) — one lock per stay, whatever the type: an acompte
+// specs/payments/payment-link-lifecycle.md rule 8 (re-review of #897) — one lock per stay, whatever the type: an acompte
 // link and a full link settle the same acompte, and each retires the other while waiting on the provider, so
 // two of them minted side by side could both stay open. A devis and the reservation it became share the key.
 function assertNoUnsettledPayment(database, id) {
@@ -104,7 +104,7 @@ function stayLockKey(database, id) {
   return `reservation:${Number((row && row.convertedReservationId) || id)}`;
 }
 
-// specs/guest-app.md rule 35 — `complement` bills an explicit basket only (`{ source, ref, title, lines }`, a guest
+// specs/guest-app/guest-app.md rule 35 — `complement` bills an explicit basket only (`{ source, ref, title, lines }`, a guest
 // order): never the stay's complement, which has no link of its own.
 function ensurePaymentLink(deps, id, type, { basket } = {}) {
   if (type === 'complement') {
@@ -221,7 +221,7 @@ async function mintSaleLink(deps, sale) {
   };
 }
 
-// specs/payment-link-lifecycle.md rule 63 — the same lock for an installment plan's creation or resize: a stay link
+// specs/payments/payment-link-lifecycle.md rule 63 — the same lock for an installment plan's creation or resize: a stay link
 // minted at that moment waits for the plan (then finds 0 to bill), or the plan waits for it (then retires it).
 function withStayLinkLock(database, id, work) {
   return withLinkLock(stayLockKey(database, id), work);
@@ -234,20 +234,20 @@ async function mintPaymentLink(deps, id, type) {
   if (!Object.hasOwn(LINK_TYPES, type)) throw { httpStatus: 400, error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' };
 
   // touristTaxTotal is carried so the full-payment amount resolver has the tax even on the fallback row
-  // (specs/public-online-payment.md — avoids a silent tax-free undercharge if the devis lookup misses).
+  // (specs/site/public-online-payment.md — avoids a silent tax-free undercharge if the devis lookup misses).
   const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal, depositPaid, balancePaid FROM reservations WHERE id = ?').get(id);
   if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
-  // Defence in depth behind the route guards (specs/calendar-property-parity.md rule 25): no link, so no
+  // Defence in depth behind the route guards (specs/planning/calendar-property-parity.md rule 25): no link, so no
   // provider call, for a cancelled stay or a duplicate set aside — whoever the caller is (a devis is fine).
   const closed = refusalForKind(r.kind);
   if (closed) throw { httpStatus: closed.status, error: closed.body.code, message: closed.body.error };
-  // specs/payment-link-lifecycle.md rule 57 — a platform stay is paid by its platform: no link, new or reused.
+  // specs/payments/payment-link-lifecycle.md rule 57 — a platform stay is paid by its platform: no link, new or reused.
   const platformOwned = platformStayRefusal(database, id);
   if (platformOwned) throw platformOwned;
   // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
   // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
   assertBucketOpen(database, id, type);
-  // specs/payment-link-lifecycle.md rule 55 — no link, new or reused, on nights the establishment is closed.
+  // specs/payments/payment-link-lifecycle.md rule 55 — no link, new or reused, on nights the establishment is closed.
   const closedNights = closedDatesRefusal(database, id);
   if (closedNights) throw closedNights;
   // Rule 11 — an unpaid row whose nights a stay holding its dates took gets no link, new or reused.
@@ -262,7 +262,7 @@ async function mintPaymentLink(deps, id, type) {
   // ONLY if it still bills the current amount. If the devis was edited between two `pay` calls the stored
   // amount drifts; reusing the stale link would charge the old total yet book the stay as fully paid at
   // the new total. Retire the stale link and mint a fresh one at the correct amount.
-  // specs/payment-link-lifecycle.md rule 8 — nor once it has less than 24 hours left: it lapses (reason
+  // specs/payments/payment-link-lifecycle.md rule 8 — nor once it has less than 24 hours left: it lapses (reason
   // `validity`) and the guest gets a fresh link with its full 36 hours. Rule 51 — nor when the stay has begun
   // and rule 9 lapses it at the next pass (reason `stay-started`).
   const now = mintClock(deps);
@@ -300,7 +300,7 @@ async function mintPaymentLink(deps, id, type) {
       }
     }
   }
-  // specs/qonto-payment-link-reference.md rule 10 — the single 0 % line is named like the stay line.
+  // specs/payments/qonto-payment-link-reference.md rule 10 — the single 0 % line is named like the stay line.
   if (!linkArgs.items) {
     const single = [{ title: LINK_TITLES[type] }];
     enrichStayComponent(database, id, type, single);
@@ -360,7 +360,7 @@ function lapseReason(sameAmount, arrived) {
 
 const mintClock = (deps) => (typeof deps.now === 'function' ? deps.now() : new Date());
 
-// specs/payment-link-lifecycle.md rule 18 — a lapsed link the provider would not deactivate and reports paid
+// specs/payments/payment-link-lifecycle.md rule 18 — a lapsed link the provider would not deactivate and reports paid
 // is the guest's payment: booked here, on the path the lifecycle pass uses, and the request is refused. The
 // fiche then reloads as paid, so a second click cannot mint a request for money already received.
 const PAID_BOOKED = { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : paiement enregistré, aucun nouveau lien créé.' };
@@ -431,7 +431,7 @@ async function settleDatesTakenRead(deps, link, pay) {
   if (pay.pending !== false) throw { ...PAYMENT_IN_FLIGHT };
 }
 
-// specs/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand while the provider
+// specs/payments/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand while the provider
 // could not be read still owes its read: it goes through the poll's retry (booked when paid before its
 // withdrawal, the rule-8 alert when paid after, deactivated when unpaid) before a new link of its bucket.
 // Rule 58 (review of #916, 1) — so does a link withdrawn for taken dates whose deactivation is owed: still payable at
@@ -457,7 +457,7 @@ async function settleOwedOperatorLinks(deps, where, params) {
   }
 }
 
-// specs/direct-installments.md rule 17 — the link of ONE installment, at its exact amount. The open link of
+// specs/payments/direct-installments.md rule 17 — the link of ONE installment, at its exact amount. The open link of
 // that installment is reused while it bills the current amount; a stale one is retired and deactivated at
 // the provider before the new one is minted, so the old URL can no longer be paid.
 //   deps: ensurePaymentLink deps + { installmentsModel }
@@ -565,7 +565,7 @@ async function sendInstallmentRequest(deps, id, installmentId) {
 }
 const sendingNow = new Set();
 
-// specs/email-language-fr-en.md rule 12 — a mail that cannot leave (no English version for an English
+// specs/emails/email-language-fr-en.md rule 12 — a mail that cannot leave (no English version for an English
 // guest) is refused before any link is minted at the provider. `englishMissing` is optional in deps.
 function englishMissingRefusal(deps, id, stableKey) {
   if (!deps.englishMissing || !deps.englishMissing({ reservationId: id, stableKey })) return null;

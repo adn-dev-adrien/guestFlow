@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import BoundedNumberField from '../BoundedNumberField';
 
-// specs/settings-input-guards.md rules 1-7 — the shared contract of a bounded number field.
+// specs/settings/settings-input-guards.md rules 1-7 — the shared contract of a bounded number field.
 
 const DAYS = { min: 0, max: 30, integer: true, unit: 'jours' };
 const RATE = { min: 0, max: 99.99, decimals: 2, unit: '%' };

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 58 — after « Désactiver » a toast says so; after « Terminé » the
+// specs/hosting/hosting-h2-account-security.md rule 58 — after « Désactiver » a toast says so; after « Terminé » the
 // focus goes back to the card's first action; under prefers-reduced-motion the folded history opens at once.
 import React from 'react';
 import { vi } from 'vitest';

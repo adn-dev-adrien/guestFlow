@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 
 const reservationsModel = require('../models/reservationsModel');
 
-// specs/reservation-number-and-search.md §3 rules 1-5 — the model assigns / overrides / validates the
+// specs/reservations/reservation-number-and-search.md §3 rules 1-5 — the model assigns / overrides / validates the
 // reservation number. Uses the real schema (schema.sql) + the reservationNumber column the boot
 // migration adds, so the heavy insert/update SQL runs against a faithful table.
 

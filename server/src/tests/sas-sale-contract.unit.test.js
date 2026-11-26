@@ -1,4 +1,4 @@
-// The arrival SAS sale, what the write path accepts (specs/sas-breakfast-and-catering-upsell.md rule 15).
+// The arrival SAS sale, what the write path accepts (specs/sas/sas-breakfast-and-catering-upsell.md rule 15).
 // Driven through the real schema, the real catalogue query and the real commit.
 
 process.env.DB_PATH = ':memory:';

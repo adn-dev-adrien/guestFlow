@@ -1,5 +1,5 @@
 // One-shot migration: the arrival SAS's « Ménage » / « Linge de toilette » custom lines move onto
-// their catalogue option. See specs/sas-upsells-activate-catalogue-option.md §3.4.
+// their catalogue option. See specs/sas/sas-upsells-activate-catalogue-option.md §3.4.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

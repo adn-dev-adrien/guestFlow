@@ -8,20 +8,22 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
 A reservation is paid through four buckets — **acompte**, **solde**, **complément d'arrivée**,
-**complément de fin de séjour** ([reservationSettlement.js](../server/src/utils/reservationSettlement.js)).
+**complément de fin de séjour** ([reservationSettlement.js](../../server/src/utils/reservationSettlement.js)).
 The arrival SAS only ever talks about the last two, plus the caution: it lists what to collect **at the
 door** and settles it with the « CB / Chèque · Payé en liquide · En fin de séjour » buttons of
 [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md).
 
 **Last-minute bookings break that assumption.** A stay booked inside the solde window gets
 `depositAmount = 0` and the **whole pre-arrival total in the solde**
-([pricing.js:2244](../server/src/utils/pricing.js#L2244) via
-`isLastMinuteStay`, [deposit-blocks-the-dates.md](deposit-blocks-the-dates.md) rules 4-6), with a
+([pricing.js:2244](../../server/src/utils/pricing.js#L2244) via
+`isLastMinuteStay`, [deposit-blocks-the-dates.md](../payments/deposit-blocks-the-dates.md) rules 4-6), with a
 `balanceDueDate` clamped to the booking day. The guest has not paid anything and arrives tomorrow: the
 money is collected **at the door, at check-in** — exactly where the SAS is — but the SAS has no idea the
 stay is unpaid and offers no way to record it. The operator has to leave the wizard, open the fiche and
@@ -49,7 +51,7 @@ wizard.
    `stayDue` is the whole solde.
 2. **`stayDue` is the GROSS amount** — what the guest physically hands over — **not** netted of the
    platform commission. `remainingToPay` in
-   [reservationSettlement.js](../server/src/utils/reservationSettlement.js) deliberately nets it (it
+   [reservationSettlement.js](../../server/src/utils/reservationSettlement.js) deliberately nets it (it
    answers « what will I actually receive? »); this step answers « how much do I ask the guest for? ».
    The commission stays owed to the platform and is unaffected.
 3. The **taxe de séjour** rides inside the solde for a direct booking, so it is collected with it and
@@ -75,7 +77,7 @@ wizard.
    « Séjour : 146,93 € » with settlement buttons — a claim on money that is never collected at the
    door, and one mistaken « CB » tap away from booking the payout as door money. The original
    2026-08-30 resolution (« any unpaid stay, whatever the channel ») contradicted
-   [dashboard-collection-alert.md](dashboard-collection-alert.md), which had already established
+   [dashboard-collection-alert.md](../planning/dashboard-collection-alert.md), which had already established
    that a platform solde in flight is « a perfectly normal situation », never an alert. The
    channel restriction realigns the SAS on that philosophy: on a platform booking the SAS claims
    the complements and nothing else. The rare OTA guest who really pays on site is handled on the
@@ -165,9 +167,9 @@ wizard.
     just out of the export.
 19. The **taxe de séjour** owed to the commune is **not** affected: it is declared per stay
     (`touristTaxDeclaredAt`), never derived from the accounting entries — same rule as the refunds
-    ([reservation-refunds.md](reservation-refunds.md) §3.5).
+    ([reservation-refunds.md](../payments/reservation-refunds.md) §3.5).
 20. The **fiche** displays the flag: the « Acompte payé » / « Solde payé » buttons of
-    [FinanceSection.jsx](../client/src/components/reservation/FinanceSection.jsx) gain the same
+    [FinanceSection.jsx](../../client/src/components/reservation/FinanceSection.jsx) gain the same
     « Caisse interne ✓ » marker the complement blocks already show. Un-ticking a bucket clears its cash
     flag. No new fiche control is added — the caisse-interne choice is made at the door, in the SAS.
 
@@ -178,7 +180,7 @@ wizard.
 22. The complement keeps its own block, its own detail and its own « CB / Chèque · Payé en liquide · En
     fin de séjour » buttons — the two are different accounting objects and one may be deferred while the
     other is collected.
-    **Superseded on 2026-08-30 by [single-payment-at-check-in.md](single-payment-at-check-in.md).**
+    **Superseded on 2026-08-30 by [single-payment-at-check-in.md](../payments/single-payment-at-check-in.md).**
     Separating them by default was wrong at the door: the guest hands over ONE card for the stay and
     the prestations taken during the check-in, and GuestFlow recorded two collections — two ticks on
     the fiche, two entries in the Comptabilité for one bank line. When both sides are collectible the
@@ -190,7 +192,7 @@ wizard.
 
 ### 3.6 Reception role
 
-24. A **reception-only** user (`specs/reception-role-checkin-only.md`) **never sees the step**: the
+24. A **reception-only** user (`specs/sas/reception-role-checkin-only.md`) **never sees the step**: the
     server serves `stayPayment = { applicable: false }` with **no amount at all**, so the page is not
     rendered and the numbers are not in the payload.
 25. **Fail-closed on the write side**: `stayPaid` / `stayPaidCash` coming from a reception-only user are
@@ -312,7 +314,7 @@ Four new `reservations` columns, all `INTEGER NOT NULL DEFAULT 0`:
 | `balancePaidAtArrival` | Idem for the solde. |
 
 Migration: one idempotent `PRAGMA table_info` + guarded `ALTER TABLE … ADD COLUMN` block in
-`database.js`, mirrored into `schema.sql` (baseline, [migrations-baseline.md](migrations-baseline.md)).
+`database.js`, mirrored into `schema.sql` (baseline, [migrations-baseline.md](../tech/migrations-baseline.md)).
 
 **Data impact:** none on existing rows — every column defaults to 0, which is exactly « paid the
 ordinary way / not settled by the SAS ». No backfill. No existing amount, flag or accounting entry
@@ -442,11 +444,11 @@ header (title + progress + ✕ = Quitter) and pinned footer actions are unchange
 - **A new payment-method / Stripe model** — direct bookings stay modelled as a platform commission
   (decision 2026-06-22).
 - **The dashboard's red « Paiements » alert**, which deliberately ignores the deposit/balance
-  ([dashboard-collection-alert.md](dashboard-collection-alert.md) rule 3). An unpaid stay still does not
+  ([dashboard-collection-alert.md](../planning/dashboard-collection-alert.md) rule 3). An unpaid stay still does not
   turn a row red; this spec adds the *means to collect*, not a new alert.
 - **Collecting the stay at check-out.** The departure SAS keeps recalling the arrival *complement* only.
 - **The pre-existing reception leak**: `GET /reservations/:id/sas` returns the reservation row with
-  `SELECT r.*` ([reservationsModel.js:709](../server/src/models/reservationsModel.js#L709)), so
+  `SELECT r.*` ([reservationsModel.js:709](../../server/src/models/reservationsModel.js#L709)), so
   `depositAmount` / `balanceAmount` / `finalPrice` are already in the payload of a reception-only user,
   contrary to what [reception-role-checkin-only.md](reception-role-checkin-only.md) §3.5 claims. This
   spec does not widen it (its own `stayPayment` block is stripped, rule 24) and does not fix it —

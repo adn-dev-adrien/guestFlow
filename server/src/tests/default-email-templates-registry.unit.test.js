@@ -1,6 +1,6 @@
 // Registry of default email templates — discipline checks.
-// See specs/email-automation.md §3 rule 6.
-// specs/email-language-fr-en.md rule 5 — the shipped arrival reminders carry their English translation.
+// See specs/emails/email-automation.md §3 rule 6.
+// specs/emails/email-language-fr-en.md rule 5 — the shipped arrival reminders carry their English translation.
 //
 // The point of the registry is "one place to add a default template". These tests guard the
 // invariants that make AI-assisted additions safe:
@@ -86,7 +86,7 @@ test('every {{#if flag}} the registry uses is supported by the context builder',
 
 // ---- the shipped J-7 reminder is asserted explicitly — protects the body Adrien validated ----
 
-// specs/guest-email-sequence.md §6.1 — the J-7 and J-2 are mails 2 and 3 of the guest sequence.
+// specs/emails/guest-email-sequence.md §6.1 — the J-7 and J-2 are mails 2 and 3 of the guest sequence.
 test('arrival_reminder_7d is the sequence J-7: canonical body, 7-day offset, per-property paragraphs', () => {
   const def = DEFAULT_TEMPLATES.find((d) => d.stableKey === 'arrival_reminder_7d');
   assert.ok(def);
@@ -118,7 +118,7 @@ test('arrival_reminder_1d is the sequence J-2 (stableKey kept legacy): arrival t
   assert.ok(!def.body.includes('{{#if hasReservationNumber}}'), 'no reservation-number recap in the J-2');
 });
 
-// ---- both shipped reminders carry an English translation (specs/email-language-fr-en.md) ----
+// ---- both shipped reminders carry an English translation (specs/emails/email-language-fr-en.md) ----
 
 test('the two default reminders ship a non-empty English subject + body with the same flags', () => {
   for (const key of ['arrival_reminder_7d', 'arrival_reminder_1d']) {

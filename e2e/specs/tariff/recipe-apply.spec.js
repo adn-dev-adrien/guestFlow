@@ -1,5 +1,5 @@
 // @ts-check
-// specs/tariff-recipes/spec.md §3.2 · specs/tariff-events-and-extra-guest-tiers/spec.md §3.3
+// specs/pricing/tariff-recipes.md §3.2 · specs/pricing/tariff-events-and-extra-guest-tiers.md §3.3
 //
 // Applying a tariff recipe, through the real app against the real API.
 //

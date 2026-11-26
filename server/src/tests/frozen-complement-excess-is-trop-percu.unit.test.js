@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 4 — a collected arrival complement stays at what was
+// specs/reservations/reservation-save-keeps-pricing.md rule 4 — a collected arrival complement stays at what was
 // collected, and what it holds above the stay total is a trop-perçu. Money audit 2026-10-28 (finding 5):
 // #22209 +0,60 €, #22224 +21 €, #22226 +28 €, #22275 +3,95 € of scheduled money above « Total du séjour »,
 // itemised on the fiche as an anonymous « Complément d'arrivée » line the total did not include.

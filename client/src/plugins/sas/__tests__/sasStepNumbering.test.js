@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 3 — the numbering counts questions, not pages.
+// specs/design-system/ui-review-2026-10-19-operations.md rule 3 — the numbering counts questions, not pages.
 import stepNumbering from '../sasStepNumbering';
 
 const ARRIVAL = ['intro', 'portal', 'caution', 'options', 'linen', 'linenItems', 'cleaning', 'breakfastSale',

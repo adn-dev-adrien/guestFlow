@@ -1,4 +1,4 @@
-// Shared fixtures for the gift-vouchers suites (specs/gift-vouchers.md). Not a test file: an in-memory database with the
+// Shared fixtures for the gift-vouchers suites (specs/gift-vouchers/gift-vouchers.md). Not a test file: an in-memory database with the
 // plugin's tables, the plugin's real routers on an ephemeral port, and a clock the test moves.
 
 const express = require('express');
@@ -33,7 +33,7 @@ function freshDb() {
   return db;
 }
 
-// The bounds, validity, VAT rate and ideas of the lodging voucher are the `lodging` campaign's (specs/gift-voucher-campaigns.md rule 3): a suite that states them as
+// The bounds, validity, VAT rate and ideas of the lodging voucher are the `lodging` campaign's (specs/gift-vouchers/gift-voucher-campaigns.md rule 3): a suite that states them as
 // the settings they used to be reads them as that campaign's values.
 const LODGING_FIELDS = Object.freeze(['validityMonths', 'minAmountCents', 'maxAmountCents', 'vatRatePercent', 'ideas']);
 

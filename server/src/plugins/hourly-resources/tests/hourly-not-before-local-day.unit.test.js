@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 37 (review of PR #702, minor 3) — the « not before » bound of
+// specs/accounting/finance-dashboard-redesign.md rule 37 (review of PR #702, minor 3) — the « not before » bound of
 // the arrival scheduling pairs the local hour with the local day. With the UTC day, between midnight and
 // 02:00 in Paris it fell a day early.
 

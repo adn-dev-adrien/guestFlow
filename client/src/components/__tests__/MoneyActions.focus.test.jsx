@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (I4, loop t26 verifier) — the actions row of a money dialog keeps the focus when the commit
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (I4, loop t26 verifier) — the actions row of a money dialog keeps the focus when the commit
 // holding it goes busy (disabled): the focus lands on the row, never stays on a disabled control or falls to the page.
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';

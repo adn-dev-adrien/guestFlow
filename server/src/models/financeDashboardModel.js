@@ -1,4 +1,4 @@
-// Finance dashboard model (specs/finance-dashboard-redesign.md). It COMPOSES financeModel — getSummary,
+// Finance dashboard model (specs/accounting/finance-dashboard-redesign.md). It COMPOSES financeModel — getSummary,
 // getOperational, getProjection — and never re-derives a stay's revenue, collected amount or
 // remaining-to-pay: those rules stay where they are tested. What it adds is the shaping of the page
 // (one window, a logement filter, hero, tiles, charts, detail tables), occupancy and the comparison
@@ -49,7 +49,7 @@ function withServedExercise(fiscalYears, exercise) {
 
 const DETAIL_TILES = new Set(['collected', 'toCollect', 'late', 'stays', 'properties', 'channels', 'incoming']);
 const CUMULATIVE_DAILY_UP_TO = 62;
-// specs/finance-revpar-year-over-year.md rules 8 and 13 — the figures compared with last year, their
+// specs/accounting/finance-revpar-year-over-year.md rules 8 and 13 — the figures compared with last year, their
 // unit, and the source each one reads: the stays' amounts or the money collected, never both.
 const COMPARED = [
   ['revenue', 'percent', 'stays'], ['collected', 'percent', 'stays'], ['stays', 'percent', 'stays'],
@@ -97,7 +97,7 @@ function createDashboardModel(database, finance) {
     // colour itself is a theme token (rule 45).
     .map((p, i) => ({ id: p.id, name: p.name, colorIndex: i }));
 
-  // The delay a platform takes to pay out, read once per channel (specs/platform-payout-due-date.md).
+  // The delay a platform takes to pay out, read once per channel (specs/platforms/platform-payout-due-date.md).
   const payoutDaysReader = () => {
     const cache = new Map();
     let platforms = null;
@@ -113,7 +113,7 @@ function createDashboardModel(database, finance) {
     };
   };
 
-  // specs/mobile-dashboard-exercise-cash.md rules 14-16 — the money still to come on these stays, one line
+  // specs/planning/mobile-dashboard-exercise-cash.md rules 14-16 — the money still to come on these stays, one line
   // per payment, in the order it will arrive. Σ amount = Σ remainingToPay of the stays, to the cent.
   function expectedOf(reservations, today) {
     const planned = reservations.filter((r) => round2(r.installmentsUnpaidAmount) > 0 && r.kind !== 'cancelled').map((r) => r.id);
@@ -203,10 +203,10 @@ function createDashboardModel(database, finance) {
     : finance.getPaceStays({ propertyId }));
 
   // Rules 17-20, 33 — the comparable part of a window and its twin a year earlier: the one reading of
-  // « comparable with last year », shared with the accounting synthesis (specs/accounting-synthesis.md rule 9).
+  // « comparable with last year », shared with the accounting synthesis (specs/accounting/accounting-synthesis.md rule 9).
   // A year ago GuestFlow may not have existed yet: last year « as it stood » is then unknown, and only the
   // months already over (both sides final) can be compared. The range and its status come from one place
-  // (specs/finance-revpar-year-over-year.md rules 4-7).
+  // (specs/accounting/finance-revpar-year-over-year.md rules 4-7).
   function lastYearRange({ window: win, today, propertyId = null, paceStays = null }) {
     const cover = coverage(propertyId);
     const { range, snapshotKnown, knownAt, status } = comparisonWindow({
@@ -287,7 +287,7 @@ function createDashboardModel(database, finance) {
 
     // Occupancy of the window (hero + strip) and per month of the exercise (chart).
     const prevExercise = { from: yoy.shiftYear(exercise.from, -1), to: yoy.shiftYear(exercise.to, -1) };
-    // specs/finance-revpar-year-over-year.md rule 11 — the same read also covers the comparable range a
+    // specs/accounting/finance-revpar-year-over-year.md rule 11 — the same read also covers the comparable range a
     // year back, which a custom window may start before last exercise.
     const earliestRead = [win.from, prevExercise.from, ...(comparable ? [comparable.range.previous.from] : [])].sort()[0];
     const stays = stayNights(earliestRead, win.to > exercise.to ? win.to : exercise.to, null);
@@ -297,7 +297,7 @@ function createDashboardModel(database, finance) {
     const scopeOcc = propertyId ? windowOcc.byProperty.get(propertyId) : windowOcc;
     const months = exerciseMonths(exercise.from, exercise.to);
 
-    // specs/finance-revpar-year-over-year.md rule 12 — the occupancy of a month for a set of logements,
+    // specs/accounting/finance-revpar-year-over-year.md rule 12 — the occupancy of a month for a set of logements,
     // this year and last year, on rules 23-24 and 33 of the dashboard.
     const monthlyOccupancy = (props, own, ownN1, monthCover) => months.map((m) => {
       const prevMonth = yoy.shiftMonth(m.month, -1);
@@ -384,7 +384,7 @@ function createDashboardModel(database, finance) {
     const scopeNights = propertyId ? allNights.byProperty.get(propertyId) : allNights;
     const heroRevPar = occupancy.revPar(scopeNights.revenue, scopeOcc ? scopeOcc.sellable : 0);
 
-    // specs/finance-revpar-year-over-year.md rules 8-11 — each headline figure against the comparable
+    // specs/accounting/finance-revpar-year-over-year.md rules 8-11 — each headline figure against the comparable
     // part of the window a year back, read by the very functions that compute the figure itself.
     const figuresOver = (s, stayList, from, to, knownAt = null) => {
       const n = occupancy.stayNights(s.reservations);
@@ -431,7 +431,7 @@ function createDashboardModel(database, finance) {
           occupancy: scopeOcc ? scopeOcc.rate : null,
           revenuePerNight: occupancy.revenuePerNight(scopeNights.revenue, scopeNights.pricedNights),
           directShare: ratio(direct, revenue),
-          // specs/finance-revpar-year-over-year.md rules 1-3.
+          // specs/accounting/finance-revpar-year-over-year.md rules 1-3.
           revPar: heroRevPar,
           openNights: scopeOcc ? scopeOcc.sellable : 0,
           occupiedNights: scopeOcc ? scopeOcc.sold : 0,
@@ -468,7 +468,7 @@ function createDashboardModel(database, finance) {
             ? { count: 1, name: scopeRevenue ? scopeRevenue.propertyName : '', revenue: scopeRevenue ? scopeRevenue.revenue : 0, revPar: heroRevPar }
             : { count: allProperties.length, leader: leader ? leader.propertyName : null },
           channels: { commission },
-          // specs/mollie-rolling-reserve-and-incoming-payments.md rule 21 — a state, not a window: the period never moves it.
+          // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 21 — a state, not a window: the period never moves it.
           incoming: incomingTile(today),
         },
         revenueMonths,
@@ -528,7 +528,7 @@ function createDashboardModel(database, finance) {
   // internal refunds), same commission netting as utils/reservationSettlement.comptaCollected.
   function paymentsLedger(reservations, { withCommission = false } = {}) {
     const ids = reservations.map((r) => r.id);
-    // specs/reservation-refunds.md rule 48 — what a refund took from a cancellation indemnity, which the franchise
+    // specs/payments/reservation-refunds.md rule 48 — what a refund took from a cancellation indemnity, which the franchise
     // turnover subtracts at face value, like the indemnity itself.
     const indemnitySql = withCommission && hasTable('reservation_refund_lines')
       ? indemnityOfRefundSql('rf.id')
@@ -536,7 +536,7 @@ function createDashboardModel(database, finance) {
     const refunds = ids.length && hasTable('reservation_refunds')
       ? database.prepare(`SELECT rf.reservationId, rf.refundDate, rf.totalTtc, ${indemnitySql} AS indemnityTtc FROM reservation_refunds rf WHERE ${refundScopeSql('turnover', 'book', 'rf.method')} AND rf.reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)
       : [];
-    // specs/direct-installments.md rule 45 — a stay paid through a plan has no acompte / solde: each
+    // specs/payments/direct-installments.md rule 45 — a stay paid through a plan has no acompte / solde: each
     // collected installment is a payment of its own, on the day it was received.
     const planned = reservations.filter((r) => round2(r.installmentsPaidAmount) > 0).map((r) => r.id);
     const installments = planned.length && hasTable('reservation_installments')
@@ -546,7 +546,7 @@ function createDashboardModel(database, finance) {
                            WHERE i.paid = 1 AND i.reservationId IN (${planned.map(() => '?').join(',')})
                            ORDER BY i.reservationId, i.number`).all(...planned)
       : [];
-    // specs/mixed-method-payments.md rule 27 — a payment split over several methods is listed once per
+    // specs/payments/mixed-method-payments.md rule 27 — a payment split over several methods is listed once per
     // settlement, for what it put on the books, on the day it was received (a reste collected later is a
     // row of its own). The buckets, note or installment it paid are not listed a second time.
     const settlementsModel = require('./paymentSettlementsModel').buildModel(database);
@@ -570,7 +570,7 @@ function createDashboardModel(database, finance) {
       };
       const day = (d) => (d ? String(d).slice(0, 10) : r.attributionDate);
       // `withCommission` adds what the platform already took out of `amount` (commission and penalty), for
-      // the figures that count the guest's full price (specs/vat-optional-mode.md rule 37 (a)); « Encaissé » never shows it.
+      // the figures that count the guest's full price (specs/accounting/vat-optional-mode.md rule 37 (a)); « Encaissé » never shows it.
       const add = (date, kind, label, amount, commission = 0, indemnity = 0) => {
         if (round2(amount) === 0) return;
         rows.push({
@@ -714,7 +714,7 @@ function createDashboardModel(database, finance) {
     };
   }
 
-  // specs/stay-profile.md rules 1-3 and 12 — the « Profil des séjours » reads the same window, logement
+  // specs/accounting/stay-profile.md rules 1-3 and 12 — the « Profil des séjours » reads the same window, logement
   // filter and last-year basis as this page.
   return { getDashboard, getDashboardDetail, paymentsLedger, context, coverage, trackingStart, lastYearRange };
 }

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4.1 current file map added (the feature is the `weather-alerts` plugin; key = plugin secret `apiKey`, `server/src/plugins/weather-alerts/index.js:24`); no rule changed.
+
 ---
 
 ## 1. Context
@@ -56,6 +58,8 @@ During the **arrival check-in SAS**, if there is an **Orange or Red** Météo-Fr
 > **Fat backend, thin frontend.** Geocoding, the Météo-France call, caching, date-overlap filtering, colour thresholding, French label/colour mapping, message assembly and the appended safety instructions all live on the server. The client fires one request on open and renders the returned array.
 
 ### 4.1 Server side (`server/src/`)
+
+> **Current file map (2026-11-26).** The feature is the `weather-alerts` plugin: `server/src/plugins/weather-alerts/{index,controller,cacheModel,meteoVigilance,meteoVigilanceLabels}.js` (the route `GET /api/reservations/:id/weather-alerts` is registered by `index.js`; `weather_vigilance_cache` is a plugin table). The Météo-France key is the plugin's secret setting `apiKey` (`ctx.settings.declare`), stored in the legacy `app_settings.meteoFranceApiKeyEncrypted` column (`utils/pluginsSchema.js`). The client is `client/src/plugins/weather-alerts/{SasWeatherAlertPage,SettingsWeatherSection,sasStep}.jsx`. Files named in the tables below are the implementation-time layout.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|

@@ -1,4 +1,4 @@
-// specs/reception-role-checkin-only.md rule 13 (fixed at the 2026-10-27 spec review) — the reception
+// specs/sas/reception-role-checkin-only.md rule 13 (fixed at the 2026-10-27 spec review) — the reception
 // payload keeps `billedUnits` on option and resource lines: it is a count, not money, and the
 // planning card renders « title ×billedUnits ». Dropping it made a reception card read « ×1 » where
 // the admin card read « ×3 ».

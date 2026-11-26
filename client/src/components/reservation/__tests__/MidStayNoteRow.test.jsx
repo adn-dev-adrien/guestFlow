@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import MidStayNoteRow from '../MidStayNoteRow';
 
-// specs/adjustable-complement-amounts.md §3.4 — la note est l'unité ajustable du bucket « durant le
+// specs/sas/adjustable-complement-amounts.md §3.4 — la note est l'unité ajustable du bucket « durant le
 // séjour » : montant, date de paiement, CB / caisse interne.
 
 const NOTE = {

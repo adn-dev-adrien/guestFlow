@@ -1,5 +1,5 @@
 /**
- * UpdateProgressOverlay — the screen during a self-update (specs/self-update-and-releases.md §6.3).
+ * UpdateProgressOverlay — the screen during a self-update (specs/hosting/self-update-and-releases.md §6.3).
  *
  * Mounted once at app level, so it takes over wherever the update was triggered from and survives a
  * page reload in the middle of one.

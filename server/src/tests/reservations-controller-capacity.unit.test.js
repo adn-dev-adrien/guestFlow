@@ -2,7 +2,7 @@ const test = require('node:test');
 const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
-// specs/property-capacity-single-total.md §3 rules 2, 6 and 9 — the controller enforces the ONE-total
+// specs/reservations/property-capacity-single-total.md §3 rules 2, 6 and 9 — the controller enforces the ONE-total
 // rule on create, lets the operator force it through, and NEVER re-checks a reservation whose
 // occupancy didn't move (so a legacy over-capacity booking stays editable).
 
@@ -33,7 +33,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
       depositDueDate: null, balanceDueDate: null, nights: 2, error: null,
     }),
   };
-  // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
+  // The creation is one transaction (specs/reservations/reservation-number-and-search.md rule 13): run it inline.
   const dbMock = {
     prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }),
     transaction: (fn) => fn,

@@ -2,7 +2,7 @@
  * Single source of truth for "is this reservation option the end-of-stay cleaning?".
  *
  * Cleaning is recognised two ways, matching what the J-1 arrival email already does
- * (specs/j1-arrival-reminder-email.md §4.1): by the `autoOptionType='cleaning'` tag (set by the
+ * (specs/emails/j1-arrival-reminder-email.md §4.1): by the `autoOptionType='cleaning'` tag (set by the
  * boot seed) OR — the robust fallback — by the operator-facing NAME containing « ménage ». Custom
  * / hand-created options often carry no tag, so the name match is what keeps detection reliable.
  *

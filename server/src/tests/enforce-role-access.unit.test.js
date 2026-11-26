@@ -28,7 +28,7 @@ test('admin: any method / any path → passes', () => {
   assert.equal(call({ role: 'admin', method: 'DELETE', path: '/clients/9' }).nextCalled, true);
 });
 
-// specs/plugins-phase-2-hosts.md rule 3 — the journal, the CSV and the account plan are entries of the
+// specs/plugins/plugins-phase-2-hosts.md rule 3 — the journal, the CSV and the account plan are entries of the
 // accounting-export plugin (plugins/accounting-export/tests/phase-2-accounting-export.unit.test.js).
 // No plugin is registered here: the core alone grants the accountant none of them.
 test('accountant: the core alone does not open the export routes', () => {
@@ -60,8 +60,8 @@ test('accountant: POST or DELETE on accounting → 403 (read-only role)', () => 
   }
 });
 
-// specs/cancellation-compensation.md §3.3 rule 21 — the accountant reads the compensations, but never
-// writes them. The read is core (specs/plugins-phase-2-hosts.md rules 3 and 21).
+// specs/payments/cancellation-compensation.md §3.3 rule 21 — the accountant reads the compensations, but never
+// writes them. The read is core (specs/plugins/plugins-phase-2-hosts.md rules 3 and 21).
 test('accountant: GET the cancellation compensations → passes, every write → 403', () => {
   assert.equal(call({ role: 'accountant', method: 'GET', path: '/accounting/cancellation-compensations' }).nextCalled, true);
   const writes = [
@@ -79,7 +79,7 @@ test('accountant: GET the cancellation compensations → passes, every write →
   }
 });
 
-// specs/accountant-accounting-export.md rule 18
+// specs/accounting/accountant-accounting-export.md rule 18
 test('accountant: any non-accounting / non-self route → 403', () => {
   for (const path of ['/reservations', '/clients', '/settings', '/finance', '/properties/1']) {
     const { res, nextCalled } = call({ role: 'accountant', method: 'GET', path });
@@ -101,7 +101,7 @@ test('no user object → 403 (fail-closed; requireAuth should have caught it but
   assert.equal(res.statusCode, 403);
 });
 
-// Multi-role coverage (specs/admin-account-management.md): the middleware reads `req.user.roles`.
+// Multi-role coverage (specs/hosting/admin-account-management.md): the middleware reads `req.user.roles`.
 test('multi-role: admin + accountant combined → admin wins (unrestricted)', () => {
   assert.equal(call({ roles: ['admin', 'accountant'], method: 'DELETE', path: '/reservations/9' }).nextCalled, true);
   assert.equal(call({ roles: ['accountant', 'admin'], method: 'POST', path: '/clients' }).nextCalled, true);

@@ -11,7 +11,7 @@
  *   cd server && npm run reset-admin -- --disable-2fa
  *
  * Also turns off the second step of that admin account (a lost phone and no other administrator,
- * specs/hosting-h2-account-security.md §3), recorded in the account's history.
+ * specs/hosting/hosting-h2-account-security.md §3), recorded in the account's history.
  */
 
 const db = require('../src/database');

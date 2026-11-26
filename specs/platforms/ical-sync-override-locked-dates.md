@@ -120,11 +120,11 @@ edit is preserved).
 11. **Approving a drift is a date change like any other** _(added 2026-10-28, audit)_. The narrow
     override also: (a) refuses a stay that is no longer a live `reservation` (`409 RESERVATION_NON_ACTIVE`,
     the alert stays pending so it can still be rejected); (b) checks the new nights against the property's
-    other stays and closures, as the sync does for a moved stay (`specs/ical-import-hardening.md`
+    other stays and closures, as the sync does for a moved stay (`specs/platforms/ical-import-hardening.md`
     rule 3): a clash is applied but stamped `bookingConflictAt` and notified once (`notifyBookingConflict`,
     origin `ical`), a stay moved off every taken night loses a previous flag; (c) moves the payout deadline
     of a platform stay (`balanceDueDate` = new departure + the platform's `payoutDueDays`,
-    `specs/platform-payout-due-date.md` rule 8). The price, capacity and payment fields stay untouched
+    `specs/platforms/platform-payout-due-date.md` rule 8). The price, capacity and payment fields stay untouched
     (rule 7).
 
 **Edge cases:**

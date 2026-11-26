@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rules 10-16, §7 « Diff », « pricing.changed → one debounced
+// specs/site/google-vacation-rentals-feed.md rules 10-16, §7 « Diff », « pricing.changed → one debounced
 // run », « Simulation mode never calls fetch ». The state is hand-built; the snapshot, the log and the
 // client are the real ones.
 process.env.DB_PATH = ':memory:';
@@ -224,7 +224,7 @@ test('rule 13 — the hourly job runs the full re-send at the configured hour, o
   assert.equal(await w.push.nightlyTick(), true);
 });
 
-test('specs/plugin-removal-resilience.md rule 17 — catchUp re-sends everything now, and only once a partner id is set', async () => {
+test('specs/plugins/plugin-removal-resilience.md rule 17 — catchUp re-sends everything now, and only once a partner id is set', async () => {
   const w = world({ values: { partnerId: 'solio_partner' } });
   // A price changed while the plugin was off: no trigger reached it. Activated or reinstalled, a restart in
   // between or not, an off window of a minute or a day, the hook runs the same catch-up.

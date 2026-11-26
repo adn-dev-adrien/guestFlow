@@ -7,7 +7,7 @@
 | **Created** | 2026-10-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Summary page** | [docs/specs/2026-10-27-direct-installments.html](../docs/specs/2026-10-27-direct-installments.html) — interactive mock, 390 and 1280 px |
+| **Summary page** | [docs/specs/2026-10-27-direct-installments.html](../../docs/specs/2026-10-27-direct-installments.html) — interactive mock, 390 and 1280 px |
 
 ---
 
@@ -15,9 +15,9 @@
 
 A direct guest who books months ahead sometimes asks to pay in several times. GuestFlow cannot
 express it: the money of a stay lives in **fixed buckets** — acompte, solde, arrival complement,
-end-of-stay complement ([schema.sql](../server/src/schema.sql) `reservations.deposit*`,
+end-of-stay complement ([schema.sql](../../server/src/schema.sql) `reservations.deposit*`,
 `balance*`, `complement*`, `endOfStayComplement*`). Exactly two due dates exist, derived by
-[paymentSchedule.js](../server/src/utils/paymentSchedule.js) (acompte at booking, solde
+[paymentSchedule.js](../../server/src/utils/paymentSchedule.js) (acompte at booking, solde
 `balanceDaysBefore` days before arrival). The payments ledger
 ([reservation-payment-ledger.md](reservation-payment-ledger.md) §8) lists « several payments on one
 acompte or solde » as out of scope.
@@ -31,7 +31,7 @@ Decisions taken in chat on 2026-10-27:
   stay tied to the `online-payment` plugin, as every payment link already is.
 - **Emails go through the « à valider » queue** — rule 44 of
   [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) and
-  [no-automatic-email-without-approval.md](no-automatic-email-without-approval.md) stand: no
+  [no-automatic-email-without-approval.md](../emails/no-automatic-email-without-approval.md) stand: no
   scheduled task sends a money email.
 - **First installment at booking, last at the usual solde delay** (J-`balanceDaysBefore`), the
   others evenly spaced in between.
@@ -49,7 +49,7 @@ its due date, after the operator validates it.
 **Eligibility**
 
 1. The échéancier is offered only when `isDirectChannel(reservation.platform)`
-   ([platformNameFormat.js](../server/src/utils/platformNameFormat.js)) is true. Never a strict
+   ([platformNameFormat.js](../../server/src/utils/platformNameFormat.js)) is true. Never a strict
    `platform === 'direct'` test. A devis (not yet a reservation), a cancelled reservation or a
    platform booking never offers it; the server refuses `PUT …/installments` with `409` and a French
    message.
@@ -63,7 +63,7 @@ its due date, after the operator validates it.
 **What is split**
 
 4. The plan covers the **pre-arrival amount** — exactly what acompte + solde cover today
-   (`preArrivalAmount` in [pricing.js](../server/src/utils/pricing.js)), tourist tax included.
+   (`preArrivalAmount` in [pricing.js](../../server/src/utils/pricing.js)), tourist tax included.
    Arrival complement, end-of-stay complement and caution are untouched.
 5. While a plan exists, the reservation's acompte and solde buckets are **replaced** by the
    installments: `depositAmount` and `balanceAmount` are 0, the ledger shows no acompte / solde row
@@ -110,7 +110,7 @@ its due date, after the operator validates it.
     the strict order of the installments.
     *Reading of 2026-11-02 — the date window.* The date must be a real calendar day (`2027-02-30` used to pass) and
     not past today + 5 years, « Échéance N : date trop lointaine : 5 ans au plus. », for a stay stored past
-    the horizon (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    the horizon (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 12. Changing the count (allowed by rule 2) recomputes the default dates; edited dates are lost and
     the UI says so before applying.
 13. Moving the stay: dates are **not** moved. If an unpaid installment now falls after the new
@@ -125,7 +125,7 @@ its due date, after the operator validates it.
 **Collection**
 
 15. A paid Qonto link of type `installment` marks its installment paid (webhook and polling, same
-    path as the other link types, [paymentPollRunner.js](../server/src/utils/paymentPollRunner.js)
+    path as the other link types, [paymentPollRunner.js](../../server/src/utils/paymentPollRunner.js)
     `applyPaidEffect`) and emits `reservation.paid`.
 16. The operator can mark an installment paid by hand (virement, chèque, espèces…) with the ledger's
     existing « Marquer payé » form; the date validation of the other buckets applies (no future
@@ -204,7 +204,7 @@ its due date, after the operator validates it.
     retires the installment links (checked against the provider first — a link paid meanwhile refuses the
     change). A bucket already collected is never zeroed by a plan (the engine ignores the plan, « Marquer
     acompte / solde perçu » is refused on a stay with a plan). A link minted while the plan was changing is
-    cancelled at once. Amended 2026-10-31 (Adrien, specs/payment-link-lifecycle.md rule 63): the open
+    cancelled at once. Amended 2026-10-31 (Adrien, specs/payments/payment-link-lifecycle.md rule 63): the open
     acompte / solde / séjour links are retired before the plan is written, and the plan is refused (409
     `LINK_DEACTIVATION_PENDING` / `UNSETTLED_WITHDRAWN_PAYMENT`) while one of them is not known dead at the provider
     or carries a payment to settle — beside a plan, the only payment that can arrive is an échéance.
@@ -259,10 +259,10 @@ its due date, after the operator validates it.
       spread it with — and `cancellationRequalification.installmentLines` emits one avoir line per paid
       installment and non-zero bucket, labelled « Hébergement — échéance 1/3 », « Options — échéance 1/3 »…
       (the tax, VAT-free, stays one line). The export splits a `retained` avoir HT / VAT **line by line**
-      (`accountingModel.buildRefundEntry`, `specs/reservation-refunds.md` rule 47), exactly as each
+      (`accountingModel.buildRefundEntry`, `specs/payments/reservation-refunds.md` rule 47), exactly as each
       encaissement was split, so every 706 / 4457 / 4671 account of the stay nets to **0,00 €** — the
       indemnity on 75880000 is the only revenue left. The refund register then subtracts the requalified
-      options and resources from their lines (`specs/reservation-refunds.md` rules 45 and 46). *Why:* the
+      options and resources from their lines (`specs/payments/reservation-refunds.md` rules 45 and 46). *Why:* the
       avoir put the whole stay part on « Location gîte »: on stay #22326 (two of three installments paid,
       351,38 € of options each) the cancellation month left 70600000 at −638,87 € HT and 70600010 at
       +638,88 € HT for a stay that never happened, and the register still offered every option as fully
@@ -300,7 +300,7 @@ its due date, after the operator validates it.
     cancellation of rule 46 reverses that same tax share. *Why:* the review paid installment 1 (172 € with
     5,01 € of tax) in October, then added a guest; the October entry became 7,41 € of tax and 149,63 € of
     accommodation — a month already exported moved
-    (`specs/accounting-books-the-money-collected.md` rule 14).
+    (`specs/accounting/accounting-books-the-money-collected.md` rule 14).
 48. **A late installment is late on the Finance page too.** An installment the fiche calls « En retard »
     (rule 14: unpaid three days after its due date, or the guest has arrived — `installmentsModel.listLate`,
     the collection alert's own read; a covered plan owes nothing, rule 33) is an element of the stay's row
@@ -308,21 +308,21 @@ its due date, after the operator validates it.
     insight and the detail. « Marquer payé » records it through `POST …/installments/:id/payment`.
     *Why:* `financeModel.overdueOf` only knew the acompte, the solde and the payout, so a stay paid
     through a plan was never late on Finance while the fiche and the payment deadlines said it was
-    (`specs/finance-dashboard-redesign.md` rule 49).
+    (`specs/accounting/finance-dashboard-redesign.md` rule 49).
 49. **« Demandée le … » is the operator's day** (2026-10-30, audit R9). `requestedAt` is a UTC ISO stamp
     (`paymentRequestService`); the label prints its local day (`vatRegime.bookingDayOf`,
-    `specs/finance-dashboard-redesign.md` rule 50). *Why:* a request sent between 00:00 and 01:00 / 02:00
+    `specs/accounting/finance-dashboard-redesign.md` rule 50). *Why:* a request sent between 00:00 and 01:00 / 02:00
     in Paris was labelled with the day before.
 50. **A paid installment makes the stay hold its nights at once** (2026-11-01, audit R11-1). Recording an
     installment as collected (`installmentPayment.recordInstallmentPayment`: the operator's tick, a paid
     installment link, its late booking) withdraws, once it flipped the installment, the open payment links of the
     other unpaid devis and reservations on the stay's nights (`datesTaken.withdrawForStay`,
-    `specs/payment-link-lifecycle.md` rules 10, 32, 37). *Why:* beside a plan an installment is the only payment
+    `specs/payments/payment-link-lifecycle.md` rules 10, 32, 37). *Why:* beside a plan an installment is the only payment
     that can arrive (that spec's rule 63), so this was the one money path where a second guest could still pay for
     the same nights until the next lifecycle pass, up to 15 minutes later.
 51. **A plan's tax is declared at the stay month, an installment still due or not** (2026-11-05, D14, Adrien's
     decision). Paying an installment never sets `balancePaid`, so « Suivi taxe de séjour » reads the plan itself, not that
-    flag (`specs/tourist-tax-declaration-month-stay-end.md` rules 7-8). *Why:* a plan of two fully paid, 46710000 = 4,80 €,
+    flag (`specs/tourist-tax/tourist-tax-declaration-month-stay-end.md` rules 7-8). *Why:* a plan of two fully paid, 46710000 = 4,80 €,
     was on no month of the page; the same stay paid by solde had its row of 4,80 €. *Reading of 2026-11-05 (D16, D17):* « can be declared » is withdrawn by
     Adrien, the tick waits for every installment paid and the stay over (`tourist-tax-declared-checkbox.md` rule 8); a plan fully
     paid or a paid installment holding a tax share pins the tax (`tourist-tax-matches-the-office-calculation.md` rule 19).
@@ -483,7 +483,7 @@ that runs the migration on a copy of the production schema and compares row coun
 
 ## 6. UI / UX
 
-Interactive mock: [docs/specs/2026-10-27-direct-installments.html](../docs/specs/2026-10-27-direct-installments.html).
+Interactive mock: [docs/specs/2026-10-27-direct-installments.html](../../docs/specs/2026-10-27-direct-installments.html).
 
 **Where:** inside the Finance section of the fiche, above the ledger, only for eligible fiches.
 

@@ -1,4 +1,4 @@
-// specs/ds-components.md §3.1 + CLAUDE.md responsive rules — the three actions are 44 px touch targets and
+// specs/design-system/ds-components.md §3.1 + CLAUDE.md responsive rules — the three actions are 44 px touch targets and
 // each still fires its handler.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

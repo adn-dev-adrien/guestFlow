@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 38, 39 and 44 — review of 2026-11-06: a cent per entry is a rounding gap in
+// specs/accounting/accounting-synthesis.md §3 rules 38, 39 and 44 — review of 2026-11-06: a cent per entry is a rounding gap in
 // grey, red only beyond with its entries (D-HC12); the tourist tax of a window that goes past the server's month says
 // up to when; outside the VAT the revenue tile reads « CA ».
 import React from 'react';

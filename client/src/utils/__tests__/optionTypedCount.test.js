@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 1, 8, 9, 18, 19 (audit R21-S5) — which option has a typed field, and
+// specs/options/non-card-option-served-persons.md rules 1, 8, 9, 18, 19 (audit R21-S5) — which option has a typed field, and
 // what the field shows. A wrong answer here turns a card or the insurance into a typed line.
 import { expect, test } from 'vitest';
 import { typedCountKind, typedCountValue } from '../optionTypedCount';

@@ -1,5 +1,5 @@
 /**
- * The company logo as the devis PDF reads it (specs/settings.md rule 8).
+ * The company logo as the devis PDF reads it (specs/settings/settings.md rule 8).
  *
  * - `printableLogo(buffer)` → `{ bytes, ext }`: a PNG or a JPEG by its first bytes, decoded whole by the image library and
  *   written again by it (orientation applied, at most 1200 px a side), or null. PDFKit reads only bytes sharp wrote: its own PNG reader inflates the

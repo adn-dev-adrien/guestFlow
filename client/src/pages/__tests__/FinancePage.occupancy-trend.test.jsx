@@ -1,4 +1,4 @@
-// specs/finance-revpar-year-over-year.md §3 rule 18 — « Taux d'occupation » draws the scope's months from
+// specs/accounting/finance-revpar-year-over-year.md §3 rule 18 — « Taux d'occupation » draws the scope's months from
 // `occupancyAll`, this exercise solid and last exercise dashed, with its table view; the small multiples
 // follow only while the scope has several logements.
 import React from 'react';

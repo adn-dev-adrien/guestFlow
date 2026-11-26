@@ -22,17 +22,17 @@ top and one table per logement. In real use:
 - the totals leave the screen as soon as the table scrolls;
 - the minors, who are exempt, appear nowhere: the commune's form asks for taxed **and** exempt persons and
   person-nights;
-- the stays whose tax a platform remits to the commune itself (`specs/per-platform-tourist-tax-three-way.md`, case
+- the stays whose tax a platform remits to the commune itself (`specs/tourist-tax/per-platform-tourist-tax-three-way.md`, case
   2) vanish from the page, so the operator cannot tell « nothing to declare » from « declared by the platform »;
 - there is no per-night register, which is what a commune asks for on an inspection;
 - nothing can be exported.
 
 The rules already in force stay untouched: the attribution of a stay to a month
-(`specs/tourist-tax-declaration-month-stay-end.md`), the freeze of past stays
-(`specs/tourist-tax-freeze-past-with-refresh.md`, `specs/tourist-tax-matches-the-office-calculation.md`), the
-three-way platform mode read from the platform, never its name (`specs/per-platform-tourist-tax-three-way.md`), the
-« Déclarée » tick per row and its added-guests variant (`specs/tourist-tax-declared-checkbox.md`,
-`specs/platform-added-guests-tourist-tax.md`).
+(`specs/tourist-tax/tourist-tax-declaration-month-stay-end.md`), the freeze of past stays
+(`specs/tourist-tax/tourist-tax-freeze-past-with-refresh.md`, `specs/tourist-tax/tourist-tax-matches-the-office-calculation.md`), the
+three-way platform mode read from the platform, never its name (`specs/tourist-tax/per-platform-tourist-tax-three-way.md`), the
+« Déclarée » tick per row and its added-guests variant (`specs/tourist-tax/tourist-tax-declared-checkbox.md`,
+`specs/tourist-tax/platform-added-guests-tourist-tax.md`).
 
 ## 2. Goal
 
@@ -272,7 +272,7 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
   spec's default), so it is counted apart.
 - A cancelled stay (`kind ≠ 'reservation'`) is in neither list.
 56. **The tax is declared per logement: the report carries each logement's totals** (2026-11-12, manual trial of 4.0.0;
-    approved mock: [`tourist-tax-by-property-maquette.html`](tourist-tax-by-property-maquette.html), its names fictitious).
+    approved mock: `tourist-tax-by-property-maquette.html` (folded into this spec, deleted 2026-11-26), its names fictitious).
     The payload gains `byProperty`: one entry per logement of the selection (ours and the platforms' stays), in logement
     order, each `{ propertyId, propertyName, …reportTotals }` — the very totals of rule 11 computed over that logement's rows
     (`amount`, `declaredAmount`, `remainingAmount`, `allDeclared`, `toDeclareRowsCount`, `staysCount`, `nights`, `persons`,

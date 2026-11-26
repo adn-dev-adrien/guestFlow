@@ -1,5 +1,5 @@
 /**
- * ActivityTermsAcceptanceLines — the acceptances of the other activities' terms on a fiche (specs/gift-voucher-campaigns.md rule 37): one line
+ * ActivityTermsAcceptanceLines — the acceptances of the other activities' terms on a fiche (specs/gift-vouchers/gift-voucher-campaigns.md rule 37): one line
  * each with the activity and the channel, the proof in « Détails », and the archived text read for THAT activity.
  */
 import React from 'react';

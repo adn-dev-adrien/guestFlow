@@ -12,10 +12,10 @@
 
 ## 1. Context
 
-[payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) §3.4 shipped the
+[payment-schedule-and-cancellation.md](../payments/payment-schedule-and-cancellation.md) §3.4 shipped the
 « **Échéances de paiement** » dashboard card: every reservation whose acompte or solde is past due
 surfaces there with its amount, its days late and its available actions. The card works — but it only
-ever shows **direct** bookings: [paymentDeadlines.js:44](../server/src/utils/paymentDeadlines.js#L44)
+ever shows **direct** bookings: [paymentDeadlines.js:44](../../server/src/utils/paymentDeadlines.js#L44)
 opens with
 
 ```js
@@ -32,7 +32,7 @@ affairs, not something to chase. But it left a real hole open on the other side 
    their own, that a séjour finished six weeks ago was never settled.
 2. **The stored due date is meaningless for a platform.** The engine derives
    `balanceDueDate = startDate − property.balanceDaysBefore` (30) for every reservation
-   ([paymentSchedule.js:68-84](../server/src/utils/paymentSchedule.js#L68-L84)), platform included. So
+   ([paymentSchedule.js:68-84](../../server/src/utils/paymentSchedule.js#L68-L84)), platform included. So
    a platform solde is « due » a month *before* the guest even arrives — a date on which the platform
    could not possibly have paid, and which describes nothing real.
 
@@ -42,10 +42,10 @@ that does exist is wrong. Fixing the date is what makes the alert operational.
 **Discovered while writing this spec — a pre-existing dunning leak.** The daily solde-request pass
 ([balanceRequestRunner.js:41](../server/src/utils/balanceRequestRunner.js#L41)) correctly restricts
 itself to direct channels. The auto-send cron does **not**:
-[emailAutoSendRunner.js:56-64](../server/src/utils/emailAutoSendRunner.js#L56-L64) builds its
+[emailAutoSendRunner.js:56-64](../../server/src/utils/emailAutoSendRunner.js#L56-L64) builds its
 `depositDueDate` / `balanceDueDate` anchor queries with no channel filter at all. The
 `balance_reminder` template is `auto` + `enabled` by default with `dayOffset: +3`
-([defaultEmailTemplatesRegistry.js:528-539](../server/src/utils/defaultEmailTemplatesRegistry.js#L528-L539)),
+([defaultEmailTemplatesRegistry.js:528-539](../../server/src/utils/defaultEmailTemplatesRegistry.js#L528-L539)),
 so an OTA guest whose fiche carries an email address can **already** receive « Solde en attente pour
 votre séjour » 27 days before arrival — asking them to pay us money they already paid Airbnb. Moving
 the platform due date to after the stay would only relocate that email, not remove it. This spec
@@ -71,7 +71,7 @@ that deadline passes with the money still not in.
 ### 3.0 Scope
 
 1. Everything here applies to reservations whose channel is **not an own channel**:
-   `!isDirectChannel(platform)` ([platformNameFormat.js:62](../server/src/utils/platformNameFormat.js#L62)).
+   `!isDirectChannel(platform)` ([platformNameFormat.js:62](../../server/src/utils/platformNameFormat.js#L62)).
 2. **`Lodgify` is an own channel, not an OTA** — `DIRECT_CHANNELS = { 'direct', 'lodgify' }`. A
    Lodgify booking is a direct booking that happens to carry a commission: the guest pays *us*, so it
    keeps the acompte-at-booking / solde-at-J-30 schedule and the existing direct alert states. The
@@ -91,7 +91,7 @@ that deadline passes with the money still not in.
    It is not part of this change, and it never drives an alert row (rule 15).
 6. **`payoutDueDays` is a per-platform global setting**, `platforms.payoutDueDays`, **default 10**.
    Global per platform exactly like the tourist-tax mode and the acompte flag
-   ([per-platform-tourist-tax-three-way.md](per-platform-tourist-tax-three-way.md),
+   ([per-platform-tourist-tax-three-way.md](../tourist-tax/per-platform-tourist-tax-three-way.md),
    [platform-deposit-toggle.md](platform-deposit-toggle.md)): Airbnb pays within days, Booking
    invoices at the month's end — the delay is a property of the channel, not of the logement.
 7. **Fallback 10.** A platform with no `platforms` row (a reservation whose channel was never synced
@@ -105,10 +105,10 @@ that deadline passes with the money still not in.
 8. **The date follows the stay.** Unlike the acompte (frozen at booking), the platform deadline is
    *derived* from the departure date: the pricing engine recomputes it on every save, and an iCal
    re-sync that moves the dates of a non-locked reservation moves it too. This mirrors rule 8 of
-   [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) for the direct solde.
+   [payment-schedule-and-cancellation.md](../payments/payment-schedule-and-cancellation.md) for the direct solde.
 9. **Set at creation, iCal import included.** The iCal sync writes `balanceDueDate = endDate +
    payoutDueDays` in its INSERT
-   ([propertyIcalModel.js:340-350](../server/src/models/propertyIcalModel.js#L340-L350)), which today
+   ([propertyIcalModel.js:340-350](../../server/src/models/propertyIcalModel.js#L340-L350)), which today
    hardcodes `NULL`. It is written **even though the imported row carries `balanceAmount = 0`** — the
    deadline is a fact about the booking, known the moment it lands; the amount arrives later, when
    the operator enters the platform's figures ([platform-payment-entry.md](platform-payment-entry.md)).
@@ -127,7 +127,7 @@ that deadline passes with the money still not in.
 ### 3.2 Dashboard alert — the platform row
 
 12. A fifth state joins the four of
-    [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) §3.4:
+    [payment-schedule-and-cancellation.md](../payments/payment-schedule-and-cancellation.md) §3.4:
 
     | State | Condition | Severity | Copy |
     |---|---|---|---|
@@ -166,7 +166,7 @@ that deadline passes with the money still not in.
     button is gone from the UI, and the endpoint could not be used to send that email by hand either.
 
 21. **Visibility window.** Rule 20bis of the parent spec drops a stay that ended more than 30 days ago,
-    enforced in SQL on `endDate` ([reservationsModel.js:1265](../server/src/models/reservationsModel.js#L1265)).
+    enforced in SQL on `endDate` ([reservationsModel.js:1265](../../server/src/models/reservationsModel.js#L1265)).
     Applied as-is to a platform row that only *becomes* late at `endDate + 10`, it would leave 19 days
     of visibility. The window therefore moves out of SQL and into the pure layer, with one rule per
     channel:
@@ -221,7 +221,7 @@ that deadline passes with the money still not in.
 
 ### 3.4 Settings — where the delay is edited
 
-35. The per-platform card of the logement page ([PropertyDetail.jsx](../client/src/pages/PropertyDetail.jsx),
+35. The per-platform card of the logement page ([PropertyDetail.jsx](../../client/src/pages/PropertyDetail.jsx),
     the iCal/platform rows) gains a numeric field « **Virement reçu sous (jours)** » next to the
     existing « Taxe de séjour » and « Acompte » selects, editable in the same inline edit mode and
     saved by the same « Enregistrer » of that row.
@@ -234,7 +234,7 @@ that deadline passes with the money still not in.
 ### 3.5 A started stay keeps the deadline it was stored with
 
 38. On a reservation whose `startDate` has arrived — the past-reservation lock of
-    [admin-unlock-past-reservations.md](admin-unlock-past-reservations.md) — `balanceDueDate` is **not
+    [admin-unlock-past-reservations.md](../reservations/admin-unlock-past-reservations.md) — `balanceDueDate` is **not
     re-derived**: the save writes back the deadline the row already carries. The §1 arbitrage « existing
     rows re-derive on their next save » holds for stays that have not started; on the others it could
     never apply, because the deadline is not in the lock's allowlist and its re-derivation is itself
@@ -265,7 +265,7 @@ that deadline passes with the money still not in.
   departure.
 - **`payoutDueDays = 0`** → the payout is due on the departure day itself; the row can appear the day
   after. Legitimate configuration, not an error.
-- **Platform renamed / deduped** ([platformSlugDedupMigration.js](../server/src/utils/platformSlugDedupMigration.js))
+- **Platform renamed / deduped** ([platformSlugDedupMigration.js](../../server/src/utils/platformSlugDedupMigration.js))
   → `payoutDueDays` is carried over with the other per-platform columns, or the setting would silently
   reset to 10 on a dedup.
 - **Snoozed platform row whose payout arrives** → the row disappears on its own (the condition no
@@ -352,7 +352,7 @@ ALTER TABLE platforms ADD COLUMN payoutDueDays INTEGER NOT NULL DEFAULT 10;
 ```
 
 Added in the existing `platforms` migration block of
-[database.js:1012-1021](../server/src/database.js#L1012-L1021), guarded by the same
+[database.js:1012-1021](../../server/src/database.js#L1012-L1021), guarded by the same
 `PRAGMA table_info(platforms)` check — idempotent, safe on every boot.
 
 **Existing rows:** every platform gets 10 by the column default, which is exactly the intended value.
@@ -370,7 +370,7 @@ records; nothing lost if the feature is reverted (the column simply stops being 
 ### 6.1 Dashboard — the platform row in « Échéances de paiement »
 
 Same card, same layout as the four existing states
-([PaymentDeadlinesAlert.jsx](../client/src/components/PaymentDeadlinesAlert.jsx)):
+([PaymentDeadlinesAlert.jsx](../../client/src/components/PaymentDeadlinesAlert.jsx)):
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -534,5 +534,5 @@ alongside the tourist-tax and acompte writes already performed there.
 - **Q: `warning` or `error` severity for a late payout?**
   A: **Resolved 2026-08-20 — `warning`.** An OTA payout that is a few days late is routine; the card's overall
   tone should not go red for it, or the red signal loses its meaning again — the exact failure mode
-  [dashboard-collection-alert.md](dashboard-collection-alert.md) was written to fix. Revisit if a real
+  [dashboard-collection-alert.md](../planning/dashboard-collection-alert.md) was written to fix. Revisit if a real
   case shows a payout going properly missing.

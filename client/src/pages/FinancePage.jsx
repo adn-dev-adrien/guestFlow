@@ -1,4 +1,4 @@
-// Suivi financier — one dashboard, one window (specs/finance-dashboard-redesign.md). The page renders
+// Suivi financier — one dashboard, one window (specs/accounting/finance-dashboard-redesign.md). The page renders
 // the server's `/finance/dashboard` payload and, for the tile that is open, its detail table: every
 // figure, total, ratio and French sentence comes ready-made. Local state is the URL (window + logement)
 // and which tile is open.
@@ -37,7 +37,7 @@ import { localIsoToday } from '../utils/isoDay';
 import useServerToday from '../hooks/useServerToday';
 
 const DETAIL_ID = 'finance-detail';
-// « Vente hors séjour » (specs/pricing-components.md rule 53): the bar's tooltip on a desktop, the page's button on a phone.
+// « Vente hors séjour » (specs/pricing/pricing-components.md rule 53): the bar's tooltip on a desktop, the page's button on a phone.
 const NEW_SALE_LABEL = 'Vente hors séjour';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
@@ -46,7 +46,7 @@ const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percen
 // The browser's own calendar day, never the UTC one (rule 37).
 const iso = (d) => localIsoToday(d);
 
-// « 23 paiements · prochain le 28 nov. 2026 », or « tout est encaissé » (specs/mobile-dashboard-exercise-cash.md rule 11).
+// « 23 paiements · prochain le 28 nov. 2026 », or « tout est encaissé » (specs/planning/mobile-dashboard-exercise-cash.md rule 11).
 const toCollectCaption = (t) => {
   if (!t.payments) return 'tout est encaissé';
   const count = plural(t.payments, 'paiement');
@@ -64,7 +64,7 @@ const TILES = [
   { key: 'channels', label: 'Canaux', dot: 'chart.channels', read: (t) => [formatCurrencyRounded(t.commission), 'de commissions'] },
 ];
 
-// specs/finance-revpar-year-over-year.md rule 16 — the figures that carry a year-over-year pill, and how
+// specs/accounting/finance-revpar-year-over-year.md rule 16 — the figures that carry a year-over-year pill, and how
 // last year's value is written in it.
 const TILE_PILLS = { collected: formatCurrencyRounded, stays: (n) => plural(n, 'séjour') };
 // Rule 24 — the per-night amounts to the cent under 100 €.
@@ -107,7 +107,7 @@ export default function FinancePage() {
   const [tile, setTile] = useState(null);
   const [detail, setDetail] = useState({ key: null, data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
-  // « Reçus ces 30 derniers jours » of « Versements à venir » (specs/mollie-rolling-reserve-and-incoming-payments.md rule 24).
+  // « Reçus ces 30 derniers jours » of « Versements à venir » (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 24).
   const [incomingRecent, setIncomingRecent] = useState(false);
 
   const beginDashboard = useLatestRequest();
@@ -148,7 +148,7 @@ export default function FinancePage() {
     }
   }, [tile, paramsKey, staysScope, incomingRecent]);
 
-  // specs/vat-optional-mode.md rule 35 — the franchise card, whatever the window; a failed read hides it.
+  // specs/accounting/vat-optional-mode.md rule 35 — the franchise card, whatever the window; a failed read hides it.
   // `undefined` until the first read has settled: the page waits for it, so the card never pops in late.
   const [franchise, setFranchise] = useState(undefined);
   const loadFranchise = useCallback(async () => {
@@ -160,7 +160,7 @@ export default function FinancePage() {
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
   const [paceRefresh, setPaceRefresh] = useState(0);
-  // « Vente hors séjour » (specs/pricing-components.md rule 53): the counter dialog and the day's list it refreshes.
+  // « Vente hors séjour » (specs/pricing/pricing-components.md rule 53): the counter dialog and the day's list it refreshes.
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
   const [saleOpen, setSaleOpen] = useState(false);
   const [salesReload, setSalesReload] = useState(0);
@@ -250,7 +250,7 @@ export default function FinancePage() {
                 Tous les logements
               </Button>
             )}
-            {/* specs/finance-dashboard-redesign.md rule 57 — an exercise the server refuses offers the current one. */}
+            {/* specs/accounting/finance-dashboard-redesign.md rule 57 — an exercise the server refuses offers the current one. */}
             {loadError && loadErrorCode === 'UNKNOWN_EXERCISE' && (
               <Button size="small" variant="outlined" onClick={() => setParams({ fiscalYear: '', period: 'fy', month: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
                 Exercice en cours
@@ -371,7 +371,7 @@ export default function FinancePage() {
               </Typography>
             )}
 
-            {/* specs/mobile-dashboard-exercise-cash.md rule 18 — right under the tiles and their open table. */}
+            {/* specs/planning/mobile-dashboard-exercise-cash.md rule 18 — right under the tiles and their open table. */}
             <Card sx={{ mt: 2 }} data-testid="cash-projection-card">
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

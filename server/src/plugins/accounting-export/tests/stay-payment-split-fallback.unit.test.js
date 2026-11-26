@@ -1,4 +1,4 @@
-// specs/collect-stay-payment-at-check-in.md §3.3 rule 26 — the single arrival payment (« Encaisser en
+// specs/sas/collect-stay-payment-at-check-in.md §3.3 rule 26 — the single arrival payment (« Encaisser en
 // une fois ») and the SAS stay payment share one bucket capture. When the acompte captured its per-line
 // split and the solde's capture fails (stored amounts that drifted from today's engine), the solde gets
 // the stored-amount split: leaving it NULL booked the whole solde on 46710000 — no revenue, no VAT

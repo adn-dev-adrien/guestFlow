@@ -97,7 +97,7 @@ once, in a table that reads on two columns when there is room and on one when th
 ## 4. Architecture
 
 This change lives in the WordPress site, not in the GuestFlow client/server. The repository copy
-under `integrations/wordpress/solio-site/` was the versioned source — the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30) —; deployment is manual
+under `integrations/wordpress/solio-site/` was the versioned source — the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30) —; deployment is manual
 (see §7 and that repository's README).
 
 ### 4.1 WordPress modules (`mu-plugins/` of the site, now in the deployment's private repository)
@@ -205,7 +205,7 @@ into the container.
 - A separate "Sur le domaine" band — explicitly declined on 2026-09-24, domain facts stay in the
   lodging table.
 - The domain page (`/le-domaine/`) and its own amenity list.
-- An English version of the block (`specs/site-english-version.md` covers the site-wide question).
+- An English version of the block (`specs/site/site-english-version.md` covers the site-wide question).
 
 ## 9. Open questions
 

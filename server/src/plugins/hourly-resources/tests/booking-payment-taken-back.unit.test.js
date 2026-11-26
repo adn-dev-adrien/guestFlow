@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 36 (R35b N2) — once its payment is taken back, a booking is
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 36 (R35b N2) — once its payment is taken back, a booking is
 // priced again at its next save like any unpaid one: after a tariff change, a save that moves nothing priced stores the
 // live total, the dialog's preview shows that same total before the save, and the payment then asks for it.
 const test = require('node:test');

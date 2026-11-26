@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 26 (and rule 35's preview) — a request rendered before its send
+// specs/payments/payment-link-lifecycle.md rule 26 (and rule 35's preview) — a request rendered before its send
 // never shows a link the send would not carry: an open link with 24 h left is shown with its end, any
 // other case prints « (lien de paiement créé à l'envoi) ». A request sent from the e-mail dialog resolves
 // its link at send time too.

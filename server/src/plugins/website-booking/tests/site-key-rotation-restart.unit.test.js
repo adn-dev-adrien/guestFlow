@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md rules 31 and 32 (review follow-up of 2026-10-18): a key regenerated from
+// specs/plugins/plugins-phase-2-hosts.md rules 31 and 32 (review follow-up of 2026-10-18): a key regenerated from
 // Paramètres › Intégrations survives the next restart, even when the process manager hands the
 // previous key back through the environment (pm2 saves the environment of `--update-env`).
 

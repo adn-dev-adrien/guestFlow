@@ -8,7 +8,7 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from './mockReservationForm';
 
-// specs/reservation-refunds.md rule 35 — le trop-perçu réparti par poste par le serveur : la fiche dit
+// specs/payments/reservation-refunds.md rule 35 — le trop-perçu réparti par poste par le serveur : la fiche dit
 // d'où il vient (taxe recalculée comprise), et la fenêtre de remboursement ouvre une ligne par poste.
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
@@ -33,7 +33,7 @@ function renderFinance(overrides = {}) {
 }
 
 test('l’alerte montre la taxe encaissée et la taxe recalculée', async () => {
-  // specs/reservation-payment-ledger.md rule 2 — the trop-perçu is a ledger row; its lines are the
+  // specs/payments/reservation-payment-ledger.md rule 2 — the trop-perçu is a ledger row; its lines are the
   // server's « X encaissés, Y dus », printed as sent.
   const ctx = renderFinance({ refundOverpaymentTtc: 14.4, refundOverpaymentLines: TAX_ONLY, ledger: { rows: [{ key: 'overpayment', label: 'Trop-perçu', amount: 14.4, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
     action: { kind: 'refund', label: 'Rembourser' }, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },

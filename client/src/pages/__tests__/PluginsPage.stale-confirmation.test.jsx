@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rule 22 — a confirmation the server found stale (the closure moved
+// specs/plugins/plugin-dependencies.md rule 22 — a confirmation the server found stale (the closure moved
 // since the click) shows the refusal and re-reads the list, so the next click carries the new ids.
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';

@@ -1,5 +1,5 @@
 /**
- * Tells the fiche which writes are its own (specs/reservation-fiche-concurrency.md rule 4).
+ * Tells the fiche which writes are its own (specs/reservations/reservation-fiche-concurrency.md rule 4).
  *
  * On every write to `/api/reservations/:id/...` the response carries the stay's `updatedAt` as it was
  * before THIS request's first write to the stay and as it is after its last one (recorded where

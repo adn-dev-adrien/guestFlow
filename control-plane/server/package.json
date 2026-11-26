@@ -2,7 +2,7 @@
   "name": "guestflow-control-plane-server",
   "version": "0.1.0",
   "private": true,
-  "description": "GuestFlow control plane — the operator console (specs/control-plane-plans-and-access.md)",
+  "description": "GuestFlow control plane — the operator console (specs/hosting/control-plane-plans-and-access.md)",
   "scripts": {
     "start": "node src/index.js",
     "dev": "NODE_ENV=development node --watch src/index.js",

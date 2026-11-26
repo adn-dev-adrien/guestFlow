@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 7 (audit R2 F) — the stale check is repeated right before the
+// specs/reservations/reservation-fiche-concurrency.md rule 7 (audit R2 F) — the stale check is repeated right before the
 // write, after the payment-provider await, so a foreign write landing during that await is not overwritten.
 process.env.DB_PATH = ':memory:';
 

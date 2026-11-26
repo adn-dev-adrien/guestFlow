@@ -1,5 +1,5 @@
 /**
- * DISCOUNTS — what a stay discount takes off (specs/pricing-components.md §3 rules 16, 40).
+ * DISCOUNTS — what a stay discount takes off (specs/pricing/pricing-components.md §3 rules 16, 40).
  *
  * Contract: `allocateDiscount({ discount: { percent?, amount?, customPrice?, target }, accommodation, lines })` →
  * `{ accommodation, lines, discountCents }`.

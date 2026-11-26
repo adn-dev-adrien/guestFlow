@@ -1,5 +1,5 @@
 /**
- * EmailComposeDialog — "Créer un email" (specs/manual-email-from-template.md §6).
+ * EmailComposeDialog — "Créer un email" (specs/emails/manual-email-from-template.md §6).
  *
  * Two-step compose: pick a reservation (searchable Autocomplete over all reservations) +
  * pick a template, then queue the pair into "Emails à envoyer". If that template was already

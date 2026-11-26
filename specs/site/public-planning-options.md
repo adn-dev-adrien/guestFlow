@@ -7,7 +7,9 @@
 | **Created** | 2026-07-03 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [public-online-payment.md](public-online-payment.md) (UC2), [public-api.md](public-api.md) (`/public/v1`), [option-planning-card.md](option-planning-card.md) (the occurrence model), [site-booking-notifications.md](site-booking-notifications.md) (admin new-devis email) |
+| **Related** | [public-online-payment.md](public-online-payment.md) (UC2), [public-api.md](public-api.md) (`/public/v1`), [option-planning-card.md](../options/option-planning-card.md) (the occurrence model), [site-booking-notifications.md](site-booking-notifications.md) (admin new-devis email) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 1 and the label half of rule 4 marked as amended by `site-meal-portions.md` (portions, no `× persons`), as that spec already states.
 
 ---
 
@@ -17,11 +19,11 @@ Some options are **planning-card options** (`options.showsPlanningCard=1`) — a
 **time slot**, not a quantity: « Petit déjeuner » (8 €/pers), « Le repas des trappeurs » (25 €/pers),
 etc. In the back office the operator schedules concrete **occurrences** (dates/times) via the option
 planning card; the pricing engine bills `occurrences × (per-person ? persons : 1) × unitPrice`
-([pricing.js:1138-1158](../server/src/utils/pricing.js#L1138)).
+([pricing.js:1138-1158](../../server/src/utils/pricing.js#L1138)).
 
 The **public site can't schedule slots**, so the plugin sends only a *quantity*. The engine's
 planning-card branch requires `cardOccurrences` and returns **null** when there are none
-([pricing.js:1140](../server/src/utils/pricing.js#L1140)) — so a planning-card option selected on the
+([pricing.js:1140](../../server/src/utils/pricing.js#L1140)) — so a planning-card option selected on the
 site is **silently dropped**: not priced, not recorded, not charged. Found in the 2026-07-02 prod E2E
 (the guest ticks « Petit déjeuner » but it never reaches the devis). These options are already visible
 and selectable on the site (they are not in the plugin's `HIDDEN_AUTO` set).
@@ -41,6 +43,7 @@ option vanishing silently.
    `total = billedUnits × unitPrice`. So « Petit déjeuner » 8 €/pers, 2 adultes, quantity **2** → 4 ×
    8 = **32 €**. The `/nuit` part is **not** multiplied again — the *séance* IS the occurrence.
    _(decision 2026-07-03, option « quantité = nb de séances ».)_
+   _Amended 2026-09-22 ([site-meal-portions.md](site-meal-portions.md) rules 1-5): for a **per-person** card option the quantity is a number of **portions**, `billedUnits = quantity` — the `× persons` factor is gone (capped at persons × servings); per-stay / per-night options keep `billedUnits = quantity`._
 2. **No occurrences are stored** for a publicly-selected planning-card option (`cardOccurrences` stays
    empty). The line is billed but **unscheduled** — the operator fixes the concrete slots later in the
    back office (the existing planning card), after contacting the guest.
@@ -54,6 +57,7 @@ option vanishing silently.
    (« par personne et par séance », « au séjour »…) and `quantityLabel` (« Nombre de séances » for a
    planning option, else null), derived from `priceType` + `showsPlanningCard`. The plugin has **no**
    hardcoded `priceType` string logic.
+   _Amended 2026-09-22 ([site-meal-portions.md](site-meal-portions.md) rule 6): the labels of a per-person card option now name portions (« par petit déjeuner » / « par couvert », « Nombre de petits déjeuners » / « Nombre de couverts ») instead of « séances »; non-per-person card options keep « par séance » / « Nombre de séances »._
    - kept selectable with a **quantity** input (as today), the field labelled by `quantityLabel` when
      present (« Nombre de séances »), and the price shown with `priceUnitLabel`;
    - each option shows its **description** (from `options.description`) via an ergonomic, **responsive**

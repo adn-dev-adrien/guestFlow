@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 import LaundryDayCard from '../LaundryDayCard';
 
-// specs/laundry-counts-explicit-option-only.md §3.2 rule 9.
+// specs/linen/laundry-counts-explicit-option-only.md §3.2 rule 9.
 //
 // Since the ticked option became the only signal for the laundry count, a stay that declares bed
 // linen without a quantity saved yet contributes a silent zero. The card must say so rather than

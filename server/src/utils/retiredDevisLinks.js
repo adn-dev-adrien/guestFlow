@@ -1,5 +1,5 @@
 /**
- * What follows the retirement of a devis's stale payment links (specs/public-online-payment.md rule 14).
+ * What follows the retirement of a devis's stale payment links (specs/site/public-online-payment.md rule 14).
  *
  * The rows are already `cancelled` (reason `amount-changed`, remote-deactivation marker). Before any link is
  * deactivated at the provider, the guest may already have paid it (ledger rule 30 does the same on a

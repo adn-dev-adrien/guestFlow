@@ -1,5 +1,5 @@
 /**
- * Default "Linge de toilette" option seeder (specs/weekly-bed-linen-tracking.md §3.5).
+ * Default "Linge de toilette" option seeder (specs/linen/weekly-bed-linen-tracking.md §3.5).
  *
  * Strict mirror of utils/bedLinenSeed.js — same idempotent + non-destructive contract, same
  * skip rules, same priceType / autoEnabled / undeletability story. The only differences:
@@ -15,7 +15,7 @@
  *      on it).
  */
 
-// English title used by the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+// English title used by the EN devis PDF (specs/devis/devis-english-language.md §3 rule 6).
 // No `descriptionEn`: the option description isn't printed in the devis PDF.
 const SEED_DEFINITION_EN = Object.freeze({
   title: 'Bath linen',

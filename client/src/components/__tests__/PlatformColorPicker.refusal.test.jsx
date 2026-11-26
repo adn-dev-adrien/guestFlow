@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rule 7 — a colour the server refuses shows its message under the swatch,
+// specs/planning/calendar-property-parity.md rule 7 — a colour the server refuses shows its message under the swatch,
 // and the swatch goes back to the previous colour.
 import React from 'react';
 import { vi } from 'vitest';

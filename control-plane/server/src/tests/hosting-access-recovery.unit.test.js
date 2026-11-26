@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 24 — a lost invitation is never a dead end: « Reprendre » on
+// specs/hosting/hosting-h1-fleet-runtime.md rule 24 — a lost invitation is never a dead end: « Reprendre » on
 // a failed invitation gives the never-used account a new provisional password and sends it again,
 // and the customer's page offers « Renvoyer l’invitation » (an account nobody signed in to) and
 // « Réinitialiser l’accès » (any account, second step off), each journaled.

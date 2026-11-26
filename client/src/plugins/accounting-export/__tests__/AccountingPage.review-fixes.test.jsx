@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 41, 43 and 52 — review of 2026-11-06: the « Écritures » badge counts the
+// specs/accounting/accounting-synthesis.md §3 rules 41, 43 and 52 — review of 2026-11-06: the « Écritures » badge counts the
 // entries of the month that tab shows (D-HC13, R2-8, R5-06); a period refused on the first load leaves a way back
 // to the current month, and pressing the shown kind again loads its default (R2-5).
 import React from 'react';

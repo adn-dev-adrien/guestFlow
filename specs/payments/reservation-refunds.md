@@ -38,7 +38,7 @@ The two workarounds available today are both wrong:
 - **Shrink the billed line** (6 breakfasts → 4): `finalPrice` drops below what was already collected,
   so the reservation reads « trop-perçu » everywhere (`remainingToPay` goes negative, the collection
   alert and the operational payments table lie), it fights
-  [reservation-option-immutability.md](reservation-option-immutability.md), and the accounting keeps
+  [reservation-option-immutability.md](../reservations/reservation-option-immutability.md), and the accounting keeps
   the original full-price entries — the CA is never actually corrected.
 - **A negative custom option**: same `finalPrice` corruption, plus it silently rewrites a sale that
   was genuinely made at that price on that date.
@@ -68,10 +68,10 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 4. Three means (`method`): **`transfer`** (virement — the default), **`cash`** (espèces), and
    **`internal`** (caisse interne). `transfer` and `cash` are *book money*; `internal` is **off the
    books**, following the exact convention the cash complements already use
-   ([cash-complement-and-endofstay-finance.md](cash-complement-and-endofstay-finance.md),
-   [mid-stay-notes.md](mid-stay-notes.md) rule 15).
+   ([cash-complement-and-endofstay-finance.md](../sas/cash-complement-and-endofstay-finance.md),
+   [mid-stay-notes.md](../sas/mid-stay-notes.md) rule 15).
 5. `totalTtc` is **server-computed** as Σ line amounts — a client-sent total is never trusted
-   ([mid-stay-notes.md](mid-stay-notes.md) rule 7, same philosophy).
+   ([mid-stay-notes.md](../sas/mid-stay-notes.md) rule 7, same philosophy).
 6. A refund is **immutable** once created. A correction is a **delete + recreate**, mirroring the
    note-cancel design. Deleting is always allowed (no month lock exists in the app today).
    > **Reading of 2026-11-02 (audit R15-C1 and its aside).** « Always » has three exceptions, decided on the server
@@ -90,7 +90,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    >
    > A refund made **after** the cancellation — book or caisse interne — is deleted like any other, and its money
    > goes back to the budget it was taken from (rule 48). The fiche of a cancelled stay offers « Supprimer » on
-   > exactly the rows the server deletes, outside its disabled fieldset (specs/calendar-property-parity.md rule 25).
+   > exactly the rows the server deletes, outside its disabled fieldset (specs/planning/calendar-property-parity.md rule 25).
    > *Why:* since the ledger replaced the refunds block, a refund recorded on a cancelled stay had no « Supprimer »
    > at all: a 500 € typo for 50 € stayed in the journal and on the compensation card.
    >
@@ -129,7 +129,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    - **`accommodation`** — one aggregated line = `finalPrice − Σ options − Σ custom − Σ resources`
      (the same accommodation TTC the accounting model derives, `accountingModel.buildPerLineData`);
    - one line per **option** (`opt:<id>`), **custom option** (`custom:<label>`) and **resource**
-     (`res:<id>`), keyed exactly like [midStayExtras.js](../server/src/utils/midStayExtras.js)
+     (`res:<id>`), keyed exactly like [midStayExtras.js](../../server/src/utils/midStayExtras.js)
      (`extraLineKey`) so the two features never disagree on identity;
    - **`touristTax`** when `touristTaxTotal > 0`.
 
@@ -150,40 +150,40 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 13. `refundDate` must be a valid `YYYY-MM-DD` and **not in the future** (the money has to have moved)
     → **400 `REFUND_INVALID_DATE`**.
     *Reading of 2026-11-02 — the date window.* `refundDate` is a real calendar day (`2026-02-30` used to pass the
-    regex) and not before today − 5 years, « Date trop ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    regex) and not before today − 5 years, « Date trop ancienne : 5 ans au plus. » (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 14. **VAT is stored at creation and re-rated with the stay's period.** Each line stores the `vatRate` that applied
-    when it was recorded: the app's single global `vatRate` ([single-vat-rate.md](single-vat-rate.md)) for the
+    when it was recorded: the app's single global `vatRate` ([single-vat-rate.md](../accounting/single-vat-rate.md)) for the
     three revenue buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings
     change never re-prices an avoir already issued — same principle as the stored-money accounting path. A VAT
-    regime switch and its undo ([vat-optional-mode.md](vat-optional-mode.md) rules 16 and 26) re-rate the refund
+    regime switch and its undo ([vat-optional-mode.md](../accounting/vat-optional-mode.md) rules 16 and 26) re-rate the refund
     lines of the stays they move with the stay's period, as the code does (`vatRegimeSwitchModel`).
     _(Amended 2026-11-12, owner O-8 (a), pricing-components Q16 and rule 77: the word « frozen » was read as
     « never re-rated », which the code never did and the owner did not want once he saw the 4457 residue.)_
 15. Refunds are available on a **past-locked** reservation
-    ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)): an early departure is
+    ([admin-unlock-past-reservations.md](../reservations/admin-unlock-past-reservations.md)): an early departure is
     discovered *after* the stay by construction, so the past lock must not block them. They are
     **admin-only** — the reception role's path allowlist
-    ([reception-role-checkin-only.md](reception-role-checkin-only.md)) is not extended, and the
+    ([reception-role-checkin-only.md](../sas/reception-role-checkin-only.md)) is not extended, and the
     accountant role stays read-only.
 
 ### 3.3 Fiche & finance aggregates
 
 16. **Nothing about the collection status changes.** `remainingToPay`, `isSettled`, the dashboard
     collection alert and the operational payments table
-    ([finance-operational-remaining-to-pay.md](finance-operational-remaining-to-pay.md),
-    [dashboard-collection-alert.md](dashboard-collection-alert.md)) ignore refunds entirely: a
+    ([finance-operational-remaining-to-pay.md](../accounting/finance-operational-remaining-to-pay.md),
+    [dashboard-collection-alert.md](../planning/dashboard-collection-alert.md)) ignore refunds entirely: a
     fully-paid, partly-refunded reservation stays **soldée**. A refund is money already returned, it
     is never « pending » — the same reasoning that keeps the notes register out of those paths
-    ([mid-stay-notes.md](mid-stay-notes.md) rule 16).
+    ([mid-stay-notes.md](../sas/mid-stay-notes.md) rule 16).
 17. The fiche's **« Total de séjour »** (`sejourNetTotal`, the figure
-    [fiche-total-sejour-net-of-commission.md](fiche-total-sejour-net-of-commission.md) defines) is
+    [fiche-total-sejour-net-of-commission.md](../platforms/fiche-total-sejour-net-of-commission.md) defines) is
     **net of refunds**, and a dedicated « Remboursements − X € » line appears in the pricing summary
     right below the collection buckets.
 18. `financeModel.totalSejour()` and `financeModel.comptaCollected()` subtract refunds, so every
     figure derived from them follows automatically: the Suivi financier cards, the per-property
     revenue chart, the breakdown dialogs and their HT counterparts
-    ([finance-overview-rework.md](finance-overview-rework.md),
-    [finance-per-property-revenue-chart.md](finance-per-property-revenue-chart.md)).
+    ([finance-overview-rework.md](../accounting/finance-overview-rework.md),
+    [finance-per-property-revenue-chart.md](../accounting/finance-per-property-revenue-chart.md)).
 19. **Means convention, mirroring the caisse interne rule:** `transfer` + `cash` refunds are deducted
     from the book aggregates (totalSejour, encaissé, CA, export). An `internal` refund is off the
     books: it is excluded from those, and only counted in the « avec caisse » readings — exactly what
@@ -385,7 +385,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     which reopens the dialog on the trop-perçu prefill (the `fromOverpayment` flow). No warning when no trop-perçu
     is open or when the dialog was opened on it. No server change.
 45. **A requalification avoir consumes the lines of the bucket it reverses (audit R13-M1, 2026-11-01).** The
-    `retained` avoir of a cancellation (payment-schedule spec §3.6, `specs/direct-installments.md` rule 46)
+    `retained` avoir of a cancellation (payment-schedule spec §3.6, `specs/payments/direct-installments.md` rule 46)
     reverses whole buckets: its option and resource lines are keyed `options` / `resources`, a key no billed
     line carries. `buildRefundableLines` spreads such an amount over the bucket's lines, pro rata of what each
     still had to give back (cents by largest remainder, rule 46; never below 0), after the per-key refunds. *Why:*
@@ -411,7 +411,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 47. **A `retained` avoir is split HT / VAT line by line in the export (review of PR #921, 2026-11-01).**
     `accountingModel.buildRefundEntry` splits each line of a `retained` refund on its own and sums the HT
     and the VAT per bucket; a real refund keeps one split per bucket and rate. A cancellation's avoir
-    reverses encaissements line for line (`specs/direct-installments.md` rule 46, reading of 2026-11-01),
+    reverses encaissements line for line (`specs/payments/direct-installments.md` rule 46, reading of 2026-11-01),
     so this is the split each encaissement was booked with, and the accounts net to the cent. Every
     `retained` avoir booked before carries at most one line per bucket and rate, where both splits are the
     same numbers: no exported month moves. *Why:* 2 × 351,38 € of options split into 2 × 319,44 € HT on
@@ -457,7 +457,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     >   and therefore off `saleLeftTtc`: that money left the stay, even off the books. *Why:* with the paid solde
     >   (640 €) given back in caisse interne, a free line of 274 € was still booked as a sale — 706 −249,09 and
     >   4457 −24,91 on revenue the cancellation had already reversed — instead of off the indemnity.
-    > - The franchise turnover (specs/vat-optional-mode.md rule 37) subtracts a refund's `indemnity` share at
+    > - The franchise turnover (specs/accounting/vat-optional-mode.md rule 37) subtracts a refund's `indemnity` share at
     >   face value, like the indemnity it reduces; its sale share keeps the stay's ratio.
     > - A VAT regime switch (and its undo) re-rates refund lines except `touristTax` **and `indemnity`**: an
     >   indemnity line is not a sale, it stays at 0 % (the export reads the compensation settings anyway).
@@ -475,7 +475,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     « Taxe de séjour : dépasse l'encaissé (12,00 €) » although 2 € were left for it. With a paid solde the lines
     each offered the whole sale money: a stay that had collected 195,94 € offered 290,26 €.
     > **Reading of 2026-11-02 (round 15).** A book refund made before the cancellation no longer reaches the
-    > indemnity: the cancellation keeps only what it left (specs/payment-schedule-and-cancellation.md rule 55), so
+    > indemnity: the cancellation keeps only what it left (specs/payments/payment-schedule-and-cancellation.md rule 55), so
     > `requalifiedTtc` and `indemnityTtc` read the net amount.
     > **Reading of 2026-11-02 (review of PR #926).** A line offers at most what THAT line collected
     > (`collectedByLine`): the paid acompte's and solde's contribs, plus a paid complement's share, net of the sale
@@ -664,7 +664,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     rules 56, 58) reads the encaissements up to its own date; a split solde paid on the 12th and refunded « on the 9th »
     skipped that encaissement and left 70600000 −10,68 / 70900000 +10,68 open. Test: `reservation-refunds-before-last-payment`.
 
-> **Amendment 2026-11-12 — PR B of the pricing refonte** ([pricing-components.md](pricing-components.md) §9 Q16, rules 72
+> **Amendment 2026-11-12 — PR B of the pricing refonte** ([pricing-components.md](../pricing/pricing-components.md) §9 Q16, rules 72
 > and 75-79; the rules live there, in the spec that delivers them). Not renumbered here: it describes what changes
 > in this spec's rules and data model.
 > - Unpaid refunds live in the `refund_obligations` register (origin, status `open` / `settled` / `cancelled`, a
@@ -697,7 +697,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `models/` | `accountingModel.js` | T | New `refundsByMonth({month, year})` → `refund` entries (bucket HT/VAT already split, `direction: 'refund'`); `encaissementsByMonth` untouched |
 | `models/` | `financeModel.js` | T | `totalSejour` / `comptaCollected` subtract the book refunds; `getTouristTaxExtraction` deducts the refunded nights from the declaration (row, per-property recap, month totals) and exposes `refundedTaxNights` / `refundedTaxAmount` |
 | `models/` | `reservationsModel.js` | T | `getById` joins the refund register + totals into the payload consumed by the fiche |
-| `controllers/` | `accountingController.js` | T | Merges encaissement + refund entries, sorted by date, for both `sales.csv` and `sales` |
+| `plugins/accounting-export/` | `controller.js` | T | Merges encaissement + refund entries, sorted by date, for both `sales.csv` and `sales` |
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
 | `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount) _(`refundedTouristTax` was removed on 2026-11-11 by pricing-components PR A: nothing read it; the tourist-tax declaration reads the refunded nights per line)_ |
 | `utils/` | `refunds.js` | T | Rule 49 readings of 2026-11-05 (R23) — `PLAN_BUCKET_LINES`, `collectedAfterArrival`, both read by `collectedByLine` and `collectedLinesGone`; rule 51 — `applyLiveCollected` (`availableTtc`, `sharedBucketTtc`), the line check of `validateRefundPayload` |
@@ -739,7 +739,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `reservationsController.js` | T | Rule 34 — `overpaymentIntroducedBy` (409 `OVERPAID` unless `forceOverpayment`) on update; `calculatePrice` returns `overpaymentTtc` for a stored reservation. Rule 35 — both also return `overpaymentLines` |
 | `models/` | `reservationsModel.js` | T | Rule 35 — `capturedScheduleContribsByPoste`: the captured contribs of each schedule bucket, per poste |
 | `middleware/` | `enforceRoleAccess.js` | — | (none — the new paths are admin-only by default; the reception allowlist drift test pins that) |
-| `schema.sql` | `schema.sql` | T | The two tables + 2 indices. Per specs/migrations-baseline.md the baseline is re-executed at every boot with `CREATE TABLE IF NOT EXISTS`, so a brand-new table needs NO extra block in `database.js` (that file is only for altering existing rows) |
+| `schema.sql` | `schema.sql` | T | The two tables + 2 indices. Per specs/tech/migrations-baseline.md the baseline is re-executed at every boot with `CREATE TABLE IF NOT EXISTS`, so a brand-new table needs NO extra block in `database.js` (that file is only for altering existing rows) |
 
 **Notes:**
 - `utils/refunds.js` is pure (no DB, no clock) so every cap, every VAT split and every
@@ -820,7 +820,7 @@ CREATE INDEX IF NOT EXISTS idx_refunds_date        ON reservation_refunds(refund
 
 Migration strategy: the two tables + their indices live in `server/src/schema.sql`, which
 `database.js` re-executes at every boot with `CREATE … IF NOT EXISTS`
-([migrations-baseline.md](migrations-baseline.md)) — so both a fresh install and the production DB get
+([migrations-baseline.md](../tech/migrations-baseline.md)) — so both a fresh install and the production DB get
 them without a separate migration block (that file is reserved for changes that must alter existing
 rows, which this one doesn't).
 
@@ -1056,5 +1056,5 @@ duplicate set aside none.
   as-is, rather than re-deriving the number in the refunds controller: one authority, no drift.
 - Q: Should an avoir carry its own `Pièce` number once the accountant provides a numbering scheme?
   - A: Deferred — the whole export leaves `Pièce` empty today
-    ([accountant-accounting-export.md](accountant-accounting-export.md) §3.4 rule 13b); refunds join
+    ([accountant-accounting-export.md](../accounting/accountant-accounting-export.md) §3.4 rule 13b); refunds join
     whatever scheme lands there.

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 74 and 76 (formerly reservation-save-keeps-pricing.md rule 17, audit R3 N3) — once a save has
+// specs/pricing/pricing-components.md §3 rules 74 and 76 (formerly reservation-save-keeps-pricing.md rule 17, audit R3 N3) — once a save has
 // rewritten the stored lines, the complement excess a removed activity left is still booked on « Activités ». The poste split reads
 // the lines and the payments that name them (the complement's frozen split, the contribs of removed paid lines), never the audit log.
 

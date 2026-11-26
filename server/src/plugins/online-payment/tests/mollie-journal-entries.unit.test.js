@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — what the plugin tells the accounting export: a paid link
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31 — what the plugin tells the accounting export: a paid link
 // on its payment day, a reconciled credit on its bank day, the settlement's costs, the clearing balance at a date (exactly the
 // money still at Mollie), and the credits it could not attach. The measured pair: 196,80 € = 157,44 € then 39,36 €.
 const test = require('node:test');

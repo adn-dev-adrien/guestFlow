@@ -1,5 +1,5 @@
 /**
- * Welcome pack controller — specs/welcome-pack-auto-options.md §4.3.
+ * Welcome pack controller — specs/options/welcome-pack-auto-options.md §4.3.
  *
  * Endpoint
  *   GET /api/properties/:id/welcome-pack

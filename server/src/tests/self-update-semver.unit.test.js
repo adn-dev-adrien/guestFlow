@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { isValidVersion, parseVersion, compareVersions, isNewerVersion, stripLeadingV } = require('../utils/semver');
 
-// specs/self-update-and-releases.md §3.A rule 2 + §3.B rule 13. These comparisons decide whether a
+// specs/hosting/self-update-and-releases.md §3.A rule 2 + §3.B rule 13. These comparisons decide whether a
 // remote archive gets downloaded and installed over the running application, so "roughly right" is
 // not an option: anything unparseable must answer "no update".
 

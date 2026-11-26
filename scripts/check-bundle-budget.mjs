@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * The JavaScript every first page pays for, against a budget (specs/inte-performance.md rule 4).
+ * The JavaScript every first page pays for, against a budget (specs/tech/inte-performance.md rule 4).
  *
  *   cd client && npm run build && cd .. && node scripts/check-bundle-budget.mjs [--dist client/dist] [--budget <bytes gzip>]
  *
- * The guest app « Mon séjour » runs it with `--dist server/src/plugins/guest-app/apps/guest/dist --budget 200000` (specs/guest-app.md plan step 60:
+ * The guest app « Mon séjour » runs it with `--dist server/src/plugins/guest-app/apps/guest/dist --budget 200000` (specs/guest-app/guest-app.md plan step 60:
  * 200 kB gzip on first load, fonts excluded — they are woff2 files, never counted here).
  *
  * Reads the Vite manifest (`build.manifest: true`) and sums the gzip size of the entry, of every chunk
@@ -26,7 +26,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Measured 2026-10-28 after the lazy routes: 284 851 bytes gzip (before them: 637 kB). + 10 %.
 export const MEASURED_GZIP = 284851;
 // Raised deliberately, each time by the weight a PR adds on purpose, never to turn a red build green:
-//   + 1 000 bytes (2026-11-23, specs/mobile-dashboard-exercise-cash.md) — the SDK's ReservationLinkLine on the
+//   + 1 000 bytes (2026-11-23, specs/planning/mobile-dashboard-exercise-cash.md) — the SDK's ReservationLinkLine on the
 //     home's attention rows, the safe-area insets of the app bar and page bar, and the chunk split they moved.
 const DELIBERATE_RAISES = 1000;
 export const BUDGET_GZIP = Math.ceil(MEASURED_GZIP * 1.1) + DELIBERATE_RAISES;

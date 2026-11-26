@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 14, 16, 22 and 25 — what the « Synthèse » screen needs ready-made: the
+// specs/accounting/accounting-synthesis.md §3 rules 14, 16, 22 and 25 — what the « Synthèse » screen needs ready-made: the
 // periods the selector offers, the tile's main VAT rate, the last export's month in words, the shares as fractions
 // of 1. The clock is pinned for the whole file: the dates are inputs of a model double.
 const test = require('node:test');

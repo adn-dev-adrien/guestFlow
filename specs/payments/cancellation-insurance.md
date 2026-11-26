@@ -17,7 +17,7 @@ Two features shipped on 2026-08-19 defined what a cancellation now **costs the g
 - [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) — a direct booking
   owes its acompte at the booking date and its solde at J-30; when the solde is not paid the
   operator cancels the stay and **keeps the acompte as an indemnity**
-  ([database.js:1142-1148](../server/src/database.js#L1142-L1148), CJUE *Société thermale
+  ([database.js:1142-1148](../../server/src/database.js#L1142-L1148), CJUE *Société thermale
   d'Eugénie-les-Bains*, C-277/05).
 - [cancellation-compensation.md](cancellation-compensation.md) — the mirror case on the platform
   side: what a platform pays back when the guest cancels.
@@ -31,20 +31,20 @@ What already exists and is reused rather than rebuilt:
 - **The options catalogue.** `options` rows carry a `priceType` ∈ `per_stay` / `per_person` /
   `per_night` / `per_person_per_night` / `per_participant_progressive` / `free`, a base `price`, a
   per-property applicability pivot (`property_options`), a per-property **price override**
-  (`property_option_prices`, [per-property-option-prices.md](per-property-option-prices.md)), a
+  (`property_option_prices`, [per-property-option-prices.md](../options/per-property-option-prices.md)), a
   per-property « offert » default, a free-text `category`
-  ([option-categories.md](option-categories.md)) and a `seedKey` identity for seeded articles.
-- **One pricing engine.** [`calculateReservationQuote`](../server/src/utils/pricing.js) prices every
+  ([option-categories.md](../options/option-categories.md)) and a `seedKey` identity for seeded articles.
+- **One pricing engine.** [`calculateReservationQuote`](../../server/src/utils/pricing.js) prices every
   option line, freezes sold lines against a locked snapshot
-  ([devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md)) and is the single
+  ([devis-extras-parity-and-price-lock.md](../devis/devis-extras-parity-and-price-lock.md)) and is the single
   source of truth for the admin fiche, the devis PDF, the public `/quote` and the booking request.
 - **A public catalogue + quote API.** `GET /public/v1/properties/:id/options` returns a grouped,
   render-ready payload and `POST /public/v1/quote` returns a full projection
-  ([public-api.md](public-api.md)); the WordPress widget
-  ([wp-booking-widget-redesign.md](wp-booking-widget-redesign.md)) renders whatever it receives —
+  ([public-api.md](../site/public-api.md)); the WordPress widget
+  ([wp-booking-widget-redesign.md](../site/wp-booking-widget-redesign.md)) renders whatever it receives —
   option labels and unit texts are **computed server-side** in
-  [`publicProjections.js`](../server/src/utils/publicProjections.js).
-- **Boot-time seeds.** [`breakfastSeed.js`](../server/src/utils/breakfastSeed.js) is the reference
+  [`publicProjections.js`](../../server/src/plugins/website-booking/publicProjections.js).
+- **Boot-time seeds.** [`breakfastSeed.js`](../../server/src/utils/breakfastSeed.js) is the reference
   pattern for an idempotent, non-destructive catalogue seed with a title-alias promotion path.
 
 What is missing is (a) a **price type expressed as a percentage of the stay** — the market standard
@@ -111,7 +111,7 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
    planning-card path is bypassed for the insurance too: it is priced from the stay, never per
    scheduled slot.
 6. **Never circular.** The base is read from the engine's own accommodation price, computed
-   **before** the platform back-solve of [platform-payment-entry.md](platform-payment-entry.md)
+   **before** the platform back-solve of [platform-payment-entry.md](../platforms/platform-payment-entry.md)
    (`platformGrossAmount` pins the accommodation *from* the extras, which would be circular). A
    percent option on a platform reservation therefore prices off the engine's tariff, not off the
    pinned brut.
@@ -123,7 +123,7 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
    never re-prices an insurance already agreed and paid.
 9. **« Offert » unchanged.** A `percent_of_stay` line can be offered like any other: the line total
    is 0 and the real amount is kept for a lossless un-offering.
-10. **VAT unchanged**: the single global rate ([single-vat-rate.md](single-vat-rate.md)) applies, as
+10. **VAT unchanged**: the single global rate ([single-vat-rate.md](../accounting/single-vat-rate.md)) applies, as
     for every other option. See §9 for the open fiscal question.
 
 ### 3.2 The cancellation-insurance option
@@ -169,12 +169,12 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
     amount follows §3.1.
 17. **Never sold once the stay has started.** There is nothing left to cancel, so the insurance is
     excluded from **both** in-stay selling surfaces (the SAS write path too since 2026-11-03,
-    [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) rule 15):
+    [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) rule 15):
     - the SAS upsell catalogue
-      ([sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md)) — enforced by an
+      ([sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md)) — enforced by an
       **explicit guard** in `sasOptionSale.sellable` rather than left to the « Restauration »
       category filter, so miscategorising the insurance cannot put it on the check-in screen;
-    - the mid-stay note dialog ([complement-buckets-by-moment.md](complement-buckets-by-moment.md)) —
+    - the mid-stay note dialog ([complement-buckets-by-moment.md](../sas/complement-buckets-by-moment.md)) —
       filtered out of its « Ajouter une prestation » catalogue on the same flag.
 
 17bis. **Read just after « Départ tardif »** (2026-08-20). In the catalogue lists — the
@@ -308,7 +308,7 @@ public preview — that is what makes rule 19's "can never diverge" true. No new
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `OptionsPage.jsx` | T | Adds « % du montant du séjour » to the price-type list; shows the insurance marker (read-only chip) and disables deletion; passes `isCancellationInsurance` through the payload. |
-| `pages/` | `OptionsPage.jsx` | T | Its **local** `PriceInputRow` gains a `percent` mode (« Pourcentage (%) », `max=100`) used by the single and the per-property fields, and its **local** `renderPriceCell` prints `4 %` instead of a euro amount. The generic `PricedItemsPage` needs **no** change: since [per-property-option-prices.md](per-property-option-prices.md) the whole price block is owned by `OptionPriceSection` inside `OptionsPage`, so nothing generic was in the way. |
+| `pages/` | `OptionsPage.jsx` | T | Its **local** `PriceInputRow` gains a `percent` mode (« Pourcentage (%) », `max=100`) used by the single and the per-property fields, and its **local** `renderPriceCell` prints `4 %` instead of a euro amount. The generic `PricedItemsPage` needs **no** change: since [per-property-option-prices.md](../options/per-property-option-prices.md) the whole price block is owned by `OptionPriceSection` inside `OptionsPage`, so nothing generic was in the way. |
 | `components/reservation/` | `extrasLabels.js` | T | `percent_of_stay` → « du séjour » in the extras unit labels. |
 | `components/reservation/` | `OptionRow.jsx` | T | Hides the quantity field for a `percent_of_stay` option (the engine forces 1), and prints its catalogue rate as `4 % du séjour • du montant hébergement` instead of a euro amount. |
 | `components/reservation/` | `MidStayNoteDialog.jsx` | T | Drops the insurance from the « Ajouter une prestation » catalogue (rule 17). |
@@ -481,7 +481,7 @@ is not a GuestFlow page and has no action bar.
 
 ### Client tests (4 + 3 new, suite at 1069 ✅)
 
-- [x] `client/src/pages/__tests__/OptionsPage.percent.test.jsx` — the percentage field, its 0-100
+- [x] `client/src/pages/options/__tests__/OptionEditorPanel.property-table.test.jsx` — the percentage field, its 0-100
       cap, the assiette helper and the per-property percentage rows; other price types keep the
       uncapped euro field.
 - [x] `client/src/components/reservation/__tests__/ExtrasSection.cancellation-insurance.test.jsx`
@@ -550,7 +550,7 @@ is not a GuestFlow page and has no action bar.
 ## 9. Open questions
 
 - **Q — VAT and accounting nature of the premium.** Today it is billed like every other extra, at the
-  single 10 % rate ([single-vat-rate.md](single-vat-rate.md)). A genuine insurance premium is outside
+  single 10 % rate ([single-vat-rate.md](../accounting/single-vat-rate.md)). A genuine insurance premium is outside
   the scope of VAT; a *cancellation guarantee sold by the establishment* is generally an ancillary
   service to the accommodation and follows its rate — which is what this spec implements. To confirm
   with the comptable; if he asks for a separate treatment, it is a follow-up spec (a dedicated

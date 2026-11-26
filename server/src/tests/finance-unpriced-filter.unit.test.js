@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 39 — the « Sans montant » filter of « Réservations » counts
+// specs/accounting/finance-dashboard-redesign.md rule 39 — the « Sans montant » filter of « Réservations » counts
 // the nights its insight announces (those no priced stay covers) and flags every 0 € stay so its payment
 // chips read « Montant à saisir » (review of PR #702, minors 4 and 5: 15 nights in the insight, 17 in
 // the table; « Réglé · Acompte non payé · Solde non payé » on each 0 € stay).

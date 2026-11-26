@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rules 18, 19, 23, 25, 27-29 — the guest's « Domotique » page as the server writes
+// specs/guest-app/guest-app-home-automation.md rules 18, 19, 23, 25, 27-29 — the guest's « Domotique » page as the server writes
 // it: Sowel's values rounded, formatted, dated, scaled — none derived. The client computes nothing.
 const test = require('node:test');
 const assert = require('node:assert/strict');

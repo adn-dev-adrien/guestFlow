@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | #168 (turnover datetime fix) + #169 (caution badge) + platform badge (2026-06-11) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4 tables no longer list the removed `GET /api/planning/alerts` route, controller handler and `getPlanningAlerts` client call: the alerts ride in `GET /api/planning/days` (`server/src/routes/planning.js`, `server/src/controllers/planningController.js:104`).
+
 ---
 
 ## 1. Context
@@ -121,15 +123,15 @@ glance, what to handle at check-in.
 | `models/` | `models/reservationsModel.js` | T | `getByIdWithDetails` computes `bedLinenProvidedByDefault` (query `property_option_defaults`) + sets `reservation.bedLinenAlert` via the util. |
 | `utils/` | `utils/planningArrivalAlerts.js` | C | Pure `computePlanningAlerts({ stays, cleaningHoursByProperty, propertyTimes, from, to })` → `{ arrivals, departures }` (rules 1–3, 7–11), `cleaningLabel` (rule 11). (2026-10-27) |
 | `models/` | `models/planningAlertsModel.js` | C | `alertsInRange({ from, to })`: loads the real stays of `[from − 7 d, to + 7 d]` with their client names and every logement's `cleaningHours` and default check-in / check-out (rule 11), hands them to the util. (2026-10-27) |
-| `controllers/` | `controllers/planningController.js` | T | `alerts` handler: validates `from`/`to` (400 `INVALID_DATE_RANGE`). (2026-10-27) |
-| `routes/` | `routes/planning.js` | T | `GET /alerts`. Reception reads it through the existing `GET /planning/*` allowlist entry. (2026-10-27) |
+| `controllers/` | `controllers/planningController.js` | T | `days` handler: validates `from`/`to` (400 `INVALID_DATE_RANGE`) and returns `alerts: planningAlertsModel.alertsInRange(...)` with the window's days (the `alerts` handler was removed 2026-10-28). |
+| `routes/` | `routes/planning.js` | T | `GET /days` carries the alerts (`GET /alerts` removed 2026-10-28). Reception reads it through the existing `GET /planning/*` allowlist entry. |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `reservationConflicts.js` | T | `cleaningTurnoverConflict` removed on 2026-10-27 — the comparison moved to the server (rule 7). |
-| `services` | `api.js` | T | `getPlanningAlerts({ from, to })`. (2026-10-27) |
+| `services` | `api.js` | T | The alerts come with the window's `GET /planning/days` (`getPlanningAlerts` removed 2026-10-28). |
 | `pages/` | `PlanningPage.jsx` | T | `detectAlerts` and the properties load removed (2026-10-27): the page loads `getPlanningAlerts` with each window (merged on the infinite scroll) and passes `alerts.arrivals[id]` to `ReservationCard`, `alerts.departures[id]` to `DepartureMiniRow` (rule 10). |
 | `components/` | `ReservationCard.js` | T | « Caution à percevoir » badge; **platform badge** (rule 5); **bed-linen alert** badge (rule 6) rendering `reservation.bedLinenAlert` (warning chip + `WarningAmber` icon). |
 | `constants/` | `platforms.js` | T | New `formatPlatformLabel(platform)` display helper (capitalises `direct`); reuses existing `getPlatformColor`. |

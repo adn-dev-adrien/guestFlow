@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 112 (loop t8 UI8-1) — « Enregistrer et rembourser » opens the refund dialog on the cash part the
+// specs/pricing/pricing-components.md rule 112 (loop t8 UI8-1) — « Enregistrer et rembourser » opens the refund dialog on the cash part the
 // save's 409 named (`overpaymentCash`): « Caisse interne » on its lines, the rest announced, as from the ledger row.
 import React from 'react';
 import { vi } from 'vitest';

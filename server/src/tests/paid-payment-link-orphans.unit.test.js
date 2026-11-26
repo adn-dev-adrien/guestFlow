@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 27 — the boot counts the paid links left without a stay
+// specs/plugins/plugins-phase-3a-online-payment.md rule 27 — the boot counts the paid links left without a stay
 // and deletes nothing (audit 2026-10-28).
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

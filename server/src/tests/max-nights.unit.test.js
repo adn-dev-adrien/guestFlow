@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-recipes/spec.md §3.4 rule 20bis — the maximum stay, mirror of the minimum: a per-range
+// specs/pricing/tariff-recipes.md §3.4 rule 20bis — the maximum stay, mirror of the minimum: a per-range
 // override wins over the season default, the MOST RESTRICTIVE ceiling across the nights touched wins,
 // and absent/NULL means unlimited (what every existing property carries).
 

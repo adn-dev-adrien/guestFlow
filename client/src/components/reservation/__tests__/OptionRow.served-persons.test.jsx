@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 8, 9, 19, 20, 26 — « Qté » of a non-card option is the
+// specs/options/non-card-option-served-persons.md rules 8, 9, 19, 20, 26 — « Qté » of a non-card option is the
 // number of people or of nights, turns red when the party or the stay moved, and offers the new value.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

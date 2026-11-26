@@ -22,10 +22,10 @@ Résumé: Jean Dupont
 ```
 
 This is noise: the operator never needs the source name / UID / raw summary in the free-text note, and
-worse, the blob was **rewritten on every re-sync** ([propertyIcalModel.js](../server/src/models/propertyIcalModel.js)
+worse, the blob was **rewritten on every re-sync** ([propertyIcalModel.js](../../server/src/models/propertyIcalModel.js)
 `updateReservation`), so a note the operator typed by hand was silently clobbered the next time the feed
 moved. The original summary is already preserved in its own column (`icalOriginalSummary`), used for the
-cross-UID dedup fallback (specs/ical-summary-fallback-cross-uid.md), and the `sourceType='ical'` +
+cross-UID dedup fallback (specs/platforms/ical-summary-fallback-cross-uid.md), and the `sourceType='ical'` +
 platform columns already identify the booking as an import — so the note carried no unique information.
 
 **2026-08-13 extension.** The same noise existed one level down: when the import had to create the

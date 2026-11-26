@@ -1,4 +1,4 @@
-// specs/public-api.md rule 16 (2026-10-27 audit) — the same option or resource twice in one stay is
+// specs/site/public-api.md rule 16 (2026-10-27 audit) — the same option or resource twice in one stay is
 // refused at the boundary (it used to reach the booking lines' UNIQUE index and answer a 500).
 const test = require('node:test');
 const assert = require('node:assert/strict');

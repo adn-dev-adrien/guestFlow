@@ -1,8 +1,8 @@
 /**
  * The name of every shipped guest email — client mirror of NAMES in server/src/utils/emailTimeline.js
- * (specs/guest-email-texts-made-simple.md rule 44). The server stays the authority on what each page
+ * (specs/emails/guest-email-texts-made-simple.md rule 44). The server stays the authority on what each page
  * shows; this copy only lets the settings search understand the names an owner types
- * (specs/settings-rationalization.md rule 29). server/src/tests/email-names-mirror.unit.test.js
+ * (specs/settings/settings-rationalization.md rule 29). server/src/tests/email-names-mirror.unit.test.js
  * keeps the two lists identical.
  */
 export const EMAIL_DISPLAY_NAMES = Object.freeze({

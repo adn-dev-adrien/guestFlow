@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { setDirectChannels } = require('../utils/platformNameFormat');
 
-// specs/tourist-tax-included-services-deduction.md rule 17 — spec review 2026-10-27 (M3). On a
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rule 17 — spec review 2026-10-27 (M3). On a
 // platform booking whose brut is entered, the base is the brut less the extras and the supplement it
 // carries; the fiche's « Base : X − Y de prestations comprises » still printed the TARIFF as X, so
 // X − Y was not the base the tax was computed on.

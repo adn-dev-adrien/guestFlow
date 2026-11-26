@@ -76,15 +76,15 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
    - a date **before the booking existed** is refused, for the same reason in the other direction.
    Any other past date is accepted: recording late is exactly the case this feature exists for.
       *Reading of 2026-11-02 — the date window.* The collection date is also refused before today − 5 years
-      (« Date trop ancienne : 5 ans au plus. », `specs/reservations-backend-mvc.md` rule 13, second reading).
-4. **Never shown to a reception-only user** ([reception-role-checkin-only.md](reception-role-checkin-only.md)):
+      (« Date trop ancienne : 5 ans au plus. », `specs/tech/reservations-backend-mvc.md` rule 13, second reading).
+4. **Never shown to a reception-only user** ([reception-role-checkin-only.md](../sas/reception-role-checkin-only.md)):
    the fiche is finance-stripped for that role, and the amounts are not in its payload.
 
 ### 3.2 What it does
 
 5. **Two actions, the same grammar as everywhere else**: **« CB / Chèque »** (ordinary accounting) and
    **« Caisse interne »** (off the books — accounting, export and turnover, exactly as a cash
-   complement, [cash-complement-and-endofstay-finance.md](cash-complement-and-endofstay-finance.md)).
+   complement, [cash-complement-and-endofstay-finance.md](../sas/cash-complement-and-endofstay-finance.md)).
 6. One click settles **every collectible bucket at once**, with **the chosen date** (rule 3bis) on
    each, then records the group at that same date. A bucket that is already paid is left strictly
    alone and is not named by the group.

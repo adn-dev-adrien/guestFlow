@@ -9,9 +9,11 @@
 | **Related PR** | pricing-components PR C (#1054) — target `master` (`inte/plugins` retired 2026-11-13) |
 | **Target release** | 4.2.0, with PR C |
 | **Plugins** | `hourly-resources` (owner of the screen, of the session line and of the `resource` suggestion contexts), `online-payment` (Qonto invoice and payment link), `accounting-export` (journal) |
-| **Depends on** | [`pricing-components.md`](pricing-components.md) **PR B**, then **PR C**, which carries this spec (the external sale: `externalSale` pipeline, `standalone_sales`, the « Passage » client, rules 53, 74); PR B carries (lines, `payment_allocations`, SETTLEMENT on lines, REFUNDS owed, FULFILMENT port and bath adapter, `saleDetail`, `AccountingOutput`) |
-| **Builds on** | [`resource-booking-pricing-and-invoicing.md`](resource-booking-pricing-and-invoicing.md) (rules 28-33: today's one-screen arrival of a resource-only guest), [`mixed-method-payments.md`](mixed-method-payments.md) (`TenderLines`, `validateSettlement`), [`sas-offer-complement-lines.md`](sas-offer-complement-lines.md) (« Offrir » gesture), [`reception-sas-today-only.md`](reception-sas-today-only.md) (day window), [`reopen-completed-sas.md`](reopen-completed-sas.md), [`payment-link-lifecycle.md`](payment-link-lifecycle.md) (validity, withdrawal, rules 6, 8, 14, 42), [`no-automatic-email-without-approval.md`](no-automatic-email-without-approval.md) |
-| **Summary for the owner** | [`docs/rapports/2026-11-12-outside-booking-sas.html`](../docs/rapports/2026-11-12-outside-booking-sas.html) — French, interactive mock (M5); the counter dialog and the catalogue fields: [`docs/rapports/2026-11-13-m4-vente-hors-sejour.html`](../docs/rapports/2026-11-13-m4-vente-hors-sejour.html) (M4) |
+| **Depends on** | [`pricing-components.md`](../pricing/pricing-components.md) **PR B**, then **PR C**, which carries this spec (the external sale: `externalSale` pipeline, `standalone_sales`, the « Passage » client, rules 53, 74); PR B carries (lines, `payment_allocations`, SETTLEMENT on lines, REFUNDS owed, FULFILMENT port and bath adapter, `saleDetail`, `AccountingOutput`) |
+| **Builds on** | [`resource-booking-pricing-and-invoicing.md`](../resources/resource-booking-pricing-and-invoicing.md) (rules 28-33: today's one-screen arrival of a resource-only guest), [`mixed-method-payments.md`](../payments/mixed-method-payments.md) (`TenderLines`, `validateSettlement`), [`sas-offer-complement-lines.md`](sas-offer-complement-lines.md) (« Offrir » gesture), [`reception-sas-today-only.md`](reception-sas-today-only.md) (day window), [`reopen-completed-sas.md`](reopen-completed-sas.md), [`payment-link-lifecycle.md`](../payments/payment-link-lifecycle.md) (validity, withdrawal, rules 6, 8, 14, 42), [`no-automatic-email-without-approval.md`](../emails/no-automatic-email-without-approval.md) |
+| **Summary for the owner** | [`docs/rapports/2026-11-12-outside-booking-sas.html`](../../docs/rapports/2026-11-12-outside-booking-sas.html) — French, interactive mock (M5); the counter dialog and the catalogue fields: [`docs/rapports/2026-11-13-m4-vente-hors-sejour.html`](../../docs/rapports/2026-11-13-m4-vente-hors-sejour.html) (M4) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
 
 > Code references point at `docs/outside-booking-sas` = `feature/pricing-components-a` @ `bc5b8f48`. Function names
 > are the anchors; line numbers drift. Rule numbers are identities: a later rule is appended, never inserted.
@@ -892,8 +894,8 @@ journal rows are unchanged. **Data impact:** additive only; no existing amount, 
 ## 6. UI / UX
 
 The owner decides on the interactive mock in
-[`docs/rapports/2026-11-12-outside-booking-sas.html`](../docs/rapports/2026-11-12-outside-booking-sas.html).
-Design system « Maison » (`specs/design-system.md`): fir-green primary, paper background, serif section headers,
+[`docs/rapports/2026-11-12-outside-booking-sas.html`](../../docs/rapports/2026-11-12-outside-booking-sas.html).
+Design system « Maison » (`specs/design-system/design-system.md`): fir-green primary, paper background, serif section headers,
 amounts in sans `tabular-nums`, radius 14.
 
 **Mini SAS (dialog `ResourceArrivalDialog`)** — title « Arrivée · {displayName} », caption « {resource} · {day} ·

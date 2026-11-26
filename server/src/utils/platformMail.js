@@ -1,6 +1,6 @@
 /**
  * The platform's sender, for a hosted instance without its own SMTP
- * (specs/hosting-h1-fleet-runtime.md rules 18–20, H-D5).
+ * (specs/hosting/hosting-h1-fleet-runtime.md rules 18–20, H-D5).
  *
  * The control plane writes it into the instance's environment at provisioning:
  *

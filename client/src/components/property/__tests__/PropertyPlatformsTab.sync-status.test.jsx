@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md rules 2, 9 and 10 — a stopped calendar says so and offers no sync; the
+// specs/platforms/ical-import-hardening.md rules 2, 9 and 10 — a stopped calendar says so and offers no sync; the
 // status line is the server's (when, and what changed), its detail in a tooltip; a « 0 » never shows.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

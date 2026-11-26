@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rules 56 and 62 — the platform price alert prints what the server decided.
+// specs/payments/reservation-payment-ledger.md rules 56 and 62 — the platform price alert prints what the server decided.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';

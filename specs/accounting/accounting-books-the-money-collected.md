@@ -21,7 +21,7 @@ Two independent defects, both in `accountingModel.buildEntry`.
 
 ### Defect 1 — a gross-up ratio fires on reservations it was never meant for
 
-`specs/accounting-encaissement-effective-percent.md` introduced
+`specs/accounting/accounting-encaissement-effective-percent.md` introduced
 `grossRatio = (finalPrice + touristTax) / (acompte + solde + complément)` to repair two **historical**
 schedule shapes (the « solde = net » era and the `clientGrossAmount` era). Its own comment states the
 ratio « is 1 for every reservation written by the current engine ». That is false in two situations:
@@ -87,7 +87,7 @@ options and resources appear once, at their real amount, only when they were rea
 
      > **Since 2026-08-25** the fiche of such a row disagreed with this branch: it deducted the
      > commission from a solde that was already net, and read « encaissé 812 € » where the journal and
-     > the bank said 903 €. `specs/legacy-net-solde-schedule-repair.md` puts the commission back into
+     > the bank said 903 €. `specs/accounting/legacy-net-solde-schedule-repair.md` puts the commission back into
      > the échéance at boot, so #7 now takes the **ratio-1** branch above and produces the very same
      > entry. This branch stays — it is what makes that repair provably free of effect on the books —
      > but no reservation in production needs it any more.
@@ -117,7 +117,7 @@ options and resources appear once, at their real amount, only when they were rea
    pure accommodation — 655,29 € HT + 65,53 € de TVA, and nothing else.
 7. **The arrival complement** credits `[options complément, ressources complément]` plus the tourist tax
    on 46710000. No accommodation, ever. When the operator adjusted the complement, the fiche's stored
-   ventilation keeps winning (`specs/adjustable-complement-amounts.md` §3.6) — unchanged.
+   ventilation keeps winning (`specs/sas/adjustable-complement-amounts.md` §3.6) — unchanged.
 8. **The complément de fin de séjour is ventilated by line**, from its stored detail: a line keyed
    `res:*` credits the resources account (70601000), everything else — SAS lines (ménage, linge
    manquant) included — credits the options account (70600010). Today the whole amount lands on the
@@ -142,7 +142,7 @@ options and resources appear once, at their real amount, only when they were rea
 > guests and less breakfast, booking `46710000 C-88,80`. The contribs captured when the solde was
 > ticked described the bigger stay; used as they were, they overflowed the entry, and the export put
 > the gap on its last credit, the tourist tax. An online payment goes through the same recorder as the
-> manual tick (`specs/plugins-phase-3a-online-payment.md` rule 1), so it reached the bug too. Before
+> manual tick (`specs/plugins/plugins-phase-3a-online-payment.md` rule 1), so it reached the bug too. Before
 > that recorder, an online payment captured nothing and was booked pro-rata, which gave the right
 > journal.
 
@@ -151,7 +151,7 @@ options and resources appear once, at their real amount, only when they were rea
     booked like one that never captured anything: pro-rata of the lines as they stand now (rules 5-7).
     No credit line is ever negative, and the 46710000 line is the stay's own tax. Contribs that still
     fit keep driving the entry as before. The money received beyond the new total is a trop-perçu, which
-    the fiche reports (`specs/reservation-refunds.md` rule 34).
+    the fiche reports (`specs/payments/reservation-refunds.md` rule 34).
 
 ### A gross-up entry that captured contribs (2026-10-19)
 
@@ -159,7 +159,7 @@ options and resources appear once, at their real amount, only when they were rea
 > France, `clientGrossAmount` era: 706 € solde net, 907,20 € paid by the guest, no entered commission)
 > on a copy of the Solio base. The tick captured contribs from the stored solde — 706 € of
 > accommodation — and the contrib path used them as they were, while the entry's CA is grossed up to
-> 907,20 € (rule 4, `specs/accounting-encaissement-effective-percent.md` rule 1). The 201,20 € of
+> 907,20 € (rule 4, `specs/accounting/accounting-encaissement-effective-percent.md` rule 1). The 201,20 € of
 > commission the contribs leave out fell on the last credit, the VAT line:
 > `CDAUSQU D706 | 622600 D201,20 | 70600000 C641,82 | 44571100 C265,38` — 41 % of VAT. Rule 10 of the
 > effective-percent spec assumed every contrib row was a current-model row (ratio 1); a legacy row
@@ -199,7 +199,7 @@ options and resources appear once, at their real amount, only when they were rea
     channel key (`entry.platform !== 'direct'`). On the production data this is correct: Lodgify counts as a direct sale and still
     shows its real commission. Reading the platform mode (`isDirectChannel`) instead would hide those columns on Lodgify (its
     rows carry a real commission, and the byte-for-byte golden `vat-regime-golden` shows them). The refonte's accounting output
-    (the `csvJournal` adapter, specs/pricing-components.md) replaces this rule: the columns are shown as soon as an entry
+    (the `csvJournal` adapter, specs/pricing/pricing-components.md) replaces this rule: the columns are shown as soon as an entry
     carries a commission or a recorded platform gross, whatever the channel. The other change of the sales
     CSV in 4.0.0 is « Commission » reading empty instead of 0 where no commission was recorded (the golden's `lodgify` row
     follows). Where 3.21.0 showed a stored figure it comes back (5 = 748, 6 = 793,65, 22209 = 315,
@@ -226,7 +226,7 @@ options and resources appear once, at their real amount, only when they were rea
 14. **An installment books the split frozen when it was collected.** Recording an installment as paid
     stores its accounting split on the installment (`reservation_installments.paidSplit`: tourist-tax
     share, accommodation, options, resources, in cents, adding up to its amount —
-    `utils/installmentPaidSplit.js`, `specs/direct-installments.md` rule 47). The export books that split
+    `utils/installmentPaidSplit.js`, `specs/payments/direct-installments.md` rule 47). The export books that split
     verbatim; a later save of the fiche moves no installment entry. An installment collected before the
     column existed (none in production) keeps the live split.
 
@@ -286,7 +286,7 @@ options and resources appear once, at their real amount, only when they were rea
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `models/` | `accountingModel.js` | T | `buildEntry`: the ratio rule (rules 1-2) and the per-encaissement ventilation (rules 5-7, 10). `buildEndOfStayEntry`: ventilate by stored detail key (rule 8). |
-| `utils/` | `storedMoneySplit.js` | C | `buildPerLineData`: classify every billed line into pre-arrival / complement / mid-stay, options and resources kept apart; `splitByDestination`, `storedMoneyCollected`, `storedMoneyBucketTtcs`. Moved out of the plugin's `accountingModel.js` on 2026-11-02 (specs/payment-schedule-and-cancellation.md rule 55): the cancellation reads the same split; the plugin reads it through `coreModule('storedMoneySplit')` (specs/plugins-phase-1-sdk.md rule 36). |
+| `utils/` | `storedMoneySplit.js` | C | `buildPerLineData`: classify every billed line into pre-arrival / complement / mid-stay, options and resources kept apart; `splitByDestination`, `storedMoneyCollected`, `storedMoneyBucketTtcs`. Moved out of the plugin's `accountingModel.js` on 2026-11-02 (specs/payments/payment-schedule-and-cancellation.md rule 55): the cancellation reads the same split; the plugin reads it through `coreModule('storedMoneySplit')` (specs/plugins/plugins-phase-1-sdk.md rule 36). |
 | `utils/` | `midStayExtras.js` | — | (none) — `extraLineKey` / `resolveMidStaySplit` / `storedMidStayLines` are reused as they are. |
 | `utils/` | `accountingExport.js` | — | (none) — the row layout, the accounts and the residue absorption are unchanged. |
 | `constants/` | `accounting.js` | — | (none) — same chart of accounts (rule 9). |
@@ -312,16 +312,16 @@ Unchanged — same endpoints, same CSV columns, same journal-row layout. Only th
 ## 5. Data model
 
 No schema change, no migration, no backfill for rules 1-13: the fix is entirely in how stored data is
-read. Rule 14 adds `reservation_installments.paidSplit` (see `specs/direct-installments.md` §5).
+read. Rule 14 adds `reservation_installments.paidSplit` (see `specs/payments/direct-installments.md` §5).
 Rules 16-17 add `reservations.complementPaidSplit TEXT NULL` and `reservations.removedLineContribs TEXT NULL`, plus the
 trigger `reservations_clear_complement_paid_split` (`schema.sql`, `database.js` right after the baseline pass). Additive, no
 backfill: NULL reads as before them. A rollback below them ignores both columns and reads the entries live again
-(specs/self-update-and-releases.md rule 39, reading of 2026-11-05).
+(specs/hosting/self-update-and-releases.md rule 39, reading of 2026-11-05).
 
 **Data impact:** none on the records. The **exports** of past months do change for the affected
 reservations — which is the point: they were wrong. Adrien's accountant reprocesses the already-filed
 months by hand (decision 2026-08-24, carried over from
-`specs/platform-brut-excludes-offered-tourist-tax.md` rule 10).
+`specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md` rule 10).
 
 ## 6. UI / UX
 

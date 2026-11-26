@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68 (audit R22-A2, R22-A3, N4) — the account routes behind a session or a
+// specs/hosting/hosting-h2-account-security.md rule 68 (audit R22-A2, R22-A3, N4) — the account routes behind a session or a
 // right password: a password or a code that is not a string is a wrong one, counted as such; identity fields are text.
 const test = require('node:test');
 const assert = require('node:assert/strict');

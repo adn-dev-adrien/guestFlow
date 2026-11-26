@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 5, 8-13 and 20 — a paid link is two expected receipts, and a
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 5, 8-13 and 20 — a paid link is two expected receipts, and a
 // Mollie credit is matched against them. Fictional data; the measured cases are the 157,44 / 39,36 pair (196,80 € at
 // 80 / 20), the Gruat 14,00 € sale (11,20 €), and a grouped credit of three immediate shares and one release.
 const test = require('node:test');

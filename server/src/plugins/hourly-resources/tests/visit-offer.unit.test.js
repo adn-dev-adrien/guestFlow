@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 13 — « Offrir » on the whole line (session or extra: amount 0, catalogue value kept for the struck display), the partial offered
+// specs/sas/outside-booking-sas.md rule 13 — « Offrir » on the whole line (session or extra: amount 0, catalogue value kept for the struck display), the partial offered
 // time of the session as one of its parts (15-minute steps), and no third mechanism: the tender's « geste commercial » is refused in the mini SAS.
 const test = require('node:test');
 const assert = require('node:assert/strict');

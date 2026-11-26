@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 1, 2 and 15 — the period of the synthesis and its chart buckets.
+// specs/accounting/accounting-synthesis.md §3 rules 1, 2 and 15 — the period of the synthesis and its chart buckets.
 // The clock is pinned for the whole file: every date below is an input of pure functions whose « today » is
 // that pinned day.
 const test = require('node:test');

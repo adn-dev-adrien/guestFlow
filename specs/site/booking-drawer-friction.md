@@ -7,7 +7,7 @@
 | **Created** | 2026-10-19 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Mock-up** | [`docs/specs/2026-10-19-booking-drawer-friction.html`](../docs/specs/2026-10-19-booking-drawer-friction.html) — interactive, real prices and rules of 2026-10-19 |
+| **Mock-up** | [`docs/specs/2026-10-19-booking-drawer-friction.html`](../../docs/specs/2026-10-19-booking-drawer-friction.html) — interactive, real prices and rules of 2026-10-19 |
 
 ---
 
@@ -29,7 +29,7 @@ viewport showed three causes, all visible in the live drawer:
 
 1. **The récapitulatif offers one action: pay the whole stay now** (« Payer en ligne », 642,80 € for
    two nights at La Granja). There is no way to ask a question or to book without paying, although the
-   engine supports it (`payOnline = false` sends a request, `specs/public-online-payment.md`).
+   engine supports it (`payOnline = false` sends a request, `specs/site/public-online-payment.md`).
 2. **The price is always quoted for 2 people.** The 21 quotes of the period were all at 2 guests: the
    travellers block sits *after* the calendar and the options, and nobody scrolls to it. La Granja's
    price does not depend on the party (319 € a night in November, from 2 to 12 people), so a group of
@@ -55,7 +55,7 @@ can either pay now or send a request without paying.
    site until its operator ticks it. Domaine Solio ticks it on both lodging pages (decision 2026-10-19).
 2. With both settings on, the récapitulatif shows **two actions**: the primary « Payer 642,80 € » (the
    amount is the one the guest pays now — the total, or the acompte when the property is in deposit
-   mode, `specs/public-online-deposit.md`) and a secondary « Envoyer une demande sans payer ».
+   mode, `specs/site/public-online-deposit.md`) and a secondary « Envoyer une demande sans payer ».
 3. « Envoyer une demande sans payer » posts the **same** `POST /booking-requests` as a request-only
    block, and lands on the same confirmation (« Demande envoyée ! Référence : … Nous vous recontactons
    rapidement. »). No payment link is created.
@@ -262,7 +262,7 @@ No schema change. The block attribute is stored by WordPress in the page content
 
 ## 6. UI / UX
 
-The mock-up is the reference: [`docs/specs/2026-10-19-booking-drawer-friction.html`](../docs/specs/2026-10-19-booking-drawer-friction.html).
+The mock-up is the reference: [`docs/specs/2026-10-19-booking-drawer-friction.html`](../../docs/specs/2026-10-19-booking-drawer-friction.html).
 
 - **Order of screen 1:** Voyageurs (with « le prix s'affiche pour votre groupe ») → calendar → options.
 - **Day cell:** number, and under it the night's price in `.6rem` muted text; « min. 2 » on hatched

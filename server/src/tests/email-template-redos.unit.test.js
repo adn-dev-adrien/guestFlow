@@ -1,4 +1,4 @@
-// specs/email-automation.md rule 20 (audit r4, R4-1) — the renderer is linear on a long run of spaces,
+// specs/emails/email-automation.md rule 20 (audit r4, R4-1) — the renderer is linear on a long run of spaces,
 // its output unchanged, and a template's subject and body are capped (300 / 20 000 characters) when
 // written by the editor or by the texts CSV.
 

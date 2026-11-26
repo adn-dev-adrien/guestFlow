@@ -1,4 +1,4 @@
-// Shared fixtures for the order suites (specs/guest-app.md rules 24-38, 43-45). Not a test file. The order is
+// Shared fixtures for the order suites (specs/guest-app/guest-app.md rules 24-38, 43-45). Not a test file. The order is
 // written by the core's own save (`performUpdate`) on the boot schema, so these suites run on the app's database
 // (DB_PATH=:memory:) and on stays dated around today: the fiche's mid-stay window is the core's, read on today's date.
 

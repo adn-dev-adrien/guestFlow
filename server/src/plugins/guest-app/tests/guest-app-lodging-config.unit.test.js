@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 11bis, 11ter, 11quater — the per-lodging configuration, through the real routes.
+// specs/guest-app/guest-app.md rules 11bis, 11ter, 11quater — the per-lodging configuration, through the real routes.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');

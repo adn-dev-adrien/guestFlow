@@ -8,13 +8,15 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 1: the « Acompte » control lives on Paramètres › Plateformes, not in the property table (`specs/settings/settings-rationalization.md` rules 17-18; `PlatformsSettingsPage.jsx`).
+
 ---
 
 ## 1. Context
 
 Today **every platform reservation is forced to a single payment**: the pricing engine sets
 `depositAmount = 0` and puts the whole pre-arrival total in the `balanceAmount` (solde), for any
-`platform !== 'direct'` (see [pricing.js](../server/src/utils/pricing.js) `if (platformIsNonDirect)`).
+`platform !== 'direct'` (see [pricing.js](../../server/src/utils/pricing.js) `if (platformIsNonDirect)`).
 This was correct for Airbnb/Booking (one net transfer), but the operator is now treating their own
 channel (**Lodgify**) as a platform, and there the guest pays an **acompte then a solde** — so the
 all-in-solde rule is wrong for it.
@@ -28,8 +30,7 @@ property's deposit %), like a direct booking.
 
 ## 3. Functional rules
 
-1. A new per-platform setting **« Acompte »** (Oui / Non) is shown in the property platforms table,
-   next to « Taxe de séjour ». Like the tax mode, it is **global per platform** (changing it applies to
+1. A new per-platform setting **« Acompte »** (Oui / Non) is edited on Paramètres › Plateformes (`/settings/plateformes`; it was first shown in the property platforms table, `specs/settings/settings-rationalization.md` rule 17 moved it), and shown there read-only as a chip. Like the tax mode, it is **global per platform** (changing it applies to
    every property) and hidden for the `direct` row (direct always has its own deposit flow).
 2. Default = **Non** (no acompte). Existing platforms are unaffected: all platform reservations keep
    `depositAmount = 0`, everything in the solde.
@@ -37,7 +38,7 @@ property's deposit %), like a direct booking.
    split: `depositAmount = depositPercent(property) × preArrival`, `balanceAmount = remainder` — the
    same chain as direct bookings (so `depositAmountOverride`, `depositPaid`, `depositDisabled` all
    apply as usual).
-   _Amended 2026-09-20 ([property-deposit-switch.md](property-deposit-switch.md) rule 6): the
+   _Amended 2026-09-20 ([property-deposit-switch.md](../payments/property-deposit-switch.md) rule 6): the
    logement's own « Acompte » switch outranks this one. On a property with `depositEnabled = 0` a
    platform set to « Oui » still produces no acompte — unless one was already encaissé, which is
    never rewritten._

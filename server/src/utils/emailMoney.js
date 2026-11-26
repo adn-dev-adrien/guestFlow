@@ -1,5 +1,5 @@
 /**
- * One way to write an amount in a guest e-mail (specs/email-language-fr-en.md rules 4 and 10). Pure.
+ * One way to write an amount in a guest e-mail (specs/emails/email-language-fr-en.md rules 4 and 10). Pure.
  *
  *   emailAmount(amount, lang)
  *     fr → « 1 234,56 € », « 45,50 € », « 500 € » — thousands grouped with a narrow no-break space

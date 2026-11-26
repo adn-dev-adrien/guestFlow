@@ -7,6 +7,8 @@
 | **Created** | 2026-06-23 |
 | **Author** | Adrien |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Goal 2 and rule 6 (the « Taxe de séjour » month = month of the solde payment) are retired in favour of `specs/tourist-tax/tourist-tax-declaration-month-stay-end.md`; the tax placement on the solde (rules 1-5) is current.
+
 ---
 
 ## 1. Context
@@ -41,7 +43,7 @@ Applies to direct **and** platform reservations with an acompte.
 2. **No acompte (deposit = 0 / depositDisabled / no-acompte platform):** solde = `accommodationPreArrival +
    taxInPreArrival` = the current `preArrivalAmount` — **unchanged**.
    1.bis **A devis obeys rule 1 too** (fixed 2026-08-20,
-   [payment-link-quote-parity.md](payment-link-quote-parity.md) §3.2). `devisModel` stored the engine's
+   [payment-link-quote-parity.md](../payments/payment-link-quote-parity.md) §3.2). `devisModel` stored the engine's
    split from the start but `enrichDevis` re-derived its own from the tax-INCLUSIVE total, so the devis
    screen and its PDF displayed an acompte a tax-share above the stored row, the guest's email, the
    Qonto page and the same stay once converted. The read-time derivation is gone; a devis stored before
@@ -64,13 +66,8 @@ Applies to direct **and** platform reservations with an acompte.
      unchanged. In a single month's export where only the acompte is present, the acompte's accommodation
      is a few euros higher (absorbing the would-be tax) and shows 0 tax — self-correcting once the solde
      is booked.
-6. ~~**Taxe-de-séjour page:** a stay's tax is attributed to the month of `balancePaidDate` (the solde paid
-   date). Stays whose solde isn't paid in/at the queried month don't appear. Tax-collected-on-arrival
-   stays use `complementPaidDate`. (Replaces the last-night-date attribution.)~~
-   **Superseded (2026-07-19)** by `specs/tourist-tax-declaration-month-stay-end.md`: the declaration
-   month is now `max(last-night month, payment month)` — payment remains a gate (unpaid → absent) but
-   no longer drives the month when it precedes the stay end. Rules 1–5 (tax placement on the solde) are
-   unchanged.
+6. *(Retired 2026-11-26 — the declaration month is `max(last-night month, payment month)`, payment being only a gate; see specs/tourist-tax/tourist-tax-declaration-month-stay-end.md rule 3. Rules 1–5, the tax placement on the solde, are unchanged.)*
+   > **Sans test** — retired rule
 
 **Edge cases:**
 - Manual acompte override > `accommodationPreArrival` → clamped to `accommodationPreArrival` (acompte can't
@@ -120,5 +117,5 @@ reservations keep their stored split; re-saving an unpaid one moves its tax to t
 - **Resolved (2026-06-23):** For tax collected on arrival, the Taxe-de-séjour month = `complementPaidDate`
   (the month the complement is encashed). Implemented in `TAX_ON_ARRIVAL_SQL` branch of
   `getTouristTaxExtraction`. *(Superseded 2026-07-19 with the rest of rule 6 — see
-  `specs/tourist-tax-declaration-month-stay-end.md`; the complement remains the tax-carrying échéance
+  `specs/tourist-tax/tourist-tax-declaration-month-stay-end.md`; the complement remains the tax-carrying échéance
   for on-arrival stays, but only as a floor/gate, no longer as the attribution month.)*

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 2 subtracts only the tax the platform billed (`touristTaxTotal − touristTaxAddedGuestsAmount`, `specs/tourist-tax/platform-added-guests-tourist-tax.md` rule 9); the back-solve lives in `server/src/utils/pricing/steps/touristTax.js` (the `pricing.js` line reference in §1 is stale).
+
 ---
 
 ## 1. Context
@@ -18,7 +20,7 @@ reverses it to us, and **we** remit it to the commune — `collectsTouristTax = 
 client ») in the « Paiement plateforme » block. That brut is what the guest actually paid the
 platform — so it **already includes the tourist tax**.
 
-The pricing engine ([pricing.js](../server/src/utils/pricing.js) ~L1451-1470) back-solves the
+The pricing engine ([pricing.js](../../server/src/utils/pricing.js) ~L1451-1470) back-solves the
 accommodation from the brut as `accommodation = brut − extra-guest − pre-arrival options/resources`
 — **without** subtracting the tax. The tax therefore gets **baked into the accommodation**, and then
 `totalStayPrice = finalPrice + touristTaxTotal` **adds it a second time**. The tax is double-counted.
@@ -53,7 +55,7 @@ no longer double-count it, and the écart against the virement is 0.
    (the existing `touristTaxReversedByPlatform` case 1).
 2. In that case, the brut→accommodation back-solve subtracts the reversed tourist tax as if it were a
    pre-arrival option included in the brut:
-   `accommodation = max(0, brut − extra-guest − pre-arrival options/resources − reversedTouristTax)`.
+   `accommodation = max(0, brut − extra-guest − pre-arrival options/resources − reversedTouristTax)`, where `reversedTouristTax` excludes the tax added for guests added after the platform amounts.
 3. As a consequence (no new code, mechanical): `finalPrice` excludes the tax,
    `totalStayPrice = finalPrice + tax = brut`, `preArrivalAmount = brut`, the platform balance = brut,
    `platformNetReceivedAmount = brut − commission`, and the écart against `platformPayoutAmount`

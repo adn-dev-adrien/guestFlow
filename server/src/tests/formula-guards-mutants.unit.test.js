@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 65 and 66 (F20) — the no-duplicate-formulas guards are proved on synthetic sources:
+// specs/pricing/pricing-components.md §3 rules 65 and 66 (F20) — the no-duplicate-formulas guards are proved on synthetic sources:
 // a planted copy turns the guard red, the copy removed turns it green again. Nothing here reads the real tree.
 const test = require('node:test');
 const assert = require('node:assert/strict');

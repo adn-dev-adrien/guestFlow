@@ -7,13 +7,15 @@
 | **Created** | 2026-08-14 |
 | **Author** | Adrien |
 | **Related PR** | https://github.com/adn-dev-adrien/guestFlow/pull/423 |
-| **Bloc** | Bloc 4 — Devis. See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 4 — Devis. See `docs/rapports/ROADMAP.md`. |
+
+> **Reviewed 2026-11-26 (spec reorganization).** §8 no longer claims the welcome pack is excluded from devis (contradicted rule 5, `welcome-pack-auto-options.md:56`); rule 14 window formula and the lock helper name point to `utils/devisValidity.js` `computeValidUntil`.
 
 ---
 
 ## 1. Context
 
-Since `specs/devis-reservation-fusion.md`, a devis **is** a `reservations` row (`kind='devis'`) whose lines
+Since `specs/devis/devis-reservation-fusion.md`, a devis **is** a `reservations` row (`kind='devis'`) whose lines
 live in the very same `reservation_options` / `_custom_options` / `_resources` / `_nights` children, and the
 form is the very same page (`ReservationPage` in `?mode=devis`). Yet the devis domain kept its **own**
 persistence stack (`devisModel.computeQuote` / `persistLines` / `copyLineGraph`), its own row INSERT/UPDATE
@@ -71,7 +73,7 @@ A Lodge reservation sold on 2026-07-03 with 4 breakfasts at 8 €/pers/nuit (32 
 end-of-stay complement** on its check-out day. Nobody had sold anything during the stay: the 2026 tariff
 rollout had raised the Lodge breakfast to 10 €, and the arrival-SAS save re-priced the line 32 € → 40 €.
 The mid-stay engine, doing its job, saw a total exceeding the arrival baseline and billed the 8 € difference
-as « vendu en cours de séjour » (`specs/mid-stay-extras-to-end-of-stay-complement.md`).
+as « vendu en cours de séjour » (`specs/sas/mid-stay-extras-to-end-of-stay-complement.md`).
 
 Root cause: a `showsPlanningCard` option is billed from its occurrences, so its line is rebuilt on every save
 and never reaches `mergeLineWithLockedSnapshot` — the very helper that freezes every other option against a
@@ -102,7 +104,7 @@ guest was quoted holds for as long as the quote is valid.
 5. **The welcome pack applies to a blank new devis** exactly as it does to a blank new reservation:
    same own channel, same rate, same promise. On Aventura Lodge a fresh devis therefore arrives with
    « Jus de pomme 1L » and the first morning's « Petit déjeuner » already ticked at 0 €
-   (decision 2026-08-14 — it amends `specs/welcome-pack-auto-options.md` §3.2 rules 4-5, updated in
+   (decision 2026-08-14 — it amends `specs/options/welcome-pack-auto-options.md` §3.2 rules 4-5, updated in
    the same commit). A **saved** devis and a fiche prefilled from one keep their own option set.
 
 ### B. What a devis persists (parity with a reservation)
@@ -117,7 +119,7 @@ guest was quoted holds for as long as the quote is valid.
    and the loader hard-codes `false`).
 10. `touristTaxInComplement` and the per-line `inComplement` flags are persisted (see rules 17-18).
 11. `tariffSnapshot` is written **at devis creation**, exactly like a reservation
-    (`specs/tariff-recipes/spec.md` §3.2 rule 12bis) — it is what makes rule 13 auditable.
+    (`specs/pricing/tariff-recipes.md` §3.2 rule 12bis) — it is what makes rule 13 auditable.
 12. Re-opening a saved devis restores every line as saved: occurrences, sessions, quantities, unit prices,
     `offered`, `inComplement`, custom-option ids.
 
@@ -145,7 +147,7 @@ guest was quoted holds for as long as the quote is valid.
 
 14. A devis whose `validUntil` is **past** — or a legacy devis with no `validUntil` — is **re-priced at the
     current tariffs**, on load and on save. Saving it re-issues a validity window
-    (`min(today + quoteValidityDays, startDate − 2 days)`), so an expired quote that is worked on becomes a
+    (`computeValidUntil`: `min(today + quoteValidityDays, startDate − 2 days)`, floored at today — `specs/devis/devis-pdf-and-tourist-tax-fixes.md` rule 7 readings), so an expired quote that is worked on becomes a
     fresh, locked quote again.
 15. « Actualiser les tarifs » (already present in devis mode) stays the manual way to force current tariffs on
     a still-valid devis — unchanged.
@@ -156,7 +158,7 @@ guest was quoted holds for as long as the quote is valid.
 
 17. On a devis the per-line « Compl. » switch defaults to **OFF**, *including on a non-direct platform* — every
     extra is billed inside the acompte/solde split by default. (This is a deliberate devis-only exception to
-    `specs/force-extras-complement-on-platform.md` §3 rule 1: a quote shows the guest one total, not a
+    `specs/sas/force-extras-complement-on-platform.md` §3 rule 1: a quote shows the guest one total, not a
     payment plan.)
 18. A « Compl. » the operator explicitly switches ON is persisted on the devis line and carried **verbatim**
     into the reservation at conversion. The reservation's own platform rule then applies from its next save,
@@ -185,7 +187,7 @@ guest was quoted holds for as long as the quote is valid.
 - Planning-card option enabled but **zero** occurrence checked → not billed, not stored (engine rule,
   unchanged); the fiche shows the empty checklist and the caption « Renseignez les dates du séjour… ».
 - Devis created from the public WordPress site → unchanged: `planningCardAsQuantity` makes the quantity stand
-  in for the occurrences and the line stays « à planifier avec l'hôte » (`specs/public-planning-options.md`).
+  in for the occurrences and the line stays « à planifier avec l'hôte » (`specs/site/public-planning-options.md`).
 - Legacy devis with `validUntil = NULL` → treated as expired (rule 14); the first save re-prices it and
   stamps a new validity window.
 - Property with no option at all → the card shows only « Options personnalisées ».
@@ -213,7 +215,7 @@ guest was quoted holds for as long as the quote is valid.
 | `models/` | `bookingLinesModel.js` | **C** | **The** line-graph store over `reservation_options` / `_custom_options` / `_resources` / `_nights`: `replaceOptions`, `replaceCustomOptions`, `replaceResources`, `replaceNights`, `copyLineGraph`, `getPricingSnapshot`. Single writer, so a new line column can never again land on one side only |
 | `models/` | `devisModel.js` | T | delegates all line persistence to `bookingLinesModel`; forwards `cardOccurrences` / `sessions` / `inComplement` to the engine; writes `breakfastTime`, `extraGuestSurchargeOffered`, `touristTaxInComplement`, `tariffSnapshot`; resolves the price lock; `convertToReservation` carries the full row + graph |
 | `models/` | `reservationsModel.js` | T | its `insertOptions` / `insertCustomOptions` / `insertResourceLine` / `insertNights` / `getPricingSnapshot` become thin delegates to `bookingLinesModel` — **no behaviour change**, pinned by the existing suites |
-| `utils/` | `devisValidity.js` | **C** | pure: `computeValidUntil` (moved out of `devisModel`), `isDevisExpired(validUntil, todayIso)`, `resolveDevisPricingLock(row, todayIso)` |
+| `utils/` | `devisValidity.js` | **C** | pure: `computeValidUntil` (moved out of `devisModel`), `isDevisExpired(validUntil, todayIso)`, `devisValidUntil`; the lock itself is `resolveLockedPricing` inside `devisModel.js` (no `resolveDevisPricingLock` any more) |
 | `utils/` | `pricing.js` | — | (none — the engine already handles occurrences, sessions and locked lines) |
 | `scheduledTasks.js` | — | — | (none) |
 | `database.js` | — | — | **no migration** — every column already exists (§5) |
@@ -223,7 +225,7 @@ guest was quoted holds for as long as the quote is valid.
 - `bookingLinesModel` is a `createModel(db)` factory like its two callers, so the existing test style
   (in-memory DB + `buildModel`) keeps working.
 - No circular require: `bookingLinesModel` depends on nothing but `database`.
-- The price lock is decided **server-side** (`resolveDevisPricingLock`) and applied inside
+- The price lock is decided **server-side** (`resolveLockedPricing` in `devisModel`) and applied inside
   `devisModel.computeQuote` via the existing `lockedOptionLines` / `lockedResourceLines` /
   `lockedNightlyBreakdown` / `lockedTariff` engine inputs — the same mechanism a reservation already uses.
 
@@ -368,10 +370,10 @@ supprimer, Enregistrer/Annuler). This spec only adds the `subtitle` chip — no 
   direct-channel artefact; unchanged.
 - `depositAmountOverride` and `depositDisabled` on a devis (the fiche already hides them in devis mode).
 - Refunds, SAS, mid-stay notes, end-of-stay complement — reservation-only by design.
-- The welcome pack on devis (deliberately excluded, rule 5).
+- _(Retracted: the welcome pack does apply to a blank new devis — rule 5, `specs/options/welcome-pack-auto-options.md` rule 5.)_
 - Any change to the devis PDF **layout** (it will simply print the lines it was missing).
 - The public/WordPress booking-request flow beyond keeping it working as-is.
-- A codebase-wide `roundMoney` consolidation (noted in `specs/devis.md`, still deferred).
+- A codebase-wide `roundMoney` consolidation (still deferred).
 
 ## 9. Open questions
 
@@ -385,7 +387,7 @@ supprimer, Enregistrer/Annuler). This spec only adds the `subtitle` chip — no 
 - Q: Should the price lock also freeze the tourist tax?
   - A: **Yes, implicitly** — the lock replays the whole stored quote (`lockedNightlyBreakdown` +
     `lockedOptionLines` + `lockedResourceLines` + `lockedTariff`), and the tax follows the frozen stay.
-    `specs/tourist-tax-freeze-past-with-refresh.md` keeps owning the reservation side.
+    `specs/tourist-tax/tourist-tax-freeze-past-with-refresh.md` keeps owning the reservation side.
 
 **Still open**
 
@@ -405,7 +407,7 @@ Phased; each phase is independently verifiable and leaves the app working.
 | 4 | **Server — price lock** | `devisValidity` util, lock resolution in `computeQuote`, `devisId` on `calculate-price`, flags in `GET /devis/:id` | Rules 13-16 |
 | 5 | **Client — hydration + UI** | `bookingFormHydration` shared by both branches; « Compl. » default OFF in devis mode; validity chip | Rules 12, 16, 17 |
 | 6 | **Conversion** | `convertToReservation` carries the full row + graph | Rules 19-20 |
-| 7 | **Docs** | `changelog.d/fixed--devis-extras-parity.md`, this spec → `Implemented`, `specs/welcome-pack-auto-options.md` amended (rule 5) | CLAUDE.md §4.1 checklist |
+| 7 | **Docs** | `changelog.d/fixed--devis-extras-parity.md`, this spec → `Implemented`, `specs/options/welcome-pack-auto-options.md` amended (rule 5) | CLAUDE.md §4.1 checklist |
 
 All seven phases shipped in one PR on `fix/devis-extras-parity`. The §1 measurement, re-run against the
 patched code on a fresh copy of the dev database, now reads **458 € on both sides**, with the breakfast

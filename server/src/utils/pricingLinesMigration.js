@@ -1,6 +1,6 @@
 /**
  * PRICING LINES — the stored columns and tables that PR B of the pricing refonte reads
- * (specs/pricing-components.md §3 rules 36, 74-79, §5; owner decisions Q16).
+ * (specs/pricing/pricing-components.md §3 rules 36, 74-79, §5; owner decisions Q16).
  *
  * Everything here ADDS: a column, a table, an index, or the rebuild of a table with the same rows. No amount column is
  * rewritten (rule 36); every backfill reads stored data only and runs `WHERE <new> IS NULL` (or `NOT EXISTS`), so a

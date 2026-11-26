@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 3 — on an operator-managed space the Plugins page does not
+// specs/plugins/plugin-operator-provisioning.md rule 3 — on an operator-managed space the Plugins page does not
 // exist: no menu entry, no route, no search words. The server says so in `/auth/me` (`pluginsManageable`).
 import { describe, expect, test } from 'vitest';
 import { canSeeRoute } from '../roles';

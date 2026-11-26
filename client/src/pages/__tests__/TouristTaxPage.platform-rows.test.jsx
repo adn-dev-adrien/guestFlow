@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rule 22 — a stay whose platform remits the tax itself is listed muted, with its
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rule 22 — a stay whose platform remits the tax itself is listed muted, with its
 // tag « reversée par … » instead of a « Déclarée » box, on desktop and on a phone.
 import { vi } from 'vitest';
 import { screen, within } from '@testing-library/react';

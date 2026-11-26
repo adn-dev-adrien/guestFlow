@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 4 rewritten: preferences are per channel (core four incl. `breakfast` + plugin-declared channels), `server/src/utils/pushChannels.js:9`, `models/pushSubscriptionsModel.js:93`.
+
 ---
 
 ## 1. Context
@@ -59,7 +61,7 @@ reservation's **check-out time** is reached (departure) — only to the users (a
    deployment via `VAPID_SUBJECT` in `.env.local`. *(Root cause of the 2026-06-23 incident: every push to
    both iPhones failed silently with `403 BadJwtToken`.)*
    *Superseded on the default (noted at the 2026-10-27 spec review):* there is no hard-coded subject any
-   more. `utils/vapid.js` resolves it in the order of specs/plugins-phase-p-productisation.md rule 18 —
+   more. `utils/vapid.js` resolves it in the order of specs/plugins/plugins-phase-p-productisation.md rule 18 —
    `VAPID_SUBJECT`, then the `vapidSubject` setting, then `mailto:` the company e-mail, then `mailto:` the
    SMTP sender — and with none of them push stays off. The routable-subject requirement above stands.
 3.quater. **Self-test push.** From the push settings card, an operator with notifications enabled can send a
@@ -68,9 +70,12 @@ reservation's **check-out time** is reached (departure) — only to the users (a
    (`sent` / `no subscription` / `no VAPID` / send failure) to the UI.
 
 ### 3.2 Per-user preferences
-4. Each user has three independent push preferences — **newReservation**, **arrivals**, **departures** —
-   default **all ON**. They are **per user** (not global): they gate which pushes that user's devices
-   receive. Editable on the settings page.
+4. Each user has one independent push preference per **channel**, default **all ON**: the core's four —
+   **newReservation**, **arrivals**, **departures**, **breakfast** (`utils/pushChannels.js`, `CORE_PUSH_CHANNELS`) — plus
+   every channel a *live* plugin declared with `ctx.pushChannel({ key, label })` (a plugin that goes inactive takes its
+   toggle with it; a `shared` channel is listed once). They are **per user** (not global): they gate which pushes that
+   user's devices receive. Editable on the settings page, which renders the list served by the server. Core toggles live
+   in `user_push_prefs`; plugin channels in `user_push_channel_prefs(userId, channel, enabled)`, where no row reads ON.
 5. A push for a given type is sent to a device only if its user's matching preference is ON **and** the
    device is subscribed.
 
@@ -97,7 +102,7 @@ reservation's **check-out time** is reached (departure) — only to the users (a
    `/planning?sas=departure&reservationId=:id`, rule 10).
 9. The arrival/departure job runs on the **existing per-minute tick** (`scheduledTasks.js`): each minute it
    finds reservations of **today** whose scheduled time **has just been reached** (scheduled `HH:MM` ≤ now,
-   read on the process's **local** clock — which `specs/server-timezone.md` pins to `Europe/Paris`, because
+   read on the process's **local** clock — which `specs/hosting/server-timezone.md` pins to `Europe/Paris`, because
    a host running in UTC delayed every one of these pushes by 2 h between 2026-08-10 and 2026-09-25)
    and **not yet notified** (`*NotifiedAt` ≠ today), sends the pushes, and stamps `*NotifiedAt`. A
    reservation created/booked *after* its time already passed today is **not** retro-notified (only

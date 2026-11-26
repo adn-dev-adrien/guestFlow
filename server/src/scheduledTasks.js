@@ -5,22 +5,22 @@ const propertyIcalModel = require('./models/propertyIcalModel');
 const icalExportRangesModel = require('./models/icalExportRangesModel');
 
 
-// Email automation (specs/email-automation.md §3 rule 7). The 08:00 auto-send pass owns its own
+// Email automation (specs/emails/email-automation.md §3 rule 7). The 08:00 auto-send pass owns its own
 // timer, registered only while automatic sending is authorised
-// (specs/no-automatic-email-without-approval.md §3 rule 2b).
+// (specs/emails/no-automatic-email-without-approval.md §3 rule 2b).
 const emailAutoSendScheduler = require('./utils/emailAutoSendScheduler');
 const emailLogModel       = require('./models/emailLogModel');
 const { localIsoDate } = require('./utils/localDate');
 
-// Arrival/departure push (specs/pwa-push-notifications.md §3.3).
+// Arrival/departure push (specs/guest-app/pwa-push-notifications.md §3.3).
 const reservationsModel = require('./models/reservationsModel');
 const pushService = require('./utils/pushService');
 const { runArrivalDeparturePush } = require('./utils/arrivalDeparturePushRunner');
-// Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md §3 rules 7-9).
+// Breakfast serving-time push (specs/sas/sas-breakfast-bread-and-push.md §3 rules 7-9).
 const { runBreakfastPush } = require('./utils/breakfastPushRunner');
 const breakfastModel = require('./models/breakfastModel');
 
-// Self-update version check (specs/self-update-and-releases.md §3.B rule 12).
+// Self-update version check (specs/hosting/self-update-and-releases.md §3.B rule 12).
 const systemController = require('./controllers/systemController');
 const notificationService = require('./utils/notificationService');
 
@@ -51,14 +51,14 @@ async function performAutoSync() {
       return;
     }
 
-    // Sync each source. syncMany fetches every feed at once (specs/ical-import-hardening.md rule 4),
+    // Sync each source. syncMany fetches every feed at once (specs/platforms/ical-import-hardening.md rule 4),
     // then runs the sync engine source by source, which writes the status row and announces the change.
     const results = await propertyIcalModel.syncMany(sources);
     results.filter((r) => !r.ok).forEach((r) => {
       console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${r.sourceName}":`, r.error);
     });
 
-    // specs/lodgify-decommission.md §3 rule 7 — tombstones only matter for 72 h; keep a week.
+    // specs/platforms/lodgify-decommission.md §3 rule 7 — tombstones only matter for 72 h; keep a week.
     icalExportRangesModel.purge();
   } catch (error) {
     console.error('[iCal Sync] Erreur critique:', error);
@@ -67,7 +67,7 @@ async function performAutoSync() {
   }
 }
 
-// Email-history rolling-window purge (specs/email-history-rolling-window.md §3 rule 3). Deletes log rows
+// Email-history rolling-window purge (specs/emails/email-history-rolling-window.md §3 rule 3). Deletes log rows
 // for reservations past arrival + retention (and orphans). Synchronous (better-sqlite3) + idempotent.
 function runEmailHistoryPurge(reason = 'cron') {
   try {
@@ -86,7 +86,7 @@ function tickEmailHistoryPurge() {
   runEmailHistoryPurge('daily pass');
 }
 
-// specs/vat-optional-mode.md rule 29 — the settings column mirroring the VAT rate in force follows a period
+// specs/accounting/vat-optional-mode.md rule 29 — the settings column mirroring the VAT rate in force follows a period
 // that starts today (no write moves it), at the hourly tick, so it is right within the hour past midnight.
 function tickVatRateMirror() {
   try {
@@ -113,7 +113,7 @@ async function runArrivalDeparturePushPass(reason = 'tick') {
   }
 }
 
-// Per-minute breakfast push pass (specs/sas-breakfast-bread-and-push.md rules 7-8): notify
+// Per-minute breakfast push pass (specs/sas/sas-breakfast-bread-and-push.md rules 7-8): notify
 // `lead` minutes before each breakfast's serving time; first pass after boot stamps without sending.
 let breakfastPushInProgress = false;
 let breakfastPushFirstRun = true;
@@ -132,7 +132,7 @@ async function runBreakfastPushPass(reason = 'tick') {
   }
 }
 
-// specs/payment-link-lifecycle.md rules 43, 64 — the guest whose request lost its dates is told once the provider
+// specs/payments/payment-link-lifecycle.md rules 43, 64 — the guest whose request lost its dates is told once the provider
 // read the withdrawn link unpaid after its deactivation (the lifecycle's last look). Its own guard; never throws.
 let datesTakenNoticeInProgress = false;
 async function runDatesTakenNoticePass() {
@@ -147,7 +147,7 @@ async function runDatesTakenNoticePass() {
   }
 }
 
-// No money pass here, on purpose (specs/payment-schedule-and-cancellation.md §1 amendment, rule 44).
+// No money pass here, on purpose (specs/payments/payment-schedule-and-cancellation.md §1 amendment, rule 44).
 // A daily job used to mint the solde link and mail the request at J-30; the operator now sends every
 // money email himself from the dashboard's « Échéances de paiement » card, which lists the same
 // reservations. The passes that remain send stay information, never a euro request.
@@ -167,7 +167,7 @@ function startScheduledTasks() {
 
   // Email auto-send: no timer at all unless a template is « auto ». Switching one to « auto » in Emails
   // starts it (and runs the day's pass) without a restart — the scheduler is re-synced by
-  // emailTemplatesController on every write (specs/settings-rationalization.md rule 17b).
+  // emailTemplatesController on every write (specs/settings/settings-rationalization.md rule 17b).
   emailAutoSendScheduler.syncWithTemplates({ boot: true });
 
   // Email-history purge: hourly tick (once-per-day guard) + a boot pass 100 s after start, so the rolling
@@ -194,19 +194,19 @@ function startScheduledTasks() {
   setTimeout(() => { runDatesTakenNoticePass(); }, 115 * 1000);
 
   // Self-update: poll the GitHub releases API hourly, plus once 60 s after boot so a restart
-  // surfaces a pending version straight away (specs/self-update-and-releases.md §3.B rule 12).
+  // surfaces a pending version straight away (specs/hosting/self-update-and-releases.md §3.B rule 12).
   // `runVersionCheck` never rejects — an unreachable GitHub leaves the last known state in place.
   const UPDATE_CHECK_TICK = 60 * 60 * 1000;
   setInterval(() => { systemController.runVersionCheck().catch(() => {}); }, UPDATE_CHECK_TICK);
   setTimeout(() => { systemController.runVersionCheck().catch(() => {}); }, 60 * 1000);
 
-  // Website requests mailed by window (specs/public-request-abuse-and-grouping.md rule 9): the summary
+  // Website requests mailed by window (specs/site/public-request-abuse-and-grouping.md rule 9): the summary
   // of a 15-minute window leaves within a minute of its end, and a restart sends what was pending.
   const DIGEST_TICK = 60 * 1000;
   setInterval(() => { notificationService.flushDueDigests().catch(() => {}); }, DIGEST_TICK);
   setTimeout(() => { notificationService.flushDueDigests().catch(() => {}); }, 45 * 1000);
 
-  // The operator's plugin choice carried by the licence (specs/plugin-operator-provisioning.md rule 16).
+  // The operator's plugin choice carried by the licence (specs/plugins/plugin-operator-provisioning.md rule 16).
   require('./tasks/pluginProvisioning').start();
 }
 

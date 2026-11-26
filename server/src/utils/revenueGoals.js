@@ -1,4 +1,4 @@
-// Annual revenue goals, one per exercise (specs/finance-dashboard-redesign.md §3.8 rules 26-29).
+// Annual revenue goals, one per exercise (specs/accounting/finance-dashboard-redesign.md §3.8 rules 26-29).
 // Stored as a JSON object `{ "<exercise key>": amount }` in `app_settings.revenueGoals`; an exercise
 // without a goal is simply absent. Pure helpers: parsing the operator's input, validating a
 // submitted set, merging it into what is stored, and reading it back.

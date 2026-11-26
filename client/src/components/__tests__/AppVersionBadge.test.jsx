@@ -1,8 +1,8 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * AppVersionBadge — the update affordance of the top bar, and AppVersionFooter — the installed
- * version at the foot of the drawer since 2026-10-19 (specs/shell-and-home-day-first.md rule 16).
- * specs/self-update-and-releases.md §3.C rules 17-20b + §6.5.
+ * version at the foot of the drawer since 2026-10-19 (specs/planning/shell-and-home-day-first.md rule 16).
+ * specs/hosting/self-update-and-releases.md §3.C rules 17-20b + §6.5.
  */
 
 import React from 'react';
@@ -54,13 +54,13 @@ beforeEach(() => {
   api.startUpdate.mockReset();
 });
 
-test('specs/shell-and-home-day-first.md rule 16: the drawer foot shows the installed version, not a build identifier', async () => {
+test('specs/planning/shell-and-home-day-first.md rule 16: the drawer foot shows the installed version, not a build identifier', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false, latest: '1.0.0' }));
   render(<AppVersionFooter />);
   expect(await screen.findByText('GuestFlow v1.0.0')).toBeInTheDocument();
 });
 
-test('specs/shell-and-home-day-first.md rule 16: up to date, the top bar shows nothing — the version left it', async () => {
+test('specs/planning/shell-and-home-day-first.md rule 16: up to date, the top bar shows nothing — the version left it', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false, latest: '1.0.0' }));
   const { container } = render(<AppVersionBadge />);
   await act(() => api.getSystemVersion.mock.results.at(-1).value);

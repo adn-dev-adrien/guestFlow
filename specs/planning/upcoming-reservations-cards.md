@@ -53,7 +53,7 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    > day only — see rule 8.
 7. **The server's today** (added 2026-10-18, review #8 n-1). The pages that open « on today » — the
    dashboard's day, the planning's first day, this page's « Aujourd'hui » — take the calendar day of
-   the server, whose clock runs in the accommodations' time zone (specs/server-timezone.md), from
+   the server, whose clock runs in the accommodations' time zone (specs/hosting/server-timezone.md), from
    `GET /api/today` → `{ today }` (any signed-in role: it is a self endpoint).
    > **Amended 2026-10-28 (dashboard-planning-scroll.md):** the dashboard's day and the planning's first
    > day are the server's today with no picker to move them.
@@ -68,7 +68,7 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    > laundry trip (linen plugin 1.0.3), the past/upcoming split of a client's stays in the clients
    > directory, the fiche's mid-stay note gate in the test mock.
    > **Amended 2026-10-18 (merge with the security review, PR #699):** one implementation of the
-   > server's day — `GET /api/today` and `useServerToday` of specs/ds-sweep-planning.md rules 28-29.
+   > server's day — `GET /api/today` and `useServerToday` of specs/design-system/ds-sweep-planning.md rules 28-29.
    > The dashboard and the planning wait for it rather than opening on the browser's day first; the
    > browser's calendar day is only the fallback when the server cannot be asked.
 8. **The « prêt » box answers at once** (added 2026-10-18, review of PR #700). Ticking or unticking
@@ -95,9 +95,9 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
 | pages | `pages/ReservationsUpcomingPage.jsx` | One `GET /reservations/upcoming` → render the server's days with `ReservationCard` + the `sas.dialog` slot; a « prêt » tick flips at once and refreshes its day with `?day=` (rule 8). Render-only. |
 | pages | `pages/Dashboard.jsx`, `pages/PlanningPage.jsx` | Open on `useServerToday()` until the operator picks a day (rule 7); the dashboard drops a stale load (rule 9). |
 | pages / components | `pages/ClientsPage.jsx`, `components/reservation/RefundDialog.jsx`, `plugins/linen/LaundryExtraTripDialog.jsx` (T) | « Today » defaults on the browser's calendar day (rule 7 amendment). |
-| hooks | `hooks/useServerToday.js` (specs/ds-sweep-planning.md rule 29) | The server's calendar day; the browser's calendar day when it cannot be asked. |
-| utils | `utils/isoDay.js` (specs/ds-sweep-planning.md rule 28) | `localIsoToday`, `addIsoDays` on `YYYY-MM-DD`. |
-| server routes | `routes/reservations.js` (T), `routes/today.js` (specs/ds-sweep-planning.md rule 28) | `GET /reservations/upcoming` (before `/:id`), `GET /today`. |
+| hooks | `hooks/useServerToday.js` (specs/design-system/ds-sweep-planning.md rule 29) | The server's calendar day; the browser's calendar day when it cannot be asked. |
+| utils | `utils/isoDay.js` (specs/design-system/ds-sweep-planning.md rule 28) | `localIsoToday`, `addIsoDays` on `YYYY-MM-DD`. |
+| server routes | `routes/reservations.js` (T), `routes/today.js` (specs/design-system/ds-sweep-planning.md rule 28) | `GET /reservations/upcoming` (before `/:id`), `GET /today`. |
 | server controllers | `controllers/upcomingReservationsController.js` (C) | Orchestrate rules 6 and 8 (`?day=`). |
 | server models | `models/upcomingReservationsModel.js` (C), `models/reservationsModel.js` (T) | The arrival ids from today (`arrivalIdsFrom`) or of one day (`arrivalIdsOn`); the list's payment status on the server day. |
 | server utils | `utils/upcomingArrivals.js` (C) | Group by day, French label, ready counts. |

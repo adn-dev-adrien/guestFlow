@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 24 and 29 — the customer page offers « Renvoyer
+// specs/hosting/hosting-h1-fleet-runtime.md rules 24 and 29 — the customer page offers « Renvoyer
 // l’invitation » and « Réinitialiser l’accès » (after a confirmation) once the first administrator
 // exists, and « Redémarrer » on a process that failed.
 import React from 'react';

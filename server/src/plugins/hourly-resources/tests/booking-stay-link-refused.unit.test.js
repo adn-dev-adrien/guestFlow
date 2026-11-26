@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 46 (audit R36-DB-L2) — a resource booking is a sale outside any
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 46 (audit R36-DB-L2) — a resource booking is a sale outside any
 // stay: no screen links one to a stay, and money taken on such a link was booked nowhere (standaloneSales skips it, the
 // stay's books never read it). A `reservationId` in a create or an update body is refused before anything is written; a
 // stored link sent back unchanged passes, and a row stored with a link takes no payment.

@@ -1,0 +1,18 @@
+# Plugins — the plugin engine (SDK, registry, provisioning), the plugin boundaries, and the plugin-owned integrations
+
+Start with: `plugins-phase-1-sdk` (the `ctx` contract every plugin codes against; SDK 2.35.0). See also: `hosting/`, `settings/`, `payments/`, `resources/`, `gift-vouchers/`, `platforms/`, `site/`.
+
+- `plugins-phase-0-foundation` — plugin states (available / active / inactive), install/activate/deactivate/uninstall refusals, what hides while a plugin is off, the Plugins page, the bare-install E2E. Code: `server/src/constants/plugins.js`, `server/src/controllers/pluginsController.js`.
+- `plugins-phase-1-sdk` — the plugin module contract: `register(ctx)` server extension points, client slots, data erasure, money-dialog contract; SDK 2.33–2.35 pointers in rule 59. Code: `server/src/plugins/sdk/`, `client/src/plugins/sdk/`.
+- `plugins-phase-4-registry` — packages, signed registry, install/update/rollback, version and requirement gates, plugin-operation lock, SDK versioning. Code: `server/src/plugins/registryClient.js`, `server/src/plugins/packageStore.js`, `scripts/build-plugin-packages.mjs`.
+- `plugin-dependencies` — one server-computed requirement graph (`requires` in manifests), cascades with confirmed ids, cycles, CI check, console mirror. Code: `server/src/utils/pluginGraph.js`, `scripts/check-plugin-versions.mjs`.
+- `plugin-operator-provisioning` — on a managed space the operator (console) provisions plugins; no Plugins page for the customer; licence carries `activePlugins`; reconciler. Code: `server/src/tasks/pluginProvisioning.js`, `server/src/controllers/pluginsController.js`.
+- `plugin-removal-resilience` — every plugin can be removed and the rest keeps working; removal matrix, counter floors, per-plugin E2E. Code: `scripts/plugin-removal.mjs`, `server/src/plugins/loader.js`.
+- `plugins-phase-2-hosts` — planning and SAS as hosts (`planning.days`, `sas.*.steps`, `ctx.roleAccess`); boundaries of `sas`, `linen`, `accounting-export`, `website-booking`. Code: `server/src/plugins/sas/`, `server/src/plugins/linen/`, `server/src/plugins/website-booking/`.
+- `plugins-phase-3a-online-payment` — provider-neutral money path, link abandonment/retire rules, `online-payment` plugin boundary (Qonto the only provider). Code: `server/src/utils/stayPaymentRecorder.js`, `server/src/plugins/online-payment/`.
+- `plugins-phase-3b-neat` — quote post-processor, what a stay shows while Neat is off, `neat` plugin boundary. Code: `server/src/utils/quotePostProcessors.js`, `server/src/plugins/neat/`.
+- `plugins-phase-3c-hourly-resources` — price-line contributor, SAS commit contract, `hourly-resources` plugin boundary, what hides while off. Code: `server/src/utils/priceLineContributors.js`, `server/src/plugins/hourly-resources/`.
+- `plugins-phase-p-productisation` — stay texts and option mentions as data, neutral seeds for new databases, start assistant (five steps), account plan as plugin settings. Code: `server/src/controllers/onboardingController.js`, `client/src/pages/OnboardingPage.jsx`.
+- `integrations-tab-per-plugin` — Réglages › Intégrations: one tab per contributing plugin, `?tab=<id>` in the URL, dirty/refused/to-set-up dots, settings search opens the tab. Code: `client/src/pages/settings/IntegrationsSettingsPage.jsx`, `client/src/plugins/sdk/`.
+- `neat-cancellation-insurance-subscription` — automatic Neat policy subscription at deposit payment: queue, retries, guest price = premium + margin, timeouts and breaker. Code: `server/src/plugins/neat/subscriptionRunner.js`, `server/src/plugins/neat/pricing.js`.
+- `roostview-api-key` — second read-only public-API key for Roostview (reads and `/quote` only, 403 elsewhere). Code: `server/src/plugins/website-booking/requirePublicApiKey.js`.

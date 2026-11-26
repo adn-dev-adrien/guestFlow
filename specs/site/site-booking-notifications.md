@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4.1 current-file-map note added: the public-API controllers, routes and projections live in `plugins/website-booking/`; no rule changed.
+
 ---
 
 ## 1. Context
@@ -20,18 +22,18 @@ Three problems / gaps:
 1. **Options (and possibly resources) are dropped on the devis.** Root cause confirmed:
    `devisModel.computeQuote` pre-filters out **every** selected option that carries an
    `autoOptionType`, regardless of whether it is actually engine-managed
-   ([devisModel.js:238-241](../server/src/models/devisModel.js#L238)):
+   ([devisModel.js:238-241](../../server/src/models/devisModel.js#L238)):
    ```js
    .filter((line) => !optionMetaById.get(Number(line.optionId))?.autoOptionType);
    ```
    Options such as **Petit-déjeuner** (`autoOptionType='breakfast'`), **Linge de lits**
    (`bed_linen`), **Linge de toilette** (`bathroom_linen`) have an `autoOptionType` **but**
    `autoEnabled=0`. The pricing engine only auto-adds options with `autoEnabled=1`
-   ([pricing.js:1104](../server/src/utils/pricing.js#L1104)), so these manually-selected options are
+   ([pricing.js:1104](../../server/src/utils/pricing.js#L1104)), so these manually-selected options are
    **neither kept nor re-added → they vanish from the devis**. The engine's normal option path
-   ([pricing.js:1002-1070](../server/src/utils/pricing.js#L1002)) prices them correctly if they reach
+   ([pricing.js:1002-1070](../../server/src/utils/pricing.js#L1002)) prices them correctly if they reach
    it; only the `devisModel` pre-filter is at fault. Resources are **not** filtered
-   ([devisModel.js:247-250](../server/src/models/devisModel.js#L247)) and persist correctly; a
+   ([devisModel.js:247-250](../../server/src/models/devisModel.js#L247)) and persist correctly; a
    non-applicable resource is rejected up-front (422) rather than silently dropped.
 
 2. **No signal that a site request arrived.** A public-origin devis lands in the list with no
@@ -133,6 +135,8 @@ to the address configured in the SMTP settings.
 > the devis filter fix live on the server. The client only renders the new alert payload.
 
 ### 4.1 Server side (`server/src/`)
+
+> **Current file map (2026-11-26).** The public-API files named below (`routes/public/*`, `controllers/public/public{Catalog,Quote,BookingRequest,Terms}Controller.js`, `utils/publicProjections.js`, `utils/publicInputValidation.js`) now live in `server/src/plugins/website-booking/` (`routes/`, `controllers/`, and the plugin root); `controllers/public/publicPaymentController.js` stays in the core.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|

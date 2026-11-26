@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 123 (stabilisation loop t11, S11-1, 2026-11-17) — a free (custom) line is keyed by its label, and so is
+// specs/pricing/pricing-components.md §3 rule 123 (stabilisation loop t11, S11-1, 2026-11-17) — a free (custom) line is keyed by its label, and so is
 // the money that paid it (a card note, a platform stay's collected arrival complement). Renamed in the fiche, the line kept its `lineId` but
 // the note's key no longer found it: the arrival recap listed the line as still to pay while the commit asked nothing. The save is now
 // refused (409 LINE_PAID_RENAMED, « Ligne déjà payée : son libellé ne change pas. ») and the fiche's lock names those lines

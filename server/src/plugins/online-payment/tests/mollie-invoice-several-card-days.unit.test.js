@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 33 (stabilisation loop t10 D10-1, 2026-11-17) — a sale outside a stay with ONE Qonto
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 33 (stabilisation loop t10 D10-1, 2026-11-17) — a sale outside a stay with ONE Qonto
 // invoice, paid by card on two days (30 € then 50 €), is two Mollie payments: two splits, two pairs of tranches. The invoice number keys the first
 // card day only (the payment a Mollie `description` can name); the later day is a card tender of its own. Fictional data only.
 const test = require('node:test');

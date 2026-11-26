@@ -1,5 +1,5 @@
-// Audit R28-C-M1 (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rule 22 and
-// specs/reservation-payment-ledger.md rule 69. A complement deferred to the check-out is merged with the end of stay while
+// Audit R28-C-M1 (2026-11-08) — specs/sas/defer-arrival-complement-to-checkout.md rule 22 and
+// specs/payments/reservation-payment-ledger.md rule 69. A complement deferred to the check-out is merged with the end of stay while
 // it is still to collect (an amount above 0, the normalisation of buildCheckoutComplement) or settled together with it
 // (deferred-card-settled-together), and the merged card never carries an end of stay settled apart. Its mark (PATCH /payment and the preview the guards
 // read) never re-dates nor clears an end-of-stay complement collected on its own: the stored state of stay 22281
@@ -142,9 +142,9 @@ test('guard 3: the merged card leaves a settled end of stay out of its amount, a
   assert.equal(stale.body.code, 'AMOUNT_CHANGED');
 });
 
-// Audit R28 verification L1 (2026-11-08) — specs/reservation-payment-ledger.md rule 33 on the merged card: while the fiche is
+// Audit R28 verification L1 (2026-11-08) — specs/payments/reservation-payment-ledger.md rule 33 on the merged card: while the fiche is
 // edited, what is stored now is the arrival part alone, a settled end of stay staying on its own card.
-test('guard 3, live edit: the merged card storedAmount leaves a settled end of stay out, specs/reservation-payment-ledger.md rule 33', () => {
+test('guard 3, live edit: the merged card storedAmount leaves a settled end of stay out, specs/payments/reservation-payment-ledger.md rule 33', () => {
   const stay = deferredOverSettled();
   const ledger = buildLedger({ row: rowOf(stay.id), quote: { complementAmount: 25, endOfStayComplementTotal: 50 }, today: inDays(0) });
   const merged = ledger.rows.find((r) => r.key === 'checkoutComplement');

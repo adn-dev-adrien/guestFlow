@@ -1,5 +1,5 @@
 // @ts-check
-// specs/reservation-number-and-search.md — Playwright smoke for the reservation number + live search.
+// specs/reservations/reservation-number-and-search.md — Playwright smoke for the reservation number + live search.
 // Guards the user-visible flow AND the render (the search box mounts on the Dashboard/Calendar, so a
 // crash here would blank those pages — exactly the regression this spec exists to catch).
 import { test, expect } from '@playwright/test';

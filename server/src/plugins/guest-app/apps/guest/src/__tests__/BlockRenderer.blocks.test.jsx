@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 11ter, 18, 49 — one renderer per block type, fed by props only (the studio preview renders
+// specs/guest-app/guest-app.md rules 11ter, 18, 49 — one renderer per block type, fed by props only (the studio preview renders
 // the same components); an unknown type draws nothing.
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';

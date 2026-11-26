@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/fiche-total-sejour-net-of-commission.md — the engine exposes `sejourNetTotal` = the stay
+// specs/platforms/fiche-total-sejour-net-of-commission.md — the engine exposes `sejourNetTotal` = the stay
 // total NET of the platform commission = « net perçu + compléments ». Non-regression for the cases:
 //   - direct / no commission        → sejourNetTotal === totalStayPrice (unchanged)
 //   - platform with a commission     → sejourNetTotal === totalStayPrice − commission

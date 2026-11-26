@@ -1,5 +1,5 @@
 /**
- * The console touching files inside an instance's directory (specs/hosting-h1-fleet-runtime.md
+ * The console touching files inside an instance's directory (specs/hosting/hosting-h1-fleet-runtime.md
  * rule 21, review 2026-10-17). The directory is writable by the instance, so nothing in it is
  * trusted:
  *

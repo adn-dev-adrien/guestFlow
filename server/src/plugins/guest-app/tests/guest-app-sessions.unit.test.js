@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 1-6, 8, 9 and 33 — the stay link, the lodging poster and the fallback lookup, through the
+// specs/guest-app/guest-app.md rules 1-6, 8, 9 and 33 — the stay link, the lodging poster and the fallback lookup, through the
 // plugin's real routes, on an in-memory database and an injected clock (far-future dates, nothing compared with today).
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,4 +1,4 @@
-// Booking pace — « réservations à date » against the same date last year (specs/booking-pace.md §3).
+// Booking pace — « réservations à date » against the same date last year (specs/pricing/booking-pace.md §3).
 // Pure: every function takes plain stays and ISO dates, no database.
 //
 // A stay is `{ propertyId, startDate, endDate, totalSejour, bookedOn, cancelledOn }`, dates as
@@ -44,7 +44,7 @@ function valueInMonth(stay, ym, metric) {
 
 // Rule 3 — the « CA des nuits »: `amount` spread evenly over the stay's nights, the share of those in
 // [fromMs, toExclusiveMs); a stay without a night counts whole where it starts. The one night split of
-// the app: the dashboard's revenue of the nights reads it too (specs/finance-dashboard-redesign.md rule 53).
+// the app: the dashboard's revenue of the nights reads it too (specs/accounting/finance-dashboard-redesign.md rule 53).
 function spreadOverNights(stay, fromMs, toExclusiveMs, amount) {
   const start = toMs(stay.startDate);
   const total = nightsOf(stay);
@@ -73,7 +73,7 @@ function wholeValue(stay, metric) {
 const roundFor = (metric, v) => (metric === 'revenue' ? round2(v) : Math.round(v));
 
 function onBooksIn(stays, ym, at, metric) {
-  // specs/finance-dashboard-redesign.md rule 35 — nights are distinct per logement: an iCal duplicate
+  // specs/accounting/finance-dashboard-redesign.md rule 35 — nights are distinct per logement: an iCal duplicate
   // of a booking already on the books adds no night.
   if (metric === 'nights') {
     const monthEnd = addDays(`${ym}-01`, Math.round(monthLengthMs(ym) / DAY) - 1);
@@ -114,7 +114,7 @@ const monthTick = (ym, first) => {
   const t = FR_TICK.format(new Date(toMs(`${ym}-01`)));
   return ym.endsWith('-01') || first ? `${t} ${ym.slice(2, 4)}` : t;
 };
-// specs/finance-revpar-year-over-year.md rule 23 — « 1er janvier 2027 », the dashboard's own wording.
+// specs/accounting/finance-revpar-year-over-year.md rule 23 — « 1er janvier 2027 », the dashboard's own wording.
 const longDate = formatDateLongFr;
 
 function formatValue(metric, v) {
@@ -186,7 +186,7 @@ function buildPace({ stays, today, metric, coverageMonth }) {
   const lastYearDay = shiftYear(today, -1);
   const paceStart = paceStartOf(stays);
   const comparableAsOf = Boolean(paceStart) && lastYearDay >= paceStart;
-  // specs/finance-revpar-year-over-year.md rule 22 — the first day `comparableAsOf` holds (29 February → 1 March).
+  // specs/accounting/finance-revpar-year-over-year.md rule 22 — the first day `comparableAsOf` holds (29 February → 1 March).
   const comparableFrom = snapshotKnownFrom(paceStart);
 
   const months = monthsFrom(today, MONTHS_AHEAD).map((month, i) => {

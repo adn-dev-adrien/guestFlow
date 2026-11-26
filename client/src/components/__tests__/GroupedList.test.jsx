@@ -1,4 +1,4 @@
-// GroupedList — generic contract (specs/options-resources-ux.md §4.2): headers with count, fold, forceOpen,
+// GroupedList — generic contract (specs/options/options-resources-ux.md §4.2): headers with count, fold, forceOpen,
 // partial count, highlight, empty.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

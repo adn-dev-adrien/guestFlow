@@ -1,4 +1,4 @@
-// specs/direct-installments.md rule 45 (audit 2026-10-27, finding 4) — a stay paid through an installment
+// specs/payments/direct-installments.md rule 45 (audit 2026-10-27, finding 4) — a stay paid through an installment
 // plan is revenue like any other. The engine zeroes its acompte and solde, and `totalSejour` read only
 // those buckets: a 600 € stay paid in 3 × 200 € showed 0 € of revenue in the Finance pages, and the
 // invariant `comptaCollected + remainingToPay === totalSejour` broke (400 + 200 ≠ 0).

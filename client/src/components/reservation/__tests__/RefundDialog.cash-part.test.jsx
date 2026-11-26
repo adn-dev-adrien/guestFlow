@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import RefundDialog from '../RefundDialog';
 
-// specs/pricing-components.md rule 112 (loop t7 B7-3) — un trop-perçu fait d'une note en espèces ET d'une note par carte : la fenêtre
+// specs/pricing/pricing-components.md rule 112 (loop t7 B7-3) — un trop-perçu fait d'une note en espèces ET d'une note par carte : la fenêtre
 // s'ouvre sur la part espèces en « Caisse interne » (ses lignes, telles que le serveur les envoie) et dit ce qui reste à rembourser ensuite.
 
 vi.mock('../../../api', () => ({ __esModule: true, default: {} }));

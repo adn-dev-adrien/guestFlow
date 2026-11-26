@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rule 33 — « Aujourd'hui » still lands on today when a window request
+// specs/planning/dashboard-planning-scroll.md rule 33 — « Aujourd'hui » still lands on today when a window request
 // releases today's window while its smooth scroll runs (the flaky E2E timeline-scroll, audit round 4):
 // the timeline is reopened on today, unless the operator took the scroll back.
 import React from 'react';

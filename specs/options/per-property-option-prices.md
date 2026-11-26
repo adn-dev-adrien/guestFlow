@@ -72,7 +72,7 @@ option's base price is used, exactly as today.
     it fell back to `GET /options` (the base price), so the displayed unit price could disagree with the
     quoted line total.
 11. **Options list shows the overrides (2026-06-20; rewritten 2026-10-28).** The Options catalogue row
-    (`OptionRow`, fed by `GET /api/options/catalogue-view`, `specs/options-resources-ux.md` rule 9) shows one
+    (`OptionRow`, fed by `GET /api/options/catalogue-view`, `specs/options/options-resources-ux.md` rule 9) shows one
     server-computed price summary: the single price when every logement shares it, « min – max » with the
     note « selon logement » when the overrides differ (an override at 0 counts). The slot
     `renderPriceCell` of the former `PricedItemsPage` no longer exists. Pinned by

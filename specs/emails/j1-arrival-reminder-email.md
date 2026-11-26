@@ -5,7 +5,7 @@
 | **Status** | Implemented |
 | **Branch** | `feature/arrival-reminder-j2` _(user-managed)_ |
 | **Created** | 2026-06-12 |
-| **Updated** | 2026-06-18 — moved J-1 → J-2; stay date instead of « demain »; GPS line; conditional nordic-bath reminder (gear + scheduled slot); cleaning matched by option NAME (bug fix); force-overwrite migration. Recap now recalls the **reservation number** (`{{#if hasReservationNumber}}{{reservationNumber}}`) — see `specs/reservation-number-and-search.md`. |
+| **Updated** | 2026-06-18 — moved J-1 → J-2; stay date instead of « demain »; GPS line; conditional nordic-bath reminder (gear + scheduled slot); cleaning matched by option NAME (bug fix); force-overwrite migration. Recap now recalls the **reservation number** (`{{#if hasReservationNumber}}{{reservationNumber}}`) — see `specs/reservations/reservation-number-and-search.md`. |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
@@ -13,7 +13,7 @@
 > **Superseded for the shipped copy** (noted at the 2026-10-27 spec review). The default templates this
 > spec wrote — the J-1 copy with the GPS line « Domaine Solio » — are no longer shipped: the guest-email-sequence rewrite (rule 29: the complement
 > is one sentence, no list) and the neutral templates of phase P (#672,
-> specs/plugins-phase-p-productisation.md, specs/guest-email-texts-made-simple.md) replaced them. The
+> specs/plugins/plugins-phase-p-productisation.md, specs/emails/guest-email-texts-made-simple.md) replaced them. The
 > mechanics stay: its tokens still exists for a template of the operator's own. Read the rules below as
 > history for the copy.
 ---
@@ -83,7 +83,7 @@ charge, and/or to bring their nordic-bath gear (with the scheduled slot when set
    « ménage » (accent- and case-insensitive), OR whose linked option carries `autoOptionType = 'cleaning'`
    (fallback). This is the bug fix — operator-created "Ménage" options carry no `autoOptionType`, so the
    name match is what makes the detection reliable. Since 2026-08-01 this rule lives in the shared
-   [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js) helper (`isCleaningOption`), also
+   [`utils/cleaningOption.js`](../../server/src/utils/cleaningOption.js) helper (`isCleaningOption`), also
    consumed by the arrival SAS (`sasController`) so the email and the SAS can never disagree.
 10. **Nordic-bath reminder** appears only when the *Bain nordique* resource was booked —
     `{{#if hasNordicBath}}{{nordicBathReminder}}{{/if}}`. `hasNordicBath` is matched by **resource NAME**

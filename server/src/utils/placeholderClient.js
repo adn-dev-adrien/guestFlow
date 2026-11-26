@@ -1,5 +1,5 @@
 /**
- * Whether a client is an iCal placeholder rather than a guest (specs/email-automation.md rule 19).
+ * Whether a client is an iCal placeholder rather than a guest (specs/emails/email-automation.md rule 19).
  *
  * The iCal import names a stay it got no guest name for « Ical <platform> »
  * (`icalParser.resolveIcalClientIdentity`), and older imports kept the platform's own words

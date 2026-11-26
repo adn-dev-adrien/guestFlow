@@ -8,13 +8,15 @@
 | **Author** | Adrien |
 | **Related PR** | #759 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
 The arrival SAS recap (`client/src/plugins/sas/ReservationSasDialog.jsx`, plugin `sas`) shows the
 arrival complement the guest owes and decides whether the operator settles it **in one gesture**
-together with the stay ([single-payment-at-check-in.md](single-payment-at-check-in.md) §3.1). Both
+together with the stay ([single-payment-at-check-in.md](../payments/single-payment-at-check-in.md) §3.1). Both
 answers are computed **in React** today, from figures the client partly owns and partly rebuilds:
 
 | Client value | Where | What it does |
@@ -63,7 +65,7 @@ The server already owns most of the arithmetic, in a different place:
 2. **The linen elements are not re-priced at commit.** `complementItems` carries `{ label, amount }`
    built by the client (`:1048-1051`), and the model stores `amount` verbatim (`:2824`, `:2903`). The
    « the server re-prices every line at commit » sentence of
-   [single-payment-at-check-in.md](single-payment-at-check-in.md) §3.1 rule 1 is true for the
+   [single-payment-at-check-in.md](../payments/single-payment-at-check-in.md) §3.1 rule 1 is true for the
    catalogue options and the plugin lines, **not** for the linen elements nor for the preserved
    re-edit lines.
 3. **An operator adjustment silently wins over the recap.** When the fiche carries a
@@ -76,7 +78,7 @@ The server already owns most of the arithmetic, in a different place:
    (`client/src/plugins/hourly-resources/sasStep.js:27-31`); the same figure is recomputed by its
    `complementItems` hook (`server/src/plugins/hourly-resources/sasStep.js:41-47`).
 
-The owner's rule ([CLAUDE.md](../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays
+The owner's rule ([CLAUDE.md](../../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays
 money, it never computes it**, so that a figure is the same wherever it is read.
 
 ## 2. Goal
@@ -501,7 +503,7 @@ pillowcase (5 €) and the ménage (80 €), at 375, 900 and 1280 px:
 - The offer prices shown before a sale (« 8,00 € par personne et par matin — 16,00 € le matin pour
   2 pers. » on the breakfast offer page) and the « supplément » total of the hourly-resources
   scheduling page: shown before any line exists. The breakfast offer price is specified in
-  [breakfast-offer-price-server-side.md](breakfast-offer-price-server-side.md); the hourly-resources
+  [breakfast-offer-price-server-side.md](../options/breakfast-offer-price-server-side.md); the hourly-resources
   supplement belongs with the departure follow-up.
 - The breakfast composition pre-fill (`breakfastFoodFor`): counts of food, not money.
 - `recapNotes` of plugin steps: text, not money.

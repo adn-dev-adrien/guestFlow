@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 62 (verification R44 L2) — a cancelled stay's notice sent after a
+// specs/payments/payment-schedule-and-cancellation.md rule 62 (verification R44 L2) — a cancelled stay's notice sent after a
 // refund made since the cancel (D3: book money from the indemnity, caisse money in the caisse interne): the sum stated is
 // the one the cancel kept less what those refunds took from it, never below 0. Before, a cancel without notice, a 40 €
 // goodwill refund, then « Envoyer un email » told the guest 180 € were kept while 140 € were.

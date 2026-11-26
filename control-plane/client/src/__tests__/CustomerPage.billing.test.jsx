@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 7, 17 and 34 — the customer page's billing: the
+// specs/hosting/control-plane-plans-and-access.md rules 7, 17 and 34 — the customer page's billing: the
 // invoices with their status and Qonto links, « Relancer maintenant » after a preview, « Vérifier le
 // paiement », and the billing identity edited with the server's refusal.
 import React from 'react';

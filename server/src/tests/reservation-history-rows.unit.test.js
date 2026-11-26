@@ -1,5 +1,5 @@
 /**
- * specs/reservation-history-granular-diff.md — read side of « Historique des modifications ».
+ * specs/reservations/reservation-history-granular-diff.md — read side of « Historique des modifications ».
  * The stored diff must come out as one row per changed thing, values written in French.
  */
 

@@ -12,7 +12,7 @@ const TRACK_H = 32;
 const HALF_GAP = 2;
 
 /**
- * CalendarDayAgenda — the logement calendar on a phone (specs/calendar-property-parity.md rules 17, 21):
+ * CalendarDayAgenda — the logement calendar on a phone (specs/planning/calendar-property-parity.md rules 17, 21):
  * one month block of day rows, inside an InfiniteMonthScroller. A stay is a solid ribbon in the colour the
  * server chose (text colour included, nothing computed here): full width inside the stay, the right half on
  * the arrival day with « ↓ 16:00 », the left half on the departure day with « ↑ 10:00 », both halves on a

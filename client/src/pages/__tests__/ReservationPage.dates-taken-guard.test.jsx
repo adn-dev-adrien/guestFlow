@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 48 (reading of 2026-11-01, audit R11-C1) — « Dates prises » in the action bar
+// specs/payments/payment-link-lifecycle.md rule 48 (reading of 2026-11-01, audit R11-C1) — « Dates prises » in the action bar
 // opens the stay that took the nights through the fiche's unsaved-changes guard: a dirty devis asks first, and its
 // draft stays as typed when the operator stays.
 import React from 'react';

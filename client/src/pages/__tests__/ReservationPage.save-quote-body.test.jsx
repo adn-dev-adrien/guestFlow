@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t16, S16-1 + S16-2, 2026-11-17) — the quote taken at « Enregistrer » is the
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t16, S16-1 + S16-2, 2026-11-17) — the quote taken at « Enregistrer » is the
 // live preview's own request (`utils/ficheQuoteBody.js`): on an admin-unlocked fiche it carries `unlockPast` like the preview, so the routing
 // the preview lifted is the one the save stores (its `resourceLines` are what the PUT posts); and no request names a unit under « undefined »
 // for a free line (S16-1: that key priced every new option at the free line's amount).

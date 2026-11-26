@@ -94,7 +94,7 @@ None.
    - **Observed:** on a copy, option 18 rose to 7 € while 22326 held 1 × 6,50 €. Ordering 2 more is quoted and charged 13,99 € (the engine averages the merged line: 3 × 6,83 = 20,49), not 14 €. The order row stores unit 6,83.
    - **Fix direction:** price the order's units separately, or record the reading in the spec.
 4. **A card order's arrival note stores « 1 × 13 € ».** For `Blonde ×2` the settled note line reads qty 1, unitPrice 13, because `settleOrderNoteBeforeArrival` → `buildMidStayLine` defaults the quantity to 1. Anything that lists the notes says 1 × 13 €.
-5. **Spec drift in the status table.** The `specs/guest-app.md` §10 row J still says « `changed` in the SAS payload is true when an order of the stay was amended at the SAS ». Rule 71 and the code say the opposite (« not amended », fiche lowered). The real-route amend indeed answers `changed: false`. Fix the row.
+5. **Spec drift in the status table.** The `specs/guest-app/guest-app.md` §10 row J still says « `changed` in the SAS payload is true when an order of the stay was amended at the SAS ». Rule 71 and the code say the opposite (« not amended », fiche lowered). The real-route amend indeed answers `changed: false`. Fix the row.
 
 ## Not verified by me
 - **E2E:** not run (the coder reports 5 / 5).

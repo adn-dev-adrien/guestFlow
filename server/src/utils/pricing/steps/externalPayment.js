@@ -1,5 +1,5 @@
 /**
- * STEP payment (external) — what the document still asks once the money received is counted (specs/pricing-components.md §3 rules 21, 52).
+ * STEP payment (external) — what the document still asks once the money received is counted (specs/pricing/pricing-components.md §3 rules 21, 52).
  *
  * SETTLEMENT's `settleDocument` over the document's lines and its allocations: each line's status, the total, what was paid and what is left
  * (`remainingCents`). The step decides nothing itself, and a draft with no allocation simply owes its total. What REFUNDS owes back is read by the caller

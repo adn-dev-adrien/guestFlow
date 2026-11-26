@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 17, 19 and 25 — the page reads the report for the selection on screen: the
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 17, 19 and 25 — the page reads the report for the selection on screen: the
 // period (Mois · Trimestre · Année · Personnalisée, options from the server), the logement and the declaration
 // status go to the server as they are; a custom window is judged here with the server's own message and day; a
 // selection the server refuses keeps the last result on screen and says why.
@@ -15,7 +15,7 @@ import api from '../../api';
 
 const ROW = { reservationId: 7, reservationName: 'Jean Dupont', startDate: '2026-06-20', endDate: '2026-06-22', adults: 2, children: 1, nightsCount: 2, taxAmount: 4.8 };
 
-// The clock is pinned: the custom window's dates are judged against today (specs/server-test-isolation.md rule 7).
+// The clock is pinned: the custom window's dates are judged against today (specs/tech/server-test-isolation.md rule 7).
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-07-05T12:00:00') });
   api.getTouristTaxReport.mockReset().mockResolvedValue(reportOf([ROW]));

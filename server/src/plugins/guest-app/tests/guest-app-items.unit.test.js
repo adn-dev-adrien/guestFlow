@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 22, 23, 27bis, 39 — the sell switch and its fields, validated at the boundary of the real
+// specs/guest-app/guest-app.md rules 22, 23, 27bis, 39 — the sell switch and its fields, validated at the boundary of the real
 // admin routes.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -161,7 +161,7 @@ test('rule 22: the sell switch is the admin’s, a restricted role is refused', 
   });
 });
 
-// specs/guest-app.md rule 48 — the studio's Boutique lists the articles linked to the chosen lodging, at its price.
+// specs/guest-app/guest-app.md rule 48 — the studio's Boutique lists the articles linked to the chosen lodging, at its price.
 test('rule 48: ?propertyId= lists only the lodging’s articles, each with that lodging’s price', async () => {
   const db = freshDb();
   addOption(db, { id: 1, title: 'Cidre', category: 'Boissons', price: 4.5, prices: { 2: 0 } });
@@ -182,7 +182,7 @@ test('rule 48: ?propertyId= lists only the lodging’s articles, each with that 
   }
 });
 
-// specs/guest-app.md rule 48 (2026-11-12) — a resource set to « Tous les logements » in GuestFlow has no lodging row
+// specs/guest-app/guest-app.md rule 48 (2026-11-12) — a resource set to « Tous les logements » in GuestFlow has no lodging row
 // (choosing every lodging collapses to it): it belongs to every lodging's Boutique, like the engine reads it.
 test('rule 48: ?propertyId= lists a « Tous les logements » resource in every lodging', async () => {
   const db = freshDb();

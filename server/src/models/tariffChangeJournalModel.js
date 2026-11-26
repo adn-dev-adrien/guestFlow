@@ -1,4 +1,4 @@
-// Tariff change journal — specs/tariff-change-journal.md
+// Tariff change journal — specs/pricing/tariff-change-journal.md
 //
 // A tariff change happens in two beats: the recipe is applied inside GuestFlow, then the new grid is
 // pushed to the booking platforms. Only the second one changes what a traveller sees, so only the
@@ -90,7 +90,7 @@ function createTariffChangeJournalModel(database) {
       ? database.prepare("SELECT datetime('now') AS now").get().now
       : normalizeOccurredAt(occurredAt);
     if (!when) return { error: "Date d'effet invalide" };
-    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a date the operator declares lies in the window.
+    // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a date the operator declares lies in the window.
     const outside = source === 'manual' && occurredAt != null ? dateWindowMessage(when.slice(0, 10)) : null;
     if (outside) return { error: outside };
 
@@ -124,7 +124,7 @@ function createTariffChangeJournalModel(database) {
     return database.prepare('DELETE FROM tariff_change_events WHERE id = ?').run(Number(id)).changes > 0;
   }
 
-  // specs/reservation-payment-ledger.md rule 61 — whether the property's tariff changed AFTER a day
+  // specs/payments/reservation-payment-ledger.md rule 61 — whether the property's tariff changed AFTER a day
   // (an event dated later than `isoDay`), so a price check can tell « the tariff the guest saw » from
   // « today's tariff ». Rule 65: `occurredAt` is UTC for an apply or a backfill, but the wall time
   // typed in the browser for a manual entry, so only the former is shifted to the local day.

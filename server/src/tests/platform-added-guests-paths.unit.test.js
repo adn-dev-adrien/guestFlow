@@ -1,4 +1,4 @@
-// specs/platform-added-guests-tourist-tax.md rules 1, 7, 7bis, 14, 15, 19-23, through the real controllers: the
+// specs/tourist-tax/platform-added-guests-tourist-tax.md rules 1, 7, 7bis, 14, 15, 19-23, through the real controllers: the
 // engine alone does not prove a save or a preview hands it the stored paid base and the stored addition.
 
 process.env.DB_PATH = ':memory:';

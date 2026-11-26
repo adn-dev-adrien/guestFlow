@@ -32,7 +32,7 @@ const upload = multer({
   },
 });
 
-// specs/settings-input-guards.md rule 60 — the size and type refusals are ours; any other failure (the disk, the
+// specs/settings/settings-input-guards.md rule 60 — the size and type refusals are ours; any other failure (the disk, the
 // parser) answers a fixed message, never its own text, which can hold the server's path.
 function documentUploadRefusal(err) {
   if (err.code === 'LIMIT_FILE_SIZE') return 'Fichier trop volumineux (max 10 Mo).';
@@ -70,7 +70,7 @@ const photoUpload = multer({
   }
 });
 
-// specs/settings-input-guards.md rule 60, reading of 2026-11-05 (audit R24 verification N2) — the photo's refusals are ours
+// specs/settings/settings-input-guards.md rule 60, reading of 2026-11-05 (audit R24 verification N2) — the photo's refusals are ours
 // too: multer's own English text (« File too large », « Unexpected field ») never reaches the operator.
 function photoUploadRefusal(err) {
   if (err.code === 'LIMIT_FILE_SIZE') return 'Photo trop volumineuse (max 5 Mo).';
@@ -86,7 +86,7 @@ function handlePhotoUpload(req, res, next) {
   });
 }
 
-// specs/settings-input-guards.md rule 59 — a file the image library cannot read is the operator's photo, not a
+// specs/settings/settings-input-guards.md rule 59 — a file the image library cannot read is the operator's photo, not a
 // server fault: 400 « Image illisible. », thrown before the model writes anything.
 const PHOTO_UNREADABLE = Object.freeze({ status: 400, body: { error: 'Image illisible.', code: 'PHOTO_UNREADABLE' } });
 

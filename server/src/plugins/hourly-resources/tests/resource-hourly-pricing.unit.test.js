@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { priceRange, priceSessions, isValidSession } = require('../hourlyPricing');
 
-// specs/resource-hourly-scheduling.md §3.3/§3.5 — time-banded hourly pricing.
+// specs/resources/resource-hourly-scheduling.md §3.3/§3.5 — time-banded hourly pricing.
 // Bain nordique grid: day 30 €/h (12:00–20:00), evening 50 €/h (20:00–22:00), 30-min slots.
 const GUEST = { dayRate: 30, eveningRate: 50, eveningStart: '20:00', slotMinutes: 30 };
 
@@ -81,12 +81,12 @@ test('priceSessions: free hour capped to a short earliest session', () => {
   assert.equal(out.billedHours, 2);
 });
 
-// specs/resource-supplements-total-server-side.md §4.1 — the breakdown the booking preview renders.
+// specs/resources/resource-supplements-total-server-side.md §4.1 — the breakdown the booking preview renders.
 test('priceSessions: bands and the offered minutes of 19:00-21:00 on the guest grid', () => {
   const grid = { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 30 };
   const out = priceSessions([{ date: '2026-07-10', start: '19:00', end: '21:00' }], grid, 60);
   assert.equal(out.grossPrice, 70);
-  // specs/hourly-resource-quantity-and-sas-scheduling.md rule 37 — the offered hour is worth the day rate even in the evening: 35 → 25, the total 35 → 45.
+  // specs/resources/hourly-resource-quantity-and-sas-scheduling.md rule 37 — the offered hour is worth the day rate even in the evening: 35 → 25, the total 35 → 45.
   assert.equal(out.totalPrice, 45);
   assert.equal(out.freeMinutesApplied, 60);
   assert.equal(out.billedMinutes, 60);

@@ -1,5 +1,5 @@
 // qontoClient — Qonto Business API wrapper. All HTTP is mocked; we assert the URLs, headers and
-// bodies we construct and the parsing of responses. See specs/online-payments-qonto.md §4.1.
+// bodies we construct and the parsing of responses. See specs/payments/online-payments-qonto.md §4.1.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -90,7 +90,7 @@ test('createPaymentLink emits a multi-item VAT basket (HT unit prices) when item
   assert.equal(sent.items[1].vat_rate, '0');
 });
 
-test('createPaymentLink forwards an item description, and omits the key when absent (specs/qonto-payment-link-reference.md)', async () => {
+test('createPaymentLink forwards an item description, and omits the key when absent (specs/payments/qonto-payment-link-reference.md)', async () => {
   const { fetchImpl, calls } = stubFetch({ payment_link: { id: 'pl_d', url: 'u', status: 'open', amount: { value: '266.05', currency: 'EUR' } } });
   const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
   await client.createPaymentLink({ accessToken: 'at', items: [

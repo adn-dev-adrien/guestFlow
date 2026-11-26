@@ -29,7 +29,7 @@ manual edit of `.env.local`, and a `pm2 restart`. None of it was possible from G
 Three separate defects made that necessary:
 
 - **The credentials live only in `server/.env.local`** (`qontoClient.js` reads `process.env`), so
-  rotating a secret is a file edit plus a restart — `specs/online-payments-qonto.md` §4.1 always
+  rotating a secret is a file edit plus a restart — `specs/payments/online-payments-qonto.md` §4.1 always
   assumed the operator has a shell.
 - **The interface lied.** Réglages → Paiements showed « Connecté ✓ » and « Identifiants : Configurés »
   while every single call to Qonto had been failing for weeks. `qontoStatus` reports whether a
@@ -53,7 +53,7 @@ when it is broken.
    next call to Qonto, with no file to edit and no restart.
    _(Amended 2026-09-16: the **webhook secret** was in this list. It is no longer entered or shown —
    the server generates it and subscribes Qonto by itself; see
-   `specs/settings-one-save-and-automatic-webhook.md` rules 6, 9.)_
+   `specs/settings/settings-one-save-and-automatic-webhook.md` rules 6, 9.)_
 2. A value stored in the database wins over the environment variable of the same role. When the
    stored value is empty the environment variable is still used, so an installation configured
    through `.env.local` keeps working untouched.
@@ -87,7 +87,7 @@ when it is broken.
     arrive as an HTTP 401, one is a form to fill and the other a button to press. _(Reading of 2026-11-05, audit R24
     verification R1: a refused scope, `insufficient_scope`, is an authorisation to renew, and a public address missing for
     the webhook check is its own class « Adresse publique manquante »,
-    specs/settings-one-save-and-automatic-webhook.md rule 15.)_
+    specs/settings/settings-one-save-and-automatic-webhook.md rule 15.)_
 11. The connection badge shows the last *verified* outcome. It says « Connecté » only when a real call
     to Qonto has succeeded — never merely because a token is stored.
 12. Every failed Qonto call records its code, its message and its date, wherever it was made from —
@@ -95,7 +95,7 @@ when it is broken.
     Réglages → Paiements.
 13. A successful call clears the recorded failure, so what the page shows is the current state and not
     an old scar. _(Reading of 2026-11-05, audit R24 E24-2: except a failure of the webhook check, which only a
-    successful check clears, specs/settings-one-save-and-automatic-webhook.md rule 15.)_
+    successful check clears, specs/settings/settings-one-save-and-automatic-webhook.md rule 15.)_
 14. The visitor on the public site never sees the detail of a Qonto failure: the tunnel keeps
     answering its generic message, and the detail goes to the operator's interface.
 17. A failure from the Qonto Business API carries its own `errors[].code` and `errors[].detail` to
@@ -241,7 +241,7 @@ the environment » — an installation that never opens the new form behaves exa
 > webhook-secret field, the called hosts, the mode/credentials/provider summary lines and its own
 > Save button, and keeps the diagnosis, the redirect URI, the credentials, the date of the last
 > verification and two actions — « Connexion » and « Test ».
-> See `specs/settings-one-save-and-automatic-webhook.md` §6. The copy table below still describes
+> See `specs/settings/settings-one-save-and-automatic-webhook.md` §6. The copy table below still describes
 > what each state says, which has not changed.
 
 **Réglages → Paiements**, above the existing « Connexion bancaire (Qonto) » card:
@@ -303,7 +303,7 @@ card, next to the fields they act on.
 - [x] `plugins/online-payment/tests/qonto-env-base-wins.unit.test.js` — rule 5, reading of 2026-11-05 (11 tests)
 - [x] `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js` — rule 19 (6 tests)
 - [x] `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js` — rule 13 reading, rule 21 (6 tests, with
-      specs/settings-one-save-and-automatic-webhook.md rule 15); client `PaymentsSettingsPage.failure-origin.test.jsx` (2)
+      specs/settings/settings-one-save-and-automatic-webhook.md rule 15); client `PaymentsSettingsPage.failure-origin.test.jsx` (2)
 
 ### Client unit tests
 

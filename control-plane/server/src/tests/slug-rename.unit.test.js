@@ -1,6 +1,6 @@
-// specs/control-plane-plans-and-access.md rules 21 and 22 — renaming an address: every item ticked,
+// specs/hosting/control-plane-plans-and-access.md rules 21 and 22 — renaming an address: every item ticked,
 // the slug's rules, the old slug reserved for 12 months then free, the licence re-issued under the
-// new slug. Since the hosting (specs/hosting-h1-fleet-runtime.md rules 5, 7) the directory moves by
+// new slug. Since the hosting (specs/hosting/hosting-h1-fleet-runtime.md rules 5, 7) the directory moves by
 // itself and the old address redirects for 90 days.
 
 const test = require('node:test');
@@ -23,7 +23,7 @@ test('rule 22 — the preview names the new address, the date, and what must be 
     assert.equal(p.error, null);
     assert.equal(p.url, 'https://aulnes-neuf.guestflow.test');
     assert.equal(p.until, 'L’ancienne adresse aulnes.guestflow.test redirige (301) jusqu’au 30/12/2026 et reste réservée jusqu’au 01/10/2027.');
-    // The public URL follows the rename by itself (specs/hosting-h1-fleet-runtime.md rule 25).
+    // The public URL follows the rename by itself (specs/hosting/hosting-h1-fleet-runtime.md rule 25).
     assert.deepEqual(p.checklist.map((i) => i.key), ['wordpress', 'ical', 'oauth', 'push']);
     assert.equal(s.customers.renamePreview(s.c.id, { slug: 'admin' }).error, 'Adresse réservée.');
     assert.equal(s.customers.renamePreview(s.c.id, { slug: 'moulin' }).error, 'Adresse déjà utilisée par un autre client, y compris archivé.');

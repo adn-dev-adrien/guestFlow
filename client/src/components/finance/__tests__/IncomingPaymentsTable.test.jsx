@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 22-27 — « Versements à venir »: one block per client,
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 22-27 — « Versements à venir »: one block per client,
 // lines in the server's order (late first), colour = state only, nature filter chips, the « Reçus ces 30 derniers
 // jours » switch, header / line click opens the fiche, the empty sentence. Nothing is computed by the component.
 import React from 'react';

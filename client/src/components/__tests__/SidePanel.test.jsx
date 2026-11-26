@@ -1,4 +1,4 @@
-// SidePanel — generic contract (specs/options-resources-ux.md §4.2): sheet on xs, drawer on sm+, dirty
+// SidePanel — generic contract (specs/options/options-resources-ux.md §4.2): sheet on xs, drawer on sm+, dirty
 // guard, Escape, save gating, section chips with error state.
 import React from 'react';
 import { render, screen, act, waitFor } from '@testing-library/react';

@@ -1,5 +1,5 @@
 /**
- * PickupCurveChart — « Montée en charge » of one stay month (specs/booking-pace.md rule 13): the
+ * PickupCurveChart — « Montée en charge » of one stay month (specs/pricing/booking-pace.md rule 13): the
  * cumulative value on the books by days before the first of the month, this year solid up to today,
  * last year dashed, and a marker on today. Feature-local: it renders `/finance/pace/:month` as is.
  *

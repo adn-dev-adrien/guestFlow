@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote, isTouristTaxRemittedByOwner } = require('../utils/pricing').__test;
 
-// specs/per-platform-tourist-tax-three-way.md — the per-platform tourist-tax handling is two
+// specs/tourist-tax/per-platform-tourist-tax-three-way.md — the per-platform tourist-tax handling is two
 // orthogonal booleans on `ical_sources`:
 //   collectsTouristTax           = is the tax charged to the guest BY US? (1 = offered, 0 = at arrival)
 //   touristTaxRemittedByPlatform = does the PLATFORM remit it to the commune? (1 = yes, 0 = we do)

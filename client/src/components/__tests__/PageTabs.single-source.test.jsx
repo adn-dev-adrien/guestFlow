@@ -1,4 +1,4 @@
-// specs/ds-tabs.md rule 1 — PageTabs is the ONLY place that draws tabs. This guard is the rule
+// specs/design-system/ds-tabs.md rule 1 — PageTabs is the ONLY place that draws tabs. This guard is the rule
 // itself: it fails the day a page reaches for `<Tabs>`/`<Tab>` again, which is exactly how the four
 // divergent renderings appeared in the first place.
 import fs from 'node:fs';

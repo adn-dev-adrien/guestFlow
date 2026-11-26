@@ -2,13 +2,13 @@ import React from 'react';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
-// The plugin slots under each line read the active plugins (specs/plugins-phase-1-sdk.md rule 16).
+// The plugin slots under each line read the active plugins (specs/plugins/plugins-phase-1-sdk.md rule 16).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
 
-// specs/mid-stay-extras-on-locked-fiche.md §3.2 + §3.5 rules 15-16 — on a locked fiche the extras card
+// specs/sas/mid-stay-extras-on-locked-fiche.md §3.2 + §3.5 rules 15-16 — on a locked fiche the extras card
 // comes back to life while the server says the window is open; lines sold at arrival stay frozen.
 
 const OPTION = (id, title) => ({

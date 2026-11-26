@@ -7,13 +7,13 @@
 | **Created** | 2026-11-25 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Mock-up** | [`site-outside-resource-booking.html`](site-outside-resource-booking.html) |
+| **Mock-up** | `site-outside-resource-booking.html` (folded into this spec, deleted 2026-11-26) |
 
 ---
 
 ## 1. Context
 
-Adrien's request of 2026-11-25, after the gift vouchers went on sale (`specs/gift-voucher-campaigns.md`):
+Adrien's request of 2026-11-25, after the gift vouchers went on sale (`specs/gift-vouchers/gift-voucher-campaigns.md`):
 
 1. The voucher card on the purchase page is tilted by 1° (`.gf-gv-front { transform: rotate(-1deg) }`). It must stand straight.
 2. The redemption page « Utiliser un bon cadeau » exists (`/utiliser-un-bon-cadeau/`, block `guestflow/gift-voucher-use`), but nothing
@@ -31,7 +31,7 @@ What already exists (all on `master` at v4.4.0):
 - `sdk.core.resourceBookingOffer()` (hourly-resources `outsideOffer.js`): `freeSlots`, `quote`, `hold`/`release`, `bookOutside`. It
   already declares a `site` channel nobody uses.
 - `sessionQuote.quoteSession` / `hourlyPricing.priceSessions`: every slice is priced at the band it starts in, at the rank of its hour
-  (first hour / following hours, `specs/hourly-extra-hour-rates.md`). Point 5 is therefore already how the engine prices; this spec
+  (first hour / following hours, `specs/resources/hourly-extra-hour-rates.md`). Point 5 is therefore already how the engine prices; this spec
   pins it with a rule and a test, and fixes the display that hid it (rule 9).
 - `sdk.core.payments.saleLink` + `ctx.paymentBasket`: a payment link with no stay, and its paid callback.
 - The gift-voucher redemption service (`gift-vouchers/useService.js`, rules 23-32 of the campaigns spec): code → slots → quote →
@@ -59,7 +59,7 @@ online in full or with a gift voucher code — with the operator told, by push a
    resource that can be booked outside a stay: `sellableExternally = 1` and banded (`priceType = 'per_hour'`, planning card on), with
    a sellable external rate. With one resource, it is shown selected and nothing is asked; with several, the visitor picks one first.
    With none, the block shows a short French line (« Aucune activité à réserver en ce moment. ») — never an empty form.
-2. **One scrolling form, laid out like the lodging tunnel** (`specs/wp-booking-widget-redesign.md` rules 32-33): from 900 px of block
+2. **One scrolling form, laid out like the lodging tunnel** (`specs/site/wp-booking-widget-redesign.md` rules 32-33): from 900 px of block
    width, two columns with the recap as a sticky aside holding the main button; below, one column and a sticky bottom bar (amount +
    button). Order of the sections: activity → gift voucher code → session (duration, people) → date → slot → « Ajouter à la séance »
    (folded extras, campaigns rule 64) → contact → terms.

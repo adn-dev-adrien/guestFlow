@@ -1,5 +1,5 @@
 /**
- * One placeholder client per iCal stay (specs/ical-import-hardening.md rule 1, data side).
+ * One placeholder client per iCal stay (specs/platforms/ical-import-hardening.md rule 1, data side).
  *
  * Until 2026-10-18 the iCal import reused one client per placeholder name: every Booking stay pointed at
  * the same « Closed Not available », every Airbnb stay at the same « Reserved Ical ». Anything written on
@@ -101,7 +101,7 @@ function removeOrphanIcalPlaceholders(db) {
 
 /**
  * The clients an iCal import created (notes `iCal {…}`) once no reservation or quote names them, at every sync. A client
- * a resource booking names is kept (specs/resource-booking-pricing-and-invoicing.md rule 34, R36-RES-L1).
+ * a resource booking names is kept (specs/resources/resource-booking-pricing-and-invoicing.md rule 34, R36-RES-L1).
  *
  * @param {import('better-sqlite3').Database} db
  * @returns {number} deleted clients

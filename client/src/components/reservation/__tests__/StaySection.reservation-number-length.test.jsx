@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 24 (audit R23-6) — the field stops at the 64 characters the server holds.
+// specs/tech/reservations-backend-mvc.md rule 24 (audit R23-6) — the field stops at the 64 characters the server holds.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';

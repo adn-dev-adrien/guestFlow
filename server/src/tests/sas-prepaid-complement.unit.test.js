@@ -1,7 +1,7 @@
-// specs/defer-arrival-complement-to-checkout.md rule 21, specs/single-payment-at-check-in.md rule 18 (audit R25-A1) — the
+// specs/sas/defer-arrival-complement-to-checkout.md rule 21, specs/payments/single-payment-at-check-in.md rule 18 (audit R25-A1) — the
 // arrival SAS only settles, undoes or re-stamps the complement it settled itself: one paid before check-in (fiche tick,
 // reconciliation, payment link) stays paid whatever the commit answers. Same at departure for the end-of-stay complement
-// (specs/recall-unpaid-arrival-complement-at-checkout.md rule 10). specs/reception-role-checkin-only.md rule 16 (audit R25-A2) —
+// (specs/sas/recall-unpaid-arrival-complement-at-checkout.md rule 10). specs/sas/reception-role-checkin-only.md rule 16 (audit R25-A2) —
 // the refund refusal a reception user meets names no refund.
 process.env.DB_PATH = ':memory:';
 

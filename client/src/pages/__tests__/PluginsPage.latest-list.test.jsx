@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 39 — an older list answering last never brings the previous state back
+// specs/design-system/ui-review-2026-10-19-operations.md rule 39 — an older list answering last never brings the previous state back
 // (audit R23-P3: « Rechercher » still on its way, « Activer » answered first).
 import React from 'react';
 import { render, screen, waitFor, within, act } from '@testing-library/react';

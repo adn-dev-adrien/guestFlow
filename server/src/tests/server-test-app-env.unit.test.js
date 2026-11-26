@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 12 (reading of 2026-11-01, audit R13 L-1) — the `npm test` preload
+// specs/tech/server-test-isolation.md rule 12 (reading of 2026-11-01, audit R13 L-1) — the `npm test` preload
 // also drops every non-prefixed variable the app reads (`PUBLIC_SITE_ORIGIN`, the rate-limit knobs, QONTO_*,
 // …), keeping only what the runner needs. The list lives in `setup/appEnvNames.js`; the guard below derives
 // the app's reads from `src/` so a new `process.env.X` outside that list fails here, and (reading of the
@@ -87,7 +87,7 @@ function sourceFiles(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      // A plugin's web apps (`plugins/<id>/apps/<name>`, specs/plugins-phase-1-sdk.md rule 48) are browser code built
+      // A plugin's web apps (`plugins/<id>/apps/<name>`, specs/plugins/plugins-phase-1-sdk.md rule 48) are browser code built
       // by their own Vite toolchain: the server never reads them, nor their dev-server variables.
       const pluginApps = entry.name === 'apps' && path.dirname(dir) === path.join(SRC, 'plugins');
       if (entry.name !== 'tests' && entry.name !== 'node_modules' && !pluginApps) sourceFiles(full, out);
@@ -398,7 +398,7 @@ function guardProblems(root, allowed = INDIRECT_READERS) {
 }
 
 // A name only removed plugins read is not stale: the plugin removal matrix runs this file with the plugin
-// gone (specs/plugin-removal-resilience.md rules 7(a), 19).
+// gone (specs/plugins/plugin-removal-resilience.md rules 7(a), 19).
 function ownedByRemovedPlugins(name) {
   const { PLUGIN_ENV_NAMES } = require(NAMES);
   const owners = Object.keys(PLUGIN_ENV_NAMES).filter((id) => PLUGIN_ENV_NAMES[id].includes(name));

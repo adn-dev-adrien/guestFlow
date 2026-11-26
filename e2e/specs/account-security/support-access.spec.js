@@ -1,8 +1,8 @@
 // @ts-check
-// specs/hosting-h2-account-security.md §7 E2E — the support flow with a locally signed link (rules 12-16, 20). The access request it files is
+// specs/hosting/hosting-h2-account-security.md §7 E2E — the support flow with a locally signed link (rules 12-16, 20). The access request it files is
 // global state: every admin page shows its banner until it is answered, which pushes the page down under any spec measuring the layout
 // (mobile/page-tabs saw its tab strip 238 px lower). It runs in the project « support-access », never beside the main one
-// (specs/e2e-playwright-smoke-suite.md rule 20).
+// (specs/tech/e2e-playwright-smoke-suite.md rule 20).
 import { test, expect } from '@playwright/test';
 import fixtures from '../../fixtures/accountSecurity.js';
 

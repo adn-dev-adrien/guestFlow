@@ -1,5 +1,5 @@
 /**
- * PluginUpdateDialog — the update of one plugin (specs/plugins-phase-4-registry.md rules 20, 22): the
+ * PluginUpdateDialog — the update of one plugin (specs/plugins/plugins-phase-4-registry.md rules 20, 22): the
  * changelog lines of the versions between the installed one and the offered one, newest first, and
  * one button « Mettre à jour ». A refusal (version of GuestFlow too old, missing requirement,
  * package refused, download impossible) is shown in the dialog, in the server's French words.

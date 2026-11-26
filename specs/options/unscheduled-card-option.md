@@ -7,8 +7,10 @@
 | **Created** | 2026-09-23 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [option-planning-card.md](option-planning-card.md) (supersedes the « empty selection → no line » behaviour of §3.4), [public-planning-options.md](public-planning-options.md), [site-meal-portions.md](site-meal-portions.md) (§8 named this bug), [hourly-resource-quantity-and-sas-scheduling.md](hourly-resource-quantity-and-sas-scheduling.md) (same fix, already shipped for resources), [reservation-option-immutability.md](reservation-option-immutability.md) (the invariant this bug breaks), [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) (amends rules 2 and 8) |
-| **Summary** | [docs/specs/2026-09-23-unscheduled-card-option.html](../docs/specs/2026-09-23-unscheduled-card-option.html) |
+| **Related** | [option-planning-card.md](option-planning-card.md) (supersedes the « empty selection → no line » behaviour of §3.4), [public-planning-options.md](../site/public-planning-options.md), [site-meal-portions.md](../site/site-meal-portions.md) (§8 named this bug), [hourly-resource-quantity-and-sas-scheduling.md](../resources/hourly-resource-quantity-and-sas-scheduling.md) (same fix, already shipped for resources), [reservation-option-immutability.md](../reservations/reservation-option-immutability.md) (the invariant this bug breaks), [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) (amends rules 2 and 8) |
+| **Summary** | [docs/specs/2026-09-23-unscheduled-card-option.html](../../docs/specs/2026-09-23-unscheduled-card-option.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
 
 ---
 
@@ -17,8 +19,8 @@
 A booking made on the website can carry a **planning-card option** — « Petit déjeuner », « Le repas
 des trappeurs ». The visitor cannot choose the mornings, so the engine bills the **quantity** and
 leaves the line **unscheduled**: `reservation_options.cardOccurrences` stays `NULL` and the line
-carries `toBeScheduled: true` ([public-planning-options.md](public-planning-options.md) rule 1,
-[pricing.js:1586-1626](../server/src/utils/pricing.js#L1586)). That mode exists only under the engine
+carries `toBeScheduled: true` ([public-planning-options.md](../site/public-planning-options.md) rule 1,
+[pricing.js:1586-1626](../../server/src/utils/pricing.js#L1586)). That mode exists only under the engine
 flag `planningCardAsQuantity`, which only the public flow sets.
 
 **The line then disappears from the reservation, and nobody is told.** Reproduced end to end on
@@ -38,35 +40,35 @@ when it is opened in the back-office — verified on devis 22291, saved down fro
 **Three independent defects produce it.**
 
 1. **The engine drops a taken option.** The card branch returns `null` when the selection is empty and
-   the flag is absent ([pricing.js:1628](../server/src/utils/pricing.js#L1628)). A line billed on a
+   the flag is absent ([pricing.js:1628](../../server/src/utils/pricing.js#L1628)). A line billed on a
    quantity therefore cannot survive a replay by any caller that does not set the flag.
 2. **Nothing carries the public origin.** `convertToReservation` does not copy `requestOrigin`
-   ([devisModel.js:837](../server/src/models/devisModel.js#L837)), and `devisModel.update` reads the
-   flag from the request body ([devisModel.js:406](../server/src/models/devisModel.js#L406)), which the
+   ([devisModel.js:837](../../server/src/models/devisModel.js#L837)), and `devisModel.update` reads the
+   flag from the request body ([devisModel.js:406](../../server/src/models/devisModel.js#L406)), which the
    fiche never sends — so no replay after the booking request ever has it.
 3. **The client rebuilds an empty grid.** `buildGridFromStored` turns a `NULL` selection into an
-   all-unchecked grid ([cardOccurrences.js:125](../client/src/utils/cardOccurrences.js#L125)),
+   all-unchecked grid ([cardOccurrences.js:125](../../client/src/utils/cardOccurrences.js#L125)),
    `toWireOccurrences` sends `[]`, and `applyQuoteToForm` rebuilds `selectedOptions` from the quote
-   ([applyQuoteToForm.js:53](../client/src/utils/applyQuoteToForm.js#L53)) — a dropped line vanishes
+   ([applyQuoteToForm.js:53](../../client/src/utils/applyQuoteToForm.js#L53)) — a dropped line vanishes
    from the form, which is why the switch reads « off ».
 
 **This is the third time the same hazard is paid for.** It was found and patched inside
 `applyQuoteToForm` during the original implementation (« the next recompute sends no occurrences → the
 server returns no line → the option vanishes », [option-planning-card.md:158](option-planning-card.md)),
 patched again by a safety net in `buildInitialGrid`
-([cardOccurrences.js:113](../client/src/utils/cardOccurrences.js#L113)), and a one-shot migration
-`breakfast_card_occurrences_v1` ([database.js:1384](../server/src/database.js#L1384)) had to seed
+([cardOccurrences.js:113](../../client/src/utils/cardOccurrences.js#L113)), and a one-shot migration
+`breakfast_card_occurrences_v1` ([database.js:1384](../../server/src/database.js#L1384)) had to seed
 occurrences on existing reservations for exactly the same reason. Each patch closed one road to the
 cliff; the cliff is `return null`.
 
-It also breaks [reservation-option-immutability.md](reservation-option-immutability.md) rule 1 head-on:
+It also breaks [reservation-option-immutability.md](../reservations/reservation-option-immutability.md) rule 1 head-on:
 *« Once a reservation is created, its option set and all billed amounts are frozen »*. Here an
 ordinary save deletes a line the guest has paid.
 
 ### 1.1 A fourth defect, this one already live in production
 
 `buildReservationEngineInput` never passes `cardOccurrences`
-([reservationEngineInput.js:64-68](../server/src/utils/reservationEngineInput.js#L64)). Every replay
+([reservationEngineInput.js:64-68](../../server/src/utils/reservationEngineInput.js#L64)). Every replay
 built from it therefore hits the same `return null` — so **every** card-option line vanishes from it,
 scheduled or not. The callers are `financeModel` (the « Suivi taxe de séjour » declaration),
 `forceItemContribsCapture` (the per-bucket contribution capture at a payment flip) and
@@ -81,7 +83,7 @@ over the 13 bookings carrying a card option:
 
   The mechanism is worth naming, because it decides which stays are hit: a platform booking pins
   `finalPrice` on the gross the guest paid, so the **accommodation absorbs** whatever the lines do
-  not account for ([pricing.js:2160](../server/src/utils/pricing.js#L2160)). A card option that
+  not account for ([pricing.js:2160](../../server/src/utils/pricing.js#L2160)). A card option that
   falls out of the replay does not lower the total — it enlarges the accommodation, and L'Estiva's
   tax is a percentage of it. Every stay that moves is in `percentage_accommodation` mode **and**
   carries a `platformGrossAmount`; the direct stays and the per-night-per-person ones declare the
@@ -95,7 +97,7 @@ Injecting the stored occurrences into the same replay restores the fiche's own t
 - **Option lines: none.** No booking of public origin exists in production — `requestOrigin = 'public'`
   matches **0 row**, every reservation is `ical` (49) or `manual` (4), and all 17 card-option lines
   carry their occurrences. The online booking tunnel is not open yet
-  ([cgv-acceptance-rollout](cgv-acceptance-rollout.md) gates it), so **no data repair is needed** —
+  (cgv-acceptance-rollout gates it), so **no data repair is needed** —
   the bug is latent and will bite on the first site booking.
 - **Contribution capture: none.** Every `acompteContribTtc` / `soldeContribTtc` on a card line is
   `NULL`; no wrong split was ever written.
@@ -117,7 +119,7 @@ the operator to place those moments with the guest if it has not already been do
    (`quantity > 0`) and carries **no occurrence**, the engine returns a normal option line priced on
    the portions it was sold at, marked `toBeScheduled: true` with `cardOccurrences: []` — for **every**
    caller, with or without `planningCardAsQuantity`. It is never `null`.
-   _This generalises to options what [hourly-resource-quantity-and-sas-scheduling.md](hourly-resource-quantity-and-sas-scheduling.md)
+   _This generalises to options what [hourly-resource-quantity-and-sas-scheduling.md](../resources/hourly-resource-quantity-and-sas-scheduling.md)
    rules 1 and 3 already decided for hourly resources._
 2. **Occurrences win over the quantity.** A non-empty selection prices the line
    `billedUnits = occurrences × served covers` exactly as today
@@ -129,11 +131,11 @@ the operator to place those moments with the guest if it has not already been do
    `buildReservationEngineInput`). Consequences, all intended:
    - a site line keeps its exact 6 portions / 48 € through the conversion and every later save;
    - a **fresh** public request has no snapshot, so the visitor's quantity applies, in portions
-     ([site-meal-portions.md](site-meal-portions.md) rule 1);
+     ([site-meal-portions.md](../site/site-meal-portions.md) rule 1);
    - an admin line whose grid the operator empties keeps its billed portions instead of silently
      zeroing — removing the option is done with its switch, which already exists.
 4. **`planningCardAsQuantity` stops deciding whether a line exists.** It keeps exactly one job: the
-   public portion **cap and clamp** ([site-meal-portions.md](site-meal-portions.md) rule 3), which must
+   public portion **cap and clamp** ([site-meal-portions.md](../site/site-meal-portions.md) rule 3), which must
    not apply to an operator. The public controllers keep passing it; nothing else reads it for options.
 5. **Superseded:** « an empty selection means the option isn't taken → no line »
    ([option-planning-card.md](option-planning-card.md) §3.4, test plan line 194) is replaced by rules 1
@@ -144,7 +146,7 @@ the operator to place those moments with the guest if it has not already been do
 
 6. **The summary marks it.** An option line with `toBeScheduled` renders an « à planifier » chip next to
    its name in `PricingSummary`, the same chip an unplaced hourly resource already uses
-   ([PricingSummary.jsx:503-511](../client/src/components/PricingSummary.jsx#L503)). Display only, no
+   ([PricingSummary.jsx:503-511](../../client/src/components/PricingSummary.jsx#L503)). Display only, no
    effect on the total.
 7. **The fiche shows the option as taken**, with its billed portions (« 6 petits déjeuners ») and an
    empty occurrence grid the operator may fill at any time. This needs no client change beyond rule 6:
@@ -158,14 +160,14 @@ the operator to place those moments with the guest if it has not already been do
    > **Sans test** — règle non livrée dans ce changement : elle exige de retarifer une ligne déjà
    > payée depuis le SAS, chemin qui n'existe pas et qui porte ses propres questions d'argent (§8).
    > Elle est écrite ici parce que la décision est prise ; ses tests viendront avec sa spec.
-   - it amends [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) rules 2
+   - it amends [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) rules 2
      and 8, which today close the step for good on any option « déjà prise à la réservation » — that
      rule was written for an option that is *already scheduled*, and it is kept for that case;
    - the step sells nothing. It shows what was paid (« 6 petits déjeuners payés »), the candidate
      moments grid, and a live counter « 4 / 6 planifiés »;
    - **nothing is pre-checked** — the moments are what the operator is asking the guest about, exactly
      as the catering sale page already does
-     ([sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) rule 7);
+     ([sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) rule 7);
    - committing writes `cardOccurrences` on the **existing** line — no second line, the
      `PRIMARY KEY (reservationId, optionId)` is untouched, and the routing acompte/complément of the
      line is left exactly as it was;
@@ -190,14 +192,14 @@ the operator to place those moments with the guest if it has not already been do
 
 - Option switched off (`quantity = 0`) → no line, unchanged. That is the only way to remove it.
 - Stay with **no night** → the engine returns before any option line is built
-  ([pricing.js](../server/src/utils/pricing.js), the `nights <= 0` branch), so the fallback needs no
+  ([pricing.js](../../server/src/utils/pricing.js), the `nights <= 0` branch), so the fallback needs no
   guard of its own and none was added.
 - No dates yet → no quote at all, unchanged.
 - Offered line / free units → applied to `billedUnits` on the fallback path exactly as on the
   occurrence path.
 - A line already scheduled → rules 1, 3, 6, 8 and 9 are inert; it behaves exactly as today.
 - SAS re-opened after a commit → the planning step re-opens on the occurrences it wrote, like every
-  other SAS step ([reopen-completed-sas.md](reopen-completed-sas.md)).
+  other SAS step ([reopen-completed-sas.md](../sas/reopen-completed-sas.md)).
 - `soldUnits` (rule 9) is a **display** field: it never enters a total, and it disappears once the save
   makes the snapshot agree with the planning.
 
@@ -212,7 +214,7 @@ the operator to place those moments with the guest if it has not already been do
 | `utils/` | `pricing.js` | T | Card branch: the quantity fallback no longer depends on `planningCardAsQuantity` (rules 1, 3, 4); `soldUnits` on a line whose planning differs from its snapshot (rule 9); the no-candidate-day guard |
 | `utils/` | `reservationEngineInput.js` | T | `selectedOptions` carries `cardOccurrences` + `cardPersons` (rule 10) |
 | `utils/` | `sasOptionSale.js` | T | _(rule 8, deferred)_ A booked-but-unscheduled card option becomes a **planning** offer instead of being filtered out |
-| `controllers/` | `sasController.js` | T | _(rule 8, deferred)_ Relays the planning intent of the new step to the model |
+| `controllers/` | `plugins/sas/controller.js` | T | _(rule 8, deferred)_ Relays the planning intent of the new step to the model |
 | `models/` | `reservationsModel.js` | T | _(rule 8, deferred)_ `commitArrivalSas` writes the placed moments on the existing line **and re-prices it** |
 | `routes/`, `middleware/`, `scheduledTasks.js`, `database.js` | — | — | (none — no schema change, no migration) |
 
@@ -366,8 +368,8 @@ says « à planifier » on the fiche, which is what stops the loss before the we
   replay above their stored total (22194: 147,50 € vs 102,50 €; 22196: 174,29 € vs 168,57 €). That is a
   different cause, unrelated to card options, and is left for its own investigation.
 - **Letting the website visitor choose the mornings** — still « à planifier avec l'hôte »
-  ([site-meal-portions.md](site-meal-portions.md) §8).
-- **The breakfast prep count** ([breakfastModel.js:136](../server/src/models/breakfastModel.js#L136))
+  ([site-meal-portions.md](../site/site-meal-portions.md) §8).
+- **The breakfast prep count** ([breakfastModel.js:136](../../server/src/models/breakfastModel.js#L136))
   still assumes the whole party until the line is scheduled.
 
 ## 9. Open questions

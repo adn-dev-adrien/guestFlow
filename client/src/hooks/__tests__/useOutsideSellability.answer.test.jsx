@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 124 — the fiche asks the server whether the draft sells with no stay, asks again when the
+// specs/pricing/pricing-components.md rule 124 — the fiche asks the server whether the draft sells with no stay, asks again when the
 // price type / planning card / insurance flag changes, and never shows one article's answer on another.
 import { renderHook, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

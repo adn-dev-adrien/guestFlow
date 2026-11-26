@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 64, reading of 2026-11-01 (audit R11 external R11-E1). The guest notice says
+// specs/payments/payment-link-lifecycle.md rule 64, reading of 2026-11-01 (audit R11 external R11-E1). The guest notice says
 // « rien ne vous a été prélevé » only after the read that follows the deactivation of a link withdrawn for taken dates
 // found no payment, final or in flight. A provider whose `getPayment` does not say `pending` (a boolean) — online-payment
 // 1.5.0, which still loads on this core — cannot say that: the core counts its unpaid answer as in flight. The read

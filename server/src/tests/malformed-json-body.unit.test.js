@@ -1,4 +1,4 @@
-// specs/express-5-upgrade.md rule 7 (spec review 2026-10-27) — a body the JSON parser refuses is a
+// specs/tech/express-5-upgrade.md rule 7 (spec review 2026-10-27) — a body the JSON parser refuses is a
 // 400 with a French message, not « Erreur interne du serveur » logged as a crash.
 const { listenLocal } = require('./listenLocal');
 const test = require('node:test');

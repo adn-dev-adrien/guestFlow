@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 35, 85, 97 (the note line stores the quantity sold) and specs/pricing-components.md rules 26, 29, 49 (owner Q-C3) — a card order awaiting its payment writes NO line on the fiche
+// specs/guest-app/guest-app.md rules 35, 85, 97 (the note line stores the quantity sold) and specs/pricing/pricing-components.md rules 26, 29, 49 (owner Q-C3) — a card order awaiting its payment writes NO line on the fiche
 // (nothing the guest has not paid), holds no slot on the planning and reserves nothing of what it was quoted with (a second order is accepted, the shop
 // does not read the free hour as taken; reading of 2026-11-13); paid, its lines are written already settled, tagged with the order.
 const fx = require('./guestOrderFixtures');

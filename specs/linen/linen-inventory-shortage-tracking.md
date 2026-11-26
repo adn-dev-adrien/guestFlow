@@ -11,6 +11,8 @@
 | **Depends on** | [weekly-bed-linen-tracking.md](weekly-bed-linen-tracking.md) (uses the same options, same property defaults, same window/weekday math) |
 | **Related PR** | _(opened after plan validation)_ |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -210,7 +212,7 @@ towel sets, global across all properties) in a dedicated Settings sub-menu. The 
 ## 4. Architecture
 
 > Reminder — Fat backend, thin frontend.
-> All simulation logic lives in `server/src/utils/linenInventory.js` (pure JavaScript). The
+> All simulation logic lives in `server/src/plugins/linen/linenInventory.js` (pure JavaScript). The
 > client only renders the simulation result.
 
 ### 4.1 Server side (`server/src/`)

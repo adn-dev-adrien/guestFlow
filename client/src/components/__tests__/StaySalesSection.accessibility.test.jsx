@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 32, 85 (UI-13) — the repeated buttons of a section are told apart by the line they act on, and the confirmation takes the focus.
+// specs/pricing/pricing-components.md §3 rules 32, 85 (UI-13) — the repeated buttons of a section are told apart by the line they act on, and the confirmation takes the focus.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

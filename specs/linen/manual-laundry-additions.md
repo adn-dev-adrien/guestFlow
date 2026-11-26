@@ -65,7 +65,7 @@ trip date** (one human, one trip per day — same scope as skips).
    count is floored at 0, and a stock withdrawal is capped at the dirty pile.
    *Reading of 2026-11-02 — the date window.* The trip date lies in [today − 5 years, today + 5 years], 400
    `DATE_OUTSIDE_WINDOW` otherwise; a date already holding an addition is edited or cleared whatever its day
-   (linen 1.2.2, `specs/reservations-backend-mvc.md` rule 13, second reading).
+   (linen 1.2.2, `specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 7. **No reservation coupling.** Manual additions never touch reservations, options, or the
    complement/finance — they are purely a linen-trip overlay.
 8. **Hide-when-empty unchanged.** A trip with zero reservation linen but non-zero manual additions

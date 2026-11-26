@@ -1,5 +1,5 @@
 /**
- * The customer emails of the renewal (specs/control-plane-plans-and-access.md rules 17, 33): their
+ * The customer emails of the renewal (specs/hosting/control-plane-plans-and-access.md rules 17, 33): their
  * default texts, the placeholders they may use, and the rendering. Pure.
  *
  * A placeholder is `{{name}}`. An unknown one is refused when a template is saved, never discovered

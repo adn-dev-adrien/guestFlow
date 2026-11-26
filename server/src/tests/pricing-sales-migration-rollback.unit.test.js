@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 85, 86, 90.2; specs/self-update-and-releases.md rules 31 and 57 (end review R1-1, R1-2) — the previous
+// specs/pricing/pricing-components.md §3 rules 85, 86, 90.2; specs/hosting/self-update-and-releases.md rules 31 and 57 (end review R1-1, R1-2) — the previous
 // release (4.1.0) running on a database PR C migrated. The statements below are v4.1.0's, copied from `server/src/utils/paymentPollRunner.js`,
 // `utils/paymentLinkLifecycle.js`, `models/bookingLinesModel.js` (deleteCustomOptions) and `models/reservationsModel.js` (the arrival-SAS upsert)
 // at the tag v4.1.0 (7df728ad).

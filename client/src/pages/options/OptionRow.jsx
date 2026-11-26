@@ -1,5 +1,5 @@
 /**
- * OptionRow — one option in the catalogue list (specs/options-resources-ux.md rule 9): the name
+ * OptionRow — one option in the catalogue list (specs/options/options-resources-ux.md rule 9): the name
  * (wraps, never cut), the description on one line, the traits the server computed, the price summary
  * right-aligned in tabular figures with its unit under it, and the « ⋯ » menu. The whole row opens the
  * editor (click anywhere, or Tab to the name and Enter / Space). On `xs` the price sits top right and

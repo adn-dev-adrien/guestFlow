@@ -1,4 +1,4 @@
-// specs/single-vat-rate.md rule 13 (audit 2026-10-27) — the live « Total HT / TVA » includes the
+// specs/accounting/single-vat-rate.md rule 13 (audit 2026-10-27) — the live « Total HT / TVA » includes the
 // extra-guest supplement in the accommodation base, like the stored summary and the export.
 const test = require('node:test');
 const assert = require('node:assert/strict');

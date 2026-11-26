@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 35, 44, §6.7 — the Suivi financier loads the franchise card once (and
+// specs/accounting/vat-optional-mode.md rules 35, 44, §6.7 — the Suivi financier loads the franchise card once (and
 // on « Actualiser »), draws it between the hero and the insights, and shows nothing when the install is
 // under VAT or the read fails.
 import React from 'react';

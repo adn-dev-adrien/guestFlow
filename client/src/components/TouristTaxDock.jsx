@@ -1,6 +1,6 @@
 /**
- * TouristTaxDock — the bottom banner of the « Taxe de séjour » page (specs/tourist-tax-report-v2.md rule 59; mock
- * specs/tourist-tax-by-property-maquette.html): « À reverser » in large type (« sur … au total »), « Déjà déclaré »,
+ * TouristTaxDock — the bottom banner of the « Taxe de séjour » page (specs/tourist-tax/tourist-tax-report-v2.md rule 59; mock
+ * tourist-tax-by-property-maquette.html (mock-up, deleted 2026-11-26)): « À reverser » in large type (« sur … au total »), « Déjà déclaré »,
  * « Reversé par les plateformes » with its stays count, and the secondary counts as compact pills. Sticky, on a translucent
  * frosted surface (solid under `prefers-reduced-transparency`); nothing animates, so `prefers-reduced-motion` has nothing to
  * respect. Renders the server's `totals` as given.

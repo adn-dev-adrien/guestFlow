@@ -1,6 +1,6 @@
 /**
  * French-locale date + time formatters for email templates
- * (specs/email-automation.md §3 rule 5 + §4.4).
+ * (specs/emails/email-automation.md §3 rule 5 + §4.4).
  *
  * Pure: ISO strings in, formatted strings out. Empty / malformed input → empty string
  * (the renderer is fail-safe; an unknown date in a template should never break the send).
@@ -17,7 +17,7 @@ const EN_MONTHS = [
 ];
 
 // `2026-06-15` → `15 juin 2026` (fr) / `15 June 2026` (en). Truncates the time portion if present.
-// `lang` defaults to 'fr' so every existing caller keeps today's output (specs/email-language-fr-en.md).
+// `lang` defaults to 'fr' so every existing caller keeps today's output (specs/emails/email-language-fr-en.md).
 function formatDateLong(isoDate, lang = 'fr') {
   if (!isoDate) return '';
   const [datePart] = String(isoDate).split('T');
@@ -32,7 +32,7 @@ function formatDateLong(isoDate, lang = 'fr') {
   return `${dayNum} ${months[monthIdx]} ${yearNum}`;
 }
 
-// specs/finance-revpar-year-over-year.md rule 23 — `2027-01-01` → `1er janvier 2027`: a French long date for a
+// specs/accounting/finance-revpar-year-over-year.md rule 23 — `2027-01-01` → `1er janvier 2027`: a French long date for a
 // sentence, the first of the month written « 1er ». `formatDateLong` keeps its own output (emails).
 function formatDateLongFr(isoDate) {
   return formatDateLong(isoDate, 'fr').replace(/^1 /, '1er ');
@@ -70,7 +70,7 @@ const PARIS_PARTS = new Intl.DateTimeFormat('en-US', {
 });
 
 // An instant (ISO, UTC) as a guest reads it in an e-mail, Paris time, without the year: « lundi 2 novembre
-// à 18 h 00 » / « Monday 2 November at 6:00 pm » (specs/payment-link-lifecycle.md rule 36). Empty for no
+// à 18 h 00 » / « Monday 2 November at 6:00 pm » (specs/payments/payment-link-lifecycle.md rule 36). Empty for no
 // instant, an unreadable one or Qonto's zero-time sentinel (anything at or before the Unix epoch).
 function formatMomentLong(instant, lang = 'fr') {
   const ms = instant ? Date.parse(String(instant)) : NaN;

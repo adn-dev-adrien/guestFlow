@@ -21,7 +21,7 @@ traced to its cause.
 **1. The logement calendar misses stays the general calendar shows.** On the shadow, for La Granja and
 the range 2026-01-01 → 2027-12-31, `GET /api/reservations?from&to` returns **33** Granja stays and
 `GET /api/reservations?propertyId=1&from&to` returns **4**. Cause:
-[reservationsModel.js:727-736](../server/src/models/reservationsModel.js#L727) — when `propertyId` is
+[reservationsModel.js:727-736](../../server/src/models/reservationsModel.js#L727) — when `propertyId` is
 given, `list()` adds a display filter that drops every stay whose platform has an `ical_sources` row
 with `disabled = 1` for that logement (`platforms-and-ical-rework.md` rule 10). The general calendar
 passes no `propertyId`, so it never applies it: the two calendars read two different sets.
@@ -32,40 +32,40 @@ passes no `propertyId`, so it never applies it: the two calendars read two diffe
   (the Lodgify decommission, 2026-10-16). The bug is real there too: the 10 `Lodgify` stays (old direct
   bookings, 2025-12-31 → 2026-08-16) are missing from both logement calendars, while their dates stay
   blocked. Any future « Désactiver » would do the same to a live platform.
-- Side effect found on the way: [ReservationPage.jsx:791, 821, 969, 1114, 2012](../client/src/pages/ReservationPage.jsx#L791)
+- Side effect found on the way: [ReservationPage.jsx:791, 821, 969, 1114, 2012](../../client/src/pages/ReservationPage.jsx#L791)
   loads `getReservations({ propertyId })` to flag date conflicts in the fiche. A hidden stay is not
   flagged there (the server's availability check still refuses the save, so no double booking).
 
 **2. The general calendar's colours are too faded.** Since `ui-review-2026-10-19-operations.md` rule 14,
 a stay bar is a **14 %** tint of its platform colour with a 3 px stripe
-([CumulativeMonthCalendar.jsx `barTint`](../client/src/components/CumulativeMonthCalendar.jsx#L35)).
+([CumulativeMonthCalendar.jsx `barTint`](../../client/src/components/CumulativeMonthCalendar.jsx#L35)).
 At 14 % the eight platform colours collapse into near-identical pastels. The palette itself has two
 collisions that a stronger fill would expose: `direct #c9a227` vs `GitesDeFrance #e6c832` (two golds),
 `booking #003580` vs `abritel #1565c0` (two blues). And the pre-10-19 solid bars printed white text on
 colours where white reaches only 1.7:1 (Gîtes de France), 2.3:1 (Abracadaroom), 2.4:1 (direct) — that
-is why the tint was introduced. [server/src/constants/platformColors.js](../server/src/constants/platformColors.js),
-mirrored in [client/src/constants/platforms.js](../client/src/constants/platforms.js#L20). A custom colour
+is why the tint was introduced. [server/src/constants/platformColors.js](../../server/src/constants/platformColors.js),
+mirrored in [client/src/constants/platforms.js](../../client/src/constants/platforms.js#L20). A custom colour
 (`platforms.color`, Paramètres → Plateformes) is stored without any validation
-([platformsModel.js `setColor`](../server/src/models/platformsModel.js#L236)) — prod has one: Lodgify `#fec700`.
+([platformsModel.js `setColor`](../../server/src/models/platformsModel.js#L236)) — prod has one: Lodgify `#fec700`.
 
 **3. The logement calendar does not scroll like the general one.** Both use `useInfiniteMonthScroll`,
 and the wheel does extend the logement grid both ways (measured: 4 → 31 months loaded). What differs:
 - The logement view is a **continuous** week grid with no month title; the general view is stacked
   month blocks with a sticky « Octobre 2026 » title.
 - The logement view's bar carries **‹ Mois précédent / Mois suivant ›**
-  ([CalendarPage.jsx:410-416](../client/src/pages/CalendarPage.jsx#L410)). They call
+  ([CalendarPage.jsx:410-416](../../client/src/pages/CalendarPage.jsx#L410)). They call
   `prependMonth` / `appendMonth`, which add a month above or below **while keeping the view still**
   (`cumulative-month-calendar.md` rule 11). Clicking them visibly does nothing: « il n'affiche pas les
   mois passés ou futurs ».
 - Every month added refetches the **whole** loaded range (6 requests, the property itself included)
-  with no sequence guard ([CalendarPage.jsx:85-121](../client/src/pages/CalendarPage.jsx#L85)): fast
+  with no sequence guard ([CalendarPage.jsx:85-121](../../client/src/pages/CalendarPage.jsx#L85)): fast
   scrolling can let an older, narrower response overwrite a newer one. The general view caches per month.
 - On a phone the logement view is a **week pager** (swipe left/right, `CalendarWeekView`); the general
   view is a vertical month agenda.
 
 **4. A closure sits below its logement's stays, full-day.** Since `ui-review-2026-10-19-operations.md`
 rule 13 a closure is a texture: a hatched band along the bottom of the week row, below every lane
-([CumulativeMonthCalendar.jsx `buildMonthLayout`](../client/src/components/CumulativeMonthCalendar.jsx#L120)),
+([CumulativeMonthCalendar.jsx `buildMonthLayout`](../../client/src/components/CumulativeMonthCalendar.jsx#L120)),
 on whole days. On `master`, a closure was a bar **in its logement's lane group**, half-day at both ends
 (`git show origin/master:client/src/components/CumulativeMonthCalendar.jsx`, lines 79-160) — the owner's
 reference. The shadow's case: La Granja, stay 9 → 11 Oct, closure `startDate 2026-10-11`,
@@ -77,7 +77,7 @@ reference. The shadow's case: La Granja, stay 9 → 11 Oct, closure `startDate 2
 **5. A guest name is unreadable on the logement calendar.** Not the length. The 16-character name of the
 29 Dec → 2 Jan Granja stay measures 110 px in a 149 px cell — it fits. Measured in the browser, its
 `<p>` is **3.9 px tall** (`scrollHeight` 16). Cause: the 2026-10-27 fix F13 put
-`overflow: hidden` on the name ([CalendarDayCell.jsx:15 `FIT`](../client/src/components/CalendarDayCell.jsx#L15));
+`overflow: hidden` on the name ([CalendarDayCell.jsx:15 `FIT`](../../client/src/components/CalendarDayCell.jsx#L15));
 the mid-stay cell is a fixed-height (64 px) flex column with 24 px of vertical padding, so 16 px of
 content height for two lines (15.4 + 12.1 px). `overflow: hidden` turns the name's `min-height: auto`
 into 0 and flex-shrink crushes it to 4 px — the platform line, without overflow, keeps its height.
@@ -188,7 +188,7 @@ name is always readable or truncated cleanly with the full name on hover.
     the same vertical scroller: month blocks with a sticky title, one row per day with today's per-day
     content (arrival, departure, ongoing stay, devis, closure, note, « + Nouvelle réservation » on a free
     future day, the note button). Opens with today at the top. Since 2026-11-12
-    (specs/cumulative-month-calendar.md rule 13, shared `InfiniteMonthScroller`) today's row also stays at
+    (specs/planning/cumulative-month-calendar.md rule 13, shared `InfiniteMonthScroller`) today's row also stays at
     the top while the months load, until a scroll moves it.
 
 ### Names on the logement calendar
@@ -248,11 +248,11 @@ name is always readable or truncated cleanly with the full name on hover.
     its previews, the arrival payment, refunds, installments, payment links and requests (and the payment service itself, whoever calls it: the dashboard
     reminder included), e-mail send / queue / mark-sent / acknowledge, the dashboard snooze and reminder, the
     cancellation. One shared guard (`utils/reservationReadOnly.js`). A **cancelled** stay keeps
-    its existing behaviour (`specs/payment-schedule-and-cancellation.md` rule 25) and the guard now also closes
+    its existing behaviour (`specs/payments/payment-schedule-and-cancellation.md` rule 25) and the guard now also closes
     what was clearly a bug: SAS commit and previews, arrival payment, payment links and requests answer
     `409 RESERVATION_CANCELLED`; refunds, the plan it was cancelled with and the cancellation e-mails stay possible.
     > **Reading of 2026-11-02 (audit R15-C1).** « Refunds stay possible » includes deleting one made after the
-    > cancellation (specs/reservation-refunds.md rule 6, reading of the same day). The server offers « Supprimer »
+    > cancellation (specs/payments/reservation-refunds.md rule 6, reading of the same day). The server offers « Supprimer »
     > on those ledger rows only — never on « Acompte conservé », never on a refund the cancellation read (since the
     > review of PR #929, a refund made before a cancellation that had nothing to keep, or in caisse interne, is
     > offered too: the cancellation never read it) —
@@ -296,7 +296,7 @@ name is always readable or truncated cleanly with the full name on hover.
 31. **« Rétablir » checks the stock** _(added 2026-11-05, audit R23-1)_. A duplicate set aside holds no stock, so coming
     back takes some. After the dates (rule 22), `restoreSuperseded` judges its cots and its resource lines (every price
     type but `per_hour`) with `reservationsModel.heldStockRefusal`, on the peak of
-    `specs/reservations-backend-mvc.md` rule 21: past the stock, 409 `STOCK_UNAVAILABLE` with the words of a new stay,
+    `specs/tech/reservations-backend-mvc.md` rule 21: past the stock, 409 `STOCK_UNAVAILABLE` with the words of a new stay,
     shown as a toast on the fiche; the row stays set aside, no history entry. Test:
     `server/src/tests/conversion-and-restore-judge-stock.unit.test.js`.
 
@@ -447,7 +447,7 @@ prod, 0 € and no payment — and audits it; « Rétablir » undoes it. Nothing
 
 ## 6. UI / UX
 
-Interactive summary: [docs/specs/2026-10-28-calendar-property-parity.html](../docs/specs/2026-10-28-calendar-property-parity.html).
+Interactive summary: [docs/specs/2026-10-28-calendar-property-parity.html](../../docs/specs/2026-10-28-calendar-property-parity.html).
 
 **General calendar (Dashboard + Calendrier → Tous)**
 - Bars: 18 px, solid fill, 11 px semibold label in `textColor`, radius 6 on true ends only, square on a

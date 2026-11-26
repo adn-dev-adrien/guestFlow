@@ -1,5 +1,5 @@
 /**
- * STEP discounts — DISCOUNTS (specs/pricing-components.md §3 rule 52).
+ * STEP discounts — DISCOUNTS (specs/pricing/pricing-components.md §3 rule 52).
  *
  * The accommodation discount, delta and override figures and the engine price without any manual lever.
  * `apply(ctx)` returns a new context and never mutates the one it receives.

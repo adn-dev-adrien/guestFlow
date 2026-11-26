@@ -1,5 +1,5 @@
 /**
- * The sequence-specific part of an email context (specs/guest-email-sequence.md §3.5, rules 20 and
+ * The sequence-specific part of an email context (specs/emails/guest-email-sequence.md §3.5, rules 20 and
  * 26-28): whether the confirmation must carry the arrival essentials, the season send date and gift
  * deadline, and the unsubscribe link of the season emails.
  *

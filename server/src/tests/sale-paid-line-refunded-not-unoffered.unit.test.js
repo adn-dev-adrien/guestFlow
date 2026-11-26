@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 108 (stabilisation loop t7, D7-1, owner decision 2026-11-16) — a paid line offered, its money then REFUNDED
+// specs/pricing/pricing-components.md §3 rule 108 (stabilisation loop t7, D7-1, owner decision 2026-11-16) — a paid line offered, its money then REFUNDED
 // on the trop-perçu, can no longer be un-offered: putting it back at its price would make its note claim money the guest already got back, and the
 // guest would keep the line AND the money (Σ buckets + notes − owed − refunded − total read −30 €). Every save refuses it through the one
 // paid-line judgment — the fiche's « Enregistrer », the line API, both SAS commits — with 409 `LINE_REFUNDED` « Ligne remboursée : la revendre

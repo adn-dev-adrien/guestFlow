@@ -6,7 +6,7 @@ const propertiesModel = require('../models/propertiesModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const DDL = `
@@ -127,7 +127,7 @@ test('getByIdWithDetails exposes collectsTouristTax + touristTaxRemittedByPlatfo
   assert.equal(byKey.gitedefrance.touristTaxRemittedByPlatform, 0); // we collect at arrival
 });
 
-// ---- nameArticle normalization (specs/email-automation.md §3 rule 13) ----
+// ---- nameArticle normalization (specs/emails/email-automation.md §3 rule 13) ----
 
 test('normalizeNameArticle keeps the four canonical values and falls back to "au"', () => {
   const { normalizeNameArticle } = propertiesModel.__test;

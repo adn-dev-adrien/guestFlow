@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 40, 48, 53 and Q3; specs/outside-booking-sas.md rules 56 (e), 57 (c) (stabilisation loop t5 B5-3) — when Qonto
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 40, 48, 53 and Q3; specs/sas/outside-booking-sas.md rules 56 (e), 57 (c) (stabilisation loop t5 B5-3) — when Qonto
 // refuses a negative line, the discount is folded into its group's lines and no line may be negative, the rounding line included. A group whose cut no
 // single line carries then needs the line moved further AND an « Arrondi de TVA » line, or a rounding line that carries a cent of VAT itself. Every
 // basket the ungrouped solver invoiced folded stays invoiceable, with the VAT per rate the journal cuts once per group.

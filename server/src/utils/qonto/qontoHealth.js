@@ -1,5 +1,5 @@
 /**
- * What a Qonto failure means, and what repairs it — specs/qonto-settings-in-app.md §3 rules 10, 14.
+ * What a Qonto failure means, and what repairs it — specs/settings/qonto-settings-in-app.md §3 rules 10, 14.
  *
  * On 2026-09-06 the payment tunnel had been dead for eighteen days behind a single line the operator
  * never sees: `token refresh HTTP 401 invalid_client`. Telling that apart from `invalid_grant` is the
@@ -59,7 +59,7 @@ const STATES = {
     explanation: 'Qonto a répondu, mais en erreur. Le détail est repris ci-dessous.',
     action: 'Relancer le test dans quelques minutes ; si l\'erreur persiste, transmettre ce détail au support Qonto.',
   },
-  // specs/settings-one-save-and-automatic-webhook.md rule 15, reading of 2026-11-05 (audit R24 R1) — the webhook check found no
+  // specs/settings/settings-one-save-and-automatic-webhook.md rule 15, reading of 2026-11-05 (audit R24 R1) — the webhook check found no
   // public address: no call reached Qonto, and only that address repairs it.
   public_url_missing: {
     ok: false,

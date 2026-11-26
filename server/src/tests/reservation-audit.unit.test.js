@@ -46,7 +46,7 @@ test('computeAuditChanges treats empty-string and null as equal (no spurious cha
   assert.equal(computeAuditChanges({ finalPrice: 100.001 }, { finalPrice: 100.004 }).length, 0);
 });
 
-// specs/adjustable-complement-amounts.md §3.1 rule 11 — un complément ajusté est de l'argent déplacé
+// specs/sas/adjustable-complement-amounts.md §3.1 rule 11 — un complément ajusté est de l'argent déplacé
 // à la main : il doit se relire dans l'historique comme n'importe quelle autre modification.
 test('les deux ajustements de complément apparaissent dans le diff d\'historique', () => {
   const arrival = computeAuditChanges({ complementAmountOverride: null }, { complementAmountOverride: 85 });

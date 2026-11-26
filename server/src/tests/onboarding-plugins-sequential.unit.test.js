@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rules 37–38 — step « Plugins » installs the ticked plugins
+// specs/plugins/plugins-phase-p-productisation.md rules 37–38 — step « Plugins » installs the ticked plugins
 // one after the other, each after the previous one released the plugin lock; a refusal comes back
 // with its reason in words, the last step reads « 2 plugins actifs », and an empty price is
 // « Prix obligatoire ».

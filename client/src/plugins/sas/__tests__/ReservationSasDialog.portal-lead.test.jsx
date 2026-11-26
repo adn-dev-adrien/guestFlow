@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 9bis (a) — the SAS mechanism, with no real plugin: a `sas.portal` contribution marked
+// specs/guest-app/guest-app.md rule 9bis (a) — the SAS mechanism, with no real plugin: a `sas.portal` contribution marked
 // `leadsStep` takes the « Portail » step over (its title included) while its plugin's SAS data says it is
 // available, and receives the other portal contributions as `gateStep`; unavailable, the step is the gate's.
 import { screen } from '@testing-library/react';

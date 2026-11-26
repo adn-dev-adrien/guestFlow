@@ -1,5 +1,5 @@
 /**
- * Qonto Business API client (specs/online-payments-qonto.md §4.1) — OAuth2 + payment links.
+ * Qonto Business API client (specs/payments/online-payments-qonto.md §4.1) — OAuth2 + payment links.
  *
  * Pure-ish HTTP wrapper: a factory takes config (client id/secret/staging token, base URLs, an
  * injectable `fetch`) so it is fully unit-testable without network access. Holds NO state and NO
@@ -12,7 +12,7 @@
  * Amounts: Qonto uses `{ value, currency }` with `value` a decimal string ("90.00"). We keep cents
  * internally and format here. (Confirm the exact value format on first sandbox call.)
  *
- * Fair use (specs/payment-polling-fair-use.md rules 6–9): every request goes through `withRetry` — a
+ * Fair use (specs/payments/payment-polling-fair-use.md rules 6–9): every request goes through `withRetry` — a
  * `429`/`5xx` is retried with exponential back-off honouring `Retry-After`; a `429` that survives the
  * budget is rethrown with `code: 'RATE_LIMITED'`. `config.retry` overrides the env-resolved options
  * (tests inject `sleep`).
@@ -27,9 +27,9 @@ const PROD_HOSTS = { oauth: 'https://oauth.qonto.com', api: 'https://thirdparty.
 // `offline_access` is required to receive a refresh token; the rest are what payment links + the
 // provider connection need (write to create links, read to poll, organization.read for the bank
 // account). `webhook` is required to create the payment-link webhook subscription (POST
-// /v2/webhook_subscriptions) — see specs/public-online-payment.md §3bis.
+// /v2/webhook_subscriptions) — see specs/site/public-online-payment.md §3bis.
 const DEFAULT_SCOPES = ['offline_access', 'organization.read', 'payment_link.read', 'payment_link.write', 'webhook'];
-// What invoicing a sale outside a stay needs on top (specs/resource-booking-pricing-and-invoicing.md rule 14, Q6): a
+// What invoicing a sale outside a stay needs on top (specs/resources/resource-booking-pricing-and-invoicing.md rule 14, Q6): a
 // client, its invoice, and the PDF joined to the card credit. Asked by the `online-payment` consent only.
 const INVOICING_SCOPES = ['client.write', 'client_invoices.read', 'client_invoice.write', 'attachment.write'];
 
@@ -187,7 +187,7 @@ function buildQontoClient(config = {}) {
     // Create a payment link. Two shapes:
     //  - single line: pass { title, amountCents, vatRate? } (one item carrying the whole amount);
     //  - VAT basket: pass { items: [{ title, amountCents(HT), vatRate }], expectedTotalCents } built by
-    //    utils/paymentLinkItems — Qonto adds VAT on top of each HT unit_price (specs/payment-links-vat.md).
+    //    utils/paymentLinkItems — Qonto adds VAT on top of each HT unit_price (specs/payments/payment-links-vat.md).
     // `unit_price` is HT; Qonto's link `amount` = Σ round_half_up(unit_price × (1+vat_rate/100)).
     async createPaymentLink({ accessToken, title, amountCents, items, expectedTotalCents, currency = 'EUR', vatRate = 0, paymentMethods = ['credit_card', 'apple_pay'], reusable = false, redirectUrl }) {
       const toLine = (t, cents, rate, description) => ({
@@ -197,7 +197,7 @@ function buildQontoClient(config = {}) {
         // "cannot unmarshal number ... of type string".
         vat_rate: String(rate == null ? 0 : rate),
         // Optional per-item free text carrying the booking reference/dates so the payment is
-        // identifiable in Qonto (specs/qonto-payment-link-reference.md). Omitted when absent.
+        // identifiable in Qonto (specs/payments/qonto-payment-link-reference.md). Omitted when absent.
         ...(description != null && String(description).trim() ? { description: String(description) } : {}),
       });
       const wireItems = Array.isArray(items) && items.length
@@ -205,14 +205,14 @@ function buildQontoClient(config = {}) {
         : [toLine(title, amountCents, vatRate)];
       const payload = { payment_link: { reusable: Boolean(reusable), potential_payment_methods: paymentMethods, items: wireItems } };
       // Where Qonto sends the payer back after a successful payment (the site success page). Only set
-      // when provided — the exact field is confirmed in sandbox (specs/public-online-payment.md §9).
+      // when provided — the exact field is confirmed in sandbox (specs/site/public-online-payment.md §9).
       if (redirectUrl) payload.payment_link.redirect_url = String(redirectUrl);
       // One key per creation call, replayed only by that call's retries (rule 8). Qonto documents the
       // header for transfers but not for this endpoint; an unhonoured header is ignored.
       const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': randomUUID() };
       const json = await send(`${apiBase}/v2/payment_links`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create payment link');
       const link = json.payment_link || json;
-      // Money guard (specs/payment-links-vat.md §3 rule 5): the amount Qonto computed from the HT items
+      // Money guard (specs/payments/payment-links-vat.md §3 rule 5): the amount Qonto computed from the HT items
       // MUST equal what we intend to charge. On mismatch, fail loudly rather than present a wrong link.
       if (expectedTotalCents != null && link && link.amount && link.amount.value != null) {
         const chargedCents = Math.round(Number(link.amount.value) * 100);
@@ -236,7 +236,7 @@ function buildQontoClient(config = {}) {
       return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };
     },
 
-    // The payments made against a link (specs/online-payments-qonto.md §3.3). A payment with
+    // The payments made against a link (specs/payments/online-payments-qonto.md §3.3). A payment with
     // `status: "paid"` is the real "the guest paid" signal. Returns `{ paid, paidPayment, payments }`.
     async getPaymentLinkPayments({ accessToken, id }) {
       const json = await send(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}/payments`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get payment link payments');
@@ -245,7 +245,7 @@ function buildQontoClient(config = {}) {
       return { paid: Boolean(paidPayment), paidPayment, payments };
     },
 
-    // Webhook subscriptions (specs/public-online-payment.md §3bis). Create one for the payment-link
+    // Webhook subscriptions (specs/site/public-online-payment.md §3bis). Create one for the payment-link
     // events, pointing at our public callback, with OUR secret so the signature uses QONTO_WEBHOOK_SECRET.
     async createWebhookSubscription({ accessToken, callbackUrl, types = ['v1/payment-links'], secret, description }) {
       const body = { callback_url: String(callbackUrl), types };
@@ -270,7 +270,7 @@ function buildQontoClient(config = {}) {
       return accounts.map((a) => ({ id: a.id, name: a.name || '', iban: a.iban || '', main: Boolean(a.main) }));
     },
 
-    // One page of the account's completed credits (specs/qonto-bank-reconciliation.md rules 3, 5), newest
+    // One page of the account's completed credits (specs/accounting/qonto-bank-reconciliation.md rules 3, 5), newest
     // first. `settledFrom` / `updatedFrom` are ISO instants; the answer carries `nextPage` (null on the
     // last page). Read-only: `organization.read` is enough.
     async listTransactions({ accessToken, bankAccountId, settledFrom, updatedFrom, page = 1, perPage = 100 }) {
@@ -288,7 +288,7 @@ function buildQontoClient(config = {}) {
       return {
         transactions: (json.transactions || []).map((t) => ({
           id: t.transaction_id || t.id,
-          // specs/mollie-rolling-reserve-and-incoming-payments.md rule 12 — the id Qonto's own search and exports show.
+          // specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 12 — the id Qonto's own search and exports show.
           transactionId: t.transaction_id || '',
           amountCents: t.amount_cents != null ? Number(t.amount_cents) : Math.round(Number(t.amount) * 100),
           currency: t.currency || 'EUR',
@@ -323,7 +323,7 @@ function buildQontoClient(config = {}) {
       return { status: c.status || 'not_connected', connectionLocation: c.connection_location || null, bankAccountId: c.bank_account_id || null, raw: c };
     },
 
-    // ----- Client invoices (specs/control-plane-plans-and-access.md rule 17) -----
+    // ----- Client invoices (specs/hosting/control-plane-plans-and-access.md rule 17) -----
     //
     // The control plane invoices its customers from its own Qonto organisation: a Qonto client once
     // per customer, a numbered invoice per period, and a payment link attached to that invoice.
@@ -395,7 +395,7 @@ function buildQontoClient(config = {}) {
       return mapInvoice(json.client_invoice || json);
     },
 
-    // ----- Invoices of sales outside a stay (specs/resource-booking-pricing-and-invoicing.md rules 14, 17) -----
+    // ----- Invoices of sales outside a stay (specs/resources/resource-booking-pricing-and-invoicing.md rules 14, 17) -----
     // Scopes: `client.write`, `client_invoices.read`, `client_invoice.write`, `attachment.write` (INVOICING_SCOPES).
 
     // A private person. The billing address goes only when it is whole: Qonto refuses a partial one, and whether it
@@ -440,7 +440,7 @@ function buildQontoClient(config = {}) {
       const att = await send(`${apiBase}/v2/attachments/${encodeURIComponent(inv.attachment_id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get attachment');
       const url = (att.attachment || att).url;
       if (!url) return null;
-      // specs/resource-booking-pricing-and-invoicing.md rule 42 — the signed URL is read like every Qonto call: https
+      // specs/resources/resource-booking-pricing-and-invoicing.md rule 42 — the signed URL is read like every Qonto call: https
       // only, and within the same timeout (the click that issues the invoice waits for it).
       let parsed;
       try { parsed = new URL(String(url)); } catch { parsed = null; }

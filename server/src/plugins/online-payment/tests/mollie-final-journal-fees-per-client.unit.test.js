@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 5 and 28 — the clearing of Mollie per client takes the fees off
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 5 and 28 — the clearing of Mollie per client takes the fees off
 // as well as the credits: the client list always sums to the total.
 const test = require('node:test');
 const assert = require('node:assert/strict');

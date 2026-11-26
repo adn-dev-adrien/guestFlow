@@ -75,7 +75,7 @@ routes, mêmes codes de statut, mêmes charges utiles, mêmes sessions.
    Toute autre erreur reste un 500 opaque.
 8. **Sous `/public/`, le refus du parseur garde l'enveloppe publique** (audit R21, 2026-11-03). Mêmes statuts et mêmes
    codes que la règle 7, mais `{ error: { code, message } }` et le message dans la langue de l'appelant
-   (`publicHttp.answerBodyRefusal`, specs/public-api.md règle 22). L'API interne garde sa forme plate.
+   (`publicHttp.answerBodyRefusal`, specs/site/public-api.md règle 22). L'API interne garde sa forme plate.
 9. **Added 2026-11-04 (audit R22, public findings 1 and 2) — what the parser and the router refuse is never a crash.**
    A compressed body that does not inflate (`Z_*`, `ERR_*` with status 400), a dropped upload (`request.aborted`) and
    `request.size.invalid` answer rule 7's `400 INVALID_JSON`; a badly encoded path parameter (`URIError` « Failed to
@@ -156,7 +156,7 @@ Aucun changement visible. Le client ne sait pas quelle version d'express le sert
 ## 8. Out of scope
 
 - Refondre le routage ou la structure des contrôleurs (la dette « routes grasses » a sa propre
-  feuille de route dans `specs/ROADMAP.md`).
+  feuille de route dans `docs/rapports/ROADMAP.md`).
 - `react-router` 8 côté client.
 - L'avis `esbuild` (lié à Vite, pas à express).
 

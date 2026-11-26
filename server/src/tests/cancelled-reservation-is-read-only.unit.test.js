@@ -1,5 +1,5 @@
-// specs/payment-schedule-and-cancellation.md rule 25 — une réservation ANNULÉE est en lecture seule.
-// specs/adjustable-complement-amounts.md rule 10 — l'ajustement des compléments hérite de cette garde
+// specs/payments/payment-schedule-and-cancellation.md rule 25 — une réservation ANNULÉE est en lecture seule.
+// specs/sas/adjustable-complement-amounts.md rule 10 — l'ajustement des compléments hérite de cette garde
 // comme tout le reste de la fiche : il n'y a pas de porte à part pour l'argent.
 //
 // Pourquoi c'est important : les montants et les échéances d'un séjour annulé sont de l'HISTOIRE — la
@@ -94,7 +94,7 @@ test('rule 25 — enregistrer une réservation annulée est refusé, et rien n�
   assert.equal(captures.payload, undefined);
 });
 
-// specs/adjustable-complement-amounts.md rule 10 — l'ajustement d'un complément passe par le même
+// specs/sas/adjustable-complement-amounts.md rule 10 — l'ajustement d'un complément passe par le même
 // enregistrement, donc par la même garde : pas de chemin de contournement.
 test('rule 10 — ajuster un complément sur une réservation annulée est refusé aussi', () => {
   const { captures, res } = call('update', { ...BODY, complementAmountOverride: 14 });

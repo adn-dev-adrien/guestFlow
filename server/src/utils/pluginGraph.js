@@ -1,5 +1,5 @@
 /**
- * The plugin dependency graph (specs/plugin-dependencies.md rules 2–5). Pure: it takes the manifests
+ * The plugin dependency graph (specs/plugins/plugin-dependencies.md rules 2–5). Pure: it takes the manifests
  * in play and the stored states and answers who needs whom; the space's controller, the reconciler,
  * the loader and the console all read it, none recomputes an edge.
  *

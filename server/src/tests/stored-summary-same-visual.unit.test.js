@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md §3.8 rules 50-52 and 57 — the stored summary is shaped like the live
+// specs/payments/reservation-payment-ledger.md §3.8 rules 50-52 and 57 — the stored summary is shaped like the live
 // quote (the fiche renders both with one component), and a tariff change alone never raises the drift.
 
 process.env.DB_PATH = ':memory:';

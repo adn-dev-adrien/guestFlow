@@ -7,7 +7,7 @@
 | **Created** | 2026-10-30 |
 | **Author** | Adrien |
 | **Related PR** | PR6: [#912](https://github.com/adn-dev-adrien/guestFlow/pull/912) |
-| **Summary to validate** | [docs/specs/2026-10-30-payment-link-lifecycle.html](../docs/specs/2026-10-30-payment-link-lifecycle.html) |
+| **Summary to validate** | [docs/specs/2026-10-30-payment-link-lifecycle.html](../../docs/specs/2026-10-30-payment-link-lifecycle.html) |
 
 ---
 
@@ -33,13 +33,13 @@ The 22/10 production copy holds **3 open orphan links**, all `full`, all still p
 | #16 | 22302 | 672,80 € |
 
 1 650,54 € can be paid into rows that no longer exist. The only signal today is the boot
-`console.warn` of [index.js](../server/src/index.js) (« to deactivate by hand at the provider »).
+`console.warn` of [index.js](../../server/src/index.js) (« to deactivate by hand at the provider »).
 Whether prod has deactivated them by hand since 22/10 is unverified.
 
 ### 1.2 What already exists
 
 Deactivation is no longer missing (the 2026-09 note « `deactivate` never called » is out of date):
-[paymentLinkDeactivation.js](../server/src/utils/paymentLinkDeactivation.js) calls
+[paymentLinkDeactivation.js](../../server/src/utils/paymentLinkDeactivation.js) calls
 `provider.cancelLink` (Qonto `PATCH /v2/payment_links/{id}/deactivate`) in these places:
 
 | Where a link is abandoned | Code | Remote deactivation |
@@ -55,7 +55,7 @@ The retry loop is `retryPendingCancellations` (plugins-phase-3a rule 8): read th
 `cancelLink`, then clear `remoteCancelPendingAt`; a rate limit stops it.
 
 Every link is **created** in exactly two functions of
-[paymentRequestService.js](../server/src/utils/paymentRequestService.js): `mintPaymentLink`
+[paymentRequestService.js](../../server/src/utils/paymentRequestService.js): `mintPaymentLink`
 (`deposit` / `balance` / `full`; reached from the fiche « Demander le paiement » / « Renvoyer la
 demande », the dashboard « Envoyer la demande / Relancer », the public `/public/v1/booking-requests/:id/pay`,
 `POST /api/payments/reservations/:id/payment-links`) and `mintInstallmentLink` (an échéance, from the
@@ -394,7 +394,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     are cleared (review of #897: the guest coming back from the provider is exactly the one who may have
     just paid). Plugin
     1.19.0, English « This payment link has expired. Please book again from the accommodation's page. »
-    ([wordpress-plugin.md](wordpress-plugin.md) rule 34).
+    ([wordpress-plugin.md](../site/wordpress-plugin.md) rule 34).
 
 ### 3.K Decisions of 2026-10-30 (appended; rule numbers are identities)
 
@@ -654,7 +654,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     65), no longer `acknowledged-skip`.
 44. **The one guest e-mail that leaves without validation.** Adrien's standing rule is that no guest e-mail
     leaves without his validation (every template in « Manuel » `sendMode`, `autoSendPolicy` failing
-    closed, specs/no-automatic-email-without-approval.md). **`dates_unavailable_notice` is an explicit
+    closed, specs/emails/no-automatic-email-without-approval.md). **`dates_unavailable_notice` is an explicit
     exception, granted by Adrien on 2026-10-30**, for this single case: a guest holding a payment
     request for dates someone else just took must not be left to find a dead link.
     - It never goes through `autoSendPolicy` nor the manual queue: `notifyDatesTaken` calls
@@ -851,7 +851,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     unknown failure. Any other refusal re-reads nothing. The payment and e-mail routes answer `{ error: 'LINK_ALREADY_PAID', message }`: the
     client reads the code in `error` (`isLinkAlreadyPaid`, `constants/paymentLinks.js`). The fiche
     therefore drops the request button and shows the payment. The booking moved the stay's `updatedAt`: the
-    409 carries it like any `/api/payments` or `/api/emails` write (specs/reservation-fiche-concurrency.md
+    409 carries it like any `/api/payments` or `/api/emails` write (specs/reservations/reservation-fiche-concurrency.md
     rule 12), so the next save of the fiche is not refused as `STALE_FICHE`.
 51. **A request never reuses a link that rule 9 lapses at the next pass** (audit R8-M1). On or after the
     arrival day (00:00 Europe/Paris on the converted stay's `startDate`, else the row's own), an open
@@ -974,7 +974,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     and an installment request, first among the rule 55-56 refusals, before any mint and before the address
     and SMTP checks, provider or not; a mail that carries no link still leaves. The preview of such a template
     on a platform stay prints no link and no placeholder; the send is refused 409 (and rule 60 says it before). The home
-    card keeps its own earlier 400 (specs/platform-payout-due-date.md rule 20), which this rule makes true for
+    card keeps its own earlier 400 (specs/platforms/platform-payout-due-date.md rule 20), which this rule makes true for
     the hand-sent e-mail too. Before #897 the dialog never minted for these templates; it was the first ordinary
     UI path to an unguarded mint. One helper, `utils/platformStayRefusal.platformStayRefusal(database, stayId)`.
 58. **A request reads the lapsed link still owed its last look** (audit R9 public L-1). After an unpaid
@@ -1017,7 +1017,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     without the sentence, is skipped; any other side carrying the sentence is the operator's, left alone and
     named in the boot log. Idempotent (marker, and the block form is never rewritten). The catalogue gains the
     condition `hasPaymentLinkValidUntil` « Si fin de validité du lien »; `paymentRequestDraft` accepts the token
-    inside either block. The rollback reasoning is specs/self-update-and-releases.md rule 53.
+    inside either block. The rollback reasoning is specs/hosting/self-update-and-releases.md rule 53.
 60. **The preview says the refusal before « Envoyer »** (review of #906, 2026-10-31). For a request, the acompte
     reminder or an installment request, `GET /api/emails/preview` answers `refusal: { error, message }` when the
     send is already known to be refused — the same chain and the same answer as the send (rule 57 platform stay,
@@ -1174,7 +1174,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     a link refuses the same way. A lapsed (`expired`) link keeps its one last look whatever the answer: nothing is said
     to a guest on it. Recorded in `utils/paymentProviders.js`.
     Reading recorded 2026-11-01 (audit R12 plugins L-1): the plugin-facing contract,
-    [plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) rule 4, now lists `pending` as well.
+    [plugins-phase-3a-online-payment.md](../plugins/plugins-phase-3a-online-payment.md) rule 4, now lists `pending` as well.
 65. **The acompte reminder on taken dates is never proposed, and refused first.** `emailLogModel.listPending` leaves
     out a `deposit_reminder` whose stay `takenByOf` finds taken; the send and the preview answer rule 35's refusal
     after rules 55-57 (platform stay, closed nights, payment to settle) and before any link is minted, provider or
@@ -1338,7 +1338,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `controllers/` | `dashboardController.js` | T | Dates-taken card list / acknowledge (rule 43); `remindPaymentDeadline` passes a service refusal through with its status and code (rule 50) |
 | `models/` | `icalDateDriftModel.js` | T | `listPending` rows carry `heldDates` (rule 39); `approve` calls `withdrawForStay` (rule 32) |
 | `plugins/online-payment/` | `index.js`, `paymentJobs.js` (C) | T | Job `payment-link-lifecycle` every 15 min (first run 15 min after boot), `inProgress` shared with `payment-poll` (rules 16, 22); `paymentJobs.createPaymentJobs` builds both jobs; plugin 1.5.0, `sdk ^2.18.0` |
-| `plugins/sdk/` | `version.js`, `coreModules.json`, `coreModuleHistory.json` | T | SDK 2.18.0: `paymentPollRunner.runLinkLifecycle` (specs/plugins-phase-1-sdk.md rule 35) |
+| `plugins/sdk/` | `version.js`, `coreModules.json`, `coreModuleHistory.json` | T | SDK 2.18.0: `paymentPollRunner.runLinkLifecycle` (specs/plugins/plugins-phase-1-sdk.md rule 35) |
 | `middleware/` | — | — | (none) |
 | `database.js` | `database.js` | T | Table `dates_taken_notices` (rule 43); migrations `orphan_payment_links_withdrawn_v1` (rule 5), `payment_link_validity_backfill_v1` (rule 34), the default-template sentence on untouched templates (rule 36) |
 | `tests/` | see §7 | C | One file per subject |
@@ -1702,9 +1702,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `plugins-phase-0` (+1), `payment-link-validity-backfill` (7), `public-payment-pay-visitor-refusals` (4); client
   `ReservationPage.link-already-paid` (5), `InstallmentPlanCard.link-already-paid` (2),
   `EmailManualSendDialog.link-already-paid` (2),
-  `FinanceSection.deposit-held-by-link` (+1, specs/disable-deposit-per-reservation.md rule 14),
+  `FinanceSection.deposit-held-by-link` (+1, specs/payments/disable-deposit-per-reservation.md rule 14),
   `api.refused-write-version` (2) and server `fiche-stay-versions-trail` (+2) for
-  specs/reservation-fiche-concurrency.md rule 12. Shadow N=6 at 1280 / 390: the resend re-reads, the button
+  specs/reservations/reservation-fiche-concurrency.md rule 12. Shadow N=6 at 1280 / 390: the resend re-reads, the button
   goes, the next save answers 200; « Sans acompte » ticked under the lock unticks, then locks.
 - [x] **PR4 — closures refused over open payment requests, « Retirer le lien »** (rules 40-42, 49).
   `establishmentClosuresModel` `findReservationOverlaps`, `findOpenPaymentRequests`, `findDevisWithoutLink`

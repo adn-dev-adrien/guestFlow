@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | — |
 
-Interactive summary: [`hourly-extra-hour-rates.html`](hourly-extra-hour-rates.html).
+Interactive summary: `hourly-extra-hour-rates.html` (folded into this spec, deleted 2026-11-26).
 
 ---
 
@@ -21,7 +21,7 @@ A banded hourly resource (the nordic bath: a planning card, a day rate, an eveni
 - outside customers: `hourlyExternalDayRate` and `hourlyExternalEveningRate`, each falling back to
   the guest rate when 0.
 
-Every hour of a session costs the same. `specs/gift-voucher-campaigns.md` rules 43–45 (2026-11-18)
+Every hour of a session costs the same. `specs/gift-vouchers/gift-voucher-campaigns.md` rules 43–45 (2026-11-18)
 added a degressivity table **in percent per hour rank**, shared by both audiences. On 2026-11-24
 the owner asked for something else: **a price for the extra hours**, set separately for guests and
 outside customers. A percent shared by both audiences cannot say « 1st hour 70 €, then 50 € » for
@@ -70,7 +70,7 @@ prices the resource charges exactly that.
    session's total, priced by the engine, carries the ranks. Where a screen describes the tariff
    in words (catalogue modes of the campaigns, outside booking page), it adds « puis X €/h » when
    the following-hours rate differs.
-7. **The percent table is withdrawn.** Rules 43–45 of `specs/gift-voucher-campaigns.md` are
+7. **The percent table is withdrawn.** Rules 43–45 of `specs/gift-vouchers/gift-voucher-campaigns.md` are
    superseded by this spec. `hourlyDegressiveTiers` is no longer read nor edited.
    - Migration: a resource whose table is not empty gets, for both audiences and both bands,
      a following-hours rate equal to its first-hour rate discounted by the percent of rank 2,
@@ -142,7 +142,7 @@ On the resource form, under « Planification par séances + tarif horaire » :
 - Server `server/src/tests/hourly-extra-hour-rates.unit.test.js` (22 tests): empty → unchanged prices; outside 18:00–21:00 rates 50/70, following 40/50, evening at
   20:00 → 50 + 40 + 50 = 140; guest 2 h and 3 h with the free hour (first paid hour at the first-hour rate; 90 € and 50 €); 30-min grid crossing the switch; voucher
   added time at the following-hours rate; the audience's rate grid; the words (« puis X €/h »); validation refusals; the stored columns; the migration of a percent table.
-- Existing degressivity suites are rewritten to the new rule (rules 43–45 of `specs/gift-voucher-campaigns.md` superseded): `hourly-degressive-pricing.unit.test.js` and
+- Existing degressivity suites are rewritten to the new rule (rules 43–45 of `specs/gift-vouchers/gift-voucher-campaigns.md` superseded): `hourly-degressive-pricing.unit.test.js` and
   `HourlyResourceFields.degressive.test.jsx` are deleted, the gift-voucher and outside-visit suites price with following-hours rates.
 - Client `HourlyResourceFields.extra-hour-rates.test.jsx` (7 tests): the grid, placeholder, refusal shown, the form's own check, the payload.
 - Manual: resource form at 390 / 900 / 1280 px; a quote in the guest app and on the outside page.

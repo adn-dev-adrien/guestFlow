@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 58 (audit R9 public L-1) — during the last-look hour of a lapsed link
+// specs/payments/payment-link-lifecycle.md rule 58 (audit R9 public L-1) — during the last-look hour of a lapsed link
 // (rule 18 left it `expired`, deactivated, unpaid at the read, `lastLookAt` set), a new request on the same bucket
 // reads that link first, exactly like one still owed its deactivation: paid → booked and refused 409
 // LINK_ALREADY_PAID, unreadable → 502 PROVIDER_UNREACHABLE, unpaid → minted as usual and the look kept.

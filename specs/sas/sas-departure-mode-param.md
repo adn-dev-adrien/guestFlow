@@ -8,12 +8,14 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
 `GET /api/reservations/:id/sas` answers two different questions depending on the end of the stay it is
-asked about, and [sasController.js](../server/src/controllers/sasController.js) reads that from
+asked about, and [sasController.js](../../server/src/plugins/sas/controller.js) reads that from
 `req.query.mode`:
 
 - **« le ménage est-il déjà vendu ? »** — at **check-in** the answer deliberately ignores the SAS's own
@@ -97,7 +99,7 @@ would never be billed.
 
 ## 7. Test plan
 
-### Server unit tests (`server/src/tests/sas-departure-mode.unit.test.js`, 3 tests)
+### Server unit tests (`server/src/plugins/sas/tests/sas-departure-mode.unit.test.js`, 3 tests)
 - [x] `getSas?mode=departure` on a stay whose ménage is a SAS-origin row → `cleaning.included = true`
       and `resourceScheduling.applicable = false`.
 - [x] The same read without a mode (check-in flavour) → `cleaning.included = false` (the SAS keeps the

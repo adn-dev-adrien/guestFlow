@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -16,8 +18,8 @@ GuestFlow already projects a **laundry trip** on every occurrence of
 the configured `app_settings.laundryWeekday` (default Tuesday).
 A trip is purely computed — there is no row in the DB representing
 it. The `LaundryDayCard` in the Planning page renders three blocks
-for each projected trip date (specs/weekly-bed-linen-tracking.md §6
-+ specs/linen-inventory-shortage-tracking.md §3):
+for each projected trip date (specs/linen/weekly-bed-linen-tracking.md §6
++ specs/linen/linen-inventory-shortage-tracking.md §3):
 
 - **À apporter** — what to drop off (dirty linen accumulated since
   the previous trip)
@@ -64,7 +66,7 @@ reflect the skip immediately.
    from the bins on the shelf.
    *Reading of 2026-11-02 — the date window.* « Past » stops at today − 5 years and the future at today + 5 years: a
    skip outside is refused, 400 `DATE_OUTSIDE_WINDOW` with the French message; a date already skipped is
-   re-added or removed whatever its day (linen 1.2.2, `specs/reservations-backend-mvc.md` rule 13, second reading).
+   re-added or removed whatever its day (linen 1.2.2, `specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 
 ### 3.2 Engine behaviour on a skipped date
 
@@ -293,7 +295,7 @@ Expected: existing **967** + **5 + 7 + 7 + 1 + 5 + 5 + 1** = **998** server test
 
 | File | Cases |
 |---|---|
-| **NEW** `client/src/components/__tests__/LaundryDayCard.skip.test.js` | (1) Non-skipped card renders the 3 blocks + the "skip" IconButton with tooltip "Marquer ce voyage…". (2) Skipped card renders the muted caption + the "activer" IconButton + has `opacity` < 1. (3) Clicking the IconButton calls `onToggleSkip(date, !current)`. (4) Card hidden by the `dropOff = 0 && pickUp = 0` rule still shows up when skipped (rule 11). |
+| **NEW** `client/src/plugins/linen/__tests__/LaundryDayCard.skip.test.jsx` | (1) Non-skipped card renders the 3 blocks + the "skip" IconButton with tooltip "Marquer ce voyage…". (2) Skipped card renders the muted caption + the "activer" IconButton + has `opacity` < 1. (3) Clicking the IconButton calls `onToggleSkip(date, !current)`. (4) Card hidden by the `dropOff = 0 && pickUp = 0` rule still shows up when skipped (rule 11). |
 
 Expected: existing **223** + **4** = **227**.
 

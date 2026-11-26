@@ -1,8 +1,8 @@
-// specs/airbnb-no-checkout-chores.md — a channel that forbids checkout chores (Airbnb) is a platform
+// specs/platforms/airbnb-no-checkout-chores.md — a channel that forbids checkout chores (Airbnb) is a platform
 // setting, `platforms.forbidsGuestChores`: the guest e-mails and the departure commit read it, never a
 // platform name. The SAS read is pinned by plugins/sas/tests/sas-chore-free-channel.unit.test.js.
 
-// specs/server-test-isolation.md rule 3 — this file sets its own temporary database.
+// specs/tech/server-test-isolation.md rule 3 — this file sets its own temporary database.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -21,7 +21,7 @@ const { applyChoreFreeChannelsSchema, runChoreFreeChannelsMigration } = require(
 // The operator ticked « Sans corvées de départ » on Airbnb.
 setChoreFreeChannels(['Airbnb']);
 
-// specs/airbnb-no-checkout-chores.md rules 2, 8
+// specs/platforms/airbnb-no-checkout-chores.md rules 2, 8
 test('isChoreFreeChannel follows the ticked platforms, whatever the recorded casing', () => {
   assert.equal(isChoreFreeChannel('Airbnb'), true);
   assert.equal(isChoreFreeChannel(' airbnb '), true);
@@ -32,7 +32,7 @@ test('isChoreFreeChannel follows the ticked platforms, whatever the recorded cas
   assert.equal(isChoreFreeChannel(''), false);
 });
 
-// specs/airbnb-no-checkout-chores.md rule 8 — nothing is ticked by name on a new database.
+// specs/platforms/airbnb-no-checkout-chores.md rule 8 — nothing is ticked by name on a new database.
 test('a channel nobody ticked forbids nothing, even when it is called Airbnb', () => {
   setChoreFreeChannels([]);
   try {
@@ -47,7 +47,7 @@ test('a channel nobody ticked forbids nothing, even when it is called Airbnb', (
   }
 });
 
-// specs/airbnb-no-checkout-chores.md rule 9 — the one-shot migration ticks the rows the code used to
+// specs/platforms/airbnb-no-checkout-chores.md rule 9 — the one-shot migration ticks the rows the code used to
 // recognise by name (slugged prefix), once, and the cache follows the column.
 test('migration chore_free_channels_v1: ticks every Airbnb row of an existing database, once', () => {
   const db = new Database(':memory:');
@@ -74,7 +74,7 @@ test('migration chore_free_channels_v1: ticks every Airbnb row of an existing da
   }
 });
 
-// specs/airbnb-no-checkout-chores.md rule 6
+// specs/platforms/airbnb-no-checkout-chores.md rule 6
 test('e-mails: the Airbnb cleaning line is a booked ménage, and an Airbnb guest is never told the ménage is theirs', () => {
   const ctx = (reservation, customOptions = []) => buildContext({
     reservation: { id: 1, startDate: '2026-12-01', endDate: '2026-12-03', adults: 2, propertyId: 1, ...reservation },
@@ -154,7 +154,7 @@ function makeDepartureDb(platform) {
 }
 
 
-// specs/airbnb-no-checkout-chores.md rule 7
+// specs/platforms/airbnb-no-checkout-chores.md rule 7
 test('departure commit: the ménage line is dropped on a chore-free channel', () => {
   const commit = (platform) => {
     const db = makeDepartureDb(platform);
@@ -167,7 +167,7 @@ test('departure commit: the ménage line is dropped on a chore-free channel', ()
   assert.equal(commit('Booking'), 80);
 });
 
-// specs/airbnb-no-checkout-chores.md rule 8 — the boot de-duplication of platform rows keeps the switch:
+// specs/platforms/airbnb-no-checkout-chores.md rule 8 — the boot de-duplication of platform rows keeps the switch:
 // ticked on the duplicate it deletes means ticked on the row it keeps (countsAsDirect likewise).
 test('platform slug de-duplication keeps « Sans corvées de départ » and « Compté comme vente directe »', () => {
   const { runPlatformSlugDedup } = require('../utils/platformSlugDedupMigration');

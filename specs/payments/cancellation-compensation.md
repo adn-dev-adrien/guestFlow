@@ -22,15 +22,15 @@ virement effectif. Aujourd'hui l'application n'a nulle part où poser cet argent
   flux, [`icalCancellationModel.recordPending`](server/src/models/icalCancellationModel.js) crée une
   alerte, et le dashboard l'affiche via
   [`IcalCancellationAlert.jsx`](client/src/components/IcalCancellationAlert.jsx)
-  (spec [ical-cancellation-approval.md](specs/ical-cancellation-approval.md)). Mais
+  (spec [ical-cancellation-approval.md](../platforms/ical-cancellation-approval.md)). Mais
   `icalCancellationModel.approve()` **supprime la réservation** (`DELETE FROM reservations`) après
   avoir écrit une entrée d'historique. Une fois l'annulation validée, il ne reste donc **aucune
   ligne** à laquelle rattacher un futur versement : ni client, ni logement, ni plateforme, ni dates.
-- **Côté comptabilité.** [`accountingModel`](server/src/models/accountingModel.js) ne sait produire
+- **Côté comptabilité.** [`accountingModel`](server/src/plugins/accounting-export/accountingModel.js) ne sait produire
   que deux natures d'écriture : les encaissements **rattachés à une réservation** (acompte, solde,
   complément, complément de fin de séjour) et les **avoirs** de
   [`refundsModel`](server/src/models/refundsModel.js) (`direction: 'refund'`). Les deux passent par le
-  même moteur pur [`accountingExport.js`](server/src/utils/accountingExport.js), qui accepte déjà des
+  même moteur pur [`accountingExport.js`](server/src/plugins/accounting-export/accountingExport.js), qui accepte déjà des
   entrées de nature différente — le pipeline est donc extensible sans le réécrire.
 - **Rien n'existe** sur le sujet : `grep -i "indemn|compensation|no-show|dédit"` ne remonte aucune
   logique métier dans `server/` ni `client/`.
@@ -163,7 +163,7 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
     update, and the block of an iCal cancellation approval — lie in [today − 5 years, today + 5 years]; one
     outside is refused with the French message as `error` and its `field`; a date the pending compensation
     already stores is kept. Rule 25's lower bound for `receivedDate` is the same `horizonStart` (a 29 February
-    landing on the 28th) (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    landing on the 28th) (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 27. `platform` : chaîne libre non vide, proposée depuis la liste `platforms` existante mais non
     contrainte (une plateforme peut disparaître de la table). `clientLastName` peut être vide → le
     compte auxiliaire retombe sur `CXXXXX` (comportement existant de `buildClientAccount`).
@@ -219,7 +219,7 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
 | `routes/` | `dashboard.js` | T | `POST /ical-cancellation/:id/approve` accepte désormais un corps optionnel `{ compensation }`. |
 | `controllers/` | `cancellationCompensationsController.js` | C | Parse + valide les entrées (montants, dates, mois), délègue au modèle, mappe les erreurs métier en codes HTTP. |
 | `controllers/` | `dashboardController.js` | T | Passe le payload `compensation` validé à `icalCancellationModel.approve()` et renvoie `compensationId`. |
-| `controllers/` | `accountingController.js` | T | Ajoute `compensationsByMonth` au flux `monthEntries` (CSV **et** JSON) — une seule ligne à changer, les deux sorties suivent. |
+| `plugins/accounting-export/` | `controller.js` | T | Ajoute `compensationsByMonth` au flux `monthEntries` (CSV **et** JSON) — une seule ligne à changer, les deux sorties suivent. |
 | `models/` | `cancellationCompensationsModel.js` | C | Seul accès SQL à `cancellation_compensations` : `create`, `listPending`, `listReceivedByMonth`, `getById`, `update` (pending only), `receive`, `reopen`, `remove`. Factory `buildModel(db)` pour les tests. |
 | `models/` | `icalCancellationModel.js` | T | `approve(id, { compensation })` : lit l'instantané réservation **avant** le DELETE, crée la fiche dans la **même** transaction, renvoie `compensationId`. |
 | `models/` | `accountingModel.js` | T | `compensationsByMonth({month, year})` → entrées normalisées `direction: 'compensation'` (compte + taux lus dans `app_settings`). |
@@ -507,7 +507,7 @@ l'échelle de la ligne.
 - **Réconciliation automatique** avec les mouvements bancaires Qonto.
 - **Acompte déjà encaissé et conservé** sur une réservation directe : ce cas passe par la
   réservation elle-même et, si besoin, par les avoirs
-  ([reservation-refunds.md](specs/reservation-refunds.md)).
+  ([reservation-refunds.md](reservation-refunds.md)).
 - **Notification e-mail / push** quand un versement tarde.
 - **Conservation de la réservation annulée** (statut « annulée ») : arbitrage explicite, la
   suppression reste le comportement.

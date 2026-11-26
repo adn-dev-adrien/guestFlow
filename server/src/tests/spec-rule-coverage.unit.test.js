@@ -1,4 +1,4 @@
-// specs/spec-rule-coverage.md §3 — « une règle de spec sans test est une règle non livrée ».
+// specs/tech/spec-rule-coverage.md §3 — « une règle de spec sans test est une règle non livrée ».
 //
 // Ce fichier épingle l'outil qui répond à « quelles règles n'ont aucun test ? ». Il compte double :
 // si le parseur se trompe, il produit une couverture FANTÔME — une règle comptée prouvée alors
@@ -39,7 +39,7 @@ const SPEC = [
   '2. Une autre.',
 ].join('\n');
 
-// specs/spec-rule-coverage.md §3.1 rule 2 — les listes numérotées des autres sections ne sont pas
+// specs/tech/spec-rule-coverage.md §3.1 rule 2 — les listes numérotées des autres sections ne sont pas
 // des règles.
 test('parseSpecRules ne retient que les règles du §3, sous-sections comprises', async () => {
   const { parseSpecRules } = await load();
@@ -48,7 +48,7 @@ test('parseSpecRules ne retient que les règles du §3, sous-sections comprises'
   assert.deepEqual(rules.map((r) => r.id), ['1', '2', '2bis', '3', '4']);
 });
 
-// specs/spec-rule-coverage.md §3.1 rule 5 — une règle peut être déclarée non testable, mais jamais
+// specs/tech/spec-rule-coverage.md §3.1 rule 5 — une règle peut être déclarée non testable, mais jamais
 // en silence : la déclaration vit dans la spec, sous la règle.
 test('parseSpecRules lit l’exemption déclarée sous la règle, et sa raison', async () => {
   const { parseSpecRules } = await load();
@@ -65,7 +65,7 @@ test('parseSpecRules rend une liste vide quand la spec n’a pas de §3', async 
 
 // ── Citations ────────────────────────────────────────────────────────────────
 
-// specs/spec-rule-coverage.md §3.1 rules 1 + 4 — la convention existante EST la convention, et ses
+// specs/tech/spec-rule-coverage.md §3.1 rules 1 + 4 — la convention existante EST la convention, et ses
 // formes réelles (plages, listes, suffixes, français) sont comprises telles quelles.
 test('parseCitations comprend les formes réellement écrites dans le dépôt', async () => {
   const { parseCitations } = await load();
@@ -84,7 +84,7 @@ test('parseCitations comprend les formes réellement écrites dans le dépôt', 
   ]);
 });
 
-// specs/spec-rule-coverage.md §3.1 rule 4 — « quater » est un suffixe comme « bis » et « ter » :
+// specs/tech/spec-rule-coverage.md §3.1 rule 4 — « quater » est un suffixe comme « bis » et « ter » :
 // sans lui, « 11quater » se lisait « 11q », une règle qui n'existe pas.
 test('un suffixe quater est lu en entier, dans la spec comme dans la citation', async () => {
   const { parseSpecRules, parseCitations } = await load();
@@ -94,17 +94,17 @@ test('un suffixe quater est lu en entier, dans la spec comme dans la citation', 
   assert.deepEqual(got, ['11ter', '11quater']);
 });
 
-// specs/spec-rule-coverage.md §3.1 rule 3 — une citation est rattachée à la spec nommée près d'elle,
+// specs/tech/spec-rule-coverage.md §3.1 rule 3 — une citation est rattachée à la spec nommée près d'elle,
 // sinon à celle que le fichier annonce en tête.
 test('une citation loin de sa spec retombe sur celle que le fichier annonce en tête', async () => {
   const { parseCitations } = await load();
   // Le cas réel qui a fait échouer la première version : un fichier annonce son sujet en tête, cite
   // une spec secondaire en passant, puis continue de nommer les règles de son sujet.
   const src = [
-    '// specs/reservation-refunds.md §3.3 — l’argent rendu sort du total de séjour.',
+    '// specs/payments/reservation-refunds.md §3.3 — l’argent rendu sort du total de séjour.',
     'const x = 1;',
     '',
-    '// Colonnes ajoutées par une migration (specs/migrations-baseline.md).',
+    '// Colonnes ajoutées par une migration (specs/tech/migrations-baseline.md).',
     'const y = 2;',
     '',
     '',
@@ -145,7 +145,7 @@ test('buildCoverage compte les règles couvertes, et l’exemptée avec elles', 
   assert.deepEqual(one.missing, ['2', '3']);
 });
 
-// specs/spec-rule-coverage.md §3.1 rule 6 — le rapport se lit sans contexte : trié par nombre de
+// specs/tech/spec-rule-coverage.md §3.1 rule 6 — le rapport se lit sans contexte : trié par nombre de
 // règles non couvertes, le pire d'abord.
 test('buildCoverage trie les specs, la moins couverte en tête', async () => {
   const { parseSpecRules, buildCoverage } = await load();
@@ -167,7 +167,7 @@ test('buildCoverage remonte les citations qui ne retombent sur rien', async () =
 
 // ── La barrière ──────────────────────────────────────────────────────────────
 
-// specs/spec-rule-coverage.md §3.2 rule 8 — une règle AJOUTÉE doit être citée par un test.
+// specs/tech/spec-rule-coverage.md §3.2 rule 8 — une règle AJOUTÉE doit être citée par un test.
 test('une règle ajoutée sans test fait échouer le contrôle', async () => {
   const { gateVerdict } = await load();
   const v = gateVerdict({ addedRules: [{ spec: 'ma-spec', rule: '7' }], citedAfter: new Set() });
@@ -175,7 +175,7 @@ test('une règle ajoutée sans test fait échouer le contrôle', async () => {
   assert.deepEqual(v.failures, [{ spec: 'ma-spec', rule: '7' }]);
 });
 
-// specs/spec-rule-coverage.md §3.2 rule 11 — un test déjà écrit qui nomme la règle compte.
+// specs/tech/spec-rule-coverage.md §3.2 rule 11 — un test déjà écrit qui nomme la règle compte.
 test('…et passe dès qu’un test la nomme, même un test déjà écrit', async () => {
   // Règle 11 : ce qui compte est que la règle soit prouvée, pas qu'un fichier ait changé.
   const { gateVerdict } = await load();
@@ -192,7 +192,7 @@ test('une règle ajoutée déjà déclarée sans test passe', async () => {
   assert.equal(v.ok, true);
 });
 
-// specs/spec-rule-coverage.md §3.2 rule 9 — une règle modifiée avertit, elle ne bloque pas.
+// specs/tech/spec-rule-coverage.md §3.2 rule 9 — une règle modifiée avertit, elle ne bloque pas.
 test('une règle REFORMULÉE avertit mais ne bloque pas', async () => {
   // Règle 9 : sinon corriger une faute de frappe exigerait de toucher un test, et une barrière qu'on
   // apprend à contourner ne protège rien.
@@ -207,7 +207,7 @@ test('aucune règle ajoutée : le contrôle passe sans rien dire', async () => {
   assert.deepEqual(gateVerdict({}), { ok: true, failures: [], warnings: [] });
 });
 
-// specs/spec-rule-coverage.md §3.1 rule 2 + §3.2 rule 8 — la barrière ne compte comme règle ajoutée
+// specs/tech/spec-rule-coverage.md §3.1 rule 2 + §3.2 rule 8 — la barrière ne compte comme règle ajoutée
 // qu'une entrée de la section « Functional rules ». Le 2026-09-28 elle bloquait une PR sur les
 // listes numérotées d'une étude (§1, §11, §12…) : des lignes « 1. » que le diff ne situe pas.
 test('la barrière ignore les lignes numérotées hors de la section des règles', async () => {
@@ -241,12 +241,12 @@ test('une règle reformulée reste une modification, pas un ajout', async () => 
   });
 });
 
-// specs/spec-rule-coverage.md rule 15 — « <spec> rule N » without the `specs/` prefix goes to that spec.
+// specs/tech/spec-rule-coverage.md rule 15 — « <spec> rule N » without the `specs/` prefix goes to that spec.
 test('rule 15: une citation qui nomme une spec sans préfixe lui est rattachée', async () => {
   const { parseCitations } = await load();
   const known = new Set(['reservation-refunds', 'public-online-payment', 'defer-arrival-complement-to-checkout']);
   const src = [
-    '// specs/reservation-refunds.md §3.3 — l’argent rendu sort du total de séjour.',
+    '// specs/payments/reservation-refunds.md §3.3 — l’argent rendu sort du total de séjour.',
     '',
     '',
     '',

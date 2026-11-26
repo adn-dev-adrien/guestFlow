@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 71, 87 (audit of the J-7 branch, items 3-5) — the « Commandes Mon séjour » page of the arrival SAS, hosted
+// specs/guest-app/guest-app.md rules 71, 87 (audit of the J-7 branch, items 3-5) — the « Commandes Mon séjour » page of the arrival SAS, hosted
 // by the real dialog: the recap recalls the orders' line the server words, an amendment makes the dialog read the SAS data again
 // (the page and the recap never keep the pre-amendment payload), and a page whose last order was removed hands over to the recap.
 //

@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 28, 29, 33 and specs/pricing-components.md rules 51, 61, 62 — the VAT of a sale with no stay: the external context, one rounding
+// specs/sas/outside-booking-sas.md rules 28, 29, 33 and specs/pricing/pricing-components.md rules 51, 61, 62 — the VAT of a sale with no stay: the external context, one rounding
 // per (class, rate) group of the document, the rate frozen on the line at sale, franchise mode, and none of the stay's figures (no tourist tax, no nights, no schedule).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

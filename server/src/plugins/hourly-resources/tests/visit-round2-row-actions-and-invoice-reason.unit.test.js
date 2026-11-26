@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 51 (rules 6, 27, 48; loop t2 UI2-5, UI2-6, UI2-7) — every booking payload carries its `actions` ({ noShow, arrive }) judged on the server's clock:
+// specs/sas/outside-booking-sas.md rule 51 (rules 6, 27, 48; loop t2 UI2-5, UI2-6, UI2-7) — every booking payload carries its `actions` ({ noShow, arrive }) judged on the server's clock:
 // the rows of the resource planning and of the planning's cards (the reception's projection keeps them), and the answer of « Client absent »; the screens compare no
 // date and read the booking again for nothing. The invoiceability marks `silent` the refusals that state no step for the operator (no Qonto, nothing to invoice).
 const test = require('node:test');

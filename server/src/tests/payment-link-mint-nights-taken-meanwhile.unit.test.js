@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 11, 55 (review of #907, m1) — the nights can be taken or closed while the
+// specs/payments/payment-link-lifecycle.md rules 11, 55 (review of #907, m1) — the nights can be taken or closed while the
 // provider is creating the link (an iCal sync, another devis paid, a closure saved): the mint checks them again
 // before storing it, refuses, and the fresh provider link is withdrawn and deactivated (marker kept on failure).
 

@@ -4,7 +4,7 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import GuestsBedsSection from '../GuestsBedsSection';
 import { makeMockContext } from './mockReservationForm';
 
-// specs/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — the bed counters + the
+// specs/linen/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — the bed counters + the
 // "Suggérer les lits" button + the bedsCapacityMismatch warning moved out of this card
 // and into the "Linge de lit" option card inside ExtrasSection. The pinning for those
 // items now lives in:
@@ -23,7 +23,7 @@ function renderGuests(overrides) {
   return ctx;
 }
 
-// specs/reservation-form-sections.md rule 7 — the age range is the field's helper text, not its label.
+// specs/reservations/reservation-form-sections.md rule 7 — the age range is the field's helper text, not its label.
 test('renders the 4 guest count inputs', () => {
   renderGuests();
   expect(screen.getByLabelText(/Adultes/)).toBeInTheDocument();
@@ -38,7 +38,7 @@ test('editing the adults count calls updateForm', () => {
   expect(ctx.updateForm).toHaveBeenCalledWith({ adults: 4 });
 });
 
-// specs/property-capacity-single-total.md §6 — ONE total for everyone over 2, babies apart.
+// specs/reservations/property-capacity-single-total.md §6 — ONE total for everyone over 2, babies apart.
 test('shows the capacity of the property next to the title', () => {
   renderGuests({ maxGuestsAllowed: 5, maxBabiesAllowed: 1 });
   expect(screen.getByText('Capacité : 5 voyageurs · 1 bébé')).toBeInTheDocument();

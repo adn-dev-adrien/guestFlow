@@ -1,5 +1,5 @@
 /**
- * Email template renderer — pure (specs/email-automation.md §3 rule 3 + rule 4).
+ * Email template renderer — pure (specs/emails/email-automation.md §3 rule 3 + rule 4).
  *
  * Two passes against the input text:
  *
@@ -40,7 +40,7 @@ function renderConditionals(text, flags) {
   });
 }
 
-// specs/email-automation.md rule 19 — an empty name token right before punctuation takes its leading
+// specs/emails/email-automation.md rule 19 — an empty name token right before punctuation takes its leading
 // spaces with it: « Bonjour {{clientFirstName}}, » reads « Bonjour, », never « Bonjour , ».
 const NAME_TOKENS = new Set(['clientFirstName', 'clientLastName', 'clientFullName']);
 const VARIABLE_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
@@ -99,8 +99,8 @@ function renderTemplate(template, context) {
 }
 
 /**
- * The first name a text uses that it may not (specs/plugins-phase-p-productisation.md rule 4,
- * specs/guest-email-texts-made-simple.md rule 11), or null. `{{#if x}}` accepts a flag or a token;
+ * The first name a text uses that it may not (specs/plugins/plugins-phase-p-productisation.md rule 4,
+ * specs/emails/guest-email-texts-made-simple.md rule 11), or null. `{{#if x}}` accepts a flag or a token;
  * `{{x}}` a token only. Any other `{{…}}` — a name with a space or an accent — is unknown too: the
  * renderer would leave it in the email as literal braces.
  */
@@ -121,7 +121,7 @@ function unknownToken(text, { tokens = [], flags = [] } = {}) {
 }
 
 /**
- * What makes a text unreadable to the renderer, or null (specs/guest-email-texts-made-simple.md
+ * What makes a text unreadable to the renderer, or null (specs/emails/guest-email-texts-made-simple.md
  * rule 27). The renderer passes a broken piece through as literal text, so the guest would read it:
  *
  *   'brace'    a `{{` or `}}` without its other half, or a label bracket `⟦` / `⟧` left from the page

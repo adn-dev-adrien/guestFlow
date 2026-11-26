@@ -1,5 +1,5 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §4.3 — controllers/neatController.js.
+ * specs/plugins/neat-cancellation-insurance-subscription.md §4.3 — controllers/neatController.js.
  *
  * Settings masking + the secret 3-way, the mapping 422 shape, the retry/void endpoints and the
  * fiche `neat` block derivation (incl. the rule-16 « line_removed_active » warning state).
@@ -56,7 +56,7 @@ function controllerFor(db, { settings = recordingSettings(), clientFactory = fak
   return { ctrl, model, settings, clientFactory };
 }
 
-// specs/neat-cancellation-insurance-subscription.md règle 1 (the Réglages section holds the
+// specs/plugins/neat-cancellation-insurance-subscription.md règle 1 (the Réglages section holds the
 // environment + credentials, secret masked) + règle 6 (status summary derived server-side).
 test('getSettings masks the secret to a boolean and derives the status server-side', () => {
   const db = freshNeatDb();
@@ -84,7 +84,7 @@ test('updateSettings — the secret 3-way: absent preserves, empty clears, value
   db.close();
 });
 
-// specs/neat-cancellation-insurance-subscription.md règle 2 — « Tester la connexion »
+// specs/plugins/neat-cancellation-insurance-subscription.md règle 2 — « Tester la connexion »
 // authenticates against the selected environment and reports success or the exact Neat error;
 // without credentials the whole feature is off (400, no call attempted).
 test('testConnection — 400 without credentials, 502 with Neat’s exact error, ok on success', async () => {
@@ -257,7 +257,7 @@ test('a Neat failure during void keeps the job active and surfaces a 502', async
   db.close();
 });
 
-// specs/neat-cancellation-insurance-subscription.md règle 3 — discovery is server-driven: the
+// specs/plugins/neat-cancellation-insurance-subscription.md règle 3 — discovery is server-driven: the
 // operator picks the sales channel / contract / payment method, and everything stored about them
 // (labels, the contract's serviceFields schema) is resolved from Neat, never trusted from the client.
 test('updateSelection resolves labels + the contract schema from Neat, never from the client payload', async () => {

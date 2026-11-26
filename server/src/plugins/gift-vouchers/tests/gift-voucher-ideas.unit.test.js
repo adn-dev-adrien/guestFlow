@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rule 14 — the price ideas: always a stay, priced by the server with the website's quote engine over the
+// specs/gift-vouchers/gift-vouchers.md rule 14 — the price ideas: always a stay, priced by the server with the website's quote engine over the
 // next 12 months, one lowest amount per tariff season or a single « à partir de », cached a day, refreshed on pricing.changed.
 const test = require('node:test');
 const assert = require('node:assert/strict');

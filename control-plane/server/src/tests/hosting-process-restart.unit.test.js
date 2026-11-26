@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 29 — a process that failed (or runs without answering) is
+// specs/hosting/hosting-h1-fleet-runtime.md rule 29 — a process that failed (or runs without answering) is
 // restarted from the customer's page with « Redémarrer », then health-checked; the host alert links
 // to that page, on the home page and in the operators' email. The systemd driver clears the unit's
 // failure first, so a unit past its start limit restarts too.

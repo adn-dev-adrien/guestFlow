@@ -1,0 +1,17 @@
+# Planning — home day lists, planning timeline, calendars, dashboard alerts and cash view
+
+Start with: `dashboard-planning-scroll` (home day lists and planning timeline, server-built). See also: `reservations/`, `sas/`, `accounting/`, `resources/`.
+
+- `shell-and-home-day-first` — home order (pinned subjects, Départs, Arrivées, « À traiter », calendar), attention subjects shaped by the server, one `AttentionCard`, phone top-bar title. Code: `client/src/components/AttentionCard.jsx`, `server/src/utils/dashboardAttention.js`.
+- `dashboard-planning-scroll` — no date picker: home shows today with the next arrival, planning is a timeline of 14-day windows scrolling both ways, one call per window. Code: `server/src/controllers/planningController.js`, `client/src/hooks/usePlanningTimeline.js`.
+- `planning-chronological-day-ordering` — within a day, planning cards are ordered by their time across all types, time-less cards last. Code: `client/src/utils/planningDayOrder.js`.
+- `planning-day-task-count` — day chip counts arrivals, departures and resource-session cards done over total; header turns green when all done. Code: `client/src/utils/planningDayTasks.js`.
+- `planning-arrival-alerts` — server-computed turnover, cross-logement and simultaneous-departure alerts, caution and complement badges, platform badge, bed-linen alert. Code: `server/src/utils/planningArrivalAlerts.js`, `server/src/models/planningAlertsModel.js`.
+- `planning-breakfast-prep-popup` — clicking a breakfast card opens a preparation popup listing only non-zero items, with « Fiche » one tap away. Code: `client/src/components/BreakfastPrepDialog.jsx`.
+- `upcoming-reservations-cards` — « Réservations à venir »: all future arrivals as planning cards grouped by day from one server call, `?day=` refresh after a « prêt » tick, server's today. Code: `server/src/controllers/upcomingReservationsController.js`, `client/src/pages/ReservationsUpcomingPage.jsx`.
+- `cumulative-month-calendar` — all logements on one stacked-month infinite-scroll calendar, platform-coloured bars, closures, « Aujourd'hui », reused on the dashboard. Code: `client/src/components/CumulativeMonthCalendar.jsx`, `client/src/pages/CalendarPage.jsx`.
+- `calendar-property-parity` — both calendars read `GET /api/calendar`; server-shaped solid bars with readable text, hatched closures, phone day agenda, duplicates set aside as `superseded`. Code: `server/src/routes/calendar.js`, `client/src/components/CalendarDayAgenda.jsx`.
+- `dashboard-collection-alert` — dashboard « Paiements » cell red only for the arrival or end-of-stay complement still to collect at the door. Code: `client/src/components/CollectionStatusCell.jsx`, `server/src/models/reservationsModel.js`.
+- `dashboard-ical-new-reservations` — « Nouvelles réservations » card lists every reservation created in the last 24 hours, any origin, refetched every 5 minutes. Code: `client/src/components/NewReservationsAlert.jsx`, `server/src/controllers/dashboardController.js`.
+- `mobile-dashboard-exercise-cash` — phone-safe fiche total (`viewport-fit=cover`), every home subject opens its fiche or page, finance tiles Encaissé and Reste à encaisser with the cash projection chart. Code: `server/src/utils/expectedPayments.js`, `client/src/components/CashProjectionChart.jsx`.
+- `datepicker-close-on-select` — `DateField` closes the native calendar on pick but never while a date is being typed; bounds frozen while typing. Code: `client/src/components/DateField.jsx`.

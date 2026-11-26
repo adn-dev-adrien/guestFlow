@@ -9,11 +9,13 @@
 | **Related PR** | C1: https://github.com/adn-dev-adrien/guestFlow/pull/637; C2a: https://github.com/adn-dev-adrien/guestFlow/pull/641; C2b: https://github.com/adn-dev-adrien/guestFlow/pull/644; C3: https://github.com/adn-dev-adrien/guestFlow/pull/646 |
 | **Summary for review** | `docs/specs/2026-09-29-control-plane-plans-and-access.html`; C2a console screens: `docs/specs/2026-09-29-control-plane-c2a-console.html`; C2b billing screens: `docs/specs/2026-09-30-control-plane-c2b-billing.html`; C3 login and rename: `docs/specs/2026-09-30-control-plane-c3-login.html` |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4 file map: files moved with later plugin and Qonto refactors (`neatController.js` is now `server/src/plugins/neat/controller.js`; the Qonto utils live in `server/src/utils/qonto/`: `qontoClient.js`, `qontoService.js`, `qontoSettingsController.js`, `qontoWebhookSignature.js`; the webhook handler is under `server/src/plugins/online-payment/`). Rules unchanged.
+
 ---
 
 ## 1. Context
 
-`specs/plugins-inventory.md` settled how GuestFlow is sold and hosted:
+`docs/rapports/plugins-inventory.md` settled how GuestFlow is sold and hosted:
 
 - **Hosting (D3):** one process per customer behind a thin control plane.
 - **Plugins (D6):** 12 plugins, the rest in the core.
@@ -66,7 +68,7 @@ The model has four traits:
 - **Some features are sold à la carte** as add-ons (e.g. automated invoicing at 12 €/month).
 - **Billing is monthly or yearly**, with a discount for yearly, and a 30-day trial.
 
-The market for gîtes is 30–60 € per month for one or two units (`specs/plugins-inventory.md`
+The market for gîtes is 30–60 € per month for one or two units (`docs/rapports/plugins-inventory.md`
 §9.1).
 
 ## 2. Goal
@@ -133,7 +135,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
      (plugins phase 0).
      > **2026-10-28:** installing is now the operator's: the customer page's « Modules » section
      > switches the plugins on, within the allowed set, and the licence carries the choice as
-     > `activePlugins` ([`plugin-operator-provisioning.md`](plugin-operator-provisioning.md) rules 10–16).
+     > `activePlugins` ([`plugin-operator-provisioning.md`](../plugins/plugin-operator-provisioning.md) rules 10–16).
    - A plugin **removed** from a plan stays allowed, as *grandfathered*, for customers who have
      already installed it. It is withdrawn only when they change plan. New customers do not get it.
    - The editor shows how many customers each change affects before it saves.
@@ -240,7 +242,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       demande. ») written under it — not in a tooltip, unreadable on a phone (2026-10-04). The server
       sends that text as `planHint`, and the 402 carries the same `message`.
     - _2026-10-28:_ on an operator-managed space these routes and this page no longer exist
-      (404, [`plugin-operator-provisioning.md`](plugin-operator-provisioning.md) rules 3–4, 9); the
+      (404, [`plugin-operator-provisioning.md`](../plugins/plugin-operator-provisioning.md) rules 3–4, 9); the
       « Hors forfait » state is shown to the operator only, in the console.
 12. **Downgrade.**
     - When the licence drops a plugin that is installed, the instance **treats it as inactive** from
@@ -476,7 +478,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Password reset, first login and password change stay on the instance's page.
     - The page has no password field. The lookup reads only `email` and ignores any other field; it
       answers company names and addresses, nothing about the account.
-    - Added 2026-10-08 with H2 (specs/hosting-h2-account-security.md rules 1–5): the forgotten
+    - Added 2026-10-08 with H2 (specs/hosting/hosting-h2-account-security.md rules 1–5): the forgotten
       password is the instance's own page too (« Mot de passe oublié ? », a link by email); the
       central page still never sees it.
 26. **The directory** (reworked 2026-09-30 with C3, §9 Q16).
@@ -547,11 +549,11 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Backup codes are stored with the password hash (scrypt), not a fast hash; codes stored before
       2026-10-04 (SHA-256) keep working until used.
     - An operator session expires after 12 hours, or after 30 minutes without a request.
-    - Moved 2026-10-08 with H2 (specs/hosting-h2-account-security.md rule 11): the TOTP and
+    - Moved 2026-10-08 with H2 (specs/hosting/hosting-h2-account-security.md rule 11): the TOTP and
       backup-code helpers live in `server/src/utils/totp.js`, shared with the instance's own second
       step; the console requires them through `utils/gf.js`. Behaviour unchanged.
     - The code field (2026-10-19, UI/UX review proposal 23): the instance's `OneTimeCodeField`
-      (specs/hosting-h2-account-security.md rules 32–34) — six cells, sent at the 6th digit or at a
+      (specs/hosting/hosting-h2-account-security.md rules 32–34) — six cells, sent at the 6th digit or at a
       whole backup code, no « Valider », the refusal under the cells. A 5-digit code is no longer sent.
 32. **The console's Qonto connection** (added 2026-09-30 with C2b, §9 Q12, Q14).
     - The console invoices from the Qonto organisation that sells GuestFlow, **ADN Dev**, never from
@@ -562,8 +564,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       masked, « Connexion », « Tester la connexion », the verified diagnosis and the last failure),
       the same payment-link provider form (bank account, phone, website, description, KYC
       redirect), the same routes `/api/payments/qonto/*`, the same OAuth flow, the same automatic
-      webhook subscription and the same signature check (specs/qonto-settings-in-app.md,
-      specs/settings-one-save-and-automatic-webhook.md, specs/online-payments-qonto.md). Nothing is
+      webhook subscription and the same signature check (specs/settings/qonto-settings-in-app.md,
+      specs/settings/settings-one-save-and-automatic-webhook.md, specs/payments/online-payments-qonto.md). Nothing is
       set through the console's environment: a secret Qonto regenerates is rotated from the page.
     - Only the storage differs: the console keeps these settings in its own database, secrets and
       tokens encrypted with its own key, and its public URL is `CP_PUBLIC_URL`.
@@ -651,7 +653,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - A card's actions wrap under its title on a phone, aligned left (« Hébergement »), instead of
       splitting around it.
     - Toggle buttons are in sentence case (« Essentiel », « Mensuelle »), as in GuestFlow
-      (specs/plugins-phase-p-productisation.md rule 39), and 44 px wide under a finger.
+      (specs/plugins/plugins-phase-p-productisation.md rule 39), and 44 px wide under a finger.
     - « Paiements en ligne » keeps its title on a phone.
 39. **The console fails closed at boot** (added 2026-10-23, security review of `inte/plugins`).
     Unless `NODE_ENV` is exactly `development` or `test`, the console runs as production — an unset
@@ -683,7 +685,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 44. **A malformed `gf_space` cookie is an absent one** (audit r4, 2026-10-29). A value `decodeURIComponent` cannot decode (`%E0%A4%A`) made the login page answer 500; it now shows the form. Test: `tests/login-page.unit.test.js`.
 45. **The closing mail always carries a live link and its real end date** (audit R9 N1, 2026-10-30; amends rule 20 step 2). The mail says « téléchargeable jusqu’au JJ/MM/AAAA inclus », the last day the link answers (it answers `410` from the day after). « Réessayer » on a failed mail sends the current link while it is valid, produces a fresh export first once it has expired or lost its archive, is refused while an erasure is queued or running, and fails with its reason rather than mail a dead link (hosting-h1-fleet-runtime rule 40). Test: `tests/audit-r9-console-export-link.unit.test.js`.
 46. **The end date of the closing mail never lies past the erasure** (audit R10 N1, 2026-10-31; amends rule 45). A link produced for an archived customer expires at the latest the day before its scheduled erasure, which deletes the archive; from the erasure day on, « Réessayer » is no longer offered and mails nothing (hosting-h1-fleet-runtime rule 41). Test: `tests/audit-r10-console-export-link.unit.test.js`.
-47. **A licence date lies within five years of today** (review of PR #938, F10, 2026-11-02; GuestFlow's date window, specs/reservations-backend-mvc.md rule 13, second reading). The start and the custom end of a new subscription (`preview` / `create`), the new end date of « Prolonger » and the date of « Forcer actif » lie in [today − 5 years, today + 5 years], the Paris day (`utils/days.inWindow`, `windowError`); one day out is refused with « Date trop ancienne : 5 ans au plus. » or « Date trop lointaine : 5 ans au plus. » under the field (`errors.startsAt` / `errors.endsAt`) or as a 400 `INVALID`. *Why:* `9999-12-31` extended a licence forever. Dates the console computes (renewals, trials, erasure) are not held to it. Test: `tests/console-date-window.unit.test.js`. A `YYYY-MM-DD` naming no day (month 13, day 00) is that same field's refusal, never a throw: `isDay` answers false (audit R21 C1, 2026-11-03; same test).
+47. **A licence date lies within five years of today** (review of PR #938, F10, 2026-11-02; GuestFlow's date window, specs/tech/reservations-backend-mvc.md rule 13, second reading). The start and the custom end of a new subscription (`preview` / `create`), the new end date of « Prolonger » and the date of « Forcer actif » lie in [today − 5 years, today + 5 years], the Paris day (`utils/days.inWindow`, `windowError`); one day out is refused with « Date trop ancienne : 5 ans au plus. » or « Date trop lointaine : 5 ans au plus. » under the field (`errors.startsAt` / `errors.endsAt`) or as a 400 `INVALID`. *Why:* `9999-12-31` extended a licence forever. Dates the console computes (renewals, trials, erasure) are not held to it. Test: `tests/console-date-window.unit.test.js`. A `YYYY-MM-DD` naming no day (month 13, day 00) is that same field's refusal, never a throw: `isDay` answers false (audit R21 C1, 2026-11-03; same test).
 48. **What the console reads from a JSON body has the right type** (audit R21 C3, 2026-11-03; `utils/bodyText.js`). Only a string is text; absent and `null` read as empty. A required or compared field that is not a string reads as empty and answers its own refusal (motive, `confirmSlug`, `expectedEndsAt`, restore date, password, code). An optional field that is not a string is that field's 400 « Texte attendu. » (`reference`, `slug`, template subject and body, versions and plugin id of a fleet update), and on the creation and billing forms joins `errors.<field>`. `length` and `months` are numbers or strings; a catalogue price or quota is a string or a number, a non-object plan line is refused, a `null` add-on line too. `addons` is a list: « Liste attendue. », required on `/plan` (a mistyped request used to strip every add-on), optional at creation. `trial` is a boolean, absent and `null` read as false, anything else joins `errors.trial` « Oui ou non attendu. » (audit R22 N3, 2026-11-04: `{trial:"false"}` granted a trial). `companyName`, `contactName`, `billingStreet`, `billingPostcode` and `billingCity` take at most 200 characters, `contactEmail` 254 (« 200 caractères au plus. »). *Why:* `{"toString":1}` answered a 500, including anonymously on the login; `PUT /api/templates/invoice {subject:null}` stored the subject « null » that was then mailed. The console's own forms send none of these. Test: `tests/console-input-shape.unit.test.js`.
 49. **A body the parser refuses is the caller's 4xx** (audit R21 C2, 2026-11-03). A body over a limit (JSON 200 kB, login form 4 kB, plugin package 50 MB) answers `413 { error: 'TOO_LARGE', message: 'Envoi trop volumineux.' }`, malformed JSON or any other 4xx without a body of its own `{ error: 'BAD_REQUEST', message: 'Requête illisible.' }`, and neither is logged as a fault; malformed JSON no longer echoes the raw text as the answer. An `httpError` keeps its body. Test: `tests/console-input-shape.unit.test.js`.
 50. **A template key is one of the list's own keys** (audit R22 N5, 2026-11-04). `POST /api/templates/:key/preview` and `PUT /api/templates/:key` read the list with `Object.hasOwn`: `constructor`, `toString` or `__proto__` answer 404 `NOT_FOUND`, as any unknown key. *Why:* the preview answered 200 with a rendered text for a key read through the prototype. Nothing was written, and only an operator could reach it. Test: `tests/console-trial-and-template-key.unit.test.js`.
@@ -786,7 +788,7 @@ Operators are created with `npm run create-operator -- --email … --name …` (
 | middleware | `enforceSubscription.js` (new, C1) | `enforceSubscription()`: read-only → 402 on writes except the allow-list of rule 14, mounted on `/api` after the role guard. `closedWhenReadOnly()`: the website booking 503. |
 | controllers | `pluginsController.js` (C1) | 402 `PLAN_REQUIRED` on install and activate; `outOfPlan`, `planChip`, `planHint` in the list payload (rules 11–12). |
 | controllers | `authController.js` (C1) | `enabledPlugins` leaves out the plugins outside the licence (rule 12). |
-| controllers | `neatController.js` (C1) | Its job asks `isLive`, like every other plugin gate. |
+| controllers | `neatController.js` (C1; now `plugins/neat/controller.js`) | Its job asks `isLive`, like every other plugin gate. |
 | controllers, models | `propertiesController.js` + `propertiesModel.count()`, `usersController.js` + `usersModel.countActive()` (C1) | 402 `QUOTA_REACHED` (rule 13), for users before the welcome email. |
 | routes | `public/bookingRequests.js` (C1) | Booking endpoint closed in `read_only` (rule 14). |
 | routes | `subscription.js` (new, C1) | `GET /api/subscription` gives the banner payload; admin-only through the role guard. |
@@ -892,7 +894,7 @@ it is typed and the rule 22 checklist, and « Anciennes adresses » in its subsc
   `countries`, `invoices[] { number, period, amount, total, status, statusLabel, detail, invoiceUrl,
   payUrl }`, `emails[] { name, status, statusLabel, at, recipient, subject, body, operator, error }`
   and `actions.{ editBilling, remind, remindHint, checkPayment }`; since 2026-10-04 also
-  `actions.{ retryInvoice, deprovisionHint, eraseHint }` (since 2026-11-04 `actions.renameHint`, specs/hosting-h1-fleet-runtime.md rule 45), and `payment` may answer a `notice`; `check-payment` answers the
+  `actions.{ retryInvoice, deprovisionHint, eraseHint }` (since 2026-11-04 `actions.renameHint`, specs/hosting/hosting-h1-fleet-runtime.md rule 45), and `payment` may answer a `notice`; `check-payment` answers the
   customer plus a `notice`. The customer's `billing` stays the billing mode (`monthly` |
   `yearly`).
 
@@ -1323,4 +1325,4 @@ databases with a `users` table, the client on :3200):
   everywhere, a monthly customer would have seen the renewal banner, and received the invoice, on
   the first day of every paid month.
 
-**Audit R22 (2026-11-04):** rule 48 extended (`trial`), rule 50 appended. Test: control plane `console-trial-and-template-key` (2). The rename guard is `specs/hosting-h1-fleet-runtime.md` rule 45.
+**Audit R22 (2026-11-04):** rule 48 extended (`trial`), rule 50 appended. Test: control plane `console-trial-and-template-key` (2). The rename guard is `specs/hosting/hosting-h1-fleet-runtime.md` rule 45.

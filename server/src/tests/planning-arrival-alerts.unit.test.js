@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { buildModel } = require('../models/planningAlertsModel');
 const { computePlanningAlerts } = require('../utils/planningArrivalAlerts');
 
-// specs/planning-arrival-alerts.md §3 rules 1–3 and 7–10 — the planning cleaning alerts, computed on
+// specs/planning/planning-arrival-alerts.md §3 rules 1–3 and 7–10 — the planning cleaning alerts, computed on
 // the server from real check-in / check-out times and each logement's cleaning hours, keyed by card
 // kind. Reproduces the 2026-10-27 spec-review findings F1–F4.
 

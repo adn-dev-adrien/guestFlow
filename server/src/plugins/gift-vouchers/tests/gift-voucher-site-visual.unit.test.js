@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 62 — the site shows the front each campaign sells, read from GuestFlow: the offer names its version and size, the public route answers
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 62 — the site shows the front each campaign sells, read from GuestFlow: the offer names its version and size, the public route answers
 // a web picture at a versioned address, and nothing but the front of a campaign on sale is ever served.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

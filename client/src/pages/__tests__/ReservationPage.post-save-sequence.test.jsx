@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t17, S17-1, 2026-11-18 — the sale reviewer's `t17-devis-adopt` probe
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t17, S17-1, 2026-11-18 — the sale reviewer's `t17-devis-adopt` probe
 // made permanent). Every save that keeps the fiche open runs ONE post-save sequence (`settleSavedFiche`): the clean baseline becomes what
 // was saved, THEN the stored ids and labels are adopted on the form and on that baseline. A repeated free label is stored « Bois (2) »: the
 // fiche shows it and stays clean, on a stay (the re-read answers the stored lines) and on a devis (the save answers them).

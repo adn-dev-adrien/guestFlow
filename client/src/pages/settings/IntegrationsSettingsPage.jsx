@@ -1,9 +1,9 @@
 /**
- * IntegrationsSettingsPage — Paramètres → Intégrations (specs/settings-rationalization.md rule 2).
+ * IntegrationsSettingsPage — Paramètres → Intégrations (specs/settings/settings-rationalization.md rule 2).
  *
  * The connections to other services are the sections plugin modules contribute to the slot
- * `settings.integrations` (specs/plugins-phase-1-sdk.md rule 13), one tab per plugin
- * (specs/integrations-tab-per-plugin.md): a plugin's sections share its tab, in their `order`, and a
+ * `settings.integrations` (specs/plugins/plugins-phase-1-sdk.md rule 13), one tab per plugin
+ * (specs/plugins/integrations-tab-per-plugin.md): a plugin's sections share its tab, in their `order`, and a
  * single plugin draws no tab strip. The open tab is the URL's `?tab=<pluginId>`; the older
  * `#plugin-<id>` anchor and the Google OAuth return (`?google=…`) open their plugin's tab.
  *

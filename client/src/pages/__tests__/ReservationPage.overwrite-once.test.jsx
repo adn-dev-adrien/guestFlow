@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 9 — « Enregistrer quand même » skips the version check for ONE
+// specs/reservations/reservation-fiche-concurrency.md rule 9 — « Enregistrer quand même » skips the version check for ONE
 // save: when that save fails, the next save carries the version again and a foreign write is still refused.
 import React from 'react';
 import { vi } from 'vitest';

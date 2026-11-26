@@ -1,5 +1,5 @@
 /**
- * useOutsideSellability — can the article being edited be sold with no stay? (`GET /api/standalone-sales/sellability`, specs/pricing-components.md rule 124). The server answers
+ * useOutsideSellability — can the article being edited be sold with no stay? (`GET /api/standalone-sales/sellability`, specs/pricing/pricing-components.md rule 124). The server answers
  * `{ sellable, code, reason }` for the draft; this hook only asks again when the price type, the planning card or the insurance flag changes, and keeps the last answer while the next
  * one is pending. A failed read leaves the answer as it was (the server still judges the save).
  *

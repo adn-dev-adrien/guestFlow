@@ -14,9 +14,9 @@
 
 The deposit ("acompte") of a direct reservation is computed by the pricing engine as
 `acompte = preArrival × property.depositPercent%`, and the balance ("solde") as
-`solde = preArrival − acompte` ([pricing.js:1361](../server/src/utils/pricing.js#L1361)).
-Today the amount is **read-only** in the UI: [FinanceSection.js](../client/src/components/reservation/FinanceSection.js)
-only lets the operator edit the due dates and the paid toggles, and [PricingSummary.js](../client/src/components/PricingSummary.js)
+`solde = preArrival − acompte` ([pricing.js:1361](../../server/src/utils/pricing.js#L1361)).
+Today the amount is **read-only** in the UI: [FinanceSection.jsx](../../client/src/components/reservation/FinanceSection.jsx)
+only lets the operator edit the due dates and the paid toggles, and [PricingSummary.jsx](../../client/src/components/PricingSummary.jsx)
 displays `quote.depositAmount` / `quote.balanceAmount` as plain text.
 
 Operators sometimes negotiate a deposit that differs from the default percentage (a round number,
@@ -125,7 +125,7 @@ New column on `reservations`:
 ALTER TABLE reservations ADD COLUMN depositAmountOverride REAL;  -- nullable; NULL = automatic
 ```
 
-- Idempotent block in [database.js](../server/src/database.js) (guarded by `cols.includes(...)`).
+- Idempotent block in [database.js](../../server/src/database.js) (guarded by `cols.includes(...)`).
 - Default for existing rows: `NULL` → automatic calculation → behaviour unchanged.
 - No backfill. `depositAmount` (the resolved amount) stays the persisted authoritative figure used
   by accounting; `depositAmountOverride` is only the operator's frozen input re-fed to the engine.

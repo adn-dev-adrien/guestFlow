@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DialogProvider, { useAppDialogs } from '../DialogProvider';
 
-// specs/clients.md rule 14 — la confirmation « Client existant » de la fiche offre une troisième
+// specs/clients/clients.md rule 14 — la confirmation « Client existant » de la fiche offre une troisième
 // issue, « Créer quand même » : `confirm` la rend par la valeur 'secondary'.
 
 function Probe({ onResult, secondaryLabel }) {

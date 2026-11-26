@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 27 — the summary's search: every word must be found in the
+// specs/settings/settings-rationalization.md rule 27 — the summary's search: every word must be found in the
 // name, the state line or a keyword; accents, case and punctuation ignored; the keyword that matched
 // is said.
 import { matchSettingsRow, normalize } from '../settingsSearch';

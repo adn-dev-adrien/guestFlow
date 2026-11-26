@@ -34,7 +34,7 @@ solde** (`platformCommissionAmount`). The commissions are entered by hand.
 **Investigation of the reported "fields blank on reopen" (decided not a persistence bug):** the
 platform-payment fields **persist and reload correctly** on a successful save — verified end-to-end on
 a clean reservation (`platformGrossAmount`/`platformPayoutAmount` round-trip) and locked by
-[reservations-platform-commission-persistence.unit.test.js](../server/src/tests/reservations-platform-commission-persistence.unit.test.js).
+[reservations-platform-commission-persistence.unit.test.js](../../server/src/tests/reservations-platform-commission-persistence.unit.test.js).
 The « blank on reopen » symptom traces to a **save blocked by a validation error** (booking conflict /
 capacity / babies), which discards the whole edit — the « Erreur / Conflit de réservation » dialog is
 shown but can be dismissed (« Compris ») without realising nothing was saved. (Out of scope here; can

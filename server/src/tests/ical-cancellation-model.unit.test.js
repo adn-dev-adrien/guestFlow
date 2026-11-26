@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const icalCancellationModel = require('../models/icalCancellationModel');
 
 // Pins the contract of the iCal cancellation approval model
-// (specs/ical-cancellation-approval.md §3, §4, §5).
+// (specs/platforms/ical-cancellation-approval.md §3, §4, §5).
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
@@ -157,7 +157,7 @@ test('approve: deletes reservation + ical_import_events + history audit + flips 
   const { db, model } = freshModel();
   const rec = model.recordPending({ reservationId: 10, sourceId: 1, eventUid: 'E1' });
   const result = model.approve(rec.id);
-  // reservationId feeds the Google Calendar delete hook (specs/google-calendar-oauth-rework.md rule 20).
+  // reservationId feeds the Google Calendar delete hook (specs/settings/google-calendar-oauth-rework.md rule 20).
   assert.deepEqual(result, { ok: true, outcome: 'approved', reservationId: 10, compensationId: null });
 
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations WHERE id = 10').get().c, 0, 'reservation deleted');

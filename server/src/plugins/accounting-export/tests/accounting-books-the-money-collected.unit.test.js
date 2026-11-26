@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const { __test: { buildEntry, buildEndOfStayEntry, splitByDestination } } = require('../accountingModel');
 const { entryToRows } = require('../accountingExport');
 
-// specs/accounting-books-the-money-collected.md — the five reservations of the 2026-08-24 coherence
+// specs/accounting/accounting-books-the-money-collected.md — the five reservations of the 2026-08-24 coherence
 // audit, as regressions. Each one broke a different way before this spec; together they pin the two
 // rules: the stored échéances ARE the money (rule 1), and each encaissement credits only the postes it
 // actually covers (rules 5-8).

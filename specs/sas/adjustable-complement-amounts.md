@@ -9,6 +9,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -39,7 +41,7 @@ Spec sœur : [defer-arrival-complement-to-checkout.md](defer-arrival-complement-
 Les deux se rencontrent sur la carte fusionnée (§3.5) et n'ont aucune autre dépendance : l'une déplace
 le **moment** de la collecte, l'autre le **montant**.
 
-Le précédent à copier existe : [editable-deposit-amount.md](editable-deposit-amount.md) a rendu
+Le précédent à copier existe : [editable-deposit-amount.md](../payments/editable-deposit-amount.md) a rendu
 l'acompte ajustable via une colonne `depositAmountOverride` (NULL = calcul auto) réinjectée dans le
 moteur à chaque recalcul.
 
@@ -86,7 +88,7 @@ ajusté, sans écriture compensatoire.
    masquée, comme aujourd'hui.
 10. Une réservation annulée reste en lecture seule (`cancelledGuard` existant) ; une réservation passée
     verrouillée suit la règle de déverrouillage existante
-    ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)).
+    ([admin-unlock-past-reservations.md](../reservations/admin-unlock-past-reservations.md)).
 11. Chaque ajustement est tracé dans l'historique de la réservation (`reservation_history`) sous un
     libellé lisible — c'est de l'argent, ça doit se relire.
 
@@ -137,7 +139,7 @@ ajusté, sans écriture compensatoire.
     collecte au départ** — le libellé « Annuler l'encaissement » cachait la seule façon de le faire.
     *Reading of 2026-11-02 — the date window.* A payment date edited on a note is a real day, not in the future and
     not before today − 5 years (400 `INVALID_PAYMENT_DATE`, `field: 'paidDate'`); the date it already carries is
-    kept (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    kept (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 25. Changer le montant d'une note déplace l'écart entre la note et le **reste à percevoir en fin de
     séjour**, dans une seule transaction — exactement le mouvement que font déjà « encaisser une note »
     et « annuler une note ». Les prestations vendues ne sont jamais dé-vendues
@@ -173,7 +175,7 @@ ajusté, sans écriture compensatoire.
   « Ajustement » porte seule le montant.
 - Note ajustée à 0 € ou moins → refusé (`NOTE_AMOUNT_INVALID`) ; annuler la note est le geste prévu.
 - « Actualiser tarifs » → n'efface aucun ajustement, par parité avec l'acompte
-  ([editable-deposit-amount.md](editable-deposit-amount.md) règle 7). Pour revenir à l'auto, on vide le
+  ([editable-deposit-amount.md](../payments/editable-deposit-amount.md) règle 7). Pour revenir à l'auto, on vide le
   champ.
 
 ---
@@ -184,7 +186,7 @@ ajusté, sans écriture compensatoire.
 > décide, la fiche stocke, l'export ne fait plus que convertir un TTC en HT + TVA.
 
 31. Un encaissement « complément d'arrivée » ne crédite pas une ligne mais **plusieurs postes**
-    ([accountingExport.js](../server/src/utils/accountingExport.js) `entryToRows`) :
+    ([accountingExport.js](../../server/src/plugins/accounting-export/accountingExport.js) `entryToRows`) :
 
     | Compte | Contenu |
     |---|---|
@@ -216,10 +218,10 @@ ajusté, sans écriture compensatoire.
     poste naturel d'un extra vendu sur place.
 36. La ventilation est **calculée à l'enregistrement de la fiche et stockée** (§5). L'export la lit
     telle quelle au lieu de la dériver de `totalPrice − acompte − solde` comme aujourd'hui
-    ([accountingModel.js](../server/src/models/accountingModel.js) `computeBucketTtcsFromContribs`), et
+    ([accountingModel.js](../../server/src/plugins/accounting-export/accountingModel.js) `computeBucketTtcsFromContribs`), et
     ne fait plus que le découpage TTC → HT + TVA au taux général.
 37. **Aucun écart d'ajustement ne tombe dans la ligne de résidu de l'export.** Aujourd'hui
-    [accountingExport.js:192](../server/src/utils/accountingExport.js#L192) rattrape la différence
+    [accountingExport.js:192](../../server/src/plugins/accounting-export/accountingExport.js#L192) rattrape la différence
     entre Σ crédits et le débit sur le **dernier** crédit — qui se trouve être la ligne `46710000`. Sur
     le complément de 93,60 € ci-dessus annoncé 85 €, la taxe de séjour serait passée de 9,60 € à
     1,00 € : écriture équilibrée, taxe fausse. Avec la ventilation stockée, Σ crédits = débit par
@@ -241,7 +243,7 @@ ajusté, sans écriture compensatoire.
     « Ajustement » de la règle 17.
 39. **Note en séjour : rien à ventiler non plus** — même écriture à plat, le total ajusté de la note
     est le montant booké.
-40. Le suivi financier ([financeModel.js](../server/src/models/financeModel.js)) lit les montants
+40. Le suivi financier ([financeModel.js](../../server/src/models/financeModel.js)) lit les montants
     stockés des trois buckets : il suit l'ajustement sans une ligne de code.
 
 **Edge cases :**
@@ -339,7 +341,7 @@ ALTER TABLE reservations ADD COLUMN endOfStayComplementAmountOverride REAL;   --
 ALTER TABLE reservations ADD COLUMN complementAllocation TEXT;                -- NULL = ventilation dérivée
 ```
 
-- Deux blocs idempotents dans [database.js](../server/src/database.js), gardés par
+- Deux blocs idempotents dans [database.js](../../server/src/database.js), gardés par
   `rcols.includes(...)`, à côté des colonnes de complément existantes.
 - Valeur par défaut des lignes existantes : `NULL` → calcul automatique → **comportement strictement
   inchangé**.
@@ -474,7 +476,7 @@ l'ajustement d'arrivée s'y voit en direct pendant la frappe.
 
 Demande Adrien 2026-08-22. Aujourd'hui chaque `ComplementCard` fabrique son propre `<Divider>` **et**
 son propre `<Grid container>` à une seule colonne `md: 6`
-([FinanceSection.jsx:53-59](../client/src/components/reservation/FinanceSection.jsx#L53-L59)) : les
+([FinanceSection.jsx:53-59](../../client/src/components/reservation/FinanceSection.jsx#L53-L59)) : les
 blocs s'empilent et la moitié droite de l'écran reste vide.
 
 - Le conteneur remonte dans `FinanceSection` : **une** `<Grid container>` pour les blocs de complément,
@@ -602,7 +604,7 @@ l'enregistrement de la fiche ; l'ajustement d'une note part par son propre bouto
   ligne « Ajustement » du complément de fin de séjour est un artefact de stockage, visible mais sans
   écriture propre.
 - **L'acompte et le solde** : l'acompte a déjà son ajustement
-  ([editable-deposit-amount.md](editable-deposit-amount.md)), le solde absorbe par construction.
+  ([editable-deposit-amount.md](../payments/editable-deposit-amount.md)), le solde absorbe par construction.
 - **Ajuster le total du bucket « durant le séjour »** en tant que tel : l'unité est la note (règle 23).
 - **Réservations annulées** : elles restent en lecture seule.
 - **Reprise rétroactive** des compléments déjà mal facturés en production : rien n'est réécrit au

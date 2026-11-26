@@ -1,6 +1,6 @@
 /**
  * EmailManualSendDialog — a guest-sequence email already sent is re-sent only after an explicit
- * confirmation (specs/guest-email-sequence.md rule 13bis).
+ * confirmation (specs/emails/guest-email-sequence.md rule 13bis).
  */
 
 import React from 'react';

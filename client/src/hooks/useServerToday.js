@@ -1,6 +1,6 @@
 /**
  * useServerToday — the server's date ('YYYY-MM-DD', Europe/Paris), from `GET /api/today`
- * (specs/ds-sweep-planning.md rules 28, 29). `null` until known; the browser's local date if the
+ * (specs/design-system/ds-sweep-planning.md rules 28, 29). `null` until known; the browser's local date if the
  * server cannot be asked. Read again whenever the page comes back to the foreground, so a page left
  * open past midnight moves to the new day.
  */

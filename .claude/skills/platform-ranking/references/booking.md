@@ -59,7 +59,7 @@ not match a search, it is not ranked lower. It does not appear at all.
   the listing.
 - **Calendar sync.** Never cancel a guest yourself. Booking counts host-initiated cancellations
   against the listing, and an iCal double booking ends in exactly that. The anti-overbooking sync
-  (`specs/db-hygiene-quick-wins.md` §1.1) is a ranking issue too.
+  (`specs/tech/db-hygiene-quick-wins.md` §1.1) is a ranking issue too.
 
 ### 2. The property page (feeds click-through and conversion)
 

@@ -1,5 +1,5 @@
 // @ts-check
-// specs/clients-upcoming-past-directory.md rules 11-20 (amendment of 2026-10-28) — the Clients page opens
+// specs/clients/clients-upcoming-past-directory.md rules 11-20 (amendment of 2026-10-28) — the Clients page opens
 // on the people who are coming, keeps the view in the URL, and stays usable on a phone.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';

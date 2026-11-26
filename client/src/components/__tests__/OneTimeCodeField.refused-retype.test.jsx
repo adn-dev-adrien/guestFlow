@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 56 — after a refused code the next code replaces it: the
+// specs/hosting/hosting-h2-account-security.md rule 56 — after a refused code the next code replaces it: the
 // whole code is selected on focus and click, typing or pasting into a complete code keeps what was just
 // inserted, and a field held by a check in flight is `readOnly`, never `disabled` (a phone keeps its keyboard).
 import React, { useState } from 'react';

@@ -138,7 +138,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
    whose golden fixture freezes `Date` at its own calendar): that row names its `createdAt`. The stays of
    `devis-price-lock`, `devis-pdf-quote-parity` and `payment-link-quote-parity` (`2030-07-10`) now use `FAR_YEAR`. The rule 6
    test reads whichever of its files the tree ships, so a removed plugin takes its tests with it
-   ([plugin-removal-resilience.md](plugin-removal-resilience.md) rule 19).
+   ([plugin-removal-resilience.md](../plugins/plugin-removal-resilience.md) rule 19).
    **Reading of 2026-11-05 (audit R24-S2).** A date built from today can still hang on the day of the month. Two tax
    suites did: `platform-added-guests-tourist-tax-books` placed its stay on days 1 to 3 of the current month, which D16
    (« declarable once the stay is over ») refused to tick on the 1st, 2nd and 3rd; `platform-added-guests-stamp-grown`
@@ -219,7 +219,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
    2027-03-11, and rule 6 defused every one they named. Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
    **Reading of 2026-11-03 (audit R20-S2).** The guard's premise, « a date already in the past cannot be
    passed again », stopped holding on 2026-11-02: every date entered on a write path now lies within
-   [today − 5 years, today + 5 years] (specs/reservations-backend-mvc.md rule 13, second reading), so a past
+   [today − 5 years, today + 5 years] (specs/tech/reservations-backend-mvc.md rule 13, second reading), so a past
    literal a test sends to a write path is refused once it is more than five years old. A clock-shift run of
    the whole server suite at 2031-11-03, once with the five-year window and once with it widened to 50 years,
    found 136 tests in 43 files red for the window alone (the first on 2031-01-02, `email-manual-queue`'s
@@ -245,13 +245,13 @@ being on the preload's lists fails the run once the suite executes the read (rul
 
 8. **The client unit suite runs in three shards** (added 2026-10-30, audit R8 M-2). The `client` job of
    `unit-tests.yml` is a matrix of three (`vitest run --shard=N/3`, `fail-fast: false`), each under its own
-   15-minute cap; the production build and the bundle budget (specs/inte-performance.md rule 4) run in shard 1
+   15-minute cap; the production build and the bundle budget (specs/tech/inte-performance.md rule 4) run in shard 1
    only. Vitest splits the test FILES, so each shard keeps per-file isolation and the per-file `vi.mock`
    hoisting the one-file-per-subject rule relies on — `isolate: false` stays off for that reason. Why: every
    client test file pays its own fork, jsdom environment and imports (≈1.1 s on the runner), and that rule took
    the suite from 220 files (2026-10-25) to 625 (2026-10-30). In one job the suite took 711 s (up to 798 s)
    of its 900 s cap; locally each third runs in ≈52 s for ≈1 030 tests. The release workflow is split the same
-   way (specs/self-update-and-releases.md rule 52). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
+   way (specs/hosting/self-update-and-releases.md rule 52). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
 
 9. **A line already merged on a long-lived branch is not named again** (added 2026-10-30, review of PR #900).
    `check-test-dates.mjs --known <ref>,<ref>` sets aside an added line whose file already holds the same text
@@ -396,7 +396,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
    a nested template), an `env` whose call it cannot find is allowed, as is, by design, an `env` inside `[...]`
    or `{ cfg: env }`. The names only a plugin reads are keyed by plugin id in `PLUGIN_ENV_NAMES` (still all
    stripped); with the plugin removed they are not called stale, so the removal matrix (`plugin-removal.yml`,
-   which runs the full server suite per removed plugin, specs/plugin-removal-resilience.md rules 7(a) and 19)
+   which runs the full server suite per removed plugin, specs/plugins/plugin-removal-resilience.md rules 7(a) and 19)
    stays green on this file, and a test fails when a name only a shipped plugin reads is not keyed by it, or a
    keyed name is not read under `src/plugins/<id>/`. Test: `server-test-app-env.unit.test.js`.
 
@@ -555,11 +555,11 @@ being on the preload's lists fails the run once the suite executes the read (rul
    locally) and `fiche-preview-save-matrix` (one seed per platform × moment instead of per gesture: the same 298 saved
    and 120 refused cells, 13.0 → 6.7 s). The same round found the larger cause in the application, not in the tests:
    one fiche save prepared `SELECT * FROM reservations WHERE id = ?` dozens of times, fixed by the handle-wide
-   statement cache of specs/pricing-components.md rule 48 (reading of 2026-11-18).
+   statement cache of specs/pricing/pricing-components.md rule 48 (reading of 2026-11-18).
 23. **A client test acts only on a dialog that is ready; the code a dialog waits for arrives late in every suite** (added
    2026-11-18, loop t22 A22-1). `ResourceArrivalDialog.invoiceable` failed once in a shuffled run: it clicked the footer's
    « Créer la facture » as soon as it was drawn, while the dialog still waited for the four SDK sale blocks' code
-   (`useSaleComponentsReady`, specs/plugins-phase-1-sdk.md rule 54) and kept the button disabled; the click did nothing.
+   (`useSaleComponentsReady`, specs/plugins/plugins-phase-1-sdk.md rule 54) and kept the button disabled; the click did nothing.
    Whether the code was already there depended on the test order and the machine's load. The test now waits for the
    button to be enabled, and `client/src/setupLateSaleChunks.js` (a `setupFiles` entry of `vitest.config.js`) makes the
    four blocks' modules resolve `SALE_CHUNK_DELAY` ms late (default 25, on the real timer captured at load, so fake timers

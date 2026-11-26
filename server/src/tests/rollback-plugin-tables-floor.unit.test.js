@@ -1,7 +1,7 @@
-// specs/self-update-and-releases.md rule 44 — the tables the plugins of v3.18.0 own keep every column on
+// specs/hosting/self-update-and-releases.md rule 44 — the tables the plugins of v3.18.0 own keep every column on
 // a current install (the core floor of rule 39 excludes them: a fresh core install does not have them).
 //
-// specs/plugin-removal-resilience.md rule 19: only the tables of the plugins a tree ships are compared.
+// specs/plugins/plugin-removal-resilience.md rule 19: only the tables of the plugins a tree ships are compared.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,7 +11,7 @@ const pluginFloor = require('./fixtures/rollback-floor-v3.18.0-plugin-tables.jso
 const { applyPluginSchema, listPlugins } = require('../plugins/sdk/testing');
 const { CATALOG_ORDER } = require('../constants/plugins');
 
-// The plugin that creates each table of the floor: a tree without a plugin (specs/plugin-removal-resilience.md
+// The plugin that creates each table of the floor: a tree without a plugin (specs/plugins/plugin-removal-resilience.md
 // rules 4, 5) has no such table to keep, so its tables leave the comparison.
 const OWNER = {
   airbnb_intakes: 'airbnb-intake',

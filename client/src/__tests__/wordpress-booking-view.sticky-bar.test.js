@@ -1,4 +1,4 @@
-// specs/wp-booking-widget-redesign.md rules 32-33 (UI/UX review 2026-10-18, decision 4) — the
+// specs/site/wp-booking-widget-redesign.md rules 32-33 (UI/UX review 2026-10-18, decision 4) — the
 // server's total and one button in a bar that follows the step, the summary card's own button on a
 // wide block, the two times on a row of their own. CSS decides where each shows; here, what each
 // says and does.

@@ -1,4 +1,4 @@
-// specs/ical-import-hardening.md — the iCal import findings of the review of 2026-10-18: placeholder
+// specs/platforms/ical-import-hardening.md — the iCal import findings of the review of 2026-10-18: placeholder
 // clients per stay (rule 1), stopped sources (rule 2), overlap conflicts on every feed (rule 3), bounded
 // fetches (rule 4), truncated feeds (rule 5), repeated UIDs (rule 6), UTC instants (rule 7), placeholder
 // names (rule 8), the status line (rule 9) and the `disabled` flag (rule 10).

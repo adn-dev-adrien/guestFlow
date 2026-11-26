@@ -7,7 +7,7 @@
 | **Created** | 2026-05-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc S — Security hardening (PR 2 of 2). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc S — Security hardening (PR 2 of 2). See `docs/rapports/ROADMAP.md`. |
 
 > **Updated 2026-10-27 (spec review — drift only, no behaviour change).** Four statements no longer
 > match the code; each carries an inline note:

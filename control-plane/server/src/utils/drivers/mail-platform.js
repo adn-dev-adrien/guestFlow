@@ -1,5 +1,5 @@
 /**
- * The mail drivers (specs/hosting-h1-fleet-runtime.md H-D5, H-D6, rules 18–20). Both write the
+ * The mail drivers (specs/hosting/hosting-h1-fleet-runtime.md H-D5, H-D6, rules 18–20). Both write the
  * platform sender into each instance's environment and read the day's count the instance keeps in
  * `<data>/platform-mail.json`:
  *

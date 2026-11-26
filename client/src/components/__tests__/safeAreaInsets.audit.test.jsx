@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rules 1, 3-4 — with `viewport-fit=cover` the app bar, the page bar, the main
+// specs/planning/mobile-dashboard-exercise-cash.md rules 1, 3-4 — with `viewport-fit=cover` the app bar, the page bar, the main
 // area, the support bar and full-screen dialogs pad with the safe-area insets, and every inset falls back to 0 so a
 // device without one (desktop, Android) lays out exactly as before.
 import { readFileSync } from 'node:fs';

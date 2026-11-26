@@ -14,7 +14,7 @@
 
 Until 2026-10-26 the two Solio properties appeared in Google Vacation Rentals (the « Locations de
 vacances » results of Search and Maps) through Lodgify, a Google-approved connectivity partner.
-Lodgify is gone (`specs/lodgify-decommission.md`): both listings were delisted from Google the same
+Lodgify is gone (`specs/platforms/lodgify-decommission.md`): both listings were delisted from Google the same
 day, so Google no longer shows a price or a « Réserver » button for Solio. The Business Profile of
 the domain is a lodging profile (« Vacances à la ferme »): it has no free booking-link field — on a
 lodging profile, the booking module only exists when someone feeds Google prices.
@@ -170,7 +170,7 @@ size already filled in — with no channel manager in between.
 | `.../settings.js` | Declared settings: `partnerId`, `mode` (`simulation`/`envoi`), `horizonDays`, `maxLos`, `fullResendHour`, per-property `{enabled, hotelCode, slug}`. Validation. |
 | `.../itineraries.js` | Pure: enumerates the itineraries to price for a property (arrival × length × party size) from the rules, minimum stay and horizon. |
 | `.../calendar.js` | Orchestration: for each itinerary calls the website's quote (`coreModule('directQuote')`); for each date computes inventory and restrictions from `computeBlockedDates`, the engine's per-night minimum/maximum and the changeover helper. Async: yields to the event loop after each stay length. Returns a normalized state. |
-| `.../source.js` | Everything read from the core through the SDK: property, rules, blocked nights, closures, the quote bound to the source's database (each statement compiled once by the core's statement cache, specs/pricing-components.md rule 48 — the per-run cache of its own was removed on 2026-11-18, loop t20), and the website's own quote for the check. |
+| `.../source.js` | Everything read from the core through the SDK: property, rules, blocked nights, closures, the quote bound to the source's database (each statement compiled once by the core's statement cache, specs/pricing/pricing-components.md rule 48 — the per-run cache of its own was removed on 2026-11-18, loop t20), and the website's own quote for the check. |
 | `.../snapshot.js` | Diffs the computed state against the stored snapshot; commits only acknowledged parts. |
 | `.../ariXml.js` | Pure: builds `Transaction` (property data), `OTA_HotelRateAmountNotifRQ`, `OTA_HotelInvCountNotifRQ`, `OTA_HotelAvailNotifRQ`, `Taxes` messages from a diff. String templates with escaping, no XML dependency. |
 | `.../googleClient.js` | POSTs a message, timeout via AbortController, injectable `fetchImpl`; parses the response body for success/warnings/errors. In simulation, writes to `ctx.dataDir` instead. |
@@ -341,7 +341,7 @@ checklist to pick the work up again the day Google replies.
   it ships with the `inte/plugins` → `master` integration — nothing needs it before Google opens the
   account.
 - **Lodgify**: cancelled, both listings delisted from Google on 2026-10-26
-  (`specs/lodgify-decommission.md`). Until go-live, Google shows no price for Solio.
+  (`specs/platforms/lodgify-decommission.md`). Until go-live, Google shows no price for Solio.
 
 ### 11.2 Prerequisite — get the code into production
 

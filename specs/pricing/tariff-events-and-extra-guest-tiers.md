@@ -8,12 +8,14 @@
 | **Author** | Adrien |
 | **Related PR** | #411 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4 file paths repointed to the `tariff-recipes` plugin; architecture companion's rationale folded into §4.1. Recipe `aventura-lodge-2026` is now at 1.2.0 (rule 22's 1.1.0 is the version that introduced them).
+
 ---
 
 ## 1. Context
 
 Two changes to the Aventura Lodge tariff model, both landing in the recipe engine shipped by
-[`specs/tariff-recipes/`](../tariff-recipes/spec.md).
+[`specs/tariff-recipes/`](tariff-recipes.md).
 
 **1. The extra-guest supplement is re-priced.** It is 27 €/night/person today, flat across the three
 seasons, and it follows the length-of-stay degressivity night by night. The owner now wants **15 €
@@ -183,20 +185,31 @@ decision to make, not a side effect to bury:
 | utils | `pricing.js` | `computeExtraGuestSurcharge` gains the tier branch: when tiers are present, night N costs the tier price with no ratio applied. Everything else untouched. |
 | utils | `pricing.js` (2026-10-27, rule 23) | The tiers are resolved even when no guest is billed, and the tariff snapshot stores them, or `[]` when the season has none. |
 | utils | `extraGuestTiers.js` _(new)_ | Pure resolution of `(tiers, nightIndex) → price`, with carry-forward. Isolated so it is unit-testable without a database. |
-| utils | `seasonPlan.js` | New step 3bis in `buildYearPlan`: after the holiday raise, repaint the event nights with the event's season and overrides. |
-| utils | `tariffRecipe.js` | Validation: tier shape, `fromNight` strictly increasing and starting at 1, the `perNightTiers` × `followsDiscount` conflict, event shape, ISO dates, `from <= to`, a year key matching the dates it declares. |
-| models | `tariffRecipeModel.js` | `preview`/`apply` surface event ranges like period ranges; `missingEventYears(recipe, fromYear, toYear)` feeds rules 16-17. |
+| plugins/tariff-recipes | `seasonPlan.js` | New step 3bis in `buildYearPlan`: after the holiday raise, repaint the event nights with the event's season and overrides. |
+| plugins/tariff-recipes | `store.js` | Validation: tier shape, `fromNight` strictly increasing and starting at 1, the `perNightTiers` × `followsDiscount` conflict, event shape, ISO dates, `from <= to`, a year key matching the dates it declares. |
+| plugins/tariff-recipes | `model.js` | `preview`/`apply` surface event ranges like period ranges; `missingEventYears(recipe, fromYear, toYear)` feeds rules 16-17. |
 | models | `propertiesModel.js` | Per-season extra-guest columns keep working; the platform grid grosses up each tier (`extraGuestTiersByPlatform`). |
 | database | `database.js` | `pricing_rules.extraGuestTiers` (TEXT, JSON, nullable) so a range can carry its tiers, mirroring `progressiveTiers`. |
+
+**Design rationale (folded 2026-11-26 from the retired architecture companion).** The tiers and the events
+are independent: tiers sit on the money path (`pricing.js`), events on the date path (`seasonPlan.js`); only
+the recipe file and its validator see both. The ratio must not compose with tiers (a tier of 8 € would be
+billed 4,16 €, the discount applied twice, invisibly), so the loader rejects the combination loudly instead of
+resolving it. Step 3bis sits AFTER the holiday raise on purpose: it is what lets « 1 night allowed » beat a
+bridge's 3-night minimum, the only place a minimum goes down. Events are declared dates, not an anchor type: an
+anchor would encode a three-year coincidence as a law and silently mis-price a week the year it breaks; declared
+dates make the failure mode « 2028 is unknown », which `missingEventYears` (pure, stateless, shared by the card,
+the recipe endpoint and the Dashboard) reports. `per_stay` returns before the tier loop; `pricing-baseline` is
+the contract that nothing else moved.
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | Responsibility |
 |---|---|---|
-| components | `property/TariffRecipeCard.jsx` | Particularities panel states the tiers in French (« 15 € la 1ʳᵉ nuit puis 8 €/nuit ») and lists each event with its known years + the missing ones. |
+| plugins/tariff-recipes | `TariffRecipeCard.jsx` | Particularities panel states the tiers in French (« 15 € la 1ʳᵉ nuit puis 8 €/nuit ») and lists each event with its known years + the missing ones. |
 | components | `PlatformPriceCard.jsx` | « Personne supp. » column shows the two tiers instead of one price. |
 | pages | `PropertyPricingSeasonsPage.jsx` | Event ranges are visually distinct in the calendar and named in the seasons table. |
-| pages | `DashboardPage.jsx` | The existing recipe alert also reports event years with no dates. |
+| plugins/tariff-recipes | `attention.js` | The existing recipe alert also reports event years with no dates. |
 
 No new generic component: the panel, the badge and the alert all reuse `StatusBadge`, `SummaryItem`
 and the existing alert block.

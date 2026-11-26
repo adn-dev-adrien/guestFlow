@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 24 — the server suite runs four test files at a time. It is safe because each
+// specs/tech/server-test-isolation.md rule 24 — the server suite runs four test files at a time. It is safe because each
 // process gets its own database even when the caller sets DB_PATH (the preload forces it), and because no test file
 // takes a machine-wide resource another file running beside it could want: a literal port.
 

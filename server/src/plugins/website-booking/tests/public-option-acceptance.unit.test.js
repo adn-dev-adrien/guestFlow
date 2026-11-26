@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-api.md rule 14 (2026-10-27 audit) — the quote and the booking request accept exactly
+// specs/site/public-api.md rule 14 (2026-10-27 audit) — the quote and the booking request accept exactly
 // the options the public catalogue lists: never an internal-only one (displayToClient = 0), an offered
 // default, or one sold at a negative price.
 const test = require('node:test');

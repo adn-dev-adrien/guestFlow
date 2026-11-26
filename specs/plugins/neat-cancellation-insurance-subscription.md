@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-[cancellation-insurance.md](cancellation-insurance.md) shipped the « Assurance annulation » as a
+[cancellation-insurance.md](../payments/cancellation-insurance.md) shipped the « Assurance annulation » as a
 guest-side option: priced per night in Réglages → Options, offered with a mandatory Oui / Non choice
 in the WordPress funnel, billed like any other extra. Its §8 explicitly left « any real insurer » out
 of scope.
@@ -219,7 +219,7 @@ through.
 
 ## 4. Architecture
 
-> **Moved to plugin `neat` (phase 3b, `specs/plugins-phase-3b-neat.md`) — current file map (audit
+> **Moved to plugin `neat` (phase 3b, `specs/plugins/plugins-phase-3b-neat.md`) — current file map (audit
 > 2026-10-27).** The tables below are the map at implementation time. The code lives in
 > `server/src/plugins/neat/`: `client.js` (partner API client) · `controller.js` · `routes.js` (thin) ·
 > `fieldMapping.js` (rule 4) · `pricing.js` (guest pricing, rule 13, a quote post-processor) ·
@@ -257,7 +257,7 @@ through.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | `SettingsNeatSection.jsx` | C | « Assurance annulation (Neat) » card, owning its own data and its three endpoints: env select, credentials (MaskedTextField), margin %, test button, discovery selects, mapping table, status summary + counters. Mounted in `SettingsPage.jsx`. **Amended 2026-09-16** (`specs/settings-one-save-and-automatic-webhook.md` rules 1-3): its three « Enregistrer » buttons are gone — the card reports its dirty state through `onDirtyChange` and is written by the page's action bar through an imperative `save()`, which posts only the blocks that changed. |
+| `components/` | `SettingsNeatSection.jsx` | C | « Assurance annulation (Neat) » card, owning its own data and its three endpoints: env select, credentials (MaskedTextField), margin %, test button, discovery selects, mapping table, status summary + counters. Mounted in `SettingsPage.jsx`. **Amended 2026-09-16** (`specs/settings/settings-one-save-and-automatic-webhook.md` rules 1-3): its three « Enregistrer » buttons are gone — the card reports its dirty state through `onDirtyChange` and is written by the page's action bar through an imperative `save()`, which posts only the blocks that changed. |
 | `components/` | `SettingsPushNotificationsSection.jsx` | T | « Souscriptions Neat » preference row. |
 | `components/reservation/` | `OptionRow.jsx` | T | Renders the server-provided Neat status chip + « Réessayer » / « Résilier » actions on the flagged insurance card. No status derivation client-side. |
 | `pages/` | `ReservationPage.jsx` | T | Unpacks `res.neat`, owns the two actions (retry, confirmed void) and exposes them on the form context. `mockReservationForm.js` mirrors the new keys. |
@@ -338,7 +338,7 @@ New `app_settings` columns (idempotent ALTERs): `neatEnvironment` (default `'sta
 Pre-existing insured reservations are picked up by the very first scan once the feature is
 configured, but the scan only considers reservations whose stay **has not started yet**: an
 insurance is never sold nor subscribed once the stay began, mirroring
-[cancellation-insurance.md](cancellation-insurance.md) rule 17.
+[cancellation-insurance.md](../payments/cancellation-insurance.md) rule 17.
 
 ## 6. UI / UX
 

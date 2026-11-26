@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 5 and 9: colour and tourist-tax editors moved to Paramètres › Plateformes (`specs/settings/settings-rationalization.md` rules 17-18, `client/src/pages/settings/PlatformsSettingsPage.jsx`); the property table keeps URL, sync, disable.
+
 ---
 
 ## 1. Context
@@ -47,7 +49,7 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
 
 ### Colour (global per platform)
 
-5. Every row shows a **colour square**. Clicking the platform **name** or the square opens a **colour
+5. Every row shows a **colour square**. *(Since 2026-09-21 the editor is on Paramètres › Plateformes, `PlatformsSettingsPage.jsx` + `PlatformColorPicker.jsx`; the property table shows the colour read-only, `specs/settings/settings-rationalization.md` rule 18.)* Clicking the platform **name** or the square opens a **colour
    palette**; the chosen colour is the platform's **global** display colour and recolours that platform's
    reservations on the calendar **for all properties**.
 6. The global colour is stored on the **`platforms` table** (`platforms.color`). Colour resolution
@@ -66,7 +68,7 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
 
 9. The "Taxe collectée" cell is a **toggle/switch** (not a static chip): **on** = the platform collects the
    tourist tax (today's "Plateforme", `collectsTouristTax = 1`), **off** = we collect it (today's "Vous",
-   `collectsTouristTax = 0`). Flipping it persists to the per-property source (creating one if needed).
+   `collectsTouristTax = 0`). *(Since 2026-09-21 the tourist-tax mode is edited on Paramètres › Plateformes and is a 3-way global setting; the property table shows it read-only, `specs/settings/settings-rationalization.md` rules 17-18.)* Flipping it persists to the per-property source (creating one if needed).
    `direct` has no platform-tax notion → the toggle is hidden/disabled for it.
 
 ### Disable a platform (per property)
@@ -167,7 +169,7 @@ any platform-colour edit. The list stays a feature-local table in `PropertyDetai
 | POST | `/api/properties/:id/ical-sources/:sourceId/sync` | Unchanged; only offered when URL set. |
 | GET | `/api/properties/platform-colors` | Now backed by `platforms.color` (+ built-in fallback). |
 
-> **Amended 2026-10-18 (`specs/ical-import-hardening.md` rules 2, 9, 10):** each `/platforms` row also
+> **Amended 2026-10-18 (`specs/platforms/ical-import-hardening.md` rules 2, 9, 10):** each `/platforms` row also
 > carries `isActive` (boolean) and `syncStatus` `{ tone, text, detail }`, the line the row prints;
 > `disabled` is a boolean. `POST …/sync` answers `409 « Calendrier arrêté. »` on an inactive source.
 

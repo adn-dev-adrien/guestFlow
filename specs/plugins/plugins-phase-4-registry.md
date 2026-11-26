@@ -7,9 +7,11 @@
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
 | **Related PR** | #692 (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — D1, §8, §11 risk 4, phasing §12 |
-| **Previous phase** | [`specs/plugins-phase-p-productisation.md`](plugins-phase-p-productisation.md) (PR #672) |
-| **Summary for review** | [`docs/specs/2026-10-08-plugins-phase-4-registry.html`](../docs/specs/2026-10-08-plugins-phase-4-registry.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — D1, §8, §11 risk 4, phasing §12 |
+| **Previous phase** | [`specs/plugins/plugins-phase-p-productisation.md`](plugins-phase-p-productisation.md) (PR #672) |
+| **Summary for review** | [`docs/specs/2026-10-08-plugins-phase-4-registry.html`](../../docs/specs/2026-10-08-plugins-phase-4-registry.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** No rule changed. « The twelve » reads « every shipped plugin » (18 manifests; see its own note near the end). Still governs: package/manifest format, signed registry, install/update/rollback/uninstall, the plugin-operation lock, version and dependency gates, SDK versioning.
 
 ---
 
@@ -138,7 +140,7 @@ below are the recommended ones; each is reversible in a later spec.
    > **2026-10-08 (implementation):** The confirmation of rule 12 is a dialog on the card: « Nécessite aussi : Linge et blanchisserie 1.0.0, installé en premier. » with « Tout installer »; the server answers 409 `REQUIREMENTS` with the plan when the request did not include `withRequirements`. An **update** whose new version requires a plugin not installed is refused with « Nécessite X : à installer d’abord. » instead of installing it on the way: an update restarts the instance and stays one plugin at a time.
 13. A plugin's server code takes effect without a restart for an install (its routes, jobs and
     migrations are registered live). An **update** asks for a restart of the instance, done by the
-    application itself as the core update already does (`specs/self-update-and-releases.md`); the
+    application itself as the core update already does (`specs/hosting/self-update-and-releases.md`); the
     page says « Redémarrage en cours » and reloads when the server answers.
    > **2026-10-08 (implementation):** Two precisions. An install in a release answers `reload: true` and the page reloads, because the browser loads plugin bundles only before the app renders (rule 18); the server part needed no restart. Reinstalling, in the same process, a version other than the one still loaded from before an uninstall restarts the instance, like an update. The restart is a clean exit that the supervisor turns into a restart: PM2 in production (`pm_id` set), `GUESTFLOW_SUPERVISED=1` for the E2E harness. Without a supervisor an update is refused with 412 « Redémarrage automatique indisponible sur cette installation : rien n’a été modifié. » before anything moves. The page waits until `/api/version` answers with a new start time, then reloads.
    > **2026-10-17 (review of PR #692):** `/api/version` gives the start time of the process (fixed at boot): it used to be the time of the request, so the page « detected » a restart on its first poll. The restart is a SIGINT through the server's own shutdown (requests in flight finish), not an immediate exit.
@@ -451,7 +453,7 @@ below are the recommended ones; each is reversible in a later spec.
     requires every plugin that reaches one to floor at that SDK. A hardening nobody listed is not known: shipping
     one adds a line to the table (a reviewer's check), and a module name built at run time is not seen.
     *Reading of 2026-11-05 (audit R24 NEW-1):* `reservationPaymentMark#takeBackRefusal` (SDK 2.21.0, the take-back
-    refused while a refund needs the money, specs/reservation-refunds.md rule 52) is a row of the table, so
+    refused while a refund needs the money, specs/payments/reservation-refunds.md rule 52) is a row of the table, so
     online-payment and sas, which both call it, are held to `^2.21.0`; `blockedDates#stayTimesRefused` (SDK 2.22.0)
     holds website-booking to `^2.22.0`.
 55. **An update, an update-all, a rollback and the bundled-row sync are held to the requirement checks**
@@ -681,31 +683,31 @@ Implemented 2026-10-08, merged with `inte/plugins` on 2026-10-17 (H2 #673, Saisi
 plugin of the catalogue » from then on.
 
 2026-10-18 — `master` (v3.10.0) merged into `inte/plugins` brought a fourteenth plugin,
-`booking-intake` (`specs/booking-extranet-intake.md` §10), manifest `1.0.0`. The two SDK entries it uses
+`booking-intake` (`specs/platforms/booking-extranet-intake.md` §10), manifest `1.0.0`. The two SDK entries it uses
 (`ctx.core.clients.update`, `ctx.core.reservations.platformCommission`) and the core module
-`planningDateRange` (the 750-day cap of the planning reads, `specs/reception-role-checkin-only.md`
+`planningDateRange` (the 750-day cap of the planning reads, `specs/sas/reception-role-checkin-only.md`
 rule 12ter) raise the SDK to **1.1.0** (rule 3, minor). Under rule 28 the plugins whose sources the
 merge changed are bumped in the merge PR: `gate-access` 1.1.0 (« Partager » on the « Portail » step),
 `linen` 1.0.1 and `hourly-resources` 1.0.1 (both `sdk ^1.1.0`).
 
 2026-10-18 — code review (`fix/review-code-security`): rules 34 and 35. Every manifest is bounded
 `<4.0.0`, an open range is read as bounded, and `coreModules.json` freezes what `coreModule()` exposes.
-`ctx.secretRoutes` (`specs/hosting-h2-account-security.md` rule 23) and the core module `qonto`
-(`specs/plugins-phase-3a-online-payment.md` rule 22) raise the SDK to **1.2.0** (minor); every plugin is
+`ctx.secretRoutes` (`specs/hosting/hosting-h2-account-security.md` rule 23) and the core module `qonto`
+(`specs/plugins/plugins-phase-3a-online-payment.md` rule 22) raise the SDK to **1.2.0** (minor); every plugin is
 bumped for its new range, and `booking-intake`, `gate-access` and `online-payment` ask for `sdk ^1.2.0`.
 
 2026-10-19 — UI/UX review of the WordPress booking engine (`feature/ui-wp-booking-engine`): the core
 module `changeover` (`resolveChangeover`, `checkChangeover`, `FRENCH_DAYS`) and `pricing`'s
 `calculateBaseStayPrice` are exposed so the public availability can name the first *bookable* arrival
-with the engine's own minimum stay and arrival days (`specs/wp-booking-widget-redesign.md` rule 30).
+with the engine's own minimum stay and arrival days (`specs/site/wp-booking-widget-redesign.md` rule 30).
 Two additions: the SDK goes to **1.3.0** (rule 3, minor); `website-booking` 1.2.0 asks for `sdk ^1.3.0`.
 
-2026-10-19 — the home's « À traiter » (`specs/shell-and-home-day-first.md` rule 9): `ctx.attention`
+2026-10-19 — the home's « À traiter » (`specs/planning/shell-and-home-day-first.md` rule 9): `ctx.attention`
 and the client SDK's `AttentionCard` raise the SDK to **1.4.0** (minor); `booking-intake`,
 `gate-access`, `gites-de-france-intake`, `linen`, `tariff-recipes` and `website-booking` 1.3.0 ask for
 `sdk ^1.4.0` and `guestflow >=3.10.0`.
 
-2026-10-19 — UI/UX review, proposal 19 (`specs/plugins-phase-0-foundation.md` rule 25): `ctx.setupStatus`
+2026-10-19 — UI/UX review, proposal 19 (`specs/plugins/plugins-phase-0-foundation.md` rule 25): `ctx.setupStatus`
 raises the SDK to **1.5.0** (minor). The four plugins that declare it ask for `sdk ^1.5.0` and
 `guestflow >=3.10.0`: `google-calendar` 1.1.0, `neat` 1.1.0, `online-payment` 1.1.0, `weather-alerts` 1.1.0.
 

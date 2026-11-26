@@ -1,6 +1,6 @@
 /**
  * SystemSettingsPage — the hosting's address as the public URL's default
- * (specs/hosting-h1-fleet-runtime.md rule 25). A hosted instance gets `GUESTFLOW_PUBLIC_URL` from the
+ * (specs/hosting/hosting-h1-fleet-runtime.md rule 25). A hosted instance gets `GUESTFLOW_PUBLIC_URL` from the
  * console (server `smtp.derived.publicUrl`): the empty field shows it and says it is the default; a
  * self-hosted instance without it keeps the plain hint.
  */

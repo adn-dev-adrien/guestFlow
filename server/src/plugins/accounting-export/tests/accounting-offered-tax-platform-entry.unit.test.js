@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const { __test: { buildEntry } } = require('../accountingModel');
 const { entryToRows } = require('../accountingExport');
 
-// specs/platform-brut-excludes-offered-tourist-tax.md §1 + rules 8-9 — the accountant's 2026-08-24
+// specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md §1 + rules 8-9 — the accountant's 2026-08-24
 // report, end to end. Réservation #22225 (Stéphane Victor, Gîtes de France, 26-28 June 2026) as the
 // engine stores it AFTER the fix: the brut GdF bills (653 location + 80 ménage = 733) is entirely
 // revenue, the tourist tax the centrale collects and remits is nowhere in our books, and the 65 € of

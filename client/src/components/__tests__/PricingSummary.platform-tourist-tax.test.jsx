@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/platform-tourist-tax-out-of-the-commission.md rule 13 — on a platform that collects the
+// specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 13 — on a platform that collects the
 // tourist tax AND remits it to the commune itself, the summary prints the WITHHELD amount, struck
 // through: it enters neither what we collect nor our books, so it is there to be read, not counted.
 // This revises per-platform-tourist-tax-three-way.md, which printed it plain on the grounds that the
@@ -79,7 +79,7 @@ test('rule 13 — the cascade deducts the withheld amount and lands on the state
     ...BASE, touristTaxOfferedByPlatform: true, platformTouristTaxWithheld: 14.40,
     preArrivalAmount: 733, platformCommissionAmount: 65, totalPlatformCommission: 65,
     platformNetReceivedAmount: 668, sejourNetTotal: 668, platformSale: true,
-    // Shaped by the server (specs/ui-review-2026-10-19-operations.md rule 32).
+    // Shaped by the server (specs/design-system/ui-review-2026-10-19-operations.md rule 32).
     summaryCascade: { grossTotal: 747.4, offeredTaxDeduction: 14.4, onSiteTotal: 0, commissionBase: 733 },
   });
 

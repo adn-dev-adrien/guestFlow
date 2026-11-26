@@ -1,6 +1,6 @@
 /**
  * NextArrivalBlock — the home's « Prochaine arrivée »: the day of the next arrival, set large with its
- * distance in a chip, and one compact row per stay arriving that day (specs/dashboard-planning-scroll.md
+ * distance in a chip, and one compact row per stay arriving that day (specs/planning/dashboard-planning-scroll.md
  * rule 5). Rows carry no check box: the operational ticks belong to the day itself and to the Planning.
  *
  * Props:

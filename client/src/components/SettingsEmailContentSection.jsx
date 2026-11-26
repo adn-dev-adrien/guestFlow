@@ -1,10 +1,10 @@
 /**
  * SettingsEmailContentSection — « Contenu des mails » card of Paramètres → Emails & notifications.
  *
- * The settings the guest emails quote (specs/guest-email-sequence.md §6.2): the review link and the
- * social links of the J+1 email (specs/settings-input-guards.md §3.7). The pool season belongs to the property that has the pool (Logement ›
- * Séjour, specs/guest-email-texts-made-simple.md rule 34). Whether an email leaves by itself
- * is not decided here any more: each template has its own mode (specs/settings-rationalization.md
+ * The settings the guest emails quote (specs/emails/guest-email-sequence.md §6.2): the review link and the
+ * social links of the J+1 email (specs/settings/settings-input-guards.md §3.7). The pool season belongs to the property that has the pool (Logement ›
+ * Séjour, specs/emails/guest-email-texts-made-simple.md rule 34). Whether an email leaves by itself
+ * is not decided here any more: each template has its own mode (specs/settings/settings-rationalization.md
  * rule 17b).
  *
  * Props:
@@ -51,7 +51,7 @@ export default function SettingsEmailContentSection({
             errors={errors}
             disabled={disabled}
           />
-          {/* specs/plugins-phase-p-productisation.md §6 — the sentences of the emails. */}
+          {/* specs/plugins/plugins-phase-p-productisation.md §6 — the sentences of the emails. */}
           <Box>
             <Button component={RouterLink} to="/settings/emails/textes" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
               Textes des emails

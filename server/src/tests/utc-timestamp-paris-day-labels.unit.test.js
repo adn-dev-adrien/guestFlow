@@ -1,9 +1,9 @@
-// specs/finance-dashboard-redesign.md rule 50 (audit R9-1, 2026-10-30) — three more readers of a stored UTC
+// specs/accounting/finance-dashboard-redesign.md rule 50 (audit R9-1, 2026-10-30) — three more readers of a stored UTC
 // timestamp as a day: the booking day the platform price check compares with the tariff journal
-// (specs/reservation-payment-ledger.md rule 65), « Demandée le … » on an installment
-// (specs/direct-installments.md rule 49) and « Déjà envoyé le … » in the sequence simulation
-// (specs/guest-email-sequence.md rule 36). Each one is stamped 23:30 UTC, which is already the next day in Paris.
-// specs/reservation-payment-ledger.md rule 65 also covers the journal side: a manual event holds Paris wall time, not UTC.
+// (specs/payments/reservation-payment-ledger.md rule 65), « Demandée le … » on an installment
+// (specs/payments/direct-installments.md rule 49) and « Déjà envoyé le … » in the sequence simulation
+// (specs/emails/guest-email-sequence.md rule 36). Each one is stamped 23:30 UTC, which is already the next day in Paris.
+// specs/payments/reservation-payment-ledger.md rule 65 also covers the journal side: a manual event holds Paris wall time, not UTC.
 process.env.TZ = 'Europe/Paris';
 process.env.DB_PATH = ':memory:';
 

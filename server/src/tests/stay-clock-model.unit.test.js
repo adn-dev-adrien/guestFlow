@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 44 — `phaseForReservation` is the one resolver: it reads the reservation, then the
+// specs/pricing/pricing-components.md §3 rule 44 — `phaseForReservation` is the one resolver: it reads the reservation, then the
 // property's `defaultCheckIn` / `defaultCheckOut`, then 15:00 / 10:00, and answers through `phaseOf`.
 const test = require('node:test');
 const assert = require('node:assert/strict');

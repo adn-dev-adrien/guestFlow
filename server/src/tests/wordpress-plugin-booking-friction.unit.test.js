@@ -1,5 +1,5 @@
 /**
- * specs/booking-drawer-friction.md — the WordPress plugin side. The Solio drawer's rules (17, 20) are
+ * specs/site/booking-drawer-friction.md — the WordPress plugin side. The Solio drawer's rules (17, 20) are
  * held by the private solio-site repository, which carries the drawer (tests/booking-drawer-friction.test.js).
  *
  * This is PHP and browser JavaScript, so nothing here executes it (the behaviour was verified end to

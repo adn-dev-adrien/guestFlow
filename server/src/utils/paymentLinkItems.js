@@ -1,5 +1,5 @@
 /**
- * Qonto payment-link VAT items builder (specs/payment-links-vat.md).
+ * Qonto payment-link VAT items builder (specs/payments/payment-links-vat.md).
  *
  * Qonto's `POST /v2/payment_links` takes a basket of items, each with its own `unit_price` (**HT**),
  * `vat_rate` (string %) and quantity 1. Qonto computes each line total as
@@ -27,7 +27,7 @@ function buildVatItems({ components, vatRatePercent }) {
 
   const items = list.map((c) => {
     const grossCents = Math.round(Number(c.grossCents));
-    // A component may carry an optional free-text `description` (specs/qonto-payment-link-reference.md):
+    // A component may carry an optional free-text `description` (specs/payments/qonto-payment-link-reference.md):
     // pure passenger data forwarded to the Qonto item, it never affects amounts.
     const description = c.description != null && String(c.description).trim() ? String(c.description) : undefined;
     // A component may carry its own rate (a line of the sale detail, pricing-components rule 91); otherwise the basket's.

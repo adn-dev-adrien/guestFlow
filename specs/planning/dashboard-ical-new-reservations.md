@@ -78,7 +78,7 @@ reservation stays visible for exactly 24 hours after its arrival.
 - A reservation created at 23:50 one evening → still shown until 23:50 the next evening.
 - A reservation entered in GuestFlow → shown (amended 2026-10-06; it used to be excluded).
 - A devis (`kind='devis'`) → never shown, even a website request; those have their own card
-  (`DevisPublicRequestAlert`, specs/site-booking-notifications.md). Once paid and converted, the
+  (`DevisPublicRequestAlert`, specs/site/site-booking-notifications.md). Once paid and converted, the
   new reservation row appears here, its `createdAt` being the conversion time.
 - Many imports in one day → all are listed (bounded in practice; a daily feed rarely imports more
   than a handful). No artificial cap in v1.
@@ -220,7 +220,7 @@ Done on 2026-10-06 on a copy of the dev database, served by the branch build:
 
 - Any acknowledge/dismiss/persistence mechanism (the card empties itself 24 h after each arrival).
   If a "seen" state is later wanted, it would need a new table — deferred.
-- Push/email notification of new bookings (specs/site-booking-notifications.md covers the emails).
+- Push/email notification of new bookings (specs/site/site-booking-notifications.md covers the emails).
 - Surfacing iCal *updates* (changed dates of an existing booking) — date drifts already have their
   own card.
 - A window other than 24 hours, or one the operator can configure.

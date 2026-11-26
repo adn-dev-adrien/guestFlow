@@ -1,4 +1,4 @@
-// specs/email-history-rolling-window.md rule 9 (2026-10-27 spec review): an e-mail written after the
+// specs/emails/email-history-rolling-window.md rule 9 (2026-10-27 spec review): an e-mail written after the
 // arrival — the J+1 of a long stay, a season e-mail — stays in the history (and is not purged) for the
 // same 3 days as any other, counted from the day it was written.
 

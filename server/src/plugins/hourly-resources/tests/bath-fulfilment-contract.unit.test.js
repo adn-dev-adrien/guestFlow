@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 48, 49, 57 — the `hourly-slot` adapter (bathFulfilment) over the planning's availability: an overlapping session is
+// specs/pricing/pricing-components.md §3 rules 48, 49, 57 — the `hourly-slot` adapter (bathFulfilment) over the planning's availability: an overlapping session is
 // refused (SLOT_TAKEN) at reserve and again at confirm, a held slot of another plugin counts, a heat-up is honoured, release leaves the planning as the lines
 // make it, and a confirm that runs inside a rolled-back transaction writes nothing. The plugin declares both interfaces and the core hands them out while it is live.
 const test = require('node:test');

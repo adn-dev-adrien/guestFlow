@@ -5,7 +5,7 @@
  * `countsAsBedLinen = 1` option in its `reservation_options` AND whose property has no
  * `countsAsBedLinen = 1` option in `property_option_defaults`.
  *
- * Spec: specs/bed-config-in-linen-card.md §5.
+ * Spec: specs/linen/bed-config-in-linen-card.md §5.
  *
  * Rationale: pre-migration, the operator could enter bed counts on a reservation without
  * ticking the bed-linen option — the values then sat in the DB but contributed zero to the

@@ -1,4 +1,4 @@
-// D-HC16: specs/finance-data-checks.md §3 rule 23 — a refused exercise is shown in the panel with a way to the current
+// D-HC16: specs/accounting/finance-data-checks.md §3 rule 23 — a refused exercise is shown in the panel with a way to the current
 // one; any other refusal keeps « Réessayer ».
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

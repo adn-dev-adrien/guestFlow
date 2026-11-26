@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 45 (audit 2026-10-27) — a platform « Compté comme vente
+// specs/plugins/plugins-phase-p-productisation.md rule 45 (audit 2026-10-27) — a platform « Compté comme vente
 // directe » is a direct sale in every money path: acompte and solde like direct, no default
 // extras-to-complement, tourist tax on the solde, and a paid solde follows an entered platform amount.
 const test = require('node:test');

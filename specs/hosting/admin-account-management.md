@@ -10,7 +10,7 @@
 
 > **Updated 2026-10-27 (spec review — drift only, no behaviour change).** The feature shipped; the
 > status moves to `Implemented`. Three things changed since and carry inline notes:
-> - **Pages split (rule 5, §6.1).** [settings-rationalization.md](settings-rationalization.md) rules 6 and 8
+> - **Pages split (rule 5, §6.1).** [settings-rationalization.md](../settings/settings-rationalization.md) rules 6 and 8
 >   split the unified `/account` page: « Mon compte » (my information, my password, second code — every
 >   role) lives at **`/mon-compte`** (`client/src/pages/AccountPage.jsx`, sidebar entry at the bottom), and
 >   the admin user table lives at **`/settings/utilisateurs`**, Paramètres → Utilisateurs
@@ -247,7 +247,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
     *"Ce message est généré automatiquement."* and a signature *"— {smtpFromName}"* (falls back
     to `GuestFlow` when no display name is configured).
 15. On the next login the server detects `mustChangePassword=1` and the client (already wired,
-    see [security-auth-encryption.md](specs/security-auth-encryption.md)) renders only
+    see [security-auth-encryption.md](security-auth-encryption.md)) renders only
     `ChangePasswordPage`. After the user submits their new password successfully:
     - the server destroys the session (`req.session.destroy`) and returns
       **204 No Content** with `X-Session-Ended: 1` (or simply 204 — client detects the upcoming
@@ -432,7 +432,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | POST | `/api/auth/change-password` | (unchanged) | 204 | When the user **had** `mustChangePassword=1` pre-change, the response also destroys the session. Client redirects to /login. |
 | POST | `/api/auth/login` | (unchanged) | (unchanged) | Touches `users.lastLoginAt` on success. |
 | GET | `/api/settings` | — | (extended) returns SMTP fields + `smtpPasswordSet: boolean` + `publicUrl` | admin only. |
-| PUT | `/api/settings` | (extended) `{ ..., smtpHost?, smtpSecure?, smtpUsername?, smtpPassword?, smtpFromEmail?, smtpFromName?, publicUrl? }` | 200 (extended) | admin only. `smtpPassword` omitted → preserves existing. `smtpPort` is **not** accepted since 2026-09-16: it is derived from `smtpSecure` (`specs/settings-one-save-and-automatic-webhook.md` rule 5). |
+| PUT | `/api/settings` | (extended) `{ ..., smtpHost?, smtpSecure?, smtpUsername?, smtpPassword?, smtpFromEmail?, smtpFromName?, publicUrl? }` | 200 (extended) | admin only. `smtpPassword` omitted → preserves existing. `smtpPort` is **not** accepted since 2026-09-16: it is derived from `smtpSecure` (`specs/settings/settings-one-save-and-automatic-webhook.md` rule 5). |
 | POST | `/api/settings/smtp-test` | — | 200 `{ ok: true }` or 400 `{ error: 'SMTP_TEST_FAILED', detail }` | admin only. Sends a test mail to the current admin's email. |
 
 Error shapes (consistent with existing routes): `{ error: <ERROR_CODE>, message?: string, field?: string }`.
@@ -538,7 +538,7 @@ SMTP fields start empty — the new account-creation endpoint returns
 
 - New card titled **Envoi d'emails (SMTP)**, in the same column flow as the other settings cards, *above* the "Sauvegarde" group.
 - Fields: SMTP Host, Sécurité (`Select` with options *STARTTLS (port 587)* / *TLS implicite (port 465)*), Utilisateur, Mot de passe (MaskedTextField), Adresse expéditeur, Nom expéditeur, URL publique.
-  - **(2026-09-16)** The **Port** field is gone: it was the security mode said twice. The server derives `smtpPort` from `smtpSecure` on every save of this card — 587 for STARTTLS, 465 for implicit TLS — and a port sent by a client is ignored (`specs/settings-one-save-and-automatic-webhook.md` rule 5). An installation on a non-standard port keeps it until this card is saved again. _(Updated 2026-10-27: the column is gone — the port is derived at read time, never stored, so there is no stored non-standard port left to keep; settings-rationalization rule 11.)_
+  - **(2026-09-16)** The **Port** field is gone: it was the security mode said twice. The server derives `smtpPort` from `smtpSecure` on every save of this card — 587 for STARTTLS, 465 for implicit TLS — and a port sent by a client is ignored (`specs/settings/settings-one-save-and-automatic-webhook.md` rule 5). An installation on a non-standard port keeps it until this card is saved again. _(Updated 2026-10-27: the column is gone — the port is derived at read time, never stored, so there is no stored non-standard port left to keep; settings-rationalization rule 11.)_
 - A help caption under URL publique: *"Cette URL est insérée dans les emails envoyés aux utilisateurs (ex. https://guestflow.adn-dev.fr)."*
 - "Envoyer un mail de test" button, disabled while any required SMTP field is empty. On click: calls `POST /api/settings/smtp-test`, shows success (*"Mail de test envoyé à <adminEmail>."*) or the error detail in a snackbar.
 - **(2026-08-17)** Server validation errors land **under their field**, replacing its helper text — *Adresse expéditeur* (`smtpFromEmail`) and, since rule 16b, *Nom expéditeur* (`smtpFromName`). Editing the field clears its error, so the mapping `smtp.fromName → smtpFromName` must exist in `mapClientKeyToErrorKey`, otherwise a stale message sticks until the next save.

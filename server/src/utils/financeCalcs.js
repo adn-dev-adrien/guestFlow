@@ -3,14 +3,14 @@
 //
 // `computeAccommodationAmountAfterDiscount` used to live here: the « Suivi taxe de séjour » page
 // re-derived its own accommodation from SQL with it. It now replays the pricing engine instead
-// (specs/tourist-tax-included-services-deduction.md rule 14), so the helper had no caller left.
+// (specs/tourist-tax/tourist-tax-included-services-deduction.md rule 14), so the helper had no caller left.
 
 const { computeTouristTaxBreakdown } = require('./pricing');
 const { personNights } = require('./pricing/touristTax');
 
 const { roundMoney: round2 } = require('./pricing/money');
 
-// specs/tourist-tax-report-v2.md rule 27 — a year before 1000 (Date.UTC reads 0-99 as 1900+, 100-999 lose their
+// specs/tourist-tax/tourist-tax-report-v2.md rule 27 — a year before 1000 (Date.UTC reads 0-99 as 1900+, 100-999 lose their
 // padding) or a month whose next one leaves four digits names no month a stay can be in: refused, never stretched.
 function getMonthBounds(monthStr) {
   if (!/^\d{4}-\d{2}$/.test(monthStr || '')) return null;

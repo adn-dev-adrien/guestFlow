@@ -1,5 +1,5 @@
 /**
- * Preloaded by `npm test` (`node --require`) into every test process (specs/server-test-isolation.md
+ * Preloaded by `npm test` (`node --require`) into every test process (specs/tech/server-test-isolation.md
  * rule 1): the process gets its own throw-away SQLite file, and opening the checkout's own
  * `guestflow.db` (or `PERSISTENT_DB`) throws. A test that needs a database sets `DB_PATH` itself, as
  * before; one that forgets used to create and migrate the developer's `server/guestflow.db`. The secrets

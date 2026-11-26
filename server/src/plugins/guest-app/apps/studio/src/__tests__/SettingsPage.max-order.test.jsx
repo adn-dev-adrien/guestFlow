@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 48 — the order ceiling emptied in Réglages › Application is sent as null (the server's
+// specs/guest-app/guest-app.md rule 48 — the order ceiling emptied in Réglages › Application is sent as null (the server's
 // default, 500 €), never as 0.
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';

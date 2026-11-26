@@ -1,11 +1,11 @@
-// specs/plugins-phase-4-registry.md rule 43 (audit round 2, N1) — activate, deactivate and uninstall refuse
+// specs/plugins/plugins-phase-4-registry.md rule 43 (audit round 2, N1) — activate, deactivate and uninstall refuse
 // 409 UPDATE_IN_PROGRESS while a plugin operation (an install awaiting its package) holds the lock, so
 // rules 12, 36 and 37 never read rows the install is still writing.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
 
-// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// specs/plugins/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
 // tests borrow shipped plugins' ids: a tree without one has nothing to prove.
 if (!requirePlugins(['website-booking', 'google-vacation-rentals'])) return;
 const h = require('./pluginPackagesFixture');

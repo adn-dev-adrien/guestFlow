@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -15,7 +17,7 @@
 The arrival SAS sells two things the catalogue already knows about:
 
 - **Ménage** — « Ajouter le ménage » ([arrival-departure-sas.md](arrival-departure-sas.md) §3.1 rule 10);
-- **Linge de toilette** — « Ajouter le linge de toilette » ([sas-bath-linen-upsell.md](sas-bath-linen-upsell.md) §3.2).
+- **Linge de toilette** — « Ajouter le linge de toilette » ([sas-bath-linen-upsell.md](../linen/sas-bath-linen-upsell.md) §3.2).
 
 Both are written by `commitArrivalSas` as **custom lines** — `reservation_custom_options` rows with
 `inComplement = 1`, `sasArrivalOrigin = 1` and a French label — instead of activating the matching
@@ -28,8 +30,8 @@ bath linen by joining the catalogue option:
 FROM reservation_options ro JOIN options o ON o.id = ro.optionId
 WHERE o.countsAsBathroomLinen = 1
 ```
-([laundryModel.js:132](../server/src/models/laundryModel.js#L132), same shape in
-[linenInventory.js:158](../server/src/utils/linenInventory.js#L158)). A custom line is invisible there,
+([laundryModel.js:132](../../server/src/plugins/linen/laundryModel.js#L132), same shape in
+[linenInventory.js:158](../../server/src/plugins/linen/linenInventory.js#L158)). A custom line is invisible there,
 so **the towels sold at check-in are never counted in the linen to prepare, nor in the stock outflow.**
 Verified on a live reservation: a « Linge de toilette » custom line at 32 €, and **no**
 `countsAsBathroomLinen` row on the reservation.
@@ -39,7 +41,7 @@ The cleaning has no laundry impact, but the same shape makes it detectable only 
 [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.1 had to rely on.
 
 **Second finding (2026-08-03), load-bearing here:** `insertCustomOptions` — run on **every fiche save** —
-does not write `sasArrivalOrigin` ([reservationsModel.js](../server/src/models/reservationsModel.js)),
+does not write `sasArrivalOrigin` ([reservationsModel.js](../../server/src/models/reservationsModel.js)),
 so the marker is silently reset to 0. A SAS re-opened after a fiche save no longer recognises its own
 lines (they degrade to « preserved » lines). Any marker this spec introduces must survive the same path.
 
@@ -83,7 +85,7 @@ still being removable by re-opening the SAS.
      from the fiche — the SAS never deletes operator data).
 7. **The step stays visible while it is the SAS's own line.** The arrival ménage page is hidden when the
    cleaning is included ([sas-hide-settled-steps.md](sas-hide-settled-steps.md) §3 rule 3) and the
-   bath-linen page when the option is already taken ([sas-bath-linen-upsell.md](sas-bath-linen-upsell.md)
+   bath-linen page when the option is already taken ([sas-bath-linen-upsell.md](../linen/sas-bath-linen-upsell.md)
    §3.1 rule 1). **Revised:** both pages remain visible, **pre-selected on « ajouté »**, when the only
    reason they'd be hidden is a `sasArrivalOrigin = 1` row — otherwise adding an option would make its
    own undo button disappear. An option taken at booking or added from the fiche still hides the page.
@@ -241,7 +243,7 @@ that past and future stays finally appear in the laundry/stock counts.
       (`unitPrice 8 × billedUnits 4 = 32`, `inComplement = 1`), `complementAmount` unchanged at 64.
 - [x] Mobile (`xs` 390px): SAS steps readable, no horizontal scroll, every button within the viewport.
 
-### SAS history (specs/arrival-departure-sas.md §3.7)
+### SAS history (specs/sas/arrival-departure-sas.md §3.7)
 - [x] `sasAudit.unit.test.js`: no change → no entry; arrival diff (caution, upsells, complement, report);
       breakfast summarised with only its non-zero items; departure diff (billed lines, extinguisher,
       caution return); linen elements listed; a removed upsell reads « pris → non pris ».

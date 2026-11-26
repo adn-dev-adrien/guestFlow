@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rules 55-58 (audit R23-I1, R23-I3, R23-I4, section 4 of R23-A2) — through the real application: the first price
+// specs/settings/settings-input-guards.md rules 55-58 (audit R23-I1, R23-I3, R23-I4, section 4 of R23-A2) — through the real application: the first price
 // of a new property, the tourist-tax mode and the photo of a JSON body.
 const test = require('node:test');
 const assert = require('node:assert/strict');

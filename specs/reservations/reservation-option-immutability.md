@@ -32,7 +32,7 @@ reservations.
 The audit found two behaviors that still let option/property-default config bleed into an existing
 reservation:
 
-- **Update re-merge** ([reservationsController.js:422-447](../server/src/controllers/reservationsController.js#L422-L447),
+- **Update re-merge** ([reservationsController.js:422-447](../../server/src/controllers/reservationsController.js#L422-L447),
   `bed-config-in-linen-card.md` rule 4.bis): editing an existing reservation re-injects
   `countsAsBedLinen = 1` property-default options it didn't carry — so a pre-default-era reservation
   *gains* an option on save.
@@ -72,7 +72,7 @@ defaults are still configured from the Options page.
    display applies **only when creating a new reservation**. In edit mode, options render exactly as
    the reservation carries them — an option the reservation lacks renders as a normal *off* switch,
    never as a disabled "Inclus".
-   **Amended 2026-08-22** ([tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md)
+   **Amended 2026-08-22** ([tourist-tax-included-services-deduction.md](../tourist-tax/tourist-tax-included-services-deduction.md)
    rules 4-5): a property default marked **« offerte »** — a service included in the rate, which now
    leaves the tourist-tax base — renders forced ON *and disabled in edit mode too*, **but only when
    the reservation already carries it**. The half of this rule that matters is untouched: an option
@@ -81,8 +81,8 @@ defaults are still configured from the Options page.
    The server enforces the same bound (rule 3 below): an update restores a carried offered default the
    payload dropped, and adds nothing else.
 5. **Kept — new reservations still receive property defaults.** The create-time merge
-   ([reservationsController.js create path](../server/src/controllers/reservationsController.js#L281-L294))
-   and the devis merge ([devisModel.js](../server/src/models/devisModel.js#L30-L49)) are unchanged.
+   ([reservationsController.js create path](../../server/src/controllers/reservationsController.js#L281-L294))
+   and the devis merge ([devisModel.js](../../server/src/models/devisModel.js#L30-L49)) are unchanged.
 6. **Kept — per-property defaults stay configurable from the Options page** (Settings → Options, the
    per-property grid on an option). Only the property-page card is removed.
 7. **Libellé live (explicit decision).** Option `title` / `description` remain read live via the
@@ -153,13 +153,13 @@ No new or changed endpoints. The per-property `option-defaults` write routes
 No schema change. The snapshot columns that make rule 1–2 hold already exist
 (`reservation_options.unitPrice / billedUnits / priceType / totalPrice / offered /
 acompteContribTtc / soldeContribTtc`, added via the migrations at
-[database.js:677-700](../server/src/database.js#L677-L700)).
+[database.js:677-700](../../server/src/database.js#L677-L700)).
 
 **Title/description are intentionally NOT snapshotted** (rule 7). `reservation_options` has no
 `title` column; the label is joined live from `options`. This is an accepted cosmetic exception.
 
 **Data impact:** none. No migration, no backfill, no row rewrite. The one-time startup backfill
-`backfill_property_default_options_v1` ([database.js:1785](../server/src/database.js#L1785)) already
+`backfill_property_default_options_v1` ([database.js:1785](../../server/src/database.js#L1785)) already
 ran in prod (rows at 0 €); it is neither re-run nor reverted by this change.
 
 ## 6. UI / UX

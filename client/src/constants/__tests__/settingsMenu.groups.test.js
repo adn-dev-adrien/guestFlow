@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 26 (UI/UX review 2026-10-18, decision 12) — the submenu
+// specs/settings/settings-rationalization.md rule 26 (UI/UX review 2026-10-18, decision 12) — the submenu
 // becomes four groups, the families of SETTINGS_MENU; every entry (plugins' included) belongs to one;
 // the group of the open page is the one the sidebar unfolds.
 import {
@@ -43,7 +43,7 @@ test('rule 26: the group the sidebar unfolds — the open page’s, or the summa
   expect(isSettingsPath('/settings')).toBe(true);
 });
 
-// Intégrations takes its words from its plugins' contributions (specs/integrations-tab-per-plugin.md rule 8).
+// Intégrations takes its words from its plugins' contributions (specs/plugins/integrations-tab-per-plugin.md rule 8).
 test('every page of the summary has its words', () => {
   visibleSettingsGroups(all, all, { withExtras: true }).flatMap((g) => g.entries)
     .filter((e) => e.path !== INTEGRATIONS_PATH)

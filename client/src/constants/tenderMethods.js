@@ -1,5 +1,5 @@
 /**
- * Payment methods of a split payment (specs/mixed-method-payments.md rule 4) and the French copy of the
+ * Payment methods of a split payment (specs/payments/mixed-method-payments.md rule 4) and the French copy of the
  * « Plusieurs moyens » controls.
  *
  * The list is the server's (`server/src/utils/paymentTenders.js` METHODS): the ledger hands it over as

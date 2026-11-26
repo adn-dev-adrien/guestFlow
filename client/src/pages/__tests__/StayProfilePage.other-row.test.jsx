@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rule 29 (verification V5-3) — the server's « Autres » row reaches the share
+// specs/accounting/stay-profile.md §3 rule 29 (verification V5-3) — the server's « Autres » row reaches the share
 // table as such: grey, never a recycled hue, its hover naming the channels it holds.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -29,7 +29,7 @@ function getEffectiveReservationBounds(reservation) {
 
 /**
  * Did an edit leave the stay where it was? Same logement, same dates, same check-in / check-out times
- * (specs/edit-reservation-blocked-by-overlap.md rules 1 and 5): a time change moves the block window
+ * (specs/reservations/edit-reservation-blocked-by-overlap.md rules 1 and 5): a time change moves the block window
  * as surely as a date does, so it re-runs the overlap check. The loaded form already holds the
  * property defaults for a stay stored without times, so the comparison is like with like.
  */

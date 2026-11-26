@@ -1,7 +1,7 @@
 /**
- * EmailMentionsPanel — « Options citées » of the email texts page (specs/plugins-phase-p-productisation.md
+ * EmailMentionsPanel — « Options citées » of the email texts page (specs/plugins/plugins-phase-p-productisation.md
  * §3.B): the mentions by section, their proposal order, then the confirmation order. Their sentences
- * are also edited in place on the « Par email » tab (specs/guest-email-texts-made-simple.md rule 9).
+ * are also edited in place on the « Par email » tab (specs/emails/guest-email-texts-made-simple.md rule 9).
  * Specific to that page.
  *
  * Props: onChanged() — called after any write, so the page reloads its texts.
@@ -24,7 +24,7 @@ import { useToast } from './DialogProvider';
 
 const EMPTY_MENTION = { section: 'extras', optionIds: [], priceSource: 'min', priceOptionId: null, offerFr: '', offerEn: '', bookedFr: '', bookedEn: '' };
 const TYPED_LABELS = { babyBed: 'Lit bébé', towels: 'Serviettes de toilette' };
-// specs/guest-email-texts-made-simple.md rule 10 — a proposal reads « ⟦Prix⟧ », as in its editor.
+// specs/emails/guest-email-texts-made-simple.md rule 10 — a proposal reads « ⟦Prix⟧ », as in its editor.
 const MENTION_DICT = buildDictionary(MENTION_TOKENS, MENTION_FLAGS);
 
 const move = (list, index, delta) => {

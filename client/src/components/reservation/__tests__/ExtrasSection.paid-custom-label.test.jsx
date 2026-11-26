@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 123 (stabilisation loop t11, S11-1) — a free line a note or a collected platform complement paid is
+// specs/pricing/pricing-components.md §3 rule 123 (stabilisation loop t11, S11-1) — a free line a note or a collected platform complement paid is
 // keyed by its label: the server refuses its renaming (409 LINE_PAID_RENAMED) and names it in `editLock.paidCustomOptionIds`, so the fiche
 // greys its description, before the stay as during it. The unpaid line beside it stays editable.
 import React from 'react';

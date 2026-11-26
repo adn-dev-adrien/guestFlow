@@ -5,11 +5,11 @@
  *   no unpaid bucket (acompte, solde, arrival complement, end-of-stay complement, and the unpaid installments of a plan:
  *   `planClaim`, euros, what the save's rebalance adds to them) takes on, nor the money already collected beyond the stored
  *   total (`openOverpayment`, euros, the ledger's trop-perçu before the save, net of the free refunds; capped at the rise);
- *   0 when nothing rises (specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, readings of 2026-11-06: audit R26
+ *   0 when nothing rises (specs/sas/mid-stay-extras-to-end-of-stay-complement.md rule 20, readings of 2026-11-06: audit R26
  *   finding 1, D21 review L3, audit R27-RES-1).
  * - `unlockedPriceRefusal(stored, quote, { storedLines, quoteLines })` — D21: an unlocked fiche keeps its final price and
  *   its tourist tax, except for the drop that offering a line explains to the cent; the refusal `{ error, code }` or null
- *   (specs/settings-rationalization.md rule 35, D21 and its 2026-11-13 reading).
+ *   (specs/settings/settings-rationalization.md rule 35, D21 and its 2026-11-13 reading).
  */
 const { formatEuros } = require('./reservationLedger');
 const { extraLineKey } = require('./midStayExtras');

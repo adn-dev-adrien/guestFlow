@@ -1,5 +1,5 @@
 // A GET /api/accounting/synthesis payload for the « Synthèse » / « Encaissements » suites
-// (specs/accounting-synthesis.md §4.3). Dates in 2099: a deliberate far future nothing compares with today.
+// (specs/accounting/accounting-synthesis.md §4.3). Dates in 2099: a deliberate far future nothing compares with today.
 
 export function synthesisPayload(over = {}) {
   const base = {

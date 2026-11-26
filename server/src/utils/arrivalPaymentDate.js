@@ -1,5 +1,5 @@
 /**
- * The collection date of a single arrival payment (specs/single-payment-from-the-fiche.md rule 3bis).
+ * The collection date of a single arrival payment (specs/payments/single-payment-from-the-fiche.md rule 3bis).
  *
  * The operator chooses it, because the guest may have paid at the door days before anyone recorded
  * it. That date is not cosmetic: the accounting exports each entry in the month of its paid date, and
@@ -20,7 +20,7 @@ const { dateBeforeHorizon, PAST_HORIZON_MESSAGE } = require('./stayDates');
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * The « not in the future » half on its own (specs/reservation-payment-ledger.md rule 9): every mark of
+ * The « not in the future » half on its own (specs/payments/reservation-payment-ledger.md rule 9): every mark of
  * the payments ledger goes through it. The « not before the booking » half is NOT applied there —
  * reservations entered after the fact (Abritel typed by hand, iCal or intake imports) carry a
  * `createdAt` later than the real payments.
@@ -32,7 +32,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * @returns {{ok: true, date: string} | {ok: false, reason: string}}
  */
 function validateCollectionDate(date, { today, invalidReason = 'Date d\'encaissement invalide.' } = {}) {
-  // specs/reservation-payment-ledger.md rule 66 — `String(["2026-10-30"])` reads as a day: only a string is one.
+  // specs/payments/reservation-payment-ledger.md rule 66 — `String(["2026-10-30"])` reads as a day: only a string is one.
   if (typeof date !== 'string') return { ok: false, reason: invalidReason };
   const value = date.slice(0, 10);
   if (!ISO_DATE_RE.test(value)) return { ok: false, reason: invalidReason };
@@ -45,7 +45,7 @@ function validateCollectionDate(date, { today, invalidReason = 'Date d\'encaisse
   if (ISO_DATE_RE.test(now) && value > now) {
     return { ok: false, reason: 'Un encaissement ne peut pas être daté dans le futur.' };
   }
-  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — nor before today − 5 years.
+  // specs/tech/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — nor before today − 5 years.
   if (ISO_DATE_RE.test(now) && dateBeforeHorizon(value, now)) return { ok: false, reason: PAST_HORIZON_MESSAGE };
   return { ok: true, date: value };
 }

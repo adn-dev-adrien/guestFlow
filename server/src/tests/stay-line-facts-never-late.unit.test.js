@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 48 (stabilisation loop t5, D5-6, 2026-11-16) — the read is never late: `stayRepository.lineFacts`
+// specs/pricing/pricing-components.md §3 rule 48 (stabilisation loop t5, D5-6, 2026-11-16) — the read is never late: `stayRepository.lineFacts`
 // rebuilds a stay a write behind the hooks left marked before it sums a line's allocations, like `paymentLedger.allocations`. Before, the
 // stay was quoted with its stale per-line `settledCents` until another reader flushed it.
 process.env.DB_PATH = ':memory:';

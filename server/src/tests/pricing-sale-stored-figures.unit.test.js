@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 8 — a sale reads the extra guests and the tourist tax as stored: `staySale` runs
+// specs/pricing/pricing-components.md §3 rule 8 — a sale reads the extra guests and the tourist tax as stored: `staySale` runs
 // `storedExtraGuests` / `storedTouristTax` (the records `reservations.storedExtraGuests` / `storedTouristTax` hold) in the place of
 // EXTRA GUESTS and TOURIST TAX. A setting changed since the stay was priced never moves a stay a line is sold on; a stay edit
 // re-prices both; a record computed on other inputs of the stay, or stating another tax than the row, is not read (the units run) — and since

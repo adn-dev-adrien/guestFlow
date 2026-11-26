@@ -17,13 +17,13 @@ only public write. Each accepted request today:
 
 - creates a **client** when the e-mail is unknown;
 - creates a **draft devis**, which takes the next **devis number**;
-- e-mails the operator (`notificationService.notifyNewSiteDevis`, specs/site-booking-notifications.md
+- e-mails the operator (`notificationService.notifyNewSiteDevis`, specs/site/site-booking-notifications.md
   rule 6).
 
 The protections are a honeypot field and `bookingRequestLimiter`, 5 requests per hour **per visitor
 IP** (the IP the WordPress proxy relays). A bot that rotates IPs is not slowed down: thousands of
 requests mean thousands of junk clients and devis numbers, and thousands of e-mails in the operator's
-mailbox. (`specs/public-api.md` rule 9 also says « 20/hour/API-key »: the code never did that, and it
+mailbox. (`specs/site/public-api.md` rule 9 also says « 20/hour/API-key »: the code never did that, and it
 must not — the whole site shares one key, so it would be a lockout for every guest.)
 
 A global ceiling was proposed and refused by Adrien (2026-10-27): it stops the service for everyone,
@@ -131,7 +131,7 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 - Two identical requests within the same second (double click) → the second finds the first through
   rule 13 and returns it, unchanged.
 - An e-mail typed with another case or spaces → normalised before rules 7 and 12. *Reading of 2026-11-05 (audit R23
-  public findings 4 and 5):* an uppercase non-ASCII letter is another case ([clients.md](clients.md) rule 12), and a format
+  public findings 4 and 5):* an uppercase non-ASCII letter is another case ([clients.md](../clients/clients.md) rule 12), and a format
   character is no character ([public-api.md](public-api.md) rule 21). Test: `public-email-one-address.unit.test.js`.
 - A request for the same stay whose new composition is no longer bookable (capacity, min stay) →
   refused as a creation would be; the open devis is left untouched.
@@ -254,7 +254,7 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     replace control characters and Unicode line separators in every interpolated value (names, e-mail, phone,
     property, platform, option and resource titles, iCal summary) by a space, so a visitor cannot forge a line
     (« IMPORTANT : le client a déjà payé : <link> ») above « Ouvrir le devis ». The mails are plain text, so there
-    is nothing to HTML-escape. The phone is also validated at the boundary (`specs/public-api.md` rule 21). Test:
+    is nothing to HTML-escape. The phone is also validated at the boundary (`specs/site/public-api.md` rule 21). Test:
     `plugins/website-booking/tests/public-request-line-injection.unit.test.js`.
 34. **`proofEnforcedSince` and `lastSeenPluginVersion` are internal settings** (audit r5, authz review of PR #874,
     2026-10-30; `website-booking` 1.8.7, SDK 2.17.0). Rule 24 says nothing resets the proof-of-work latch, yet a settings PUT

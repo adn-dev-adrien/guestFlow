@@ -1,4 +1,4 @@
-// specs/mid-stay-notes.md rules 5bis, 23 (D19) — a note on a started stay with no arrival marked stays open: the server
+// specs/sas/mid-stay-notes.md rules 5bis, 23 (D19) — a note on a started stay with no arrival marked stays open: the server
 // says so on the note's own preview. The flag follows the baseline the engine reads, read fresh at each preview.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,7 +24,7 @@ function modelDb(columns = {}, { start = dayAt(-2), end = dayAt(3) } = {}) {
   return db;
 }
 
-// specs/pricing-components.md §3 rules 20, 44-45 — « started » is the check-in time having passed (the stay clock), not the
+// specs/pricing/pricing-components.md §3 rules 20, 44-45 — « started » is the check-in time having passed (the stay clock), not the
 // arrival mark: the flag follows the clock.
 test('rule 23: a stay still to come, nothing collected → no baseline due, whatever the arrival mark says', () => {
   for (const columns of [{}, { checkInDone: 1 }, { arrivalSasDoneAt: `${dayAt(4)} 16:10:00` }]) {

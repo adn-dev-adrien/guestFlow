@@ -20,11 +20,11 @@ The `hourly-resources` plugin shows money in two places, and both figures are co
 - the **« Planifier » step of the arrival SAS** (`SasResourceSchedulingPage.jsx`), which adds up the
   evening supplement of the placed blocks (« Supplément soirée : 20 € »).
 
-[sas-arrival-total-server-side.md](sas-arrival-total-server-side.md) moved the arrival recap's money
+[sas-arrival-total-server-side.md](../sas/sas-arrival-total-server-side.md) moved the arrival recap's money
 to the server and named the second one as left for a follow-up (§8). This spec is that follow-up, with
 the booking dialog added.
 
-The owner's rule ([CLAUDE.md](../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays
+The owner's rule ([CLAUDE.md](../../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays
 money, it never computes it**, so that a figure is the same wherever it is read.
 
 ### 1.1 Inventory of the client money arithmetic
@@ -80,7 +80,7 @@ On the SAS step, the server already answers the right figure and the page **disc
    « Supplément soirée : 20 € », the recap and the commit bill **10,00 €**.
    *Reading of 2026-11-02 — the date window.* The preview and the commit also refuse a `date`
    that is not a real day or lies outside [today − 5 years, today + 5 years], 400 with the French message;
-   an edited booking keeps its stored day (hourly-resources 1.3.4, `specs/reservations-backend-mvc.md` rule 13, second reading).
+   an edited booking keeps its stored day (hourly-resources 1.3.4, `specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 6. **The answer is already there.** `GET /api/resources/:id/free-slots` returns
    `{ days, supplement }` with `supplement = supplementOf(entry, pending)` (`schedulingModel.js:202`),
    and the step payload carries `supplement` per resource (`:186`). The page keeps `days` only

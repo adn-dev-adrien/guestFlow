@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 42 (audit R2, finding N4) — `create-first-admin.js` reads its
+// specs/hosting/control-plane-plans-and-access.md rule 42 (audit R2, finding N4) — `create-first-admin.js` reads its
 // arguments strictly: a value that looks like a flag is refused, never taken for the flag.
 const test = require('node:test');
 const assert = require('node:assert/strict');

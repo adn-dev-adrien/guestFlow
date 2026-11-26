@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 32 and 85, PR C mock M3 — on the arrival recap the departure sales of the stay can be collected now:
+// specs/pricing/pricing-components.md §3 rules 32 and 85, PR C mock M3 — on the arrival recap the departure sales of the stay can be collected now:
 // the line API moves each line to the arrival, then the SAS payload and the recap are read again.
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

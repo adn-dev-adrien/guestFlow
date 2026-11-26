@@ -333,7 +333,7 @@ standard).
 
 ## 4. Architecture
 
-> **Moved to plugin `accounting-export` (phase 2, `specs/plugins-phase-2-hosts.md`) — current file map
+> **Moved to plugin `accounting-export` (phase 2, `specs/plugins/plugins-phase-2-hosts.md`) — current file map
 > (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
 > `server/src/plugins/accounting-export/`: `controller.js` (CSV export, commissions) · `accountingModel.js`
 > (read-only DB layer) · `accountingExport.js` (pure engine) · `accountPlan.js` (buckets → accounts) ·

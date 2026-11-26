@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { roundMoney } = require('../utils/pricing');
 
-// Single-rate global VAT model — specs/single-vat-rate.md. The two-rate split (accommodation vs.
+// Single-rate global VAT model — specs/accounting/single-vat-rate.md. The two-rate split (accommodation vs.
 // standard) was collapsed to a single `app_settings.vatRate` column that drives every billable
 // line of the quote (accommodation, options, custom options, resources). The legacy
 // per-property `vatPercentage*` columns remain dropped — only the single global drives the quote.

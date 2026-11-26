@@ -9,7 +9,9 @@
 | **Related PR** | #623 |
 | **Update** | 2026-10-09 — the SAS « Portail » step gains « Partager » (rule 24b): guests renting together send each other the link through the phone's native share sheet |
 | **Supersedes** | PR #563 (`claude/sowel-guestflow-connector-y0df44`): its stay **feed** (`GET /stays` with revisions and a cursor, the `gate_stay_feed` table, its reconciler and its purge) and its `POST /invitations`. What #563 got right is kept as it was: the signed channel, the window computation, the email tokens, the SAS step with its QR, the fiche card and the settings card |
-| **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract » v1 + its « v2 changes » (2026-09-27: wider window, signed responses, `implausible_stay`, the secrets in Réglages) + **v3** (2026-10-05, additive: the `stay` block on every key, `specs/sowel-stays-in-keys.md`), implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
+| **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract » v1 + its « v2 changes » (2026-09-27: wider window, signed responses, `implausible_stay`, the secrets in Réglages) + **v3** (2026-10-05, additive: the `stay` block on every key, rule 4b), implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Contract-v3 citations now point at rule 4b (`specs/guest-app/gate-access-sowel-connector.md` was folded into it); pointer added to the `/public/v1/home` tree (`plugins/gate-access/index.js:116`). Stay-window code now lives in core `utils/stayWindow.js` (no more `plugins/gate-access/window.js` or `utils/gateWindow.js`); rule 4 and the §4 note corrected.
 
 ## 0. The feature at a glance
 
@@ -22,6 +24,8 @@ and keeps working if guestFlow is stopped. guestFlow knows **who arrives and whe
 | Sowel → guestFlow `GET /public/v1/gate/keys` | **Sowel**, hourly | the keys to create or revoke |
 | Sowel → guestFlow `POST /public/v1/gate/results` | **Sowel**, after each read | the outcome of every key: code and link, or the error |
 | guestFlow → Sowel | **nobody** | guestFlow holds no credential over the house and opens nothing towards it |
+
+> Since 2026-11-15 the same plugin, key and signature also serve a second tree, `/public/v1/home` (`plugins/gate-access/home*.js`: catalogue, readings, series, light commands) — the guests' « Domotique » page, specified in `specs/guest-app/guest-app-home-automation.md`. The keys above are unchanged.
 
 **Why not #563's feed.** A feed with revisions and a cursor makes the consumer responsible for
 never missing a page, and guestFlow responsible for a table that only grows, a reconciler and a
@@ -67,9 +71,9 @@ a key could not be made or when Sowel stopped asking.
 4. **The window**: `startsAt` = arrival date + the reservation's `checkInTime` **− 3 h**; `endsAt` =
    departure date + `checkOutTime` **+ 2 h**. Check-in and check-out are read on the **Europe/Paris
    wall clock**; the two margins are real durations applied to those instants, so a DST night never
-   stretches them; the result is sent as UTC ISO (`gateWindow.js`, taken from #547 with its tests).
+   stretches them; the result is sent as UTC ISO (core `utils/stayWindow.js`, formerly `gateWindow.js`).
    The check-in time is the planned arrival: a guest a little early is let in (contract v2).
-4b. **The stay** (contract v3, `specs/sowel-stays-in-keys.md`): every key, `create` and `revoke`,
+4b. **The stay** (contract v3): every key, `create` and `revoke`,
    carries `stay: { propertyId, propertyName, arrival, departure }` — the reservation's property and
    its check-in / check-out themselves, **without** the −3 h / +2 h: the same inputs and fallbacks
    as rule 4 (`checkInTime` / `checkOutTime`, else 15:00 / 10:00), sent as Europe/Paris wall clock
@@ -112,7 +116,7 @@ a key could not be made or when Sowel stopped asking.
 
 ### 3.3 The alerts
 
-> 2026-10-19 (`specs/shell-and-home-day-first.md` rules 3, 9): the alert is pinned unfolded above
+> 2026-10-19 (`specs/planning/shell-and-home-day-first.md` rules 3, 9): the alert is pinned unfolded above
 > the day on the home, declared with `ctx.attention({ key: 'gate-keys' })`, drawn by `AttentionCard`.
 
 13. **A failed result is a dashboard alert** — number, first name and reason — until a success
@@ -214,11 +218,11 @@ a key could not be made or when Sowel stopped asking.
 
 ## 4. Architecture
 
-> **Moved to plugin `gate-access` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> **Moved to plugin `gate-access` (phase 1, `specs/plugins/plugins-phase-1-sdk.md`) — current file map
 > (audit 2026-10-27).** The tables below are the map at implementation time; the core files they name
 > no longer exist. The code lives in `server/src/plugins/gate-access/`:
 > `keys.js` (the key list the house reads, and its wording) · `results.js` (the house's outcomes, admin
-> alerts) · `window.js` (validity window, rule 4) · `invitationView.js` (what the fiche shows of a key) ·
+> alerts) · core `utils/stayWindow.js` (validity window, rule 4 — moved out of the plugin by `specs/guest-app/guest-app.md`) · `invitationView.js` (what the fiche shows of a key) ·
 > `keysModel.js` (storage, §5) · `requireConnector.js` (the connector's key + request signature, rules 19–22) · `signResponse.js`
 > (signed answers to the house) · `controller.js` (admin side) · `publicRoutes.js` (`/public/v1/gate`) ·
 > `emailContext.js` (the key in the guest emails, rule 23) · `attention.js` (home subject) · `index.js`

@@ -37,7 +37,7 @@ db.prepare("INSERT OR IGNORE INTO platforms (name) VALUES ('Booking')").run();
 db.prepare("UPDATE platforms SET commissionPercent = 16.44 WHERE name = 'Booking'").run();
 
 const USER = { id: 1, role: 'admin' };
-// Every date of these suites hangs on the real day (specs/server-test-isolation.md rule 6): the controller's
+// Every date of these suites hangs on the real day (specs/tech/server-test-isolation.md rule 6): the controller's
 // injected « today » and the payment mark's date window (rule 13 of reservations-backend-mvc) read the same one.
 const TODAY = todayIso();
 /** `YYYY-MM-DD`, `days` after TODAY. */

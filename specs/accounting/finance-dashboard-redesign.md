@@ -16,7 +16,7 @@ release (rules 30-32: radii, ink banner, calendar graduations) is in
 (`docs/rapports/2026-10-18-ui-ux-review.html`, rules 43-46) and its departures from that review's mock
 are in `docs/specs/2026-10-19-finance-charts-phone-and-early-exercise.html`.
 
-Supersedes the UI of `specs/finance-exercise-overview-charts.md` (the « vue de l'exercice » block is
+Supersedes the UI of the former `finance-exercise-overview-charts` spec (deleted 2026-11-26) (the « vue de l'exercice » block is
 replaced by this page) and the layout sections of `finance-overview-rework.md`,
 `finance-per-property-revenue-chart.md`, `finance-card-breakdown.md` and
 `finance-upcoming-payments-table.md`. Their business rules — « total de séjour », attribution date,
@@ -208,7 +208,7 @@ without losing anything today's page shows.
 ### 3.10 Review fixes (mega review #5, 2026-10-18)
 
 33. **Last year « as it stood a year ago » is known only from the tracking start.** The tracking
-    start is the booking pace's own (`paceStartOf`, specs/booking-pace.md: the day after the earliest
+    start is the booking pace's own (`paceStartOf`, specs/pricing/booking-pace.md: the day after the earliest
     creation day, i.e. the initial import), on the scope's stays. While *today − 1 year* is before it,
     nothing existed in GuestFlow a year ago, so rule 21 would compare against 0 €. Then a comparable
     month **already over** compares on last year's **final** figure (both sides final), a month not
@@ -219,7 +219,7 @@ without losing anything today's page shows.
     (`isDirectChannel`, so a platform marked « Compté comme vente directe » too — never
     `platform === 'direct'`) whose acompte or solde is past due, **and** a platform stay whose payout
     is late: departed, solde not received, past departure + the platform's payout delay
-    (specs/platform-payout-due-date.md). Each row lists its overdue elements ready to render
+    (specs/platforms/platform-payout-due-date.md). Each row lists its overdue elements ready to render
     (`overdueItems`: « Acompte », « Solde », « Versement <plateforme> », amount, due date); the tile
     and the table carry the payouts' count and amount. The insight names both: « X € à relancer, dont
     Y € de versements plateforme », or « X € de versement plateforme attendu » when only payouts are
@@ -340,7 +340,7 @@ without losing anything today's page shows.
 47. **Soft backgrounds and their text come from the theme** (integrated review of inte/plugins,
     2026-10-19, L3). The year-over-year badge, the pace card's notice and the insight icons read
     `<semantic>.soft` for the background and `<semantic>.text` for what is written or drawn on it
-    (≥ 4.5 : 1, specs/shell-and-home-day-first.md rule 14) — never `main` on a pale background, never a
+    (≥ 4.5 : 1, specs/planning/shell-and-home-day-first.md rule 14) — never `main` on a pale background, never a
     hex of their own. A « stable » badge is `neutral.soft` / `neutral.text`, a palette entry added for
     it. The « Canaux » tile's dot is `chart.channels` in the chart palette (rule 45).
 
@@ -357,7 +357,7 @@ without losing anything today's page shows.
     reading « 1 900 € ».
 
 49. **A late installment is an overdue element** (spec review of 2026-10-27). For an own-channel stay,
-    `overdueOf` adds every installment the fiche calls late (`specs/direct-installments.md` rule 48) to
+    `overdueOf` adds every installment the fiche calls late (`specs/payments/direct-installments.md` rule 48) to
     `overdueItems` (`kind: 'installment:<id>'`, `installmentId`, `paidField: null`), and to the row's
     `overdueAmount` and `oldestDueDate`; the « En retard » tile, its insight and its detail follow. Rule 38
     still holds: « Marquer payé » ticks exactly the listed elements — the flags through the payment
@@ -372,14 +372,14 @@ without losing anything today's page shows.
     was collected, so the tourist tax a legacy complement collected and the lines it lost are found — _amended 2026-11-12: the poste split
     reads the lines and the allocations that name them, no history window_), the
     earliest date of the arrival payment (`bookedAt`, view and refusal,
-    `specs/single-payment-from-the-fiche.md`) and the Clients line « Créé le … »
+    `specs/payments/single-payment-from-the-fiche.md`) and the Clients line « Créé le … »
     (`utils/clientWhenLabel`). Added 2026-10-30 (audit R9): the booking date the platform price check
-    compares with the tariff journal (`reservationsController`, `specs/reservation-payment-ledger.md`
+    compares with the tariff journal (`reservationsController`, `specs/payments/reservation-payment-ledger.md`
     rule 65), « Demandée le … » on an installment (`utils/installmentPlan`,
-    `specs/direct-installments.md` rule 49) and « Déjà envoyé le … » in the sequence simulation
-    (`utils/guestEmailSequenceRunner`, `specs/guest-email-sequence.md` rule 36), whose `requestedAt` and
+    `specs/payments/direct-installments.md` rule 49) and « Déjà envoyé le … » in the sequence simulation
+    (`utils/guestEmailSequenceRunner`, `specs/emails/guest-email-sequence.md` rule 36), whose `requestedAt` and
     `sentAt` are UTC too. The payment schedule follows the same rule
-    (`specs/payment-schedule-and-cancellation.md` rule 54). *Why:* a row created between 00:00 and
+    (`specs/payments/payment-schedule-and-cancellation.md` rule 54). *Why:* a row created between 00:00 and
     01:00 / 02:00 in Paris was booked, counted and dated on the day before.
     > Not covered yet: `requestedOn` of the website request (`plugins/website-booking`), which needs the
     > helper exposed through the plugin SDK.
@@ -395,7 +395,7 @@ without losing anything today's page shows.
     the loop never ended and the process died out of memory after about 3.5 minutes, and a 9999-11-30
     still blocked the whole server for 4 s. Test: `tests/finance-custom-window-cap.unit.test.js`,
     `components/__tests__/PeriodSelector.window-cap.test.jsx`.
-    *Reading of 2026-11-02 (Adrien's decision, `specs/reservations-backend-mvc.md` rule 13) — the window
+    *Reading of 2026-11-02 (Adrien's decision, `specs/tech/reservations-backend-mvc.md` rule 13) — the window
     ends at the date horizon.* A custom window whose « Au » is more than 5 years after today is refused with
     « Date trop lointaine : 5 ans au plus. » (400, after the width cap; `resolveWindow` takes `today` from
     the dashboard model, the Europe/Paris day), and `PeriodSelector.customWindowError` shows the same text
@@ -413,7 +413,7 @@ without losing anything today's page shows.
     RangeError, so the API answered 500. Test: `tests/impossible-day-is-a-refusal.unit.test.js`.
     *Reading of 2026-11-02, second (Adrien's decision) — the past side.* « du » before today − 5 years is
     refused too, « Date trop ancienne : 5 ans au plus. », by the server and on the spot by `PeriodSelector`
-    (`specs/reservations-backend-mvc.md` rule 13, second reading); the exercise and month periods are not typed dates and stay as they are.
+    (`specs/tech/reservations-backend-mvc.md` rule 13, second reading); the exercise and month periods are not typed dates and stay as they are.
     *Reading of 2026-11-03 (audit R20-C1, C3) — no refusal is a dead end.* `customWindowError` refuses a
     custom date that is missing or not a real `YYYY-MM-DD` day (a 5- or 6-digit year typed in Chromium's year
     segment, 30 February) with the server's « Deux dates à choisir. » (the server's `isRealDate` test,
@@ -466,7 +466,7 @@ without losing anything today's page shows.
     `tests/finance-yoy-comparison.unit.test.js` (source).
 55. **Rule 8, reading of 2026-11-06: six figures, none repeated by a tile** (review R3-4). The hero carries
     nuits vendues, taux d'occupation, revenu moyen / nuit, RevPAR · par nuit ouverte, en direct and nuits
-    ouvertes (`specs/finance-revpar-year-over-year.md`). With one logement selected, the « Logements » tile
+    ouvertes (`specs/accounting/finance-revpar-year-over-year.md`). With one logement selected, the « Logements » tile
     reads its revenue and the logement's name, no longer its RevPAR (which the hero shows). Test:
     `pages/__tests__/FinancePage.review-fixes.test.jsx`.
 56. **The tax left out of the nights' revenue is the tax inside the total** (integration of 2026-11-06,
@@ -474,14 +474,14 @@ without losing anything today's page shows.
     `financeModel.withTouristTaxInTotal` places inside each stay's « total de séjour »
     (`utils/stayTouristTaxInTotal.js`, the export's own placement: none in a bucket collected in the caisse
     interne, the whole tax out of a netted solde), the same reading as the stay profile's basket
-    (`specs/stay-profile.md` rule 28). *Why:* the ratio finalPrice ÷ (finalPrice + tax) removed a tax that
+    (`specs/accounting/stay-profile.md` rule 28). *Why:* the ratio finalPrice ÷ (finalPrice + tax) removed a tax that
     was not in the total and only part of one that was; two screens must never leave out two different
     taxes for one stay. Test: `tests/finance-tax-in-total-shared.unit.test.js`.
 57. **A repeated `fiscalYear` is refused; the served exercise is always offered** (Adrien, D-HC16, and V5-11,
     2026-11-06). The shared context of the dashboard, its detail tables and the stay profile refuses a
     `fiscalYear` that is not a single value (`?fiscalYear=2026&fiscalYear=2025`, a nested key) with
     `{ error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' }` (400) — the settings' wording
-    (`utils/revenueGoals`) and the data checks' code (`specs/finance-data-checks.md` rule 22); it names no
+    (`utils/revenueGoals`) and the data checks' code (`specs/accounting/finance-data-checks.md` rule 22); it names no
     exercise, so it is never read as the current one. None of these endpoints had a message of its own for an
     unknown exercise. A single
     unusable value (`abc`, `1999`) keeps reading the current exercise (fiscal-year-and-nights-sold rule 24).
@@ -494,7 +494,7 @@ without losing anything today's page shows.
 58. **The revenue badge does not repeat the span** (Adrien, D-HC20, 2026-11-06, review V3-5; supersedes the
     hero part of rule 20). The badge under the window's revenue reads « ▲ +45,5 % vs N-1 », never « · sur N
     mois comparables »: the one notice under the card already says « Comparé à l'an dernier sur N mois sur M »
-    (`specs/finance-revpar-year-over-year.md` rule 27, D-HC14), so the span is said once in the hero. The
+    (`specs/accounting/finance-revpar-year-over-year.md` rule 27, D-HC14), so the span is said once in the hero. The
     « Logements » table's change column is unchanged. Test: `pages/__tests__/FinancePage.round3.test.jsx`.
 ---
 
@@ -604,7 +604,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 
 > 2026-11-05 — the payload also carries `hero.revPar`, `hero.openNights`, `hero.occupiedNights`,
 > `occupancyAll` and `comparison` (every headline figure against last year): see
-> `specs/finance-revpar-year-over-year.md`. No field above changed.
+> `specs/accounting/finance-revpar-year-over-year.md`. No field above changed.
 
 `GET /api/finance/dashboard/detail/:tile` — same query; `:tile ∈ collected | toCollect | late | stays
 | properties | channels`; extra `until=` for `toCollect` (omitted → today + 1 month, echoed as
@@ -639,7 +639,7 @@ text = `text.secondary`) and `palette.chart.channels`; `YearOverYearBadge`, `Boo
 
 ## 6. UI / UX
 
-Order, top to bottom: `PageActionBar` (« Suivi financier », refresh; the title shows on `xs` too since 2026-10-18 — `titleOnXs`, the bar was an empty white strip on a phone; since 2026-10-19 that title is the top bar's, `specs/shell-and-home-day-first.md` rule 15) → toolbar (exercise + period
+Order, top to bottom: `PageActionBar` (« Suivi financier », refresh; the title shows on `xs` too since 2026-10-18 — `titleOnXs`, the bar was an empty white strip on a phone; since 2026-10-19 that title is the top bar's, `specs/planning/shell-and-home-day-first.md` rule 15) → toolbar (exercise + period
 selector) → logements strip → ink hero → three insight cards → six tiles (+ open table) → « Revenu
 par mois » and « Taux d'occupation » side by side.
 

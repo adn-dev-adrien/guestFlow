@@ -1,4 +1,4 @@
-// The « À vérifier » payload of specs/finance-data-checks.md §4.3, shared by the panel's suites.
+// The « À vérifier » payload of specs/accounting/finance-data-checks.md §4.3, shared by the panel's suites.
 export const CHECKS = [
   {
     key: 'tourist-tax-missing', severity: 'fix', label: 'Séjours terminés sans taxe de séjour alors qu’elle est à reverser',

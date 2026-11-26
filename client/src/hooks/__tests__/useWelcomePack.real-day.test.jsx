@@ -1,4 +1,4 @@
-// specs/welcome-pack-auto-options.md + specs/reservations-backend-mvc.md rule 12, reading of 2026-11-03 (audit R20-C2)
+// specs/options/welcome-pack-auto-options.md + specs/tech/reservations-backend-mvc.md rule 12, reading of 2026-11-03 (audit R20-C2)
 // — a typed date that is not a real day (5-digit year, 30 February) sends nothing; missing, reversed or too-long
 // dates are still asked, so the per-stay lines apply before the dates are sound (welcome-pack edge cases; review
 // of PR #940, REG-1).

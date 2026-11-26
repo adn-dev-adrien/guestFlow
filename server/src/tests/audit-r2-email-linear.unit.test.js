@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 33 (audit R2, finding N2) — every email check is bounded by its length
+// specs/settings/settings-rationalization.md rule 33 (audit R2, finding N2) — every email check is bounded by its length
 // first and linear after: the auditor's 195 KB payload returns in well under 50 ms, everywhere.
 const test = require('node:test');
 const assert = require('node:assert/strict');

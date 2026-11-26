@@ -5,7 +5,7 @@ const { applyQuoteToForm } = require('./applyQuoteToForm');
 //   the user's local `inComplement` toggle on options / customOptions / resources MUST
 //   survive the next round of `setForm(prev => applyQuoteToForm(prev, quote))`. Otherwise
 //   every keystroke that triggers a pricing recompute snaps the chip back to off (bug
-//   reported 2026-06-01, see specs/force-item-to-complement.md §3.1).
+//   reported 2026-06-01, see specs/sas/force-item-to-complement.md §3.1).
 
 const baseQuote = {
   totalPrice: 200,
@@ -248,7 +248,7 @@ describe('applyQuoteToForm — basic shaping', () => {
 });
 
 // Regression coverage for the devis PDF bug fix bundle (PR #112,
-// `specs/devis-pdf-and-tourist-tax-fixes.md`). The PDF is server-rendered, but the
+// `specs/devis/devis-pdf-and-tourist-tax-fixes.md`). The PDF is server-rendered, but the
 // same "consume the engine quote, never recompute on the client" contract holds
 // here: when the engine returns a fresh `touristTaxTotal`, `applyQuoteToForm` MUST
 // overwrite the form's stale value. The bug-equivalent on the client would be the
@@ -282,7 +282,7 @@ describe('applyQuoteToForm — engine tourist tax always wins over the stale for
   });
 
   test('preserves the welcome-pack tag across a recompute', () => {
-    // specs/welcome-pack-auto-options.md §3.4 — the tag is form-local (the engine never sees it),
+    // specs/options/welcome-pack-auto-options.md §3.4 — the tag is form-local (the engine never sees it),
     // and it is what lets the form take the pack back off on a platform change. Rebuilding the line
     // from the quote without it would strand the pack lines on the fiche.
     const prev = {
@@ -311,7 +311,7 @@ describe('applyQuoteToForm — engine tourist tax always wins over the stale for
   });
 });
 
-describe('specs/pricing-components.md §3 rule 85 — a later sale of an article is not an option of the form', () => {
+describe('specs/pricing/pricing-components.md §3 rule 85 — a later sale of an article is not an option of the form', () => {
   test('the quote answers a later line (lineKey) of an article: the form keeps its single entry, the first line', () => {
     const prev = { ...basePrev, selectedOptions: [{ optionId: 10, quantity: 1, inComplement: false }] };
     const next = applyQuoteToForm(prev, {

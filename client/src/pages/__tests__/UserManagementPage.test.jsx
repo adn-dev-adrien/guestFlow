@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 
 describe('UserManagementPage — the admin user table (Paramètres → Utilisateurs)', () => {
-  // specs/settings-rationalization.md rule 6 — the page keeps only the admin table; « Mes
+  // specs/settings/settings-rationalization.md rule 6 — the page keeps only the admin table; « Mes
   // informations » and « Mon mot de passe » moved to « Mon compte ».
 
   test('admin (roles array): shows the table tools and fetches the user list', async () => {

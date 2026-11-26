@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rules 1-3 — both calendars read one set: the logement calendar is the
+// specs/planning/calendar-property-parity.md rules 1-3 — both calendars read one set: the logement calendar is the
 // general calendar restricted to that logement, a disabled platform source hides nothing, and the server
 // shapes every bar (label, platform name, colour, text colour, past flag).
 process.env.DB_PATH = ':memory:';

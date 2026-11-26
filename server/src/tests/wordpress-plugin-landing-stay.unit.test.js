@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rules 18 and 19 — the landing link given to Google, and the
+// specs/site/google-vacation-rentals-feed.md rules 18 and 19 — the landing link given to Google, and the
 // WordPress booking block that opens with its dates and party size. The block is browser JavaScript:
 // its two URL readers are lifted out of view.js and run here, against a stubbed address bar.
 const test = require('node:test');

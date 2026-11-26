@@ -1,7 +1,7 @@
-// specs/reception-role-checkin-only.md rule 15 — a role outside its surface is redirected while the shell
+// specs/sas/reception-role-checkin-only.md rule 15 — a role outside its surface is redirected while the shell
 // renders: the forbidden page is never mounted, so none of its calls leave (no 403 burst, no error toast
 // on the landing page). The reservation search is for the administrator only, and the shell asks only
-// for what its role may read (specs/plugins-phase-2-hosts.md rule 34).
+// for what its role may read (specs/plugins/plugins-phase-2-hosts.md rule 34).
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

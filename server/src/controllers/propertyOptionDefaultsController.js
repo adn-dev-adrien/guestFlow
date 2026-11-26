@@ -1,6 +1,6 @@
 /**
  * Per-property option defaults controller — thin orchestration over `propertyOptionDefaultsModel`
- * (specs/weekly-bed-linen-tracking.md §3.7).
+ * (specs/linen/weekly-bed-linen-tracking.md §3.7).
  *
  * Endpoints
  *   GET    /api/properties/:id/option-defaults
@@ -25,7 +25,7 @@ function parseIdParam(value) {
   return n;
 }
 
-// specs/plugins-phase-3b-neat.md rule 5 — the client adds these defaults to a new booking: while no
+// specs/plugins/plugins-phase-3b-neat.md rule 5 — the client adds these defaults to a new booking: while no
 // plugin offers the insurance, it is not among them, or creating a booking would be refused (422).
 const withoutUnofferedInsurance = (rows) => require('../utils/insuranceOffer').dropInsurance(require('../database'), rows);
 
@@ -44,7 +44,7 @@ function buildController({ model = propertyOptionDefaultsModel, hideInsurance = 
       const offered = Boolean(req.body && req.body.offered);
       try {
         const row = model.set(propertyId, optionId, offered);
-        // The website quote merges the defaults (specs/google-vacation-rentals-feed.md rule 12).
+        // The website quote merges the defaults (specs/site/google-vacation-rentals-feed.md rule 12).
         announce(propertyId, 'option-defaults');
         return res.json(row);
       } catch (err) {

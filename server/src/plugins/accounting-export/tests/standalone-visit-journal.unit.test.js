@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 30 and specs/pricing-components.md §3 rules 63, 74 — a standalone document in the journal (AccountingOutput kind `standalone`): one entry per payment day
+// specs/sas/outside-booking-sas.md rule 30 and specs/pricing/pricing-components.md §3 rules 63, 74 — a standalone document in the journal (AccountingOutput kind `standalone`): one entry per payment day
 // for the part allocated to its lines on the books, split by revenue class and VAT rate, the caisse interne and the offered lines out, the VAT of a document paid in
 // pieces adding up to the VAT of its whole, drinks on the account the accountant set.
 process.env.DB_PATH = ':memory:';

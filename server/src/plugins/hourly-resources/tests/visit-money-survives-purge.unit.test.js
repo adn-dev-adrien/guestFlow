@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rule 17, plugin-removal-resilience (loop t1 D-4) — the purge warning names the visits' money held on their
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 17, plugin-removal-resilience (loop t1 D-4) — the purge warning names the visits' money held on their
 // sale documents, and a document whose booking is gone stays on the counter: its « À rembourser » row is reachable.
 const test = require('node:test');
 const assert = require('node:assert/strict');

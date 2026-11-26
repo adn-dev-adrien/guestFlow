@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// Migration coverage for specs/admin-account-management.md §5: the single-role users.role TEXT
+// Migration coverage for specs/hosting/admin-account-management.md §5: the single-role users.role TEXT
 // column is replaced by a join table `user_roles(userId, role)`, identity fields are added, and
 // `app_settings` gains the SMTP block. We don't run the production database.js (it boots the whole
 // app); instead we replay the exact ALTER / CREATE / INSERT statements the migration emits and

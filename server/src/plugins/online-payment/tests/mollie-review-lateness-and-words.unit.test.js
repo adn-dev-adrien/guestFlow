@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 13, 18, 19, 23 — « en retard » means the same everywhere (the
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 13, 18, 19, 23 — « en retard » means the same everywhere (the
 // reconciliation item, the payments ledger, « Versements à venir »), a proposal waiting for a click does not hide it, the
 // recap line tells the tranches apart, the labels derive their share from what was kept, the home alert has its line, and a
 // future reserve is listed under « Attendus ». Fictional data, dates relative to today.

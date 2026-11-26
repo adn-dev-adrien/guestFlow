@@ -1,4 +1,4 @@
-// The built-in plugin modules, client side (specs/plugins-phase-1-sdk.md rule 2). The only core file
+// The built-in plugin modules, client side (specs/plugins/plugins-phase-1-sdk.md rule 2). The only core file
 // allowed to import a plugin folder; everything else goes through `sdk/`.
 import weatherAlerts from './weather-alerts';
 import schoolHolidays from './school-holidays';

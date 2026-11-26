@@ -1,6 +1,6 @@
 /**
  * DerivedValueField — a setting that defaults to another one unless the operator overrides it
- * (specs/settings-rationalization.md rule 12: « same as X unless … »).
+ * (specs/settings/settings-rationalization.md rule 12: « same as X unless … »).
  *
  * Empty override → a read-only field showing the derived value, « = <source> » below it, and a
  * link revealing an editable field. Non-empty override (or link clicked) → an editable field whose

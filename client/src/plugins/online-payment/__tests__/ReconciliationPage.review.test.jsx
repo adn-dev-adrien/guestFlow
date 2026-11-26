@@ -8,7 +8,7 @@ import DialogProvider from '../../../components/DialogProvider';
 import ReconciliationPage from '../ReconciliationPage';
 import { proposed, done, gap, bankSide, COUNTS, BULK, credit, ficheCreditsPayload, previewPayload } from './reconciliationFixtures';
 
-// specs/reconciliation-assisted-matching.md rules 11, 14, 19, 21, 24 — review of 2026-10-28: the page survives a
+// specs/accounting/reconciliation-assisted-matching.md rules 11, 14, 19, 21, 24 — review of 2026-10-28: the page survives a
 // closed dialog, « Actualiser » keeps the filter, the desktop table shows the same facts as the cards, an empty
 // filter says so.
 

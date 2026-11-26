@@ -7,8 +7,10 @@
 | **Created** | 2026-09-22 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [public-planning-options.md](public-planning-options.md) (supersedes its rule 1 and the label half of rule 4), [option-planning-card.md](option-planning-card.md), [devis-pdf-total-parity.md](devis-pdf-total-parity.md) |
-| **Summary** | [docs/specs/2026-09-22-site-meal-portions.html](../docs/specs/2026-09-22-site-meal-portions.html) |
+| **Related** | [public-planning-options.md](public-planning-options.md) (supersedes its rule 1 and the label half of rule 4), [option-planning-card.md](../options/option-planning-card.md), [devis-pdf-total-parity.md](../devis/devis-pdf-total-parity.md) |
+| **Summary** | [docs/specs/2026-09-22-site-meal-portions.html](../../docs/specs/2026-09-22-site-meal-portions.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** §4.1 current-file-map note added: the public-API controllers, routes and projections live in `plugins/website-booking/`; no rule changed.
 
 ---
 
@@ -16,7 +18,7 @@
 
 On the website booking drawer, « Petit déjeuner » (8 €, per person per night, planning-card option)
 asks for a **number of séances**: the engine bills `quantity × persons × 8 €`
-([pricing.js:1594-1596](../server/src/utils/pricing.js#L1594)) — decision 2026-07-03 of
+([pricing.js:1594-1596](../../server/src/utils/pricing.js#L1594)) — decision 2026-07-03 of
 [public-planning-options.md](public-planning-options.md) rule 1. The same applies to « Le repas des
 trappeurs » (25 €, per person).
 
@@ -28,7 +30,7 @@ Two problems reported by Adrien on 2026-09-22:
 2. **The wording says « repas ».** GuestFlow sends « par personne et par séance » / « Nombre de
    séances »; a hand-deployed mu-plugin on the Solio site rewrites « par séance » into « par repas » and
    adds a note « 2 repas × 4 personnes — 64 € » under the line
-   (`gf-seo-reservation.php:483-510`, `gf-seo-blocks.php:261` — mu-plugins that live in the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30)).
+   (`gf-seo-reservation.php:483-510`, `gf-seo-blocks.php:261` — mu-plugins that live in the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30)).
    A breakfast is labelled a « repas ».
 
 ## 2. Goal
@@ -104,7 +106,7 @@ named correctly, and pays exactly that count.
 **Existing devis (data)**
 
 11. Public devis already stored under the séance meaning must keep their total when replayed (PDF,
-    payment link — [paymentsController.js:234-250](../server/src/controllers/paymentsController.js#L234)
+    payment link — [paymentsController.js:234-250](../../server/src/controllers/paymentsController.js#L234)
     replays the engine with the flag, and the snapshot only locks the unit price). A one-shot,
     idempotent migration rewrites, on devis with `requestOrigin = 'public'`, every per-person card
     line with `cardOccurrences IS NULL`: `quantity := billedUnits`. After it, a replay yields the same
@@ -125,6 +127,8 @@ named correctly, and pays exactly that count.
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
+
+> **Current file map (2026-11-26).** The public-API files named below (`routes/public/*`, `controllers/public/public{Catalog,Quote,BookingRequest,Terms}Controller.js`, `utils/publicProjections.js`, `utils/publicInputValidation.js`) now live in `server/src/plugins/website-booking/` (`routes/`, `controllers/`, and the plugin root); `controllers/public/publicPaymentController.js` stays in the core.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -221,11 +225,11 @@ No GuestFlow back-office page changes, no `PageActionBar` impact.
 
 - **Existing bug, separate fix:** a site devis converted into a reservation carries its breakfast as
   an unscheduled card line; the first save of the fiche (or an admin edit of the devis) sends no
-  occurrences and **drops the line** ([pricing.js:1615-1616](../server/src/utils/pricing.js#L1615),
-  [bookingFormHydration.js:27](../client/src/utils/bookingFormHydration.js#L27)). Not caused by this
+  occurrences and **drops the line** ([pricing.js:1615-1616](../../server/src/utils/pricing.js#L1615),
+  [bookingFormHydration.js:27](../../client/src/utils/bookingFormHydration.js#L27)). Not caused by this
   change; to be specified on its own.
 - Letting the visitor pick which mornings (still « à planifier avec l'hôte »).
-- The breakfast prep count per morning ([breakfastModel.js:136](../server/src/models/breakfastModel.js#L136))
+- The breakfast prep count per morning ([breakfastModel.js:136](../../server/src/models/breakfastModel.js#L136))
   still assumes the whole party until the operator schedules the line.
 
 ## 9. Open questions

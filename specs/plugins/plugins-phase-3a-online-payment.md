@@ -7,9 +7,11 @@
 | **Created** | 2026-10-01 |
 | **Author** | Adrien |
 | **Related PR** | [#651](https://github.com/adn-dev-adrien/guestFlow/pull/651) (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §6 extension points, phasing §12 |
-| **Previous phase** | [`specs/plugins-phase-2-hosts.md`](plugins-phase-2-hosts.md) (merged into `inte/plugins`, #650) |
-| **Summary for review** | [`docs/specs/2026-10-01-plugins-phase-3a-online-payment.html`](../docs/specs/2026-10-01-plugins-phase-3a-online-payment.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — §6 extension points, phasing §12 |
+| **Previous phase** | [`specs/plugins/plugins-phase-2-hosts.md`](plugins-phase-2-hosts.md) (merged into `inte/plugins`, #650) |
+| **Summary for review** | [`docs/specs/2026-10-01-plugins-phase-3a-online-payment.html`](../../docs/specs/2026-10-01-plugins-phase-3a-online-payment.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** No rule changed. Still governs: the core money path (`stayPaymentRecorder`, `processPaidLink`), the payment-provider interface (Qonto is the only provider), link abandonment and retire rules, and the `online-payment` plugin boundary (`server/src/plugins/online-payment/`).
 
 ---
 
@@ -119,7 +121,7 @@ Other facts the design rests on:
    - The plugin never writes `reservations` or `payment_links` itself; it hands the core what it
      reads from Qonto.
    - Reading recorded 2026-11-01 (audit R12 plugins L-1): the `pending` field joined the contract with
-     [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 64 (audit R11-E1), and this table had not
+     [payment-link-lifecycle.md](../payments/payment-link-lifecycle.md) rule 64 (audit R11-E1), and this table had not
      followed. The core reads `pending !== false` on an unpaid answer as a payment in flight: the read after a
      `dates-taken` deactivation stays owed, no « rien prélevé » notice leaves, re-sends answer
      `LINK_PAYMENT_IN_FLIGHT`, and after 24 h the link closes `payment-in-flight` with an operator alert. A
@@ -312,7 +314,7 @@ Other facts the design rests on:
     payment is ticked by hand (`PATCH /api/reservations/:id/payment`). A link on a devis reads the
     reservation the devis became. *Why:* links 6 and 7 stayed open and payable, polled every day, on
     stays whose solde was paid in July and August.
-    > Qonto links carry no expiry (`specs/qonto-payment-link-reference.md`), so nothing else would
+    > Qonto links carry no expiry (`specs/payments/qonto-payment-link-reference.md`), so nothing else would
     > ever close them.
     > 2026-10-18 (review of PR #702): « paid → the admin is told » was wrong for the common case; a
     > retired link found paid follows rule 24.
@@ -341,7 +343,7 @@ Other facts the design rests on:
     without a link: the request (`deposit_request` / `balance_request`) while the guest was never asked
     and when it does not print `{{paymentLink}}` outside `{{#if hasPaymentLink}}`, otherwise the
     reminder (`deposit_reminder` / `balance_reminder`, « Contactez-nous pour le règlement. »). A
-    reminder sent by hand counts as asked (rule 15 of specs/payment-schedule-and-cancellation.md). With
+    reminder sent by hand counts as asked (rule 15 of specs/payments/payment-schedule-and-cancellation.md). With
     a provider nothing changes: the link is minted and sent as before. No enabled template fitting →
     no button, as before.
 
@@ -354,7 +356,7 @@ Other facts the design rests on:
     Unlike the other retired links of rule 8, one found paid afterwards IS recorded on the stay at the
     link's amount — the acompte becomes that amount, the solde is recorded at it, a complement is
     recorded and its row warns — unless the bucket was meanwhile perceived another way (double payment,
-    admin told, as rule 8). [reservation-payment-ledger.md](reservation-payment-ledger.md) rules 29-31
+    admin told, as rule 8). [reservation-payment-ledger.md](../payments/reservation-payment-ledger.md) rules 29-31
     (§9 Q3).
 27. **Paid links left without a stay are surfaced, not deleted (2026-10-28, database audit).** `payment_links`
     carries no foreign key, so a stay deleted before the delete guard left its money record behind (5 of 8
@@ -482,7 +484,7 @@ Other facts the design rests on:
     Adrien's call).** The link was retired as stale when the acompte was turned off (rule 29) but paid anyway: on the
     live path (`bookIfAmountChanged`) and on the `amount-changed` retry (`bookClaimedAmountChangedLink`), the booking
     sets `depositDisabled = 0` and records the acompte at the amount received, the solde dropping by as much
-    ([disable-deposit-per-reservation.md](disable-deposit-per-reservation.md) rule 12). `mismatchOf` carries
+    ([disable-deposit-per-reservation.md](../payments/disable-deposit-per-reservation.md) rule 12). `mismatchOf` carries
     `depositReenabled: true` with `balanceCents`, and the alert reads « Un lien d’acompte a été payé X alors que le
     séjour était passé sans acompte. Acompte réactivé : payé par un lien retiré. Acompte enregistré à X ; solde porté
     à Z. » instead of « (0,00 € demandés) ». Confirmation and excess lines follow rule 47.

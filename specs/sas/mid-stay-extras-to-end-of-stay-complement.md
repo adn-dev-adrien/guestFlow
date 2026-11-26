@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -19,10 +21,10 @@ A reservation is collected through four buckets: **acompte**, **solde**, **compl
 
 Each bucket **freezes** once it is marked paid:
 
-- deposit / balance: [pricing.js:1723](../server/src/utils/pricing.js#L1723) and
-  [pricing.js:1751](../server/src/utils/pricing.js#L1751) — `depositPaid && balancePaid` → the two
+- deposit / balance: [pricing.js:1723](../../server/src/utils/pricing.js#L1723) and
+  [pricing.js:1751](../../server/src/utils/pricing.js#L1751) — `depositPaid && balancePaid` → the two
   amounts are re-emitted verbatim;
-- arrival complement: [pricing.js:1785](../server/src/utils/pricing.js#L1785) — `complementPaid` →
+- arrival complement: [pricing.js:1785](../../server/src/utils/pricing.js#L1785) — `complementPaid` →
   `resolvedComplementAmount = complementAmount` (stored value).
 
 Consequence: **a prestation sold while the guest is already in the property is billed nowhere.**
@@ -41,24 +43,24 @@ l'option disparaît même du total affiché sur la fiche.
 
 Trois conséquences en aval :
 
-1. **Encaissement** : `remainingToPay` ([reservationSettlement.js:69](../server/src/utils/reservationSettlement.js#L69))
+1. **Encaissement** : `remainingToPay` ([reservationSettlement.js:69](../../server/src/utils/reservationSettlement.js#L69))
    somme les quatre buckets → la réservation est « soldée » alors qu'il reste 24 € à percevoir.
-2. **Compta** : `sumComplementContribution` ([accountingModel.js:519](../server/src/models/accountingModel.js#L519))
+2. **Compta** : `sumComplementContribution` ([accountingModel.js:519](../../server/src/plugins/accounting-export/accountingModel.js#L519))
    attribue à l'écriture `complement` **la totalité** du TTC d'une ligne `inComplement`, alors que le
    débit client de cette écriture vaut le `complementAmount` **gelé**. L'écriture crédite donc plus de
    produit qu'elle ne débite : Σ crédits > débit.
-3. **Suivi financier** : `totalSejour` ([financeModel.js:49](../server/src/models/financeModel.js#L49))
+3. **Suivi financier** : `totalSejour` ([financeModel.js:49](../../server/src/models/financeModel.js#L49))
    somme les mêmes buckets → le CA de la période ignore la prestation vendue.
 
 Deux mécanismes existants sont réutilisés tels quels :
 
 - le complément de fin de séjour sait déjà porter des lignes écrites **hors SAS de départ** : une
   ligne taguée `source` est affichée, comptée et **renvoyée verbatim** par le SAS de départ
-  (`carriedEndOfStayLines`, [ReservationSasDialog.js:514](../client/src/components/sas/ReservationSasDialog.js#L514)) —
-  c'est ce que fait déjà le linge de toilette différé ([sas-bath-linen-upsell.md](sas-bath-linen-upsell.md)) ;
+  (`carriedEndOfStayLines`, [ReservationSasDialog.js:514](../../client/src/plugins/sas/ReservationSasDialog.jsx#L514)) —
+  c'est ce que fait déjà le linge de toilette différé ([sas-bath-linen-upsell.md](../linen/sas-bath-linen-upsell.md)) ;
 - le moteur sait déjà **extraire un sous-ensemble de lignes** du circuit pré-arrivée : c'est ce que
   fait `complementOptionsResourcesTotal` / `forcedItemsTotal`
-  ([pricing.js:1510](../server/src/utils/pricing.js#L1510), [pricing.js:1661](../server/src/utils/pricing.js#L1661))
+  ([pricing.js:1510](../../server/src/utils/pricing.js#L1510), [pricing.js:1661](../../server/src/utils/pricing.js#L1661))
   pour les lignes routées au complément.
 
 ## 2. Goal
@@ -203,7 +205,7 @@ ait été réglé ou non.
 - Séjour **non encore commencé** (`startDate > aujourd'hui`) → base `NULL`, `midStayTotal = 0` :
   comportement strictement inchangé.
 - Ligne offerte pendant le séjour (`offered = 1`) → montant 0, aucune ligne créée.
-- La réservation est **verrouillée « passée / en cours »** ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)) :
+- La réservation est **verrouillée « passée / en cours »** ([admin-unlock-past-reservations.md](../reservations/admin-unlock-past-reservations.md)) :
   ajouter une option depuis la fiche reste refusé (`PAST_RESERVATION_LOCKED`) tant que le réglage
   admin « Modifier les réservations passées » est à OFF. Décision 2026-08-06 : **le verrou n'est pas
   assoupli** par cette spec (le réglage est activé sur l'installation d'Adrien). Les upsells du SAS
@@ -368,7 +370,7 @@ lignes de fin de séjour et au total ; `utils/midStayExtras.js` — `ARRIVAL_COM
 
 ## 5. Data model
 
-Bloc `ALTER TABLE` idempotent dans [database.js](../server/src/database.js) :
+Bloc `ALTER TABLE` idempotent dans [database.js](../../server/src/database.js) :
 
 ```sql
 ALTER TABLE reservations ADD COLUMN arrivalExtrasBaseline TEXT DEFAULT NULL;

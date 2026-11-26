@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 1 and rules 18-19, 28 — a reading path (the fiche, the dashboard
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 1 and rules 18-19, 28 — a reading path (the fiche, the dashboard
 // tile, the journal of a month) never writes: the splits are made when the payment is seen paid (`reservation.paid`), by the
 // read job and by the page that lists the reconciliation. Fictional data, dates relative to today.
 const test = require('node:test');

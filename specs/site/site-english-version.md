@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4.1 current-file-map note added: the public-API controllers, routes and projections live in `plugins/website-booking/`; no rule changed.
+
 ---
 
 ## 1. Context
@@ -34,8 +36,8 @@ complete, tested chains exist:
 
 | Chain | Mechanism | Driven by |
 |---|---|---|
-| Devis PDF | `utils/devisPdfLabels.js` (FR/EN dictionaries, loud failure on a missing key), localised dates | `reservations.pdfLanguage` (`specs/devis-english-language.md`) |
-| Guest emails | `email_templates.subjectEn`/`bodyEn` + a fully localised server context (`emailContextBuilder.js`, `stayContentContext.js`, `dateFr.js`) | `clients.emailLanguage` (`specs/email-language-fr-en.md`, `specs/email-client-language-and-fiche-polish.md`) |
+| Devis PDF | `utils/devisPdfLabels.js` (FR/EN dictionaries, loud failure on a missing key), localised dates | `reservations.pdfLanguage` (`specs/devis/devis-english-language.md`) |
+| Guest emails | `email_templates.subjectEn`/`bodyEn` + a fully localised server context (`emailContextBuilder.js`, `stayContentContext.js`, `dateFr.js`) | `clients.emailLanguage` (`specs/emails/email-language-fr-en.md`, `specs/emails/email-client-language-and-fiche-polish.md`) |
 | Terms (CGV) | `terms_versions.markdownEn`/`htmlEn`, `GET /public/v1/terms` returns both languages at once, flag switcher in the shortcode | always both |
 
 What is missing is the façade. The public API has **no notion of language at all** — no `lang`
@@ -66,7 +68,7 @@ deployed mu-plugins are only on the server** (`gf-booking.php` — the 27 KB res
 `gf-sticky-header.php`, `gf-anim.php`, `gf-brand.php`, `gf-caps.php`, `gf-relative-uploads.php`,
 `zz-adn-security.php`). They cannot be changed under review while they are outside Git.
 
-**This spec reverses an explicit earlier decision.** `specs/wordpress-plugin.md:289` lists
+**This spec reverses an explicit earlier decision.** `specs/site/wordpress-plugin.md:289` lists
 "Multilingual content beyond French i18n scaffolding (WPML/Polylang integration not in scope)" as a
 non-goal. That line is superseded here and must be amended when this ships.
 
@@ -101,7 +103,7 @@ the first page and the last email.
    alongside it — closing the asymmetry with options.
 6. `toPublicQuote()` resolves option titles and resource names identically. A quote requested in
    English must not contain a French line item.
-7. Option `description` stays French-only. `specs/devis-english-language.md` §3 rule 6 deliberately
+7. Option `description` stays French-only. `specs/devis/devis-english-language.md` §3 rule 6 deliberately
    refused a `descriptionEn`; this spec does not overturn that. Consequence, accepted: the
    description is **omitted** from the payload when `lang=en` rather than shown in French — a
    missing line reads better than a French one.
@@ -116,10 +118,10 @@ the first page and the last email.
    French grammar: for `lang=en` the projection returns it as an empty string, and the consumer
    composes "at La Granja" instead of "à la Granja".
 10. Amounts keep the format already sent to English guests by the devis PDF and the emails
-    (`1 234,56 €`), per `specs/email-language-fr-en.md` §3 rule 4 — the property is in the euro zone
+    (`1 234,56 €`), per `specs/emails/email-language-fr-en.md` §3 rule 4 — the property is in the euro zone
     and one formatting convention across PDF, email and site is worth more than local elegance.
     Dates follow the language: `dd/mm/yyyy` in French, `5 June 2026` in English, as
-    `specs/devis-english-language.md` §3 rule 3 already decided.
+    `specs/devis/devis-english-language.md` §3 rule 3 already decided.
 
 ### Carrying the language to the guest record
 
@@ -165,7 +167,7 @@ build against.)_
 
 14. The guest's language is part of the stay, not of the website. Any GuestFlow surface a guest
     reaches during their stay must be able to read it, and the gate is the first one coming:
-    `specs/guest-gate-access.md` ships a guest-facing page (`/gate/v1/session`) plus a Sowel-facing
+    `guest-gate-access` (PR #547, not merged) ships a guest-facing page (`/gate/v1/session`) plus a Sowel-facing
     poller tree (`/public/v1/gate/*`, that spec's §4.3). Today both are French-only, and the guest
     page is the **first guest-facing UI this app has ever had** — it must not become the one place
     where an English guest hits French.
@@ -181,7 +183,7 @@ build against.)_
     today. The gate's own security model is untouched — language is a display attribute, never a
     capability, and it must never widen what a token can do.
     > **Sans test** — contrat écrit d'avance pour l'app portail ; aucune ligne de code ne l'implémente ici (§8)
-17. Whoever implements this amends `specs/guest-gate-access.md` §4.3 in the same commit. That spec
+17. Whoever implements this amends `guest-gate-access` (PR #547, not merged) §4.3 in the same commit. That spec
     owns the gate contract; this one only records what the contract must eventually say.
     > **Sans test** — consigne de tenue de spec, pas un comportement du logiciel
 
@@ -553,6 +555,8 @@ below was already shipped and already wrong; none of it could have been seen fro
 
 ### 4.1 Server side (`server/src/`)
 
+> **Current file map (2026-11-26).** The public-API files named below (`routes/public/*`, `controllers/public/public{Catalog,Quote,BookingRequest,Terms}Controller.js`, `utils/publicProjections.js`, `utils/publicInputValidation.js`) now live in `server/src/plugins/website-booking/` (`routes/`, `controllers/`, and the plugin root); `controllers/public/publicPaymentController.js` stays in the core.
+
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | `routes/public/properties.js` | T | Passes `lang` from the query through to the controller |
@@ -624,7 +628,7 @@ else reuses existing screens.
 | `languages/guestflow-booking-en_GB.po` | **C** | The English translation, reviewable in the diff |
 | `languages/guestflow-booking-en_GB.mo` | **C** | Its compiled form, loaded by `load_plugin_textdomain()` |
 
-### 4.4 Solio site (`mu-plugins/` — in the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30))
+### 4.4 Solio site (`mu-plugins/` — in the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30))
 
 | File | T/C | Responsibility |
 |---|---|---|
@@ -643,9 +647,9 @@ else reuses existing screens.
 
 `lang` is additive and optional everywhere. A consumer that never sends it — today's deployed plugin
 included — receives byte-identical payloads to today. The same additive promise is written ahead for
-the gate tree (rules 14-17), which this branch does not touch. `specs/public-api.md` gains a "Language"
+the gate tree (rules 14-17), which this branch does not touch. `specs/site/public-api.md` gains a "Language"
 section documenting the parameter, the fallback chain and which fields it affects;
-`specs/wordpress-plugin.md:289` is amended to record that multilingual support is now in scope.
+`specs/site/wordpress-plugin.md:289` is amended to record that multilingual support is now in scope.
 
 ## 5. Data model
 
@@ -776,14 +780,14 @@ must still pass.
 ## 8. Out of scope
 
 - **Back-office i18n.** The React admin stays French.
-- **`options.description` in English** — `specs/devis-english-language.md` §3 rule 6 stands.
+- **`options.description` in English** — `specs/devis/devis-english-language.md` §3 rule 6 stands.
 - **Property names.** "La Granja" and "L'Estiva" are proper nouns.
 - **Operator-typed data**: tariff season names, option descriptions, free-text notes.
 - **Any third language.** The design must not make one harder, but none is built.
 - **Region-specific variants.** `en-US` and `en-GB` both resolve to `en`; the site has one English.
 - **The gate app, and every line of code behind rules 14-17.** Those rules are a contract written
   in advance, at Adrien's request (2026-09-24), so the language does not have to be retrofitted the
-  day `specs/guest-gate-access.md`'s guest page and Sowel plugin are built. **Nothing in this
+  day `guest-gate-access` (PR #547, not merged)'s guest page and Sowel plugin are built. **Nothing in this
   implementation touches `/gate/v1/*` or `/public/v1/gate/*`.**
 - **The 19 `activite` drafts and the 4 page drafts.** They are not published in French; translating
   unpublished content is premature.
@@ -837,8 +841,8 @@ _(filled during implementation)_
 - [ ] 10 pages translated and published one by one (no review — rule 28)
 - [ ] Back-office: request language on the fiche, quote-language toggle outside devis mode, language
       in the send dialog, `EMPTY_CLIENT` / `clientsModel` overwrite guard
-- [ ] `specs/public-api.md` + `specs/wordpress-plugin.md:289` amended
-- [ ] _(not in this branch — rules 14-17)_ `specs/guest-gate-access.md` §4.3 amended when the gate
+- [ ] `specs/site/public-api.md` + `specs/site/wordpress-plugin.md:289` amended
+- [ ] _(not in this branch — rules 14-17)_ `guest-gate-access` (PR #547, not merged) §4.3 amended when the gate
       app is built
 
 - **2026-10-28 — Status Implemented for the code.** The public API, the plugin (1.12.0) and the back office

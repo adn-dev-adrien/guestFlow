@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rules 1, 4, 5, 6 — the home asks the server once for the day, folds an
+// specs/planning/dashboard-planning-scroll.md rules 1, 4, 5, 6 — the home asks the server once for the day, folds an
 // empty list to one line, and shows the next arrival (date, distance, compact rows) when nobody arrives.
 import React from 'react';
 import { render, screen, within, fireEvent } from '@testing-library/react';

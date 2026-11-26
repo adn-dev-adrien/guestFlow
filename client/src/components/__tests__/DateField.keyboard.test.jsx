@@ -1,4 +1,4 @@
-// specs/datepicker-close-on-select.md — reading of 2026-11-02 (audit R19-L1): a change typed on the keyboard
+// specs/planning/datepicker-close-on-select.md — reading of 2026-11-02 (audit R19-L1): a change typed on the keyboard
 // keeps the focus (the year 2028 typed digit by digit used to end as 0002); a pick in the native calendar
 // still blurs the field so the calendar closes. While typing, the min / max bounds stay those of the first key
 // press until the blur: Chromium drops a half-typed date when a bound moves.

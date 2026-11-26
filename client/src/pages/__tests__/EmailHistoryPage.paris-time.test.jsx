@@ -1,5 +1,5 @@
-// specs/email-history-rolling-window.md rule 8 — the history shows the time of a send as it was in
-// Paris, worded by the server; a failure reads the server's French reason (specs/email-automation.md
+// specs/emails/email-history-rolling-window.md rule 8 — the history shows the time of a send as it was in
+// Paris, worded by the server; a failure reads the server's French reason (specs/emails/email-automation.md
 // rule 15), never the transport's words.
 import React from 'react';
 import { vi } from 'vitest';

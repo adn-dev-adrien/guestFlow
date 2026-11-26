@@ -1,4 +1,4 @@
-// Cleaning ("Ménage") option tagger — specs/j1-arrival-reminder-email.md §4.1.
+// Cleaning ("Ménage") option tagger — specs/emails/j1-arrival-reminder-email.md §4.1.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

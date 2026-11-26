@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the cancellation notice
+// specs/payments/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the cancellation notice
 // worked out « l'acompte de X reste acquis » as `depositPaid ? depositAmount : 0`: after a book refund it told the guest
 // the whole acompte was kept, on a plan it said nothing of the échéances kept. The mail now states the sum the
 // cancellation itself booked (`keptFromGuest`: the indemnity plus a caisse-interne acompte kept), stored on the cancel

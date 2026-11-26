@@ -6,12 +6,14 @@
 | **Owner** | Adrien |
 | **Created** | 2026-11-18 |
 | **Revised** | 2026-11-18 (second review: composition from the catalogue, degressive hourly pricing, one-shot vouchers, visual library, terms per activity, outside-booking fiche, cancellation, booking horizons) |
-| **Builds on** | `specs/gift-vouchers.md` (plugin `gift-vouchers`, PR #1055), `specs/pricing-components.md`, `specs/outside-booking-sas.md`, `specs/resource-hourly-scheduling.md`, `specs/terms-acceptance-record.md`, `specs/mixed-method-payments.md` §3.15 |
-| **Summary for validation** | `specs/gift-vouchers-bain-nordique-propositions.html` (French, interactive mock-ups) |
+| **Builds on** | `specs/gift-vouchers/gift-vouchers.md` (plugin `gift-vouchers`, PR #1055), `specs/pricing/pricing-components.md`, `specs/sas/outside-booking-sas.md`, `specs/resources/resource-hourly-scheduling.md`, `specs/reservations/terms-acceptance-record.md`, `specs/payments/mixed-method-payments.md` §3.15 |
+| **Summary for validation** | _(the interactive mock-up, French, was folded into this spec and removed on 2026-11-26)_ |
+
+> **Reviewed 2026-11-26 (spec reorganization).** The five HTML mock-ups of this folder are folded here: rule 65 gains the option-fiche behaviour (owner choice 1); the mock-up references of rules 62-65 are replaced by the choices themselves. Rules 43-45 stay withdrawn; wherever another rule still says « degressivity » or « rank », read the following-hours price of `specs/resources/hourly-extra-hour-rates.md`.
 
 ## 1. Context
 
-`specs/gift-vouchers.md` sells one kind of voucher: a free amount, spent on a lodging booking. The
+`specs/gift-vouchers/gift-vouchers.md` sells one kind of voucher: a free amount, spent on a lodging booking. The
 owner now wants to sell the **nordic bath** as a gift too, in two ways:
 
 - **on the website**, next to the free-amount voucher, with nothing left for the operator to do;
@@ -90,7 +92,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 
    A closed campaign sells nothing more. Its vouchers stay valid until their own end date.
 3. **Kind `lodging`.**
-   - The free amount of `specs/gift-vouchers.md`: its bounds, its price ideas and its VAT setting
+   - The free amount of `specs/gift-vouchers/gift-vouchers.md`: its bounds, its price ideas and its VAT setting
      move from the plugin's settings into the campaign.
    - The existing settings become the first `lodging` campaign at migration, so nothing changes for
      the vouchers already sold.
@@ -138,7 +140,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
    - The website serves two permanent paths: **`/<base>/offrir/<slug>`** leads to the campaign's
      purchase page; **`/<base>/utiliser`** leads to the redemption page of the voucher's kind,
      chosen from the code.
-     > **Amended 2026-11-25 by `specs/site-outside-resource-booking.md` rule 18**: `/<base>/utiliser` now leads to the page
+     > **Amended 2026-11-25 by `specs/site/site-outside-resource-booking.md` rule 18**: `/<base>/utiliser` now leads to the page
      > holding « Réserver une séance » (or its alias « Utiliser un bon cadeau »), the fragment `#bon=<code>` filling its code field;
      > the kind is told by the page itself (a stay voucher links to the lodging booking page).
    - `<base>` is set once in the WordPress connector (default `bon-cadeau`).
@@ -228,7 +230,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       whole in one session would contradict.
 18. The giver fills « Pour », « De la part de », a message, and an e-mail. They accept the terms of
     the voucher's activity (rule 37) and pay. There is no field for the merchant card number.
-19. **Nothing exists before the payment** (unchanged rule of `specs/gift-vouchers.md`).
+19. **Nothing exists before the payment** (unchanged rule of `specs/gift-vouchers/gift-vouchers.md`).
     - The order is priced again by the engine at the moment of the payment link. The link lives one
       hour.
     - No voucher, no code and no booking exist before the bank confirms the payment.
@@ -238,7 +240,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 ### 3.D The receipt mail and the PDF
 
 20. When the payment is confirmed, the giver receives one mail. This is the automatic exception of
-    `specs/no-automatic-email-without-approval.md`, extended. The mail contains:
+    `specs/emails/no-automatic-email-without-approval.md`, extended. The mail contains:
     - The greeting, the public title of the campaign, « Pour … de la part de … ».
     - **The code**, in large type.
     - Under the code (wording revised 2026-11-18): « Le PDF joint s'imprime tel quel. Si vous avez
@@ -274,7 +276,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 
 23. A new WordPress block « Utiliser un bon cadeau » (shortcode `[guestflow_gift_voucher_use]`)
     serves the redemption.
-    > **Amended 2026-11-25 by `specs/site-outside-resource-booking.md` rules 1, 2 and 18**: the redemption is a code field of the
+    > **Amended 2026-11-25 by `specs/site/site-outside-resource-booking.md` rules 1, 2 and 18**: the redemption is a code field of the
     > « Réserver une séance » tunnel (`guestflow/session-booking`); « Utiliser un bon cadeau » remains as an alias drawing that
     > tunnel. The server calls below are unchanged, and gain `people`, `firstName`, `lastName` on `use/confirm` and `dueCents`,
     > `evening` per slot on `use/slots`.
@@ -312,7 +314,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       line and the voucher stays intact. When the slot is still free, the booking is made.
     - The hold blocks the slot in every availability read: planning, guest app, « Mon bain ».
 30. The voucher's lines become lines of the booking's standalone sale, paid by the voucher's
-    prepaid tender (`specs/mixed-method-payments.md` §3.15). The remainder becomes a card line, so
+    prepaid tender (`specs/payments/mixed-method-payments.md` §3.15). The remainder becomes a card line, so
     accounting sees the voucher money once, never twice.
 31. A confirmation mail goes to the recipient's e-mail: date, hours, address, what is included, what
     was paid. It is an automatic mail, in the same exception as rule 20, because it answers the
@@ -448,7 +450,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 
 ### 3.K Degressive hourly pricing in the engine (added 2026-11-18)
 
-> **Superseded** 2026-11-24 by `specs/hourly-extra-hour-rates.md`: the percent-per-rank table below is withdrawn
+> **Superseded** 2026-11-24 by `specs/resources/hourly-extra-hour-rates.md`: the percent-per-rank table below is withdrawn
 > in favour of a price for the following hours, per audience and band. The rule numbers stay (they are identities).
 
 43. **A resource may carry a degressivity table by hour rank**: `[{ fromHour, percent }]`, for
@@ -466,9 +468,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - A price shown for one isolated slot (a slot grid's unit price) is the first hour's; the
       session's total, priced by the engine, carries the ranks.
 
-    > **Superseded** 2026-11-24 by specs/hourly-extra-hour-rates.md (rules 1, 5, 7).
+    > **Superseded** 2026-11-24 by specs/resources/hourly-extra-hour-rates.md (rules 1, 5, 7).
     >
-    > **Sans test** — the percent table is withdrawn; its replacement is covered by `specs/hourly-extra-hour-rates.md` rules 1, 5 and 7.
+    > **Sans test** — the percent table is withdrawn; its replacement is covered by `specs/resources/hourly-extra-hour-rates.md` rules 1, 5 and 7.
 44. **Each slice takes the rate of its own band, then the discount of its rank.**
     - The engine walks the session in steps of `slotDuration` (`priceMinutes`), as today. The rank
       of a slice is the hour of the session it falls in, counted from the session's start (or from
@@ -481,13 +483,13 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - Rounding: each slice to the cent, the line as the sum; the per-band breakdown of
       `roundedBands` keeps adding up to the gross.
 
-    > **Superseded** 2026-11-24 by specs/hourly-extra-hour-rates.md (rules 2, 3): the rank now picks a rate, not a percent.
+    > **Superseded** 2026-11-24 by specs/resources/hourly-extra-hour-rates.md (rules 2, 3): the rank now picks a rate, not a percent.
     >
-    > **Sans test** — replaced by `specs/hourly-extra-hour-rates.md` rules 2 and 3.
+    > **Sans test** — replaced by `specs/resources/hourly-extra-hour-rates.md` rules 2 and 3.
 45. The evening supplement of a day voucher (rule 14) is the engine's price of the covered evening
     slices minus their day price, both at their rank. No reverse case.
 
-    > **Superseded** 2026-11-24 by specs/hourly-extra-hour-rates.md (rule 4): the supplement is still the engine's evening price minus
+    > **Superseded** 2026-11-24 by specs/resources/hourly-extra-hour-rates.md (rule 4): the supplement is still the engine's evening price minus
     > its day price, the ranks now pick the rate of each slice.
 
 ### 3.L One-shot vouchers (added 2026-11-18)
@@ -636,7 +638,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
     number the CGV page pins: the site's links read `?activity=<key>&v=<termsVersion>`, never the
     internal id, which no longer matches the number once each activity numbers its own versions.
 
-61. **The back-office price follows the money-dialog contract** (`specs/plugins-phase-1-sdk.md` rules 54, 58; added
+61. **The back-office price follows the money-dialog contract** (`specs/plugins/plugins-phase-1-sdk.md` rules 54, 58; added
     2026-11-22, CI of PR #1055).
     - « Nouveau bon » asks the price of what changes it only: a campaign with its extra time and add-ons, or a free
       amount; a « Sur mesure » is priced on its composition alone (`/campaigns/preview-price`), so its validity, its
@@ -661,21 +663,21 @@ Rules are identities: a rule is never renumbered, new rules are appended
       anything else is 404 `VISUAL_NOT_FOUND`. The print file is never served.
     - The WordPress plugin proxies it at `/wp-json/guestflow/v1/gift-vouchers/campaigns/<slug>/visual`,
       keeping the cache headers, so the browser never talks to GuestFlow.
-    - > **Amended 2026-11-25 by `specs/site-outside-resource-booking.md` rule 20**: the card stands straight (no `rotate(-1deg)`);
+    - > **Amended 2026-11-25 by `specs/site/site-outside-resource-booking.md` rule 20**: the card stands straight (no `rotate(-1deg)`);
       > its entrance keeps the fade and the rise, and none under `prefers-reduced-motion`.
     - The block draws **the whole front** (owner choice of 2026-11-24, after the mock-up offered the upper
       part only): a small whole card on each campaign of the chooser (decorative: the title stands beside
       it), and the full A6 card at the head of the form (above the title on a phone, a column beside the form once the block is 600 px
       wide). The alternative text is the campaign's title. A picture that fails to load is removed, never
-      drawn broken; a campaign without a visual is drawn as before. Mock-up:
-      `specs/gift-voucher-site-visual.html`.
+      drawn broken; a campaign without a visual is drawn as before. Where the card shows is the owner's choice of
+      2026-11-24: the whole card, with a thumbnail on every offer of the chooser as well as the card in the form.
     - The recap of a session campaign names the band and its duration, never a clock time: the session's
       hour is chosen later by the recipient (rule 17, fixed 2026-11-24).
 
 ### 3.T The offer switcher (added 2026-11-25)
 
 63. **An open campaign is headed by an offer switcher, not by a « Choisir une autre offre » link** (owner
-    decision of 2026-11-25, variant « C » of the mock-up `specs/gift-voucher-offer-switcher.html`).
+    decision of 2026-11-25, variant « C » of three mock-ups, the others being « A » a styled back link and « B » a breadcrumb).
     - Shown only when more than one campaign is on sale (the condition of the former back link): a `nav`
       named « Votre cadeau » (EN « Your gift ») holding one button per campaign, in the chooser's order
       (lodging first, then resource), each with the campaign's thumbnail (lazy, rule 62), its title and
@@ -697,8 +699,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 ### 3.U The extras, folded and priced (added 2026-11-25)
 
 64. **What can be added to a voucher sits in one fold, closed by default, and each choice shows its
-    price read from GuestFlow** (owner request of 2026-11-25; mock-up and the owner's four choices:
-    `specs/gift-voucher-add-ons-folded.html`).
+    price read from GuestFlow** (owner request of 2026-11-25; the owner's four choices are the four bullets below).
     - **One fold holds the extra time and the add-ons together** (owner choice 1). It is closed on every
       first draw and only the visitor opens it; it is not drawn when a campaign offers neither.
     - **Closed, its head says what is inside** (owner choice 2): « N disponibles · dès X € », where N
@@ -740,9 +741,9 @@ Rules are identities: a rule is never renumbered, new rules are appended
       interruptible; under `prefers-reduced-motion` it opens without movement. The head is a button
       with `aria-expanded`, ≥ 44 px high; the closed body is `inert`.
 
-65. **The catalogue says what the engine sells** (owner decision of 2026-11-25; mock-up and the owner's
-    three choices: `specs/gift-voucher-outside-sellable.html`; completes rules 4 and 64,
-    `specs/pricing-components.md` rule 124).
+65. **The catalogue says what the engine sells** (owner decision of 2026-11-25; the owner's
+    three choices are the three bullets below; completes rules 4 and 64,
+    `specs/pricing/pricing-components.md` rule 124).
     - **One answer, the engine's.** An option of the catalogue (`catalogueView.js`) is `sellable` only
       when `articles.outsideSale(article)` (pricing-components rule 124) says so: a per-person, per-night,
       per-person-per-night, percentage or progressive-per-participant option with no planning card reads the
@@ -751,6 +752,11 @@ Rules are identities: a rule is never renumbered, new rules are appended
       counted in units and stays sellable. Before this rule the catalogue also called « par personne » and
       « progressif par participant » sellable, while the engine refused them (`NEEDS_STAY`): the operator
       could pick an option that rule 64 then left out of the offer without a word.
+    - **An option saved before is not hidden by the screen** (owner choice 1). On the option's fiche, « Vendable hors
+      séjour » on a type the engine refuses is inert but focusable when unticked (the reason reads as its helper); when already
+      ticked it stays active so it can be unticked, with the reason in the error colour followed by « Décocher pour
+      enregistrer. », and the save is refused while it is ticked (`ExternalSaleFields`, `sellability`). The fiche never
+      unticks it by itself.
     - **The same sentence everywhere** (owner choice 2): the picker, the campaign save refusal, the option
       fiche and the counter all show the reason that `outsideSale` returns. No hint about the planning card is
       added: switching the card on changes how the option is billed in a stay too.

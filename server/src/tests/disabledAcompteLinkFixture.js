@@ -1,5 +1,5 @@
-// Shared fixture of the « Sans acompte » + paid acompte link suites (specs/disable-deposit-per-reservation.md
-// rules 12-13, specs/plugins-phase-3a-online-payment.md rules 48-49): a direct stay whose acompte link was
+// Shared fixture of the « Sans acompte » + paid acompte link suites (specs/payments/disable-deposit-per-reservation.md
+// rules 12-13, specs/plugins/plugins-phase-3a-online-payment.md rules 48-49): a direct stay whose acompte link was
 // minted, then « Sans acompte » saved, and the two ways that link gets paid anyway.
 //
 // Requires `process.env.DB_PATH = ':memory:'` to be set by the test file BEFORE requiring this module.
@@ -14,7 +14,7 @@ const { create: createAccountingModel } = optionalPlugin(() => require('../plugi
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-// Every date hangs on today (specs/server-test-isolation.md rule 6): the stays start 60 days out and more,
+// Every date hangs on today (specs/tech/server-test-isolation.md rule 6): the stays start 60 days out and more,
 // beyond the acompte window; the solde was ticked eight days ago and the link paid the day after, both past.
 const TODAY = todayIso();
 const PAID_DATE = addDaysToIsoDate(TODAY, -7);

@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { create: createModel } = require('../models/pushSubscriptionsModel');
 const { applyPushChannelPrefsSchema } = require('../utils/pushChannelPrefsMigration');
 
-// specs/pwa-push-notifications.md §5 — per-(user,device) subscriptions + per-user prefs (default ON).
+// specs/guest-app/pwa-push-notifications.md §5 — per-(user,device) subscriptions + per-user prefs (default ON).
 
 function freshModel() {
   const db = new Database(':memory:');
@@ -77,7 +77,7 @@ test('subscriptionsForPref returns subs of users whose pref is ON (default ON wh
   assert.deepEqual(arrivals, ['https://push/u1'], 'user 2 opted out of arrivals');
   const news = model.subscriptionsForPref('newReservation').map((s) => s.endpoint).sort();
   assert.deepEqual(news, ['https://push/u1', 'https://push/u2']);
-  // Breakfast pref: default ON, individually opt-out-able (specs/sas-breakfast-bread-and-push.md rule 6).
+  // Breakfast pref: default ON, individually opt-out-able (specs/sas/sas-breakfast-bread-and-push.md rule 6).
   assert.deepEqual(model.subscriptionsForPref('breakfast').map((s) => s.endpoint).sort(), ['https://push/u1', 'https://push/u2']);
   model.setPreferences(1, { breakfast: false });
   assert.deepEqual(model.subscriptionsForPref('breakfast').map((s) => s.endpoint), ['https://push/u2']);

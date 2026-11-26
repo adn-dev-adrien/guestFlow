@@ -14,18 +14,18 @@
 
 GuestFlow is the hub of the iCal mesh: every platform (Booking, Airbnb, Gîtes de France, GreenGo)
 imports one feed per property — `GET /api/ical/export/:token`, built by
-[icalModel.exportProperty](../server/src/models/icalModel.js#L56) — and that feed carries **all** of
+[icalModel.exportProperty](../../server/src/models/icalModel.js#L56) — and that feed carries **all** of
 the property's reservations whatever their origin. That part works.
 
 **Closures are the hole in it.** `establishment_closures` (global or per-property, posed in
-*Réglages → Fermetures*, see [establishment-closures.md](establishment-closures.md)) blocks dates
+*Réglages → Fermetures*, see [establishment-closures.md](../pricing/establishment-closures.md)) blocks dates
 everywhere inside GuestFlow — the calendar, availability, tariff-recipe carving — but **nothing
 leaves through the feed**. `exportProperty` selects from `reservations` only. A platform therefore
 still sells a winter closure, and the operator has to re-declare every closure by hand on every
 channel.
 
 Worse, the import side papers over the symptom in a way that loses bookings. Since 2026-06-06 the
-sync guard ([property-ical-closure-guard.unit.test.js](../server/src/tests/property-ical-closure-guard.unit.test.js))
+sync guard ([property-ical-closure-guard.unit.test.js](../../server/src/tests/property-ical-closure-guard.unit.test.js))
 **silently drops** any incoming event covered by a closure — the right call for anti-overbooking, but
 it means a guest who booked those dates on Booking has a confirmation in hand and **no trace at all**
 in GuestFlow. Exporting the closure prevents the sale instead of discarding it afterwards.
@@ -51,7 +51,7 @@ iCal feed, with no per-channel manual re-declaration.
    block is not a guest.
 4. **`DTSTART` = `startDate`, `DTEND` = `endDate`, unchanged.** Closures use the same
    inclusive-start / exclusive-end convention as reservations — stated in
-   [`expandClosuresToDates`](../server/src/models/establishmentClosuresModel.js#L149) (`while (cursor < end)`)
+   [`expandClosuresToDates`](../../server/src/models/establishmentClosuresModel.js#L149) (`while (cursor < end)`)
    — so both columns go straight into the event with no shift. A closure `2026-11-01 → 2027-03-01`
    blocks the nights of 1 Nov through 28 Feb and leaves 1 March bookable.
 5. **`UID` = `closure-<id>@guestflow.local`** — a namespace of its own, next to
@@ -63,11 +63,11 @@ iCal feed, with no per-channel manual re-declaration.
 8. Closure events are appended **after** the reservation events, ordered by `startDate`. The
    reservation block is untouched — same query, same fields, same order.
    > **Amended 2026-10-18:** the reservation block no longer carries guest data
-   > (`specs/ical-export-guest-privacy.md`); the order and the closure events are unchanged.
+   > (`specs/platforms/ical-export-guest-privacy.md`); the order and the closure events are unchanged.
 9. **A deleted closure disappears from the feed** on the next fetch, and the platform unblocks the
    dates by itself. No extra bookkeeping: the feed is stateless, rebuilt on every request.
 10. The feed stays **additive** for its consumers: no existing event changes shape, so no platform
-    can lose a contract here. Under `specs/self-update-and-releases.md` §3.A rule 2 this is a **Y**,
+    can lose a contract here. Under `specs/hosting/self-update-and-releases.md` §3.A rule 2 this is a **Y**,
     not an X, even though the iCal feeds are an out-of-repo consumer.
 11. *(Fixed at the 2026-10-27 spec review.)* Every exported event is RFC 5545 conformant: `DTSTART` and
     `DTEND` are all-day values written `DTSTART;VALUE=DATE:YYYYMMDD` (the dates themselves, start
@@ -79,8 +79,8 @@ iCal feed, with no per-channel manual re-declaration.
     taking the night before and a check-out at 17:00 or later as taking the night after. The feed used to
     publish the bare `startDate` / `endDate`, so a platform was told a night was free that GuestFlow would
     refuse. Each stay event now spans its effective range (`utils/occupancy.effectiveRange`); the export
-    snapshot and the tombstones (`specs/lodgify-decommission.md` rules 7, 14) are kept on those same
-    ranges. The times themselves never leave the database (`specs/ical-export-guest-privacy.md`).
+    snapshot and the tombstones (`specs/platforms/lodgify-decommission.md` rules 7, 14) are kept on those same
+    ranges. The times themselves never leave the database (`specs/platforms/ical-export-guest-privacy.md`).
 13. **TEXT values are escaped and lines folded per RFC 5545** _(added 2026-10-28, audit)_. `SUMMARY` and
     `X-WR-CALNAME` escape the backslash first, then CR/LF/CRLF (to `\n`), comma and semicolon, so an
     operator label can neither end a line nor open another property or event. Every content line is folded
@@ -101,7 +101,7 @@ iCal feed, with no per-channel manual re-declaration.
   creation), so no contradictory pair of events can be emitted.
 - **A closure straddling today** is exported whole, from its real `startDate` — not clipped to today.
   Clipping would move `DTSTART` on every fetch and make platforms churn the block.
-- **A devis** is still never exported (unchanged, [icalModel.js:3](../server/src/models/icalModel.js#L3)).
+- **A devis** is still never exported (unchanged, [icalModel.js:3](../../server/src/models/icalModel.js#L3)).
 
 ---
 
@@ -114,7 +114,7 @@ iCal feed, with no per-channel manual re-declaration.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `routes/` | — | — | (none — `/api/ical/export/:token` is unchanged, still public per [index.js:147](../server/src/index.js#L147)) |
+| `routes/` | — | — | (none — `/api/ical/export/:token` is unchanged, still public per [index.js:147](../../server/src/index.js#L147)) |
 | `controllers/` | — | — | (none — `icalController.exportIcal` already just returns what the model builds) |
 | `models/` | `models/icalModel.js` | T | `exportProperty` also emits the closure events: resolves today, calls the closures model, appends one `VEVENT` per closure. Gains two private pure helpers, `closureSummary(label)` (rule 3 + the default-label edge case) and `closureEventLines(closure)` (the line block). |
 | `models/` | `models/establishmentClosuresModel.js` | — | **Unchanged, and deliberately so:** `list({ propertyId, from })` already returns exactly the right rows (global ∪ per-property, `endDate > from`, ordered by `startDate`). `icalModel` builds it against its own database handle via the `create(db)` factory, which keeps `establishment_closures` accessed from its one owning model and keeps `buildModel(db)` unit-testable on an in-memory schema. |
@@ -132,7 +132,7 @@ iCal feed, with no per-channel manual re-declaration.
 ### 4.2 Client side (`client/src/`)
 
 **No client change.** The export card
-([IcalExportCard.jsx](../client/src/components/IcalExportCard.jsx)) hands out the same URL, serving a
+([IcalExportCard.jsx](../../client/src/components/IcalExportCard.jsx)) hands out the same URL, serving a
 richer document. Nothing to render, no `PageActionBar` impact, no responsive impact.
 
 | Layer | File | T/C | Responsibility in this change |
@@ -218,7 +218,7 @@ No browser UI to verify (§4.2), so no responsive pass.
 - **The guest-data question in the feed.** `SUMMARY` carries the guest's name and `ATTENDEE` their
   e-mail on *reservation* events, which is shipped to every platform subscribing to the feed. Raised
   2026-09-20, worth its own spec, untouched here. _(Resolved 2026-10-18 by
-  `specs/ical-export-guest-privacy.md`: every stay reads « Réservé », no guest data.)_
+  `specs/platforms/ical-export-guest-privacy.md`: every stay reads « Réservé », no guest data.)_
 - **Exporting the closure's scope** (global vs per-property) into the event. A platform only cares
   that the dates are blocked.
 

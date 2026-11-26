@@ -1,6 +1,6 @@
 /**
  * CancellationCompensationsPendingAlert — Dashboard reminder for indemnities a platform owes us but
- * has not wired yet (specs/cancellation-compensation.md §3.4, §6.2).
+ * has not wired yet (specs/payments/cancellation-compensation.md §3.4, §6.2).
  *
  * Self-contained like the iCal alerts: fetches its own list, renders nothing when there is none.
  * Each row offers « Encaisser » (the money landed), « Modifier » (the announced amount changed) and

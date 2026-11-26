@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 31 — changing the second factor asks for the
+// specs/hosting/control-plane-plans-and-access.md rule 31 — changing the second factor asks for the
 // password first: the method buttons stay disabled until it is typed, and it goes with the request.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

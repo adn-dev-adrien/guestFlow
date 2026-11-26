@@ -1,6 +1,6 @@
 /**
  * Moves the English out of the tables and into the catalogue, once
- * (specs/translation-catalogue.md §5).
+ * (specs/site/translation-catalogue.md §5).
  *
  * `options.titleEn` and `resources.nameEn` hold real work — 32 English titles typed by hand — and
  * this migration deletes those columns. The order is therefore not negotiable:

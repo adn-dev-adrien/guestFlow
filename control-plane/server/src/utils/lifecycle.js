@@ -1,5 +1,5 @@
 /**
- * The subscription state machine (specs/control-plane-plans-and-access.md rules 14, 15, 19). Pure:
+ * The subscription state machine (specs/hosting/control-plane-plans-and-access.md rules 14, 15, 19). Pure:
  * the state is derived from the subscription's dates and the operator's overrides, on Paris days.
  *
  *   trial      before trialEndsAt
@@ -60,7 +60,7 @@ function renewedEndsAt(endsAt, months, today) {
   return addMonths(endsAt > today ? endsAt : today, months);
 }
 
-// specs/control-plane-plans-and-access.md rule 35: a payment received during the trial ends it, and
+// specs/hosting/control-plane-plans-and-access.md rule 35: a payment received during the trial ends it, and
 // the paid period starts that day (« la première période payée commence au paiement », rule 7);
 // otherwise rule 15.
 function paidEndsAt(sub, months, today) {

@@ -18,7 +18,7 @@ column red as soon as `paymentComplete` is false, on both the arrivals table
 and the departures table ([:311](../client/src/pages/Dashboard.js#L311), [:337](../client/src/pages/Dashboard.js#L337)).
 
 `paymentComplete` / `remainingDue` come from
-[computePaymentStatus](../server/src/utils/paymentStatus.js#L19-L49), which nets **only** the deposit
+[computePaymentStatus](../../server/src/utils/paymentStatus.js#L19-L49), which nets **only** the deposit
 and the balance out of `finalPrice`:
 
 ```js
@@ -29,24 +29,24 @@ Two consequences make the red signal useless in daily operation:
 
 1. **Platform bookings are red by construction.** Airbnb / Booking / Lodgify pay the rental **after
    the stay** — a single transfer, no deposit
-   ([accounting-platform-commission-and-no-deposit.md](accounting-platform-commission-and-no-deposit.md) §1.2,
-   [pricing.js:1715-1741](../server/src/utils/pricing.js#L1715-L1741) forces `depositAmount = 0` and
+   ([accounting-platform-commission-and-no-deposit.md](../accounting/accounting-platform-commission-and-no-deposit.md) §1.2,
+   [pricing.js:1715-1741](../../server/src/utils/pricing.js#L1715-L1741) forces `depositAmount = 0` and
    routes everything to the balance). So on the arrival day the balance is legitimately unpaid, and
    the dashboard screams red for a perfectly normal situation. Every platform arrival is red, every
    day → the operator has learned to ignore the column entirely.
 2. **The amount shown is wrong anyway.** `remainingDue` ignores both complements, while `finalPrice`
-   already *includes* the in-complement extras ([platform-payment-entry.md](platform-payment-entry.md)
+   already *includes* the in-complement extras ([platform-payment-entry.md](../platforms/platform-payment-entry.md)
    rule 1bis: `finalPrice = brut + complement`). A reservation carrying a complement therefore stays
    red « Manquant X € » **even after the complement has been collected** — `complementPaid`,
    `complementPaidCash` and `endOfStayComplementPaid` are never read. The correct 4-bucket arithmetic
-   already exists in [financeModel.js:73-88](../server/src/models/financeModel.js#L73-L88)
-   (`remainingToPay` / `isSettled`, [finance-operational-remaining-to-pay.md](finance-operational-remaining-to-pay.md)),
+   already exists in [financeModel.js:73-88](../../server/src/models/financeModel.js#L73-L88)
+   (`remainingToPay` / `isSettled`, [finance-operational-remaining-to-pay.md](../accounting/finance-operational-remaining-to-pay.md)),
    but only the Finances page consumes it — §8 of that spec explicitly left the dashboard out.
 
 The only money the operator can actually do something about on the day is **the complement collected
 at the door**: the arrival complement (extras forced into the complement + tourist tax charged on
 arrival) and, at check-out, the merged « complément de fin de séjour »
-([defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md)). Everything else
+([defer-arrival-complement-to-checkout.md](../sas/defer-arrival-complement-to-checkout.md)). Everything else
 is either already settled or on a schedule the operator does not control.
 
 ## 2. Goal
@@ -69,7 +69,7 @@ are shown as plain information, never as an alert.
 3. An unpaid deposit or an unpaid balance **never** turns the cell red, whatever the platform
    (including `direct`). Rationale: the dashboard is the *day-of-operations* view, not the dunning
    view — chasing a late direct-booking balance belongs to the Finances page
-   ([finance-operational-remaining-to-pay.md](finance-operational-remaining-to-pay.md)), which already
+   ([finance-operational-remaining-to-pay.md](../accounting/finance-operational-remaining-to-pay.md)), which already
    lists « Reste à payer » with correct arithmetic.
 4. When nothing at all is left to settle on the reservation (every applicable bucket paid, disabled
    or caisse-interne — same rule as `isSettled`), the cell is **green** and reads « OK ».
@@ -83,7 +83,7 @@ are shown as plain information, never as an alert.
    collected) **plus** the still-unpaid **end-of-stay complement**
    (`endOfStayComplementAmount` with `endOfStayComplementPaid` = 0 **AND**
    `endOfStayComplementPaidCash` = 0) — i.e. the merged « complément de fin de séjour » of
-   [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.2, still open.
+   [defer-arrival-complement-to-checkout.md](../sas/defer-arrival-complement-to-checkout.md) §3.2, still open.
 7. Same as rule 3: an unpaid deposit / balance never turns a departure row red.
 8. Rules 4 and 5 apply identically to departures (green when fully settled, neutral otherwise).
 
@@ -95,7 +95,7 @@ are shown as plain information, never as an alert.
 10. **Neutral detail:** the list of applicable buckets with their state, joined by ` · ` —
     e.g. « Acompte OK · Solde NON · Complément OK ». A bucket is **omitted** when it carries nothing
     to collect: amount 0, or deposit opted out for the reservation (`depositDisabled`,
-    [disable-deposit-per-reservation.md](disable-deposit-per-reservation.md)). A deferred arrival
+    [disable-deposit-per-reservation.md](../payments/disable-deposit-per-reservation.md)). A deferred arrival
     complement renders as « Complément reporté ».
 11. **Platform chip.** When the reservation comes from a platform (`platform` ≠ `direct`) **and** at
     least one of deposit / balance is still unpaid, the cell also renders a `StatusBadge` reading
@@ -109,18 +109,18 @@ are shown as plain information, never as an alert.
 ### 3.4 Reception role
 
 14. Unchanged: the « Paiements » column stays hidden for a reception-only user
-    ([reception-role-checkin-only.md](reception-role-checkin-only.md) §3.3), and the new payload
-    block is **not** whitelisted in [receptionView.js](../server/src/utils/receptionView.js) — it
+    ([reception-role-checkin-only.md](../sas/reception-role-checkin-only.md) §3.3), and the new payload
+    block is **not** whitelisted in [receptionView.js](../../server/src/utils/receptionView.js) — it
     carries deposit/balance states, which reception must never receive. The client must therefore
     tolerate the block being absent.
 
 **Edge cases:**
 - Complement paid in caisse interne (`complementPaidCash = 1`) → settled, no alert (rule 1). The cash
   flag already implies `complementPaid = 1` at persistence time
-  ([complementPayment.js:24](../server/src/utils/complementPayment.js#L24)), but the rule reads both
+  ([complementPayment.js:24](../../server/src/utils/complementPayment.js#L24)), but the rule reads both
   so a hand-edited row can't produce a false alert.
 - Complement deferred **and** already paid → `buildCheckoutComplement` drops `deferred`
-  ([checkoutComplement.js:43-45](../server/src/utils/checkoutComplement.js#L43-L45)); nothing to
+  ([checkoutComplement.js:43-45](../../server/src/utils/checkoutComplement.js#L43-L45)); nothing to
   collect, no alert on either list.
   *Reading 2026-11-08 (audit R30-M-L1):* since defer rule 24 the block keeps `deferred` over a
   complement collected at a 0 € end of stay (the merged paid card), so `buildOperationalCollection`
@@ -252,7 +252,7 @@ Auth: unchanged (session required). Reception-only requesters never receive the 
 - `Complément à encaisser {montant}` (arrivals, alert)
 - `À encaisser {montant}` (departures, alert)
 - `Acompte` / `Solde` / `Complément` + ` OK` | ` NON` | ` reporté`
-  > **Changed 2026-10-18** (specs/ds-components.md rule 25): an unpaid bucket reads ` dû`
+  > **Changed 2026-10-18** (specs/design-system/ds-components.md rule 25): an unpaid bucket reads ` dû`
   > (« Solde dû »), not ` NON`. The examples above keep their original wording.
 - `Réglé par la plateforme` (chip, `StatusBadge status="info"`), tooltip
   « {Plateforme} verse le montant de la location après le séjour. »

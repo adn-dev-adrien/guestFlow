@@ -1,5 +1,5 @@
 /**
- * The pure rules of the VAT regime (specs/vat-optional-mode.md): the two legal mentions, which period a
+ * The pure rules of the VAT regime (specs/accounting/vat-optional-mode.md): the two legal mentions, which period a
  * sale falls under, and the bounds of a switch. No database here: `models/vatRegimeModel.js` reads and
  * writes, this decides. The assignment predicate has a SQL twin (the trigger of `vatRegimeMigration.js`);
  * `vat-regime-assignment.unit.test.js` runs both on the same matrix.

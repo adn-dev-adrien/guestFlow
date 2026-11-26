@@ -1,6 +1,6 @@
 /**
  * What the guest ACTUALLY handed over for the single arrival payment, versus what the buckets add up
- * to (specs/arrival-payment-detail-and-adjustment.md §3.2).
+ * to (specs/sas/arrival-payment-detail-and-adjustment.md §3.2).
  *
  * Below the computed total the difference is a **réduction accordée**, imputed on the accommodation;
  * above it, a **pourboire**. One target amount yields one or the other, never both.

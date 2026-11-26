@@ -1,5 +1,5 @@
 /**
- * Property guest-capacity rule (specs/property-capacity-single-total.md §3).
+ * Property guest-capacity rule (specs/reservations/property-capacity-single-total.md §3).
  *
  * Pure function — no DB access. THE single definition of "does this occupancy fit?", consumed by
  * the back-office controller (warning + `forceCapacity` escape hatch) and by the public
@@ -54,7 +54,7 @@ function checkGuestCapacity(property = {}, occupancy = {}) {
 }
 
 /**
- * Effective guest cap on the PUBLIC path (specs/site-extra-guest-line.md rule 6): `maxGuests = 0`
+ * Effective guest cap on the PUBLIC path (specs/site/site-extra-guest-line.md rule 6): `maxGuests = 0`
  * turns the back-office guard off on purpose, but the site must never accept an uncapped party.
  * Falls back to the guests the base price includes, then to the column default (2).
  */

@@ -6,10 +6,10 @@ import { vi } from 'vitest';
 import PlatformPriceCard from '../PlatformPriceCard';
 import api from '../../api';
 
-// specs/platform-price-from-commission.md + specs/tariff-recipes/spec.md §3.6 items 31-34 —
+// specs/platforms/platform-price-from-commission.md + specs/pricing/tariff-recipes.md §3.6 items 31-34 —
 // the « Prix plateformes » grid: one row per channel (Direct first), whole-euro prices per season,
 // extra-guest column. The commission % is read-only here: it is edited on Paramètres → Plateformes
-// (specs/settings-rationalization.md rule 19).
+// (specs/settings/settings-rationalization.md rule 19).
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -52,7 +52,7 @@ test('renders one row per channel, Direct first with its caption, whole-euro pri
   const rows = screen.getAllByRole('row');
   // header + 3 channel rows; Direct is the first body row
   expect(rows[1]).toHaveTextContent('Direct');
-  // specs/plugins-phase-p-productisation.md rule 19 — the caption names the platforms counted as direct.
+  // specs/plugins/plugins-phase-p-productisation.md rule 19 — the caption names the platforms counted as direct.
   expect(rows[1]).toHaveTextContent('Lodgify');
   expect(rows[1]).toHaveTextContent('179 €');
   expect(rows[1]).toHaveTextContent('247 €');

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 30 — the cumulative curve's graduations sit on the calendar
+// specs/accounting/finance-dashboard-redesign.md rule 30 — the cumulative curve's graduations sit on the calendar
 // (1st of each month, or the 1st/8th/15th/22nd/29th on a short window), never on the sampled points.
 const { curveAxis, dayOffset } = require('../utils/financeCurveAxis');
 

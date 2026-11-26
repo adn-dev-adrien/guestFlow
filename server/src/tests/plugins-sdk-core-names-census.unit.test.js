@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 35, reading of 2026-11-05 (audit R24-P2) — the contract lists the names a plugin
+// specs/plugins/plugins-phase-4-registry.md rule 35, reading of 2026-11-05 (audit R24-P2) — the contract lists the names a plugin
 // reads, not only the modules it reaches. Every name a plugin takes from `coreModule('m')` (destructured, read as
 // `coreModule('m').x`, or through a variable holding the module) is in `coreModules.json` under `m`; otherwise a core change
 // could remove it with no guard and an installed package would read `undefined`. A second-level read

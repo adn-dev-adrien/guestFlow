@@ -7,7 +7,7 @@
 | **Created** | 2026-05-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3c-2**. See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3c-2**. See `docs/rapports/ROADMAP.md`. |
 
 ---
 
@@ -53,7 +53,7 @@ ReservationPage to pass data + offer callbacks. No behavior or visual change.
 5. **No new behavior, no removed feature.** Locked-reservation styling, devis vs reservation differences
    visible in the summary, and the iCal "collected by platform" tourist-tax note all behave as before.
 6. **ReservationPage shrinks** by ~500 LOC; the moved toggle state declarations are removed from it.
-7. **Stored mode and top notice** (2026-10-28, [reservation-payment-ledger.md](reservation-payment-ledger.md)
+7. **Stored mode and top notice** (2026-10-28, [reservation-payment-ledger.md](../payments/reservation-payment-ledger.md)
    rules 50-52, 57, 62). `PricingSummary` takes `mode` (`'live'` default, `'stored'`) and `topNotice`. In
    stored mode `quote` is the server's quote-shaped `storedSummary`: same sections and rows, no
    per-line control (an offered line keeps a static state word, the « compl. » chips are read-only),

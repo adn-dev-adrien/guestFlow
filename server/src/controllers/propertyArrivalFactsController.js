@@ -1,5 +1,5 @@
 /**
- * Arrival facts of a property (specs/guest-email-texts-made-simple.md rules 1–2).
+ * Arrival facts of a property (specs/emails/guest-email-texts-made-simple.md rules 1–2).
  *
  *   GET /api/properties/:id/arrival-facts   { address, mapUrl, accessFr, accessEn, hasAccessCode, wifiName, hasWifiPassword }
  *   PUT /api/properties/:id/arrival-facts   same fields; `accessCode` / `wifiPassword` absent or null = kept, '' = cleared

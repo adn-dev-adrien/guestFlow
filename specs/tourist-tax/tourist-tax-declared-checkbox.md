@@ -34,7 +34,7 @@ Two problems surface in real use:
    dates as the fiche réservation. No day is subtracted. (A stay 20/06 → 21/06 shows « 20/06 au 21/06 ».)
 2. **« Déclarée » is per reservation, declared once.** A reservation appears in exactly one monthly
    extraction (`max(last-night month, payment month)` of its tax-carrying échéance since
-   `specs/tourist-tax-declaration-month-stay-end.md` — see `getTouristTaxExtraction`), so a
+   `specs/tourist-tax/tourist-tax-declaration-month-stay-end.md` — see `getTouristTaxExtraction`), so a
    single per-reservation marker is sufficient; there is no per-month duplication to disambiguate.
 3. **Ticking records the date.** Ticking the checkbox sets `touristTaxDeclaredAt = now` (server clock).
    Unticking clears it back to `NULL`. The stored value is a date-time string; the UI shows the **date**.
@@ -156,7 +156,7 @@ appears.
 - [x] Rule 8 (6): disabled with the caption on desktop and on a phone, enabled when declarable, a stored tick can go, the own row's flag, a server refusal reverts with its reason.
 
 ### Manual UI verification
-- [x] Rule 8 on an isolated copy of the production data (2026-11-05), 1280 and 390 px: see `specs/force-item-to-complement.md` rule 20's replay, same session.
+- [x] Rule 8 on an isolated copy of the production data (2026-11-05), 1280 and 390 px: see `specs/sas/force-item-to-complement.md` rule 20's replay, same session.
 - [ ] Load the page for a month with direct reservations; confirm dates match the fiche, tick a row → date
       tooltip appears + persists across reload; untick clears it. Checked at mobile + desktop widths.
 

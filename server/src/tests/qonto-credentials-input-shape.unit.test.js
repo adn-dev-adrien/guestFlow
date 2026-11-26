@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit E23-2) — the Qonto credentials: a wrong type used
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit E23-2) — the Qonto credentials: a wrong type used
 // to be stored, drop the connection or move production to the sandbox, with a 200.
 const test = require('node:test');
 const assert = require('node:assert/strict');

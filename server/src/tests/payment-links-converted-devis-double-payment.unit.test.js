@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 30, 31 and 32 (audit R3 P1 and R3-2): a converted devis's
+// specs/plugins/plugins-phase-3a-online-payment.md rules 30, 31 and 32 (audit R3 P1 and R3-2): a converted devis's
 // links belong to the stay; a second payment of the same money is a double payment, whoever owns the link.
 
 const test = require('node:test');
@@ -14,7 +14,7 @@ const { ensurePaymentLink, resolveRequestType, sendPaymentRequest } = require('.
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-// Every date hangs on today (specs/server-test-isolation.md rule 6): the devis stay is six months out, and
+// Every date hangs on today (specs/tech/server-test-isolation.md rule 6): the devis stay is six months out, and
 // both links are paid on the same day, five days from now, the second two hours after the first.
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 const PAY_DAY = inDays(5);
@@ -32,7 +32,7 @@ function seed() {
     VALUES ('devis', 1, 1, ?, ?, 1, 455.36, 100, 355.36, 'draft')`).run(inDays(190), inDays(194)).lastInsertRowid);
   const links = paymentLinksModel.buildModel(db);
   const dm = devisModel.buildModel(db);
-  // Valid for 30 more hours: reusable (specs/payment-link-lifecycle.md rule 8).
+  // Valid for 30 more hours: reusable (specs/payments/payment-link-lifecycle.md rule 8).
   const F = links.create({ reservationId: dv, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F', url: 'u', status: 'open', expiresAt: new Date(Date.now() + 30 * 3600 * 1000).toISOString() });
   const rid = dm.convertToReservation(dv).data.reservationId;
   let n = 0;

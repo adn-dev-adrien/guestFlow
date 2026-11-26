@@ -1,4 +1,4 @@
-// specs/collect-stay-payment-at-check-in.md rule 6 (revised 2026-09-08) — the « Séjour à régler »
+// specs/sas/collect-stay-payment-at-check-in.md rule 6 (revised 2026-09-08) — the « Séjour à régler »
 // step of the arrival SAS exists for the DIRECT channel only. A platform booking's unpaid solde is
 // the OTA's payout, wired after the stay: it is never claimed at the door, however the guest's
 // complements still are. Found in production on two Booking arrivals whose recap read « Séjour :
@@ -11,7 +11,7 @@ const { __test: { buildStayPayment } } = require('../controller');
 
 const ctx = { isDeparture: false, receptionOnly: false };
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../../../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('a platform booking with an unpaid solde gets NO stay step', () => {

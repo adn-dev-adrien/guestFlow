@@ -7,7 +7,9 @@
 | **Created** | 2026-11-15 |
 | **Author** | Adrien |
 | **Related PR** | — |
-| **Summary for validation** | `specs/gift-vouchers-resume.html` (French, interactive mock-ups) |
+| **Summary for validation** | _(the interactive mock-ups, French, were folded into this spec and removed on 2026-11-26)_ |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 6, 7, 14, 22, 23, 43 and the §4 settings row follow the code (bounds, validity, VAT, ideas are `lodging` campaign fields; the e-mail carries the code and the PDF, no template); `GiftVoucherDialog.jsx` is now `NewVoucherPage.jsx`; HTML mock-ups folded.
 
 ---
 
@@ -28,17 +30,17 @@ price guidance and says nothing of how the code is protected.
 
 What the code base offers today, and what it lacks (measured 2026-11-15):
 
-- **Plugins.** A plugin owns its tables, routes, jobs and client pages (`specs/plugins-phase-1-sdk.md`).
+- **Plugins.** A plugin owns its tables, routes, jobs and client pages (`specs/plugins/plugins-phase-1-sdk.md`).
   `guest-app` is the structural model: own tables, a public tree with its own rate limiters, an admin
   router, a pdfkit document, tokens stored hashed.
 - **A payment link needs a reservation** on `master` (`payment_links.reservationId NOT NULL`). The
-  pricing-components branch C (`feature/pricing-components-c`, unmerged, `specs/pricing-components.md`
+  pricing-components branch C (`feature/pricing-components-c`, unmerged, `specs/pricing/pricing-components.md`
   rule 53) makes it nullable, adds `saleRef`, the `standalone_sales` tables and the paid-link branch
   `standaloneSaleLinks.settlePaidLink`.
 - **No prepaid amount exists on a reservation.** The public « due now » is the stored acompte, or acompte
   + solde; a paid link whose amount differs from its bucket goes through the mismatch path. Payment
   methods are a fixed core list with a CHECK on `payment_tenders.method`; a settlement is never used on
-  a link payment and never on the acompte (`specs/mixed-method-payments.md` rules 2 and 44).
+  a link payment and never on the acompte (`specs/payments/mixed-method-payments.md` rules 2 and 44).
 - **A plugin cannot send an e-mail** of its own, and e-mails carry no attachment.
 - **The public API key guard** (`requirePublicApiKey`, `visitorContext`) belongs to `website-booking`;
   a second plugin cannot import it. The WordPress REST proxy forwards a fixed list of routes.
@@ -58,7 +60,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 2. The online sale needs a payment provider, but `manifest.json` declares **no** `requires` (decided at
    implementation, 2026-11-15): a dependency edge would stop the plugin from running without the
    payment plugin, whereas vouchers sold by hand (rule 24) must work without one, and the shipped
-   graph admits only the edges rule 20 of `specs/plugin-dependencies.md` arbitrated. The plugin reads
+   graph admits only the edges rule 20 of `specs/plugins/plugin-dependencies.md` arbitrated. The plugin reads
    the provider live: while none is connected the public offer answers `available: false`.
 3. Nothing in the plugin or in the core additions names an establishment, a property or a platform. The
    brand printed on the voucher is the company name from the settings.
@@ -71,10 +73,10 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 5. A voucher is **an amount in euros**, never a package, a stay or a date. It is identified by a number
    (`BC-<year>-<4 digits>`, per-year sequence, shown to the operator and on the voucher) and
    authenticated by a **code** (section 3.F). The number alone gives no right.
-6. The amount is free, between `minAmountCents` and `maxAmountCents` (settings, defaults 20 € and
+6. The amount is free, between `minAmountCents` and `maxAmountCents` (fields of the `lodging` campaign since `specs/gift-vouchers/gift-voucher-campaigns.md` rule 3, defaults 20 € and
    2 000 €), in cents, at most two decimals.
-7. A voucher is valid `validityMonths` (setting, default 18) from the day its payment is confirmed. The
-   expiry date is stored on the voucher at issue: changing the setting never moves an issued voucher.
+7. A voucher is valid `validityMonths` (its campaign's field, default 18) from the day its payment is confirmed. The
+   expiry date is stored on the voucher at issue: changing the campaign never moves an issued voucher.
 8. A voucher is usable **in one or several bookings** until its balance is 0 or it expires. Its balance
    is never paid out in money and never gives change.
 9. A voucher is usable on **direct reservations only** (the website tunnel and a fiche whose platform is
@@ -96,7 +98,7 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 13. The form asks for: the amount; « Pour » and « De la part de » (optional, 40 characters each); a
     message (optional, 200 characters); the buyer's e-mail (required); acceptance of the terms
     (required). Nothing else. Free texts are stored as typed and escaped at every output (HTML, PDF).
-14. **Price guidance.** Under the amount, the form lists « idées » the operator configured (setting
+14. **Price guidance.** Under the amount, the form lists « idées » the operator configured (the `lodging` campaign's
     `ideas`, at most 6). An idea is always a stay to price, `{ label, propertyId, nights, guests }` —
     never a bare amount: the free amount field already covers that (Adrien, 2026-11-15). The **server**
     prices it with the direct quote engine over the next 12 months and returns one amount per tariff
@@ -150,13 +152,14 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
     shows the same waiting state as a booking, and polls.
 21. The same page stays reachable through a **voucher link** (`/…?gf_voucher=<id>&gf_token=<token>`):
     a 24-byte random token stored hashed. The link shows and prints the voucher; it cannot spend it.
-22. The PDF is one A4 page generated by the server with pdfkit and the embedded fonts of the devis: the
-    voucher on the top half, the conditions of use below, and a QR code to the booking page carrying the
+22. The PDF is generated by the server with pdfkit and the embedded fonts of the devis, as two A6 pages since
+    `specs/gift-vouchers/gift-voucher-campaigns.md` rule 21 (the voucher front, then the back with the conditions of use), and carries a QR code to the booking page carrying the
     code in the URL **fragment** (`#bon=<code>`), which browsers do not send to servers.
-23. An e-mail goes to the buyer when the voucher is issued: subject and body from a template the
-    operator edits in the plugin's settings (French and English), holding the amount, the expiry and the
-    voucher link — **not** the code, and no attachment. It is sent automatically: this is the one
-    exception to `specs/no-automatic-email-without-approval.md`, recorded there (2026-11-15), because
+23. An e-mail goes to the buyer when the voucher is issued: built from the voucher, with no
+    operator template (French or English; `specs/gift-vouchers/gift-voucher-campaigns.md` rules 20 and 56 lifted the original « no code, no
+    attachment, editable template » shape): the code, what the voucher contains, an invoice-style recap with the VAT per rate, the
+    expiry, the voucher link and the PDF attached. It is sent automatically: this is the one
+    exception to `specs/emails/no-automatic-email-without-approval.md`, recorded there (2026-11-15), because
     the e-mail is the receipt of a payment the buyer just made (Q2, resolved). It leaves through
     `ctx.mail.send` and writes a `mail` movement (actor « Automatique »). A failed send is retried every
     15 minutes for 3 days after issuance (a voucher sold by hand is never mailed automatically) and
@@ -251,16 +254,15 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 
 ### 3.H Payment, VAT and the books (Adrien, 2026-11-16)
 
-43. **VAT of a voucher.** Setting `vatRatePercent` (« TVA des bons cadeaux »): 10 by default, from 0 to 100, at most two
+43. **VAT of a voucher.** Field `vatRatePercent` (« TVA des bons cadeaux ») of the `lodging` campaign (a plugin setting until `specs/gift-vouchers/gift-voucher-campaigns.md` rule 3; checked by `voucherRules.checkVatRate`): 10 by default, from 0 to 100, at most two
     decimals, `,` or `.` accepted. Refusals, each with its own sentence: empty (« Saisir un taux (0 si les bons ne portent pas
     de TVA). »), not a number (« Saisir un nombre, par exemple 10 ou 5,5. »), more than two decimals (« Deux décimales au plus. »),
     above 100 (« Saisir un taux entre 0 et 100 %. »). The rate is **frozen on the voucher when it is sold** (`gift_vouchers.vatRatePercent`,
     written by the issuance, so by hand and on the site alike — a site voucher is sold when the bank confirms): a later change
     applies to the vouchers sold from then on only. The server cuts the TTC amount: HT = round(TTC / (1 + rate)), VAT = TTC − HT, to
     the cent (150 € at 10 % → 136,36 + 13,64; at 5,5 % → 142,18 + 7,82). It is shown in the operator's detail (`vat: { ratePercent,
-    htCents, vatCents }`) and in the receipt e-mail — the template variable `{vat}` is « , dont TVA 10 % : 13,64 € » (empty at 0 %),
-    placed by default after the amount — and **never on the printed voucher** nor on the buyer's voucher page. The vouchers that
-    existed before the setting were sold at 10 % (migration backfill).
+    htCents, vatCents }`) and in the receipt e-mail — its recap lists « dont TVA » per rate, read from the lines frozen at issue (campaigns rule 20) — and **never on the printed voucher** nor on the buyer's voucher page. The vouchers that
+    existed before the rate was stored were sold at 10 % (migration backfill).
 44. **The sale in the books.** Each voucher is a sale made outside any stay: the plugin lists it with `ctx.standaloneSales` — one
     per voucher, on the Paris day it was issued, `totalCents = booksCents` = the amount, at its frozen rate, label « Bon cadeau
     BC-… » — and the journal books it as HT + VAT (debit the client, credit « Activité diverse » for the HT and the VAT account of
@@ -352,8 +354,8 @@ code types it while booking dates, and the voucher's balance pays for the stay, 
 |---|---|---|---|
 | plugin | `plugins/gift-vouchers/index.js` | C | `routes`, `nav.items`, `settings.menu` contributions |
 | plugin | `plugins/gift-vouchers/GiftVouchersPage.jsx` | C | List + detail, `PageActionBar` |
-| plugin | `plugins/gift-vouchers/GiftVoucherDialog.jsx` | C | « Nouveau bon » and the detail's actions |
-| plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | C | Settings route `/parametres/bons-cadeaux` (`settings.menu`, after « Emails & notifications »): validity, VAT rate (the four refusals shown while typing as a UX hint, the server judging again), bounds, ideas, e-mail template |
+| plugin | `plugins/gift-vouchers/NewVoucherPage.jsx` | C | « Nouveau bon » (`/bons-cadeaux/nouveau`, a page since `specs/gift-vouchers/gift-voucher-campaigns.md` rule 41); the detail's actions are in `GiftVoucherActionDialogs.jsx`. `CampaignsPage`, `CampaignEditor` and `VisualsPage` sit beside it (campaigns spec) |
+| plugin | `plugins/gift-vouchers/GiftVoucherSettings.jsx` | C | Settings route `/parametres/bons-cadeaux` (`settings.menu`, after « Emails & notifications »): today only the site page address `pageUrl` and the permanent-link base `linkBase`; validity, bounds, VAT rate (four refusals shown while typing, the server judging again) and ideas are the `lodging` campaign's fields, and there is no e-mail template (campaigns rules 3, 56) |
 | plugin | `plugins/gift-vouchers/GiftVoucherDetail.jsx`, `GiftVoucherActionDialogs.jsx` | C | The detail (side panel on `lg`, dialog below) and its « Prolonger » / « Corriger le solde » dialogs |
 | plugin | `plugins/gift-vouchers/giftVouchersApi.js`, `giftVoucherTexts.js`, `giftVoucherFormat.js` | C | `/api/gift-vouchers/*` calls, French copy and state maps, cents ↔ euros display |
 | core (client) | `constants/plugins.js`, `plugins/sdk/index.js` | M | `GIFT_VOUCHERS` id; no payment-method list on the client: the admin list payload carries `paymentMethods` |
@@ -444,12 +446,12 @@ and a card holds two lines (`Bon cadeau` and `CB`), so the reconciliation expect
 
 **Data impact:** none on existing records. New secret in `.env.local` (the pepper): losing it makes
 every issued code unverifiable — it joins the backup of `.env.local` documented in
-`specs/backup-restore.md`, and the plugin refuses to start with existing vouchers and a missing pepper
+`specs/hosting/backup-restore.md`, and the plugin refuses to start with existing vouchers and a missing pepper
 rather than drawing a new one.
 
 ## 6. UI / UX
 
-Interactive mock-ups: `specs/gift-vouchers-resume.html`.
+The mock-ups that validated these screens are retired; what they decided is stated below and in §3.
 
 - **Catalogue heading (site).** The block opens with « Choisir son cadeau » (EN « Choose your gift »), above the
   « Séjours » and « Séances » groups. It read « Offrir un séjour » until 2026-11-25, which was wrong as soon
@@ -517,8 +519,8 @@ Interactive mock-ups: `specs/gift-vouchers-resume.html`.
 - [x] Plugin isolation walk and removal matrix include `gift-vouchers` (`gift-voucher-plugin.unit.test.js`, `gift-voucher-sdk.unit.test.js`).
 
 ### Client / WordPress
-- [x] `plugins/gift-vouchers/__tests__/GiftVoucherSettings.vat.test.jsx` — the « TVA des bons cadeaux » field (7 tests): the stored rate and its hint, each refusal with its sentence and Save disabled, a comma saved as typed, the server's sentence on the field.
-- [ ] `plugins/gift-vouchers/__tests__/GiftVouchersPage.list.test.jsx`, `.actions.test.jsx`.
+- [x] `plugins/gift-vouchers/__tests__/GiftVoucherSettings.test.jsx` — the « TVA des bons cadeaux » field (7 tests): the stored rate and its hint, each refusal with its sentence and Save disabled, a comma saved as typed, the server's sentence on the field.
+- [ ] `plugins/gift-vouchers/__tests__/GiftVouchersPage.list.test.jsx`, `GiftVouchersPage.actions.test.jsx`.
 - [x] `plugins/gift-vouchers/__tests__/ReservationVoucherCard.stay.test.jsx` — the fiche's card (8 tests): inline refusals before any call, pay, the server's refusal, undo after a confirmation, re-credit, nothing rendered where there is nothing to show.
 - [ ] E2E: buy with the sandbox provider → voucher page → code accepted at booking.
 

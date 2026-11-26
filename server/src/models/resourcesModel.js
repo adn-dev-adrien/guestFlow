@@ -16,7 +16,7 @@ const DEFAULT_OPEN_DAYS = '[0,1,2,3,4,5,6]';
 const DEFAULT_RESOURCE_HORIZON_MONTHS = 3;
 
 function createModel(database) {
-  // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md). Guarded so minimal
+  // Hourly scheduling + time-banded grid (specs/resources/resource-hourly-scheduling.md). Guarded so minimal
   // test schemas without these columns gracefully drop them from the write.
   const HOURLY_COLUMNS = ['showsPlanningCard', 'hourlyEveningStart', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
   const HAS_HOURLY_COLUMNS = (() => {
@@ -26,7 +26,7 @@ function createModel(database) {
     } catch { return false; }
   })();
 
-  // The price of the following hours (specs/hourly-extra-hour-rates.md rule 1). Its own group, guarded like the others.
+  // The price of the following hours (specs/resources/hourly-extra-hour-rates.md rule 1). Its own group, guarded like the others.
   const NEXT_RATE_COLUMNS = ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'];
   const HAS_NEXT_RATE_COLUMNS = (() => {
     try {
@@ -35,7 +35,7 @@ function createModel(database) {
     } catch { return false; }
   })();
 
-  // Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3). Guarded as its OWN
+  // Thermal model (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.3). Guarded as its OWN
   // group rather than appended to HOURLY_COLUMNS, so a test schema carrying the hourly columns but
   // not these two keeps writing the hourly ones instead of silently dropping all of them.
   const THERMAL_COLUMNS = ['heatUpMinutes', 'heatRetentionMinutes'];
@@ -46,7 +46,7 @@ function createModel(database) {
     } catch { return false; }
   })();
 
-  // How far ahead the public may book a resource, in months (specs/gift-voucher-campaigns.md rule 51). Its own group,
+  // How far ahead the public may book a resource, in months (specs/gift-vouchers/gift-voucher-campaigns.md rule 51). Its own group,
   // guarded like the others.
   const HORIZON_COLUMNS = ['bookingHorizonMonths'];
   const HAS_HORIZON_COLUMNS = (() => {
@@ -56,7 +56,7 @@ function createModel(database) {
     } catch { return false; }
   })();
 
-  // The most people in one session booked from the website (specs/site-outside-resource-booking.md rule 25); NULL = no limit set. Its own group, guarded like the others.
+  // The most people in one session booked from the website (specs/site/site-outside-resource-booking.md rule 25); NULL = no limit set. Its own group, guarded like the others.
   const PEOPLE_COLUMNS = ['sessionMaxPeople'];
   const HAS_PEOPLE_COLUMNS = (() => {
     try {
@@ -65,7 +65,7 @@ function createModel(database) {
     } catch { return false; }
   })();
 
-  // The sentence a booked resource carries into the guest emails (specs/plugins-phase-p-productisation.md
+  // The sentence a booked resource carries into the guest emails (specs/plugins/plugins-phase-p-productisation.md
   // rule 11). Its own group, guarded like the two above.
   const SENTENCE_COLUMNS = ['emailBookedText', 'emailBookedTextEn'];
   const HAS_SENTENCE_COLUMNS = (() => {
@@ -100,7 +100,7 @@ function createModel(database) {
     } catch { return null; }
   }
 
-  // Empty = « same as the first hour » (specs/hourly-extra-hour-rates.md rule 1); 0 is a real, free rate.
+  // Empty = « same as the first hour » (specs/resources/hourly-extra-hour-rates.md rule 1); 0 is a real, free rate.
   const nextRateOf = (value) => {
     if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return null;
     const number = typeof value === 'string' ? Number(value.trim().replace(',', '.')) : Number(value);
@@ -122,7 +122,7 @@ function createModel(database) {
     }
     return {
       ...resource,
-      // The English name comes from the translation catalogue since specs/translation-catalogue.md §5;
+      // The English name comes from the translation catalogue since specs/site/translation-catalogue.md §5;
       // it keeps its old name and its old meaning — `null` when there is no translation — so the devis
       // PDF, the English e-mails and the public projections read it exactly as before.
       nameEn: englishName(resource.id) || resource.nameEn || null,
@@ -211,7 +211,7 @@ function createModel(database) {
 
   function getBabyBedAvailability(propertyId, startDate, endDate, excludeReservationId) {
     // Recognised by the shared predicate rather than by a `WHERE lower(name) = …` of its own: the
-    // funnel keys on the very same answer (specs/translation-catalogue.md rule 22), and two places
+    // funnel keys on the very same answer (specs/site/translation-catalogue.md rule 22), and two places
     // spelling out what a cot is called is how they come to disagree.
     const allBabyBeds = database.prepare('SELECT * FROM resources').all().filter(isBabyBedResource);
     const propertyIdNum = propertyId != null && propertyId !== '' ? Number(propertyId) : null;
@@ -281,7 +281,7 @@ function createModel(database) {
   function columnsFromPayload(payload) {
     return {
       name: sentenceCase(payload.name),
-      // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7) — trimmed string,
+      // Bilingual devis PDF (specs/devis/devis-english-language.md §3 rule 7) — trimmed string,
       // empty by default. Not run through sentenceCase: operator decides EN casing.
       quantity: Number(payload.quantity) || 0,
       price: Number(payload.price) || 0,
@@ -344,7 +344,7 @@ function createModel(database) {
     return tx();
   }
 
-  // specs/options-resources-ux.md rule 33 (audit R25-DB-1 sweep) — a key the save does not send keeps the stored value,
+  // specs/options/options-resources-ux.md rule 33 (audit R25-DB-1 sweep) — a key the save does not send keeps the stored value,
   // the logements and the per-logement prices included.
   function update(id, payload) {
     const resourceId = Number(id);
@@ -385,7 +385,7 @@ function createModel(database) {
       ORDER BY r.startDate DESC, r.id DESC
     `).all(Number(id));
     // The external bookings belong to the `hourly-resources` plugin: its table exists only once it
-    // was installed (specs/plugins-phase-3c-hourly-resources.md rule 16).
+    // was installed (specs/plugins/plugins-phase-3c-hourly-resources.md rule 16).
     const hasBookings = Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get());
     const bookings = hasBookings ? database.prepare(`
       SELECT rb.id, rb.date, rb.startTime, rb.endTime, rb.propertyId, p.name AS propertyName, rb.clientName

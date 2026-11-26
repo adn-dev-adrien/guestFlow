@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 50 (audit R9-C1) — « Relancer » / « Envoyer la demande » on the home's
+// specs/payments/payment-link-lifecycle.md rule 50 (audit R9-C1) — « Relancer » / « Envoyer la demande » on the home's
 // « Échéances de paiement » card reaches the request service; a business refusal it throws (409 LINK_ALREADY_PAID:
 // the payment was just booked) is answered with its own status and code, so the card can re-read its rows. Only an
 // unknown failure stays 502 REMINDER_FAILED.

@@ -1,6 +1,6 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §3.2 rule 13 — plugins/neat/pricing.js, declared to
- * the core as its quote post-processor (specs/plugins-phase-3b-neat.md rules 1–2).
+ * specs/plugins/neat-cancellation-insurance-subscription.md §3.2 rule 13 — plugins/neat/pricing.js, declared to
+ * the core as its quote post-processor (specs/plugins/plugins-phase-3b-neat.md rules 1–2).
  *
  * Guest price = ceil(premium × (1 + margin/100)); resolution ladder fresh cache → live → stale
  * cache → null; the engine override prices the flagged insurance stay-wide; a sold line stays

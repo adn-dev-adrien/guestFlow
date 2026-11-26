@@ -16,11 +16,11 @@ Every GuestFlow email is rendered **in French**: the template bodies (`email_tem
 are French, and `utils/emailContextBuilder.js` composes several **French sentences/labels** server-side —
 `nordicBathReminder`, `complementNotice`, `babyBedNotice`, `bedConfig` (« lit double / simple / bébé »),
 the long dates (`formatDateLong` → « 10 juillet 2026 »), and `propertyWithArticle` (« au Gite »). The
-renderer ([emailTemplateRenderer.js](../server/src/utils/emailTemplateRenderer.js)) is language-agnostic —
+renderer ([emailTemplateRenderer.js](../../server/src/utils/emailTemplateRenderer.js)) is language-agnostic —
 it just substitutes tokens/flags.
 
 There is precedent for per-reservation language: devis PDFs already support `fr`/`en` via
-`reservations.pdfLanguage` ([database.js:374](../server/src/database.js#L374)).
+`reservations.pdfLanguage` ([database.js:374](../../server/src/database.js#L374)).
 
 The operator hosts foreign guests and wants emails sent **in the guest's language**. Translating only the
 template bodies is not enough — the **server-composed French strings** would still leak into an English

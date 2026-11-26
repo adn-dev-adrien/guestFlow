@@ -2,7 +2,7 @@
  * Runs an Express handler and resolves its answer once the handler has finished, so a caller can reuse
  * an endpoint as it is (the start assistant, the plugin reconciliation). An install answers before it
  * releases the plugin lock: resolving on the answer alone would start the next install while the lock
- * was still held (specs/plugins-phase-p-productisation.md rule 37).
+ * was still held (specs/plugins/plugins-phase-p-productisation.md rule 37).
  */
 function capture(handler, req) {
   return new Promise((resolve) => {

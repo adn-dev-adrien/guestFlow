@@ -1,13 +1,13 @@
 /**
  * PlatformsSettingsPage — every per-platform commercial setting in one place
- * (specs/settings-rationalization.md rule 17).
+ * (specs/settings/settings-rationalization.md rule 17).
  */
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
-// The « Plan comptable » link is a slot of the accounting export (specs/plugins-phase-2-hosts.md rule 19).
+// The « Plan comptable » link is a slot of the accounting export (specs/plugins/plugins-phase-2-hosts.md rule 19).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   __esModule: true,

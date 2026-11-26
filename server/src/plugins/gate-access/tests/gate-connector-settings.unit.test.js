@@ -1,4 +1,4 @@
-// The settings card of the gate-keys connector — specs/gate-access-sowel-connector.md §3.6 rule 29,
+// The settings card of the gate-keys connector — specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29,
 // and §3.4 rule 22: the secrets are never returned by an API.
 
 const test = require('node:test');
@@ -23,7 +23,7 @@ function withEnv(env, fn) {
   }
 }
 
-// specs/gate-access-sowel-connector.md §3.6 rule 29
+// specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29
 test('the card says configured, last read, keys created and where the secrets live', () => {
   const { model } = freshDb();
   model.recordRead('2026-09-27T18:00:00.000Z');
@@ -44,7 +44,7 @@ test('the card says configured, last read, keys created and where the secrets li
   });
 });
 
-// specs/gate-access-sowel-connector.md §3.4 rule 22 — never a secret value.
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 22 — never a secret value.
 test('no secret value ever leaves through the card', () => {
   const { model } = freshDb();
   const payload = withEnv({ GATE_API_KEY: 'the-key-value', GATE_SIGNING_SECRET: 'the-secret-value' }, () => read(model));
@@ -53,7 +53,7 @@ test('no secret value ever leaves through the card', () => {
   assert.equal(serialized.includes('the-secret-value'), false);
 });
 
-// specs/gate-access-sowel-connector.md §3.6 rule 29 — one secret missing is « not configured ».
+// specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29 — one secret missing is « not configured ».
 test('with one secret missing the connector is not configured', () => {
   const { model } = freshDb();
   const payload = withEnv({ GATE_API_KEY: 'k', GATE_SIGNING_SECRET: '' }, () => read(model));
@@ -61,7 +61,7 @@ test('with one secret missing the connector is not configured', () => {
   assert.equal(payload.lastReadAt, null);
 });
 
-// specs/gate-access-sowel-connector.md §3.6 rule 29 — a read older than 3 h is not « reading ».
+// specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29 — a read older than 3 h is not « reading ».
 test('the card says Sowel is late once the last read is older than 3 hours', () => {
   const { model } = freshDb();
   model.recordRead('2026-09-27T15:00:00.000Z');

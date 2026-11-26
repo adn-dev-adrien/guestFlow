@@ -7,11 +7,13 @@
 | **Created** | 2026-11-15 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Interactive summary** | [`guest-app-home-automation-maquette.html`](guest-app-home-automation-maquette.html) |
+| **Interactive summary** | `guest-app-home-automation-maquette.html` (folded into this spec and deleted 2026-11-26) |
 | **Amends** | [`guest-app.md`](guest-app.md) rule 10 (module list), §6.6 (screens); [`gate-access-sowel-connector.md`](gate-access-sowel-connector.md) (the connector gains a second tree) |
-| **Depends on** | [`gate-access-sowel-connector.md`](gate-access-sowel-connector.md) (the house-pulls model, its key and signature), [`sowel-stays-in-keys.md`](sowel-stays-in-keys.md) (Sowel knows each `propertyId` and when it is occupied) |
-| **Sowel half** | `sowel-plugin-guestflow` `specs/002-home/spec.md` (plugin v0.5.0 + new recipe `sowel-recipe-guest-home` v0.1.0; amendment: recipe v0.2.0) |
+| **Depends on** | [`gate-access-sowel-connector.md`](gate-access-sowel-connector.md) (the house-pulls model, its key and signature), [`gate-access-sowel-connector.md`](gate-access-sowel-connector.md) rule 4b (Sowel knows each `propertyId` and when it is occupied) |
+| **Sowel half** | `sowel-plugin-guestflow` `002-home/spec.md` (plugin v0.5.0 + new recipe `sowel-recipe-guest-home` v0.1.0; amendment: recipe v0.2.0) |
 | **Amendment depends on** | `sowel-core` spec 211 `recipe-history-read` (R1: Sowel's day min/max, spec 134, extended from weather stations to every thermometer; R2: a recipe reads Sowel's own history for hourly buckets) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Dependencies on the deleted `sowel-stays-in-keys.md` redirected to `gate-access-sowel-connector.md` rule 4b; `homeBlocksModel.js` path corrected (`server/src/plugins/guest-app/models/`).
 
 ---
 
@@ -89,7 +91,7 @@ and off the lights the owner gave them. The owner chooses all of it per lodging 
    word too.
    A refused command is reported back with its reason and never retried. Before that, the Sowel `guestflow` plugin
    drops a command whose `propertyId` is not **occupied now** according to the stays it already holds
-   (`sowel-stays-in-keys.md`) — a guard against a GuestFlow bug, not against a compromised GuestFlow, since the
+   (`gate-access-sowel-connector.md` rule 4b) — a guard against a GuestFlow bug, not against a compromised GuestFlow, since the
    stays themselves come from GuestFlow. Sowel-side detail: `sowel-plugin-guestflow` spec 002.
 9bis. **The one setting in Sowel** (Adrien, 2026-11-15), on the same model as the gate's « + portail » in Accès
    partagés: the `guest-home` recipe has a single multi-select slot, « Lumières confiées aux voyageurs », filled
@@ -279,7 +281,7 @@ points, **SDK 2.28.0**, on the model of `resourceScheduler`:
 | plugin | `plugins/guest-app/modules.js` | T | Module `home` (off, `MODES_OF ['stay']`, prerequisite rule 17). |
 | controllers | `plugins/guest-app/controllers/sessionController.js` | T | `factsOf` gains `homeReady`. |
 | controllers | `plugins/guest-app/controllers/homeController.js` | C | Guest: page payload, switch command, command status. Studio: blocks read/save, catalogue, preview. |
-| models | `plugins/guest-app/homeBlocksModel.js` | C | `guest_home_blocks` read/write in one transaction; the selection union (rule 4), declared as `homeSelection`. |
+| models | `plugins/guest-app/models/homeBlocksModel.js` | C | `guest_home_blocks` read/write in one transaction; the selection union (rule 4), declared as `homeSelection`. |
 | utils | `plugins/guest-app/homeRoles.js` | C | Pure: which readings of an equipment a block shows, found by Sowel category with Sowel's aggregator aliases as fall-back (`rain_1h`, `rain_today`, `energy_day`, `energy_hour`…) — Studio never asks for an alias; the selection union (rule 4). |
 | utils | `plugins/guest-app/homeView.js` | C | Pure: blocks + readings + series + now → guest payload (rules 18-20, 23). |
 | utils | `plugins/guest-app/homeBlocksValidation.js` | C | Pure: rule 14. |
@@ -389,7 +391,7 @@ gate already sends (`propertyId`).
 
 ## 6. UI / UX
 
-The interactive summary [`guest-app-home-automation-maquette.html`](guest-app-home-automation-maquette.html) is
+The interactive summary `guest-app-home-automation-maquette.html` (folded into this spec and deleted 2026-11-26) is
 the reference: the guest page in its states and the Studio page driving it live.
 
 **Guest page « Domotique »** (Domaine Solio identity, `apps/guest/DESIGN.md`):
@@ -408,7 +410,7 @@ the reference: the guest page in its states and the Studio page driving it live.
   by side. **From 1200 px:** content capped at 1200 px.
 
 **Amendment of 2026-11-17** (interactive summary
-[`guest-home-shared-sensors-maquette.html`](guest-home-shared-sensors-maquette.html)):
+`guest-home-shared-sensors-maquette.html`, deleted 2026-11-26):
 - Rooms and hero: no trend arrow; under each temperature, « min 16,5° · max 17,3° » in small text.
 - « Réseau »: the power large in `tabular-nums`, an arrow and the phrase beside it — green « Renvoyé au réseau »,
   red « Consommé du réseau », neutral « Équilibre » — never colour alone. Same placement rules as « Électricité »

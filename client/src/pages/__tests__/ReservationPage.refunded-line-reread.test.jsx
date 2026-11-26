@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 108 (loop t8 UI8-3) — the refund that gives a lowered paid line's money back (and its deletion) moves
+// specs/pricing/pricing-components.md rule 108 (loop t8 UI8-3) — the refund that gives a lowered paid line's money back (and its deletion) moves
 // the server's refundedLoweredLines: the fiche re-reads them with the rest of the finance, so the toggle goes and comes back at once.
 import React from 'react';
 import { vi } from 'vitest';

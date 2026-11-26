@@ -6,11 +6,11 @@ const devisModel = require('../models/devisModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 /**
- * Regression guard for the site-booking options bug (specs/site-booking-notifications.md §1).
+ * Regression guard for the site-booking options bug (specs/site/site-booking-notifications.md §1).
  *
  * `devisModel.create` is exactly what the PUBLIC booking-request controller calls, with the same
  * payload shape (`selectedOptions: [{ optionId, quantity }]`, `selectedResources: [...]`). The bug:
@@ -64,7 +64,7 @@ function freshModel() {
   // A plain paid option (no autoOptionType).
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (3, 'Ménage', 'per_stay', 80)").run();
   db.prepare("INSERT INTO resources (id, name, priceType, price) VALUES (2, 'Bain nordique', 'per_stay', 30)").run();
-  // specs/option-property-scope.md: options apply only where explicitly linked — link all to Gite.
+  // specs/options/option-property-scope.md: options apply only where explicitly linked — link all to Gite.
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 6), (1, 8), (1, 1), (1, 3)').run();
   return { model: devisModel.buildModel(db), db };
 }

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4.1 gains a current-file-map note: the public tree, projections and validation live in `plugins/website-booking/` (verified in `server/src/plugins/website-booking/`); no rule changed.
+
 ---
 
 ## 1. Context
@@ -126,7 +128,7 @@ or **[CREATE]** (genuinely new logic).
    seconds); guest counts are non-negative integers within the property capacity;
    `babyBeds` is a non-negative integer (couchage), capped server-side at the number of babies and
    persisted on the devis `babyBeds` field (NOT as a "Lit bébé" resource line — see
-   specs/site-booking-notifications.md §3 rule 16); option ids must be applicable to the property;
+   specs/site/site-booking-notifications.md §3 rule 16); option ids must be applicable to the property;
    email is RFC-valid; phone is non-empty. On failure → `422 VALIDATION_FAILED` with a `details`
    array.
 9. **Rate limiting + anti-spam on writes.** `/public/v1/*` reads use a dedicated
@@ -149,7 +151,7 @@ or **[CREATE]** (genuinely new logic).
     stay available until the admin accepts/converts the pending devis. The hold design is kept in §8
     as a reference for a possible later addition (decision Q9).
 12. **Every stay rule the back-office enforces, the public path enforces, with no override**
-    (fixed at the 2026-10-27 audit; [tariff-recipes/spec.md](tariff-recipes/spec.md) §3.4 rules
+    (fixed at the 2026-10-27 audit; [tariff-recipes/spec.md](../pricing/tariff-recipes.md) §3.4 rules
     20bis-23). `POST /booking-requests` refuses, in this order, `409 MIN_NIGHTS`, `409 MAX_NIGHTS`
     and `409 CHANGEOVER`; the `message` names the limit (« Séjour trop long : maximum 7 nuits. »,
     « Arrivée le samedi et départ le samedi uniquement sur cette période. » — only the breached sides,
@@ -180,7 +182,7 @@ or **[CREATE]** (genuinely new logic).
     sold at a negative price — anything else is `422 VALIDATION_FAILED` (`optionUnavailable`). The
     admin API refuses a negative option price outright (`POST`/`PUT /api/options`, `400`
     « Le prix d’une option ne peut pas être négatif. »): a reduction is a price adjustment or a
-    refund ([reservation-refunds.md](reservation-refunds.md)), never an option.
+    refund ([reservation-refunds.md](../payments/reservation-refunds.md)), never an option.
 15. **The availability re-check sees a neighbour's edges** (fixed at the 2026-10-27 audit). A late
     check-out blocks the night of its departure day and an early check-in the night before its
     arrival; `utils/blockedDates.computeBlockedDates` reads the reservations one day wider on each
@@ -240,14 +242,14 @@ or **[CREATE]** (genuinely new logic).
     - A language that is not a string reads as French, not stated (`langOf` never throws); a `returnPath` that is not a
       string gives no redirect; a request without a parsed body (non-JSON content type) is refused like an empty one.
     - A body the JSON parser refuses answers the public envelope under `/public/`: `{ error: { code, message } }`, the
-      codes of specs/express-5-upgrade.md rule 7, the message in the caller's language (`?lang=`). The parser runs for
+      codes of specs/tech/express-5-upgrade.md rule 7, the message in the caller's language (`?lang=`). The parser runs for
       the whole application, ahead of any route: this refusal still comes before the key check, and says nothing about
       the key. `{"toString":1}` used to throw from `Number()`, `String()` or `RegExp.test()`: a `500` and a stack in the
       log per call, reachable by any visitor through the WordPress proxy.
     Covered by `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js`.
     - *Reading of 2026-11-04 (audit R22):* the same on the tree's edges, with nothing newly refused beyond a 500: a body that
-      does not inflate and a badly encoded id answer the nested envelope (specs/express-5-upgrade.md rule 9), a wrong type
-      nothing refused first answers `400 INVALID_FIELD_TYPE` (specs/hosting-h2-account-security.md rule 68), and
+      does not inflate and a badly encoded id answer the nested envelope (specs/tech/express-5-upgrade.md rule 9), a wrong type
+      nothing refused first answers `400 INVALID_FIELD_TYPE` (specs/hosting/hosting-h2-account-security.md rule 68), and
       `/public/booking-intake/page` with a `hotelId` or `resId` that is not a string or a number answers its `400 « Requête
       incomplète »` (`plugins/booking-intake/tests/public-route.unit.test.js`).
 23. **What a name holds on the public form** (Adrien's decision D13, 2026-11-05). `guest.firstName` and `guest.lastName`
@@ -292,7 +294,7 @@ or **[CREATE]** (genuinely new logic).
     *Reading of 2026-11-05 (audit R24 verification L1, L2, L3):* the times are judged after the nights and the capacity
     but before the engine's stay rules (`/quote`, `/booking-requests`) and before `stayRuleRefusal` (`/pay`): a stay
     both too short and on a refused time answers the times first, then the minimum once the time is fixed; accepted,
-    a rare chain at no cost. A Roostview quote is not judged on the times ([roostview-api-key.md](roostview-api-key.md)
+    a rare chain at no cost. A Roostview quote is not judged on the times ([roostview-api-key.md](../plugins/roostview-api-key.md)
     rule 7). The nights an early arrival or a late departure takes are pinned without any cleaning-gap clash (an
     arrival at 09:00 the day after a neighbour left at 18:00, a departure at 18:00 the day before a 09:00 arrival).
 25. **A pasted phone reads as it shows** (audit R24 public finding 2, 2026-11-05). Before rule 21 judges `guest.phone`,
@@ -324,6 +326,8 @@ or **[CREATE]** (genuinely new logic).
 > quote. There is **no GuestFlow React client change** in this spec.
 
 ### 4.1 Server side (`server/src/`)
+
+> **Current file map (2026-11-26).** The `/public/v1` tree is mounted by the `website-booking` plugin: the files named `routes/public/*`, `controllers/public/public{Catalog,Quote,BookingRequest,Terms}Controller.js`, `utils/publicProjections.js`, `utils/publicInputValidation.js` and `middleware/requirePublicApiKey.js` below live in `server/src/plugins/website-booking/{routes,controllers}/` and `server/src/plugins/website-booking/*.js`. `controllers/public/publicHttp.js`, `publicPaymentController.js` and the limiters (`middleware/rateLimiters.js`) stay in the core.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -428,12 +432,12 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
 ```
   - **No image/document URLs** are exposed: the WordPress site hosts its own visuals (Q7). The API
     returns only descriptive/structural fields.
-  - **Capacity** (specs/property-capacity-single-total.md, 2026-08-14): `maxGuests` is the ONE total
+  - **Capacity** (specs/reservations/property-capacity-single-total.md, 2026-08-14): `maxGuests` is the ONE total
     for everyone over 2 (adults + teens + children); `maxBabies` is a separate allowance that does
     NOT count towards it. `maxAdults` is a **deprecated alias of `maxGuests`**, kept for consumers
     not yet redeployed (the `gf-seo-*` mu-plugins); `maxChildren` is **gone** — it has no correct
     value under the one-total model. Never sum these fields to get a capacity.
-  - **Never 0 on the public API** (specs/site-extra-guest-line.md rule 6, 2026-10-22): a property whose
+  - **Never 0 on the public API** (specs/site/site-extra-guest-line.md rule 6, 2026-10-22): a property whose
     `maxGuests` is not configured advertises — and `POST /booking-requests` enforces — its
     `basePriceIncludedGuests`, then 2. The back-office keeps « 0 = guard off »; the site must never
     accept an uncapped party.
@@ -493,14 +497,14 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
 - **Current shape (supersedes the example above).** Two later specs reshaped this payload; the
   contract in force is:
   - `{ ungrouped: [...], groups: [{ category, options: [...] }] }` — options are grouped
-    server-side ([option-categories.md](option-categories.md) §4.4), cheapest-first inside each
+    server-side ([option-categories.md](../options/option-categories.md) §4.4), cheapest-first inside each
     bucket, and applicability is « explicitly linked properties only »
-    ([option-property-scope.md](option-property-scope.md) §3.3 — the legacy « linked to nothing =
+    ([option-property-scope.md](../options/option-property-scope.md) §3.3 — the legacy « linked to nothing =
     global » rule is gone). Each option's `price` is the **effective per-property** price
-    ([per-property-option-prices.md](per-property-option-prices.md)).
+    ([per-property-option-prices.md](../options/per-property-option-prices.md)).
   - `cancellationInsurance` — the flagged cancellation-insurance option, **removed from
     `ungrouped`/`groups`** so a consumer cannot render it twice
-    ([cancellation-insurance.md](cancellation-insurance.md) §3.3 rule 18). `null` when none is
+    ([cancellation-insurance.md](../payments/cancellation-insurance.md) §3.3 rule 18). `null` when none is
     configured, when it does not apply to the property, when it is hidden from clients or offered by
     default, or while its price/percentage is still 0:
     ```json
@@ -601,13 +605,13 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
   }
 }
 ```
-  - `cancellationInsurance` ([cancellation-insurance.md](cancellation-insurance.md) §3.3 rule 19) is
+  - `cancellationInsurance` ([cancellation-insurance.md](../payments/cancellation-insurance.md) §3.3 rule 19) is
     **always priced for the requested stay**, selected or not, so the consumer can show a real amount
     beside its mandatory Oui/Non choice; `selected` says whether it is in the quoted `options`. The
     amount is produced by the same engine helper as the billed line, so preview and invoice cannot
     diverge. `null` when no insurance is configured for the property. Taking it is a plain
     `options: [{ optionId, quantity: 1 }]` entry — no dedicated field on the request side.
-  - `extraGuests` (specs/site-extra-guest-line.md rule 1): the supplement as one ready-to-print row —
+  - `extraGuests` (specs/site/site-extra-guest-line.md rule 1): the supplement as one ready-to-print row —
     `count` guests beyond the included ones, `total` billed, `originalTotal` before an « offered »
     flag. `null` when there is no supplement. Same helper as the devis PDF row
     (`resolveExtraGuestPdfRow`); `extraGuestSurcharge` stays for older consumers.
@@ -649,11 +653,11 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
   "_hp": ""
 }
 ```
-  - `resources` / `babyBeds`: supplements and cots (specs/site-booking-notifications.md rule 16).
-    Cancellation insurance, when taken, is one more `options` line (specs/cancellation-insurance.md).
-  - `termsVersion`: the CGV version the guest ticked (specs/terms-acceptance-record.md).
+  - `resources` / `babyBeds`: supplements and cots (specs/site/site-booking-notifications.md rule 16).
+    Cancellation insurance, when taken, is one more `options` line (specs/payments/cancellation-insurance.md).
+  - `termsVersion`: the CGV version the guest ticked (specs/reservations/terms-acceptance-record.md).
   - `attribution` (optional, plugin ≥ 1.14.0): where the visit came from, recorded by the plugin on
-    the landing page (specs/site-traffic-analytics.md rules 13-17). Known keys only, 200 characters
+    the landing page (specs/site/site-traffic-analytics.md rules 13-17). Known keys only, 200 characters
     each. **Never a reason to refuse**: a malformed record is dropped and the request proceeds with
     an unknown origin. The server classifies it into `attributionChannel` / `attributionLabel`.
 - **Behavior:** validate → honeypot → re-check availability + capacity + min-nights →
@@ -857,7 +861,7 @@ can show "dates held while we confirm".
   explicit consent flag is required/stored in this version.
 - **Q4 — Anti-spam → HONEYPOT + RATE LIMIT ONLY.** No CAPTCHA; the WordPress proxy owns bot
   filtering. GuestFlow enforces the `_hp` honeypot + `bookingRequestLimiter`.
-- *(2026-10-25: a second, read-only key for Roostview — see [roostview-api-key.md](roostview-api-key.md). The site key below is unchanged.)*
+- *(2026-10-25: a second, read-only key for Roostview — see [roostview-api-key.md](../plugins/roostview-api-key.md). The site key below is unchanged.)*
 - **Q5 — Key management → SINGLE STATIC KEY.** One `PUBLIC_API_KEY` in `server/.env.local`. Rotation
   = change the value + restart (brief coordinated update with the proxy). Multi-key revocation is
   deferred (additive later).

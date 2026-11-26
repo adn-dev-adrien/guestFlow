@@ -7,7 +7,7 @@
 | **Created** | 2026-11-08 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Summary page** | [docs/specs/2026-11-08-mixed-method-payments.html](../docs/specs/2026-11-08-mixed-method-payments.html) — interactive mock, 390 and 1280 px |
+| **Summary page** | [docs/specs/2026-11-08-mixed-method-payments.html](../../docs/specs/2026-11-08-mixed-method-payments.html) — interactive mock, 390 and 1280 px |
 
 ---
 
@@ -147,7 +147,7 @@ books, the bank reconciliation and the finance figures count exactly the part th
     shortfall due reaches 0, the target is settled.
 18. **Geste commercial.** The settlement keeps `shortfallCents` with `shortfallKind = 'waived'`; the target
     is settled. The waived amount is a **« Réduction accordée »**, the same movement as the single arrival
-    payment's réduction ([arrival-payment-detail-and-adjustment.md](arrival-payment-detail-and-adjustment.md)
+    payment's réduction ([arrival-payment-detail-and-adjustment.md](../sas/arrival-payment-detail-and-adjustment.md)
     rules 10, 20, 24): `comptaCollected` and the turnover subtract it, and the books get a rabais entry
     (crédit client / débit `70900000` + TVA at the stay's rate) at the settlement date. Its share on the
     books is `waived × booksCents / receivedCents`; a settlement entirely in the caisse interne books no
@@ -317,11 +317,11 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 48. **Every boot re-checks the split payments (R34-DB-L1).** `paymentSettlementsModel.syncAll()` runs at every boot
     before the server answers (beside the devis re-store): a settlement whose payment was taken back by a release that
     knew nothing of them (a rollback, then the roll-forward) is dropped and the aggregates refreshed. Accepted, recorded
-    as a reading of [self-update-and-releases.md](self-update-and-releases.md) rule 39: during the rollback window
+    as a reading of [self-update-and-releases.md](../hosting/self-update-and-releases.md) rule 39: during the rollback window
     itself the older release counts a split bucket whole (its caisse-interne share and its reste on the books).
 49. **The VAT regime switch names the months of a split payment (R34-M-L1).** `vatRegimeSwitchModel.monthsOfPayments`
     adds each settlement's month when it has a line on the books (a reste collected later included): the preview's
-    `exportMonths` lists every month the switch rewrites ([vat-optional-mode.md](vat-optional-mode.md) rule 17).
+    `exportMonths` lists every month the switch rewrites ([vat-optional-mode.md](../accounting/vat-optional-mode.md) rule 17).
 
 ### 3.13 Round-34 verification (2026-11-09)
 
@@ -480,7 +480,7 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 ### 3.15 An amount received in advance from a plugin's prepaid instrument (SDK 2.33.0, 2026-11-15)
 
 > The rules below are numbered 60-63 and added at the end, never inserted: a rule number is an identity. They are written for
-> a plugin that keeps a balance (the gift vouchers of `specs/gift-vouchers.md` rules 36-42), and name none: a made-up stored
+> a plugin that keeps a balance (the gift vouchers of `specs/gift-vouchers/gift-vouchers.md` rules 36-42), and name none: a made-up stored
 > credit is what `prepaid-received-amount.unit.test.js` uses.
 
 60. **A prepaid line.** `payment_tenders.method` gains `'prepaid'`; a line of that method carries the plugin's `source`, its own
@@ -556,7 +556,7 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 | `controllers/` | `paymentSettlementsController.js` | C | Thin HTTP for the remainder and the modification |
 | `models/` | `reservationsModel.js`, `installmentsModel.js` | T | Every write that can take a payment back calls `sync` |
 | `utils/` | `refundUntickGuard.js` | T | A payment taken back no longer subtracts its settlement's caisse share; the aggregates of the written state, no refusal without a book refund (rule 42) |
-| `plugins/sdk/` | `index.js`, `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | SDK 2.24.0: `paymentTenders`, `paymentSettlementsModel`, `paymentSettlementService` ([plugins-phase-1-sdk.md](plugins-phase-1-sdk.md) rule 42); `accounting-export` 1.1.0, `online-payment` 1.6.0, `sas` 1.8.0 ask for `^2.24.0` |
+| `plugins/sdk/` | `index.js`, `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | SDK 2.24.0: `paymentTenders`, `paymentSettlementsModel`, `paymentSettlementService` ([plugins-phase-1-sdk.md](../plugins/plugins-phase-1-sdk.md) rule 42); `accounting-export` 1.1.0, `online-payment` 1.6.0, `sas` 1.8.0 ask for `^2.24.0` |
 | `routes/` | `reservations.js` | T | Two routes for the controller above (§4.3) |
 | `controllers/` | `reservationsController.js` | T | `updatePayment`, `settleArrivalPayment`: accept optional `tenders` + `shortfall`, write the mark and the settlement atomically; undo deletes settlements |
 | `controllers/` | `installmentsController.js` | T | Installment payment accepts `tenders`, writes `paidMethod = 'mixed'` |
@@ -826,7 +826,7 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - A pourboire when the lines exceed the amount due (refused, rule 6).
 - « Encaissements par moyen de paiement » in the accounting synthesis broken down by the new methods
   (the data will exist; the panel is a follow-up).
-- **Accepted (audit R34-CON-L1, 2026-11-09):** a plugin rollback ([plugins-phase-4-registry.md](plugins-phase-4-registry.md)
+- **Accepted (audit R34-CON-L1, 2026-11-09):** a plugin rollback ([plugins-phase-4-registry.md](../plugins/plugins-phase-4-registry.md)
   rule 16, « Revenir à la version précédente ») below accounting-export 1.1.0 or online-payment 1.6.0 exports and
   reconciles split payments as whole payments (the caisse-interne share booked as revenue, a reste as collected, no
   rabais for a geste, the cash share expected at the bank) for as long as the rollback stands. Nothing stored changes;

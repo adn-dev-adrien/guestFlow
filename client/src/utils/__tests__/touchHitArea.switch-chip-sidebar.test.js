@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 29 — switches, clickable chips, inline links and the sidebar rows reach 44 px on touch.
+// specs/design-system/ds-components.md rule 29 — switches, clickable chips, inline links and the sidebar rows reach 44 px on touch.
 import theme from '../../theme';
 import { COARSE_POINTER, touchHitArea } from '../touchHitArea';
 

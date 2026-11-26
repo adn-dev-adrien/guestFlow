@@ -1,6 +1,6 @@
 /**
  * GET /api/reservations/upcoming — every arrival from today on, grouped by day and shaped for its cards
- * (specs/inte-performance.md rule 12), in ONE response (specs/upcoming-reservations-cards.md rule 6). The page used to fetch the list and
+ * (specs/tech/inte-performance.md rule 12), in ONE response (specs/planning/upcoming-reservations-cards.md rule 6). The page used to fetch the list and
  * then each reservation on its own: one call per stay, enough to hit the API rate limit and lock the
  * whole app out once a season was booked.
  *

@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../models/optionsModel');
 
-// specs/per-property-option-prices.md — an option carries a base price, and an optional per-property
+// specs/options/per-property-option-prices.md — an option carries a base price, and an optional per-property
 // override (property_option_prices). The model must persist overrides, expose them as a
 // `propertyPrices` map, and resolve the EFFECTIVE price in listForProperty (override wins, base
 // fallback; blank = inherit = no row; explicit 0 = free). Global options can carry overrides too.
@@ -53,7 +53,7 @@ test('listForProperty returns the EFFECTIVE price: override wins, base is the fa
 
 test('a « Tous les logements » option (linked to all) can carry a per-property override', () => {
   const model = freshDb();
-  // specs/option-property-scope.md: « Tous » = linked to every property; override only on 10.
+  // specs/options/option-property-scope.md: « Tous » = linked to every property; override only on 10.
   const { id } = model.create({ title: 'Petit déjeuner', priceType: 'per_person', price: 9, propertyIds: [10, 99], propertyPrices: { 10: 12 } });
 
   assert.equal(model.listForProperty(10).find((o) => o.id === id).price, 12, 'overridden on 10');

@@ -11,6 +11,8 @@
 | **Amends** | [weekly-bed-linen-tracking.md](weekly-bed-linen-tracking.md) §3.7, [linen-inventory-shortage-tracking.md](linen-inventory-shortage-tracking.md) §3.3, [laundry-bath-mat.md](laundry-bath-mat.md) §3 rule 11 |
 | **Related PR** | #410 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -28,9 +30,9 @@ puts a reservation in the linen contract**:
 
 | Layer | Rule applied today |
 |---|---|
-| [laundryModel.js](../server/src/models/laundryModel.js) — counting | reservation counts if it has an explicit `countsAsBedLinen` option **OR** its property declares one as a default (§3.7 of the weekly spec) |
-| [reservationsController.js](../server/src/controllers/reservationsController.js) `hasBedLinenOption` — saving | looks at the **explicit** option list only → forces `singleBeds / doubleBeds` to `0` when the row is absent |
-| [ReservationPage.jsx](../client/src/pages/ReservationPage.jsx) `bedLinenForcedOptionIds` — editing | empty in edit mode (reservation-option-immutability) → the bed inputs are not even rendered |
+| [laundryModel.js](../../server/src/plugins/linen/laundryModel.js) — counting | reservation counts if it has an explicit `countsAsBedLinen` option **OR** its property declares one as a default (§3.7 of the weekly spec) |
+| [reservationsController.js](../../server/src/controllers/reservationsController.js) `hasBedLinenOption` — saving | looks at the **explicit** option list only → forces `singleBeds / doubleBeds` to `0` when the row is absent |
+| [ReservationPage.jsx](../../client/src/pages/ReservationPage.jsx) `bedLinenForcedOptionIds` — editing | empty in edit mode (reservation-option-immutability) → the bed inputs are not even rendered |
 
 Concretely, on **Aventura lodge** — the only property where « Linge de lit » is a *chargeable*
 default (`offered = 0`, versus `offered = 1` on the Gîte) — a reservation that does not carry the

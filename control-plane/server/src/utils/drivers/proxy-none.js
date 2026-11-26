@@ -1,5 +1,5 @@
 /**
- * The `none` proxy driver (specs/hosting-h1-fleet-runtime.md H-D6): development and CI, where each
+ * The `none` proxy driver (specs/hosting/hosting-h1-fleet-runtime.md H-D6): development and CI, where each
  * instance answers on its own port and nothing stands in front. It still records what the proxy
  * would serve — a site, the closed page, a redirect — in `<root>/proxy-routes.json`, so the
  * lifecycle can be followed and tested.

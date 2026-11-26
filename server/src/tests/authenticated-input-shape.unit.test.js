@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68 (audit R22: R22-A1, R22-I3, R22-I4, R22-4, N4, R22-P2) — through the
+// specs/hosting/hosting-h2-account-security.md rule 68 (audit R22: R22-A1, R22-I3, R22-I4, R22-4, N4, R22-P2) — through the
 // real application: a wrong JSON type on the authenticated API is a 4xx, never a 500 and never an `[unhandled]` line.
 const test = require('node:test');
 const assert = require('node:assert/strict');

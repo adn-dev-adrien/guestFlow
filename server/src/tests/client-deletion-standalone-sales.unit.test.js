@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 74 (the shared « Passage » client), specs/outside-booking-sas.md §5, CLAUDE.md §8 (end review R1-3) — a client a
+// specs/pricing/pricing-components.md rule 74 (the shared « Passage » client), specs/sas/outside-booking-sas.md §5, CLAUDE.md §8 (end review R1-3) — a client a
 // sale outside a stay names, and the « Passage » client, are never orphans: the cleanup leaves them and their own delete is refused.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

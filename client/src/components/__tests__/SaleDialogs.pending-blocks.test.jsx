@@ -1,5 +1,5 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t21 UI21-1), specs/outside-booking-sas.md rule 54 (reading 2026-11-18, loop
-// t21 UI21-1 and the verifier's reserve), specs/pricing-components.md rule 117 (reading 2026-11-18, loop t21 UI21-1) — a block of a sale dialog
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading 2026-11-18, loop t21 UI21-1), specs/sas/outside-booking-sas.md rule 54 (reading 2026-11-18, loop
+// t21 UI21-1 and the verifier's reserve), specs/pricing/pricing-components.md rule 117 (reading 2026-11-18, loop t21 UI21-1) — a block of a sale dialog
 // that reads a SECOND request (a quote, a preview of the payment typed) is drawn with the content, in a pending state of the place it takes, and
 // the answer fills it: nothing lands under content already drawn. The dialogs are enumerated from the code — every file that asks a quote/preview
 // hook and renders a sale block — and a new one fails here until its late blocks are in the table. Each row holds the second request, checks the

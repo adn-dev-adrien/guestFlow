@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 53, 88 and owner Q-C11 — the three catalogue fields of an article sold outside a stay: « Vendable hors séjour », its VAT class and the external
+// specs/pricing/pricing-components.md §3 rules 53, 88 and owner Q-C11 — the three catalogue fields of an article sold outside a stay: « Vendable hors séjour », its VAT class and the external
 // rate of that class. Server validation (the only one that can reject a write): a family that needs a stay answers NEEDS_STAY, a class with no external rate is refused,
 // the rate is the one of the whole class; the write stores what the payload carries and a key not sent keeps the stored value.
 process.env.DB_PATH = ':memory:';

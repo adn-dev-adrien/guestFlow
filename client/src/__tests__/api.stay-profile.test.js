@@ -1,4 +1,4 @@
-// specs/stay-profile.md §3 rule 1 — the « Profil des séjours » asks with the dashboard's window and
+// specs/accounting/stay-profile.md §3 rule 1 — the « Profil des séjours » asks with the dashboard's window and
 // logement parameters, empty ones left out.
 import { vi } from 'vitest';
 import api from '../api';

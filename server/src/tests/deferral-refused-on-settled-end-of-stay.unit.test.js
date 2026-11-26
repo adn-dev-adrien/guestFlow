@@ -1,4 +1,4 @@
-// Audit R28 verification N2 (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rule 23. « Settled together »
+// Audit R28 verification N2 (2026-11-08) — specs/sas/defer-arrival-complement-to-checkout.md rule 23. « Settled together »
 // reads the paid date and the caisse flag only, so an end of stay collected on its own, then a deferral switched on and
 // a complement marked the same day, read as one collection: « Annuler » cleared the end of stay too. The deferral is
 // refused instead while the end of stay is settled (books or caisse interne), on every writer of the marker: the fiche's

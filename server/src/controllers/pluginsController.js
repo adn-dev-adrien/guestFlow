@@ -1,8 +1,8 @@
 /**
- * Plugins controller (specs/plugins-phase-0-foundation.md §3.B, §4.3). Owns the states, the refusal
+ * Plugins controller (specs/plugins/plugins-phase-0-foundation.md §3.B, §4.3). Owns the states, the refusal
  * rules and the payload the Plugins page renders; the page never derives a state itself.
  *
- * specs/plugins-phase-4-registry.md rules 10–16, 20–22: each plugin's version, the version offered
+ * specs/plugins/plugins-phase-4-registry.md rules 10–16, 20–22: each plugin's version, the version offered
  * (registry or release archive), the update with its changelog lines, the rollback window, the
  * refusals in French; install from a package, update and rollback with a restart.
  */
@@ -68,7 +68,7 @@ function blockerFor(id, model) {
           : '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.',
       };
     }
-    // specs/payment-link-lifecycle.md rule 52 — the last look of a lapsed link, or of one withdrawn for taken dates
+    // specs/payments/payment-link-lifecycle.md rule 52 — the last look of a lapsed link, or of one withdrawn for taken dates
     // (rule 64), is still owed.
     const looks = model.countPendingLastLooks ? model.countPendingLastLooks() : 0;
     if (looks > 0) return lastLookBlocker(looks);
@@ -98,7 +98,7 @@ function blockerFor(id, model) {
   return null;
 }
 
-// deps (specs/plugins-phase-1-sdk.md): the module registry, the database the erasure runs on, the
+// deps (specs/plugins/plugins-phase-1-sdk.md): the module registry, the database the erasure runs on, the
 // plugin settings model, the loader's migrate + install hooks. All injectable for tests.
 function createController(model = defaultModel, deps = {}) {
   const reg = deps.registry || registry;
@@ -119,7 +119,7 @@ function createController(model = defaultModel, deps = {}) {
     registry: (id) => (packages() ? host().registryClient().versions(id) : []),
     bundled: (id) => host().runningCopy(id),
   });
-  // specs/plugin-removal-resilience.md rule 1 — an installed plugin this release no longer ships is
+  // specs/plugins/plugin-removal-resilience.md rule 1 — an installed plugin this release no longer ships is
   // still listed (under the name its row's manifest carries), so it can be uninstalled.
   const bareEntry = (id, m = {}) => ({
       id,
@@ -159,7 +159,7 @@ function createController(model = defaultModel, deps = {}) {
     allows,
   });
 
-  // specs/plugin-dependencies.md rule 2 — the graph of the plugins in play: an installed plugin is read
+  // specs/plugins/plugin-dependencies.md rule 2 — the graph of the plugins in play: an installed plugin is read
   // by its own row's manifest (a registry version may have changed its `requires`), the others by the
   // catalogue's.
   function graph(substitute = {}) {
@@ -195,7 +195,7 @@ function createController(model = defaultModel, deps = {}) {
     }
   }
 
-  // specs/control-plane-plans-and-access.md rules 11–12 — a plugin outside the licence keeps its
+  // specs/hosting/control-plane-plans-and-access.md rules 11–12 — a plugin outside the licence keeps its
   // stored state (so an upgrade brings it back untouched) and carries the plan that includes it.
   const planHint = (plan) => (plan ? `Inclus dans le forfait ${plan}, sur demande.` : 'En option, sur demande.');
 
@@ -328,7 +328,7 @@ function createController(model = defaultModel, deps = {}) {
   }
 
   /**
-   * specs/plugins-phase-0-foundation.md rule 25 — the state a card tells and the action it offers:
+   * specs/plugins/plugins-phase-0-foundation.md rule 25 — the state a card tells and the action it offers:
    * an active plugin that still lacks something reads « Actif · à connecter » and offers
    * « Configurer », the others « Réglages » when they have a place to be set up. The plugin says what
    * it lacks (`ctx.setupStatus`); a check that throws counts as nothing missing.
@@ -660,7 +660,7 @@ function createController(model = defaultModel, deps = {}) {
     return { restart: false };
   }
 
-  // specs/plugin-dependencies.md rule 44 — the confirmation carries the ids the operator saw. 'none': nothing
+  // specs/plugins/plugin-dependencies.md rule 44 — the confirmation carries the ids the operator saw. 'none': nothing
   // confirmed (the plan is only proposed); 'ok': the same set; 'stale': the closure moved since the click.
   function confirmation(given, expected) {
     if (!Array.isArray(given) ? !given : !given.length) return 'none';
@@ -692,7 +692,7 @@ function createController(model = defaultModel, deps = {}) {
     return true;
   }
 
-  // specs/plugin-dependencies.md rule 10 — the same plan in a development tree: the requirements'
+  // specs/plugins/plugin-dependencies.md rule 10 — the same plan in a development tree: the requirements'
   // rows are installed or switched on first, from the sources, under the same confirmation. All or
   // nothing: a step that fails undoes the rows written before it.
   async function installFromSources(entry, req, res) {
@@ -804,7 +804,7 @@ function createController(model = defaultModel, deps = {}) {
     // A version other than the one still loaded needs a restart (rule 13): refused up front without a
     // supervisor, like an update.
     const needsRestart = steps.some((st) => st.op === 'install' && state.loaded[st.id] && state.loaded[st.id] !== st.candidate.version);
-    // The reconciliation never restarts the process (specs/plugin-operator-provisioning.md rule 17).
+    // The reconciliation never restarts the process (specs/plugins/plugin-operator-provisioning.md rule 17).
     if (needsRestart && req.noRestart) {
       return res.status(409).json({ error: 'RESTART_REQUIRED', message: 'Redémarrage nécessaire — passer par Versions › Plugins.' });
     }
@@ -818,7 +818,7 @@ function createController(model = defaultModel, deps = {}) {
     return underLock(res, async (restart) => {
       const undo = [];
       // The activation hooks wait for the whole install to commit: a requirement undone with its dependant
-      // must not have announced itself (specs/plugin-removal-resilience.md rule 17).
+      // must not have announced itself (specs/plugins/plugin-removal-resilience.md rule 17).
       const installed = [];
       const activated = [];
       const rollback = () => undo.reverse().forEach((step) => step());
@@ -887,11 +887,11 @@ function createController(model = defaultModel, deps = {}) {
     return entry;
   }
 
-  // specs/plugins-phase-4-registry.md rule 12 — a plugin another installed plugin requires stays
+  // specs/plugins/plugins-phase-4-registry.md rule 12 — a plugin another installed plugin requires stays
   // installed; rule 36 — and stays active while an ACTIVE plugin requires it (one the licence does not
   // allow is not live, so it does not count). The reconciliation (`reconciling`) ignores the dependants
   // the licence does not allow when it uninstalls: they sit out of the plan with their state kept (rule 21).
-  // specs/plugin-dependencies.md rule 12 — the answer names them, for the card that asks to take them along.
+  // specs/plugins/plugin-dependencies.md rule 12 — the answer names them, for the card that asks to take them along.
   function refuseIfRequiredBy(entry, res, { activeOnly = false, reconciling = false } = {}) {
     const g = graph();
     const dependents = activeOnly
@@ -914,7 +914,7 @@ function createController(model = defaultModel, deps = {}) {
 
   return {
     // GET /api/plugins — on an operator-managed space only what a feature needs: the live plugins,
-    // each as { id, name, icon, setup } (specs/plugin-operator-provisioning.md rule 5).
+    // each as { id, name, icon, setup } (specs/plugins/plugin-operator-provisioning.md rule 5).
     list(req, res) {
       const g = graph();
       if (!operatorManaged()) return res.json(catalogue().map((entry) => view(entry, g)));
@@ -942,7 +942,7 @@ function createController(model = defaultModel, deps = {}) {
       return installFromSources(entry, req, res);
     },
 
-    // GET /api/plugins/page?path=/comptabilite — specs/plugins-phase-p-productisation.md rules 40, 42:
+    // GET /api/plugins/page?path=/comptabilite — specs/plugins/plugins-phase-p-productisation.md rules 40, 42:
     // the address of a page whose plugin is off reads « Plugin inactif », not « Page introuvable ».
     // A page shows while any of its plugins is active: then the address answers like a core page.
     pageOwner(req, res) {
@@ -1050,7 +1050,7 @@ function createController(model = defaultModel, deps = {}) {
       });
     },
 
-    // POST /api/plugins/:id/activate — specs/plugin-dependencies.md rule 11: `withRequirements` switches on
+    // POST /api/plugins/:id/activate — specs/plugins/plugin-dependencies.md rule 11: `withRequirements` switches on
     // the requirements that are off first, in order, all or nothing. One not installed is never a side effect.
     activate(req, res) {
       const entry = resolve(req, res);
@@ -1101,7 +1101,7 @@ function createController(model = defaultModel, deps = {}) {
       return res.json(revived.length ? { ...view(entry), reload: true, revived } : view(entry));
     },
 
-    // POST /api/plugins/:id/deactivate — rule 5: data and settings kept. specs/plugin-dependencies.md
+    // POST /api/plugins/:id/deactivate — rule 5: data and settings kept. specs/plugins/plugin-dependencies.md
     // rule 12: `withDependents` switches off the active plugins that need it first, deepest first;
     // a business blocker on any of them refuses the whole operation and names that plugin.
     deactivate(req, res) {
@@ -1192,10 +1192,10 @@ function createController(model = defaultModel, deps = {}) {
       if (unknown.length) return res.status(400).json({ error: 'UNKNOWN_SETTING', keys: unknown });
       const internal = record.settings.filter((k) => k.internal && Object.prototype.hasOwnProperty.call(body, k.key)).map((k) => k.key);
       if (internal.length) return res.status(400).json({ error: 'INTERNAL_SETTING', keys: internal });
-      // A declared `validate(value, body) → message | null` refuses the whole write (specs/plugins-phase-2-hosts.md
+      // A declared `validate(value, body) → message | null` refuses the whole write (specs/plugins/plugins-phase-2-hosts.md
       // rule 15: the linen stock and laundry day keep the checks the core settings form had). `body` is
       // the whole write, for a key that depends on another one sent with it
-      // (specs/google-vacation-rentals-feed.md rule 16: « Envoi » needs the partner id).
+      // (specs/site/google-vacation-rentals-feed.md rule 16: « Envoi » needs the partner id).
       const errors = {};
       record.settings.forEach(({ key, secret, validate }) => {
         if (!Object.prototype.hasOwnProperty.call(body, key)) return;

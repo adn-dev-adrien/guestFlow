@@ -7,7 +7,7 @@ import SettingsGoogleCalendarSection from '../SettingsGoogleCalendarSection';
 import DialogProvider from '../../../components/DialogProvider';
 import api from '../../../api';
 
-// specs/google-calendar-oauth-rework.md §6 — self-contained OAuth connect card.
+// specs/settings/google-calendar-oauth-rework.md §6 — self-contained OAuth connect card.
 
 vi.mock('../../../api', () => ({
   __esModule: true,
@@ -118,7 +118,7 @@ test('state 3 — picking a calendar calls setGoogleCalendar', async () => {
   api.getGoogleCalendarStatus.mockResolvedValue({ ...CONNECTED_STATUS, calendarId: null, calendarSummary: null, syncActive: false });
   renderSection();
   await screen.findByText('adrien@example.com');
-  // The select stays disabled until the calendars land, after the call (specs/server-test-isolation.md rule 11).
+  // The select stays disabled until the calendars land, after the call (specs/tech/server-test-isolation.md rule 11).
   await waitFor(() => expect(screen.getByRole('combobox')).not.toHaveAttribute('aria-disabled', 'true'));
 
   fireEvent.mouseDown(screen.getByRole('combobox'));

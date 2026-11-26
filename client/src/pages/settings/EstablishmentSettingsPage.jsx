@@ -1,5 +1,5 @@
 /**
- * EstablishmentSettingsPage — Paramètres → Établissement (specs/settings-rationalization.md rule 2).
+ * EstablishmentSettingsPage — Paramètres → Établissement (specs/settings/settings-rationalization.md rule 2).
  *
  * Identity, logo, contact, bank details, gate code, the devis settings (validity, FR / EN
  * footers) and the online booking horizon. The contact email is also the source every sending address falls back to (rule 12).

@@ -1,4 +1,4 @@
-// Shared fixture of the specs/reservation-payment-ledger.md suites: an in-memory GuestFlow database
+// Shared fixture of the specs/payments/reservation-payment-ledger.md suites: an in-memory GuestFlow database
 // (the real schema), one property, and helpers that drive the real reservations controller — create,
 // save, live quote, payment PATCH — the way the fiche does.
 //
@@ -38,7 +38,7 @@ function seed() {
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Registre')").run();
 }
 
-/** `YYYY-MM-DD`, `days` after today: every stay date of these suites hangs on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: every stay date of these suites hangs on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 /** The fiche's save body for a 3-night stay of two adults, far enough ahead to carry an acompte. */

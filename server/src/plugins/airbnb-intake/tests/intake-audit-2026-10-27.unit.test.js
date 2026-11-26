@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rules 18, 19, 20 (audit 2026-10-27) — a started stay creates no client,
+// specs/platforms/airbnb-mail-intake.md rules 18, 19, 20 (audit 2026-10-27) — a started stay creates no client,
 // a throwing intake does not stop the pass, the tax mode is the fiche's own platform's.
 const test = require('node:test');
 const assert = require('node:assert/strict');

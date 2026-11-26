@@ -1,6 +1,6 @@
 /**
  * Paid online payments left without a stay: `payment_links` carries no foreign key, so a stay deleted
- * before the delete guard (specs/plugins-phase-3a-online-payment.md rule 27) left its money record
+ * before the delete guard (specs/plugins/plugins-phase-3a-online-payment.md rule 27) left its money record
  * behind. A link retired after the guest paid it keeps its `paidAt` (rule 8), so it counts too.
  */
 function countOrphanPaidLinks(db) {

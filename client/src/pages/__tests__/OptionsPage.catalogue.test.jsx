@@ -1,4 +1,4 @@
-// specs/options-resources-ux.md rules 8-11, 22, 26-27 — the options catalogue: foldable sections, a row
+// specs/options/options-resources-ux.md rules 8-11, 22, 26-27 — the options catalogue: foldable sections, a row
 // that opens the editor, the « ⋯ » menu, search, property filter, category chips, states, archive section.
 import React from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';

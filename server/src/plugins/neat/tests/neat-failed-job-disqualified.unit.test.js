@@ -1,5 +1,5 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §3.2 rule 16 — a FAILED job (Neat was down,
+ * specs/plugins/neat-cancellation-insurance-subscription.md §3.2 rule 16 — a FAILED job (Neat was down,
  * the backoff ladder keeps retrying it) whose reservation stops qualifying is dropped like a
  * pending one, so its retry never prices and subscribes a paid policy for a stay that no longer
  * wants it.

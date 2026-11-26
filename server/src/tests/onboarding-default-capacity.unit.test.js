@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.D rule 21 (2026-10-23) — the capacity the start assistant
+// specs/plugins/plugins-phase-p-productisation.md §3.D rule 21 (2026-10-23) — the capacity the start assistant
 // proposes is the server's: two per double bed, one per single bed, within 1–50; a property saved
 // without a capacity takes it.
 

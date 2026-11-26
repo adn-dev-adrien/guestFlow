@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 51 — a day picker over a long horizon: month chips from the current month to the
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 51 — a day picker over a long horizon: month chips from the current month to the
 // horizon's, a month grid with the days past the horizon (and before today) disabled, « Prochaine disponibilité ».
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';

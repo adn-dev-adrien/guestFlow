@@ -3,7 +3,7 @@
  * (`platforms.name`, `ical_sources.platformLabel`, `reservations.platform`) to the canonical
  * UpperCamelCase form computed by `utils/platformNameFormat.formatPlatformName`.
  *
- * Spec: specs/normalize-platform-names.md §3.3.
+ * Spec: specs/platforms/normalize-platform-names.md §3.3.
  *
  * Gated by the caller via `migrations.platform_names_normalized_v1`. This function does NOT
  * check or insert into the `migrations` table — it just runs the work. The boot path in

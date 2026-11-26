@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 25, 29 and 30, and the small contracts around them — a devis is a live
+// specs/accounting/vat-optional-mode.md rules 25, 29 and 30, and the small contracts around them — a devis is a live
 // offer only while it is open (a converted one follows its reservation, an accepted or expired one keeps
 // its own period); the settings mirror follows a period that starts today; the resolver refuses a row that
 // states neither its period nor that it is a new sale; a decimal comma is a rate; the accountant's read of

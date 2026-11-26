@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/defer-arrival-complement-to-checkout.md rule 23 (audit R28 verification N2) — « Percevoir en fin de séjour » is
+// specs/sas/defer-arrival-complement-to-checkout.md rule 23 (audit R28 verification N2) — « Percevoir en fin de séjour » is
 // closed while the end-of-stay complement is collected (books or caisse interne), and says why.
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));

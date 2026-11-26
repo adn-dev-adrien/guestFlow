@@ -7,7 +7,7 @@ const path = require('node:path');
 const { createUpdateStateModel, concludeAbandonedSwap, notesForVersion } = require('../models/updateStateModel');
 const { resolvePaths } = require('../utils/deploymentPaths');
 
-// specs/self-update-and-releases.md §3.F + §5. This state is the only thing that survives the
+// specs/hosting/self-update-and-releases.md §3.F + §5. This state is the only thing that survives the
 // process being replaced mid-update, so it is also the only way the new instance can tell the user
 // what happened to the old one.
 
@@ -143,7 +143,7 @@ test('reconcileOnBoot on a half-finished update drops the lock without inventing
   cleanup();
 });
 
-// specs/self-update-and-releases.md §3.E rules 28 + 30b — the 2026-08-20 production incident. PM2
+// specs/hosting/self-update-and-releases.md §3.E rules 28 + 30b — the 2026-08-20 production incident. PM2
 // tree-kills the descendants of the process it restarts, and the swap helper is one of them: it died
 // the instant it asked for the restart, leaving `restarting` in the status file forever. The overlay
 // spun on that through every reload. The version that came up is the verdict the helper never wrote.
@@ -247,7 +247,7 @@ test('dismissVersion is remembered across reads', () => {
   cleanup();
 });
 
-// specs/self-update-and-releases.md §4.6 — a deployment may leave DB_PATH unset and rely on the
+// specs/hosting/self-update-and-releases.md §4.6 — a deployment may leave DB_PATH unset and rely on the
 // historical wiring instead: `current/server/guestflow.db` symlinked into `~/guestflow/data/`. That
 // is how the production host was set up. Taking the link at face value would put the data directory
 // inside the release, where the update state would be destroyed by the very swap it must survive.

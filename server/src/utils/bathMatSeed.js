@@ -1,5 +1,5 @@
 /**
- * Default "Tapis de bain" option seeder (specs/laundry-bath-mat.md §3 rule 1).
+ * Default "Tapis de bain" option seeder (specs/linen/laundry-bath-mat.md §3 rule 1).
  *
  * Strict mirror of utils/bathroomLinenSeed.js — same idempotent + non-destructive contract, same
  * skip rules, same priceType / autoEnabled / undeletability story. The only differences:
@@ -12,7 +12,7 @@
  *   2. No row already has `countsAsBathMat = 1` (operator-customised).
  */
 
-// English title used by the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+// English title used by the EN devis PDF (specs/devis/devis-english-language.md §3 rule 6).
 const SEED_DEFINITION_EN = Object.freeze({
   title: 'Bath mat',
 });
@@ -57,7 +57,7 @@ function ensureDefaultBathMatOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
-    // `displayToClient = 0` → bath mats are internal-only by default (specs/laundry-bath-mat.md §3
+    // `displayToClient = 0` → bath mats are internal-only by default (specs/linen/laundry-bath-mat.md §3
     // rule 12): counted in the laundry cards + stock, hidden from every client-facing surface until
     // the operator flips the switch. Guarded: only set when the column exists (else the legacy
     // INSERT shape is used and the row defaults to visible — harmless on minimal schemas).

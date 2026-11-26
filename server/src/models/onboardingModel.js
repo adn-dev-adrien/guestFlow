@@ -1,5 +1,5 @@
 /**
- * Onboarding model — `app_settings.onboardingCompletedAt` (specs/plugins-phase-p-productisation.md
+ * Onboarding model — `app_settings.onboardingCompletedAt` (specs/plugins/plugins-phase-p-productisation.md
  * §3.D rules 20–22). Empty means the start assistant is still open.
  *
  * API: buildModel(db) → { isOpen(), complete() }

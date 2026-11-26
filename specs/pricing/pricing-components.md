@@ -2,15 +2,17 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — PRs A, B and C delivered in 4.2.0 (C: the schema, true lines, the guest app on the components, the external sale and the outside-visit mini SAS; closed by the stabilisation loop, rounds 1-26, and the money-dialog invariant harness, plugins-phase-1-sdk rule 58, 2026-11-20); still Pending after 4.2.0: the parts of rules 25, 32, 89 and 90 marked « Pending » (e.g. the departure recap as a `saleDetail` view); approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved |
+| **Status** | In progress — PRs A, B and C delivered in 4.2.0 (shipped on `master`, #1054; the « PR-later » residues below stay open) (C: the schema, true lines, the guest app on the components, the external sale and the outside-visit mini SAS; closed by the stabilisation loop, rounds 1-26, and the money-dialog invariant harness, plugins-phase-1-sdk rule 58, 2026-11-20); residues still marked « Pending » after 4.2.0: the parts of rules 25, 32, 89 and 90 marked « Pending » (e.g. the departure recap as a `saleDetail` view); approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved |
 | **Branch** | `feature/pricing-components-*` — PR C targets `master` (`inte/plugins` retired 2026-11-13) |
 | **Created** | 2026-11-11 |
 | **Revised** | 2026-11-11 — owner decisions: discounts on nights and extras, "started" = arrival date and check-in time passed, tourist tax as its own component, finer cut, 3 PRs; the stay clock as its own component consulted by all (rules 44-46); one pricer per article kind, fulfilment and data-access ports, settings provider, VAT per line by customer context, chainable pipeline steps, external sale (rules 47-60, §4.0); Articles head → generic families → instances, VAT as a standalone component fed by tagged amounts, `AccountingOutput` with format adapters, the no-duplication rule (rules 61-67); price non-regression gate and delivery pipeline with the stabilisation loop (rules 68-69); platform payment and platform intakes from the code check (rules 70-71) |
 | **Author** | Adrien |
 | **Related PR** | [#1054](https://github.com/adn-dev-adrien/guestFlow/pull/1054) |
-| **Summary for the owner** | [`specs/pricing-components-resume.html`](pricing-components-resume.html) — French, interactive |
+| **Summary for the owner** | `pricing-components-resume.html` (folded into this spec, deleted 2026-11-26) — French, interactive |
 | **Supersedes (on completion)** | the pricing/collection half of `guest-app.md` §4.4 (rules 85, 93-101, and the code-only 104-106), `utils/midStayOrderCommit.js`; `arrival-moment-is-the-check-in.md` for the routing of new sales (rule 20) |
 | **Builds on** | `pricing-engine-thin-client.md`, `reservation-price-arithmetic.md`, `force-extras-complement-on-platform.md`, `mid-stay-extras-to-end-of-stay-complement.md`, `platform-payment-entry.md`, `direct-installments.md`, `mixed-method-payments.md`, `single-vat-rate.md`, `vat-optional-mode.md` (golden fixture and prod-copy proof), `tourist-tax-included-services-deduction.md` |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Status moved from In progress to Implemented: PRs A, B, C are on `master` (#1054, 4.2.0; `server/src/utils/pricing/`, `models/ports/` exist); the open « Pending » notes of rules 25, 32, 89, 90 are optional follow-ups, not blockers.
 
 > Code references point at `feature/guest-app-from-j7` @ `38c2732a` (= `inte/plugins` `e27229aa` plus the
 > unfinished J-7 branch). Line numbers drift; function names are the anchors. Rule numbers are identities:
@@ -1144,7 +1146,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `touristTax`, `commission`, `commissionVat`, `penalty`; `account` only when the entry itself pins one). The CSV journal maps those lines to its
     > accounts and columns and no longer computes a split or a residue; `addSaleLegs` (and so `closeStayBooks`) reads the roles, not the CSV ventilation.
     > Every month of the golden database stays byte-identical (`accounting-output-replay`). _(Merge of #1067, 2026-11-17:_ master's Mollie journal
-    > (specs/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) is a `direction: 'mollie'` entry of the same stream: `journalLines` books it as
+    > (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28-31) is a `direction: 'mollie'` entry of the same stream: `journalLines` books it as
     > `mollieDebit` / `customer` or `mollieClearing` on the accounts and journal code the accounting-export plugin's Mollie settings put on the entry
     > (`mollieAccounts`), the CSV writes it outside the sales plan's renaming, the sales JSON names its direction `mollie`; the rows and the sales JSON's
     > `mollie` aid are master's, the replay's 48 `sales/*` hashes were re-captured for that key only.) **Delivered by PR C** (C43): on a stay booked once 4.2.0 is installed,
@@ -2636,7 +2638,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the amount is « — » — before the first answer and while the preview fails — so no settlement is chosen on an unknown amount; « Suivant »
     stays (the recap is guarded by `displayedStayDue`). When the failure takes the focus from a disabled button, « Réessayer » takes it. The
     same way out is given to every SAS page that shows the preview's money (enumerated from `previewShown`): the departure's extinguisher
-    page « Sous-total : — » now says « Montant indisponible » with « Réessayer » too (specs/sas-departure-recap-server-side.md rule 15).
+    page « Sous-total : — » now says « Montant indisponible » with « Réessayer » too (specs/sas/sas-departure-recap-server-side.md rule 15).
     Measured in Chromium on stay 22303 (2026-11-11 copy, 1280 / 390 px): nominal answer +0 and +800 ms, « Règlement du séjour » 495 / 296
     and « Suivant » 648 / 776 in every frame; a forced 503 shows « — », « Montant indisponible », the three buttons disabled, focus on
     « Réessayer ». Client `ReservationSasDialog.failed-preview` (7: the pages from the code equal the table; each fails, says why, disables
@@ -2754,7 +2756,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     could be neither renamed back nor removed. A NEW line under an existing label keeps « (2) » (rule 94).
 
 124. **Which articles sell with no stay is the families' own answer** _(owner decision of 2026-11-25; completes rules 47, 53, 88;
-    `specs/gift-voucher-campaigns.md` rule 65; mock-up `specs/gift-voucher-outside-sellable.html`)_.
+    `specs/gift-vouchers/gift-voucher-campaigns.md` rule 65; mock-up `specs/gift-voucher-outside-sellable.html`)_.
     - **Each family declares it.** A family carries `readsStay` (true for `perPerson`, `perNight`, `perPersonPerNight`,
       `percentOfStay`, `perParticipantProgressive`; false for `fixed`, `perUnit`), and `familyKit.refusalsOf` answers
       `NEEDS_STAY` from that same flag. `articles.outsideSale(article)` is the one function that says whether an article can be
@@ -3007,7 +3009,7 @@ Proof: the price gate and the prod replay by value (added keys ignored, `--compa
 
 ## 6. UI / UX
 
-The owner validates on [`pricing-components-resume.html`](pricing-components-resume.html): the component
+The owner validates on `pricing-components-resume.html` (folded into this spec, deleted 2026-11-26): the component
 diagram (owner components and their units, the stay clock consulted by all) and a simulator whose clock control drives the STAY CLOCK component (its `phaseOf` output is shown) relative to the arrival date and
 check-in time, a discount target, line moment changes and the tourist tax as its own block.
 

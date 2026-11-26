@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 8 and 18 — the fleet: today's alerts, the three
+// specs/hosting/control-plane-plans-and-access.md rules 8 and 18 — the fleet: today's alerts, the three
 // counters as filters, a table on desktop and cards on a phone.
 import React from 'react';
 import { screen, fireEvent, within } from '@testing-library/react';

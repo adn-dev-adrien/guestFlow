@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 56 (c) (stabilisation loop t4 B4-5; reading of rule 31 « no caisse-interne line ») — the invoice is refused
+// specs/sas/outside-booking-sas.md rule 56 (c) (stabilisation loop t4 B4-5; reading of rule 31 « no caisse-interne line ») — the invoice is refused
 // `INTERNAL_CASH` while the document still HOLDS caisse-interne money (the core's `totals.internalHeldCents`), not because a payment once had an internal
 // tender: beers paid in the caisse interne, then offered and given back, leave a card-paid plank that is invoiced.
 process.env.DB_PATH = ':memory:';

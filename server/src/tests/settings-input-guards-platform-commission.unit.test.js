@@ -1,5 +1,5 @@
 // Review amendments: rule 48 — the model refuses too; decimals refused, never rounded.
-// specs/settings-input-guards.md rules 28-31 — platform commissions and payout delays.
+// specs/settings/settings-input-guards.md rules 28-31 — platform commissions and payout delays.
 const path = require('path');
 const os = require('os');
 const fs = require('fs');

@@ -8,20 +8,22 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 6 retired: the property-page card no longer exists (removed with reservation-option-immutability); defaults are edited from the option form (client/src/pages/options/OptionEditorPanel.jsx).
+
 ---
 
 ## 1. Context
 
 Property option **defaults** (« Options incluses ») let an option be auto-added to a property's new
 reservations. The data model is already **per property**: `property_option_defaults(propertyId, optionId,
-offered)` ([database.js](../server/src/database.js)), written via `propertyOptionDefaultsModel.set/unset`
+offered)` ([database.js](../../server/src/database.js)), written via `propertyOptionDefaultsModel.set/unset`
 and the `PUT/DELETE /api/properties/:id/option-defaults/:optionId` endpoints. But today only **linen**
 options can be set as a default: the editor card filters to linen
 ([PropertyDefaultOptionsCard.js:29-37](../client/src/components/PropertyDefaultOptionsCard.js#L29) —
 `isLinenOption`).
 
 Separately, an option's **per-property price** is configured **on the Options page**
-([OptionsPage.js](../client/src/pages/OptionsPage.js), `OptionPriceSection`): for each applicable property,
+([OptionsPage.js](../../client/src/pages/OptionsPage.jsx), `OptionPriceSection`): for each applicable property,
 a price override (`property_option_prices`). The operator wants the **default-inclusion** to work the same
 way — **per applicable property**, configured **beside the per-property price** on the Options page —
 because an option used by several properties must be includable on some and not others.
@@ -53,12 +55,10 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
    > carries an explicit scope (`propertyIds`), a default for a property outside it is **dropped**, not
    > promoted to applicability; « a default implies applicability » now holds only for a payload with no
    > scope.
-6. **Property-side card stays consistent.** The fiche-logement card (`PropertyDefaultOptionsCard`) drops its
-   linen-only filter and lists the **options applicable to that property** (so the same per-property
-   defaults are visible/editable from the property page too — same `property_option_defaults` table, always
-   in sync). [Decision 2026-06-14, Q2: applicable options.]
+6. *(Retired 2026-11-26 — the fiche-logement `PropertyDefaultOptionsCard` was removed; per-property defaults are edited only from the option form's « Logements et prix » table; see specs/options/options-resources-ux.md rule 14 and specs/reservations/reservation-option-immutability.md rule 8.)*
+   > **Sans test** — retired rule
 7. **Future-only (unchanged).** Toggling a default only affects **new** reservations (defaults are
-   snapshotted at create time — see specs/property-default-option-applicability.md). Existing reservations
+   snapshotted at create time — see specs/options/property-default-option-applicability.md). Existing reservations
    are never modified.
 8. **Offered semantics.** `offered = 1` → the option is included **free** (0 € line); `offered = 0` → it's
    auto-added but **billed** (per-property price or base).
@@ -69,7 +69,7 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
    the green **« ✓ Offert »** + struck-through original price (which stays for a manually-offered line). If
    the operator un-offers the line (to bill it), it loses `includedInRate` and shows its real price.
 10. **« Comprise » is mandatory (2026-08-22).** Because such a line is part of the night rate — and,
-   since [tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md),
+   since [tourist-tax-included-services-deduction.md](../tourist-tax/tourist-tax-included-services-deduction.md),
    because its reference value leaves the declared tourist-tax base — it **cannot be removed from a
    booking**: its Switch renders checked + disabled with the « Inclus » caption, and a save that omits
    it is corrected server-side. Scoped to bookings that already carry it (an older reservation never

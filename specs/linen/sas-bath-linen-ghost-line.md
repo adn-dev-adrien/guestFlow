@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -23,7 +25,7 @@ Timeline reconstructed from `reservation_history`:
 | 01/08 15:06 | arrival SAS — bath linen **deferred to check-out** | detail line `{source:'arrivalBathLinen', amount:40}` in `reservations.endOfStayComplementDetail`, `endOfStayComplementAmount = 40` |
 | 03/08 07:12 | option « Linge de toilette » (40 €, `compl.`) added on the fiche | `reservation_options` row with `inComplement = 1` → arrival complement, `complementAmount = 40` |
 
-The two buckets are independent by design (specs/defer-arrival-complement-to-checkout.md §3.2 rule 9)
+The two buckets are independent by design (specs/sas/defer-arrival-complement-to-checkout.md §3.2 rule 9)
 and [`buildCheckoutComplement`](server/src/utils/checkoutComplement.js) concatenates them without
 deduplication, so the merged card shows **2 × 40 € = 80 €** for a single 40 € service. Nothing is
 collected yet (check-out 15/08), so no money has actually moved.
@@ -32,7 +34,7 @@ Three aggravating facts:
 
 1. **The existing self-repair can't fire.** `ReservationSasDialog` already knows how to absorb a legacy
    deferred line: re-opening the arrival SAS pre-selects it as « ajouté » and the re-commit drops it
-   ([ReservationSasDialog.jsx:291-298](client/src/components/sas/ReservationSasDialog.jsx#L291-L298)).
+   ([ReservationSasDialog.jsx:291-298](client/src/plugins/sas/ReservationSasDialog.jsx#L291-L298)).
    But that repair only runs when the bath-linen **step is shown**, and the step is hidden as soon as a
    bath-linen option exists on the reservation. Once both exist, the ghost line is unreachable from the UI.
 2. **A display-only guard is not enough.** `endOfStayComplementAmount` is read straight from SQL by
@@ -113,8 +115,8 @@ same service twice — starting with #10, repaired on deploy without a manual wr
 |---|---|---|---|
 | `utils/` | `bathLinenGhostLine.js` | C | Pure `dropBathLinenGhost(endOfStayComplementDetail)` → `null` when clean, else `{ detail, amount }` to persist. Unit-tested. |
 | `models/` | `reservationsModel.js` | T | Deletes the `endOfStayBathLinen` branch of `commitArrivalSas`; the commit now calls `dropBathLinenGhostLine(id)` unconditionally (rule 2). |
-| `utils/` | `complementDataRepairs.js` | C | `repairBathLinenGhosts(db)` for the boot cleanup. **A util, not a model method:** `database.js` cannot require `reservationsModel` (it binds itself to `require('../database')` at load, so a mid-file require would hand it a half-built module). Shared with [frozen-complement-trusts-client.md](specs/frozen-complement-trusts-client.md). |
-| `controllers/` | `sasController.js` | T | Drops `endOfStayBathLinen` from the accepted commit payload. |
+| `utils/` | `complementDataRepairs.js` | C | `repairBathLinenGhosts(db)` for the boot cleanup. **A util, not a model method:** `database.js` cannot require `reservationsModel` (it binds itself to `require('../database')` at load, so a mid-file require would hand it a half-built module). Shared with [frozen-complement-trusts-client.md](../sas/frozen-complement-trusts-client.md). |
+| `controllers/` | `plugins/sas/controller.js` | T | Drops `endOfStayBathLinen` from the accepted commit payload. |
 | `database.js` | `database.js` | T | Idempotent boot cleanup block (rule 3), logging how many rows it repaired. |
 | `routes/` | — | — | (none) |
 

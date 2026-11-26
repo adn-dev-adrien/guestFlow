@@ -1,5 +1,5 @@
 // Review amendments: rule 50 — « TVA sur indemnités (%) » is its own cell.
-// specs/settings-input-guards.md rules 32-34 — every account sits in the one « Comptes » card, in labelled groups.
+// specs/settings/settings-input-guards.md rules 32-34 — every account sits in the one « Comptes » card, in labelled groups.
 import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
@@ -91,7 +91,7 @@ test('rule 33: the penalty account sits in « Commissions et produits divers » 
   expect(misc.fields.map((f) => f.label)).toContain('Pénalités plateformes');
 });
 
-test('rule 32 with specs/vat-optional-mode.md rule 12: « Sans TVA » keeps the indemnity account and drops its VAT cell', async () => {
+test('rule 32 with specs/accounting/vat-optional-mode.md rule 12: « Sans TVA » keeps the indemnity account and drops its VAT cell', async () => {
   api.getPlatformAccounts.mockResolvedValue({ ...GET(FULL_PLAN), salesVatRegime: 'not_subject' });
   renderPage();
   const card = await cardOf();

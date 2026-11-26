@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-6, 2026-11-16) — the `atArrival` contract (guest-app rule 110 a) is carried
+// specs/pricing/pricing-components.md §3 rule 103 (stabilisation loop t3, T3-6, 2026-11-16) — the `atArrival` contract (guest-app rule 110 a) is carried
 // whole: the quote takes it and announces the arrival bucket the sale writes, and a sale `atArrival` is refused 409 `ARRIVAL_CLOSED` once the arrival
 // is validated or its complement collected (before: the line read « arrival » while its money went to the departure). Stays booked 20 days ahead.
 process.env.DB_PATH = ':memory:';

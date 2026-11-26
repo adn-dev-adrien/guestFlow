@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 23 — review round R5: the bubble is as wide as its text (≤ 280 px,
+ * specs/design-system/report-grammar.md §3 rule 23 — review round R5: the bubble is as wide as its text (≤ 280 px,
  * never the 24 px of its anchor), lives outside any clipping card, is announced (aria-describedby)
  * and closes when the focus leaves by Tab.
  */

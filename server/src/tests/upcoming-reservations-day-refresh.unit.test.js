@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const upcomingModel = require('../models/upcomingReservationsModel');
 const { buildController } = require('../controllers/upcomingReservationsController');
 
-// specs/upcoming-reservations-cards.md rule 8 — after a « prêt » toggle the page refreshes that one
+// specs/planning/upcoming-reservations-cards.md rule 8 — after a « prêt » toggle the page refreshes that one
 // day (`?day=`), not the whole season: with 500 stays every click re-read 2.4 MB (review of PR #700).
 
 function freshModel() {

@@ -7,7 +7,7 @@
 | **Created** | 2026-08-17 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Amends** | [sas-breakfast-and-handover-note.md](sas-breakfast-and-handover-note.md) §3 rule 2, [breakfast-time.md](breakfast-time.md) rule 4, [breakfast-option-planning-card.md](breakfast-option-planning-card.md) |
+| **Amends** | [sas-breakfast-and-handover-note.md](sas-breakfast-and-handover-note.md) §3 rule 2, [breakfast-time.md](../options/breakfast-time.md) rule 4, [breakfast-option-planning-card.md](../options/breakfast-option-planning-card.md) |
 
 ---
 
@@ -19,11 +19,11 @@ pris en compte. »*
 The arrival SAS has a breakfast page whose first field is the serving hour; committing writes
 `reservations.breakfastTime` — exactly what
 [sas-breakfast-and-handover-note.md](sas-breakfast-and-handover-note.md) §3 rule 2 promised, back when
-[breakfast-time.md](breakfast-time.md) rule 4 defined the effective hour as
+[breakfast-time.md](../options/breakfast-time.md) rule 4 defined the effective hour as
 `reservations.breakfastTime → option default → 09:00`.
 
 Then the **planning cards per served morning** shipped
-([breakfast-option-planning-card.md](breakfast-option-planning-card.md)): the breakfast option now
+([breakfast-option-planning-card.md](../options/breakfast-option-planning-card.md)): the breakfast option now
 stores `cardOccurrences = [{ date, time, done }]` on the reservation, one entry per morning, each with
 **its own hour**. Every operator-facing surface reads that hour:
 

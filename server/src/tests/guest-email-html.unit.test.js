@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 37–39 (UI/UX review 2026-10-18, decision 15) — a guest
+// specs/emails/guest-email-texts-made-simple.md rules 37–39 (UI/UX review 2026-10-18, decision 15) — a guest
 // email leaves as multipart/alternative: the rendered text unchanged, and a sober HTML part derived from
 // that same text, escaped, with plain links and nothing loaded from anywhere.
 

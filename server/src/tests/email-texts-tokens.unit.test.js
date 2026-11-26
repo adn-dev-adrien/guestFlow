@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.C rules 10–11 — the variables come from the server, with a
+// specs/emails/guest-email-texts-made-simple.md §3.C rules 10–11 — the variables come from the server, with a
 // French label each, so every token a template uses has a chip; and templates, stay texts and
 // mentions refuse an unknown token with the same 422 and the same message.
 

@@ -1,10 +1,10 @@
 /**
- * The Qonto settings handlers — specs/online-payments-qonto.md §3.1-3.2, specs/qonto-settings-in-app.md
- * §3, specs/settings-one-save-and-automatic-webhook.md rules 11-14.
+ * The Qonto settings handlers — specs/payments/online-payments-qonto.md §3.1-3.2, specs/settings/qonto-settings-in-app.md
+ * §3, specs/settings/settings-one-save-and-automatic-webhook.md rules 11-14.
  *
  * A factory over a settings store rather than handlers bound to GuestFlow's `settingsModel`, because
  * the control plane runs the very same Qonto module, settings page included, over its own database
- * (specs/control-plane-plans-and-access.md rule 32). Nothing here may require an instance database:
+ * (specs/hosting/control-plane-plans-and-access.md rule 32). Nothing here may require an instance database:
  * the caller hands the settings in.
  *
  *   GET  /qonto/authorize          → 302 to Qonto consent (state stored in the session)
@@ -48,7 +48,7 @@ function credentialsFieldRefused(body) {
  */
 function createQontoSettingsController({ settings, env = process.env, scopes = DEFAULT_SCOPES, now = Date.now } = {}) {
   // The effective configuration: what the operator saved in the interface, over what the files hold
-  // (specs/qonto-settings-in-app.md §3 rule 2).
+  // (specs/settings/qonto-settings-in-app.md §3 rule 2).
   const qontoConfig = () => resolveQontoConfig({ settings, env });
 
   // The OAuth redirect_uri MUST byte-match the one registered in the Qonto app.
@@ -71,7 +71,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
 
   /**
    * What happens the moment an authorisation succeeds
-   * (specs/settings-one-save-and-automatic-webhook.md rules 11, 14).
+   * (specs/settings/settings-one-save-and-automatic-webhook.md rules 11, 14).
    *
    * Storing a token proves nothing about the connection. The operator who had just repaired their
    * credentials on 2026-09-15 landed on the failure that *preceded* the repair — the state was stale,
@@ -114,7 +114,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
     }
   }
 
-  // ----- Qonto state, credentials and connection test (specs/qonto-settings-in-app.md §3) -----
+  // ----- Qonto state, credentials and connection test (specs/settings/qonto-settings-in-app.md §3) -----
   //
   // Thin on purpose: the payload shapes, the precedence and the token-clearing decision live in
   // `utils/qontoService`, which is where they can be unit-tested without an HTTP layer.
@@ -153,7 +153,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   }
 
   // Everything the Paiements page renders: the Qonto connection state. The « Délais & relances »
-  // timings are gone — nothing read them (specs/settings-rationalization.md rule 9).
+  // timings are gone — nothing read them (specs/settings/settings-rationalization.md rule 9).
   function getSettings(req, res) {
     return res.json({
       qonto: statusPayload(),
@@ -163,7 +163,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
     });
   }
 
-  // ----- Qonto payment-links provider connection (specs/online-payments-qonto.md §3.2) -----
+  // ----- Qonto payment-links provider connection (specs/payments/online-payments-qonto.md §3.2) -----
 
   // Map an internal error to a clean HTTP response (never leak the Qonto body to the client).
   function qontoError(res, err) {

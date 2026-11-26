@@ -1,5 +1,5 @@
 /**
- * saleDetail — the one read model of what a stay sold and what is left to collect (specs/pricing-components.md §3 rule 31).
+ * saleDetail — the one read model of what a stay sold and what is left to collect (specs/pricing/pricing-components.md §3 rule 31).
  *
  * `buildSaleDetail({ quote, facts, phase, vatClassOf, platformStay, stored })` turns the quote of the stored stay (TOTALS and SETTLEMENT already ran)
  * and the facts of its stored lines into a ready-to-render payload: every amount in cents, every label French. A stored line bills what it

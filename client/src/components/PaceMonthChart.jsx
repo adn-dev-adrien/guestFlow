@@ -1,5 +1,5 @@
 /**
- * PaceMonthChart — « Réservations à venir, à date » (specs/booking-pace.md rules 5-7, 14-15): per stay
+ * PaceMonthChart — « Réservations à venir, à date » (specs/pricing/booking-pace.md rules 5-7, 14-15): per stay
  * month, this year on the books today (sapin), last year on the same date (sable, outlined), and last
  * year's final as a dashed ghost bar behind both. The écart sits under each month once a month is
  * comparable (`hasComparison`). Feature-local: it renders `pace.months` as is.

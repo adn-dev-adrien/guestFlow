@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a complement collected before
+// specs/payments/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R22-2) — a complement collected before
 // `complementPaidSplit` existed has none: the register reads it from the stay. Every production complement of today is in
 // that case, so the readings stamped stays never reach are pinned here: the auditor's scenarios with the split NULLed before
 // the cancellation.

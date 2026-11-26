@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 5 and 9 — one row of the quotes list, shaped by the
+// specs/design-system/ui-review-2026-10-19-operations.md rules 5 and 9 — one row of the quotes list, shaped by the
 // server: its total, and no « Origine inconnue » badge.
 const test = require('node:test');
 const assert = require('node:assert/strict');

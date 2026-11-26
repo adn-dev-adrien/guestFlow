@@ -1,4 +1,4 @@
-// Loop t25 verifier (specs/qonto-bank-reconciliation.md §6; plugins-phase-1-sdk rule 54 reading of 2026-11-19) — `parseEuroInput` reads
+// Loop t25 verifier (specs/accounting/qonto-bank-reconciliation.md §6; plugins-phase-1-sdk rule 54 reading of 2026-11-19) — `parseEuroInput` reads
 // an amount being typed with its decimal separator last (« 100, ») as the whole amount, so the payout split and « Modifier la répartition »
 // never flash « Montant invalide » / « — » for that keystroke. Everything else it refused stays refused (the server validates anyway).
 import React from 'react';

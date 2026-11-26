@@ -1,4 +1,4 @@
-// The breakfast offer and mornings pages render the server's figures — specs/breakfast-offer-price-server-side.md
+// The breakfast offer and mornings pages render the server's figures — specs/options/breakfast-offer-price-server-side.md
 // rules 4, 6, 7, 9, 10, 11: no price, quantity or ceiling is computed in the dialog.
 //
 // One file per subject (CLAUDE.md §9). Fixtures shared with other subjects live in ./sasFixtures.

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 50, 51 and 52 (audit R25-C1, R25-C2, verification N1) — « Créer un devis » on a stay fiche not
+// specs/design-system/ui-review-2026-10-19-operations.md rules 50, 51 and 52 (audit R25-C1, R25-C2, verification N1) — « Créer un devis » on a stay fiche not
 // saved yet carries the typed client with the form, and the devis it opens is an edit: Enregistrer is lit, leaving asks.
 import React from 'react';
 import { vi } from 'vitest';

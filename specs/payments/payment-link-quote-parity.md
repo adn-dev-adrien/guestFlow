@@ -7,7 +7,7 @@
 | **Created** | 2026-08-20 |
 | **Approved** | 2026-08-20 |
 | **Author** | Adrien |
-| **Amends** | [devis-pdf-total-parity.md](devis-pdf-total-parity.md) §3.1 rule 1 (the replay has one more consumer), [online-payments-qonto.md](online-payments-qonto.md) §9 (« all amounts from the engine » — spelled out), [tourist-tax-on-solde.md](tourist-tax-on-solde.md) rule 1 (a devis now obeys it too) |
+| **Amends** | [devis-pdf-total-parity.md](../devis/devis-pdf-total-parity.md) §3.1 rule 1 (the replay has one more consumer), [online-payments-qonto.md](online-payments-qonto.md) §9 (« all amounts from the engine » — spelled out), [tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md) rule 1 (a devis now obeys it too) |
 | **Related PR** | _(opened at the end of implementation)_ |
 
 ---
@@ -19,28 +19,28 @@ charges. Both make the guest read one amount and pay another.
 
 ### 1.1 The link re-quoted the stay from a hand-rolled input
 
-[`paymentsController.runDevisEngineQuote`](../server/src/controllers/paymentsController.js) built its
+[`paymentsController.runDevisEngineQuote`](../../server/src/controllers/paymentsController.js) built its
 own pricing-engine input to resolve the amount of a deposit / balance / full link. That input was a
 subset of what the authoritative replay carries, and every missing field costs money:
 
 | Missing input | What the payment page did |
 |---|---|
-| `cardOccurrences` | **The option disappeared entirely.** The engine reads a planning-card option with no moment as « not taken » ([pricing.js](../server/src/utils/pricing.js) card branch) — a breakfast or « Le repas des trappeurs » on the devis was simply not charged. |
-| resource `sessions` | An hourly resource (bain nordique) was re-priced from its quantity alone instead of its booked hours ([hourly-resource-quantity-and-sas-scheduling.md](hourly-resource-quantity-and-sas-scheduling.md) §1 defect 3). |
+| `cardOccurrences` | **The option disappeared entirely.** The engine reads a planning-card option with no moment as « not taken » ([pricing.js](../../server/src/utils/pricing.js) card branch) — a breakfast or « Le repas des trappeurs » on the devis was simply not charged. |
+| resource `sessions` | An hourly resource (bain nordique) was re-priced from its quantity alone instead of its booked hours ([hourly-resource-quantity-and-sas-scheduling.md](../resources/hourly-resource-quantity-and-sas-scheduling.md) §1 defect 3). |
 | `offeredOptionIds` | An option the operator offered came back at full price. |
-| the price-lock snapshot | A devis quoted before a tariff change was re-priced at today's tariff ([devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md) §3 rule 13). |
+| the price-lock snapshot | A devis quoted before a tariff change was re-priced at today's tariff ([devis-extras-parity-and-price-lock.md](../devis/devis-extras-parity-and-price-lock.md) §3 rule 13). |
 | per-line `inComplement`, `touristTaxInComplement`, `extraGuestSurchargeOffered`, `planningCardAsQuantity` | Routing and waivers lost; a public (site) devis re-priced its card options on the wrong basis. |
 
-This is the **exact list** [devis-pdf-total-parity.md](devis-pdf-total-parity.md) §1 drew up for the
+This is the **exact list** [devis-pdf-total-parity.md](../devis/devis-pdf-total-parity.md) §1 drew up for the
 PDF on 2026-08-17. That bundle fixed the PDF by routing it through `devisModel.recomputeQuote(id)` and
 wrote the rule down (§3.1 rule 1: « **the** way to obtain the pricing-engine quote of a persisted
 devis »). The payment path was simply never migrated — it kept its copy of the mapping.
 
 ### 1.2 The devis displayed an acompte that nobody else agreed with
 
-[`resolvePaymentSchedule`](../server/src/models/devisModel.js) re-derived the acompte at read time as
+[`resolvePaymentSchedule`](../../server/src/models/devisModel.js) re-derived the acompte at read time as
 `depositPercent × (finalPrice + touristTaxTotal)` — the **tax-inclusive** total. But
-[tourist-tax-on-solde.md](tourist-tax-on-solde.md) rule 1 (2026-06-23) says the opposite, and the
+[tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md) rule 1 (2026-06-23) says the opposite, and the
 engine has applied it since: **the acompte is computed on the accommodation alone, the whole tourist
 tax rides on the solde**. `create` / `update` already store what the engine decided; only the display
 recomputed its own figure on top.
@@ -55,7 +55,7 @@ Measured on a 3-night stay at 100 €/nuit + 80 € de ménage + 50 € de repas
 
 So a devis promised an acompte 1,80 € above what its own email announced and what the payment page
 charged — a gap that grows with the tourist tax — and the accounting export
-([tourist-tax-on-solde.md](tourist-tax-on-solde.md) rule 5) books 0 € of tax on the deposit entry
+([tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md) rule 5) books 0 € of tax on the deposit entry
 whatever the devis claimed.
 
 ## 2. Goal
@@ -87,7 +87,7 @@ and on the payment page.
 5. `resolvePaymentSchedule` stops re-deriving the acompte/solde **amounts**: it returns the split
    stored on the row — the one `create` / `update` wrote from the engine, i.e.
    `acompte = depositPercent × accommodation` and `solde = the rest + the whole tourist tax`
-   ([tourist-tax-on-solde.md](tourist-tax-on-solde.md) rule 1).
+   ([tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md) rule 1).
 6. It keeps owning what is genuinely devis-specific: the **due dates** — acompte due at the quote's
    `validUntil` ([payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) §3.1
    rule 5), solde stay-relative and clamped to the issue date — and the displayed `totalStayPrice`,

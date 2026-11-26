@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 29 (audit R2, F-R2-4) — a read-then-write transaction on a money
+// specs/plugins/plugins-phase-3a-online-payment.md rule 29 (audit R2, F-R2-4) — a read-then-write transaction on a money
 // path takes the write lock up front (BEGIN IMMEDIATE), so a writer holding it for a moment makes it
 // wait for the busy timeout instead of failing at once with SQLITE_BUSY.
 const test = require('node:test');

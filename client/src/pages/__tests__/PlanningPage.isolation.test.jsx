@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 44 — a planning day card or bar button whose plugin component
+// specs/plugins/plugins-phase-4-registry.md rule 44 — a planning day card or bar button whose plugin component
 // throws leaves the planning, and the healthy cards, up.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

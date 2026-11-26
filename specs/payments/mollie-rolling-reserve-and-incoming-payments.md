@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Summary page** | `docs/specs/2026-11-16-mollie-rolling-reserve.html` |
-| **Extends** | [qonto-bank-reconciliation.md](qonto-bank-reconciliation.md) (rule 15 replaced), [reconciliation-assisted-matching.md](reconciliation-assisted-matching.md), [reservation-payment-ledger.md](reservation-payment-ledger.md), [direct-installments.md](direct-installments.md), [finance-dashboard-redesign.md](finance-dashboard-redesign.md), [accountant-accounting-export.md](accountant-accounting-export.md) |
+| **Extends** | [qonto-bank-reconciliation.md](../accounting/qonto-bank-reconciliation.md) (rule 15 replaced), [reconciliation-assisted-matching.md](../accounting/reconciliation-assisted-matching.md), [reservation-payment-ledger.md](reservation-payment-ledger.md), [direct-installments.md](direct-installments.md), [finance-dashboard-redesign.md](../accounting/finance-dashboard-redesign.md), [accountant-accounting-export.md](../accounting/accountant-accounting-export.md) |
 
 ---
 

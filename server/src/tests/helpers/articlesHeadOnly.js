@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 47 — the head `utils/pricing/articles/index.js` is the only module of `articles/` that
+// specs/pricing/pricing-components.md §3 rule 47 — the head `utils/pricing/articles/index.js` is the only module of `articles/` that
 // code outside the folder requires. A require is resolved to an absolute path (a relative path written from inside
 // `utils/pricing` or from a plugin resolves like any other), so no spelling of it slips past the check.
 const path = require('node:path');

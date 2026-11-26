@@ -8,8 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | [#1040](https://github.com/adn-dev-adrien/guestFlow/pull/1040) |
 | **Plugins** | `hourly-resources` (consumer of a core read) |
-| **Builds on** | [`clients-upcoming-past-directory.md`](clients-upcoming-past-directory.md) (buckets, qualifying stay, labels), [`resource-booking-pricing-and-invoicing.md`](resource-booking-pricing-and-invoicing.md) (the dialog) |
-| **Summary for decision** | [`docs/specs/2026-11-12-resource-booking-client-picker.html`](../docs/specs/2026-11-12-resource-booking-client-picker.html) (interactive mockup, desktop and 390 px) |
+| **Builds on** | [`clients-upcoming-past-directory.md`](../clients/clients-upcoming-past-directory.md) (buckets, qualifying stay, labels), [`resource-booking-pricing-and-invoicing.md`](resource-booking-pricing-and-invoicing.md) (the dialog) |
+| **Summary for decision** | [`docs/specs/2026-11-12-resource-booking-client-picker.html`](../../docs/specs/2026-11-12-resource-booking-client-picker.html) (interactive mockup, desktop and 390 px) |
 
 ---
 
@@ -21,7 +21,7 @@ proches, puis le reste des clients à venir, et enfin les clients dont le séjou
 pouvoir taper du texte pour faire une recherche dans cette liste. »
 
 Today the « Client enregistré » switch of
-[`ResourceBookingDialog.jsx`](../client/src/plugins/hourly-resources/ResourceBookingDialog.jsx) shows
+[`ResourceBookingDialog.jsx`](../../client/src/plugins/hourly-resources/ResourceBookingDialog.jsx) shows
 an MUI `Autocomplete` fed by `GET /api/clients`: every client, **alphabetical**, one line « Prénom
 Nom ». The operator books a bath for a guest who is on site, and has to scroll past dozens of people
 who left months ago. Typing already filters, but only on the exact « Prénom Nom » text: « dupont jean »,

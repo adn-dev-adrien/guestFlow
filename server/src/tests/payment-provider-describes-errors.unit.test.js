@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md rule 9 — the core's money path names no payment provider:
+// specs/platforms/platform-settings-relay-and-review.md rule 9 — the core's money path names no payment provider:
 // an error the provider knows (Qonto « à connecter d'abord ») is worded by the provider itself through
 // `describeError`; without it, the core answers its generic 502 (audit 2026-10-27).
 const path = require('path');

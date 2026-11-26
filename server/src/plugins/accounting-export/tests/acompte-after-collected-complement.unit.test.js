@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 (R22 verification) — an acompte ticked after a
+// specs/payments/reservation-payment-ledger.md rule 46, reading of 2026-11-05 (R22 verification) — an acompte ticked after a
 // collected complement, when the engine split refuses it: the complement's frozen split does not flip, so nothing justifies
 // leaving the acompte with no split. Left NULL, its entry was a live pro rata of the fiche: one adult more moved a booked
 // entry (70600000 163,64 → 165,62). Same reason as a paid line removed (D11): a later edit rewrites no booked entry.

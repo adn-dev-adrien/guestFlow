@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 54 (audit R8 public L-1) — the public `pay` answers the site's visitor
+// specs/payments/payment-link-lifecycle.md rule 54 (audit R8 public L-1) — the public `pay` answers the site's visitor
 // in the visitor's language. GuestFlow's own refusals on the reuse path (a link older than 12 h is read at
 // the provider first, rule 8) are operator sentences: they are mapped to visitor keys, never passed through.
 
@@ -80,7 +80,7 @@ for (const [lang, providerError, confirmed] of [
   });
 }
 
-// specs/payment-link-lifecycle.md rule 56 (review of #902, G1) — a payment received on a link withdrawn by hand
+// specs/payments/payment-link-lifecycle.md rule 56 (review of #902, G1) — a payment received on a link withdrawn by hand
 // waits for the operator: the visitor reads a sentence of the site in their language, never the operator's text.
 for (const [lang, message] of [
   ['en', 'A payment is being checked: please contact the property.'],

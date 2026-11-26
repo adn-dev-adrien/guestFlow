@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 28, 30-31 — the journal card draws a Mollie entry (clearing
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 28, 30-31 — the journal card draws a Mollie entry (clearing
 // account, no « share of the stay », a credit with no fiche is not a link) and the page shows the clearing balance of the
 // month with its per-client detail and the unattached credits, as the server sent them.
 import React from 'react';

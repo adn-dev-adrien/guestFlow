@@ -1,5 +1,5 @@
 /**
- * The finance pages' reading of a stay's sale lines (specs/pricing-components.md §3 rules 31, 67; owner 2026-11-15
+ * The finance pages' reading of a stay's sale lines (specs/pricing/pricing-components.md §3 rules 31, 67; owner 2026-11-15
  * « Brancher quand même », read with « éviter de toucher les anciens séjours », utils/saleLinesReaders.js).
  *
  * The Suivi financier shows what the operator EARNS, never what was sold. On a stay the sale-line readers serve:

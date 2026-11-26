@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 48 (audit R36-EXT-2) — the folded fallback (sent after Qonto refused
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 48 (audit R36-EXT-2) — the folded fallback (sent after Qonto refused
 // a negative discount line) never sends a 0 € line nor a negative HT line: a band the discount covers whole is left out, the
 // cents land on positive lines, the rounding line is positive; nothing reachable = null (ISSUER_AMOUNT_UNREACHABLE). The
 // main path keeps each line's sign too. The auditor's sweep, exhaustive: two bands from 1 € to 90 € by 0,25 € at 20, 10 and

@@ -1,4 +1,4 @@
-// « Profil des séjours » (specs/stay-profile.md §3.4). Renders `/finance/stay-profile`: the stays of the
+// « Profil des séjours » (specs/accounting/stay-profile.md §3.4). Renders `/finance/stay-profile`: the stays of the
 // dashboard's window split by channel, length, lead time and price band, and the average basket per
 // month against last year. Every figure, share, ranking, delta and caption is the server's; the local
 // state is the URL (window + logement, as on the Suivi financier) and the two switches.
@@ -137,7 +137,7 @@ export default function StayProfilePage() {
 
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(null);
-  // specs/stay-profile.md rule 31 — the refusal's code: « Exercice en cours » answers `UNKNOWN_EXERCISE` only.
+  // specs/accounting/stay-profile.md rule 31 — the refusal's code: « Exercice en cours » answers `UNKNOWN_EXERCISE` only.
   const [loadErrorCode, setLoadErrorCode] = useState(null);
   const [dimension, setDimension] = useState('channel');
   const [measure, setMeasure] = useState('count');

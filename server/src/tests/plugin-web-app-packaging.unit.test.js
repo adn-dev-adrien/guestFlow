@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps live in its server folder as `apps/<name>/` (their own
+// specs/plugins/plugins-phase-1-sdk.md rule 48 — a plugin's web apps live in its server folder as `apps/<name>/` (their own
 // package.json, built by Vite to `dist/`): the package never ships their sources, and each build lands in
 // `server/assets/<name>`; a build not made is a warning, not a failure.
 const test = require('node:test');

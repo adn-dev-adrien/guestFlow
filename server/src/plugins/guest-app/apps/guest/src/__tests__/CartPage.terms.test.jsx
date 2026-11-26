@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 37-38 — the terms of the activity the cart holds: a checkbox « J'accepte les conditions générales — … »
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 37-38 — the terms of the activity the cart holds: a checkbox « J'accepte les conditions générales — … »
 // with a link to the text before « Commander »; the order carries `acceptedTerms`; once accepted for the version the quote says so and the
 // checkbox is no longer asked; nothing is asked when the server names nothing.
 import { fireEvent, screen, waitFor } from '@testing-library/react';

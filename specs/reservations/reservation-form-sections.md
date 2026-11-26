@@ -7,7 +7,7 @@
 | **Created** | 2026-05-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3c-3** (final). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3c-3** (final). See `docs/rapports/ROADMAP.md`. |
 
 ---
 

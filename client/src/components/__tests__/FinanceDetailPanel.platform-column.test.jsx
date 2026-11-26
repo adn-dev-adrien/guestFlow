@@ -1,4 +1,4 @@
-// specs/platform-settings-relay-and-review.md rule 13 — `reservation.platform` reads « Plateforme »
+// specs/platforms/platform-settings-relay-and-review.md rule 13 — `reservation.platform` reads « Plateforme »
 // everywhere; « Canal » stays the finance tile's own concept (« Canaux de réservation ») (audit 2026-10-27).
 import React from 'react';
 import { render, screen } from '@testing-library/react';

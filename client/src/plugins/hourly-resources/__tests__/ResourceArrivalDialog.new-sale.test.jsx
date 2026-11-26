@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 24, 48 (reading of 2026-11-15, loop t1 AV-8) — an invoiced visit is closed to changes; the administrator gets « Nouvelle vente », which opens the
+// specs/sas/outside-booking-sas.md rules 24, 48 (reading of 2026-11-15, loop t1 AV-8) — an invoiced visit is closed to changes; the administrator gets « Nouvelle vente », which opens the
 // counter's « Vente hors séjour » seeded with the visit's client (`visit.newSale.client`): its quote goes with `customer: { clientId }` and no name or e-mail is asked.
 // A visit with `newSale: null` (not invoiced, or the reception) offers no such action.
 import React from 'react';

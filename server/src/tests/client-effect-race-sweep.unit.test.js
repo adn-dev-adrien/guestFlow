@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 11 — the client race sweep stays runnable.
+// specs/tech/server-test-isolation.md rule 11 — the client race sweep stays runnable.
 // Audit R10 M-1: VatRegimeSwitchDialog.switch.test.jsx asserted a callback fired by a passive effect
 // right after `findByText`, and turned the inte/plugins head red on GitHub CI. Delaying React's
 // scheduler tasks replays that busy runner every time; this pins the sweep that does it.

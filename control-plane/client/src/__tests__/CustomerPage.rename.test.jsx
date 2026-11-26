@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 22 — « Changer l'adresse »: the new slug checked by the
+// specs/hosting/control-plane-plans-and-access.md rule 22 — « Changer l'adresse »: the new slug checked by the
 // server as it is typed, the items to tick, and the button enabled only when both are done.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

@@ -8,13 +8,15 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
 From its check-in date, a reservation fiche is **locked**: only the client, the platform, price
 adjustments and payment/caution statuses stay editable
-([reservationsController.js](../server/src/controllers/reservationsController.js) — `pastReservationLocked`
+([reservationsController.js](../../server/src/controllers/reservationsController.js) — `pastReservationLocked`
 and its 14-field allowlist). The whole « Options et ressources » card is greyed out
 (`lockedSectionSx`, `opacity: 0.55; pointer-events: none`) and, server side, the option, custom-line
 and resource lines are not even written (`if (!pastReservationLocked) model.replaceOptions(…)`).
@@ -30,7 +32,7 @@ routes every extra sold after arrival (above the `arrivalExtrasBaseline` snapsho
 the door: letting the extras through the lock without letting anything else through.
 
 A side finding: the client decides the lock itself (`res.startDate <= todayStr` in
-[ReservationPage.jsx](../client/src/pages/ReservationPage.jsx), around line 749) — date logic in
+[ReservationPage.jsx](../../client/src/pages/ReservationPage.jsx), around line 749) — date logic in
 React, duplicated from the server. This spec moves that decision to the server.
 
 ## 2. Goal
@@ -283,7 +285,7 @@ Decisions the spec did not cover, taken during implementation (2026-10-26):
   displayed floor is a whole number except for hourly resources; after a save that keeps the page open the
   reservation is refetched. *On `inte/plugins` (master sync of 2026-10-26):* only on a locked fiche — on
   an unlocked one the after-save action is the payments ledger's mark, whose form must stay open to show
-  a refusal ([reservation-payment-ledger.md](reservation-payment-ledger.md) rules 9-10). The breakfast « Heure souhaitée » field stays editable in the window (it moves
+  a refusal ([reservation-payment-ledger.md](../payments/reservation-payment-ledger.md) rules 9-10). The breakfast « Heure souhaitée » field stays editable in the window (it moves
   no money).
 - **Routing.** Inside the window the server overwrites the submitted `inComplement` of every line with the
   stored one (a new line falls back to the engine default) and keeps only the already-forced auto-option

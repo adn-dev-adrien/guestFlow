@@ -1,4 +1,4 @@
-// specs/payment-polling-fair-use.md rule 12 — a hung Qonto connection is bounded: the call fails as a
+// specs/payments/payment-polling-fair-use.md rule 12 — a hung Qonto connection is bounded: the call fails as a
 // network failure (no status, not retried) instead of holding a poll or retry run for minutes.
 
 const test = require('node:test');

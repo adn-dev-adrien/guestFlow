@@ -1,6 +1,6 @@
 import { resolvePlatformTouristTaxPrefill } from '../platformTouristTaxPrefill';
 
-// specs/platform-tourist-tax-out-of-the-commission.md §3.5, rules 21-23 — the seed follows the entry,
+// specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md §3.5, rules 21-23 — the seed follows the entry,
 // not the fiche's age.
 //
 // Rule 4 shipped the seed on « a fiche that has never been saved ». That is not the fiche an operator

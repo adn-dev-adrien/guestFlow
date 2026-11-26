@@ -4,7 +4,7 @@
  * never learns WHY a date is blocked.
  *
  * Core, because the public quote and booking request (website-booking) and the public payment of
- * online-payment both re-check availability (specs/plugins-phase-2-hosts.md rule 23).
+ * online-payment both re-check availability (specs/plugins/plugins-phase-2-hosts.md rule 23).
  */
 
 const reservationsModel = require('../models/reservationsModel');
@@ -26,7 +26,7 @@ function computeBlockedDates(propertyId, from, to) {
 
 /**
  * Whether the visitor's own arrival and departure times clash with the neighbouring stays or a closure
- * (specs/public-api.md rule 24): the back office's check, run with those times and the nights they take.
+ * (specs/site/public-api.md rule 24): the back office's check, run with those times and the nights they take.
  * A time not sent is the property's default, the one the devis will store, not the check's 15:00 / 10:00.
  * Judged after the nights are known free; the past is judged by each caller's own date rules.
  */

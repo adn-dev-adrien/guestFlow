@@ -1,5 +1,5 @@
 /**
- * Translation catalogue model (specs/translation-catalogue.md §5) — sole DB access for
+ * Translation catalogue model (specs/site/translation-catalogue.md §5) — sole DB access for
  * `translation_entries` and `translation_values`.
  *
  * Two tables rather than a column per language, so adding a third language is data and never a

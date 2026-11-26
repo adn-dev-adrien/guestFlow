@@ -1,5 +1,5 @@
-// specs/control-plane-plans-and-access.md rule 47 — every licence date the operator enters in the console lies in
-// [today − 5 years, today + 5 years], the Paris day, as GuestFlow's dates do (specs/reservations-backend-mvc.md
+// specs/hosting/control-plane-plans-and-access.md rule 47 — every licence date the operator enters in the console lies in
+// [today − 5 years, today + 5 years], the Paris day, as GuestFlow's dates do (specs/tech/reservations-backend-mvc.md
 // rule 13, second reading): the start and the custom end of a new subscription, an extension, « forcer actif
 // jusqu’au ». Review of PR #938, F10: « Prolonger » to 9999-12-31 extended a licence forever.
 

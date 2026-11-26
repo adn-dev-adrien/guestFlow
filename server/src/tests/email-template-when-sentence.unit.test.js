@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 43 (UI/UX review 2026-10-18, decision 11) — « Quand ? » is
+// specs/emails/guest-email-texts-made-simple.md rule 43 (UI/UX review 2026-10-18, decision 11) — « Quand ? » is
 // one sentence, « Envoyé 2 jours avant l'arrivée », read live by the server with the day it would leave.
 
 const test = require('node:test');

@@ -1,5 +1,5 @@
 /**
- * PeriodSelector — specs/tourist-tax-report-v2.md §3 rule 18: optional quarter and year kinds, chosen and ordered by
+ * PeriodSelector — specs/tourist-tax/tourist-tax-report-v2.md §3 rule 18: optional quarter and year kinds, chosen and ordered by
  * `kinds`, their options from the server; without `kinds` the exercise selector is unchanged.
  */
 import React from 'react';

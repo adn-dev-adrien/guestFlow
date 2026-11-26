@@ -19,7 +19,7 @@ step of [.github/workflows/deploy.yml](../.github/workflows/deploy.yml), which `
 plugin directory into the container through `docker exec` — from a job running on the self-hosted
 runner.
 
-[self-update-and-releases.md](self-update-and-releases.md) deletes that workflow and the
+[self-update-and-releases.md](../hosting/self-update-and-releases.md) deletes that workflow and the
 runner. Without a replacement, the plugin would go back to the manual `docker cp` drift that PR
 \#325 was written to fix, and the site would silently fall out of sync with the API it talks to.
 
@@ -36,7 +36,7 @@ host.
 ## 3. Functional rules
 
 1. The plugin's version is `GF_BOOKING_VERSION` in
-   [guestflow-booking.php](../integrations/wordpress/guestflow-booking/guestflow-booking.php), which
+   [guestflow-booking.php](../../integrations/wordpress/guestflow-booking/guestflow-booking.php), which
    must always equal the `Version:` header. It follows its **own** semver line, independent from
    GuestFlow's — the site does not have to update because the app did.
 2. The release workflow publishes `guestflow-booking-<pluginVersion>.zip` as a release asset, whose

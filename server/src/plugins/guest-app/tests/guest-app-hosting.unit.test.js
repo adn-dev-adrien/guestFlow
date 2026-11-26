@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 47, 52 (plan step 50) — the plugin serves its two builds itself: the guest app on the guest
+// specs/guest-app/guest-app.md rules 47, 52 (plan step 50) — the plugin serves its two builds itself: the guest app on the guest
 // host (hashed bundles immutable, index / service worker / manifest revalidated, every route of the app its index,
 // a missing file 404, nothing outside the build), with a policy that lets in only itself and, while « Intégrer dans
 // l'app » is on, the Soliomap frame (rule 15); the studio at /studio for an admin session only; a build not there → 503.

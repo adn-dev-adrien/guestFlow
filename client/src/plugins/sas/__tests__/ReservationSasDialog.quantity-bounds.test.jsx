@@ -1,4 +1,4 @@
-// specs/sas-departure-recap-server-side.md rule 29, specs/sas-breakfast-and-catering-upsell.md rule 16 — a count the
+// specs/sas/sas-departure-recap-server-side.md rule 29, specs/sas/sas-breakfast-and-catering-upsell.md rule 16 — a count the
 // server refuses is said with its reason, without a « Réessayer » that would send the same draft; the piece steppers
 // stop at the server's ceiling.
 //

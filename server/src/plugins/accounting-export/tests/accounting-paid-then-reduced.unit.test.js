@@ -1,9 +1,9 @@
-// specs/accounting-books-the-money-collected.md rule 11 — a stay paid, then reduced (one guest fewer,
+// specs/accounting/accounting-books-the-money-collected.md rule 11 — a stay paid, then reduced (one guest fewer,
 // breakfast cut) must never book a negative credit. The contribs captured at payment time described
 // the bigger stay; used as-is they overflowed the entry and the export put the residue on the last
 // credit, the 46710000 tourist tax: `70600000 C272.73 | 70600010 C130.91 | 44571100 C40.36 |
 // 46710000 C-88.8` (review 2026-10-18, F2). Since the online payment goes through the same recorder
-// as the manual tick (specs/plugins-phase-3a-online-payment.md rule 1), both paths reached it.
+// as the manual tick (specs/plugins/plugins-phase-3a-online-payment.md rule 1), both paths reached it.
 
 process.env.DB_PATH = ':memory:';
 
@@ -111,7 +111,7 @@ test('rule 11 — online payment, then a reduced party: the journal stays positi
   const entries = createAccountingModel(db).encaissementsByMonth(monthOf(inDays(-16)))
     .filter((e) => Number(e.reservationId) === Number(id));
   assert.ok(entries.length > 0, 'the solde is in the journal');
-  // specs/reservation-refunds.md rule 36 — the paid solde keeps what it collected, so the entry books
+  // specs/payments/reservation-refunds.md rule 36 — the paid solde keeps what it collected, so the entry books
   // the tax the solde received; the trop-perçu refund then gives the excess back on 46710000.
   const row = db.prepare('SELECT balanceAmount, touristTaxSoldeContribTtc FROM reservations WHERE id = ?').get(id);
   for (const entry of entries) {

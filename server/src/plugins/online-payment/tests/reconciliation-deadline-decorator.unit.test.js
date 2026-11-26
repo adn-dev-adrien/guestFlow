@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rule 22 — the home's « Échéances » card knows the bank: a
+// specs/accounting/reconciliation-assisted-matching.md rule 22 — the home's « Échéances » card knows the bank: a
 // transfer found, nothing on the account, a reconciled échéance dropped; `late` leaves « Écarts de
 // règlement ». Fictional data only.
 const test = require('node:test');

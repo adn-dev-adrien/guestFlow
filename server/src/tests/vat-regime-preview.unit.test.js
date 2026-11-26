@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 17 — what the dialog announces before a switch, from the server: the
+// specs/accounting/vat-optional-mode.md rule 17 — what the dialog announces before a switch, from the server: the
 // reservations whose regime or rate changes, with money collected, the tourist taxes that move and the
 // frozen or declared ones kept, the open payment links, the months of the books, the devis drafts; a
 // fingerprint the switch must still find true (409 otherwise); and nothing written by looking.

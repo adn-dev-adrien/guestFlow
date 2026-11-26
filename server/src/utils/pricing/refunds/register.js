@@ -1,5 +1,5 @@
 /**
- * REFUNDS / register — what a refund is and how the register reads (specs/pricing-components.md §3 rule 72).
+ * REFUNDS / register — what a refund is and how the register reads (specs/pricing/pricing-components.md §3 rule 72).
  *
  * The classification of a refund (book money, caisse interne, the `retained` requalification avoir), of its lines (sale,
  * indemnity, commission), the order of a refund relative to the cancellation, and the per-line sums of the register. Moved
@@ -12,10 +12,10 @@ const { isResourceKey } = require('../lineKeys');
 const { roundMoneyOrZero: round2 } = require('../money');
 
 // Means of refund. `transfer` + `cash` are book money; `internal` (caisse interne) stays off the
-// books, exactly like the cash complements (specs/cash-complement-and-endofstay-finance.md).
+// books, exactly like the cash complements (specs/sas/cash-complement-and-endofstay-finance.md).
 // `retained` is book money too, but no money moves: it is the requalification avoir written when a
 // stay is cancelled for non-payment and the acompte is kept as an indemnity
-// (specs/payment-schedule-and-cancellation.md §3.6 rule 32). It is never operator-selectable — only
+// (specs/payments/payment-schedule-and-cancellation.md §3.6 rule 32). It is never operator-selectable — only
 // the cancellation flow writes it — so it stays out of `SELECTABLE_REFUND_METHODS`.
 const REFUND_METHODS = ['transfer', 'cash', 'internal', 'retained', 'card'];
 
@@ -33,7 +33,7 @@ const CARD_METHOD = 'card';
 // tourist tax which is a pass-through (no VAT, no revenue account).
 const REFUND_BUCKETS = ['accommodation', 'options', 'resources', 'touristTax'];
 
-// On a cancelled stay, the share of a manual refund the indemnity pays (specs/reservation-refunds.md rule 48): no
+// On a cancelled stay, the share of a manual refund the indemnity pays (specs/payments/reservation-refunds.md rule 48): no
 // revenue, no VAT — the export debits the indemnity account the cancellation credited. Never operator-selectable.
 const INDEMNITY_BUCKET = 'indemnity';
 
@@ -67,7 +67,7 @@ function isOffBooks(method) {
 }
 
 // A `retained` avoir reverses revenue in the JOURNAL, but no money ever left our account: the acompte
-// stayed, requalified as an indemnity (specs/payment-schedule-and-cancellation.md §3.6). So every
+// stayed, requalified as an indemnity (specs/payments/payment-schedule-and-cancellation.md §3.6). So every
 // reader that answers « how much did we give back to this guest » must skip it — otherwise a cancelled
 // stay reads as a refund on the fiche and in the finance aggregates, which is the exact opposite of
 // what happened. The monthly journal read (`listByMonth`) deliberately keeps it.
@@ -112,7 +112,7 @@ const isIndemnityLine = (line) => String((line && line.bucket) || '') === INDEMN
 const isCommissionLine = (line) => Boolean(line) && line.lineKey === COMMISSION_KEY;
 
 /**
- * specs/payment-schedule-and-cancellation.md rule 55 reading of 2026-11-02 (second review of PR #926) — a book refund
+ * specs/payments/payment-schedule-and-cancellation.md rule 55 reading of 2026-11-02 (second review of PR #926) — a book refund
  * that existed when the cancellation wrote its `retained` avoir: the avoir was netted of it, so deleting it would turn
  * its money back into sale money the stay never holds. The avoir is written after it, so its id is higher.
  * Reading of 2026-11-02 (audit R16-L1) — only when it moved the avoir: `nettedIds` (cancelReservation's
@@ -126,7 +126,7 @@ function nettedByCancellation(refund, refunds, nettedIds = null) {
 }
 
 /**
- * specs/reservation-refunds.md rule 6 reading of 2026-11-02 (audit R15-C1) — a refund made after the stay was
+ * specs/payments/reservation-refunds.md rule 6 reading of 2026-11-02 (audit R15-C1) — a refund made after the stay was
  * cancelled: the cancellation never read it, so deleting it gives its money back to the budget it came from. With an
  * avoir, after it (a higher id); without one, what the refund recorded when it was written (`afterCancellation`,
  * review of PR #929: the order, which the second-resolution clock cannot tell within one second), or — for a refund

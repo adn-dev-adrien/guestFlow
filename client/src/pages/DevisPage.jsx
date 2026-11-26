@@ -31,7 +31,7 @@ const STATUS_LABELS = {
   converted: 'Converti',
 };
 
-// Devis lifecycle → semantic StatusBadge (specs/ds-components.md §3.5; no filled/secondary chips).
+// Devis lifecycle → semantic StatusBadge (specs/design-system/ds-components.md §3.5; no filled/secondary chips).
 const STATUS_BADGE = {
   draft: 'neutral',
   sent: 'info',
@@ -39,7 +39,7 @@ const STATUS_BADGE = {
   converted: 'success',
 };
 
-// specs/ui-review-2026-10-19-operations.md rule 5 — an amount never wraps, in tabular figures.
+// specs/design-system/ui-review-2026-10-19-operations.md rule 5 — an amount never wraps, in tabular figures.
 const AMOUNT = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 
 export default function DevisPage() {
@@ -52,7 +52,7 @@ export default function DevisPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
-  // Origin filter (specs/public-api.md follow-up): '' = all, 'public' = website booking requests,
+  // Origin filter (specs/site/public-api.md follow-up): '' = all, 'public' = website booking requests,
   // 'internal' = operator-created devis.
   const [originFilter, setOriginFilter] = useState('');
   const websiteOn = usePlugin(WEBSITE_BOOKING);
@@ -122,7 +122,7 @@ export default function DevisPage() {
   };
 
   const handleOpenPdf = async (devis) => {
-    // specs/ui-review-2026-10-19-operations.md rule 21 — a stale quote's PDF carries a validity date
+    // specs/design-system/ui-review-2026-10-19-operations.md rule 21 — a stale quote's PDF carries a validity date
     // already past: confirm before it leaves.
     if (devis.expired) {
       const ok = await confirm({
@@ -149,7 +149,7 @@ export default function DevisPage() {
 
   const devisNumberCell = (d) => (
     <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-      {/* specs/ui-review-2026-10-19-operations.md rule 23 — the number is the row's link: Tab reaches
+      {/* specs/design-system/ui-review-2026-10-19-operations.md rule 23 — the number is the row's link: Tab reaches
           it, Entrée opens the quote (the rest of the row stays clickable with the mouse). */}
       <Typography
         component={Link}
@@ -174,7 +174,7 @@ export default function DevisPage() {
       >
         {d.devisNumber}
       </Typography>
-      {/* Origin badge (specs/public-api.md follow-up) — booking request from the website. */}
+      {/* Origin badge (specs/site/public-api.md follow-up) — booking request from the website. */}
       {websiteOn && d.requestOrigin === 'public' && (
         <Tooltip title="Demande de réservation reçue depuis le site internet">
           <span><StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} /></span>
@@ -184,7 +184,7 @@ export default function DevisPage() {
     </Stack>
   );
 
-  // specs/ui-review-2026-10-19-operations.md rules 6-7 — one « ⋯ » menu; the PDF stays a visible icon
+  // specs/design-system/ui-review-2026-10-19-operations.md rules 6-7 — one « ⋯ » menu; the PDF stays a visible icon
   // from md (decision 7) and moves into the menu on a phone.
   const rowActions = (d) => (
     <RowActionsMenu
@@ -204,9 +204,9 @@ export default function DevisPage() {
     <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
       <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
       {d.expired && <StatusBadge status="warning" label="Périmé" />}
-      {/* specs/payment-link-lifecycle.md rule 48 — another stay took its nights; the devis stays as it is. */}
+      {/* specs/payments/payment-link-lifecycle.md rule 48 — another stay took its nights; the devis stays as it is. */}
       <DatesTakenBadge datesTaken={d.datesTaken} linked={false} />
-      {/* specs/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
+      {/* specs/site/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
       {d.publicUpdatedAfterSendAt && <StatusBadge status="warning" label="Message du client après envoi" />}
     </Stack>
   );
@@ -274,7 +274,7 @@ export default function DevisPage() {
       </Stack>
       <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer', minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{d.firstName} {d.lastName}</Typography>
-        {/* specs/ui-review-2026-10-19-operations.md rule 8 — one caption, a real separator. */}
+        {/* specs/design-system/ui-review-2026-10-19-operations.md rule 8 — one caption, a real separator. */}
         <Typography variant="caption" color="text.secondary" display="block">
           {d.propertyName || '—'} · <Box component="span" sx={AMOUNT}>{displayDate(d.startDate)} → {displayDate(d.endDate)}</Box>
         </Typography>
@@ -297,7 +297,7 @@ export default function DevisPage() {
       error={loadError}
       onRetry={load}
       minWidth={820}
-      // specs/ui-review-2026-10-19-operations.md rule 8 — at tablet width the table ran 289 px past
+      // specs/design-system/ui-review-2026-10-19-operations.md rule 8 — at tablet width the table ran 289 px past
       // its card: cards until lg.
       cardsBelow="lg"
       head={head}

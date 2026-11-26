@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 5, 18 — the host side of the plugin bundles: the host
+// specs/plugins/plugins-phase-4-registry.md rules 5, 18 — the host side of the plugin bundles: the host
 // modules a bundle reads instead of its own copies, the entries imported before the app renders,
 // and a bundle that fails to load left out without stopping the others.
 import { vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 25 and 55 (audit R36b N4) — a priced article the engine adds nothing for is refused
+// specs/guest-app/guest-app.md rules 25 and 55 (audit R36b N4) — a priced article the engine adds nothing for is refused
 // ITEM_UNAVAILABLE, except inside the stay's free units or minutes: those confirm at 0 € and the next unit is billed.
 // The exemption was pinned by no test (a mutant removing it refused every order inside its free units). Stays dated
 // around today: the core reads its window on today.

@@ -8,8 +8,11 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Release** | **X** — `/public/v1/booking-requests` refuses a request without acceptance (§3.4, decided by Adrien 2026-09-21) |
-| **Depends on** | [public-api.md](public-api.md), [wordpress-plugin.md](wordpress-plugin.md), [public-online-payment.md](public-online-payment.md) |
-| **Decision page** | [terms-acceptance-record/resume.html](terms-acceptance-record/resume.html) |
+| **Depends on** | [public-api.md](../site/public-api.md), [wordpress-plugin.md](../site/wordpress-plugin.md), [public-online-payment.md](../site/public-online-payment.md) |
+| **Decision page** | none kept — the interactive mock-up validated on 2026-09-22 was folded into this spec (§6) and removed in the 2026-11-26 reorganization |
+
+
+> **Reviewed 2026-11-26 (spec reorganization).** The mock-up `resume.html` carried nothing beyond this spec; its references are replaced by prose.
 
 ---
 
@@ -18,7 +21,7 @@
 A guest booking on domainesolio.com must tick « J'ai lu et j'accepte les conditions générales de
 location » before the « Réserver » button unlocks. That checkbox is **not part of the booking engine**:
 it is injected by the site mu-plugin `gf-seo-reservation.php` (then under `integrations/wordpress/solio-site/`,
-the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30); lines 403-411) and only toggles the button's `disabled` state (line 611). The click then forwards to
+the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30); lines 403-411) and only toggles the button's `disabled` state (line 611). The click then forwards to
 the GuestFlow plugin's own button, which posts `stay + guest + message + _hp` to
 `POST /public/v1/booking-requests`. Nothing about the terms travels:
 
@@ -358,8 +361,8 @@ reservation and never exposed on the public API. A version cannot be deleted (no
 
 ## 6. UI / UX
 
-The decision page [terms-acceptance-record/resume.html](terms-acceptance-record/resume.html) was the
-interactive mock-up validated on 2026-09-22.
+The interactive decision page validated on 2026-09-22 (since removed; everything it carried is below) showed
+the settings editor, the site drawer recap, the request's fiche line and the confirmation mail.
 
 - **Paramètres → Conditions générales:** `PageActionBar` title « Conditions générales » with a chip
   « vN en vigueur » / « Aucune version publiée »; Save (tooltip « Enregistrer le brouillon ») and Cancel

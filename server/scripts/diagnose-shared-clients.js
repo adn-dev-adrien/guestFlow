@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lists the reservations whose client was overwritten through a client shared with other stays
- * (specs/booking-extranet-intake.md rule 28). Read-only: the database is opened `readonly`, nothing
+ * (specs/platforms/booking-extranet-intake.md rule 28). Read-only: the database is opened `readonly`, nothing
  * is migrated, nothing is written.
  *
  *   node server/scripts/diagnose-shared-clients.js <path/to/guestflow.db> [--json]

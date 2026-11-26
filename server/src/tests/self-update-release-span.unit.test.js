@@ -10,7 +10,7 @@ const { resolvePaths } = require('../utils/deploymentPaths');
 const { getAppVersion } = require('../utils/appVersion');
 const { buildVersionInfo } = require('../controllers/systemController').__test;
 
-// specs/self-update-and-releases.md rules 12b + 20d: the dialog shows every version between the one
+// specs/hosting/self-update-and-releases.md rules 12b + 20d: the dialog shows every version between the one
 // installed and the one on offer, not just the target. Rule 51 (reading of 2026-11-01): each payload is
 // built from an explicit empty environment, so the shell's GUESTFLOW_* flags never reach it.
 

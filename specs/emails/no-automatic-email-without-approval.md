@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Amended** | 2026-08-22 — `feature/email-auto-send-scheduler`: rule 2b, no timer at all while the switch is off |
-| **Superseded** | 2026-09-21 — by [settings-rationalization rule 17b](settings-rationalization.md) (noted at the 2026-10-27 spec review) |
+| **Superseded** | 2026-09-21 — by [settings-rationalization rule 17b](../settings/settings-rationalization.md) (noted at the 2026-10-27 spec review) |
 
 > **Superseded in part by settings-rationalization rule 17b (2026-09-21).** The master switch this spec
 > introduced — `emailAutoSendEnabled`, the Réglages card « Envoi automatique des emails », the banner
@@ -17,6 +17,8 @@
 > itself; `utils/autoSendPolicy` answers per template and fails closed. The goal stands and is met:
 > nothing leaves without an `auto` template. Rules 1, 2, 2b, 3, 4, 7, 8 and 9 and §4–§6 describe the
 > switch and are kept as history only; rules 5, 6 and 10 still hold.
+
+> **Reviewed 2026-11-26 (spec reorganization).** Added rule 11 (the current policy and its two named exceptions, which were only in other specs); rules 1-4, 7-9 and §4-§6 stay as history of the removed master switch.
 
 ---
 
@@ -107,10 +109,20 @@ in one click.
 10. A blocked email produces **no** `email_log` row. `email_log` is the record of send *attempts*;
    nothing was attempted. The queue is the record of what is waiting.
 
+11. **Current policy (added 2026-11-26, restates what survives rule 17b).** A guest e-mail leaves by itself
+   only from an enabled template whose own `sendMode` is `auto` (every default template ships `manual`;
+   `utils/autoSendPolicy` fails closed), and never from the payment-request templates
+   (`PAYMENT_STABLE_KEYS`: a request for money is never sent by a cron). Everything else is proposed in
+   « Emails à envoyer » or sent on the operator's click. Exactly two named exceptions exist, both granted
+   by Adrien: the gift-voucher receipt (`specs/gift-vouchers/gift-vouchers.md` rule 23, 2026-11-15) and
+   `dates_unavailable_notice` (`specs/payments/payment-link-lifecycle.md` rule 44, 2026-10-30, the single entry of
+   `AUTO_SEND_EXCEPTIONS`). A new exception needs Adrien's explicit grant and its own spec rule.
+   > **Sans test** — policy statement; pinned by the tests citing rules 1 and 4 and by the test that scans `AUTO_SEND_EXCEPTIONS`.
+
 **Edge cases:**
 - Flag OFF, payment confirms, client has no email on file → the pair is queued anyway; the row shows
   an empty address and the send dialog lets the operator type one (existing behaviour, rule 9 of
-  `specs/email-automation.md`).
+  `specs/emails/email-automation.md`).
 - Same payment polled twice (webhook + cron) → `email_manual_queue.add` is `INSERT OR IGNORE` on the
   `(templateId, reservationId)` primary key: one row, no duplicate proposal.
 - Confirmation template disabled or missing → nothing is queued (mirrors the current `no-template`
@@ -370,7 +382,7 @@ modèle » + « Historique »). No change to either bar.
     confirmed payment keeps queueing its confirmation (rule 4) and the Emails page keeps its banner
     (rule 8). Those propose — they never send, and they only ever run on a request the operator made.
 - Q: Is any guest e-mail exempt from the gate?
-  - A (2026-11-15, Adrien): **One, and only one:** the gift-voucher receipt (`specs/gift-vouchers.md` rule 23).
+  - A (2026-11-15, Adrien): **One, and only one:** the gift-voucher receipt (`specs/gift-vouchers/gift-vouchers.md` rule 23).
     It is sent automatically when a voucher sold on the website is issued, because it is the receipt of a
     payment the buyer has just made — it carries the amount, the expiry and the link to the voucher, never the
     code, and it leaves through `ctx.mail.send`, outside the stay-bound queue. A failed send is retried by a job

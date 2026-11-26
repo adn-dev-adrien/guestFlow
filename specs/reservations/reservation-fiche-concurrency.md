@@ -7,7 +7,7 @@
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Depends on** | `specs/gites-de-france-mail-intake.md` §4.1 (the save rewrites every column), `specs/reservation-payment-ledger.md`, `specs/plugins-phase-1-sdk.md` (`core.updateReservation`) |
+| **Depends on** | `specs/platforms/gites-de-france-mail-intake.md` §4.1 (the save rewrites every column), `specs/payments/reservation-payment-ledger.md`, `specs/plugins/plugins-phase-1-sdk.md` (`core.updateReservation`) |
 
 ---
 
@@ -100,7 +100,7 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    `ReservationPage.devis-conflict.test.jsx`.
 12. **A refusal that wrote the stay is the fiche's own write too** _(added 2026-10-30, audit R8 client N1)_. A
    payment request can book a payment and still refuse: 409 `LINK_ALREADY_PAID`
-   (specs/payment-link-lifecycle.md rules 18, 50) records the bucket, hence `updatedAt`, then refuses the new
+   (specs/payments/payment-link-lifecycle.md rules 18, 50) records the bucket, hence `updatedAt`, then refuses the new
    link. The `/api/payments` trail of rule 8 already lists that write on the 409 answer, and it is now mounted
    on `/api/emails` too, since a request template sent from the e-mail dialog resolves (and may book) its link
    there. `api.js` puts it on the data-changed event for a refused request as well as a successful one, so the

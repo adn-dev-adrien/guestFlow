@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 21-24 — « Valider l'arrivée » commits once in one transaction (a refused step undoes every step), the quote is re-run
+// specs/sas/outside-booking-sas.md rules 21-24 — « Valider l'arrivée » commits once in one transaction (a refused step undoes every step), the quote is re-run
 // inside it (`PRICE_CHANGED` on a moved total or a document changed underneath), reopening appends and journals, the planning card reads the server's state, an
 // invoiced visit is read-only.
 const test = require('node:test');

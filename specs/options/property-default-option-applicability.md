@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -16,7 +18,7 @@ At **Le Gîte** (propertyId 1), the bed-linen option (« Linge de lits », optio
 as a **default, offered** option (`property_option_defaults` row `(1, 8, offered=1)`). The bed
 **configuration card** (single/double/baby bed counters, used by the weekly laundry feature) lives
 **inside the bed-linen option card** on the reservation page
-([ExtrasSection.js:238-244](../client/src/components/reservation/ExtrasSection.js#L238)): it renders
+([ExtrasSection.js:238-244](../../client/src/components/reservation/ExtrasSection.jsx#L238)): it renders
 only when an *enabled* `countsAsBedLinen = 1` option is present on the reservation.
 
 **Reported bug** (Zulu Hotel, reservation #22200, Gîte, iCal/Greengo): the bed-config card is
@@ -26,9 +28,9 @@ reservations have no bed-linen option attached**, so none ever shows the card.
 **Root cause.** Option 8 is **only applicable to the Aventura lodge** (`property_options` row
 `(2, 8)`), not to the Gîte. The `property_option_defaults` table is *documented as decoupled* from
 that applicability filter ("a row here means auto-add this option on every reservation for that
-property" — [propertyOptionDefaultsModel.js:5](../server/src/models/propertyOptionDefaultsModel.js#L5)),
+property" — [propertyOptionDefaultsModel.js:5](../../server/src/models/propertyOptionDefaultsModel.js#L5)),
 but the **pricing engine still filters by applicability**: `getApplicableOptions`
-([pricing.js:647](../server/src/utils/pricing.js#L647)) drops option 8 for the Gîte, so:
+([pricing.js:647](../../server/src/utils/pricing.js#L647)) drops option 8 for the Gîte, so:
 
 - `devisModel.mergePropertyDefaultsIntoPayload` adds option 8 to the payload, but the engine then
   drops it (`optionsById.get(8)` is undefined for the Gîte → line skipped) → never persisted.
@@ -41,7 +43,7 @@ never appears, and the operator cannot set the bed counts the laundry feature ne
 **WordPress constraint.** The public booking form lists selectable options via
 `publicCatalogController.listOptions` → `optionsModel.listForProperty` (applicability-filtered, a
 **separate** path from the engine). The public quote endpoint calls `calculateReservationQuote`
-**without merging defaults** ([publicQuoteController.js:49](../server/src/controllers/public/publicQuoteController.js#L49)).
+**without merging defaults** ([publicQuoteController.js:49](../../server/src/plugins/website-booking/controllers/publicQuoteController.js#L49)).
 So an **engine-side** fix does **not** expose the linen option on the WordPress site — which is what
 Adrien requires (the option is included; the client must not see/select it).
 
@@ -51,7 +53,7 @@ Every reservation of a property whose defaults include an **offered** bed-linen 
 **bed-configuration card** on the reservation page — for new and existing reservations alike — while
 the WordPress public booking flow continues **not** to show that included option.
 
-> **Amended 2026-06-14 (specs/reservation-option-immutability.md).** "Applies to existing
+> **Amended 2026-06-14 (specs/reservations/reservation-option-immutability.md).** "Applies to existing
 > reservations" is now scoped to **displaying what they already carry** (including the one-time
 > backfill that already ran in prod). Going forward an existing reservation is **frozen**: the
 > bed-linen default is no longer *force-added* on the reservation form nor *re-merged* on save for a
@@ -63,7 +65,7 @@ the WordPress public booking flow continues **not** to show that included option
 
 1. **A property's default options imply applicability.** Every code path that lists a property's
    options keys off `property_options` — **including the reservation form's client filter**
-   ([ReservationPage.js:510](../client/src/pages/ReservationPage.js#L510), `propertyIds.includes`),
+   ([ReservationPage.js:510](../../client/src/pages/ReservationPage.jsx#L510), `propertyIds.includes`),
    the pricing engine (`getApplicableOptions`), and the public catalog. So a default that lacks a
    `property_options` row never renders, never prices, and its in-card bed-config editor never shows.
    The fix makes a default imply an applicability row: `propertyOptionDefaultsModel.set()` upserts the
@@ -86,7 +88,7 @@ the WordPress public booking flow continues **not** to show that included option
    **any option that is an *offered default*** for the property (it's included in the price, not a
    client choice). The public quote endpoint never merges defaults, so it's unaffected.
 5. **Laundry unchanged.** The weekly laundry aggregation already joins `property_option_defaults`
-   directly ([laundryModel.js:70](../server/src/models/laundryModel.js#L70)); this change does not
+   directly ([laundryModel.js:70](../../server/src/plugins/linen/laundryModel.js#L70)); this change does not
    alter those counts. It only makes the *editing UI* for bed counts reachable.
 
 **Edge cases:**

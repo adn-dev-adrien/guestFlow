@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 32(b), specs/airbnb-mail-intake.md rule 32(b) (review of PR #868) — the
+// specs/platforms/gites-de-france-mail-intake.md rule 32(b), specs/platforms/airbnb-mail-intake.md rule 32(b) (review of PR #868) — the
 // home line « Mails … non lus : N (afflux). » appears once two passes in a row hit the cap (a first read of a
 // backlog or a re-read after a parser update is no flood), and clears with a pass that is not capped, skipped, or
 // that throws.

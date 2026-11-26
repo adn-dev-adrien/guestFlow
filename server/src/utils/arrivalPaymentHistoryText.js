@@ -1,5 +1,5 @@
 /**
- * specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) — the words the fiche history
+ * specs/payments/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) — the words the fiche history
  * gives a « paiement unique »: the amount in euros the French way (« 281,98 € »), the day as the screens write it
  * (« 01/09/2026 ») and the buckets by their French names, never `balance` / `endOfStayComplement`.
  */

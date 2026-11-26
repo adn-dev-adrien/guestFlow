@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 28 and 30 — review round R5: an empty period says so instead of
+ * specs/design-system/report-grammar.md §3 rules 28 and 30 — review round R5: an empty period says so instead of
  * two flat charts on a « 0 / 1 / 2 € » axis; the charts are a figure the keyboard passes over.
  */
 import React from 'react';

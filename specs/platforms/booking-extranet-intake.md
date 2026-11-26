@@ -8,8 +8,8 @@
 | **Created** | 2026-10-15 |
 | **Author** | Adrien |
 | **Related PR** | — |
-| **Depends on** | the plugin engine (`specs/plugins-phase-1-sdk.md`, packages `specs/plugins-phase-4-registry.md`; first shipped on `master` on the superseded `specs/plugin-engine-backport.md`), `specs/gites-de-france-mail-intake.md` (update service, `reservation.banners` slot) |
-| **Decision page** | [docs/specs/2026-10-15-booking-extranet-intake.html](../docs/specs/2026-10-15-booking-extranet-intake.html) |
+| **Depends on** | the plugin engine (`specs/plugins/plugins-phase-1-sdk.md`, packages `specs/plugins/plugins-phase-4-registry.md`; first shipped on `master` on the superseded `specs/plugins/plugins-phase-1-sdk.md`), `specs/platforms/gites-de-france-mail-intake.md` (update service, `reservation.banners` slot) |
+| **Decision page** | [docs/specs/2026-10-15-booking-extranet-intake.html](../../docs/specs/2026-10-15-booking-extranet-intake.html) |
 
 ---
 
@@ -175,7 +175,7 @@ already has it.
     > **Amended 2026-10-18 (review m7):** the counted sources are read from the property's calendars,
     > no longer from a setting — the `sourceKeys` setting and its field are gone. A stay counts when
     > its source is Booking's own feed (`platformKey = 'booking'`, active or not), or the Lodgify relay
-    > **while it is active**: once retired (`isActive = 0`, `specs/lodgify-decommission.md` rule 10),
+    > **while it is active**: once retired (`isActive = 0`, `specs/platforms/lodgify-decommission.md` rule 10),
     > its leftover stays no longer sit in « Réservations Booking à compléter ».
 22. Dashboard (`dashboard.alerts`): one line per fiche à compléter — « Réservation Booking à
     compléter · La Granja 06/11 → 08/11 » — with « Ouvrir dans Booking » and « Ouvrir la fiche ». The
@@ -192,7 +192,7 @@ already has it.
 26. **A support session never reaches the secret** (added 2026-10-18, code review M2). The script
     carries the secret in clear, so `GET /api/booking-intake/userscript.user.js`,
     `POST /api/booking-intake/secret` and `POST /api/booking-intake/secret/regenerate` are declared with
-    `ctx.secretRoutes` and refused to a support session (`specs/hosting-h2-account-security.md` rule 23),
+    `ctx.secretRoutes` and refused to a support session (`specs/hosting/hosting-h2-account-security.md` rule 23),
     whatever the case or a trailing slash.
 
 **Edge cases:**
@@ -219,7 +219,7 @@ automatic e-mails of those stays then went to the wrong guest (review 2026-10-18
     (`ctx.core.clients.findOrCreate`, as the Gîtes de France intake does) or creates it, puts its id on
     the fiche (`clientId` in the reservation patch), and refreshes its fields only while no other
     reservation uses it. The fiche's previous client is left as it was (an untouched « Ical Booking »
-    placeholder is deleted by the next iCal sync, `specs/ical-import-hardening.md` rule 14,
+    placeholder is deleted by the next iCal sync, `specs/platforms/ical-import-hardening.md` rule 14,
     2026-10-18). A fiche whose client is
     shared with another reservation is untouched in the sense of rule 14 as long as « Paiement
     plateforme » is empty.
@@ -250,7 +250,7 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     is Booking's commission alone (16,44 % of the Sous-total, measured on three settled stays and on
     6600000001: 113,44 € = 16,44 % × 690 €), so the payout (rule 15) still holds the tax. Whether that
     tax is ours depends on the Booking platform's tourist-tax mode
-    (specs/per-platform-tourist-tax-three-way.md):
+    (specs/tourist-tax/per-platform-tourist-tax-three-way.md):
     - `platform` (Booking collects **and** remits to the commune): `platformTouristTaxAmount` = Taxe de
       séjour, and the commission = brut − payout − tax, as rule 15 says;
     - `platform_reversed` (Booking collects and reverses it to us — the setting since 2026-10-16) or
@@ -302,7 +302,7 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
 
 ## 4. Architecture
 
-Targets **`master`**, on top of `specs/plugin-engine-backport.md`.
+Targets **`master`**, on top of `specs/plugins/plugins-phase-1-sdk.md`.
 > **2026-10-18 (merge into `inte/plugins`):** the plugin now runs on the full engine — see §10.
 
 ### 4.1 Core — generic pieces
@@ -510,7 +510,7 @@ shared-client rules at 27–28 and appended these three as 29–31.
     package like every other plugin (`scripts/build-plugin-packages.mjs`), icon `bookmark` on the Plugins
     page.
   - The SDK entries of §4.1 (`ctx.core.clients.update`, `ctx.core.reservations.platformCommission`) raise
-    the SDK to `1.1.0` (`specs/plugins-phase-4-registry.md` rule 3, a minor bump).
+    the SDK to `1.1.0` (`specs/plugins/plugins-phase-4-registry.md` rule 3, a minor bump).
   - Activation goes through the Plugins page (Paramètres › Plugins), not the « Modules » card; a fresh
     database installs nothing, a database that ran v3.10.0 keeps the state its two intake rows had
     (`engine.unit.test.js`). The E2E spec activates and deactivates the plugin from the Plugins page.
@@ -522,7 +522,7 @@ shared-client rules at 27–28 and appended these three as 29–31.
 - 2026-10-18 — review fixes on `inte/plugins` (`fix/review-ical-intake`), manifest `1.1.0`:
   - rule 21 amended: the counted sources are derived from the calendars (`sourceKeys` removed);
   - the iCal import gives each nameless stay its own placeholder client and the boot pass splits the
-    placeholders shared before (`specs/ical-import-hardening.md` rule 1), so the shared client rule 27
+    placeholders shared before (`specs/platforms/ical-import-hardening.md` rule 1), so the shared client rule 27
     guards against is no longer created; rules 27–28 stay as the guard and the repair path.
   - Tests: `pending-fiches.unit.test.js` +1 (stopped Lodgify relay), `engine.unit.test.js` and the client
     `SettingsSection.test.jsx` follow the removed setting.

@@ -1,5 +1,5 @@
 /**
- * The built-in plugin modules (specs/plugins-phase-1-sdk.md rule 2). The only core file allowed to
+ * The built-in plugin modules (specs/plugins/plugins-phase-1-sdk.md rule 2). The only core file allowed to
  * import a plugin folder; everything else asks `sdk/registry`.
  */
 

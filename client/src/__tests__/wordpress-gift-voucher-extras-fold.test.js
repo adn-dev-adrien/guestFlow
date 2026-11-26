@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 64 — the extra time and the add-ons sit in one fold « Ajouter au bon », closed by default; its head says what is inside and, once
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 64 — the extra time and the add-ons sit in one fold « Ajouter au bon », closed by default; its head says what is inside and, once
 // something is chosen, the names and the server's `extrasCents`; each line shows the price the server gives for its quantity, read in the `prices` arrays, never multiplied;
 // at the maximum the « + » is disabled and the line says so. The same fold serves the purchase block and « Utiliser un bon cadeau ».
 import { fireEvent, screen, waitFor } from '@testing-library/react';

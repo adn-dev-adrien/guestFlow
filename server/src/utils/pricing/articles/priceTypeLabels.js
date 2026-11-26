@@ -1,5 +1,5 @@
 /**
- * The French name of each price type (specs/pricing-components.md rule 124): what the gift-voucher catalogue shows beside an article and what `outsideSale` quotes in its reason, so
+ * The French name of each price type (specs/pricing/pricing-components.md rule 124): what the gift-voucher catalogue shows beside an article and what `outsideSale` quotes in its reason, so
  * every caller reads the same words. They are the words of the option and resource fiches' « Type de prix » menu (`client/src/constants/optionsResourcesTexts.js`), so the reason
  * under « Vendable hors séjour » names the type the operator just picked.
  */

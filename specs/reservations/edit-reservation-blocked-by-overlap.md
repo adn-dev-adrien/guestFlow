@@ -13,7 +13,7 @@
 ## 1. Context
 
 Investigating the « paiement plateforme : champs vides à la réouverture » report
-(specs/platform-payment-calculer-button.md §1) showed the platform fields persist fine on a
+(specs/platforms/platform-payment-calculer-button.md §1) showed the platform fields persist fine on a
 **successful** save — but the operator's save was being **rejected** and the whole edit discarded.
 There are **two** guards, both of which block a finance-only edit of an already-conflicting reservation:
 - **Client pre-check (the actual gate observed in repro):** `handleSaveReservation` in
@@ -22,7 +22,7 @@ There are **two** guards, both of which block a finance-only edit of an already-
   reservation the « Conflit de réservation » dialog fires and **no PUT is ever made** (the payment is
   never sent, hence « blank on reopen »).
 - **Server guard:** on `PUT /api/reservations/:id` the controller runs
-  [`validateAvailability`](../server/src/models/reservationsModel.js) (→ 409), `checkCapacity` and
+  [`validateAvailability`](../../server/src/models/reservationsModel.js) (→ 409), `checkCapacity` and
   `checkBabyBeds` (→ 400).
 
 Both run **even when the edit didn't touch the dates / occupancy** — so editing a reservation that
@@ -48,7 +48,7 @@ the reservation **into** a conflict (changing dates/place/occupancy) still valid
    `singleBeds`, `doubleBeds`, `babyBeds` differs from the stored reservation. If unchanged, a
    pre-existing capacity excess does **not** block the save. *Corrected 2026-11-05 (audit R22-C6):* `checkBabyBeds` also
    runs when the logement or the dates move, since cots are held on a range: a fiche with one cot moved onto a full range
-   was saved and oversold the stock (specs/reservations-backend-mvc.md rule 17). `checkCapacity` is not concerned.
+   was saved and oversold the stock (specs/tech/reservations-backend-mvc.md rule 17). `checkCapacity` is not concerned.
 3. **Create** is unchanged — a new reservation always validates fully (it has no prior placement).
 4. Moving a reservation **into** a conflict (changed placement → overlap) is still rejected (409);
    increasing occupancy beyond capacity (changed occupancy) is still rejected (400). The min-nights

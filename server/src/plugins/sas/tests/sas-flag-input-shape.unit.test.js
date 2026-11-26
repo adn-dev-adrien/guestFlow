@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 72 (audit R39-M-L2, 2026-11-10) — every tick the two SAS read is the PATCH's
+// specs/payments/reservation-payment-ledger.md rule 72 (audit R39-M-L2, 2026-11-10) — every tick the two SAS read is the PATCH's
 // tick (rule 66): true, false, 1 or 0, or absent. `Boolean("false")` used to settle a solde and return a caution the
 // request said were not; anything else is now 400 INVALID_PAYMENT_FLAG with its field, preview and commit, reception
 // included, before anything is planned or written. A field reception never sends (the stay settlement) is still dropped.

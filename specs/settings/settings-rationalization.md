@@ -7,9 +7,9 @@
 | **Created** | 2026-09-21 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Decision page** | [settings-rationalization/avant-apres.html](settings-rationalization/avant-apres.html) — interactive before/after, the page Adrien opens to decide |
-| **Amended** | 2026-10-19 — summary page, four groups, search, sending server from the address (rules 24–28; UI/UX review 2026-10-18, proposal 20, decisions 12 and 14) — [summary and mock](../docs/specs/2026-10-19-settings-summary-shortcut-menu.html) |
-| **Supersedes (UI layout only)** | [settings-submenu-reorg.md](settings-submenu-reorg.md) §5, [ds-sweep-settings.md](ds-sweep-settings.md) §3.2 |
+| **Decision page** | `avant-apres.html` (folded into this spec, deleted 2026-11-26) — interactive before/after, the page Adrien opens to decide |
+| **Amended** | 2026-10-19 — summary page, four groups, search, sending server from the address (rules 24–28; UI/UX review 2026-10-18, proposal 20, decisions 12 and 14) — [summary and mock](../../docs/specs/2026-10-19-settings-summary-shortcut-menu.html) |
+| **Supersedes (UI layout only)** | [settings-submenu-reorg.md](settings-submenu-reorg.md) §5, [ds-sweep-settings.md](../design-system/ds-sweep-settings.md) §3.2 |
 
 ---
 
@@ -193,7 +193,7 @@ one place.
 17. One row per platform: colour, commission %, takes a deposit (Oui/Non — kept, Q3), tourist-tax
     collection (3-way), payout after N days. Validation reuses the existing platform validators
     (commission 0–100, payout ≥ 0).
-    **Amended 2026-10-28** (specs/settings-input-guards.md rules 28-31): the commission % and the payout
+    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 28-31): the commission % and the payout
     days are `BoundedNumberField`s — a minus is stripped as typed, a non-number restores the previous
     value on blur / Enter, an out-of-range value is refused (400, same message).
 18. The property page's « Plateformes & iCal » table keeps only what is per property: the iCal URL,
@@ -263,7 +263,7 @@ one place.
     configurer », « Second code activé ». What is missing has the warning tone (« IBAN à saisir »,
     « Aucun logement », « Envoi non configuré », « Envoi incomplet », « n à configurer »). A plugin's
     own settings page reads « À configurer » while its plugin lacks something
-    (specs/plugins-phase-0-foundation.md rule 25). A line the server cannot compute is left out; the
+    (specs/plugins/plugins-phase-0-foundation.md rule 25). A line the server cannot compute is left out; the
     row keeps its name.
 26. **The submenu becomes a shortcut menu in four groups** (UI/UX review 2026-10-18, decision 12 —
     « Sommaire + menu raccourci en 4 groupes », not the recommended « summary only »). The groups are
@@ -306,13 +306,13 @@ one place.
     saisir le serveur. » and « Réglages avancés » opens on the manual fields (server, login, security,
     now folded there). The card asks the server only for an own server: never on a managed instance
     sending through the platform until a password is stored or typed there
-    (specs/hosting-h1-fleet-runtime.md rules 18–19); a refused request (a read-only instance) says
+    (specs/hosting/hosting-h1-fleet-runtime.md rules 18–19); a refused request (a read-only instance) says
     nothing. `GUESTFLOW_SMTP_DETECT=off` turns the lookup off — the E2E suites set it, so no test
     resolves a real domain. The disabled test button says what it waits for: « Adresse d'envoi
     manquante. », « Mot de passe manquant. », « Serveur d'envoi manquant. », « À enregistrer
     d'abord. ».
 29. **The settings search knows the emails by their names** (integrated review of inte/plugins,
-    2026-10-19, L1). Since specs/guest-email-texts-made-simple.md rule 44 the emails are named by what
+    2026-10-19, L1). Since specs/emails/guest-email-texts-made-simple.md rule 44 the emails are named by what
     they are for; « J-2 » and « J-7 » are no longer keywords. « Textes des emails » carries every
     shipped email's name (Confirmation, Demande d'acompte, Rappel de solde, Préparation du séjour,
     Accès et arrivée, Merci et avis…), read from `constants/emailNames.js` — a client mirror of
@@ -320,7 +320,7 @@ one place.
     « merci », « rappel de solde » find it; the row says the whole name the words were found in
     (« Contient : Rappel de solde », not « Rappel d'acompte »).
 30. **A settings group of the sidebar follows the shell's chevron pattern** (integrated review,
-    2026-10-19, L2 — specs/shell-and-home-day-first.md rule 18). The group row is a plain link to the
+    2026-10-19, L2 — specs/planning/shell-and-home-day-first.md rule 18). The group row is a plain link to the
     summary on that group, without `aria-expanded`; a separate chevron button « Déplier <groupe> » /
     « Replier <groupe> » carries `aria-expanded` and `aria-controls` and folds or unfolds the group
     without leaving the page. Opening another page brings back « the group of the open page » (rule 26).
@@ -405,7 +405,7 @@ one place.
 | `utils/` | `propertyValidation.js` | C | Property form validation (rule 23a) |
 | `utils/` | `settingsRationalizationMigration.js` | C | One-shot steps: identity normalisation, templates back to manual, column drops |
 | `controllers/` | `propertiesController.js` + `propertiesModel.js` | T | Validation on create / update; `GET/PUT /api/properties/email-hooks` |
-| `controllers/` | `optionsController.js` | T | the catalogue (`GET /api/options/catalogue-view`) leaves out the per-property auto-options (rule 15); the old `?view=catalogue` on the plain list was removed (specs/inte-performance.md) |
+| `controllers/` | `optionsController.js` | T | the catalogue (`GET /api/options/catalogue-view`) leaves out the per-property auto-options (rule 15); the old `?view=catalogue` on the plain list was removed (specs/tech/inte-performance.md) |
 | `utils/` | `settingsResponse.js` | T | Return `footerTextEn`; return `smtp.derived` and `notifications.derivedRecipient` next to the stored overrides |
 | `controllers/` | `paymentsController.js` | T | Remove the timings GET/PUT |
 | `controllers/` | `reservationsController.js` | T | Replace the `allowEditPastReservations` read by the per-request `unlockPast` flag, admin only (rule 17a) |
@@ -508,7 +508,7 @@ entry records both.
 ## 6. UI / UX
 
 The interactive before/after is the reference:
-[settings-rationalization/avant-apres.html](settings-rationalization/avant-apres.html).
+`avant-apres.html` (folded into this spec, deleted 2026-11-26).
 
 - **Desktop (`md+`)**: the sidebar submenu as today (small MUI icon + text) with thin
   dividers between families; the page on the right, max width 880 px, one column of cards.
@@ -517,7 +517,7 @@ The interactive before/after is the reference:
   (Intégrations, Système, Recettes) have no Save. The title is the page name, never « Générale ».
 - Copy: see the decision page for each label.
 - **Summary (rules 24–27)** — the interactive mock is
-  [2026-10-19-settings-summary-shortcut-menu.html](../docs/specs/2026-10-19-settings-summary-shortcut-menu.html).
+  [2026-10-19-settings-summary-shortcut-menu.html](../../docs/specs/2026-10-19-settings-summary-shortcut-menu.html).
   Desktop: the search (max 520 px) above two columns of group cards, the sidebar shows the four
   groups with the open one unfolded. Tablet (`md`, 900 px): same two columns. Mobile (`xs`): one
   column, the search full width at 16 px (no zoom on focus); the groups live in the drawer, and a

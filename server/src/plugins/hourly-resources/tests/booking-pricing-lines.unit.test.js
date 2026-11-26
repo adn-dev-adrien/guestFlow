@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 3-6 — the price of a booking, line by line, with its VAT.
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 3-6 — the price of a booking, line by line, with its VAT.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed, book, DAY } = require('./standaloneBookingFixture');

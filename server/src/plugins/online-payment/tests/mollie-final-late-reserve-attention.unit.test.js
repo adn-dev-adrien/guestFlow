@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 4 and 13 — a reserve past its window is « en retard » whether or
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 4 and 13 — a reserve past its window is « en retard » whether or
 // not a proposal waits for the operator: it is on the home alert, and not counted twice among the gaps.
 const test = require('node:test');
 const assert = require('node:assert/strict');

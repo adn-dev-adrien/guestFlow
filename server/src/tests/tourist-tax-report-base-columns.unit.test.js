@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rule 16 — the percentage form's base on the report: each row of ours carries the
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rule 16 — the percentage form's base on the report: each row of ours carries the
 // extraction's « nuit HT par occupant » and « montant du séjour HT », and the report says when a row of ours needs
 // them shown. Through the real controllers, on the fixture's percentage property (Lodge) and a per-night one.
 process.env.DB_PATH = ':memory:';

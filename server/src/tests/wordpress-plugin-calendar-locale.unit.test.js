@@ -1,5 +1,5 @@
 /**
- * specs/site-english-version.md rule 43 — the booking calendar names its months in the page's
+ * specs/site/site-english-version.md rule 43 — the booking calendar names its months in the page's
  * language.
  *
  * Kept from the former `solio-facts-bilingual` suite when the site's own mu-plugins left this

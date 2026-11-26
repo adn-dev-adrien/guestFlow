@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 > **Extended by [[sas-breakfast-milk-and-food]] (2026-07-18):** a 4th drink « Lait », an
 > « À manger » section (Viennoiseries / Céréales counters with their own coherence hint),
 > and a bigger time display on the SAS step. That spec is the source of truth for those fields.
@@ -16,9 +18,9 @@
 
 ## 1. Context
 
-The arrival/departure SAS (guided check-in/check-out wizard, `specs/arrival-departure-sas.md`,
-component `client/src/components/sas/ReservationSasDialog.js`) is now live. Separately, the planning
-already shows a **breakfast card per day** (`client/src/components/BreakfastDayCard.js`, fed by
+The arrival/departure SAS (guided check-in/check-out wizard, `specs/sas/arrival-departure-sas.md`,
+component `client/src/plugins/sas/ReservationSasDialog.jsx`) is now live. Separately, the planning
+already shows a **breakfast card per day** (`client/src/components/OptionDayCard.jsx`, fed by
 `server/src/models/breakfastModel.js` via `GET /api/planning/breakfast`) listing, for each morning of a
 stay, the reservations that took the breakfast option with their **time** + **person count**.
 
@@ -33,7 +35,7 @@ Two gaps surfaced in field use:
 
 The breakfast time is already modelled: `reservations.breakfastTime` (per-reservation override, nullable) +
 `options.breakfastTime DEFAULT '09:00'` (option default), resolved in `breakfastModel` (see
-`specs/breakfast-time.md`). This spec reuses that field for the editable hour.
+`specs/options/breakfast-time.md`). This spec reuses that field for the editable hour.
 
 ## 2. Goal
 
@@ -107,7 +109,7 @@ leave a **free handover note** that resurfaces in the **departure SAS** and on t
 - Drinks total ≠ persons → soft warning confirm on « Suivant » (rule 4b); never blocks definitively.
 - Breakfast `persons` resolves to 0 → the warning compares against 0; any non-zero drink total prompts
   (operator can still confirm). Acceptable.
-- SAS already done (`arrivalSasDoneAt` set) → the SAS button is locked (per `specs/arrival-departure-sas.md`
+- SAS already done (`arrivalSasDoneAt` set) → the SAS button is locked (per `specs/sas/arrival-departure-sas.md`
   §3.0), so breakfast values are captured once. Editing later is out of scope (see §8).
 
 ---
@@ -138,7 +140,7 @@ leave a **free handover note** that resurfaces in the **departure SAS** and on t
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/sas/` | `ReservationSasDialog.js` | T | New `breakfast` step in the arrival `activeKeys` (after `options`, before `linen`); state `breakfast{coffee,tea,chocolate}`, `breakfastTime`, `breakfastNote`, `handoverNote`; render the breakfast page (time field + 3 `CountStepper`s + live hint + note) and the recap handover-note field; coherence `ConfirmDialog` on « Suivant » when total ≠ persons; read-only handover block in the departure SAS intro; include the new fields in the `commitArrivalSas` payload (breakfast fields only when applicable). New module-level `CountStepper` (icon + label + integer stepper). |
-| `components/` | `BreakfastDayCard.js` | T | Render the café/thé/chocolat chips (hide zeros) + breakfast note under each row. |
+| `components/` | `OptionDayCard.jsx` | T | Render the café/thé/chocolat chips (hide zeros) + breakfast note under each row. |
 | `components/` | `DepartureMiniRow.js` | T | Render the `departureHandoverNote` caption block when non-empty. |
 | `api.js` | `api.js` | T | `commitArrivalSas` passes the new fields through (payload extension only). |
 
@@ -236,7 +238,7 @@ its existing « Quitter » + page-specific forward buttons.
       steppers + note + time feed the `commitArrivalSas` payload; **mismatch total ≠ persons triggers the
       confirm before advancing; matching total advances with no prompt**; recap handover note feeds the
       payload; departure SAS renders the read-only handover block when set.
-- [x] `BreakfastDayCard.test.js` — count chips render, **zeros hidden**, note shown when set.
+- [x] `OptionDayCard` tests — count chips render, **zeros hidden**, note shown when set.
 - [x] `DepartureMiniRow.test.js` (extend) — handover-note caption renders when set, absent when empty.
 
 ### Manual UI verification

@@ -7,8 +7,8 @@
 | **Created** | 2026-11-03 |
 | **Approved** | 2026-11-03 |
 | **Author** | Adrien |
-| **Amends** | [card-option-served-persons.md](card-option-served-persons.md) rules 1, 5, 6, 9, 16; [reservation-quantity-stepper.md](reservation-quantity-stepper.md) (per-person Qté); [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) (non-card SAS sale) |
-| **Decision summary** | [docs/specs/2026-11-03-non-card-option-served-persons.html](../docs/specs/2026-11-03-non-card-option-served-persons.html) |
+| **Amends** | [card-option-served-persons.md](card-option-served-persons.md) rules 1, 5, 6, 9, 16; [reservation-quantity-stepper.md](../reservations/reservation-quantity-stepper.md) (per-person Qté); [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md) (non-card SAS sale) |
+| **Decision summary** | [docs/specs/2026-11-03-non-card-option-served-persons.html](../../docs/specs/2026-11-03-non-card-option-served-persons.html) |
 | **Related PR** | _(opened at the end of implementation)_ |
 
 ---
@@ -301,7 +301,7 @@ matched), in a transaction.
 **Data impact:** no amount changes. In production: 4 lines migrated (22199, 9, 22269, 22280). The two
 lines of quote 22335 are left and logged; those of 22336 were corrected by hand on 2026-11-03.
 
-**Rollback (accepted exception, recorded 2026-11-03, audit R21; [self-update-and-releases.md](self-update-and-releases.md)
+**Rollback (accepted exception, recorded 2026-11-03, audit R21; [self-update-and-releases.md](../hosting/self-update-and-releases.md)
 rule 39).** The schema only adds a column, but this migration, and every line the code writes since, changes what
 `quantity = 1` means. An engine below v3.20.0 ignores `cardPersons` on a non-card line and knows no `cardNights`, so
 after a rollback below v3.20.0 a typed line re-bills the whole party or the whole stay **at its next save**: on a copy
@@ -313,7 +313,7 @@ reads as what it bills until it is retyped (rule 18).
 
 ## 6. UI / UX
 
-Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-card-option-served-persons.html).
+Interactive rendering in the [decision summary](../../docs/specs/2026-11-03-non-card-option-served-persons.html).
 
 - `per_person`: « Qté », integer stepper, pre-filled with the party. The header's « ×5 pers. » hint is
   dropped on these rows: it contradicted a typed 3.
@@ -403,7 +403,7 @@ soon as an option is active on the fiche.
 - The custom line's `soldeContribTtc` was reset to NULL by a priced fiche save on a paid reservation, seen while
   rehearsing the 22336 correction. This spec first read « no amount moves »; that was wrong: the total and the cash
   hold, but revenue moved between 706 accounts on booked entries (audit R21-M1). Fixed on 2026-11-03 by
-  [reservation-save-keeps-pricing.md](reservation-save-keeps-pricing.md) rule 19.
+  [reservation-save-keeps-pricing.md](../reservations/reservation-save-keeps-pricing.md) rule 19.
 
 ## 9. Open questions
 

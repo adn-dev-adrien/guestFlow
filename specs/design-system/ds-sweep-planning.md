@@ -10,6 +10,8 @@
 | **Umbrella** | [design-system.md](design-system.md) — phase 5 of 6 |
 | **Reference** | [design-system-reference.md](design-system-reference.md) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** File map is a phase-5 snapshot: `CalendarToolbar.js` (replaced by `PageActionBar` with the property picker in `center`, `client/src/pages/CalendarPage.jsx:423`) and `CalendarWeekView.js` no longer exist; the cited rules are unchanged.
+
 ---
 
 ## 1. Context
@@ -98,7 +100,7 @@ business behavior, figure, or calendar geometry**.
    the title also renders (ellipsized) on xs. All 5 swept pages set it; without it, pages whose
    actions live in the hidden `center` showed a bare white strip on mobile.
    > 2026-10-19: superseded — on `xs` the page title lives in the top bar and `titleOnXs` is gone
-   > (`specs/shell-and-home-day-first.md` rule 15).
+   > (`specs/planning/shell-and-home-day-first.md` rule 15).
 
 ### 3.2 Scroll structure (§3.6 umbrella — bar visible, page opens at top)
 
@@ -316,7 +318,7 @@ Dashboard/Planning/Calendar it may be extracted as a small `BarCenterStrip` help
 ### E2E (Playwright)
 - [x] Full suite green — **31 passed** (+1 pre-existing conditional skip). New mobile smoke
   `mobile/planning-mobile.spec.js`: `/planning` at 390px — bar title visible on arrival
-  (titleOnXs — since 2026-10-19 the top bar's heading, `specs/shell-and-home-day-first.md` rule 15), visible date strip, no horizontal page scroll, bar still visible after window
+  (titleOnXs — since 2026-10-19 the top bar's heading, `specs/planning/shell-and-home-day-first.md` rule 15), visible date strip, no horizontal page scroll, bar still visible after window
   scroll. `auth/sidebar-navigation.spec.js` updated for the « Calendrier » retitle (rule 3).
 
 ### Manual UI verification (2026-07-16, Playwright browser)
@@ -331,7 +333,7 @@ Dashboard/Planning/Calendar it may be extracted as a small `BarCenterStrip` help
 
 Presentation-only sweep — no business behavior, figure, or calendar geometry change. Deviations are
 cross-linked in the rules above (5b, 14, 16, 23); additional notes:
-- **`PageActionBar.titleOnXs`** (rule 5b; removed 2026-10-19, `specs/shell-and-home-day-first.md` rule 15) and **`FormDialog.secondaryAction`** (rule 23) are the
+- **`PageActionBar.titleOnXs`** (rule 5b; removed 2026-10-19, `specs/planning/shell-and-home-day-first.md` rule 15) and **`FormDialog.secondaryAction`** (rule 23) are the
   two generic-library extensions this phase adds (amends §4.2's "no new generic expected").
 - **CumulativeMonthCalendar keeps two micro-indicators as-is** (documented): the 18px in-flight
   spinner beside « Aujourd'hui » (background activity, not a section load) and the per-month

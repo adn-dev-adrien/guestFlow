@@ -1,6 +1,6 @@
 /**
  * EmailLogViewDialog — read-only preview of a historical email log row.
- * See specs/email-automation.md §6.5.
+ * See specs/emails/email-automation.md §6.5.
  */
 
 import React from 'react';
@@ -19,7 +19,7 @@ function statusLabel(status) {
 
 export default function EmailLogViewDialog({ open, row, onClose }) {
   const theme = useTheme();
-  // Full screen on a phone (CLAUDE.md §7 dialog rule; specs/inte-performance.md rule 24).
+  // Full screen on a phone (CLAUDE.md §7 dialog rule; specs/tech/inte-performance.md rule 24).
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   if (!row) return null;
   const status = statusLabel(row.status);
@@ -41,7 +41,7 @@ export default function EmailLogViewDialog({ open, row, onClose }) {
           {row.status === 'failed' && (row.errorLabel || row.errorMessage) ? (
             <Box sx={{ p: 1.5, bgcolor: 'error.soft', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
               <Typography variant="body2" color="error.main" sx={{ fontWeight: 600 }}>
-                {/* The server words the failure in French (specs/email-automation.md rule 15). */}
+                {/* The server words the failure in French (specs/emails/email-automation.md rule 15). */}
                 Erreur : {row.errorLabel || row.errorMessage}
               </Typography>
             </Box>

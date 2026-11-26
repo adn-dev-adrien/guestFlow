@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 41, 46, 52 — « Nouveau bon »: a campaign on sale or « Sur mesure », the contents, extra time and add-ons from the server's offer, the
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 41, 46, 52 — « Nouveau bon »: a campaign on sale or « Sur mesure », the contents, extra time and add-ons from the server's offer, the
 // server's recap with its VAT per rate, then « Payé » (means of payment from the server), « Offert » or « Envoyer un lien de paiement » (the e-mail is mandatory for it);
 // the lodging free amount; every server refusal on the field it names.
 import React from 'react';

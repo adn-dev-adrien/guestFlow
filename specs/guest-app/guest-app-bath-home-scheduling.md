@@ -7,7 +7,7 @@
 | **Created** | 2026-11-13 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Summary for decision** | [`docs/specs/2026-11-13-guest-app-bath-home-scheduling.html`](../docs/specs/2026-11-13-guest-app-bath-home-scheduling.html) — interactive mock-up |
+| **Summary for decision** | [`docs/specs/2026-11-13-guest-app-bath-home-scheduling.html`](../../docs/specs/2026-11-13-guest-app-bath-home-scheduling.html) — interactive mock-up |
 
 ---
 
@@ -16,14 +16,14 @@
 Every stay at Domaine Solio gets **one hour of nordic bath offered** (2026-09-23), and a guest can buy more hours
 when booking (site, devis) or later. Today:
 
-- The guest app sells bath slots from the shop (`SlotPickerPage`, specs/guest-app.md rules 28-31) and its home shows a
+- The guest app sells bath slots from the shop (`SlotPickerPage`, specs/guest-app/guest-app.md rules 28-31) and its home shows a
   highlight « Un bain nordique ce soir ? » only when a slot is still free today (`homeHighlight.js`, key `bath`). The
   highlight sells; it never says what the guest **already owns**.
 - Hours the guest **owns but has not placed** — the offered hour, hours bought with the stay — can only be placed by the
   operator in the arrival SAS (« Planifier », `hourly-resources/schedulingModel.js` `hoursRemaining`). A guest who
   arrives at 21:00 or wants to plan ahead from J-7 cannot do it.
 - When owned hours are placed in the evening band, the stay owes the evening difference. The pricing refonte already
-  values the offered hour at the **day rate** (specs/pricing-components.md rule 24, diff 4) and carries the evening
+  values the offered hour at the **day rate** (specs/pricing/pricing-components.md rule 24, diff 4) and carries the evening
   difference as a component of the session line (rule 90.3). With the current lodger grid (day 30 €, evening 50 €
   from 20:00) an offered hour taken in the evening owes **20 €** — the same gap as the external grid (50 € / 70 €),
   which is how Adrien states it.
@@ -123,7 +123,7 @@ exact amount due (evening supplement, extra hours), computed by the server.
     guard (guest-app rule 55, `freeCovers`) counts the held hours as well as the offered minutes _(fix, 2026-11-15:
     placing a held hour in the day was refused « ne se commande pas dans l'application »)_.
 18. **Total > 0 €** → button « Confirmer · 20 € »: the line goes to the cart (`cart.replace`), whose payment choice is
-    the app's own (card first, « sur la note »; specs/guest-app.md). Placement and sale are **one** order, the existing
+    the app's own (card first, « sur la note »; specs/guest-app/guest-app.md). Placement and sale are **one** order, the existing
     one: the held hours placed, the evening supplement a line of its own (rules 81-83), the extra hours a new resource
     line with their sessions. A card payment abandoned or refused places nothing (the order's rules 35-36).
 19. The order re-judges every slot: a slot taken meanwhile refuses the whole order, the screen says the server's
@@ -192,7 +192,7 @@ refonte writes (extras, evening component), and the history in `reservation_hist
 
 The interactive mock-up is the reference: `docs/specs/2026-11-13-guest-app-bath-home-scheduling.html`.
 
-- **Card** (« Domaine Solio » tokens, specs/guest-app.md §6): eyebrow « BIEN-ÊTRE », title in Marcellus, one line of
+- **Card** (« Domaine Solio » tokens, specs/guest-app/guest-app.md §6): eyebrow « BIEN-ÊTRE », title in Marcellus, one line of
   detail, one filled button. Night photo fallback like the bath highlight. When the card holds two buttons they are
   stacked, full width, same height and same width, aligned on the same left edge (reviewed on the mock-up 2026-11-13:
   a text button beside a filled one read as misaligned).
@@ -237,7 +237,7 @@ hours 20-22 h → 40 €, a 2 h day block confirmed at 0 € and the card turned
 
 - Moving or cancelling a placed session from the app (Q1).
 - Buying hours without a slot (decided 2026-11-13: an extra hour is bought with its slot).
-- External bookings (specs/outside-booking-sas.md).
+- External bookings (specs/sas/outside-booking-sas.md).
 - Any change to who is granted the offered hour, or to the grids themselves.
 
 ## 9. Open questions

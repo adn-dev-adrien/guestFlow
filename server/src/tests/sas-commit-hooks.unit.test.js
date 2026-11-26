@@ -1,4 +1,4 @@
-// The SAS commit contract of plugin steps (specs/plugins-phase-3c-hourly-resources.md rules 6–8).
+// The SAS commit contract of plugin steps (specs/plugins/plugins-phase-3c-hourly-resources.md rules 6–8).
 
 const test = require('node:test');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');

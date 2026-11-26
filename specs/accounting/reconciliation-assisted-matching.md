@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Extends** | [qonto-bank-reconciliation.md](qonto-bank-reconciliation.md) (v1, Implemented) — its rules 1–46 stand unless a rule below names one it revises |
-| **Summary page** | [docs/specs/2026-10-28-reconciliation-assisted-matching.html](../docs/specs/2026-10-28-reconciliation-assisted-matching.html) — interactive mock-ups, 1280 and 390 px |
+| **Summary page** | [docs/specs/2026-10-28-reconciliation-assisted-matching.html](../../docs/specs/2026-10-28-reconciliation-assisted-matching.html) — interactive mock-ups, 1280 and 390 px |
 
 **Why a new spec rather than more rules in v1.** v1 is Implemented, 46 rules long and its architecture
 table describes shipped files. This change adds three new surfaces (the fiche's linking dialog, bulk
@@ -27,35 +27,35 @@ Feedback of 2026-10-28 on the `inte/plugins` shadow (production copy of 2026-10-
 crédits ». Six problems, each grounded in the code:
 
 **A — « Rattacher un virement » on the fiche lists the wrong credits.**
-[controller.js:360-362](../server/src/plugins/online-payment/reconciliation/controller.js#L360) hands the fiche
+[controller.js:360-362](../../server/src/plugins/online-payment/reconciliation/controller.js#L360) hands the fiche
 `data.credits.filter(remaining > 0, not outside, EUR).slice(0, 40)`: the 40 **newest** credits of the
 account, whatever the fiche expects. On the shadow, the fiche of a stay whose acompte was due on 14/03
 gets 40 credits settled between 05/06 and 12/10 — the transfers that could pay it are **not in the list at
 all** (the cap cuts them off). 25 of the 40 are platform payouts already proposed to other fiches and 12 are
 « autres crédits » (owner transfers, interest…). There is no amount or date filter and no search.
-[LinkTransactionDialog.jsx:62-83](../client/src/plugins/online-payment/LinkTransactionDialog.jsx#L62) renders them
+[LinkTransactionDialog.jsx:62-83](../../client/src/plugins/online-payment/LinkTransactionDialog.jsx#L62) renders them
 as one flat radio list, and links **one** credit to **one** échéance per opening.
 
 **B — A guest who pays in two transfers.** The data model already allows several credits per receipt
 (v1 rule 12) and the `partial` state (v1 rule 37), but the only way to get there is to open the dialog twice
 and type each amount. The matcher never proposes two credits together: `directProposals`
-([matcher.js:185-233](../server/src/plugins/online-payment/reconciliation/matcher.js#L185)) works one credit at a
+([matcher.js:185-233](../../server/src/plugins/online-payment/reconciliation/matcher.js#L185)) works one credit at a
 time, so two 150 € transfers for a 300 € acompte are two « à vérifier » guesses at best. With an
-installment plan ([direct-installments.md](direct-installments.md)) the receipts are `installment-N`, often of
+installment plan ([direct-installments.md](../payments/direct-installments.md)) the receipts are `installment-N`, often of
 **equal amounts** (334 + 334 + 333,50): the matcher picks among them by date distance only, so a late first
 payment can land on installment 2.
 
 **C — Not automatic enough.** Every proposal waits for a click (v1 rule 11), including the 21 « sûr » ones
 (a recognised platform, one fiche, the amount to the cent). The home already has two alerts that speak about
 the same money without knowing each other: the core « Échéances » card
-([PaymentDeadlinesAlert.jsx](../client/src/components/PaymentDeadlinesAlert.jsx),
-[paymentDeadlines.js](../server/src/utils/paymentDeadlines.js) — overdue from the **fiche's** flags) and the
-plugin's « Écarts de règlement » ([attention.js](../server/src/plugins/online-payment/reconciliation/attention.js)).
+([PaymentDeadlinesAlert.jsx](../../client/src/components/PaymentDeadlinesAlert.jsx),
+[paymentDeadlines.js](../../server/src/utils/paymentDeadlines.js) — overdue from the **fiche's** flags) and the
+plugin's « Écarts de règlement » ([attention.js](../../server/src/plugins/online-payment/reconciliation/attention.js)).
 Adrien asks for « une alerte quand un paiement n'a pas été reçu à l'échéance »: the core card already raises it,
 but it cannot say whether the money is in fact on the account.
 
 **D — Grouped platform payouts.** The matcher already looks for the smallest combination of up to 6 payout
-rows whose sum is exact (v1 rule 14, [matcher.js:132-138](../server/src/plugins/online-payment/reconciliation/matcher.js#L132)),
+rows whose sum is exact (v1 rule 14, [matcher.js:132-138](../../server/src/plugins/online-payment/reconciliation/matcher.js#L132)),
 and the shadow shows it working (two Booking pairs, two Abracadaroom pairs). It only combines rows **whose
 payout is recorded** (`recorded`), with no constraint on how far apart the stays are. A week of bookings whose
 fiches carry the gross only (`platform-unrecorded`, rule 32) is never combined: those credits end « non
@@ -64,16 +64,16 @@ rattachés ».
 **E — Platform penalties.** A platform sometimes withholds part of a payout (host cancellation, relocation
 costs, non-compliance). Nothing can express it. When the operator types the bank amount as the payout, the
 core computes `commission = gross − payout − tax − acompte commission`
-([platformCommission.js:14-21](../server/src/utils/platformCommission.js#L14)): the penalty silently becomes
+([platformCommission.js:14-21](../../server/src/utils/platformCommission.js#L14)): the penalty silently becomes
 **commission**, booked on the commission account with deductible VAT
-([accountingModel.js:740-760](../server/src/plugins/accounting-export/accountingModel.js#L740)) — wrong in the
+([accountingModel.js:740-760](../../server/src/plugins/accounting-export/accountingModel.js#L740)) — wrong in the
 books, and wrong in every « commissions » figure of the finance pages. When the operator types the statement
 figure instead, the reconciliation shows an `amount_gap` forever. Vocabulary trap: « Taxe de séjour retenue »
 already names the tourist tax a platform keeps (`booking-intake`, `airbnb-intake`), so a penalty must never be
 called « retenue ».
 
 **F — The reconciliation page.** The four counters only switch the tab
-([ReconciliationPage.jsx:30-35, 136](../client/src/plugins/online-payment/ReconciliationPage.jsx#L30)): « Écarts »
+([ReconciliationPage.jsx:30-35, 136](../../client/src/plugins/online-payment/ReconciliationPage.jsx#L30)): « Écarts »
 and « À confirmer » both open « À traiter » with everything mixed. Confirming 40 proposals is 40 clicks.
 
 ## 2. Goal
@@ -264,7 +264,7 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     no payout is recorded), a commission that would turn negative (rule 25, second choice), a future date or
     an empty motif. Refusals are inline in the dialog, in words.
     *Reading of 2026-11-02 — the date window.* The penalty's date is also refused before today − 5 years,
-    « Date trop ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    « Date trop ancienne : 5 ans au plus. » (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 27. **Where it shows.** The ledger's platform balance row gains a detail line « Pénalité plateforme −40,00 € ·
     Frais de relogement » per penalty; its « net » figures subtract the penalties. The fiche's history records
     each declaration and removal. Every « net received » reader subtracts the penalties of the stay: the

@@ -8,18 +8,20 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
-> **Amended 2026-11-03** by [non-card-option-served-persons.md](non-card-option-served-persons.md) rule 12: a non-card per-person sale sends `persons` and stores `cardPersons` with `quantity = 1`; the 4-decimal base is gone.
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
+> **Amended 2026-11-03** by [non-card-option-served-persons.md](../options/non-card-option-served-persons.md) rule 12: a non-card per-person sale sends `persons` and stores `cardPersons` with `quantity = 1`; the 4-decimal base is gone.
 
 ---
 
 ## 1. Context
 
-L'**arrival SAS** ([ReservationSasDialog.jsx](../client/src/components/sas/ReservationSasDialog.jsx),
-[sasController.js](../server/src/controllers/sasController.js), spec
+L'**arrival SAS** ([ReservationSasDialog.jsx](../../client/src/plugins/sas/ReservationSasDialog.jsx),
+[sasController.js](../../server/src/plugins/sas/controller.js), spec
 [arrival-departure-sas.md](arrival-departure-sas.md)) sait déjà vendre deux prestations sur place — le
 **ménage** et le **linge de toilette** — en activant leur option catalogue
 ([sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md),
-[sas-bath-linen-upsell.md](sas-bath-linen-upsell.md)) : ligne `reservation_options` avec
+[sas-bath-linen-upsell.md](../linen/sas-bath-linen-upsell.md)) : ligne `reservation_options` avec
 `inComplement = 1` + `sasArrivalOrigin = 1`, prix résolu serveur, réglée sur le récap.
 
 Ce mécanisme ne sait faire qu'une chose : **une ligne, quantité 1**. Il ne sait pas écrire de
@@ -28,10 +30,10 @@ au moment du check-in :
 
 - le **petit déjeuner** (option `autoOptionType = 'breakfast'`, carte `once_per_day`, `per_person_per_night`) —
   facturé aux **moments** servis (`quantity = occurrences`, `billedUnits = occurrences × personnes`,
-  [pricing.js](../server/src/utils/pricing.js) branche `showsPlanningCard`) et **préparé** à partir de
-  ces mêmes occurrences ([breakfastModel.js](../server/src/models/breakfastModel.js)) ;
+  [pricing.js](../../server/src/utils/pricing.js) branche `showsPlanningCard`) et **préparé** à partir de
+  ces mêmes occurrences ([breakfastModel.js](../../server/src/models/breakfastModel.js)) ;
 - la **restauration** (catégorie « Restauration » : *Le repas des trappeurs*, planches apéro —
-  [option-categories.md](option-categories.md)).
+  [option-categories.md](../options/option-categories.md)).
 
 Aujourd'hui l'opérateur qui vend un petit déjeuner à l'arrivée doit sortir du SAS, ouvrir la fiche, y
 cocher les matins, sauvegarder, puis revenir — et la vente ne tombe pas dans le complément d'arrivée
@@ -41,7 +43,7 @@ Deux pièges découverts pendant l'étude, traités ici :
 
 - `commitArrivalSas` écrit les compteurs de composition du petit déjeuner **à 0** quand la page n'a pas
   tourné, et les valeurs par défaut (viennoiseries = nb de personnes, ½ baguette/pers.) ne s'appliquent
-  plus une fois `arrivalSasDoneAt` posé ([breakfastModel.js](../server/src/models/breakfastModel.js)) :
+  plus une fois `arrivalSasDoneAt` posé ([breakfastModel.js](../../server/src/models/breakfastModel.js)) :
   un petit déjeuner vendu au SAS arriverait en cuisine « 0 partout » ;
 - toute l'activation d'option est sous le garde `complementPaid !== 1`, donc une vente sur un
   complément **déjà encaissé** était purement et simplement perdue.
@@ -74,12 +76,12 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
    déjeuners et le montant. **Les matins candidats sont ceux du séjour** : le matin d'arrivée est exclu
    (le client n'est pas encore là à 9 h), le matin de départ est inclus — et retimé à 30 min avant le
    check-out quand celui-ci précède l'heure du petit déjeuner
-   ([option-planning-card.md](option-planning-card.md) §3.2). Le nombre de matins proposés est donc
+   ([option-planning-card.md](../options/option-planning-card.md) §3.2). Le nombre de matins proposés est donc
    exactement le **nombre de nuits** : c'est le contrôle demandé, il est structurel.
    À l'ouverture, **tous les matins sont cochés** (l'upsell naturel est « le séjour entier ») ;
    décocher est libre, et n'en garder aucun annule la vente (message explicite).
    4.bis **Le nombre de petits déjeuners par matin est réglable** (2026-08-20,
-   [card-option-served-persons.md](card-option-served-persons.md)) : un pas-à-pas « Personnes servies »
+   [card-option-served-persons.md](../options/card-option-served-persons.md)) : un pas-à-pas « Personnes servies »
    sous la grille, pré-rempli avec la tablée (ou avec ce que ce SAS a vendu en ré-ouverture) et plafonné
    à la capacité du logement. La légende devient « Quantité : 6 (2 × 3 pers. servies) », et le montant
    suit. La composition enchaînée (rule 5) est pré-remplie **à partir du nombre servi**, pas de la
@@ -105,7 +107,7 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
      fiche. Rien n'est pré-coché : un repas se prend moment par moment (divergence assumée avec la
      fiche, qui pré-coche tout), et la légende de la grille dit **« Choisissez les moments servis »**
      tant qu'aucun ne l'est. Dès qu'un moment est coché, le pas-à-pas **« Personnes servies »**
-     apparaît (2026-08-20, [card-option-served-persons.md](card-option-served-persons.md)) : la tablée
+     apparaît (2026-08-20, [card-option-served-persons.md](../options/card-option-served-persons.md)) : la tablée
      par défaut, baissée quand les enfants ne mangent pas, plafonnée à la capacité du logement.
      Éteindre l'interrupteur **décoche tous les moments** : la vente est annulée d'un geste.
    - option simple (planches) → l'interrupteur remplit tout seul la quantité par défaut (le
@@ -361,7 +363,7 @@ recalculée.
 
 ## 8. Out of scope
 
-> **Amendé le 2026-08-20** par [card-option-served-persons.md](card-option-served-persons.md) : le
+> **Amendé le 2026-08-20** par [card-option-served-persons.md](../options/card-option-served-persons.md) : le
 > nombre de couverts d'une option à carte facturée par personne est désormais réglable au check-in
 > (et sur la fiche). Le reste de cette section tient toujours.
 

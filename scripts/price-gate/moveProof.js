@@ -1,5 +1,5 @@
 /**
- * The per-commit « moved verbatim » proof (specs/pricing-components.md §3 rules 33 and 35): in a diff, every line a
+ * The per-commit « moved verbatim » proof (specs/pricing/pricing-components.md §3 rules 33 and 35): in a diff, every line a
  * source file loses must reappear, byte for byte but for its leading indentation, among the lines the diff adds
  * (in the same file or another). A moved function passes; a function that was edited while moving — a rename, a
  * rounding, a reordered operand — leaves its changed lines unmatched.

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 27, 30 — the dialog quotes through the server, shows the total it gives, sells at that price,
+// specs/pricing/pricing-components.md §3 rules 27, 30 — the dialog quotes through the server, shows the total it gives, sells at that price,
 // refuses an invalid quantity, and shows a refusal of the server.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

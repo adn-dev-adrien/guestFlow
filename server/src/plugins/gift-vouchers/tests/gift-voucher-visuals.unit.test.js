@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 47-48 — the visual library: a JPEG or PNG in the A6 portrait ratio of at least 1240 × 1748 px, refused with its measured size,
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 47-48 — the visual library: a JPEG or PNG in the A6 portrait ratio of at least 1240 × 1748 px, refused with its measured size,
 // stored as received; renamed; replaced by a new version; deleted unless an on-sale campaign uses it; a voucher keeps the version it was issued with, and a version file
 // is purged once no valid voucher carries it.
 const test = require('node:test');

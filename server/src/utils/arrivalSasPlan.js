@@ -1,5 +1,5 @@
 /**
- * The arithmetic of the arrival SAS plan (specs/sas-arrival-total-server-side.md §3.1).
+ * The arithmetic of the arrival SAS plan (specs/sas/sas-arrival-total-server-side.md §3.1).
  *
  * Pure functions on plain values, shared by the preview and the commit through
  * `reservationsModel.planArrivalSas`: the SAS-origin rows a commit leaves behind, and the arrival
@@ -60,8 +60,8 @@ function arrivalComplementAfter({ stored, offerDelta, override, priorSum, added 
 }
 
 /**
- * specs/single-payment-at-check-in.md §3.1 rule 1, decided on the planned total
- * (specs/sas-arrival-total-server-side.md rule 9).
+ * specs/payments/single-payment-at-check-in.md §3.1 rule 1, decided on the planned total
+ * (specs/sas/sas-arrival-total-server-side.md rule 9).
  */
 function isUnifiable({ complementOpen, stayApplicable, arrivalComplementTotal }) {
   return Boolean(complementOpen) && Boolean(stayApplicable) && Number(arrivalComplementTotal) > 0;

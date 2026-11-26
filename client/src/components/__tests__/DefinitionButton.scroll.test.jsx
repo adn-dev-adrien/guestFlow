@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 36 — the bubble is fixed to the screen: a scroll of the page or of
+ * specs/design-system/report-grammar.md §3 rule 36 — the bubble is fixed to the screen: a scroll of the page or of
  * a container closes it, so it never rides over the app bar while its « i » scrolls away.
  */
 import React from 'react';

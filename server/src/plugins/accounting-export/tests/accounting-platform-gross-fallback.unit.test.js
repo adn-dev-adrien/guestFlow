@@ -1,4 +1,4 @@
-// specs/accounting-books-the-money-collected.md rule 12 — every entry of a platform stay carries the gross the guest
+// specs/accounting/accounting-books-the-money-collected.md rule 12 — every entry of a platform stay carries the gross the guest
 // paid (`clientGrossAmount`, the « Brut » of Comptabilité › Plateformes), whichever path books it. The stored-money
 // fallback used to return the stored column, NULL on a fiche that never held one: the « Brut » cell went blank
 // (shadow trial of 4.0.0: stays #13 of Oct-2026 = 907,20 and #22298 of Sep-2026 = 259,13 under 3.21.0).

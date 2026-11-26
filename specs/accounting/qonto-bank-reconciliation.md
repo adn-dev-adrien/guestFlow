@@ -17,7 +17,7 @@
 What GuestFlow believes was paid lives on the fiche: the paid flags and dates of each échéance
 (`depositPaid`/`balancePaid`/… + `*PaidDate`), the « Paiement plateforme » block
 (`platformPayoutAmount`, commissions), the payment links (`payment_links`) and the payments ledger
-that renders them (`utils/reservationLedger.js`, `specs/reservation-payment-ledger.md`).
+that renders them (`utils/reservationLedger.js`, `specs/payments/reservation-payment-ledger.md`).
 
 What was actually paid lives on the Qonto account that receives the money: the platform payouts
 (Booking, Airbnb, GreenGo, Gîtes de France, Abracadaroom), the guests' transfers and cheques, and the
@@ -314,7 +314,7 @@ a short list of the gaps to fix on the fiches.
 46. **A platform is matched whatever its spelling.** Patterns, the batch list and the receipts' channel
     are compared by slug (case, accents and separators ignored): a stay stored as `Gitesdefrance` or
     `AirBnb` still receives its platform's payout. *Why:* the boot de-duplication of platform rows may
-    keep either spelling (specs/normalize-platform-names.md rule 23), and an exact-name match then
+    keep either spelling (specs/platforms/normalize-platform-names.md rule 23), and an exact-name match then
     proposed nothing (audit 2026-10-27).
 47. **A stay paid through its devis's link is expected as a link receipt (audit R4 Q2, 2026-10-29).** The plugin reads the
     links of a stay with `listForStay` (the stay and the devis it was converted from), like the fiche: the receipt of a
@@ -322,7 +322,7 @@ a short list of the gaps to fix on the fiches.
     (rule 15) and the receipt no longer reads « Enregistré, non reçu ».
 48. **The start date is an entered date, held to the date window (audit R20-P1, 2026-11-03).** On the generic
     settings PUT, `reconciliationStartDate` is empty or a real day in `[today − 5 years, today + 5 years]`
-    (`coreModule('stayDates').entryDateMessage`, specs/reservations-backend-mvc.md rule 13): an impossible day
+    (`coreModule('stayDates').entryDateMessage`, specs/tech/reservations-backend-mvc.md rule 13): an impossible day
     (`2027-02-30`, `0000-00-00`) is refused with « Date de mise en service invalide. », a day outside the window
     with « Date trop ancienne / lointaine : 5 ans au plus. », and nothing is written. The stored value is not
     re-judged, so a date set before this rule still saves while it is kept. The automatic write of today

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 104, 118, 119 on a direct stay paying by instalments (stabilisation loop t9, sale domain: what the round-9
+// specs/pricing/pricing-components.md §3 rules 104, 118, 119 on a direct stay paying by instalments (stabilisation loop t9, sale domain: what the round-9
 // reviewer could not probe — the prod copy holds no plan). The plan is the stay's pre-arrival money: rule 104 never credits it (the engine's
 // credit skips the acompte and the solde of a stay with a plan), so a paid line offered through the line API or at the arrival SAS — and a
 // refund on its trop-perçu deleted — leaves the instalments, `installmentsTarget` and the buckets as they are; the freed money is owed back,

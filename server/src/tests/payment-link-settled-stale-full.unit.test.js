@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 41, 42 and 44 (audit R4 Q3, Q4, R2: the alert reads the solde): a full link whose acompte was collected
+// specs/plugins/plugins-phase-3a-online-payment.md rules 41, 42 and 44 (audit R4 Q3, Q4, R2: the alert reads the solde): a full link whose acompte was collected
 // another way is judged against the stay it pays — a re-priced stay books what was received, a same-day
 // tick is the same money, and only a real second acompte is a refund.
 

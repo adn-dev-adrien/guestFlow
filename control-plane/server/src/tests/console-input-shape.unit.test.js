@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 48 and 49 (audit R21, console C2 and C3) — what the console reads
+// specs/hosting/control-plane-plans-and-access.md rules 48 and 49 (audit R21, console C2 and C3) — what the console reads
 // from a JSON body: a free-text field takes a string only, anything else is that field's refusal (never a 500
 // thrown by String({"toString":1}), never a template stored as « null » or a company named « [object Object] »);
 // a body the parser refuses is the caller's 4xx, not an internal fault in the log.

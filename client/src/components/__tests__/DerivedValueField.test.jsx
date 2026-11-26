@@ -1,6 +1,6 @@
 /**
  * DerivedValueField — a setting that defaults to another one unless overridden
- * (specs/settings-rationalization.md rule 12).
+ * (specs/settings/settings-rationalization.md rule 12).
  */
 import React, { useState } from 'react';
 import { render, screen } from '@testing-library/react';

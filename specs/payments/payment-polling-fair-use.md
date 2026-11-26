@@ -19,10 +19,10 @@ temporary increase, and the measures Mollie may take in case of abusive use or f
 of that article was not yet published on `mollie.com/legal` on 2026-09-07 (the page still served the
 previous version plus the `v10` archive), so only Mollie's own summary of it is on record here.
 
-GuestFlow never calls the Mollie API. [`utils/qontoClient.js`](../server/src/utils/qontoClient.js) talks
+GuestFlow never calls the Mollie API. [`utils/qontoClient.js`](../../server/src/utils/qonto/qontoClient.js) talks
 to the **Qonto Business API** (`thirdparty.qonto.com`) for payment links; Mollie is the PSP behind the
 hosted payment page, which is why connecting the provider required a Mollie onboarding/KYC
-(`specs/online-payments-qonto.md` §4.1). The quota that actually binds our calls is therefore Qonto's —
+(`specs/payments/online-payments-qonto.md` §4.1). The quota that actually binds our calls is therefore Qonto's —
 **10 000 requests / 10 minutes per IP**, `429` beyond — and our current volume is orders of magnitude
 below it. **We are not in breach of anything today.** This spec is not a compliance fix; it removes
 waste that grows on its own and adds the back-off behaviour both providers ask for, before volume makes
@@ -31,11 +31,11 @@ either one matter.
 Three facts from the audit of 2026-09-07:
 
 - **Dead links are polled forever.**
-  [`paymentLinksModel.listOpen()`](../server/src/models/paymentLinksModel.js) returns *every* row with
+  [`paymentLinksModel.listOpen()`](../../server/src/models/paymentLinksModel.js) returns *every* row with
   `status = 'open'`, unbounded, and the 15-minute cron in
-  [`scheduledTasks.js`](../server/src/scheduledTasks.js) spends **two Qonto calls on each of them, every
+  [`scheduledTasks.js`](../../server/src/scheduledTasks.js) spends **two Qonto calls on each of them, every
   pass, indefinitely**. `expiresAt` is written at creation
-  ([`paymentRequestService.js`](../server/src/utils/paymentRequestService.js)) but never read back. On
+  ([`paymentRequestService.js`](../../server/src/utils/paymentRequestService.js)) but never read back. On
   the dev database, two links created on 2026-08-19 were past their `expiresAt` and still `open` on
   2026-09-07 — roughly 1 800 passes × 2 calls ≈ **3 600 pointless requests**, with no end condition.
   Every abandoned devis adds one link to that loop.
@@ -48,7 +48,7 @@ Three facts from the audit of 2026-09-07:
   `expired` / `cancelled`; for a link whose expiry date is already in our record, it tells us nothing we
   do not know.
 
-The webhook (`specs/public-online-payment.md` §3bis) is already the primary paid signal. The cron poll
+The webhook (`specs/site/public-online-payment.md` §3bis) is already the primary paid signal. The cron poll
 is a reconciliation safety net, and a safety net does not need to run at full speed forever.
 
 ## 2. Goal
@@ -63,11 +63,11 @@ double-processing a payment.
 
 1. At the start of a poll pass, an `open` link whose stored `expiresAt` is in the past is retired
    locally to `expired` **without any provider call deciding it** (amended 2026-10-30 by
-   specs/payment-link-lifecycle.md rule 17: the expiry is decided without a call, the deactivation then
+   specs/payments/payment-link-lifecycle.md rule 17: the expiry is decided without a call, the deactivation then
    costs one, followed by one payment read — rule 18 there).
 2. `markPaid` flips a link from `open` **or** `expired`, so a payment confirmed after a local
    retirement is still processed exactly once; `paid` and `cancelled` stay final and still report
-   `flipped: false`. Since specs/payment-link-lifecycle.md rule 23 it also clears the deactivation
+   `flipped: false`. Since specs/payments/payment-link-lifecycle.md rule 23 it also clears the deactivation
    marker and the last look of the link it flips.
 3. An `open` link is polled at a cadence that decays with its age: every pass under 24 h, at most once
    per hour from 24 h to 7 days, at most once per day beyond 7 days. A link not due is skipped with no
@@ -105,7 +105,7 @@ double-processing a payment.
     still obey rules 6–8.
 11. The reconciliation pass runs **three times a day** — a tick of 8 hours, plus the existing pass shortly
     after boot — instead of every 15 minutes. The webhook is the paid signal and the guest's own success
-    page reconciles on demand (`specs/public-online-payment.md` rules 6, 8–11); the cron exists to catch
+    page reconciles on demand (`specs/site/public-online-payment.md` rules 6, 8–11); the cron exists to catch
     a webhook that never arrived, which is a question of hours, not of minutes. The tick is
     environment-configurable through `PAYMENT_POLL_TICK_MINUTES`, default `480`, with the same
     "missing, non-numeric or non-positive falls back to the default" reading as rule 9.
@@ -139,7 +139,7 @@ double-processing a payment.
   (one pass out of three). The tiers are kept as they are: they are expressed in time, not in ticks, so
   they stay correct if the tick ever changes again, and they are what bounds the cost of a link that
   Qonto gives no expiry for.
-- The webhook for a link already retired to `expired` → `qontoWebhookController` accepts `open` **and**
+- The webhook for a link already retired to `expired` → `plugins/online-payment/webhookController.js` accepts `open` **and**
   `expired` links before re-reading the payments at Qonto, so rule 2 is reachable from the webhook.
 - A link cancelled in the Qonto app while its `expiresAt` is still in the future → detected on the next
   due pass only at the decayed cadence of rule 3, since rule 5 skips its status call. Accepted: a
@@ -168,7 +168,7 @@ double-processing a payment.
 | `routes/` | — | — | (none — no endpoint changes) |
 | `controllers/` | `paymentsController.js` | T | Manual poll passes `force: true` (rule 10) |
 | `controllers/` | `public/publicPaymentController.js` | T | `/status` reconciliation stamps `lastPolledAt` and is exempt from the cadence (rule 10) |
-| `controllers/` | `qontoWebhookController.js` | T | Accepts an `expired` link as well as an `open` one before re-reading its payments, so rule 2 is reachable (the model alone was not enough: the controller filtered on `open`) |
+| `controllers/` | `plugins/online-payment/webhookController.js` | T | Accepts an `expired` link as well as an `open` one before re-reading its payments, so rule 2 is reachable (the model alone was not enough: the controller filtered on `open`) |
 | `models/` | `paymentLinksModel.js` | T | `retireExpired({ now })` (rule 1), `listPollable({ now, force, cadence })` (rules 3–4), `touchPolled(id, at)` (rule 4), `hasKnownExpiry(link)` (rule 5, zero-date aware), `markPaid` widened to `expired` (rule 2); statics `resolvePollCadence(env)`, `isPollDue`, `knownExpiryMs` (rule 9) |
 | `middleware/` | — | — | (none) |
 | `utils/` | `httpRetry.js` | C | Pure `withRetry(fn, opts)` — exponential back-off, `Retry-After`, caps, retryable-status predicate — plus `resolveRetryOptions(env)` (rules 6, 9). No network, no timers of its own beyond an injectable `sleep` |
@@ -304,7 +304,7 @@ in-memory SQLite database instead._
 ## 8. Out of scope
 
 - Any change to the Qonto webhook subscription, its signature verification or its payload handling.
-  _(Superseded on 2026-09-16: `specs/settings-one-save-and-automatic-webhook.md` makes the subscription
+  _(Superseded on 2026-09-16: `specs/settings/settings-one-save-and-automatic-webhook.md` makes the subscription
   automatic. The signature verification and the payload handling are still untouched.)_
 - Retiring or archiving `paid` links, and any change to the accounting effects of a payment.
 - Mollie's Article 4 merchant obligations on the sales channel (contact details, prices, payment and

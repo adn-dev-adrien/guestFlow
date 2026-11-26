@@ -8,11 +8,13 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
-GuestFlow has a fully-built multi-role system (specs/admin-account-management.md): roles live in the
+GuestFlow has a fully-built multi-role system (specs/hosting/admin-account-management.md): roles live in the
 `user_roles` join table, the server source of truth is `server/src/constants/roles.js`
 (`admin`, `accountant`), mirrored client-side in `client/src/constants/roles.js`. Enforcement is
 centralized:
@@ -23,19 +25,19 @@ centralized:
   endpoints, **any other role → fail-closed 403**.
 - **Client:** `ROUTE_ROLES` + `canSeeRoute` filter the sidebar
   ([client/src/constants/roles.js](client/src/constants/roles.js#L36)); an
-  `AccountantConfinement` redirect in [client/src/App.js](client/src/App.js#L694) confines
+  `AccountantConfinement` redirect in [client/src/App.jsx](client/src/App.jsx#L694) confines
   non-admins client-side. Routes themselves are **not** individually guarded — hiding a sidebar
   entry is cosmetic; the real enforcement is the server 403 + the confinement redirect.
 
 Adrien wants a collaborator who can **welcome guests on-site** (run the arrival / departure
 check-in) **without ever seeing any financial data** (revenue, deposit, balance, total price,
 accounting). Both operational surfaces this person needs — the **home page** (today
-[client/src/pages/Dashboard.js](client/src/pages/Dashboard.js), route `/`) and the **Planning**
-([client/src/pages/PlanningPage.js](client/src/pages/PlanningPage.js), route `/planning`, host of
+[client/src/pages/Dashboard.jsx](client/src/pages/Dashboard.jsx), route `/`) and the **Planning**
+([client/src/pages/PlanningPage.jsx](client/src/pages/PlanningPage.jsx), route `/planning`, host of
 the SAS wizard) — currently **leak financial data**:
 
 - The Dashboard arrivals/departures tables show a **Paiements** column (remaining due, deposit,
-  balance) and a caution column ([Dashboard.js:54-56](client/src/pages/Dashboard.js#L54)).
+  balance) and a caution column ([Dashboard.js:54-56](client/src/pages/Dashboard.jsx#L54)).
 - Both pages fetch reservations via `GET /reservations` + `GET /reservations/:id`, whose payloads
   carry the **full finance** (`totalPrice`, `depositAmount/Paid`, `balanceAmount/Paid`,
   `remainingDue`, platform commission, tourist tax, contributions…).
@@ -119,7 +121,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
      link (→ the reservation sheet) are **disabled** (reception has no client/reservation access) —
      the name renders as **plain text**.
    - `ReservationCard` already renders only **« Caution à percevoir »** + **« Complément à
-     percevoir »** and no other money ([ReservationCard.js:347,364](client/src/components/ReservationCard.js#L347)),
+     percevoir »** and no other money ([ReservationCard.js:347,364](client/src/components/ReservationCard.jsx#L347)),
      so no financial figure needs hiding on the cards themselves.
 8. Reception runs the **arrival and departure SAS end-to-end** (all steps, incl. caution, complement
    line items, settlement buttons) and commits, exactly like an admin. The SAS payload
@@ -131,7 +133,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
    Once `arrivalSasDoneAt` (resp. `departureSasDoneAt`) is set, the planning ✓ is disabled for
    reception and the commit endpoint answers **403 `{ error: 'SAS_LOCKED', reason: 'done' }`** —
    the re-edit of [reopen-completed-sas.md](reopen-completed-sas.md) stays admin-only.
-9. Completing a SAS still validates the status flags per specs/arrival-departure-sas.md §3.6
+9. Completing a SAS still validates the status flags per specs/sas/arrival-departure-sas.md §3.6
    (arrival → `checkInReady=1` + `checkInDone=1`; departure → `checkOutDone=1`). Reception commits
    set them identically.
 
@@ -173,7 +175,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     *(Fixed 2026-09-07: the SAS read shipped without the serializer — it embedded the raw
     reservation (full finance + client PII) for a reception account while the UI simply didn't
     render those fields. The SAS-specific keys of that payload were already guarded
-    (`stayPayment`/`arrivalPayment` per specs/collect-stay-payment-at-check-in.md rules 7 + 24) or
+    (`stayPayment`/`arrivalPayment` per specs/sas/collect-stay-payment-at-check-in.md rules 7 + 24) or
     are door money by nature (`arrivalComplement`, upsell/linen/repair prices).)*
 
 12bis. **What the reception view keeps for the SAS to work** (all door money or operational, never

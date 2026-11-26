@@ -1,5 +1,5 @@
 /**
- * specs/adjustable-complement-amounts.md §3.6 — la comptabilité ne recalcule pas un montant ajusté.
+ * specs/sas/adjustable-complement-amounts.md §3.6 — la comptabilité ne recalcule pas un montant ajusté.
  *
  * Le cas de référence est celui de la spec : complément d'arrivée de 93,60 € (linge 24 € + bain
  * nordique 60 € + taxe de séjour 9,60 €) annoncé 85 € au client. Sans ventilation stockée, l'écart
@@ -61,7 +61,7 @@ test('sans ajustement : rien ne change (non-régression)', () => {
   assert.equal(tax.amount, 9.6, 'la taxe de séjour est intacte');
 });
 
-// specs/accounting-books-the-money-collected.md rule 11 (2026-10-18) — even without a stored
+// specs/accounting/accounting-books-the-money-collected.md rule 11 (2026-10-18) — even without a stored
 // ventilation the gap no longer lands on the tax line: contribs that overflow the entry fall back to
 // the pro-rata of the lines, the tax being kept whole. This test used to pin tax = 1 € as the witness
 // of the bug; the witness is now the fix.
@@ -132,7 +132,7 @@ test('une ventilation illisible retombe sur la dérivation d\'origine', () => {
   assert.equal(round2(creditsOf(entry).reduce((s, c) => s + c.amount, 0)), 93.6);
 });
 
-// specs/adjustable-complement-amounts.md rule 38 — le complément de FIN DE SÉJOUR n'a rien à
+// specs/sas/adjustable-complement-amounts.md rule 38 — le complément de FIN DE SÉJOUR n'a rien à
 // ventiler : son écriture est une ligne `70600010` unique à plat, si bien que le montant ajusté s'y
 // applique directement. La règle dit « rien à faire » ; ce test est là pour que « rien » le reste —
 // une ventilation qui se mettrait à mordre sur ce bucket casserait un montant que l'opérateur a

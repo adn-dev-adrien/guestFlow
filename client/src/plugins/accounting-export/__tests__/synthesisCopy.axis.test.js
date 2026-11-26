@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rule 46 (V2-1) — an axis label says its own value: one decimal in k€ when needed,
+// specs/accounting/accounting-synthesis.md §3 rule 46 (V2-1) — an axis label says its own value: one decimal in k€ when needed,
 // never two equal labels on the nice steps the charts pick.
 import { axisEuro } from '../synthesisCopy';
 

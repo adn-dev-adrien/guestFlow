@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) — « couvre aussi », the shares dialog labels and
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) — « couvre aussi », the shares dialog labels and
 // the home alert print the server's `clientHeading`: an anonymous sale shows its label once, never doubled.
 import React from 'react';
 import { MemoryRouter } from 'react-router';

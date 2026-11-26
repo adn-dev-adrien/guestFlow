@@ -1,5 +1,5 @@
 /**
- * OptionsPage — the « Options » tab of Options & ressources (specs/options-resources-ux.md rules 8-17,
+ * OptionsPage — the « Options » tab of Options & ressources (specs/options/options-resources-ux.md rules 8-17,
  * 22, 26-27): the catalogue read by category, edited in a side panel.
  *
  * The server hands over the catalogue grouped, priced and annotated (`/options/catalogue-view`); this

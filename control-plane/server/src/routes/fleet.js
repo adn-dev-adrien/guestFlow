@@ -1,6 +1,6 @@
 const express = require('express');
 
-// Thin: parse, call the controller, answer (specs/hosting-h1-fleet-runtime.md §4.1).
+// Thin: parse, call the controller, answer (specs/hosting/hosting-h1-fleet-runtime.md §4.1).
 function fleetRoutes(ctx) {
   const router = express.Router();
   const { fleet } = ctx.controllers;

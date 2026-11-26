@@ -14,24 +14,24 @@
 
 A property prices `basePriceIncludedGuests` guests in its nightly rate; every guest beyond that pays
 the extra-guest supplement (`extraGuestPrice`, per stay or per night, per-season overrides and tiers —
-specs/tariff-events-and-extra-guest-tiers/spec.md).
+specs/pricing/tariff-events-and-extra-guest-tiers.md).
 
 Audit of the public booking path (WordPress plugin `blocks/booking` → `/public/v1/quote` →
 `/public/v1/booking-requests`), 2026-10-22:
 
 - **The supplement IS billed.** The public quote runs the same engine as the back-office with the
   platform forced to `direct`, so `calculateReservationQuote` computes `extraGuestSurcharge`
-  ([pricing.js:1537](../server/src/utils/pricing.js#L1537)) and folds it into `finalPrice`,
+  ([pricing.js:1537](../../server/src/utils/pricing.js#L1537)) and folds it into `finalPrice`,
   `totalStayPrice`, the deposit and the balance. The draft devis created by a booking request carries
   it too.
 - **The supplement is NOT shown.** `toPublicQuote` exposes `accommodationTotal` (nights only) and
   `extraGuestSurcharge` as a separate number, but the plugin's `drawSummary`
-  ([view.js:896](../integrations/wordpress/guestflow-booking/blocks/booking/view.js#L896)) never reads
+  ([view.js:896](../../integrations/wordpress/guestflow-booking/blocks/booking/view.js#L896)) never reads
   the latter. A visitor with 3 guests on a « 2 included » property sees lines that do not add up to
   the total — the gap is the supplement, unexplained. Nothing near the guest steppers says that a
   guest beyond the included count costs extra either.
 - **The cap exists, with one hole.** `properties.maxGuests` (adults + teens + children, babies apart —
-  specs/property-capacity-single-total.md) caps the plugin steppers and is enforced server-side by
+  specs/reservations/property-capacity-single-total.md) caps the plugin steppers and is enforced server-side by
   `checkGuestCapacity` (409 `OVER_CAPACITY`). But `maxGuests = 0` means « not configured » and turns
   the guard off on both sides: the server accepts any count and the plugin lets the steppers climb
   to 99. On the back-office that tolerance is deliberate (a half-configured property must stay
@@ -137,7 +137,7 @@ helper; no new component.
 | GET | `/public/v1/properties[/:id]` | `maxGuests` follows rule 6 instead of returning `0`. |
 | POST | `/public/v1/booking-requests` | `409 OVER_CAPACITY` also fires against the rule-6 cap. |
 
-`specs/public-api.md` is updated with the same three changes. All additive / tightening on the
+`specs/site/public-api.md` is updated with the same three changes. All additive / tightening on the
 `/public/v1` contract — no consumer loses a field (a Y release, not an X).
 
 ---

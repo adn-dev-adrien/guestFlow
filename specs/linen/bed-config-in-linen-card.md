@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -16,21 +18,21 @@ A reservation today carries three discrete bed counts:
 `singleBeds`, `doubleBeds`, `babyBeds` (nullable INTEGER columns on
 `reservations`). They are edited in the **Voyageurs et couchages**
 card on the reservation form
-([client/src/components/reservation/GuestsBedsSection.js:87-137](client/src/components/reservation/GuestsBedsSection.js#L87-L137)),
+([client/src/components/reservation/GuestsBedsSection.jsx:87-137](client/src/components/reservation/GuestsBedsSection.jsx#L87-L137)),
 alongside guest counts (adults / children / teens / babies).
 
 The bed counts are used **only** by the weekly bed-linen feature
-(specs/weekly-bed-linen-tracking.md): the laundry aggregator sums
+(specs/linen/weekly-bed-linen-tracking.md): the laundry aggregator sums
 `singleBeds + doubleBeds + babyBeds` across reservations whose
 `endDate` falls in the half-open `(L-7d, L]` window AND whose options
 include at least one row flagged `countsAsBedLinen = 1`
-([server/src/models/laundryModel.js:41-84](server/src/models/laundryModel.js#L41-L84)).
+([server/src/plugins/linen/laundryModel.js:41-84](server/src/plugins/linen/laundryModel.js#L41-L84)).
 
 The bed-linen option itself is a regular catalog option carrying the
 `countsAsBedLinen = 1` flag (and per-bed-type include flags:
 `linenIncludesSingle / Double / Baby`). The operator toggles it on /
 off per reservation via the **Options** section
-([client/src/components/reservation/ExtrasSection.js:55-189](client/src/components/reservation/ExtrasSection.js#L55-L189)).
+([client/src/components/reservation/ExtrasSection.jsx:55-189](client/src/components/reservation/ExtrasSection.jsx#L55-L189)).
 
 **The disconnect** — today nothing in the form ties the two together:
 - The operator can enter 4 doubles + 2 simples without checking that
@@ -83,7 +85,7 @@ the new invariant.
    property default.
 
    **4.bis (hotfix 2026-06-05; amended 2026-06-14 —
-   specs/reservation-option-immutability.md)** — **A bed-linen-flagged
+   specs/reservations/reservation-option-immutability.md)** — **A bed-linen-flagged
    option that is a property default is forced ON (Switch disabled)
    ONLY when CREATING a new reservation.** On a new reservation the
    operator cannot remove it (the property contract says it's
@@ -91,7 +93,7 @@ the new invariant.
    logic, the Switch shows checked + `disabled`, and the bed inputs
    sub-block renders as enabled. **On an EXISTING reservation the
    forcing no longer applies** — an already-created reservation is
-   frozen (specs/reservation-option-immutability.md): it shows exactly
+   frozen (specs/reservations/reservation-option-immutability.md): it shows exactly
    the options it carries, and a property default it does not already
    have is NOT forced on. (This reverses the original 4.bis, which
    forced the option on existing reservations too.)
@@ -126,7 +128,7 @@ the new invariant.
    never pollutes laundry counts.
 
    **Property-defaults merge on create only (amended 2026-06-14 —
-   specs/reservation-option-immutability.md)** — on `create` the
+   specs/reservations/reservation-option-immutability.md)** — on `create` the
    controller merges ALL property defaults into `reservation_options`
    (idempotent, existing behaviour). On `update` there is **no**
    re-merge: historical preservation (other-spec rule 30) keeps the
@@ -187,7 +189,7 @@ the new invariant.
   treats the property default as "has bed linen" so historical bed
   counts are preserved, and the laundry aggregation reads the property
   default directly. The reservation is frozen
-  (specs/reservation-option-immutability.md): the linen option is
+  (specs/reservations/reservation-option-immutability.md): the linen option is
   **not** force-added on the form and **not** re-merged on save — the
   row stays absent unless the operator explicitly adds the option. New
   reservations still get the option via the create-time auto-merge.
@@ -230,8 +232,8 @@ the new invariant.
 | `components/` | `components/reservation/ExtrasSection.js` | T | Inside the per-option card render block (lines 70-185), when `enabled === true` AND the option is `countsAsBedLinen = 1`, render a sub-section below the quantity/complement row containing the 3 bed `TextField`s + the "Suggérer les lits" button + the capacity-mismatch warning. The block is only rendered **once per form** — for the first matching enabled option (rule 10). |
 | `pages/` | `pages/ReservationPage.js` | T | (1) Extend the `setOptionEnabled(optionId, false)` path for a `countsAsBedLinen = 1` option so it ALSO resets `singleBeds / doubleBeds / babyBeds` to `''` in form state (auto-zero on Switch OFF, rule 3). (2) Wire `propertyOptions` + `form.selectedOptions` into the new `bedLinenOptionEnabled` boolean exposed via the `ReservationFormContext` — used by `ExtrasSection` to decide which option card hosts the bed inputs, and by `GuestsBedsSection` to suppress the (now-removed) bed inputs. |
 | `components/` | `components/reservation/ReservationFormContext.js` | T | Expose two new context values: `firstEnabledBedLinenOptionId` (the option id of the first enabled `countsAsBedLinen = 1` option, or `null` when none are enabled) and `bedLinenOptionEnabled` (= `firstEnabledBedLinenOptionId !== null`). The capacity errors (`exceedsSingleBedsLimit`, `exceedsDoubleBedsLimit`, `bedsCapacityMismatch`) already exist; they gate on the new boolean for rendering (the math itself remains the same). |
-| `tests/` | `client/src/components/__tests__/ExtrasSection.bed-linen-inputs.test.js` | C | 4 Vitest cases (see §7). |
-| `tests/` | `client/src/components/__tests__/GuestsBedsSection.no-beds.test.js` | C | 2 cases pinning the removal (no `TextField` with `aria-label` matching `Lits` rendered). |
+| `tests/` | `client/src/components/__tests__/ExtrasSection.bed-linen-inputs.test.jsx` | C | 4 Vitest cases (see §7). |
+| `tests/` | `client/src/components/__tests__/GuestsBedsSection.no-beds.test.jsx` | C | 2 cases pinning the removal (no `TextField` with `aria-label` matching `Lits` rendered). |
 
 **Component reuse declaration (mandatory):**
 
@@ -399,11 +401,11 @@ Expected: existing **1006** + **5 + 4** = **1015** server tests.
 
 | File | Cases |
 |---|---|
-| **NEW** `client/src/components/__tests__/ExtrasSection.bed-linen-inputs.test.js` | (1) Option enabled → lits doubles/simples `TextField`s + "Suggérer les lits" button inside the option card; **lits bébé is NOT here** (follow-up #6 — moved to Voyageurs). (2) Option disabled → no bed `TextField` in the card. (3) Toggling the Switch from ON to OFF auto-zeros the form's `singleBeds / doubleBeds` to `''` (baby beds untouched). (4) Two bed-linen-flagged options both enabled → bed inputs rendered exactly once. |
-| **NEW** `client/src/components/__tests__/GuestsBedsSection.baby-bed.test.js` (follow-up #6) | (1) `babies > 0` → "Lits bébé" field shown with "Dispo restante". (2) `babies = 0` → no field. (3) all baby beds taken elsewhere → field capped at 0 ("Dispo restante: 0"). (4) typing above availability clamps to `maxBabyBedsByRule`. |
+| **NEW** `client/src/components/__tests__/ExtrasSection.bed-linen-inputs.test.jsx` | (1) Option enabled → lits doubles/simples `TextField`s + "Suggérer les lits" button inside the option card; **lits bébé is NOT here** (follow-up #6 — moved to Voyageurs). (2) Option disabled → no bed `TextField` in the card. (3) Toggling the Switch from ON to OFF auto-zeros the form's `singleBeds / doubleBeds` to `''` (baby beds untouched). (4) Two bed-linen-flagged options both enabled → bed inputs rendered exactly once. |
+| **NEW** `client/src/components/__tests__/GuestsBedsSection.baby-bed.test.jsx` (follow-up #6) | (1) `babies > 0` → "Lits bébé" field shown with "Dispo restante". (2) `babies = 0` → no field. (3) all baby beds taken elsewhere → field capped at 0 ("Dispo restante: 0"). (4) typing above availability clamps to `maxBabyBedsByRule`. |
 | **NEW** `server/src/tests/resources-model.unit.test.js` (follow-up #6, baby-bed availability) | total from the *Lit bébé* resource; overlapping reservations consume beds (all taken → 0); non-overlapping don't count; `excludeReservationId` ignores the current reservation. |
 | **NEW** `server/src/tests/property-ical-sync.unit.test.js` (follow-up #5) | an iCal-created reservation receives the property's option defaults in `reservation_options`, `offered` per the property setting (offered + non-offered cases). |
-| **NEW** `client/src/components/__tests__/GuestsBedsSection.no-beds.test.js` | (1) Card title is "Voyageurs" (not "Voyageurs et couchages"). (2) No `TextField` with label `Lits doubles / Lits simples / Lits bébé` is rendered. |
+| **NEW** `client/src/components/__tests__/GuestsBedsSection.no-beds.test.jsx` | (1) Card title is "Voyageurs" (not "Voyageurs et couchages"). (2) No `TextField` with label `Lits doubles / Lits simples / Lits bébé` is rendered. |
 
 Expected: existing **227** + **4 + 2** = **233** Vitest cases.
 

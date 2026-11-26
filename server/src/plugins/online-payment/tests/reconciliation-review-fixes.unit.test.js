@@ -1,4 +1,4 @@
-// specs/qonto-bank-reconciliation.md rules 40–42 — Paris-time days, a covered échéance refuses a second
+// specs/accounting/qonto-bank-reconciliation.md rules 40–42 — Paris-time days, a covered échéance refuses a second
 // credit, the incremental read never skips credits silently.
 const test = require('node:test');
 const assert = require('node:assert/strict');

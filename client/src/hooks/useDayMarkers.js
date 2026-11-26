@@ -3,7 +3,7 @@ import { useSlot } from '../plugins/sdk/useSlot';
 
 /**
  * `useDayMarkers()` — what plugin modules draw on a calendar day (slot `calendar.dayMarkers`,
- * specs/plugins-phase-1-sdk.md rule 13), e.g. the A/B/C school-holiday zones. The calendars only
+ * specs/plugins/plugins-phase-1-sdk.md rule 13), e.g. the A/B/C school-holiday zones. The calendars only
  * draw dots; which dot means what belongs to the plugin.
  *
  * Returns:

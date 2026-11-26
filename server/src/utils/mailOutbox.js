@@ -1,6 +1,6 @@
 /**
- * The development mail catcher — `GUESTFLOW_MAIL_OUTBOX=<dir>` (specs/guest-email-texts-made-simple.md
- * rule 26, specs/hosting-h2-account-security.md rule 6). Set outside production, every email GuestFlow
+ * The development mail catcher — `GUESTFLOW_MAIL_OUTBOX=<dir>` (specs/emails/guest-email-texts-made-simple.md
+ * rule 26, specs/hosting/hosting-h2-account-security.md rule 6). Set outside production, every email GuestFlow
  * would send — account emails, guest emails, notifications, tests — is written as one JSON file in that
  * directory instead: the « recette » mode, safe on a copy of the production database. Ignored when
  * NODE_ENV=production, where the variable must never stop the real emails.
@@ -17,7 +17,7 @@ function outboxDir(env = process.env) {
 
 /**
  * Writes `{ to, subject, text, html?, mime?, from?, replyTo?, at }` as `<ms>-<hex>.json`; → the file path.
- * A guest email carries its HTML part (specs/guest-email-texts-made-simple.md rule 37) and, in `mime`,
+ * A guest email carries its HTML part (specs/emails/guest-email-texts-made-simple.md rule 37) and, in `mime`,
  * the message exactly as the SMTP server would receive it, so its `multipart/alternative` can be read.
  */
 function writeToOutbox(dir, { to, subject, text, html, mime, from, replyTo }, now = new Date()) {

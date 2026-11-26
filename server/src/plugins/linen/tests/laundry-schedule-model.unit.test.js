@@ -6,7 +6,7 @@ const { MIGRATIONS } = require('../migrations');
 const laundryScheduleModel = require('../laundryScheduleModel');
 const { createSchedule } = require('../laundrySchedule');
 
-// specs/linen-laundry-days.md §5 + §3.1 rules 4-5, 24 — the dated versions table and its migration.
+// specs/linen/linen-laundry-days.md §5 + §3.1 rules 4-5, 24 — the dated versions table and its migration.
 
 const MIGRATION = MIGRATIONS.find((m) => m.name === 'laundry_schedule_v1');
 
@@ -18,7 +18,7 @@ function freshDb({ weekday } = {}) {
 }
 const rows = (db) => db.prepare('SELECT effectiveFrom, weekdays, turnaroundDays FROM laundry_schedule_versions ORDER BY effectiveFrom').all();
 
-test('specs/linen-laundry-days.md §3.1 rule 4: the migration turns laundryWeekday W into { [W], 1 day } effective from the beginning of time', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 4: the migration turns laundryWeekday W into { [W], 1 day } effective from the beginning of time', () => {
   for (const [stored, expected] of [['2', '2'], ['5', '5'], ['0', '0'], ['6', '6']]) {
     const db = freshDb({ weekday: stored });
     MIGRATION.up(db);
@@ -26,7 +26,7 @@ test('specs/linen-laundry-days.md §3.1 rule 4: the migration turns laundryWeekd
   }
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 4: an absent, empty or invalid laundryWeekday seeds Tuesday', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 4: an absent, empty or invalid laundryWeekday seeds Tuesday', () => {
   for (const stored of [undefined, '', '  ', '9', '-1', 'mardi', '2.5']) {
     const db = freshDb({ weekday: stored });
     MIGRATION.up(db);
@@ -34,7 +34,7 @@ test('specs/linen-laundry-days.md §3.1 rule 4: an absent, empty or invalid laun
   }
 });
 
-test('specs/linen-laundry-days.md §5: the migration is idempotent and never seeds over an existing version', () => {
+test('specs/linen/linen-laundry-days.md §5: the migration is idempotent and never seeds over an existing version', () => {
   const db = freshDb({ weekday: '5' });
   MIGRATION.up(db);
   MIGRATION.up(db);
@@ -46,7 +46,7 @@ test('specs/linen-laundry-days.md §5: the migration is idempotent and never see
   assert.equal(rows(db)[0].weekdays, '5');
 });
 
-test('specs/linen-laundry-days.md §5: the table refuses a malformed date and a turnaround outside 1..14', () => {
+test('specs/linen/linen-laundry-days.md §5: the table refuses a malformed date and a turnaround outside 1..14', () => {
   const db = freshDb();
   MIGRATION.up(db);
   const insert = db.prepare('INSERT INTO laundry_schedule_versions (effectiveFrom, weekdays, turnaroundDays) VALUES (?, ?, ?)');
@@ -55,7 +55,7 @@ test('specs/linen-laundry-days.md §5: the table refuses a malformed date and a 
   assert.throws(() => insert.run('2026-06-10', '2', 15));
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 4: the model reads the migrated version back as a schedule where every figure is unchanged', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 4: the model reads the migrated version back as a schedule where every figure is unchanged', () => {
   const db = freshDb({ weekday: '4' });
   MIGRATION.up(db);
   const model = laundryScheduleModel.create(db);
@@ -66,7 +66,7 @@ test('specs/linen-laundry-days.md §3.1 rule 4: the model reads the migrated ver
   assert.equal(schedule.readyFrom('2026-06-04'), '2026-06-05');
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: upsert writes a version, overwrites the same date, and keeps versions ordered', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: upsert writes a version, overwrites the same date, and keeps versions ordered', () => {
   const db = freshDb();
   MIGRATION.up(db);
   const model = laundryScheduleModel.create(db);
@@ -79,7 +79,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: upsert writes a version, overwri
   assert.deepEqual(model.listAll().map((v) => v.effectiveFrom), ['0001-01-01', '2026-05-01', '2026-06-10']);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: remove deletes one version and is idempotent', () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: remove deletes one version and is idempotent', () => {
   const db = freshDb();
   MIGRATION.up(db);
   const model = laundryScheduleModel.create(db);
@@ -89,7 +89,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: remove deletes one version and i
   assert.deepEqual(model.listAll().map((v) => v.effectiveFrom), ['0001-01-01']);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 24: dropping the table (the purge) and migrating again restarts from { [2], 1 }', () => {
+test('specs/linen/linen-laundry-days.md §3.3 rule 24: dropping the table (the purge) and migrating again restarts from { [2], 1 }', () => {
   const db = freshDb({ weekday: '5' });
   MIGRATION.up(db);
   db.exec('DROP TABLE laundry_schedule_versions');

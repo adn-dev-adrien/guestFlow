@@ -9,6 +9,8 @@
 | **Related PR** | [#627](https://github.com/adn-dev-adrien/guestFlow/pull/627) |
 | **HTML summary** | `docs/specs/2026-09-28-site-traffic-analytics.html` |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4 file-map note: public validation/controller moved to `plugins/website-booking/`, attribution script in the WordPress plugin; no rule changed.
+
 ---
 
 ## 1. Context
@@ -28,7 +30,7 @@ Adrien therefore cannot answer the three questions that drive the site's work:
 
 1. **How many people come, from where, and to which pages?** The SEO/AEO work (`gf-seo-*`, English
    version) and the Instagram launch campaign run blind.
-2. **Where do visitors drop out of the booking tunnel?** The drawer (`specs/site-booking-drawer.md`)
+2. **Where do visitors drop out of the booking tunnel?** The drawer (`specs/site/site-booking-drawer.md`)
    has seven steps between "open" and "paid". Nothing tells which one loses people.
 3. **Which source brings bookings and revenue?** This question matters most. A GuestFlow reservation
    born of the site only knows `requestOrigin = 'public'`. Whether the guest came from Google,
@@ -210,7 +212,7 @@ measured requires it.
     "Réseaux sociaux · Instagram", "Campagne · lancement-2026", "Recherche · Google",
     "Assistant IA · ChatGPT", "Accès direct". A tooltip lists the raw fields (landing page, UTM).
     A public request without attribution shows "Origine inconnue".
-20. The devis list's "Origine" filter (`specs/admin-public-request-visibility.md`) is unchanged.
+20. The devis list's "Origine" filter (`specs/reservations/admin-public-request-visibility.md`) is unchanged.
     Filtering by channel is out of scope.
 
 > **Sans test** — states that the existing filter is unchanged; its behaviour is covered by the admin-public-request-visibility tests.
@@ -322,6 +324,8 @@ measured requires it.
 
 ### 4.1 Server side (`server/src/`)
 
+> **Current file map (2026-11-26).** `publicInputValidation.js` and `controllers/public/publicBookingRequestController.js` live in `server/src/plugins/website-booking/`; the browser half is `integrations/wordpress/guestflow-booking/assets/attribution.js` (`GF.attribution()`).
+
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `attributionChannel.js` | C | Pure: `classifyAttribution(record) → { channel, label }` per rule 16, plus the channel display labels |
@@ -384,7 +388,7 @@ before this ships, if no page still uses it.
 | GET | `/api/finance/summary` | Adds `revenueByChannel`, `yearToDateByChannel`, each `{ site: { rows, subtotal }, others, total }`. A row is `{ key, group: 'platform'\|'site'\|'direct', channel, label, reservations, nights, revenue, revenueHt }`. Site rows and the site subtotal add `requests`, `converted` and `conversionRate` (a percentage with one decimal, `null` when there are no requests) |
 
 This is an additive change to `/public/v1`, so it is **not an X** (CLAUDE.md §5.6). Release: **Y**.
-`specs/public-api.md` is updated: the request body example gains `attribution`, and the
+`specs/site/public-api.md` is updated: the request body example gains `attribution`, and the
 long-standing gap the exploration found is closed at the same time (the documented body lacks
 `resources`, `babyBeds`, `termsVersion` and the insurance fields).
 

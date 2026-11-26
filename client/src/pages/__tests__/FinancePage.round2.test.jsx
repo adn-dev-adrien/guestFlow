@@ -1,4 +1,4 @@
-// specs/finance-revpar-year-over-year.md §3 rules 28, 29 and 30; specs/finance-dashboard-redesign.md §3 rule 57 —
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 28, 29 and 30; specs/accounting/finance-dashboard-redesign.md §3 rule 57 —
 // fixes of 2026-11-06, round 2 (V3-2, V3-3, V5-9, D-HC16): the occupancy chart's name says « et N-1 » only with
 // its series, its copied data is in percent, the page says « payé » for the stays' money, and an exercise the
 // server refuses offers the current one.

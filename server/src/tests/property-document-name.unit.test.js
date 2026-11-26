@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rule 63 (verification R42 L1-L3, 2026-11-10) — the stored name of a document: the one
+// specs/settings/settings-input-guards.md rule 63 (verification R42 L1-L3, 2026-11-10) — the stored name of a document: the one
 // sent, trimmed; empty or blank, the file's own name shortened to 200 characters (extension kept); and an INSERT that
 // throws removes the upload already on disk.
 process.env.DB_PATH = ':memory:';

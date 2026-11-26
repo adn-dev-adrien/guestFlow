@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 32 (stabilisation loop t10 D10-2, 2026-11-17) — the payment link of a sale
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 32 (stabilisation loop t10 D10-2, 2026-11-17) — the payment link of a sale
 // outside a stay (outside-booking-sas rules 39-42: a `complement` link with `saleRef`, no stay) is a Mollie payment like any link: once paid,
 // its split is the sale day's two tranches (`sale:<sale key>:link-<id>`, reservation id 0), its Mollie credits can be matched and confirmed,
 // the journal books its « link » entry on the payment day under the sale, and « Versements à venir » lists its tranches. Fictional data only.

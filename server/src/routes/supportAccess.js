@@ -1,5 +1,5 @@
 /**
- * Paramètres › Accès du support (specs/hosting-h2-account-security.md rules 12–17). Admin-only
+ * Paramètres › Accès du support (specs/hosting/hosting-h2-account-security.md rules 12–17). Admin-only
  * through enforceRoleAccess; the support session itself may only read and report the pages it opens
  * (middleware/supportAudit.js, and the controller refuses its decisions on its own).
  *

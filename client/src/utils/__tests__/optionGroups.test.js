@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 21 — the stay view names the options of a group by id; the client joins
+// specs/tech/inte-performance.md rule 21 — the stay view names the options of a group by id; the client joins
 // them back to the property's options.
 import { expandOptionGroups } from '../optionGroups';
 

@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rule 7 — a report panel: a section named by its small uppercase label
+ * specs/design-system/report-grammar.md §3 rule 7 — a report panel: a section named by its small uppercase label
  * (theme role `panelLabel`), an optional action beside it.
  */
 import React from 'react';

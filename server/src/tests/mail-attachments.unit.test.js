@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 37 (SDK 2.33.0) — `ctx.mail.send` forwards `attachments: [{ filename, content, contentType }]` to the
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 37 (SDK 2.33.0) — `ctx.mail.send` forwards `attachments: [{ filename, content, contentType }]` to the
 // operator's mail service, and the service hands them to the transport; without attachments the message is what it always was.
 const test = require('node:test');
 const assert = require('node:assert/strict');

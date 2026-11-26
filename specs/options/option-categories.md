@@ -8,8 +8,10 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed (client pages are .jsx); `PricedItemsPage` no longer exists — the catalogue UI is `client/src/pages/options/` (specs/options/options-resources-ux.md).
+
 > **Updated 2026-10-27 (spec review — drift only).** The **Boissons + Restauration catering seed is
-> gone.** Phase P ([plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) rule 12, PR #672)
+> gone.** Phase P ([plugins-phase-p-productisation.md](../plugins/plugins-phase-p-productisation.md) rule 12, PR #672)
 > deleted `server/src/utils/cateringSeed.js` and its call in `database.js`: no boot inserts, re-inserts,
 > adopts or links those 14 articles any more, and a property created later is not linked to them. Rows
 > already seeded on an existing database stay as ordinary operator data. Rules 21–26, §5.2, §5.4 and the
@@ -26,18 +28,18 @@
 The option catalogue is a **flat list**. There is no notion of category, group, or display order
 anywhere:
 
-- `options` ([schema.sql:192-199](../server/src/schema.sql#L192-L199)) has no `category` / `group` /
+- `options` ([schema.sql:192-199](../../server/src/schema.sql#L192-L199)) has no `category` / `group` /
   `sortOrder` column. The only typing is `autoOptionType`, a technical seed marker
   (`early_check_in`, `late_check_out`, `bed_linen`, `bathroom_linen`, `bath_mat`, `breakfast`,
   `cleaning`) — a behavior discriminator, not a business category.
-- The admin catalogue ([OptionsPage.js](../client/src/pages/OptionsPage.js) over
+- The admin catalogue ([OptionsPage.js](../../client/src/pages/OptionsPage.jsx) over
   [PricedItemsPage.js](../client/src/components/PricedItemsPage.js)) is a sortable table with no
   grouping.
-- The reservation form ([ExtrasSection.js:332-517](../client/src/components/reservation/ExtrasSection.js#L332-L517))
+- The reservation form ([ExtrasSection.js:332-517](../../client/src/components/reservation/ExtrasSection.jsx#L332-L517))
   renders one `Card` per option in a single flat `Stack`, ordered by title.
-- The WordPress booking widget ([view.js:312-361](../integrations/wordpress/guestflow-booking/blocks/booking/view.js#L312-L361))
+- The WordPress booking widget ([view.js:312-361](../../integrations/wordpress/guestflow-booking/blocks/booking/view.js#L312-L361))
   renders options **and** resources into one uniform `.gf-lines` list, per
-  [wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) §3 rule 1.
+  [wp-booking-widget-redesign.md](../site/wp-booking-widget-redesign.md) §3 rule 1.
 
 Three families of options make that flat list unmanageable:
 
@@ -108,8 +110,8 @@ regular catalogue options, editable afterwards like any other.
     (rule 9 is what carries the meaningful state across reloads).
 13. The « Options personnalisées » and « Ressources » sub-sections are untouched and stay after the
     categories.
-14. An option hidden by `displayToClient = 0` ([optionVisibility.js](../server/src/utils/optionVisibility.js),
-    per [laundry-bath-mat.md](laundry-bath-mat.md) §3 rule 11) is filtered out **before** grouping.
+14. An option hidden by `displayToClient = 0` ([optionVisibility.js](../../server/src/utils/optionVisibility.js),
+    per [laundry-bath-mat.md](../linen/laundry-bath-mat.md) §3 rule 11) is filtered out **before** grouping.
     A category left with zero visible options renders nothing at all.
 
 ### Rendering — public WordPress widget
@@ -127,10 +129,10 @@ regular catalogue options, editable afterwards like any other.
 17. Resources keep their current placement — appended to the ungrouped list, before the category
     sections. Resources have no category.
 18. Every new visible string goes through `GF.t()` and is declared in
-    [class-gf-blocks.php:77-147](../integrations/wordpress/guestflow-booking/includes/class-gf-blocks.php#L77-L147).
+    [class-gf-blocks.php:77-147](../../integrations/wordpress/guestflow-booking/includes/class-gf-blocks.php#L77-L147).
     Category labels themselves come from the data, untranslated.
 19. The `ⓘ` description toggle inside a line keeps working unchanged
-    ([wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) §3 rule 14).
+    ([wp-booking-widget-redesign.md](../site/wp-booking-widget-redesign.md) §3 rule 14).
 20. The live quote summary (`drawSummary`) stays a **flat** list of selected lines — a guest reading
     their total must not have to expand anything.
 
@@ -145,8 +147,8 @@ regular catalogue options, editable afterwards like any other.
     price × operator-entered quantity), `displayToClient = 1`, linked to **both** properties,
     `category` = `Boissons` or `Restauration`.
 22. They are **structural boot-time seeds**, with the exact semantics of the linen and breakfast
-    seeds ([bedLinenSeed.js](../server/src/utils/bedLinenSeed.js),
-    [breakfastSeed.js](../server/src/utils/breakfastSeed.js)): idempotent, non-destructive, re-run on
+    seeds ([bedLinenSeed.js](../../server/src/utils/bedLinenSeed.js),
+    [breakfastSeed.js](../../server/src/utils/breakfastSeed.js)): idempotent, non-destructive, re-run on
     every server start, re-creating any row that has gone missing.
 23. Identity is carried by a new `options.seedKey` column, **not** by the title — so renaming,
     re-pricing, or rewriting the description of a seeded article sticks across restarts instead of
@@ -171,7 +173,7 @@ regular catalogue options, editable afterwards like any other.
 ### Category backfill
 
 27. A one-shot migration `option_categories_v1`, guarded by the `migrations` table (like
-    `breakfast_card_occurrences_v1`, [database.js:1033-1035](../server/src/database.js#L1033-L1035)),
+    `breakfast_card_occurrences_v1`, [database.js:1033-1035](../../server/src/database.js#L1033-L1035)),
     assigns: `Animations` to the options whose title starts with `Animation` (case-insensitive), and
     `Restauration` to « Le repas des trappeurs ». Options already carrying a category are skipped.
 
@@ -179,10 +181,10 @@ regular catalogue options, editable afterwards like any other.
 - Option catalogue with no category at all → the reservation form and the widget look exactly like
   today (no empty section, no header).
 - A category whose options are all `displayToClient = 0` → section not rendered (rule 14).
-- A locked/past reservation ([reservation-option-immutability.md](reservation-option-immutability.md))
+- A locked/past reservation ([reservation-option-immutability.md](../reservations/reservation-option-immutability.md))
   → sections still expand; pinned enabled options are visible as today, controls disabled as today.
 - An archived option (`archivedAt`) → excluded upstream by `ACTIVE_AND_O`
-  ([optionsModel.js:49-55](../server/src/models/optionsModel.js#L49-L55)); it never reaches grouping.
+  ([optionsModel.js:49-55](../../server/src/models/optionsModel.js#L49-L55)); it never reaches grouping.
 - Every option of a category is pinned (enabled and/or `alwaysVisible`) → the toggle disappears
   (nothing left to reveal).
 - An `alwaysVisible` option on an **ungrouped** option → no visible effect; the admin only offers the
@@ -252,7 +254,7 @@ admin payload, the reservation payload and the public payload.
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `PricedItemsPage`, `QuantityField`, `FormDialog`, `PageActionBar` | Pre-existing. |
-| **Created (new generic)** | `CollapsibleSection`, `PricedItemsPage.extraColumns` | `CollapsibleSection` is generic by construction: title + count + `defaultExpanded` + `pinned` + children, zero option-specific prop. GuestFlow has exactly one accordion today, inline in [FinancePage.js:191-258](../client/src/pages/FinancePage.js#L191-L258) — the obvious second consumer (migration deferred, §8). `extraColumns` keeps `PricedItemsPage` neutral between Options and Ressources. |
+| **Created (new generic)** | `CollapsibleSection`, `PricedItemsPage.extraColumns` | `CollapsibleSection` is generic by construction: title + count + `defaultExpanded` + `pinned` + children, zero option-specific prop. GuestFlow has exactly one accordion today, inline in [FinancePage.js:191-258](../../client/src/pages/FinancePage.jsx#L191-L258) — the obvious second consumer (migration deferred, §8). `extraColumns` keeps `PricedItemsPage` neutral between Options and Ressources. |
 | **Specific (kept feature-local)** | `reservation/OptionRow`, `reservation/OptionCategorySection` | `OptionRow` is bound to the reservation form's option semantics (auto-timed options, bed-linen block, complement toggle, planning-card occurrences) — extracted **verbatim** so the same renderer serves the flat list, the pinned rows and the folded remainder. `OptionCategorySection` is `CollapsibleSection` + the pinned-enabled rule (rule 9), specific to reservation options; it composes the generic rather than replacing it. |
 
 ### 4.3 WordPress plugin (`integrations/wordpress/guestflow-booking/`)
@@ -265,7 +267,7 @@ admin payload, the reservation payload and the public payload.
 | `includes/class-gf-rest-proxy.php` | — | (none — same proxied route, richer payload; TTL cache unchanged) |
 
 No plugin version bump: cache-busting is `filemtime`-based
-([class-gf-blocks.php:62-66](../integrations/wordpress/guestflow-booking/includes/class-gf-blocks.php#L62-L66)),
+([class-gf-blocks.php:62-66](../../integrations/wordpress/guestflow-booking/includes/class-gf-blocks.php#L62-L66)),
 and the CI syncs the plugin into `<container>` on `release`
 ([deploy.yml:402-431](../.github/workflows/deploy.yml#L402-L431)).
 
@@ -295,7 +297,7 @@ ALTER TABLE options ADD COLUMN alwaysVisible INTEGER NOT NULL DEFAULT 0;
 ```
 
 Added idempotently in `migrateOptionsColumns()`
-([database.js:528-568](../server/src/database.js#L528-L568)), which already applies this exact
+([database.js:528-568](../../server/src/database.js#L528-L568)), which already applies this exact
 pattern for `autoOptionType`, `countsAsBathMat`, `displayToClient`…
 
 Existing rows default to `''` / `0` → ungrouped, non-seeded, unpinned → today's rendering. **No data loss.**
@@ -322,7 +324,7 @@ existing seeders.
 
 ### 5.3 One-shot migration `option_categories_v1`
 
-Guarded by the `migrations` table ([database.js:940](../server/src/database.js#L940)). One
+Guarded by the `migrations` table ([database.js:940](../../server/src/database.js#L940)). One
 transaction:
 
 - `UPDATE options SET category = 'Animations'` where `category = ''` and `title LIKE 'Animation%'`
@@ -429,7 +431,7 @@ and planning-card configuration are operator-owned and must not be re-asserted.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Visual language — « Maison » ([design-system.md](design-system.md) §3.1):**
+**Visual language — « Maison » ([design-system.md](../design-system/design-system.md) §3.1):**
 
 - The header is **not** a `Card` — it must not compete with the option cards it contains. It is a
   full-width `ButtonBase` row, `borderRadius: 2`, `px: 1.5`, `py: 1`, transparent background turning
@@ -441,7 +443,7 @@ and planning-card configuration are operator-owned and must not be re-asserted.
   soft-success pair), shown only when > 0.
 - Chevron: `ExpandMoreIcon`, `color: text.secondary`, `transform: rotate(180deg)` when open,
   `transition: transform .2s ease` — matching the transitions already used on the option cards
-  ([ExtrasSection.js:364](../client/src/components/reservation/ExtrasSection.js#L364)).
+  ([ExtrasSection.js:364](../../client/src/components/reservation/ExtrasSection.jsx#L364)).
 - Toggle label: `Typography variant="body2"`, `color: primary.main`, under the pinned cards.
 - Pinned and folded cards are the untouched `OptionRow` at the **same left alignment** as ungrouped
   options — no indentation, so the vertical rhythm of the card stack is unbroken. The folded
@@ -456,7 +458,7 @@ Header `aria-label`: « Catégorie {label}, {n} option(s) sélectionnée(s) ». 
 **Responsive:**
 - `xs` (≤600px): header row is `flex` with the label truncating (`noWrap` + `textOverflow: ellipsis`),
   chip and chevron pinned right, whole row is the touch target (`minHeight: 44`). Card content
-  already stacks vertically ([ExtrasSection.js:368](../client/src/components/reservation/ExtrasSection.js#L368))
+  already stacks vertically ([ExtrasSection.js:368](../../client/src/components/reservation/ExtrasSection.jsx#L368))
   — unchanged.
 - `md` (~900px) / `lg` (≥1200px): header on one line, chip + chevron right, no change to the cards.
 - No horizontal scroll at any breakpoint.
@@ -506,11 +508,11 @@ Options & suppléments
 - Picked lines are moved out of the folded body and rendered above it (rule 16), same markup as any
   `.gf-line`.
 - Styling stays inside the plugin's existing token set (`--gf-accent`, `--gf-border`, `--gf-muted`,
-  [style.css:3](../integrations/wordpress/guestflow-booking/assets/style.css#L3)) — the widget follows
+  [style.css:3](../../integrations/wordpress/guestflow-booking/assets/style.css#L3)) — the widget follows
   the WordPress theme, not the GuestFlow admin palette.
 - Native `<button>` → keyboard accessible, focus ring inherited.
 - **Responsive ≤600px:** header is a single ≥44px row; body lines keep the existing stacked
-  title/price/stepper layout ([style.css:79-90](../integrations/wordpress/guestflow-booking/assets/style.css#L79-L90)).
+  title/price/stepper layout ([style.css:79-90](../../integrations/wordpress/guestflow-booking/assets/style.css#L79-L90)).
 
 ## 7. Test plan
 
@@ -588,7 +590,7 @@ collapse behavior is the whole point of the feature and it depends on the server
       horizontal scroll.
 - [x] Regression: `Options personnalisées`, `Ressources`, the pricing side panel totals, the devis PDF
       option lines, and the SAS upsell flow
-      ([sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md)) unaffected.
+      ([sas-upsells-activate-catalogue-option.md](../sas/sas-upsells-activate-catalogue-option.md)) unaffected.
 - [x] WordPress widget — verified on the **real** WordPress (`<container>` on the Pi, 2026-08-06, after
       the release deploy): the three groups render collapsed after the flat list; « Petit déjeuner »
       is pinned under a collapsed « Restauration » without a count chip; picking a drink moves it
@@ -599,7 +601,7 @@ collapse behavior is the whole point of the feature and it depends on the server
 ## 8. Out of scope
 
 - **No category on resources** — resources keep their current flat placement (rule 17).
-- **No grouping in the devis PDF** ([devisPdf.js:411-437](../server/src/utils/devisPdf.js#L411-L437))
+- **No grouping in the devis PDF** ([devisPdf.js:411-437](../../server/src/utils/devisPdf.js#L411-L437))
   nor in the pricing side panel — both stay flat lists, deliberately: a quote and a total read
   linearly.
 - **No sub-categories.** The price list's « Bières / Jus de fruits / Champagne » split is folded into

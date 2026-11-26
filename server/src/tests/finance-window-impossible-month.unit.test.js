@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/stay-profile.md §3 rule 25 (reviews R4-4 / R6-1) — a month that names none (« 13 », « 00 »)
+// specs/accounting/stay-profile.md §3 rule 25 (reviews R4-4 / R6-1) — a month that names none (« 13 », « 00 »)
 // is refused by the shared finance window with « Ce mois n'appartient pas à l'exercice choisi. », even
 // when it sorts inside an exercise closing in September; every endpoint reading a month window answers
 // that 400, never a 200 on garbage nor a 500.

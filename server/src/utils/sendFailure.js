@@ -1,5 +1,5 @@
 /**
- * The French reason of a failed send, for the operator (specs/email-automation.md rule 15). The
+ * The French reason of a failed send, for the operator (specs/emails/email-automation.md rule 15). The
  * transport's own text (« Missing credentials for "PLAIN" », « EMAIL_SEND_FAILED ») means nothing to
  * an owner; the reason says what happened and where to fix it. Pure.
  */

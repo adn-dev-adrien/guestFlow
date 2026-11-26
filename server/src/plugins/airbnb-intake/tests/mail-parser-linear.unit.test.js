@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 28 (audit R2, finding N3) — the subject and the heading are read on
+// specs/platforms/airbnb-mail-intake.md rule 28 (audit R2, finding N3) — the subject and the heading are read on
 // bounded lines: a 120 000-space line used to cost 34 s in `(.+?)\s+` and the mail still parsed.
 const test = require('node:test');
 const assert = require('node:assert/strict');

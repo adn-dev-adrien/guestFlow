@@ -2,7 +2,7 @@
  * DB hygiene — cross-cutting indexes + UNIQUE constraints + legacy column drop.
  *
  * Extracted from database.js so it can be tested in isolation against an
- * in-memory database. See specs/db-hygiene-quick-wins.md (Bloc 0).
+ * in-memory database. See specs/tech/db-hygiene-quick-wins.md (Bloc 0).
  *
  * Exports:
  *   FK_INDEXES        — list of [name, table, columns] tuples (regular indexes)

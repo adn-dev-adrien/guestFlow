@@ -1,6 +1,6 @@
 /**
  * Option-driven planning cards model — per-day cards for the Planning page.
- * Spec: specs/option-planning-card.md §3.3 + §4.1.
+ * Spec: specs/options/option-planning-card.md §3.3 + §4.1.
  *
  * Returns a `{ 'YYYY-MM-DD': { items: [{ reservationId, optionId, title, clientName,
  * propertyName, date, time }] } }` map for the requested `[from, to]` window.
@@ -30,7 +30,7 @@ function buildModel(database) {
   })();
   const EXCLUDE_BREAKFAST = hasAutoOptionType ? "AND (o.autoOptionType IS NULL OR o.autoOptionType != 'breakfast')" : '';
   // Covers actually served on each moment, when the operator reduced them
-  // (specs/card-option-served-persons.md §3.4 rule 18): the cook must read the real number, not the
+  // (specs/options/card-option-served-persons.md §3.4 rule 18): the cook must read the real number, not the
   // party. Guarded like every other optional column.
   const HAS_CARD_PERSONS = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
@@ -79,7 +79,7 @@ function buildModel(database) {
       .filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.date));
   }
 
-  // Toggle the « préparé » flag of a single occurrence (specs/option-planning-card.md §3.5), matched by
+  // Toggle the « préparé » flag of a single occurrence (specs/options/option-planning-card.md §3.5), matched by
   // (reservationId, optionId, date, time). Returns { ok, done } or { error }. Guarded for minimal schemas.
   const HAS_CARD_OCCURRENCES = (() => {
     try { return database.prepare("PRAGMA table_info(reservation_options)").all().some((c) => c.name === 'cardOccurrences'); }

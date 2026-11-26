@@ -1,5 +1,5 @@
 /**
- * StandaloneSaleDialog — « Vente hors séjour » (specs/pricing-components.md rules 53, 74; specs/outside-booking-sas.md rule 8, owner M4): articles from the catalogue, the quote's figures and
+ * StandaloneSaleDialog — « Vente hors séjour » (specs/pricing/pricing-components.md rules 53, 74; specs/sas/outside-booking-sas.md rule 8, owner M4): articles from the catalogue, the quote's figures and
  * VAT rows rendered from the payload, the customer (« Passage », an exact e-mail match, « Enregistrer comme client »), the payment with « Reste à percevoir » only or a link, the saved
  * screen and « Nouvelle vente ».
  */

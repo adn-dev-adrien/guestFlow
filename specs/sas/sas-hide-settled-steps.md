@@ -9,6 +9,8 @@
 | **Related PR** | (link once opened) |
 | **Extends** | [arrival-departure-sas.md](arrival-departure-sas.md), [reopen-completed-sas.md](reopen-completed-sas.md) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -17,15 +19,15 @@ The arrival SAS wizard (`ReservationSasDialog`) walks the operator through a seq
 single-purpose pages. Two of them stay visible even when there is nothing left to decide:
 
 - **Caution.** The arrival caution page is already hidden on a *fresh* check-in once the caution
-  is received ([`ReservationSasDialog.js:296`](../client/src/components/sas/ReservationSasDialog.js#L296),
+  is received ([`ReservationSasDialog.js:296`](../../client/src/plugins/sas/ReservationSasDialog.jsx#L296),
   `!r.cautionReceived`). But when the operator **reopens a completed SAS**
   ([reopen-completed-sas.md](reopen-completed-sas.md) §3 rule 3), the caution page reappears
   pre-ticked — noise, since the caution is already settled.
 - **Ménage.** The cleaning page is **always** in the arrival key list
-  ([`ReservationSasDialog.js:306`](../client/src/components/sas/ReservationSasDialog.js#L306)).
+  ([`ReservationSasDialog.js:306`](../../client/src/plugins/sas/ReservationSasDialog.jsx#L306)).
   When the cleaning is already included (a cleaning option on the reservation — detected the same way
   as the J-1 email, by `autoOptionType='cleaning'` tag **or** by the option name containing « ménage »,
-  see [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js) — or a property default), the
+  see [`utils/cleaningOption.js`](../../server/src/utils/cleaningOption.js) — or a property default), the
   page only shows an informational *« ✅ Le ménage est inclus »* screen with no action — pure noise.
 
 There is no online caution payment: `cautionReceived` is set only by the SAS itself or by the
@@ -46,12 +48,12 @@ lost.
    §3 rule 3 *for the arrival caution*: a received caution is no longer reachable from the SAS, even
    when reopening a completed SAS.
 2. **Commit stays faithful.** With the caution page hidden, the commit already sends
-   `cautionReceived: undefined` (tri-state, [`ReservationSasDialog.js:426`](../client/src/components/sas/ReservationSasDialog.js#L426)),
+   `cautionReceived: undefined` (tri-state, [`ReservationSasDialog.js:426`](../../client/src/plugins/sas/ReservationSasDialog.jsx#L426)),
    so the server **leaves the received marker untouched**. No value is changed by hiding the page;
    a received caution stays received.
 3. **Arrival ménage page — hidden whenever included.** The arrival `cleaning` step is dropped from
    the key list when `cleaning.included` is true (reservation carries a cleaning option — matched by
-   `autoOptionType='cleaning'` tag **or** by name « ménage », see [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js)
+   `autoOptionType='cleaning'` tag **or** by name « ménage », see [`utils/cleaningOption.js`](../../server/src/utils/cleaningOption.js)
    — or the property offers cleaning as a default). When cleaning is **not** included, the page
    still appears so the operator can offer / add the ménage (unchanged).
    > **Nuance added 2026-08-03** — the ménage sold *by the SAS itself* (`sasArrivalOrigin = 1`) does **not**
@@ -64,7 +66,7 @@ lost.
    shown on the **arrival recap** page instead, and only when `cleaning.included` is true (i.e. exactly
    the case where the dedicated page was removed). **Since 2026-10-26** the client reads
    `cleaning.guestReminder` instead, which the server sets to `false` for an Airbnb stay — Airbnb forbids
-   checkout chores ([airbnb-no-checkout-chores.md](airbnb-no-checkout-chores.md)).
+   checkout chores ([airbnb-no-checkout-chores.md](../platforms/airbnb-no-checkout-chores.md)).
 5. **Scope = arrival only.** The **departure** « Retour caution » page (`cautionReturn`) is
    **unchanged** — it is a different action (returning the caution), not an « already settled » state,
    and it stays reachable in re-edit to correct a mis-marked return.
@@ -92,8 +94,8 @@ lost.
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** No business logic moves to the client. The server already computes
-> `cleaning.included` ([`sasController.js:33`](../server/src/controllers/sasController.js#L33)) and
-> exposes `cautionReceived` ([`reservationsModel.js:524`](../server/src/models/reservationsModel.js#L524)).
+> `cleaning.included` ([`sasController.js:33`](../../server/src/plugins/sas/controller.js#L33)) and
+> exposes `cautionReceived` ([`reservationsModel.js:524`](../../server/src/models/reservationsModel.js#L524)).
 > This change only adjusts which server-provided flags gate a page — pure rendering/UX. No new
 > calculation on the client.
 
@@ -136,7 +138,7 @@ No schema change. No migration. No data impact.
   when the cleaning is included. The stepper simply gets shorter; navigation (« Précédent » /
   « Suivant ») is unchanged.
 - **Arrival recap** gains one secondary line when the cleaning is included (not on an Airbnb stay, see
-  [airbnb-no-checkout-chores.md](airbnb-no-checkout-chores.md)):
+  [airbnb-no-checkout-chores.md](../platforms/airbnb-no-checkout-chores.md)):
   *« Ménage inclus — rappeler au client : la vaisselle doit être faite et rangée, et les poubelles
   vidées. »* (`Typography variant="body2" color="text.secondary"`).
 - **Responsive:** the dialog remains `fullScreen` on mobile (`xs`); removing pages only shortens the
@@ -150,7 +152,7 @@ No schema change. No migration. No data impact.
 - [ ] None — no server logic changes. (The existing `sas-commit.unit.test.js` tri-state coverage
   already asserts that an absent `cautionReceived` leaves the marker untouched.)
 
-### Client unit tests (`client/src/components/sas/__tests__/ReservationSasDialog.test.js`) — 14/14 green
+### Client unit tests (`client/src/plugins/sas/__tests__/ReservationSasDialog.*.test.jsx`) — 14/14 green
 - [x] Arrival, `cautionReceived = 1` on a fresh reservation → no `caution` band, wizard reachable
   (existing « linen OK », « breakfast hidden » tests already seed `cautionReceived: 1`).
 - [x] Arrival, `cautionReceived = 1` **and** `arrivalSasDoneAt` set (re-edit) → still **no** `caution`
@@ -187,6 +189,6 @@ No schema change. No migration. No data impact.
   Root cause = detection relied solely on the `autoOptionType='cleaning'` tag, and a second operator
   « Ménage » option (untagged) was never promoted by the boot seed (a stale `alreadyTagged` early-return
   bailed once the first « Ménage » was tagged). Fix (server): (1) `getSas` now detects cleaning via the
-  shared [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js) helper — tag **or** name
-  « ménage », same rule as the J-1 email; (2) [`cleaningOptionSeed.js`](../server/src/utils/cleaningOptionSeed.js)
+  shared [`utils/cleaningOption.js`](../../server/src/utils/cleaningOption.js) helper — tag **or** name
+  « ménage », same rule as the J-1 email; (2) [`cleaningOptionSeed.js`](../../server/src/utils/cleaningOptionSeed.js)
   dropped the early-return so it tags **every** untyped « Ménage » on each boot (still idempotent).

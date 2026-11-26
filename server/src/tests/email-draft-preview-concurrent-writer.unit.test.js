@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 13 — the draft preview writes inside a transaction it always rolls back.
+// specs/emails/guest-email-texts-made-simple.md rule 13 — the draft preview writes inside a transaction it always rolls back.
 // A read-then-write transaction that starts while another connection holds the write lock and commits fails at once
 // with SQLITE_BUSY_SNAPSHOT (the busy timeout does not apply), which answered 500 under load (E2E « Textes des emails »).
 // It takes the write lock up front (BEGIN IMMEDIATE) and waits for the busy timeout instead.

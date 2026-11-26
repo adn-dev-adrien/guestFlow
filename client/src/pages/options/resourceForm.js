@@ -1,6 +1,6 @@
 /**
  * The resource editor's form model: the stored resource ⇄ the form, the payload and the inline checks
- * that mirror the server's (specs/options-resources-ux.md rule 21). Amounts are the text typed
+ * that mirror the server's (specs/options/options-resources-ux.md rule 21). Amounts are the text typed
  * (« 12,5 »); a comma is accepted.
  */
 import { FIELD } from '../../constants/optionsResourcesTexts';
@@ -10,7 +10,7 @@ import { emptyExternalSale, externalSaleFromItem, externalSalePayload } from './
 const toText = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-// specs/hourly-extra-hour-rates.md rules 1, 5 — the price of the following hours, per audience and band: [field, « band, audience » of the refusal sentence].
+// specs/resources/hourly-extra-hour-rates.md rules 1, 5 — the price of the following hours, per audience and band: [field, « band, audience » of the refusal sentence].
 // Typed as text, empty meaning « same as the first hour ».
 export const NEXT_RATE_FIELDS = [
   ['hourlyNextDayRate', 'journée, hébergés'], ['hourlyNextEveningRate', 'soir, hébergés'],
@@ -78,7 +78,7 @@ const inScope = (form, pid) => form.propertyIds.length === 0 || form.propertyIds
 
 /**
  * The API payload. Hours, slots and the planning card are for a resource sold by the hour only
- * (specs/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise. A property line with no typed
+ * (specs/plugins/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise. A property line with no typed
  * price is sent with `price: null` — it inherits the base price on the server (rule 28); lines of
  * properties outside the scope are not sent.
  */

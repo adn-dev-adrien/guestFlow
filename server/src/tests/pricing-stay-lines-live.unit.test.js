@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 74 (pass 4) — « Hébergement » and « Taxe de séjour » are written live: a stay saved after the
+// specs/pricing/pricing-components.md §3 rule 74 (pass 4) — « Hébergement » and « Taxe de séjour » are written live: a stay saved after the
 // migration gets its two lines, and an operator edit that moves the price amends the line (`amendedAt`) and is journaled.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

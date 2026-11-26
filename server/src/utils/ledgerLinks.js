@@ -1,5 +1,5 @@
 /**
- * Payment links whose amount the fiche changes (specs/reservation-payment-ledger.md §3.5, rules 29-31;
+ * Payment links whose amount the fiche changes (specs/payments/reservation-payment-ledger.md §3.5, rules 29-31;
  * UI/UX review 2026-10-18, §9 Q3 decided 2026-10-19: retire, offer « Renvoyer la demande », book a late
  * payment of the old link at its real amount).
  *
@@ -23,7 +23,7 @@ const { roundedToCents: toCents } = require('./pricing/money');
  * What a link of `type` would be minted for today on this stored row (or engine quote) — the figures
  * `paymentsController.resolveAmountCents` reads. A `full` link charges what its payment records: the
  * acompte plus the solde, i.e. the pre-arrival amount, tourist tax included and the arrival complement
- * excluded (specs/deposit-blocks-the-dates.md rule 18, decided 2026-10-27).
+ * excluded (specs/payments/deposit-blocks-the-dates.md rule 18, decided 2026-10-27).
  */
 function linkAmountCents(type, row = {}) {
   switch (String(type)) {
@@ -52,7 +52,7 @@ function acompteIsLinkMoney(database, link, stay, paidDay) {
 }
 
 /** Rule 29 — the open links whose amount differs from the row's amount in cents. */
-// specs/guest-app.md rule 35 — a link that bills its own basket (a guest order) owes nothing to the row's amounts.
+// specs/guest-app/guest-app.md rule 35 — a link that bills its own basket (a guest order) owes nothing to the row's amounts.
 function staleLinks(openLinks, row) {
   return (openLinks || []).filter((link) => {
     if (!link || link.status !== 'open' || link.basketJson) return false;
@@ -91,7 +91,7 @@ async function inspectStaleLinks(stale, provider) {
 }
 
 /**
- * specs/disable-deposit-per-reservation.md rule 13 — whether the stored acompte is paid and a payment link
+ * specs/payments/disable-deposit-per-reservation.md rule 13 — whether the stored acompte is paid and a payment link
  * collected it: a paid `deposit` or `full` link on the stay or on the devis converted into it. Such an
  * acompte is money received; « Sans acompte » cannot zero it.
  */
@@ -113,7 +113,7 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
   let row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
   if (!row) return { effect: 'no-reservation' };
   // A link minted on a devis that was then converted is paid on the reservation it became
-  // (specs/vat-optional-mode.md rule 34).
+  // (specs/accounting/vat-optional-mode.md rule 34).
   if (String(row.kind) === 'devis' && row.convertedReservationId) {
     row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(row.convertedReservationId)) || row;
   }
@@ -140,7 +140,7 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
   else if (fullOverDeposit) {
     // The solde gets the rest and both are recorded — the acompte is never claimed a second time.
     // Short of the pre-arrival total, the rest is owed as the arrival complement; above it, the excess
-    // is the trop-perçu (specs/reservation-refunds.md rule 34).
+    // is the trop-perçu (specs/payments/reservation-refunds.md rule 34).
     const depositBefore = round2(row.depositAmount);
     const balanceBefore = round2(row.balanceAmount);
     const deposit = depositBefore;
@@ -171,7 +171,7 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
   if (bucket === 'deposit') {
     // The acompte is the link's amount; the solde absorbs the difference (pre-arrival total unchanged).
     // On a stay switched to « Sans acompte » the money re-enables the acompte, or the ledger would hide
-    // it and the next save would erase it (specs/disable-deposit-per-reservation.md rule 12).
+    // it and the next save would erase it (specs/payments/disable-deposit-per-reservation.md rule 12).
     // A solde already collected keeps its amount (reservation-refunds rule 36): the acompte lands on top,
     // the excess is the trop-perçu, a shortfall the arrival complement (online-payment rule 49).
     const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
@@ -208,7 +208,7 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
   if (bucket === 'balance') {
     // The solde is what the guest paid. Short of the new solde, the rest is owed as the arrival
     // complement (the engine keeps a paid solde of a stay without acompte, pricing rule 36, and routes
-    // the gap there); above it, the excess is the trop-perçu of specs/reservation-refunds.md rule 34.
+    // the gap there); above it, the excess is the trop-perçu of specs/payments/reservation-refunds.md rule 34.
     // One transaction: the amounts, the payment and the history land together or not at all.
     const before = round2(row.balanceAmount);
     const shortfall = round2(before - paidAmount);

@@ -13,11 +13,11 @@
 ## 1. Context
 
 The Suivi financier's « À vérifier » card lists every finished platform stay whose « Montant total payé par le
-client » (`platformGrossAmount`) is empty ([finance-data-checks.md](finance-data-checks.md) rule 8). The operator
+client » (`platformGrossAmount`) is empty ([finance-data-checks.md](../accounting/finance-data-checks.md) rule 8). The operator
 cannot act on most of these lines without breaking something else:
 
 - The statement fields (brut, taxe retenue, commissions) only open from the amount of a platform row
-  ([reservation-payment-ledger.md](reservation-payment-ledger.md) rule 25), and **only while the payout is not
+  ([reservation-payment-ledger.md](../payments/reservation-payment-ledger.md) rule 25), and **only while the payout is not
   received**: « Once the payout is received they are locked like a paid row ».
 - A finished stay is locked. On a locked fiche every amount opens the lock reason instead
   (« Séjour commencé : déverrouiller la fiche pour modifier les montants. »).
@@ -65,7 +65,7 @@ when the typed figures do not give the transfer, the operator is warned, not blo
    differs from the net received by more than half a cent is **accepted**. Before « Valider » the panel shows the
    gap in the warning tone: « Net : 168,20 € — le virement reçu est de 171,14 € (écart 2,94 €). Le relevé sera
    enregistré avec cet écart. » and « Valider » stays enabled. After the write the row carries the existing
-   reconciliation chip « écart : 2,94 € » ([reservation-payment-ledger.md](reservation-payment-ledger.md) rule 26),
+   reconciliation chip « écart : 2,94 € » ([reservation-payment-ledger.md](../payments/reservation-payment-ledger.md) rule 26),
    which stays until the statement or the transfer is corrected. The net received is the transfer typed in the panel,
    else `platformPayoutAmount` when stored, else the stored net (pre-arrival amount minus its stored commissions). The server never
    refuses on this gap; the response carries `netGap` (signed, euros) and the worded `netLabel`, and the toast after

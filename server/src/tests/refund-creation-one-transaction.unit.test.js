@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 115 and specs/reservation-refunds.md rule 6 (stabilisation loop t9, D9-3 follow-up, 2026-11-16) — a
+// specs/pricing/pricing-components.md §3 rule 115 and specs/payments/reservation-refunds.md rule 6 (stabilisation loop t9, D9-3 follow-up, 2026-11-16) — a
 // refund on the trop-perçu, its history entry and the `lineLowered` rows it settles (with their `noteCents`) are ONE transaction. A failure
 // injected in the settlement leaves no refund, no history entry and the row open. Before, the refund row and its history were already written
 // while the obligation stayed open: the trop-perçu asked again for money already given back.

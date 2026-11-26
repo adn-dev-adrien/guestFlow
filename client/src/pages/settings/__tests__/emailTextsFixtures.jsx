@@ -1,4 +1,4 @@
-// Shared fixtures of the « Textes des emails » page suites (specs/guest-email-texts-made-simple.md §7).
+// Shared fixtures of the « Textes des emails » page suites (specs/emails/guest-email-texts-made-simple.md §7).
 // Not a test file: each suite mocks the API itself (vi.mock is hoisted per file).
 import React from 'react';
 import { render } from '@testing-library/react';

@@ -1,7 +1,7 @@
 /**
  * Platform-duplicate merge — fold several platform-name spellings into one canonical platform.
  *
- * Motivating case (specs/platforms-and-ical-rework.md): production drifted to TWO "Gîtes de France"
+ * Motivating case (specs/platforms/platforms-and-ical-rework.md): production drifted to TWO "Gîtes de France"
  * platforms — the legacy singular "Gîte de France" (slug `gitedefrance`) and the plural
  * "Gîtes de France" (slug `gitesdefrance`). They are the same real-world brand and must show as one,
  * named "GitesDeFrance".
@@ -60,7 +60,7 @@ function mergePlatformDuplicates(db, { slugs, targetName }) {
     const survivor = rows[0];
     for (const victim of rows.slice(1)) {
       db.prepare('UPDATE reservations SET sourceIcalSourceId = ? WHERE sourceIcalSourceId = ?').run(survivor.id, victim.id);
-      // specs/lodgify-decommission.md §3 rule 14 — the export owners follow, or the victim's tombstones
+      // specs/platforms/lodgify-decommission.md §3 rule 14 — the export owners follow, or the victim's tombstones
       // would hide the survivor's own re-booked stays.
       for (const table of exportOwnerTables) {
         db.prepare(`UPDATE ${table} SET sourceIcalSourceId = ? WHERE sourceIcalSourceId = ?`).run(survivor.id, victim.id);
@@ -79,7 +79,7 @@ function mergePlatformDuplicates(db, { slugs, targetName }) {
   // 3. platforms registry → ensure the target exists, carry over a custom colour, delete the variants.
   const hasColor = db.prepare('PRAGMA table_info(platforms)').all().some((c) => c.name === 'color');
   // The target is created only for a brand the instance already speaks of: a fresh install gets no
-  // « GitesDeFrance » it never asked for (specs/plugins-phase-p-productisation.md rule 32).
+  // « GitesDeFrance » it never asked for (specs/plugins/plugins-phase-p-productisation.md rule 32).
   const variants = db.prepare('SELECT * FROM platforms').all().filter((p) => matches(p.name) && p.name !== targetName);
   const inUse = variants.length > 0
     || Boolean(db.prepare('SELECT 1 FROM reservations WHERE platform = ? LIMIT 1').get(targetName))

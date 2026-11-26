@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the fiche's own payment forms
+// specs/plugins/plugins-phase-1-sdk.md rule 58 (loop t26) — the money-dialog invariants I1-I6, generated: the fiche's own payment forms
 // (`FinanceSection` « Encaisser en une fois » and the ledger rows' `PaymentMarkForm` with « Plusieurs moyens »). Their due is the fiche's
 // read, not a preview: the gesture « the fiche is read again » moves it. The driver and the invariants are in `moneyDialogsHarness.jsx`.
 import React from 'react';

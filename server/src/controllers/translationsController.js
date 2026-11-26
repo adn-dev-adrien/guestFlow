@@ -1,5 +1,5 @@
 /**
- * Translation catalogue endpoints (specs/translation-catalogue.md §4.3).
+ * Translation catalogue endpoints (specs/site/translation-catalogue.md §4.3).
  *
  * Thin: the collector decides what is translatable, the model decides what a file changes, the CSV
  * module decides what a file looks like. This layer only refreshes, maps errors to HTTP, and enforces

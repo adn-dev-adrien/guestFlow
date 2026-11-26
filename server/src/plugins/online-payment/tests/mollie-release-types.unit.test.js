@@ -1,5 +1,5 @@
 /**
- * specs/mollie-rolling-reserve-and-incoming-payments.md rule 10 — a settlement is composed from the whole family of payment
+ * specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 10 — a settlement is composed from the whole family of payment
  * and reserve-release balance transactions, not only the two types measured on an online payment: an on-site payment's
  * release may come under a sibling type. Any other type between two transfers is reported, never silently allocated.
  */

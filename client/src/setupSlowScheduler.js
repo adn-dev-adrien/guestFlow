@@ -1,4 +1,4 @@
-// Race sweep (specs/server-test-isolation.md rule 11): loaded before React by
+// Race sweep (specs/tech/server-test-isolation.md rule 11): loaded before React by
 // vitest.slow-scheduler.config.js only. React's scheduler posts its tasks — passive effects among
 // them — with setImmediate under Node; delaying every one of them by SCHED_DELAY ms (default 8)
 // replays a busy CI runner, where the testing library's drain timer can fire before an effect runs.

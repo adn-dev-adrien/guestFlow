@@ -1,6 +1,6 @@
 /**
  * UserManagementPage — Paramètres → Utilisateurs at `/settings/utilisateurs`, admin only
- * (specs/admin-account-management.md §6.1, specs/settings-rationalization.md rule 6).
+ * (specs/hosting/admin-account-management.md §6.1, specs/settings/settings-rationalization.md rule 6).
  *
  * Lists every user and supports create / edit / reset password / soft+hard delete; per-row icon
  * actions, table on md+, stacked cards on xs. Self-protection mirrors the server: the current admin
@@ -68,7 +68,7 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(isAdmin);  // skip the spinner for non-admins (no list to fetch)
   const [loadError, setLoadError] = useState(null);
-  // Post-action feedback goes through the shared toasts (specs/ds-components.md §3.2).
+  // Post-action feedback goes through the shared toasts (specs/design-system/ds-components.md §3.2).
   const { showSuccess, showError: showErrorToast } = useToast();
   const [busy, setBusy] = useState(false);
 
@@ -76,7 +76,7 @@ export default function UserManagementPage() {
   const [formErrors, setFormErrors] = useState({});
   const [resetDialog, setResetDialog] = useState({ open: false, user: null, reactivate: false });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, user: null, hard: false });
-  // specs/hosting-h2-account-security.md rule 9 — turn another user's second step off (a lost phone).
+  // specs/hosting/hosting-h2-account-security.md rule 9 — turn another user's second step off (a lost phone).
   const [twoFactorDialog, setTwoFactorDialog] = useState(null);
 
   const refresh = useCallback(async () => {

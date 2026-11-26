@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 25, 26, 27 and 85 — the line API sells a line that is no article (`articleRef: 'custom'`: linen pieces, a
+// specs/pricing/pricing-components.md §3 rules 25, 26, 27 and 85 — the line API sells a line that is no article (`articleRef: 'custom'`: linen pieces, a
 // plugin's supplement) and takes an unpaid line off the stay (`removeLine`), both through the fiche's own save; a paid line is offered, never removed.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

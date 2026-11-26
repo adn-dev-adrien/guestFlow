@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 6 — towels count the people served when a number was typed
+// specs/options/non-card-option-served-persons.md rule 6 — towels count the people served when a number was typed
 // on the option, and the whole party when nobody typed.
 
 process.env.DB_PATH = ':memory:';

@@ -27,14 +27,14 @@ function createController(model) {
     return res.json(model.list(req.query.q));
   }
 
-  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page's read. Unknown values fall back
+  // specs/clients/clients-upcoming-past-directory.md §4.3 — the Clients page's read. Unknown values fall back
   // to the defaults rather than 400: a stale bookmark must still show a list.
   function directory(req, res) {
     const { q, view, bucket, sort, dir } = req.query || {};
     return res.json(model.directory({ q, view, bucket, sort, dir }));
   }
 
-  // specs/resource-booking-client-picker.md §4.3 — a picker's options against the session's day. A
+  // specs/resources/resource-booking-client-picker.md §4.3 — a picker's options against the session's day. A
   // missing or malformed `date` falls back to today in the model.
   function picker(req, res) {
     return res.json(model.picker({ date: (req.query || {}).date }));
@@ -46,7 +46,7 @@ function createController(model) {
     return res.json(client);
   }
 
-  // specs/clients.md rule 12 — the client a record being typed would duplicate, or null: the fiche
+  // specs/clients/clients.md rule 12 — the client a record being typed would duplicate, or null: the fiche
   // offers to use it before anything is written.
   function duplicate(req, res) {
     const { email, phone } = req.query || {};
@@ -62,7 +62,7 @@ function createController(model) {
     return res.json(impact);
   }
 
-  // specs/clients.md rule 12 — a record with the email or phone of an existing client is
+  // specs/clients/clients.md rule 12 — a record with the email or phone of an existing client is
   // refused with that client, unless the operator asked for a second one (`allowDuplicate`).
   function create(req, res) {
     const body = cleanClientText(req.body);
@@ -116,7 +116,7 @@ function createController(model) {
   }
 
   // POST /clients/parse-contact — stateless: turns a dropped/typed raw string into clean field values
-  // (specs/client-contact-smart-input.md). Only the requested keys come back.
+  // (specs/clients/client-contact-smart-input.md). Only the requested keys come back.
   function parseContact(req, res) {
     const body = req.body || {};
     const requested = Object.keys(CONTACT_PARSERS).filter((key) => typeof body[key] === 'string');

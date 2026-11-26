@@ -86,7 +86,7 @@ function createPricingTestDb() {
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
   `);
 
-  // Global VAT now drives the engine — single-rate model (specs/single-vat-rate.md). These tests
+  // Global VAT now drives the engine — single-rate model (specs/accounting/single-vat-rate.md). These tests
   // predate the collapse and assume 20% everywhere, so seed the single global rate to 20 to keep
   // their (VAT-derived) expectations valid.
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 20)').run();
@@ -165,7 +165,7 @@ test('calculateReservationQuote excludes extra-guest surcharge from percentage t
   assert.equal(quote.totalPrice, 360);
   assert.equal(quote.baseAccommodationAdjustedPrice, 360);
   assert.equal(quote.touristTaxPricePerNightHt, 100);
-  // specs/tourist-tax-matches-the-office-calculation.md rule 8 — the baby is NOT an occupant for the
+  // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 8 — the baby is NOT an occupant for the
   // divisor: 2 adults + 1 child + 1 teen = 4, where this used to count 5 and bill 6,60 €.
   assert.equal(quote.touristTaxPerOccupantNightPriceHt, 25);
   assert.equal(quote.touristTaxAdultsCount, 2);
@@ -407,7 +407,7 @@ test('calculateReservationQuote auto-adds proportional early check-in option wit
 });
 
 test('calculateReservationQuote reprices a proportional early check-in when the time changes on a LOCKED reservation', () => {
-  // Regression (specs/timed-options-proportional-pricing.md §3 rule 6): on an already-saved
+  // Regression (specs/pricing/timed-options-proportional-pricing.md §3 rule 6): on an already-saved
   // reservation the option carries a locked snapshot. Changing the arrival time MUST reprice the
   // auto-timed option — it used to stay frozen at the locked amount (the bug Adrien reported:
   // arrival moved 10:00 → 11:30 but the early-check-in price never changed).
@@ -753,7 +753,7 @@ test('calculateReservationQuote keeps an offered per_hour resource original tota
   db.close();
 });
 
-// specs/plugins-phase-3c-hourly-resources.md rule 4 — slot settings or a free hour left on another price
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 4 — slot settings or a free hour left on another price
 // type no longer turn it into an hourly line: it keeps its multiplier.
 test('calculateReservationQuote prices a slotted per_person_per_night resource by its type, free minutes ignored', () => {
   const db = createPricingTestDb();

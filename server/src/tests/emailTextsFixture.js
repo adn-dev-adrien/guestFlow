@@ -1,5 +1,5 @@
 /**
- * Shared fixture of the « Textes des emails » suites (specs/guest-email-texts-made-simple.md §7).
+ * Shared fixture of the « Textes des emails » suites (specs/emails/guest-email-texts-made-simple.md §7).
  * Not a test file: each suite imports what it needs, so no suite ever re-runs another.
  *
  * A fresh database with the neutral templates, one property « Le Gîte », one guest and one stay

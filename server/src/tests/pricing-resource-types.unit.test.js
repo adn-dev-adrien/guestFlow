@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { liveHourlyResources } = require('./hourlyResourcesFixture');
 
-// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins/plugins-phase-3c-hourly-resources.md rule 11).
 liveHourlyResources();
 
 // Regression: selecting a non-hourly resource (per_stay / per_person / per_night /
@@ -96,7 +96,7 @@ test('per_person_per_night resource → price x persons x nights (20 x 2 x 3 = 1
   assert.equal(line.billedUnits, 6);
 });
 
-// specs/resource-hourly-scheduling.md §3.3 — hourly-scheduled resource priced from the fiche sessions.
+// specs/resources/resource-hourly-scheduling.md §3.3 — hourly-scheduled resource priced from the fiche sessions.
 test('hourly-scheduled resource → time-banded grid over the sessions', { skip: skipWithout(['hourly-resources']) }, () => {
   const db = createDb();
   const quote = calculateReservationQuote({
@@ -131,7 +131,7 @@ test('hourly-scheduled resource → an unusable session falls back to quantity p
   // A session below the minimum duration (a resource reconfigured under a saved booking, say) used to
   // erase the line and its money. The hours it described were still sold, so they are billed as a
   // bare quantity and re-placed during the arrival SAS
-  // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 2).
+  // (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 2).
   const db = createDb();
   const quote = calculateReservationQuote({
     db, ...BASE,

@@ -1,4 +1,4 @@
-// specs/review-2026-10-18-reservations.md rule 3, amended by specs/ui-review-2026-10-19-operations.md
+// specs/design-system/review-2026-10-18-reservations.md rule 3, amended by specs/design-system/ui-review-2026-10-19-operations.md
 // rule 3 — the SAS reads « N sur M », and M never grows: a page an answer opens keeps the number of the
 // question that opened it.
 import { screen } from '@testing-library/react';

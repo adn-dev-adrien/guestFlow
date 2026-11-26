@@ -6,7 +6,7 @@ import { PLATFORMS } from '../constants/platforms';
  * usePlatforms — fetches the canonical platform-name list from `GET /api/platforms` (built-in
  * well-known platforms ∪ everything stored in the `platforms` table, which is topped up from iCal
  * sources + reservations). This is what makes a platform added in a logement's iCal imports appear
- * in the reservation-form and iCal-form dropdowns. specs/ical-platforms-in-dropdowns.md.
+ * in the reservation-form and iCal-form dropdowns. specs/platforms/ical-platforms-in-dropdowns.md.
  *
  * Returns a string[] of names ('direct' first). Falls back to the static `PLATFORMS` constant until
  * the request resolves (and if it ever fails) so the dropdowns are never empty.

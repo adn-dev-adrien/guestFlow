@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { buildWelcomePackLines } = require('../utils/welcomePack');
 const propertiesModel = require('../models/propertiesModel');
 
-// specs/welcome-pack-auto-options.md — the pack a brand-new own-channel reservation arrives with.
+// specs/options/welcome-pack-auto-options.md — the pack a brand-new own-channel reservation arrives with.
 // Two invariants are under test everywhere below: it comes from `freeUnits` (never from an option
 // name), and it NEVER emits a line the free units don't fully cover (rule 7).
 
@@ -59,7 +59,7 @@ function createDb() {
   return db;
 }
 
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('the pack is the property options with freeUnits > 0, and nothing else', () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * A release directory built from this checkout, for development and the integration test
- * (specs/hosting-h1-fleet-runtime.md H-D6): the local drivers run real instances, and an instance
+ * (specs/hosting/hosting-h1-fleet-runtime.md H-D6): the local drivers run real instances, and an instance
  * runs from `<releases>/<version>/` like on the host. The server's code is copied (its version is
  * read from the release's own package.json), its node_modules are linked, not installed.
  *

@@ -1,6 +1,6 @@
-// specs/guest-app.md rules 22-24, 37bis, 48 — the studio's Boutique: the lodging's articles at its price, the sell
+// specs/guest-app/guest-app.md rules 22-24, 37bis, 48 — the studio's Boutique: the lodging's articles at its price, the sell
 // switch and presentation, the stock read-only.
-// specs/guest-app.md rule 50 — one flag, two views: the studio writes the same `PUT /api/guest-app/items/:kind/:id`
+// specs/guest-app/guest-app.md rule 50 — one flag, two views: the studio writes the same `PUT /api/guest-app/items/:kind/:id`
 // rows as GuestFlow's option and resource editors.
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';

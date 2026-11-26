@@ -124,7 +124,7 @@ test('seed PROMOTES by title alias: "Linge de lits" (plural) — covers Adrien\'
   const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
   assert.equal(result.action, 'promoted-adopted');
   // The plural row is promoted AND its title normalised to the singular
-  // (specs/j1-linen-default-message.md §3 rule 7).
+  // (specs/emails/j1-linen-default-message.md §3 rule 7).
   const row = db.prepare("SELECT * FROM options WHERE autoOptionType = 'bed_linen'").get();
   assert.equal(Number(row.countsAsBedLinen), 1);
   assert.equal(row.title, 'Linge de lit');
@@ -211,7 +211,7 @@ test('seed catches any thrown error and returns { action: "error" }', () => {
   assert.match(result.error, /SQLITE_BUSY/);
 });
 
-// specs/j1-linen-default-message.md §3 rule 7 — canonical singular title.
+// specs/emails/j1-linen-default-message.md §3 rule 7 — canonical singular title.
 
 test('seed normalises a plural "Linge de lits" title to "Linge de lit"', () => {
   const db = makeDb();

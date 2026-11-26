@@ -7,8 +7,10 @@
 | **Created** | 2026-09-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — decisions D1–D6, phasing §12 |
-| **Summary for review** | [`docs/specs/2026-09-28-plugins-phase-0-foundation.html`](../docs/specs/2026-09-28-plugins-phase-0-foundation.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — decisions D1–D6, phasing §12 |
+| **Summary for review** | [`docs/specs/2026-09-28-plugins-phase-0-foundation.html`](../../docs/specs/2026-09-28-plugins-phase-0-foundation.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 1–2: catalogue now 18 plugins, described by manifests; rules 26–27 already retired by `specs/plugins/integrations-tab-per-plugin.md`. Still governs: plugin states, install/activate/deactivate/uninstall refusals, what hides when inactive, the Plugins page, the bare-install E2E.
 
 ---
 
@@ -55,9 +57,13 @@ what is installed and active. A new customer starts with none; Solio keeps all t
    | `school-holidays` | Vacances scolaires | education.gouv sync, calendar zone bands, holidays tab |
    | `weather-alerts` | Vigilance Météo-France | vigilance alerts, SAS weather step |
 
-2. The catalogue is a server constant: id, French name, one-line description, icon key, category,
-   the list of surfaces it adds (shown on the Plugins page) and `requires` (empty for all 12 in phase 0;
-   the field exists for phase 4).
+   > **2026-11-26:** the table is the phase-0 set. Six plugins joined it: `gites-de-france-intake`,
+   > `booking-intake`, `airbnb-intake`, `google-vacation-rentals`, `guest-app`, `gift-vouchers` (18 in
+   > `CATALOG_ORDER`, `server/src/constants/plugins.js`).
+
+2. The catalogue is a server constant — since phase 4 only the **order** (`CATALOG_ORDER`); each
+   plugin's id, French name, description, icon, surfaces and `requires` come from its `manifest.json`
+   (`specs/plugins/plugins-phase-4-registry.md` rule 2, `readCatalogue`).
 3. A plugin has three states per database: **available** (not installed), **installed and active**,
    **installed and inactive**.
 
@@ -78,7 +84,7 @@ what is installed and active. A new customer starts with none; Solio keeps all t
      ou annuler d'abord. » (plural: « N liens de paiement en attente : … »); and, since 2026-10-04,
      while a link cancelled here is still payable at the provider (`remoteCancelPendingAt`) → « 1 lien
      retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard. »
-     (code `LINKS_PENDING_DEACTIVATION`; reworded 2026-10-30 by specs/payment-link-lifecycle.md rule 23:
+     (code `LINKS_PENDING_DEACTIVATION`; reworded 2026-10-30 by specs/payments/payment-link-lifecycle.md rule 23:
      a lapsed link owed its deactivation blocks too, and GuestFlow deactivates it by itself)
    - `sas` while an active user holds the reception role without admin → « 1 compte Accueil actif :
      changer son rôle dans Utilisateurs d'abord. » (plural: « N comptes Accueil actifs : changer leur
@@ -154,13 +160,13 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     > the parallel local run. The predicate it uses (`isRouteEnabled`) is covered by
     > `roles.plugins.test.js`; the redirect itself was checked by hand on the 8 plugin pages (§7).
     > _2026-10-18: an administrator is no longer sent home — the address stays and reads « Plugin
-    > inactif » with « Ouvrir Plugins » (specs/plugins-phase-p-productisation.md rule 42). Every
+    > inactif » with « Ouvrir Plugins » (specs/plugins/plugins-phase-p-productisation.md rule 42). Every
     > other role keeps this rule._
 20. Existing per-hour resources stay listed in the options catalogue when `hourly-resources` is inactive:
     their price type reads « Par heure (plugin inactif) » and is only offered in the form of a resource
     that already has it. A per-hour resource already on a stay stays listed there with its price, without
     the sessions picker; its past sessions stay on the stays (rule 7).
-    > **Superseded** (2026-10-18) — by `specs/plugins-phase-3c-hourly-resources.md` rules 18–20: a
+    > **Superseded** (2026-10-18) — by `specs/plugins/plugins-phase-3c-hourly-resources.md` rules 18–20: a
     > `per_hour` resource is hidden while `hourly-resources` is off, and comes back with its slots, prices
     > and sessions when it is reactivated. « Par heure (plugin inactif) » is no longer offered anywhere.
     > **Sans test** — replaced; the behaviour that ships is covered by the phase 3c rules 18–20 tests.
@@ -180,7 +186,7 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     19; amends rule 22 for active plugins). The server computes, per plugin, `setup: { needed, label,
     path, action }`:
     - the plugin says what it still lacks through `ctx.setupStatus(() => null | '<what>')` (SDK
-      1.5.0, specs/plugins-phase-1-sdk.md §3.B) — a cheap, synchronous look at its own settings:
+      1.5.0, specs/plugins/plugins-phase-1-sdk.md §3.B) — a cheap, synchronous look at its own settings:
       Google Agenda « à connecter » then « agenda à choisir », Neat « identifiants manquants »,
       Paiement en ligne « à connecter », Vigilance Météo-France « clé manquante »; a check that
       throws counts as nothing missing;
@@ -188,7 +194,7 @@ what is installed and active. A new customer starts with none; Solio keeps all t
       its own page (Linge, Paiements en ligne, Recettes, Vacances & fermetures, Options & ressources
       for the hourly resources, Plan comptable for the export) or its tab of Intégrations,
       `/settings/integrations?tab=<id>` (the anchor `#plugin-<id>` until 2026-10-22, still read —
-      specs/integrations-tab-per-plugin.md rule 6); `null` for a plugin with nothing to set up (SAS).
+      specs/plugins/integrations-tab-per-plugin.md rule 6); `null` for a plugin with nothing to set up (SAS).
 
     An active plugin that lacks something reads **« Actif · à connecter »** (warning badge) and its
     main button is **« Configurer »** (contained); set up, it reads « Actif » and offers
@@ -210,7 +216,7 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     Vigilance Météo-France the anchor is in the viewport, below the bars, at 390 and 1280 px.
 
     > **Sans test** — replaced on 2026-10-22: Intégrations has one tab per plugin and « Configurer »
-    > opens the tab (specs/integrations-tab-per-plugin.md rules 5, 6 and 9, tested there); there is no
+    > opens the tab (specs/plugins/integrations-tab-per-plugin.md rules 5, 6 and 9, tested there); there is no
     > anchor to hold in place any more, and `hooks/useAnchorScroll.js` is removed.
 27. **The anchor lets go when the page has settled, and never breaks the page** (review of PR #728, M4
     and B2). The re-placing of rule 26 stops 800 ms after the LAST layout change (a slow section keeps
@@ -224,7 +230,7 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     of throwing into the error screen.
 
     > **Sans test** — replaced on 2026-10-22 with rule 26: Intégrations has one tab per plugin and « Configurer »
-    > opens the tab (specs/integrations-tab-per-plugin.md rules 5, 6 and 9, tested there); there is no
+    > opens the tab (specs/plugins/integrations-tab-per-plugin.md rules 5, 6 and 9, tested there); there is no
     > anchor to hold in place any more, and `hooks/useAnchorScroll.js` is removed.
 
 **Edge cases:**
@@ -357,7 +363,7 @@ All under the admin guard except `/me` and `/login`.
 Unknown id → 404 `UNKNOWN_PLUGIN`.
 
 **Integrated review of inte/plugins (2026-10-19)** — rule 26:
-- Client `hooks/useAnchorScroll.js` (new, generic; removed on 2026-10-22 by specs/integrations-tab-per-plugin.md): places the element a hash names below the measured
+- Client `hooks/useAnchorScroll.js` (new, generic; removed on 2026-10-22 by specs/plugins/integrations-tab-per-plugin.md): places the element a hash names below the measured
   sticky bars and keeps it there while the page settles; stops at the first user scroll (rule 27:
   `quietMs`, `maxMs`, `navigationKey`, `anchorIdOf` for a malformed hash).
 - Client `pages/settings/IntegrationsSettingsPage.jsx`: uses it for `#plugin-<id>` (the fixed

@@ -1,7 +1,7 @@
 /**
  * ProvisioningSteps — the steps of a customer's creation or deprovisioning, each green, red, running,
- * to do or skipped, with its one action (specs/control-plane-plans-and-access.md rules 7, 20): since
- * the hosting (specs/hosting-h1-fleet-runtime.md rules 1–2) every step runs by itself, live, and a
+ * to do or skipped, with its one action (specs/hosting/control-plane-plans-and-access.md rules 7, 20): since
+ * the hosting (specs/hosting/hosting-h1-fleet-runtime.md rules 1–2) every step runs by itself, live, and a
  * failed one offers « Reprendre » (creation) or « Réessayer » (stop, restart, rename). Specific to the
  * console.
  *

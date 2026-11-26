@@ -2,11 +2,13 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (Wave 1 — 7 spec files, 18 green tests) — Wave 2 follow-up tracked below |
+| **Status** | Implemented |
 | **Branch** | `feature/e2e-playwright-smoke` |
 | **Created** | 2026-06-04 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Status, rules 4, 5, 9, 11 and the §3.4 intro aligned with `playwright.config.js` (Vite dev client, `GUESTFLOW_E2E_DB_PATH` + `e2e/wipe-db.js`, password `e2e-secret-1234`, `inte/**` triggers); the 28-row table is the Wave-1 plan, the suite itself lives in `e2e/specs/<area>/` (102 files).
 
 ---
 
@@ -52,11 +54,11 @@ or mutable state.
    when actual user reports surface a browser-specific bug.
 3. **Headless** in CI; configurable headed via `npm run test:e2e:headed`.
 4. **DB isolation**: every Playwright run starts the server with
-   `DB_PATH=/tmp/guestflow-e2e-<run-id>.db` + `SKIP_MIGRATIONS=false`. The path is
-   wiped before each run via `playwright.config.js`'s `globalSetup`. No mutation
-   of `server/guestflow.db`.
+   `DB_PATH=$GUESTFLOW_E2E_DB_PATH` (default `/tmp/guestflow-e2e.db`). The file is wiped by
+   `e2e/wipe-db.js`, run by the `npm run test:e2e` script before Playwright loads (never from
+   `playwright.config.js`, which every worker re-evaluates). No mutation of `server/guestflow.db`.
 5. **Admin bootstrap**: a new `server/scripts/seed-e2e.js` script (≈30 lines) creates a
-   deterministic admin user with email `e2e@guestflow.test` and password `e2e-secret`,
+   deterministic admin user with email `e2e@guestflow.test` and password `e2e-secret-1234`,
    **without** the "force password change on next login" flag. The default
    `reset-admin.js` script is untouched (test #18 exercises it).
 6. **Direct-DB seed helpers** (`e2e/fixtures/dbSeed.js`): wraps `better-sqlite3` opens
@@ -73,7 +75,7 @@ or mutable state.
 9. **Server / client lifecycle**: Playwright `webServer` blocks spawn:
    - `cd server && DB_PATH=... NODE_ENV=test node src/index.js`, wait for
      `http://127.0.0.1:4000/api/version` HTTP 200.
-   - `cd client && BROWSER=none npm start` (CRA dev server on :3000), wait for HTTP
+   - `cd client && npx vite` (Vite dev server on :3000), wait for HTTP
      200 on `/`.
    - In CI, `reuseExistingServer: false`. Locally, `true` (devs already running
      `npm run dev` get fast E2E iteration against their dev DB).
@@ -86,9 +88,9 @@ or mutable state.
     ```yaml
     on:
       pull_request:
-        branches: [master]
+        branches: [master, 'inte/**']
       push:
-        branches: [master]
+        branches: [master, 'inte/**']
     ```
     - `pull_request` fires on PR **open**, on every **subsequent push to the PR
       branch**, and on **re-open**.
@@ -187,8 +189,8 @@ or mutable state.
 
 23. **The E2E servers reach no external service** (added 2026-10-30, audit R7 L-1). The main `webServer`
     command (`playwright.config.js`, which the bare suite reuses), `e2e/prod/serve.js` and `e2e/removal/serve.js`
-    start the server with `GUESTFLOW_DISABLE_OUTBOUND=1`: no release check (specs/self-update-and-releases.md
-    rule 51) and no school-holidays sync (specs/school-holidays.md rule 27). Before, every run read
+    start the server with `GUESTFLOW_DISABLE_OUTBOUND=1`: no release check (specs/hosting/self-update-and-releases.md
+    rule 51) and no school-holidays sync (specs/pricing/school-holidays.md rule 27). Before, every run read
     `data.education.gouv.fr` and the GitHub releases API, so the holiday table and the update state differed
     between the specs that ran before and after the 60 s mark, and an outage or a rate limit could change a CI
     run. `NODE_ENV=test` alone does not imply it: unit tests drive both code paths with stubbed fetches. The
@@ -198,6 +200,10 @@ or mutable state.
     which since `qonto-settings-in-app.md` rule 5's reading of that day holds with a stored environment. Same test.)_
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
+
+> The table below is the Wave-1 plan of June 2026. The suite has since grown to ~100 spec files under
+> `e2e/specs/<area>/`, which is the source of truth; several rows name areas that were never created
+> (`properties/`, `resources/`, `devis/`, `accounting/`, `closures/`).
 
 | # | Spec area | Test file | Covers `/specs/` feature(s) |
 |---|---|---|---|
@@ -268,7 +274,7 @@ or mutable state.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `server/scripts/` | `seed-e2e.js` | C | One-shot deterministic admin seed for E2E (~30 lines). Reads `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` env vars (defaults `e2e@guestflow.test` / `e2e-secret`). Inserts an admin user via `usersModel`, **no** force-change flag. Idempotent (no-op if the user already exists). |
+| `server/scripts/` | `seed-e2e.js` | C | One-shot deterministic admin seed for E2E (~30 lines). Reads `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` env vars (defaults `e2e@guestflow.test` / `e2e-secret-1234`). Inserts an admin user via `usersModel`, **no** force-change flag. Idempotent (no-op if the user already exists). |
 
 No changes to existing server code; the seed script is purely additive.
 

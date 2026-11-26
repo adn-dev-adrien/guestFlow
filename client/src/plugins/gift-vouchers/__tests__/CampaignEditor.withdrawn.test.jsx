@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 65 — a campaign that carries an option the catalogue no longer sells is reported, never repaired: a warning Alert opens the editor with the
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 65 — a campaign that carries an option the catalogue no longer sells is reported, never repaired: a warning Alert opens the editor with the
 // server's `withdrawn` list, the chip of each one is drawn in the warning colour with the reason as its tooltip, and nothing is removed from the draft.
 import React from 'react';
 import { screen, within } from '@testing-library/react';

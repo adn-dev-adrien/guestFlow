@@ -1,8 +1,8 @@
 // Verbatim copy of server/src/utils/releaseClient.js at tag v3.21.0 (the parser the 3.21.0 update dialog runs on a 4.0.0 release),
 // the require of ./semver is repointed and the spec citations in comments are reworded (the spec-rule gate reads this folder).
-// The code is untouched. Do not edit: specs/self-update-and-releases.md rule 56.
+// The code is untouched. Do not edit: specs/hosting/self-update-and-releases.md rule 56.
 /**
- * Read-only client for the project's GitHub Releases (specs/self-update-and-releases.md §3.B).
+ * Read-only client for the project's GitHub Releases (specs/hosting/self-update-and-releases.md §3.B).
  *
  * The repository is public, so the calls are unauthenticated: 60 requests/hour/IP is far more than
  * the hourly poll needs. Everything here is data-shaping — no filesystem, no process, no state — so
@@ -19,7 +19,7 @@ const GITHUB_REPO = 'adn-dev-adrien/guestFlow';
 const GITHUB_API_ORIGIN = 'https://api.github.com';
 
 // One page of releases rather than `/releases/latest`: the offer has to cover the versions the
-// operator skipped (specs/self-update-and-releases.md rules 12b, 20d), and that is the same single
+// operator skipped (specs/hosting/self-update-and-releases.md rules 12b, 20d), and that is the same single
 // HTTP call — one page instead of one object.
 const RELEASES_PER_PAGE = 30;
 const RELEASES_URL = `${GITHUB_API_ORIGIN}/repos/${GITHUB_REPO}/releases?per_page=${RELEASES_PER_PAGE}`;
@@ -39,7 +39,7 @@ const PLUGIN_ASSET_RE = /^guestflow-booking-(\d+\.\d+\.\d+)\.zip$/;
 
 // CHANGELOG headings (Keep a Changelog + our `Migration` addition) → the French titles the UI shows.
 const SECTION_TITLES_FR = {
-  // The operator digest a release must carry (specs/self-update-and-releases.md the digest rule of the update spec). It
+  // The operator digest a release must carry (specs/hosting/self-update-and-releases.md the digest rule of the update spec). It
   // is what the update dialog shows; every other section sits behind « Tout le changelog ».
   summary: 'En bref',
   added: 'Ajouts',
@@ -111,7 +111,7 @@ function parseReleaseNotes(body) {
 }
 
 /**
- * Parsed sections → `{ summary, details }` (specs/self-update-and-releases.md the digest rule of the update spec).
+ * Parsed sections → `{ summary, details }` (specs/hosting/self-update-and-releases.md the digest rule of the update spec).
  *
  * The update dialog asks one question — « what does this change for me? » — and a fourteen-line
  * paragraph does not answer it. The release therefore carries a `### Summary` block of short lines,
@@ -204,7 +204,7 @@ function toNotesEntry(raw) {
 }
 
 /**
- * One page of published releases → what the updater needs (specs/self-update-and-releases.md
+ * One page of published releases → what the updater needs (specs/hosting/self-update-and-releases.md
  * rules 12b, 20d):
  *
  * - `release` — the target, normalised exactly as `/releases/latest` used to be: the newest

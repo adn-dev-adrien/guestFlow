@@ -1,4 +1,4 @@
-// specs/planning-arrival-alerts.md rule 11 (adversarial review of the 2026-10-27 fixes) — a cleaning of
+// specs/planning/planning-arrival-alerts.md rule 11 (adversarial review of the 2026-10-27 fixes) — a cleaning of
 // 1.5 h read « ménage: 1h5 » (now « 1h30 »), and a stay without its own times fell back to 15:00 /
 // 10:00 instead of its property's default check-in / check-out.
 const test = require('node:test');

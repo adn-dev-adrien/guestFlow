@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -27,9 +29,9 @@ out are all wrong:
 - leave the recap unsettled (the amount stays « à percevoir » forever in the finance views).
 
 The fiche already has the right vocabulary: every extra carries an **« Offrir / ✓ Offert »** toggle
-([PricingSummary.jsx](../client/src/components/PricingSummary.jsx)) which puts the line at **0 €** while
+([PricingSummary.jsx](../../client/src/components/PricingSummary.jsx)) which puts the line at **0 €** while
 keeping its real price struck through — a lossless, reversible geste commercial handled by the pricing
-engine (`applyOfferedToLine`, [pricing.js:798](../server/src/utils/pricing.js#L798)). The SAS never got
+engine (`applyOfferedToLine`, [pricing.js:798](../../server/src/utils/pricing.js#L798)). The SAS never got
 that toggle. Issue **#429**.
 
 ## 2. Goal

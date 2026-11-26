@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rules 13-14 — the table behind each tile: every total equals its
+// specs/accounting/finance-dashboard-redesign.md rules 13-14 — the table behind each tile: every total equals its
 // tile, « Encaissé » is a dated ledger that adds up to Σ comptaCollected, « À encaisser » carries the
 // « Arrivées d'ici le » projection, channels show what each one cost.
 const { freshDb, insert, sum, THIS_YEAR } = require('./financeDashboardFixture');

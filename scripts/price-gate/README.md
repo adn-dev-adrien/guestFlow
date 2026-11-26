@@ -1,6 +1,6 @@
 # Price gate
 
-The non-regression gate of the pricing refonte (`specs/pricing-components.md` §3 rules 68, 70 and 72). Every stay of an
+The non-regression gate of the pricing refonte (`specs/pricing/pricing-components.md` §3 rules 68, 70 and 72). Every stay of an
 anonymised copy of production, plus a set of synthetic refund stays, is recomputed through the current code and compared,
 to the cent, with the figures captured on the baseline code.
 

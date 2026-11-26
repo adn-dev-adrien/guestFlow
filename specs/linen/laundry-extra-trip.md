@@ -10,6 +10,8 @@
 | **Related PR** | (link once opened) |
 | **Extends** | [weekly-bed-linen-tracking.md](weekly-bed-linen-tracking.md), [linen-inventory-shortage-tracking.md](linen-inventory-shortage-tracking.md), [skip-laundry-trip.md](skip-laundry-trip.md), [manual-laundry-additions.md](manual-laundry-additions.md) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -24,8 +26,8 @@ What the model cannot say: *« I went to the laundry on a day that is not the la
 clean stock runs short, Adrien asks the laundry to have the linen ready earlier, drives there on a
 free date, brings the dirty linen he has, and takes back **everything that is in progress** — or,
 sometimes, only **part of it**. Today neither the Planning summary
-([planningController.laundrySummary](../server/src/controllers/planningController.js)) nor the stock
-engine ([utils/linenInventory.js](../server/src/utils/linenInventory.js)) can represent that trip: the
+([planningController.laundrySummary](../../server/src/controllers/planningController.js)) nor the stock
+engine ([utils/linenInventory.js](../../server/src/plugins/linen/linenInventory.js)) can represent that trip: the
 early pick-up is invisible, the projected clean stock stays short for a week, and the next weekly
 card still promises to bring linen that already went and to fetch linen that already came back.
 
@@ -52,7 +54,7 @@ the stock projection + shortage alert follow.
    regular rules apply that day) — mirrors the skip spec's « skip on a non-laundry day is inert ».
    *Reading of 2026-11-02 — the date window.* Past dates stop at today − 5 years and future ones at today + 5 years,
    400 `DATE_OUTSIDE_WINDOW` with the French message; a trip already stored is edited whatever its day
-   (linen 1.2.2, `specs/reservations-backend-mvc.md` rule 13, second reading).
+   (linen 1.2.2, `specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 3. **Drop-off = the whole dirty pile.** On an extra trip the operator always brings all the dirty
    linen accumulated since the previous trip (« on apporte le linge sale qu'on a »). No partial
    drop-off.
@@ -201,7 +203,7 @@ the stock projection + shortage alert follow.
 | `controllers/` | `controllers/planningController.js` | T | Injects `laundryExtraTripsModel`; `laundrySummary` lists the wanted dates (regular occurrences ∪ active extra trips in range) and delegates to `createTripLedger(...).entryFor` (regular + extra entries, `kind`, extra fields); `linenInventory` emits `byLaundryDay` for `isLaundryDay || day.isTripDay`. |
 | `controllers/` | `controllers/laundryExtraTripsController.js` | C | Factory `create({ extraTripsModel, manualAdditionsModel, settingsModel, laundryModel, skipsModel })`: `list`, `preview` (ledger `previewFor` for one date: `dropOff` + `atLaundry`), `set` (validates date + refuses laundry-day dates + `INVALID_PICKUP`), `remove` (then the manual line of that date). Thin; mirrors the skips controller. |
 | `routes/` | `routes/laundry.js` | T | `GET /extra-trips`, `GET /extra-trips/preview` (declared before the `/:date` routes), `PUT /extra-trips/:date`, `DELETE /extra-trips/:date`. |
-| `schema.sql` | `schema.sql` | T | The new table, alphabetical (source of truth — `specs/migrations-baseline.md` §5). |
+| `schema.sql` | `schema.sql` | T | The new table, alphabetical (source of truth — `specs/tech/migrations-baseline.md` §5). |
 | `middleware/` | `middleware/enforceRoleAccess.js` | — | No change: the reception allowlist does not include the new writes (GET already matched). The drift test gains the two forbidden cases. |
 | `tests/` | see §7 | C/T | |
 

@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 55 and specs/reservation-refunds.md rule 6, readings of 2026-11-02
+// specs/payments/payment-schedule-and-cancellation.md rule 55 and specs/payments/reservation-refunds.md rule 6, readings of 2026-11-02
 // (audit R16-L1). Every book refund made before a cancellation's `retained` avoir was refused deletion, by id order,
 // with « Remboursement déduit de l’acompte conservé. » — even when the paid solde had absorbed it whole and the avoir
 // was the gross acompte, untouched by it. Now a refund is refused only when it moved the avoir: rebuilt without it, the

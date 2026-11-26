@@ -1,5 +1,5 @@
 /**
- * Article family `perNight` — one price per night counted (specs/pricing-components.md §3 rule 47).
+ * Article family `perNight` — one price per night counted (specs/pricing/pricing-components.md §3 rule 47).
  *
  * Contract: `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
  * `price` returns `{ quantity, unitPrice, billedUnits, typed, components, allowanceUsed, amounts }` before the head
@@ -17,7 +17,7 @@ const configSchema = kit.configSchemaFor(PRICE_TYPES);
 // One unit per night of the stay.
 const multiplier = (persons, nights) => nights;
 
-// The operator may type a count of nights (« 2 nuits »): it stays that count (specs/non-card-option-served-persons.md rules 2-5, 19).
+// The operator may type a count of nights (« 2 nuits »): it stays that count (specs/options/non-card-option-served-persons.md rules 2-5, 19).
 function resolveUnits({ quantity, nights, cardNights }) {
   const wanted = Number(cardNights) > 0 ? Math.floor(Number(cardNights)) : null;
   const counted = wanted != null ? wanted : nights;

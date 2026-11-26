@@ -1,4 +1,4 @@
-// The window the Suivi financier reads (specs/finance-dashboard-redesign.md §3.1 rules 1-2): the
+// The window the Suivi financier reads (specs/accounting/finance-dashboard-redesign.md §3.1 rules 1-2): the
 // whole exercise, one of its months, or a custom du / au. Pure — the exercise bounds come from
 // utils/fiscalYear.js, today is passed in, never read here.
 

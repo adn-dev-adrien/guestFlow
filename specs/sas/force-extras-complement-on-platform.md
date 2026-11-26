@@ -8,13 +8,15 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
 
 Two prior specs set the stage for this one:
 
-- [accounting-platform-commission-and-no-deposit.md](accounting-platform-commission-and-no-deposit.md)
+- [accounting-platform-commission-and-no-deposit.md](../accounting/accounting-platform-commission-and-no-deposit.md)
   (PR #116) — established the rule that a non-`direct` reservation has
   `depositAmount = 0`: the platform pays the operator in **one** bank
   transfer, so the deposit/balance split is collapsed to "balance only"
@@ -226,7 +228,7 @@ the client), in the same spirit as PR #116's silent deposit override.
 **Migration block in `database.js`:**
 
 ```js
-// specs/force-extras-complement-on-platform.md §3 rule 6 + §5.
+// specs/sas/force-extras-complement-on-platform.md §3 rule 6 + §5.
 if (!hasRun(db, 'force_extras_complement_on_platform_v1')) {
   const result = require('./utils/forceExtrasComplementOnPlatformMigration')
     .runForceExtrasComplementOnPlatform(db);
@@ -356,8 +358,8 @@ Expected: existing **903** + **6** (existing PR #116/#118) ≈ **909** → ≈ *
 
 | File | Cases |
 |---|---|
-| **NEW** `client/src/components/reservation/__tests__/ExtrasSection.platform-force-complement.test.js` | (1) Direct reservation: the four "Compl." Checkbox blocks render. (2) Platform reservation: the caption renders + zero "Compl." Checkboxes are present. (3) Property option total is unchanged (just routing). (4) Switching `platform` prop from `direct` to `Airbnb` re-renders without the checkboxes. |
-| **NEW** `client/src/components/__tests__/PricingSummary.platform-force-complement.test.js` | (1) Direct reservation: per-line `<ComplementChip>` rendered + "Offrir" button rendered. (2) Platform reservation: per-line `<ComplementChip>` NOT rendered + "Offrir" button still rendered. (3) Clicking "Offrir" on a platform reservation calls `onToggleOptionOffered` as on direct. |
+| **NEW** `client/src/components/reservation/__tests__/ExtrasSection.platform-force-complement.test.jsx` | (1) Direct reservation: the four "Compl." Checkbox blocks render. (2) Platform reservation: the caption renders + zero "Compl." Checkboxes are present. (3) Property option total is unchanged (just routing). (4) Switching `platform` prop from `direct` to `Airbnb` re-renders without the checkboxes. |
+| **NEW** `client/src/components/__tests__/PricingSummary.platform-force-complement.test.jsx` | (1) Direct reservation: per-line `<ComplementChip>` rendered + "Offrir" button rendered. (2) Platform reservation: per-line `<ComplementChip>` NOT rendered + "Offrir" button still rendered. (3) Clicking "Offrir" on a platform reservation calls `onToggleOptionOffered` as on direct. |
 
 Expected: existing **184** + **4** + **3** = **191**.
 
@@ -506,7 +508,7 @@ complémentaire". The original irreversible forcing (rules 1 + 4) made the routi
   honours `inComplement = 0` on a platform reservation (operator override) and persists the
   engine value verbatim (9 cases). `pricing-force-and-snapshot.unit.test.js` +5 cases (platform
   default vs explicit override on options / resources / custom). Full server suite green (1729).
-- Client: `PricingSummary.platform-force-complement.test.js` + `ExtrasSection.platform-force-complement.test.js`
+- Client: `PricingSummary.platform-force-complement.test.jsx` + `ExtrasSection.platform-force-complement.test.jsx`
   rewritten — chips/switches now render + are editable for operator extras on platform, auto-options
   stay chip-less. Full client suite green (563).
 - E2E: `platform-force-complement.spec.js` caption text updated (no extras seeded → switch count

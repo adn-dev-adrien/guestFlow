@@ -1,5 +1,5 @@
 /**
- * Option client-visibility helper (specs/laundry-bath-mat.md §3 rule 11).
+ * Option client-visibility helper (specs/linen/laundry-bath-mat.md §3 rule 11).
  *
  * A single source of truth for "should this option appear on a client/operator-facing
  * per-reservation surface?" — the reservation fiche, client emails, the devis PDF, the public

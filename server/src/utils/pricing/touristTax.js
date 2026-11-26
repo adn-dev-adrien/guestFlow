@@ -1,5 +1,5 @@
 /**
- * TOURIST TAX — the taxe de séjour of a stay (specs/pricing-components.md §3 rules 1, 2, 3, 6).
+ * TOURIST TAX — the taxe de séjour of a stay (specs/pricing/pricing-components.md §3 rules 1, 2, 3, 6).
  *
  * Contract: `computeTouristTaxBreakdown({...})` prices the tax from the property's mode (per person per night, a
  * percentage of the accommodation, a fixed amount), the party, the nights and the accommodation base, and phrases its
@@ -42,7 +42,7 @@ function computeTouristTaxBreakdown({
   occupants,
   accommodationAmountTtc,
   accommodationVatRate,
-  // specs/tourist-tax-matches-the-office-calculation.md rule 12 — a FROZEN tax carries the base it
+  // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 12 — a FROZEN tax carries the base it
   // was computed on, already HT. Given it, the breakdown starts from that figure instead of
   // re-deriving one from today's tariff: it is what makes the frozen line reproduce its own amount
   // in the office's form, which a recomputed base stopped doing on 2026-08-20.
@@ -105,7 +105,7 @@ function computeTouristTaxBreakdown({
     const fixedLabel = mode === 'percentage_and_fixed' && fixedAmount > 0
       ? ` + ${frenchEuros(fixedAmount)}`
       : '';
-    // specs/tourist-tax-matches-the-office-calculation.md rule 15 — the caption opens on the stay's
+    // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rule 15 — the caption opens on the stay's
     // whole base HT because that is the single figure the office's form asks for (« Montant du séjour
     // HT »). The operator retypes it and lands on the amount shown beside it; the per-night and
     // per-occupant steps follow so the arithmetic can be checked without a calculator. Exactly the
@@ -136,7 +136,7 @@ function computeTouristTaxBreakdown({
   };
 }
 
-// specs/platform-added-guests-tourist-tax.md rules 2, 4 — the tax of the current party against the tax
+// specs/tourist-tax/platform-added-guests-tourist-tax.md rules 2, 4 — the tax of the current party against the tax
 // of the party the platform billed, both from the engine on the same base: the platform's own figure
 // stays out of it, so a platform rate that differs from ours never bills an unchanged party.
 function resolveAddedGuestsTouristTax({ adults, occupants, paidAdults, paidOccupants, nights, ...taxInputs }) {
@@ -151,7 +151,7 @@ function resolveAddedGuestsTouristTax({ adults, occupants, paidAdults, paidOccup
   return { paidTotal, added: isRoundingNoise ? 0 : added };
 }
 
-// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('touristTax', scope).
+// specs/pricing/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('touristTax', scope).
 // `cap` and `exemptions` have no value hard-coded today: no cap, no exemption.
 const TOURIST_TAX_MODES = ['per_day_per_person', 'percentage_accommodation', 'percentage_and_fixed'];
 const taxAmount = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
@@ -192,7 +192,7 @@ function touristTaxRemittedByOwner(platformKey, row) {
   return Number(row.r) === 0;
 }
 
-// specs/tourist-tax-included-services-deduction.md rule 3 — the reference value of the services the
+// specs/tourist-tax/tourist-tax-included-services-deduction.md rule 3 — the reference value of the services the
 // night rate already covers, which leaves the tourist-tax base. `referencePersons` is the guests the
 // RATE includes (`basePriceIncludedGuests`), never the real party: that is what makes the deduction a
 // per-stay FORFAIT, so the declared base no longer shrinks as the group grows.
@@ -208,12 +208,12 @@ function sumIncludedServicesDeduction(lines) {
   }, 0));
 }
 
-// The base the tax is computed on, from the accommodation paid and what the rate already covers (specs/tourist-tax-matches-the-office-calculation.md).
+// The base the tax is computed on, from the accommodation paid and what the rate already covers (specs/tourist-tax/tourist-tax-matches-the-office-calculation.md).
 function resolveTaxBase({
   platformGrossPin, preArrivalOptionsResources, withheldTouristTaxInBrut, taxBaseBeforeDeduction,
   touristTaxIncludedInRateDeduction, extraGuestInBrutSurcharge,
 }) {
-  // specs/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
+  // specs/tourist-tax/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
   // accommodation the guest paid, « hors options et ménage ». Where that figure lives depends on who
   // took the money:
   //   - a platform booking with a brut → the brut IS what the guest paid, so the accommodation is
@@ -225,7 +225,7 @@ function resolveTaxBase({
   // office's « hors ménage »), and so does the extra-guest surcharge (rule 4, operator decision of
   // 2026-09-01 — it is inside the brut, hence subtracted rather than merely not added).
   // This repeals rule 2 of tourist-tax-base-accommodation-only.md: the brut derives the base again.
-  // specs/platform-tourist-tax-out-of-the-commission.md rule 6bis — a tax-inclusive brut must not
+  // specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 6bis — a tax-inclusive brut must not
   // inflate the base the tax itself is computed on. Invisible on a per_day_per_person property (the
   // base doesn't drive the amount) but a tax on the tax on a percentage_accommodation one.
   const taxAccommodationPaid = platformGrossPin != null

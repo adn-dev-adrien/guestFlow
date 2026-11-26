@@ -1,5 +1,5 @@
 /**
- * Upcoming arrivals — the ids behind « Réservations à venir » (specs/upcoming-reservations-cards.md
+ * Upcoming arrivals — the ids behind « Réservations à venir » (specs/planning/upcoming-reservations-cards.md
  * rule 6). Every reservation arriving on `today` or later, in arrival order: day, then check-in time
  * (an unset time last), then id. Devis and cancelled stays are not arrivals.
  */

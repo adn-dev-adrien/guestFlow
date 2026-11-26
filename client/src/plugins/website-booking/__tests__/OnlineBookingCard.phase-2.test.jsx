@@ -1,5 +1,5 @@
 /**
- * specs/plugins-phase-2-hosts.md rule 25 — the website-booking plugin fills two host slots: the
+ * specs/plugins/plugins-phase-2-hosts.md rule 25 — the website-booking plugin fills two host slots: the
  * « Demandes du site » alert of the dashboard (`dashboard.alerts`) and the « Réservation en ligne »
  * card of the CGV page (`terms.settings`). Uninstalled, it leaves neither, and asks nothing of the
  * server.
@@ -57,7 +57,7 @@ beforeEach(() => {
 
 const renderPage = () => render(<MemoryRouter><TermsSettingsPage /></MemoryRouter>);
 
-test('specs/plugins-phase-2-hosts.md rule 25 — the CGV page shows the plugin card and its alert while website-booking is active', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 25 — the CGV page shows the plugin card and its alert while website-booking is active', async () => {
   mockAuth.user.enabledPlugins = ['website-booking'];
   renderPage();
   expect(await screen.findByText('Réservation en ligne', {}, { timeout: 5000 })).toBeInTheDocument();
@@ -65,7 +65,7 @@ test('specs/plugins-phase-2-hosts.md rule 25 — the CGV page shows the plugin c
   expect(api.getOnlineBooking).toHaveBeenCalledTimes(1);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 25 — without website-booking the CGV page has neither card nor alert', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 25 — without website-booking the CGV page has neither card nor alert', async () => {
   mockAuth.user.enabledPlugins = [];
   renderPage();
   expect(await screen.findByText('Brouillon', {}, { timeout: 5000 })).toBeInTheDocument();
@@ -74,9 +74,9 @@ test('specs/plugins-phase-2-hosts.md rule 25 — without website-booking the CGV
   expect(api.getOnlineBooking).not.toHaveBeenCalled();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 25 — « Demandes du site » is a dashboard.alerts contribution, gone with the plugin', async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 25 — « Demandes du site » is a dashboard.alerts contribution, gone with the plugin', async () => {
   mockAuth.user.enabledPlugins = ['website-booking'];
-  // The count and words are the server's (specs/shell-and-home-day-first.md rule 6); the slot passes them.
+  // The count and words are the server's (specs/planning/shell-and-home-day-first.md rule 6); the slot passes them.
   const attention = { key: 'site-requests', severity: 'info', count: 2, title: 'Demandes de devis depuis le site', detail: '2 devis en attente' };
   const { unmount } = render(<MemoryRouter><Slot name="dashboard.alerts" attention={attention} /></MemoryRouter>);
   expect(await screen.findByText('Demandes de devis depuis le site', {}, { timeout: 5000 })).toBeInTheDocument();

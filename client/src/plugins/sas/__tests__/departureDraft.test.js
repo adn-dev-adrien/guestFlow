@@ -1,4 +1,4 @@
-// specs/sas-departure-recap-server-side.md rules 4, 6-9, 11 — the departure draft: intent only, one
+// specs/sas/sas-departure-recap-server-side.md rules 4, 6-9, 11 — the departure draft: intent only, one
 // object for the preview and the commit.
 import buildDepartureDraft from '../departureDraft';
 

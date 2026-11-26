@@ -22,7 +22,7 @@ const DDL = `
     notes TEXT, cautionAmount REAL, icalOriginalSummary TEXT, updatedAt TEXT,
     kind TEXT NOT NULL DEFAULT 'reservation', bookingConflictAt TEXT
   );
-  /* specs/lodgify-decommission.md — a Booking source now consults the export snapshot, its
+  /* specs/platforms/lodgify-decommission.md — a Booking source now consults the export snapshot, its
      tombstones and the superseded UIDs of a retired relay. */
   CREATE TABLE ical_export_ranges (propertyId INTEGER, startDate TEXT, endDate TEXT, sourceIcalSourceId INTEGER, PRIMARY KEY (propertyId, startDate, endDate));
   CREATE TABLE ical_export_tombstones (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, startDate TEXT, endDate TEXT, removedAt TEXT NOT NULL DEFAULT (datetime('now')), sourceIcalSourceId INTEGER);
@@ -91,7 +91,7 @@ const resCount = (db) => db.prepare('SELECT COUNT(*) c FROM reservations').get()
 const origFetch = global.fetch;
 test.afterEach(() => { global.fetch = origFetch; });
 
-// Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rule 3): a feed that suddenly
+// Empty-feed guard (specs/platforms/ical-sync-mapping-resilience.md §3 rule 3): a feed that suddenly
 // parses to 0 events while mappings exist is only trusted from the 2nd consecutive empty fetch.
 // Tests that legitimately empty a feed sync twice through this helper.
 async function syncEmptyConfirmed(model, source) {
@@ -183,7 +183,7 @@ test('legacy match is robust to notes drift via the authoritative icalOriginalSu
 });
 
 test('cross-platform shared reservation survives until BOTH feeds drop it', async () => {
-  // Under the soft cancellation flow (specs/ical-cancellation-approval.md §3 rule 1),
+  // Under the soft cancellation flow (specs/platforms/ical-cancellation-approval.md §3 rule 1),
   // the second drop no longer auto-deletes — it raises ONE pending cancellation alert.
   const { db, model } = fresh();
   // Future-relative stay: a PAST booking dropped from every feed is deliberately NOT a cancellation

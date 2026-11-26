@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 12 — an external identifier is shortened in the middle,
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 12 — an external identifier is shortened in the middle,
 // keeps its full value (title, copy), and copying says so.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

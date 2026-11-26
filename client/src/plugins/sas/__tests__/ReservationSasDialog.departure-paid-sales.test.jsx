@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 14, 23 and 32, PR C mock M3 — the departure recap lists what the stay already collected on its sold lines under
+// specs/pricing/pricing-components.md §3 rules 14, 23 and 32, PR C mock M3 — the departure recap lists what the stay already collected on its sold lines under
 // « Déjà payé »; offering one goes through the line API, asks to confirm what is owed back (409 OVERPAID), and reads the SAS payload again.
 //
 // One file per subject (CLAUDE.md §9). The departure scaffolding mirrors ReservationSasDialog.departure-preview.

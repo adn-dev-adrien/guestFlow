@@ -1,5 +1,5 @@
 /**
- * ARTICLE FULFILMENT — the registry of the downstream bookings an article may name (specs/pricing-components.md §3 rules 49, 57).
+ * ARTICLE FULFILMENT — the registry of the downstream bookings an article may name (specs/pricing/pricing-components.md §3 rules 49, 57).
  *
  * An article names an adapter by id (`config.fulfilment`, today `'hourly-slot'` for a resource sold by the hour and placed on a
  * planning). An adapter is a plain object `{ id, reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) }`, declared by a

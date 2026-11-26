@@ -1,4 +1,4 @@
-// specs/settings-one-save-and-automatic-webhook.md rule 16 (audit R25-C3, R25 E25-1, 2026-11-06). The advice the Qonto badge and
+// specs/settings/settings-one-save-and-automatic-webhook.md rule 16 (audit R25-C3, R25 E25-1, 2026-11-06). The advice the Qonto badge and
 // messages give names a page that exists (Paramètres → Système, « URL publique »), and the « Test » it sends the operator to
 // re-runs the webhook check whenever Qonto answered, the link provider still pending included. Loopback fake only.
 const test = require('node:test');
@@ -115,7 +115,7 @@ test('rule 16 (E25-1) — Qonto not answering: « Test » still runs no check', 
   assert.equal(q.webhookCalls, 0, 'no check after a failed test');
 });
 
-// Verification N3 — a « Test » whose call fails WITHOUT recording (a refresh overtaken by a new consent, specs/qonto-settings-in-app.md rule 19) leaves the
+// Verification N3 — a « Test » whose call fails WITHOUT recording (a refresh overtaken by a new consent, specs/settings/qonto-settings-in-app.md rule 19) leaves the
 // standing webhook-register failure on the page: that failure must not be read as « Qonto answered ».
 test('rule 16 (N3) — a « Test » overtaken mid-refresh leaves the webhook failure standing and runs no check', async (t) => {
   const seen = [];

@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 19 (audit R21-M1) — a priced save rewrites the custom lines
+// specs/reservations/reservation-save-keeps-pricing.md rule 19 (audit R21-M1) — a priced save rewrites the custom lines
 // (DELETE + INSERT), and their stored contribs used to be lost: the sum of the contribs no longer matched the paid
 // amount, the export fell back to the stored-money split, and revenue moved between 706 accounts on entries already
 // booked. Catalogue options keep theirs through the engine's locked lines, so they are the control.

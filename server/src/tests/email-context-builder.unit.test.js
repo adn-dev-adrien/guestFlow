@@ -1,5 +1,5 @@
 // Context builder: shapes reservation/client/property/options/settings into a flat
-// { vars, flags } object the renderer consumes. See specs/email-automation.md §3 rule 3 + §4.4.
+// { vars, flags } object the renderer consumes. See specs/emails/email-automation.md §3 rule 3 + §4.4.
 
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');
@@ -8,11 +8,11 @@ const assert = require('node:assert/strict');
 const { buildContext, __test } = require('../utils/emailContextBuilder');
 const { liveHourlyResources } = require('./hourlyResourcesFixture');
 
-// Solio's bath, with the sentence productisation_v1 gives it (specs/plugins-phase-p-productisation.md rule 24).
+// Solio's bath, with the sentence productisation_v1 gives it (specs/plugins/plugins-phase-p-productisation.md rule 24).
 const { NORDIC_BATH } = require('../utils/productisationMigration');
 const BATH = { name: 'Bain nordique', emailBookedText: NORDIC_BATH.fr, emailBookedTextEn: NORDIC_BATH.en };
 
-// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins/plugins-phase-3c-hourly-resources.md rule 11).
 liveHourlyResources();
 
 const SAMPLE_SETTINGS = { companyName: 'GuestFlow Demo', companyPhone: '+33102030405', companyEmail: 'demo@gf.test' };
@@ -34,7 +34,7 @@ function baseInput(over = {}) {
       streetNumber: '12', street: 'rue des Fleurs', postalCode: '75001', city: 'Paris',
       ...(over.client || {}),
     },
-    // specs/caution-live-from-property.md §3 — the caution amount is read live from the property
+    // specs/payments/caution-live-from-property.md §3 — the caution amount is read live from the property
     // (defaultCautionAmount) while not yet received; the reservation.cautionAmount above is only used
     // once the caution is marked received (frozen amount).
     property: { name: 'Villa A', defaultCheckIn: '15:00', defaultCheckOut: '10:00', defaultCautionAmount: 500, ...(over.property || {}) },
@@ -149,7 +149,7 @@ test('nights computation matches diffDays', () => {
   assert.equal(vars.nights, '4');
 });
 
-// ---- propertyWithArticle (specs/email-automation.md §3 rule 13) ----
+// ---- propertyWithArticle (specs/emails/email-automation.md §3 rule 13) ----
 
 test('propertyWithArticle joins the stored article with the name', () => {
   const au   = buildContext(baseInput({ property: { name: 'Gite',  nameArticle: 'au' } })).vars;
@@ -176,14 +176,14 @@ test('propertyWithArticle is empty when the property has no name', () => {
   assert.equal(__test.formatPropertyWithArticle('', 'au'), '');
 });
 
-// ---- senderName (specs/email-automation.md §3 rule 14) ----
+// ---- senderName (specs/emails/email-automation.md §3 rule 14) ----
 
 test('senderName uses the SMTP "Nom expéditeur" (smtpFromName)', () => {
   const { vars } = buildContext(baseInput({ settings: { smtpFromName: 'Les Gîtes du Sud', companyName: 'SARL Soleil' } }));
   assert.equal(vars.senderName, 'Les Gîtes du Sud');
 });
 
-// ---- arrival complement line (specs/j2-email-coffee-and-sas-complement.md) ----
+// ---- arrival complement line (specs/emails/j2-email-coffee-and-sas-complement.md) ----
 
 test('complementNotice renders the arrival-SAS detail as an itemised list (« comme le SAS ») + Total', () => {
   const { vars, flags } = buildContext(baseInput({
@@ -202,7 +202,7 @@ test('complementNotice renders the arrival-SAS detail as an itemised list (« co
   assert.match(vars.complementNotice, /Total : 70 €/);
 });
 
-// specs/defer-arrival-complement-to-checkout.md §3.3 rule 17 — un complément reporté au départ ne
+// specs/sas/defer-arrival-complement-to-checkout.md §3.3 rule 17 — un complément reporté au départ ne
 // doit pas être annoncé « à votre arrivée » : mêmes lignes, même total, seul le moment change.
 test('complementNotice — complément reporté : le J-2 / J-1 annonce le DÉPART', () => {
   const { vars } = buildContext(baseInput({
@@ -278,7 +278,7 @@ test('senderName falls back to companyName when smtpFromName is blank', () => {
   assert.equal(vars.senderName, 'SARL Soleil');
 });
 
-// Baby-bed notice (specs/j7-email-baby-beds.md) — only for bookings with babies.
+// Baby-bed notice (specs/emails/j7-email-baby-beds.md) — only for bookings with babies.
 test('babyBedNotice: no babies → empty notice + flag false', () => {
   const { vars, flags } = buildContext(baseInput({ reservation: { babies: 0, babyBeds: 0 } }));
   assert.equal(vars.babyBedNotice, '');
@@ -304,7 +304,7 @@ test('babyBedNotice: babies but NO baby bed → asks the guest to bring one, fla
   assert.match(vars.babyBedNotice, /apporter un/);
 });
 
-// ── J-1 reminder additions (specs/j1-arrival-reminder-email.md) ──────────────────
+// ── J-1 reminder additions (specs/emails/j1-arrival-reminder-email.md) ──────────────────
 
 test('resourcesList joins booked resource names, sorted (fr); hasResources reflects presence', () => {
   const { vars, flags } = buildContext(baseInput({
@@ -352,7 +352,7 @@ test('hasCleaningOption is true via autoOptionType=cleaning OR an option NAMED �
   assert.equal(without.flags.hasCleaningOption, false);
 });
 
-// ── Bilingual catalog names (specs/email-client-language-and-fiche-polish.md §3 rule 4) ──
+// ── Bilingual catalog names (specs/emails/email-client-language-and-fiche-polish.md §3 rule 4) ──
 
 test('lang="en": option + resource lists use the English name, falling back to French when empty', () => {
   const input = baseInput({
@@ -374,7 +374,7 @@ test('lang="en": option + resource lists use the English name, falling back to F
   assert.equal(fr.vars.resourcesList, 'Bain nordique, Lit bébé');
 });
 
-// ── Bilingual context (specs/email-language-fr-en.md §3 rule 4) ──────────────────
+// ── Bilingual context (specs/emails/email-language-fr-en.md §3 rule 4) ──────────────────
 
 test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices render in English', () => {
   const { vars, flags } = buildContext({
@@ -427,9 +427,9 @@ test('default lang (fr) is unchanged — English path never leaks into French ou
   assert.match(vars.nordicBathReminder, /bain nordique/);
 });
 
-// ── Reservation number recall (specs/reservation-number-and-search.md §4) ────────
+// ── Reservation number recall (specs/reservations/reservation-number-and-search.md §4) ────────
 
-// specs/reservation-number-and-search.md rule 12 — the token and its gate.
+// specs/reservations/reservation-number-and-search.md rule 12 — the token and its gate.
 test('reservationNumber var + hasReservationNumber flag follow the reservation column', () => {
   const withNumber = buildContext(baseInput({ reservation: { reservationNumber: '2026-07-042' } }));
   assert.equal(withNumber.vars.reservationNumber, '2026-07-042');
@@ -443,9 +443,9 @@ test('reservationNumber var + hasReservationNumber flag follow the reservation c
   assert.equal(missing.flags.hasReservationNumber, false);
 });
 
-// ── J-2 nordic-bath reminder (specs/j1-arrival-reminder-email.md) ────────────────
+// ── J-2 nordic-bath reminder (specs/emails/j1-arrival-reminder-email.md) ────────────────
 
-// specs/plugins-phase-p-productisation.md rule 11 — the resource's own sentence, never its name.
+// specs/plugins/plugins-phase-p-productisation.md rule 11 — the resource's own sentence, never its name.
 test('hasNordicBath follows a booked resource that carries a sentence, whatever its name', () => {
   const named = buildContext(baseInput({ resources: [{ name: 'Bain Nordique' }] }));
   assert.equal(named.flags.hasNordicBath, false, 'the name alone says nothing');
@@ -464,7 +464,7 @@ test('nordicBathReminder: gear sentence only when no slot scheduled', () => {
   assert.equal(vars.nordicBathSchedule, '');
 });
 
-// specs/plugins-phase-3c-hourly-resources.md rule 15 — the slots come from the stay's hourly lines,
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 15 — the slots come from the stay's hourly lines,
 // and only while the plugin is live.
 test('nordicBathReminder no longer recalls a slot once hourly resources are off', () => {
   require('./hourlyResourcesFixture').withdrawHourlyResources();
@@ -503,7 +503,7 @@ test('no nordic-bath resource → empty reminder + flag false', () => {
   assert.equal(vars.nordicBathSchedule, '');
 });
 
-// ── J-1 linen-by-default (specs/j1-linen-default-message.md) ─────────────────────
+// ── J-1 linen-by-default (specs/emails/j1-linen-default-message.md) ─────────────────────
 
 test('bedLinenProvidedByDefault: drops the linen option from reservedOptionsList + sets the flag', () => {
   const { vars, flags } = buildContext(baseInput({
@@ -544,7 +544,7 @@ test('linen as a paid add-on (not provided by default) → listed, no bring-your
   assert.equal(flags.bedLinenBringYourOwn, false); // hasBedLinenOption is true
 });
 
-// ── J-1 complement to collect (specs/j1-complement-to-collect.md) ────────────────
+// ── J-1 complement to collect (specs/emails/j2-email-coffee-and-sas-complement.md rule 8) ────────────────
 
 test('complementToCollect true only when complementAmount > 0 and unpaid', () => {
   assert.equal(buildContext(baseInput({ reservation: { complementAmount: 55, complementPaid: 0 } })).flags.complementToCollect, true);

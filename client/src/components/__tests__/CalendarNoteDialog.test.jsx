@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 /**
- * CalendarNoteDialog — DS phase-5 sweep (specs/ds-sweep-planning.md rule 23): the note dialog now
+ * CalendarNoteDialog — DS phase-5 sweep (specs/design-system/ds-sweep-planning.md rule 23): the note dialog now
  * rides FormDialog (canonical Annuler/Enregistrer + fullScreen-on-xs inherited) with « Supprimer »
  * in the new secondary-action slot (shown only when a saved note exists).
  */

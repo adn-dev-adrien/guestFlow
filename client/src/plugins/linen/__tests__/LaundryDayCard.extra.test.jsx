@@ -4,8 +4,8 @@ import { vi } from 'vitest';
 
 import LaundryDayCard from '../LaundryDayCard';
 
-// specs/laundry-extra-trip.md §3.5 rule 19 + §7 — the extra-trip variant of the laundry card. Its
-// `pickUpAll` now lives in the card's `extraTrip` (specs/linen-laundry-days.md §4.3).
+// specs/linen/laundry-extra-trip.md §3.5 rule 19 + §7 — the extra-trip variant of the laundry card. Its
+// `pickUpAll` now lives in the card's `extraTrip` (specs/linen/linen-laundry-days.md §4.3).
 
 const BLOCK = (over = {}) => ({
   singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, ...over,

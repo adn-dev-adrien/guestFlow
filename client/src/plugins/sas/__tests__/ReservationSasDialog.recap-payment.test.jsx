@@ -1,4 +1,4 @@
-// The recap settlement buttons — specs/sas-recap-payment-buttons.md
+// The recap settlement buttons — specs/sas/sas-recap-payment-buttons.md
 //
 // One file per subject (CLAUDE.md §9): two features appending their cases no longer collide on
 // the last line of a shared suite. Fixtures used by more than one subject live in ./sasFixtures.
@@ -9,7 +9,7 @@ import api from '../../../api';
 import { sasPayload, stayDue, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // Mock the API the dialog consumes.
@@ -20,7 +20,7 @@ vi.mock('../../../api', () => ({
     previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
-    // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
+    // Weather alerts (specs/guest-app/checkin-weather-alerts.md) — fired in the background on arrival open.
     // Default to "no alert" so the wizard flow under test is unchanged.
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
@@ -28,12 +28,12 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
-// ---- recap settlement buttons (specs/sas-recap-payment-buttons.md) ----
+// ---- recap settlement buttons (specs/sas/sas-recap-payment-buttons.md) ----
 
 async function openArrivalRecapWithComplement() {
   api.getReservationSas.mockResolvedValue(sasPayload({
@@ -127,7 +127,7 @@ test('departure recap: « Payé en liquide » settles into caisse interne; no «
   expect(arg.complementsPaidCash).toBe(true);
 });
 
-// ── One payment at check-in (specs/single-payment-at-check-in.md §3.1) ──────────────────────────
+// ── One payment at check-in (specs/payments/single-payment-at-check-in.md §3.1) ──────────────────────────
 // A last-minute guest takes a prestation during the check-in and pays everything with one card. The
 // recap must ask ONCE — while keeping the two-settlement case one tap away.
 
@@ -148,7 +148,7 @@ async function openUnifiedRecap() {
   await screen.findByText('Récapitulatif — à percevoir');
 }
 
-// specs/single-payment-at-check-in.md rule 1
+// specs/payments/single-payment-at-check-in.md rule 1
 test('arrival recap: both sides collectible → ONE settlement, not two', async () => {
   await openUnifiedRecap();
 
@@ -162,7 +162,7 @@ test('arrival recap: both sides collectible → ONE settlement, not two', async 
   expect(screen.getByText(/Total à percevoir à l'arrivée : 530,00 €/)).toBeInTheDocument();
 });
 
-// specs/single-payment-at-check-in.md rule 2
+// specs/payments/single-payment-at-check-in.md rule 2
 test('arrival recap: « CB / Chèque » once settles both sides in a single payment', async () => {
   await openUnifiedRecap();
   clickBtn('CB / Chèque');
@@ -174,7 +174,7 @@ test('arrival recap: « CB / Chèque » once settles both sides in a single paym
   expect(payload.arrivalPaymentSplit).toBe(false);
 });
 
-// specs/single-payment-at-check-in.md rule 3
+// specs/payments/single-payment-at-check-in.md rule 3
 test('arrival recap: « Plus tard » is the default and collects nothing', async () => {
   await openUnifiedRecap();
   expect(screen.getByText(/le séjour reste dû et le complément est rappelé au check-out/i)).toBeInTheDocument();
@@ -184,7 +184,7 @@ test('arrival recap: « Plus tard » is the default and collects nothing', async
   expect(api.commitArrivalSas.mock.calls[0][1].arrivalPaymentMode).toBe('defer');
 });
 
-// specs/single-payment-at-check-in.md rule 4
+// specs/payments/single-payment-at-check-in.md rule 4
 test('arrival recap: « Régler séparément » brings the two settlements back, and back again', async () => {
   await openUnifiedRecap();
   clickBtn('Régler séparément');
@@ -209,7 +209,7 @@ test('arrival recap: split mode commits the two independent settlements, not a g
   expect(api.commitArrivalSas.mock.calls[0][1].arrivalPaymentSplit).toBe(true);
 });
 
-// specs/single-payment-at-check-in.md rule 5
+// specs/payments/single-payment-at-check-in.md rule 5
 test('arrival recap: nothing owed on the stay → the complement settles alone, as before', async () => {
   // No stay step (nothing owed on the séjour), so there is nothing to unify: the recap keeps the
   // single complement block it has always had.
@@ -226,7 +226,7 @@ test('arrival recap: nothing owed on the stay → the complement settles alone, 
   expect(screen.queryByText('Régler séparément')).toBeNull();
 });
 
-// specs/adjustable-complement-amounts.md rule 2 — le montant ajusté ne se modifie QUE sur la fiche.
+// specs/sas/adjustable-complement-amounts.md rule 2 — le montant ajusté ne se modifie QUE sur la fiche.
 // Le SAS AFFICHE le complément — l'opérateur doit savoir combien percevoir — mais ne propose aucun
 // moyen de le changer : le montant annoncé au client se décide sur la fiche, pas au milieu d'un
 // assistant que la personne à l'accueil déroule à la porte.

@@ -1,4 +1,4 @@
-// specs/reservation-refunds.md rule 42 — a refund made from the fiche re-reads the stored ledger (and the delete
+// specs/payments/reservation-refunds.md rule 42 — a refund made from the fiche re-reads the stored ledger (and the delete
 // does too), so the trop-perçu row cannot be refunded a second time from a stale screen.
 import React from 'react';
 import { vi } from 'vitest';

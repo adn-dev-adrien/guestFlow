@@ -1,5 +1,5 @@
 // Year-over-year comparison of the Suivi financier's headline figures
-// (specs/finance-revpar-year-over-year.md §3). Pure: the window, the coverage, today and the tracking
+// (specs/accounting/finance-revpar-year-over-year.md §3). Pure: the window, the coverage, today and the tracking
 // start come in, nothing is read here.
 //
 // It does not define comparability a second time: the comparable range is the dashboard's
@@ -72,7 +72,7 @@ function comparisonWindow({ window, coverage, today, trackingStart }) {
         ...(byCoverage ? [`les données commencent en ${monthLabel(coverage)}`] : []),
         ...(byMonthsOver ? ['un mois en cours se compare une fois terminé'] : []),
       ];
-      // specs/finance-revpar-year-over-year.md rule 27 (D-HC14) — the span is said here, once, never in the pills.
+      // specs/accounting/finance-revpar-year-over-year.md rule 27 (D-HC14) — the span is said here, once, never in the pills.
       notice = `Comparé à l'an dernier sur ${range.months} mois sur ${totalMonths} : ${reasons.join(', et ')}.`;
     }
     status = {

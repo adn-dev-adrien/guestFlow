@@ -1,5 +1,5 @@
 /**
- * specs/site-english-version.md §3 rules 11-13 — the language, and the origin, of a public request.
+ * specs/site/site-english-version.md §3 rules 11-13 — the language, and the origin, of a public request.
  *
  * Two things are pinned here, both of them silently wrong before:
  *   - an explicit language overwrites the guest's stored one, silence does not — and silence is the
@@ -47,7 +47,7 @@ test('a guest created without any language is French, exactly as before', () => 
   assert.equal(client.emailLanguage, 'fr');
 });
 
-test('specs/site-english-version.md rule 21 — an update that does not mention the language leaves it alone', () => {
+test('specs/site/site-english-version.md rule 21 — an update that does not mention the language leaves it alone', () => {
   // The accident this guard exists for: the client dialog opened from the reservation page did not
   // carry emailLanguage, and buildClientFields normalises an absent value to 'fr'. Editing a phone
   // number reset an English guest to French.
@@ -142,7 +142,7 @@ test('a reservation born of a website request still says so', () => {
     'the origin badge must survive the conversion, or the site disappears from the statistics');
 });
 
-// specs/site-traffic-analytics.md rule 17 — the source travels with the origin.
+// specs/site/site-traffic-analytics.md rule 17 — the source travels with the origin.
 test('a reservation born of a website request keeps where the visitor came from', () => {
   const raw = JSON.stringify({ referrer: 'l.instagram.com', landingPath: '/la-granja/' });
   const { db, model, devisId } = devisFromTheSite({

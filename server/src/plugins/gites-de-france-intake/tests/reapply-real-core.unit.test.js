@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 12 (reading of 2026-11-03, audit R21, E21-1) — « Appliquer » writes once. A
+// specs/platforms/gites-de-france-mail-intake.md rule 12 (reading of 2026-11-03, audit R21, E21-1) — « Appliquer » writes once. A
 // POST without a rent on an intake already written (second tab, lost response) writes nothing and answers the status;
 // a dismissed intake is refused; `proposed` and `error` still run; the rent choice keeps moving the payment block only.
 // Real in-memory database, real reservations controller, real `ctx.core.reservations.update`, real intake service.

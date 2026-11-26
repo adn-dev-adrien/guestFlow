@@ -1,4 +1,4 @@
-// specs/site-outside-resource-booking.md rules 10, 14-15, 18 — the gift voucher code of « Réserver une séance »: the fragment `#bon=` fills the field and applies it, a resource voucher switches the
+// specs/site/site-outside-resource-booking.md rules 10, 14-15, 18 — the gift voucher code of « Réserver une séance »: the fragment `#bon=` fills the field and applies it, a resource voucher switches the
 // page to the redemption calls (the voucher settles what it covers, each slot says what is left, the recap says « Inclus »), an unknown code, a stay voucher and another activity’s voucher each have
 // their sentence, and « Retirer » gives the page back to the online payment in full.
 import { fireEvent, screen, waitFor } from '@testing-library/react';

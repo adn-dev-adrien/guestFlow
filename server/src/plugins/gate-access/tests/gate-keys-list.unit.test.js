@@ -1,4 +1,4 @@
-// The list of gate keys Sowel reads — specs/gate-access-sowel-connector.md §3.1.
+// The list of gate keys Sowel reads — specs/guest-app/gate-access-sowel-connector.md §3.1.
 //
 // Every date below is a UTC instant: that is what the server compares. The fixture stay arrives on
 // 2026-10-01 at 15:00 Paris (13:00Z) and leaves on 2026-10-04 at 10:00 Paris: its key opens 3 h
@@ -14,7 +14,7 @@ const { buildController } = require('../controller');
 const at = (iso) => new Date(iso);
 const ids = (list, action) => list.keys.filter((k) => k.action === action).map((k) => k.reservationId);
 
-// specs/gate-access-sowel-connector.md §3.1 rule 2 — the J-7 boundary, to the millisecond.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 2 — the J-7 boundary, to the millisecond.
 test('a stay enters the list exactly 7 days before its key opens', () => {
   const { db, model } = freshDb();
   const stay = addStay(db);
@@ -22,7 +22,7 @@ test('a stay enters the list exactly 7 days before its key opens', () => {
   assert.deepEqual(ids(buildKeyList(model, at('2026-09-24T10:00:00.000Z')), 'create'), [String(stay.id)]);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 2 + rule 4 — the wire shape of a create.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 2 + rule 4 — the wire shape of a create.
 test('a create carries the reservation id as a string, the label and the Paris window in UTC', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { reservationNumber: 'R-2026-041' });
@@ -34,12 +34,12 @@ test('a create carries the reservation id as a string, the label and the Paris w
     label: 'Gîte · R-2026-041 · Marie',
     startsAt: '2026-10-01T10:00:00.000Z',
     endsAt: '2026-10-04T10:00:00.000Z',
-    // Contract v3 (specs/sowel-stays-in-keys.md) — the stay itself, without the gate's margins.
+    // Contract v3 (specs/guest-app/gate-access-sowel-connector.md) — the stay itself, without the gate's margins.
     stay: { propertyId: 1, propertyName: 'Gîte', arrival: '2026-10-01T15:00:00+02:00', departure: '2026-10-04T10:00:00+02:00' },
   }]);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 2 — booked late.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 2 — booked late.
 test('a stay booked less than 7 days ahead is listed at once, and so is one already under way', () => {
   const { db, model } = freshDb();
   const tomorrow = addStay(db, { startDate: '2026-09-28', endDate: '2026-09-30' });
@@ -48,7 +48,7 @@ test('a stay booked less than 7 days ahead is listed at once, and so is one alre
   assert.deepEqual(ids(list, 'create').sort(), [String(tomorrow.id), String(underWay.id)].sort());
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 7 — ended stays are never listed.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 7 — ended stays are never listed.
 test('a stay whose window has ended is not listed, up to the 2 extra hours after check-out', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { startDate: '2026-09-24', endDate: '2026-09-27' });
@@ -57,14 +57,14 @@ test('a stay whose window has ended is not listed, up to the 2 extra hours after
   assert.deepEqual(buildKeyList(model, at('2026-09-27T10:00:00.000Z')).keys, []);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 2 — never a devis.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 2 — never a devis.
 test('a devis is not a stay', () => {
   const { db, model } = freshDb();
   addStay(db, { kind: 'devis' });
   assert.deepEqual(buildKeyList(model, at('2026-09-27T18:00:00.000Z')).keys, []);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 3 — dates moved after the key was made.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 3 — dates moved after the key was made.
 test('a stay that may hold a key stays listed with its new dates, even beyond 7 days', () => {
   const { db, model } = freshDb();
   const stay = addStay(db);
@@ -82,7 +82,7 @@ test('a stay that may hold a key stays listed with its new dates, even beyond 7 
   assert.deepEqual(buildKeyList(model, at('2026-09-27T18:00:00.000Z')).keys, []);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 6 — a cancellation revokes only when a key may exist.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 6 — a cancellation revokes only when a key may exist.
 test('a cancelled stay is revoked only when guestFlow holds a result that is not a successful revoke', () => {
   const { db, model } = freshDb();
   const never = addStay(db, { kind: 'cancelled' });
@@ -102,7 +102,7 @@ test('a cancelled stay is revoked only when guestFlow holds a result that is not
   assert.equal(revoke.endsAt, '2026-10-04T10:00:00.000Z');
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 6 — a failed revoke is listed again.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 6 — a failed revoke is listed again.
 test('a revoke that failed is listed again', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { kind: 'cancelled' });
@@ -110,7 +110,7 @@ test('a revoke that failed is listed again', () => {
   assert.deepEqual(ids(buildKeyList(model, at('2026-09-27T18:00:00.000Z')), 'revoke'), [String(stay.id)]);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 6 + §3.2 rule 9 — a deleted stay, from the stored window.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 6 + §3.2 rule 9 — a deleted stay, from the stored window.
 test('a deleted stay is revoked with the window stored with its last result', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { reservationNumber: 'R-2026-050' });
@@ -130,7 +130,7 @@ test('a deleted stay is revoked with the window stored with its last result', ()
   }]);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 7 — an ended stay is not revoked either.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 7 — an ended stay is not revoked either.
 test('a cancelled or deleted stay whose window has ended is not revoked', () => {
   const { db, model } = freshDb();
   const cancelled = addStay(db, { kind: 'cancelled', startDate: '2026-09-20', endDate: '2026-09-22' });
@@ -142,7 +142,7 @@ test('a cancelled or deleted stay whose window has ended is not revoked', () => 
   assert.deepEqual(buildKeyList(model, at('2026-09-27T18:00:00.000Z')).keys, []);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 5 — the label.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 5 — the label.
 test('the label is property · number · first name, never the family name', () => {
   assert.equal(
     keyLabel({ id: 7, propertyName: 'Gîte', reservationNumber: 'R-2026-041', clientFirstName: 'Marie', clientLastName: 'Durand' }),
@@ -152,7 +152,7 @@ test('the label is property · number · first name, never the family name', () 
   assert.equal(keyLabel({ id: 7, propertyName: 'Lodge', reservationNumber: null, clientFirstName: ' Paul ' }), 'Lodge · #7 · Paul');
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 8 — the read is stamped.
+// specs/guest-app/gate-access-sowel-connector.md §3.1 rule 8 — the read is stamped.
 test('every successful read of the list records lastReadAt', () => {
   const { model } = freshDb();
   const controller = buildController({ model: () => model, clock: () => at('2026-09-27T18:00:00.000Z') });

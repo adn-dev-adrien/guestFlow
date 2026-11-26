@@ -13,9 +13,9 @@
 
 ## 1. Context
 
-The existing Google Calendar integration (spec coverage split between `specs/settings.md` §3 rules 12–17 and `specs/integrations-mvc.md` Bloc 6) is **effectively dead and partially broken**:
+The existing Google Calendar integration (spec coverage split between `specs/settings/settings.md` §3 rules 12–17 and the former `integrations-mvc` spec, Bloc 6) is **effectively dead and partially broken**:
 
-1. **The sync endpoint is unreachable.** `POST /api/google-calendar/sync-reservations` exists ([googleCalendarController.js](../server/src/controllers/googleCalendarController.js)) and `api.syncGoogleCalendarReservations` exists ([api.js:391](../client/src/api.js#L391)), but **no UI element calls it**, there is no scheduled task and no hook on reservation writes. Only "Tester la synchronisation" is wired.
+1. **The sync endpoint is unreachable.** `POST /api/google-calendar/sync-reservations` exists ([googleCalendarController.js](../server/src/controllers/googleCalendarController.js)) and `api.syncGoogleCalendarReservations` exists ([api.js:391](../../client/src/api.js#L391)), but **no UI element calls it**, there is no scheduled task and no hook on reservation writes. Only "Tester la synchronisation" is wired.
 2. **The auth mechanism blocks private professional calendars.** Auth is a service-account JWT ([googleCalendarClient.js:54-63](../server/src/utils/googleCalendarClient.js#L54-L63)). It only works if the target calendar is explicitly shared with the robot email — a step the Settings UI never mentions — and on Google Workspace accounts the admin console limits external calendar sharing to free/busy by default, making writes fail with 403 regardless.
 3. **Event creation was latently broken anyway.** `getGoogleEventIdForReservation()` produces `guestflow-r<id>` ([googleCalendarEvents.js:68-70](../server/src/utils/googleCalendarEvents.js#L68-L70)); Google event IDs only allow base32hex characters (`0-9`, `a-v`), so `w` and `-` make every `events.insert` fail with 400.
 4. **No lifecycle management.** Deletions are never propagated (orphan events forever), every sync is a full-table push (2 API calls per reservation, all-or-nothing on error), one hardcoded global calendar, `Europe/Paris` hardcoded.
@@ -32,7 +32,7 @@ Connect GuestFlow to a Google account in one click ("Connecter mon compte Google
 
 1. GuestFlow authenticates to Google as the user via **OAuth 2.0 authorization-code flow with refresh token** (googleapis `google.auth.OAuth2`). The service-account mechanism (3 manual fields) is **removed**.
 2. OAuth client credentials come from env: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (in `server/.env.local`). Without them the feature shows "Synchronisation non configurée" with a hint that the env vars are missing; all sync paths are no-ops.
-3. Redirect URI resolution (Qonto precedent, [paymentsController.js:35-38](../server/src/controllers/paymentsController.js#L35-L38)): `GOOGLE_OAUTH_REDIRECT_URI` env override, else `settingsModel.publicUrl()` + `/api/google-calendar/oauth/callback`. Dev uses `http://localhost:3000/api/google-calendar/oauth/callback` (Vite proxy → :4000).
+3. Redirect URI resolution (Qonto precedent, [paymentsController.js:35-38](../../server/src/controllers/paymentsController.js#L35-L38)): `GOOGLE_OAUTH_REDIRECT_URI` env override, else `settingsModel.publicUrl()` + `/api/google-calendar/oauth/callback`. Dev uses `http://localhost:3000/api/google-calendar/oauth/callback` (Vite proxy → :4000).
 4. Authorize request: scopes `https://www.googleapis.com/auth/calendar.events` + `https://www.googleapis.com/auth/calendar.readonly` + `openid email`, `access_type=offline`, `prompt=select_account consent` — `consent` guarantees a refresh token on every connect; `select_account` (added 2026-07-19 after the production setup connected the browser's active — wrong — account on a multi-account browser) always shows the account picker. CSRF `state` = `crypto.randomBytes(16).toString('hex')` stored in `req.session.googleOAuthState` (Qonto pattern).
 5. Callback validates `state` (single-use, deleted after read), exchanges the code, stores the **refresh token AES-256-GCM-encrypted** in `app_settings`, extracts the connected email from the `id_token`, then redirects the browser to `/settings?google=connected` (`?google=error|invalid_state` on failure; raw Google errors never leak to the URL, logged server-side only).
    _Reading of 2026-11-04 (audit R22, E22-1; plugin 1.2.8):_ « logged server-side » never means the whole error. A failure with no response (DNS, network) is a GaxiosError whose `config.data` is the token request, and gaxios's redactor masks `client_secret`, not `refresh_token`: any outage while the access token needed renewing wrote the long-lived token in plain text to the logs. Every log site of `sync.js` and `controller.js`, the two catches of a scheduled reconcile included, now prints `googleErrorForLog(err)` (`client.js`): Google's answer, or `{ message, code, status }`. Test: `tests/error-log-no-secret.unit.test.js`.
@@ -96,7 +96,7 @@ Connect GuestFlow to a Google account in one click ("Connecter mon compte Google
 
 ## 4. Architecture
 
-> **Moved to plugin `google-calendar` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> **Moved to plugin `google-calendar` (phase 1, `specs/plugins/plugins-phase-1-sdk.md`) — current file map
 > (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
 > `server/src/plugins/google-calendar/`: `controller.js` (OAuth connect, calendar choice, status, test,
 > sync) · `oauthClient.js` · `client.js` (connection test, French errors) · `events.js` (pure event
@@ -127,7 +127,7 @@ Connect GuestFlow to a Google account in one click ("Connecter mon compte Google
 | `scheduledTasks.js` | `scheduledTasks.js` | T | `runGoogleSyncPass` every 15 min + boot stagger, idiom copied from the payment poll (guard + connected no-op) |
 | `database.js` | `database.js` (+ `schema.sql`) | T | Idempotent new `app_settings` columns; one-shot clear of legacy SA columns |
 
-**Notes:** no new dependency (`googleapis` already present). Docs updated in the same PR: README §3 rewritten for the OAuth client setup (consent screen **Internal** on Workspace), `specs/settings.md` Google rules replaced by a pointer to this spec, `specs/integrations-mvc.md` Google rows marked superseded, CLAUDE.md §8 stale "stored in clear" note fixed.
+**Notes:** no new dependency (`googleapis` already present). Docs updated in the same PR: README §3 rewritten for the OAuth client setup (consent screen **Internal** on Workspace), `specs/settings/settings.md` Google rules replaced by a pointer to this spec, the former `integrations-mvc` spec Google rows marked superseded, CLAUDE.md §8 stale "stored in clear" note fixed.
 
 ### 4.2 Client side (`client/src/`)
 

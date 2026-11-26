@@ -1,5 +1,5 @@
 /**
- * Day-of-operations collection status (specs/dashboard-collection-alert.md).
+ * Day-of-operations collection status (specs/planning/dashboard-collection-alert.md).
  *
  * The dashboard used to paint its « Paiements » cell red whenever `computePaymentStatus` reported
  * anything outstanding. That flag nets only the acompte + solde out of `finalPrice`, so a platform
@@ -8,11 +8,11 @@
  *
  * What actually deserves an alert is the money the operator collects AT THE DOOR and hasn't:
  *   - on the arrivals list, the arrival complement, unless it was consciously deferred to check-out
- *     (specs/defer-arrival-complement-to-checkout.md);
+ *     (specs/sas/defer-arrival-complement-to-checkout.md);
  *   - on the departures list, the merged « complément de fin de séjour » = whatever is left of the
  *     arrival complement + the end-of-stay extras.
  * An unpaid acompte / solde is never an alert here, whatever the platform — chasing a late direct
- * balance is the Finances page's job (specs/finance-operational-remaining-to-pay.md).
+ * balance is the Finances page's job (specs/accounting/finance-operational-remaining-to-pay.md).
  *
  * Returns a ready-to-render block: the client maps states to colors and formats the currency, and
  * decides nothing. Pure — unit-tested in tests/operational-collection.unit.test.js.
@@ -56,7 +56,7 @@ function buildOperationalCollection(reservation = {}, checkoutComplement = null)
   const arrivalComplementPart = b.complement.applicable
     ? { key: 'complement', label: 'Complément', state: deferred ? 'deferred' : bucketState(b.complement) }
     : null;
-  // At check-out the two complement buckets are collected as one (specs/defer-arrival-complement-to-checkout.md
+  // At check-out the two complement buckets are collected as one (specs/sas/defer-arrival-complement-to-checkout.md
   // §3.2) — one part, settled only when nothing is left of either.
   const departureDue = round2(arrivalDue + endOfStayDue);
   const departureComplementPart = (b.complement.applicable || b.endOfStay.applicable)

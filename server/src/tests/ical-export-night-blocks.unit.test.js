@@ -1,4 +1,4 @@
-// specs/ical-export-closures.md rule 12 — the feed publishes the nights GuestFlow itself refuses: a
+// specs/platforms/ical-export-closures.md rule 12 — the feed publishes the nights GuestFlow itself refuses: a
 // check-in at 10:00 or earlier takes the night before, a check-out at 17:00 or later the night after
 // (audit 2026-10-28). The tombstone snapshot follows the same ranges.
 const test = require('node:test');

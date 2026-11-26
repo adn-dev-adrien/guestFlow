@@ -8,11 +8,13 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Production runs on a Proxmox VM since the self-update spec (specs/hosting/self-update-and-releases.md §4.6), not only on a Raspberry Pi; the scripts keep their `-pi` names and take any SSH target via `--host`, so the rules apply unchanged to the VM.
+
 ---
 
 ## 1. Context
 
-GuestFlow production runs on a single Raspberry Pi (PM2 + SQLite, see README §"Production
+GuestFlow production ran on a single Raspberry Pi (and now on a single VM with the same layout; the scripts take any SSH host) (PM2 + SQLite, see README §"Production
 Deployment"). Everything that matters lives in exactly one place, on one SD card:
 
 - `~/guestflow/data/guestflow.db` — the whole business database (reservations, clients, finances,
@@ -71,7 +73,7 @@ command, and bring a crashed/replaced Raspberry Pi back to that exact state with
     repository for the unbraced form.
 15. *(Fixed at the 2026-10-27 spec review.)* The manifest records the deployed release instead of an
     `origin/release` SHA: the `release` branch no longer exists since releases became published
-    archives (`specs/self-update-and-releases.md`), and `git rev-parse` of a missing ref printed the
+    archives (`specs/hosting/self-update-and-releases.md`), and `git rev-parse` of a missing ref printed the
     ref name plus a stray `n/a`. The line is now `current ->` (the `readlink` of `~/guestflow/current`,
     i.e. `releases/X.Y.Z`), next to the app version read from that release's `package.json`.
     > **Sans test** — an ops script that reads the production host over SSH; verified by reading `manifest.txt` after a backup run (`current -> releases/X.Y.Z`).

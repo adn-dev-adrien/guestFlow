@@ -1,4 +1,4 @@
-// specs/reception-sas-today-only.md §3.2 rule 5 — the « Accueil » role only commits the SAS of the DAY
+// specs/sas/reception-sas-today-only.md §3.2 rule 5 — the « Accueil » role only commits the SAS of the DAY
 // that has never been committed: a past, future or already-committed SAS is refused. The rule depends
 // on the reservation's dates + markers, so it lives in the controller, not in the path allowlist of
 // enforceRoleAccess.
@@ -51,12 +51,12 @@ function buildController({ captures, reservation }) {
     if (k === 'getRow') return () => ({ ...reservation, endOfStayComplementDetail: '[]' });
     if (k === 'getSasUpsellOptions') return () => ({ cleaning: { present: false }, bathLinen: { present: false } });
     if (k === 'listSasArrivalCustomLines') return () => [];
-    // specs/sas-arrival-total-server-side.md — the commit plans before it writes: nothing billed here.
+    // specs/sas/sas-arrival-total-server-side.md — the commit plans before it writes: nothing billed here.
     if (k === 'resolveSasArrivalItems') return () => [];
     if (k === 'planArrivalSas') return () => ({
       lines: [], existingTotal: 0, addedTotal: 0, arrivalComplementTotal: 0, supplementOutsideComplement: 0, adjusted: null,
     });
-    // specs/sas-departure-recap-server-side.md — same for the check-out: nothing billed here.
+    // specs/sas/sas-departure-recap-server-side.md — same for the check-out: nothing billed here.
     if (k === 'resolveSasDepartureItems') return () => [];
     if (k === 'planDepartureSas') return () => ({
       lines: [], endOfStayTotal: 0, extinguisherTotal: 0, recall: null, grandTotal: 0, endOfStayPaid: null, midStaySettled: 0, adjusted: null,

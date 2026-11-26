@@ -1,4 +1,4 @@
-// Shared fixture of the specs/payment-link-lifecycle.md suites: an in-memory database on the baseline
+// Shared fixture of the specs/payments/payment-link-lifecycle.md suites: an in-memory database on the baseline
 // schema, a stay, and a fake payment provider that records every call. Nothing leaves the process.
 
 const fs = require('fs');

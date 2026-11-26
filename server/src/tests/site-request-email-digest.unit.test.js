@@ -1,4 +1,4 @@
-// specs/public-request-abuse-and-grouping.md rules 9 and 16 — the first website request of a 15-minute
+// specs/site/public-request-abuse-and-grouping.md rules 9 and 16 — the first website request of a 15-minute
 // window is mailed at once, the following ones wait for ONE summary at the end of the window; an
 // update reads « mise à jour », never « nouvelle ». The pending state is in the database, so a fresh
 // service (a restart) sends what was waiting.

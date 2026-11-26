@@ -1,6 +1,6 @@
 /**
  * RepairedReservationNumbersAlert — Dashboard card listing the stays that were left without a number
- * and numbered at boot (specs/reservation-number-and-search.md rule 15). Such a stay may be the ghost
+ * and numbered at boot (specs/reservations/reservation-number-and-search.md rule 15). Such a stay may be the ghost
  * of a creation that failed: it still blocks its dates and leaves in the iCal export, so it stays on
  * the card until the operator has opened it and said « Vu ».
  *

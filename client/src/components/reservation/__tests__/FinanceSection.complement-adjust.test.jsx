@@ -4,9 +4,9 @@ import { vi } from 'vitest';
 import api from '../../../api';
 import { renderFinance as renderLedger, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/adjustable-complement-amounts.md §3.1/§3.6 (montant ajusté + ventilation) et
-// specs/defer-arrival-complement-to-checkout.md §3.3 (bascule depuis la fiche). Since
-// specs/reservation-payment-ledger.md rule 22 (§9 Q5), a complement is a ledger row and its adjustment
+// specs/sas/adjustable-complement-amounts.md §3.1/§3.6 (montant ajusté + ventilation) et
+// specs/sas/defer-arrival-complement-to-checkout.md §3.3 (bascule depuis la fiche). Since
+// specs/payments/reservation-payment-ledger.md rule 22 (§9 Q5), a complement is a ledger row and its adjustment
 // folds under « Détail ».
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
@@ -28,7 +28,7 @@ const FUTURE = { startDate: '2099-06-01', endDate: '2099-06-05' };
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-// specs/adjustable-complement-amounts.md rule 1
+// specs/sas/adjustable-complement-amounts.md rule 1
 test('le champ « Montant ajusté » affiche le calcul auto tant qu\'il est vide', async () => {
   await renderFinance({
     editingReservationId: 7, reservationId: 7,
@@ -126,7 +126,7 @@ test('§3.3 règle 15 — un complément encaissé reste reportable, après conf
   expect(ctx.reloadReservationFinance).toHaveBeenCalled();
 });
 
-// specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — une prestation vendue sur un
+// specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — une prestation vendue sur un
 // complément d'arrivée encaissé part au complément de fin de séjour, et la carte doit le montrer
 // AVANT l'enregistrement : sinon l'opérateur voit son option disparaître de l'écran.
 test('la carte de fin de séjour rend le devis live, pas seulement le montant stocké', async () => {
@@ -177,7 +177,7 @@ test('la carte fusionnée préfère le bloc live du devis au bloc stocké', asyn
   expect(screen.queryByText(/Le repas des trappeurs : 100,00 €/)).not.toBeInTheDocument();
 });
 
-// specs/adjustable-complement-amounts.md rule 29 — complément d'arrivée reporté au check-out : la
+// specs/sas/adjustable-complement-amounts.md rule 29 — complément d'arrivée reporté au check-out : la
 // fiche n'affiche qu'UNE carte, et ajuster son total écrit l'ajustement du complément d'ARRIVÉE à
 // « cible − montant de fin de séjour ». Le total saisi est celui que l'opérateur a annoncé au client ;
 // c'est au code de retrouver quel bucket doit bouger pour l'obtenir.
@@ -211,7 +211,7 @@ test('règle 29 — ajuster la carte fusionnée écrit l’ajustement d’ARRIV�
   expect(ctx.updateForm).toHaveBeenCalledWith({ complementAmountOverride: 120 });
 });
 
-// specs/adjustable-complement-amounts.md rule 30 — sous le montant de fin de séjour, l'ajustement
+// specs/sas/adjustable-complement-amounts.md rule 30 — sous le montant de fin de séjour, l'ajustement
 // d'arrivée tombe à 0 : descendre plus bas demanderait de corriger les lignes de fin de séjour, qui
 // ont leur propre vérité (celles du SAS départ).
 test('règle 30 — une cible sous la fin de séjour bute sur le plancher', async () => {
@@ -229,7 +229,7 @@ test('règle 30 — une cible sous la fin de séjour bute sur le plancher', asyn
   expect(ctx.updateForm).toHaveBeenCalledWith({ complementAmountOverride: 0 });
 });
 
-// specs/adjustable-complement-amounts.md rule 19 — la ligne « Ajustement » du complément de fin de
+// specs/sas/adjustable-complement-amounts.md rule 19 — la ligne « Ajustement » du complément de fin de
 // séjour est VISIBLE dans les lignes de la carte, négative comprise : aucune écriture séparée n'est
 // produite, donc c'est la seule façon pour l'opérateur de voir de combien il a corrigé.
 test('règle 19 — la ligne d’ajustement se lit dans les lignes de la carte, même négative', async () => {

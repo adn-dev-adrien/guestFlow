@@ -7,10 +7,12 @@
 | **Created** | 2026-10-05 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §6 extension points, §11 risk 3, phasing §12 |
-| **Previous phase** | [`specs/plugins-phase-3b-neat.md`](plugins-phase-3b-neat.md) (PR #652) |
-| **Feature specs** | [`specs/resource-hourly-scheduling.md`](resource-hourly-scheduling.md), [`specs/hourly-resource-quantity-and-sas-scheduling.md`](hourly-resource-quantity-and-sas-scheduling.md) — their rules hold, except where §3.C below corrects them |
-| **Summary for review** | [`docs/specs/2026-10-05-plugins-phase-3c-hourly-resources.html`](../docs/specs/2026-10-05-plugins-phase-3c-hourly-resources.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — §6 extension points, §11 risk 3, phasing §12 |
+| **Previous phase** | [`specs/plugins/plugins-phase-3b-neat.md`](plugins-phase-3b-neat.md) (PR #652) |
+| **Feature specs** | [`specs/resources/resource-hourly-scheduling.md`](../resources/resource-hourly-scheduling.md), [`specs/resources/hourly-resource-quantity-and-sas-scheduling.md`](../resources/hourly-resource-quantity-and-sas-scheduling.md) — their rules hold, except where §3.C below corrects them |
+| **Summary for review** | [`docs/specs/2026-10-05-plugins-phase-3c-hourly-resources.html`](../../docs/specs/2026-10-05-plugins-phase-3c-hourly-resources.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 11: pointer to the following-hours price grid. Still governs: `ctx.priceLineContributor`, the SAS commit contract, the `hourly-resources` plugin boundary, what hides while it is off.
 
 ---
 
@@ -86,7 +88,7 @@ mapping of 2026-10-05 found seven defects**, two of them on money:
 slots and no free minutes.
 
 **Defects 1 and 2 are fixed on `master` first** (decision P15): `fix/hourly-evening-billed-once`,
-`specs/hourly-resource-quantity-and-sas-scheduling.md` §3.6 rules 30–33. Writing that fix found two
+`specs/resources/hourly-resource-quantity-and-sas-scheduling.md` §3.6 rules 30–33. Writing that fix found two
 more, fixed with it:
 - a re-opened SAS deleted the hours already placed (the step started empty and the commit replaces
   the sessions);
@@ -238,6 +240,10 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
     - A `per_hour` resource that does not show on the planning is left to the engine (`null`).
 
     The amount is the one today's two paths give, for an unsold line. A sold line is frozen by rule 3.
+
+    > **2026-11-26:** the grid is no longer « same price every hour »: the first hour and the following hours
+    > have their own price per audience and band (`specs/resources/hourly-extra-hour-rates.md`, which withdrew the
+    > percent-per-rank table of `specs/gift-vouchers/gift-voucher-campaigns.md` rules 43-45).
 12. **The SAS step.**
     - The plugin provides the step's data through `ctx.sasData`: today's `resourceScheduling` payload.
     - It contributes `SasResourceSchedulingPage` to `sas.arrival.steps`, at today's place.
@@ -532,7 +538,7 @@ The interactive mock shows each screen in both states, plugin on and off.
   - the read-only tile wraps its two lines;
   - the warning wraps.
 
-> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The plugin also contributes the resource card's lines (« Soir », « Extérieurs », « Offert ») and footer through the new inert SDK brick `ctx.resourceCatalogueLines`; its `resources.fields` block becomes the « Horaires » section of the editor panel. Plugin off: no line, no section, per-hour resources hidden as before.
+> **Amended 2026-10-28 — [options-resources-ux.md](../options/options-resources-ux.md) (Implemented).** The plugin also contributes the resource card's lines (« Soir », « Extérieurs », « Offert ») and footer through the new inert SDK brick `ctx.resourceCatalogueLines`; its `resources.fields` block becomes the « Horaires » section of the editor panel. Plugin off: no line, no section, per-hour resources hidden as before.
 
 ## 7. Test plan
 

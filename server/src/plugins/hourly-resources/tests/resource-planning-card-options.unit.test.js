@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 35 — the planning card of an outside booking is the preparation ticket: every option of the booking's sale, whoever paid it, and a badge per
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 35 — the planning card of an outside booking is the preparation ticket: every option of the booking's sale, whoever paid it, and a badge per
 // instrument that paid in advance, read from the label its tender carries — hourly-resources names none. The reception reads both (no amount among them).
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');

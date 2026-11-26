@@ -1,6 +1,6 @@
 /**
  * Repair amounts model — sole DB access for `repair_amounts`
- * (specs/extinguisher-seal-and-repair-amounts.md). Operator-managed priced list shown in the
+ * (specs/options/extinguisher-seal-and-repair-amounts.md). Operator-managed priced list shown in the
  * « Tarifs facturables » settings section + billed in the SAS. Rows with a `repairKey` are
  * SAS-linked + protected (the UI forbids deleting them); the extinguisher-seal row is always
  * re-seeded on save so the SAS link can't break.
@@ -9,7 +9,7 @@
  */
 
 // SAS-linked rows that must always exist (re-seeded on save so the SAS link can't break). The
-// extinguisher-condition tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): « Plomb
+// extinguisher-condition tariffs (specs/options/extinguisher-seal-and-repair-amounts.md §3.2): « Plomb
 // manquant » + « Utilisation », billed per-quantity at departure.
 const PROTECTED_REPAIRS = [
   { repairKey: 'extinguisher_seal', label: 'Plomb manquant' },
@@ -32,7 +32,7 @@ function buildModel(database) {
 
   // Replace-all from the « Tarifs facturables » section. Keyed rows keep their `repairKey`; while the
   // SAS checks the extinguisher, its rows are re-seeded (preserving their label/price) if the payload
-  // dropped them (specs/plugins-phase-p-productisation.md rule 16: off, nothing comes back).
+  // dropped them (specs/plugins/plugins-phase-p-productisation.md rule 16: off, nothing comes back).
   // Invalid rows (no label) are dropped; a duplicate key is ignored. Price coerced to ≥ 0.
   const replaceAll = database.transaction((items, { keepProtected = true } = {}) => {
     const existingByKey = {};

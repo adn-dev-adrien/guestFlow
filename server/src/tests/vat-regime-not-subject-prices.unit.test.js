@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 10, 11 and 13 — « Sans TVA » moves no price: the same TTC figures on
+// specs/accounting/vat-optional-mode.md rules 10, 11 and 13 — « Sans TVA » moves no price: the same TTC figures on
 // a direct, a platform, a discounted and an installment stay, VAT extracted at 0 so HT = TTC; the
 // proportional tourist tax follows the price paid (its base HT is the price itself), a frozen or
 // declared one never moves; a view that spans both regimes treats each row with its own.

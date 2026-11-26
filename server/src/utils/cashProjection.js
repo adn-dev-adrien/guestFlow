@@ -1,5 +1,5 @@
 /**
- * Cash projection of an exercise (specs/mobile-dashboard-exercise-cash.md rule 18) — the money received and
+ * Cash projection of an exercise (specs/planning/mobile-dashboard-exercise-cash.md rule 18) — the money received and
  * the money still expected for the stays of a window, shaped for the « Trésorerie de l'exercice » card: per
  * month, and as a daily cumulative series the date cursor reads. The client only draws what is returned here.
  *

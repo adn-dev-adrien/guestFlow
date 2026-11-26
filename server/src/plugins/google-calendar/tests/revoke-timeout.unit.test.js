@@ -1,4 +1,4 @@
-// specs/google-calendar-oauth-rework.md rule 30 (audit R7, outbound-call sweep after finding N7) — the
+// specs/settings/google-calendar-oauth-rework.md rule 30 (audit R7, outbound-call sweep after finding N7) — the
 // token revocation run by « Déconnecter » is bounded like every other Google call: a Google endpoint that
 // never answers no longer holds the disconnect request for good.
 

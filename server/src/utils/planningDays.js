@@ -1,5 +1,5 @@
 /**
- * Day arithmetic and labels of the planning payloads (specs/dashboard-planning-scroll.md rules 2, 8,
+ * Day arithmetic and labels of the planning payloads (specs/planning/dashboard-planning-scroll.md rules 2, 8,
  * 9): every calendar day of a window, the French labels of a day, how far a day is from today, and the
  * bound of a window. Pure; dates are `YYYY-MM-DD` read as UTC so a daylight-saving change never
  * shifts a count.

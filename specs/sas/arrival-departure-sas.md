@@ -10,6 +10,8 @@
 
 ---
 
+> **Reviewed 2026-11-26 (spec reorganization).** The SAS is now the `sas` plugin: routes and read side in `server/src/plugins/sas/` (`controller.js`, `arrivalRecap.js`, `departureRecap.js`, `sasAudit.js`), dialog in `client/src/plugins/sas/`; the commit stays in core (`reservationsModel.commitArrivalSas` / `commitDepartureSas`). Paths in §4 below are the original map.
+
 ## 1. Context
 
 On the Planning, each arrival shows a `ReservationCard` and each departure a `DepartureMiniRow`. Today a
@@ -45,7 +47,7 @@ confirmation — records the caution status and the complement(s) on the reserva
    - **A finished SAS stays re-openable**: when `arrivalSasDoneAt` (resp. `departureSasDoneAt`) is set,
      the SAS button shows a green ✓ (`CheckCircleIcon`) but **stays clickable** (tooltip « Revoir /
      modifier le check-in/check-out »); clicking re-opens the wizard pre-filled with the prior data
-     (specs/reopen-completed-sas.md, 2026-06-15 — superseded the 2026-06-13 disabled-lock).
+     (specs/sas/reopen-completed-sas.md, 2026-06-15 — superseded the 2026-06-13 disabled-lock).
    - **The client name is a link** → opens the client fiche (`/clients?clientId=…`). Everything else on
      the tile is inert. The full reservation page also stays reachable via a discreet
      **« Ouvrir la fiche »** link in the SAS header once the SAS is open.
@@ -56,7 +58,7 @@ confirmation — records the caution status and the complement(s) on the reserva
    Quitter; a large centred step icon + large heading in the body; big, colour-coded action buttons pinned at
    the bottom; a « ‹ » **« Précédent »** arrow (from the 2nd page on) goes back one page. The **single commit
    at the recap is unchanged** — going back / forward writes nothing until « Valider et terminer ». (The
-   former forward-only rule was relaxed to allow going back — specs/extinguisher-seal-and-repair-amounts.md
+   former forward-only rule was relaxed to allow going back — specs/options/extinguisher-seal-and-repair-amounts.md
    §3.2 rule 7.)
    _Reading of 2026-11-18 (stabilisation loop t22, owner decision: lost focus is a defect on every path):_ every page change,
    forward or back, puts the focus on the new page's short title in the band (`tabIndex -1`, no outline, `data-step` = the
@@ -80,7 +82,7 @@ confirmation — records the caution status and the complement(s) on the reserva
 5.bis **Code portail (only if a portal code is configured).** Shows the access/gate code to give to the
    client (global setting `portalCode`, §3.5). Informational. Button **Suivant**.
 6. **Caution (only if `cautionAmount > 0` AND not `cautionReceived`).** Shows the caution amount; hidden as
-   soon as the caution is received, including when reopening a completed SAS (specs/sas-hide-settled-steps.md §3).
+   soon as the caution is received, including when reopening a completed SAS (specs/sas/sas-hide-settled-steps.md §3).
    Buttons:
    - **Fait** → marks the caution to be validated on commit (`cautionReceived=1`, `cautionReceivedDate=today`).
    - **Reporté** → defer; this page is **re-shown right before the recap** (rule 11).
@@ -100,8 +102,8 @@ confirmation — records the caution status and the complement(s) on the reserva
 10. **Ménage (only if the cleaning is NOT already included).**
     - **Cleaning included** (reservation has the cleaning option `autoOptionType='cleaning'`, or it's a
       property default) → **no ménage page**; the client reminder (« vaisselle faite et rangée, poubelles
-      vidées ») is carried to the recap instead (rule 12, specs/sas-hide-settled-steps.md §3) — never on
-      an Airbnb stay (specs/airbnb-no-checkout-chores.md).
+      vidées ») is carried to the recap instead (rule 12, specs/sas/sas-hide-settled-steps.md §3) — never on
+      an Airbnb stay (specs/platforms/airbnb-no-checkout-chores.md).
       **Exception (2026-08-03):** when the only reason it is « included » is the SAS's own row
       (`sasArrivalOrigin = 1`), the page **stays visible, pre-selected « ajouté »**, so the operator can undo
       it — see [sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md) §3.2.
@@ -110,14 +112,14 @@ confirmation — records the caution status and the complement(s) on the reserva
       CATALOGUE option** (`autoOptionType='cleaning'`, `inComplement = 1`, `sasArrivalOrigin = 1`), priced by
       the engine — **not** a custom line (revised 2026-08-03, same spec).
 10.bis **Linge de toilette (only if the reservation did NOT take the `bathroom_linen` option).** Upsell,
-    priced **per person** by the engine (specs/sas-bath-linen-upsell.md). *« Le client n'a pas pris le linge
+    priced **per person** by the engine (specs/linen/sas-bath-linen-upsell.md). *« Le client n'a pas pris le linge
     de toilette. Tarif : X € (N pers × Y €). »* Two buttons, mirroring the ménage step: **Ajouter le linge de
     toilette** (→ activates the **catalogue** `bathroom_linen` option, `inComplement = 1`,
     `sasArrivalOrigin = 1`, priced by the engine — so the laundry and the linen stock finally count the
     towels, revised 2026-08-03) / **Non merci** (→ next). **No payment
     question here** — the whole complement (bath linen included) is settled on the recap
     (CB/Chèque · Payé en liquide · En fin de séjour — « Plus tard » when the stay is settled in the
-    same payment, specs/sas-recap-payment-buttons.md rule 1 note of 2026-10-27). Skipped when bath linen is already taken or no priced
+    same payment, specs/sas/sas-recap-payment-buttons.md rule 1 note of 2026-10-27). Skipped when bath linen is already taken or no priced
     `bathroom_linen` option exists.
 10.ter **Petit déjeuner — vente (only if the reservation did NOT take the breakfast option).** Offer page
     (tarif + how many mornings the stay allows) with **Ajouter le petit déjeuner** / **Non merci**; adding it
@@ -139,7 +141,7 @@ confirmation — records the caution status and the complement(s) on the reserva
     the recap reads « Caution non perçue : reportée au départ. », and after « Non » « Aucune caution pour ce séjour. » (it showed nothing until the
     2026-10-27 spec review; `ReservationSasDialog.caution-deferred.test.jsx`). When the cleaning is included, shows the
     client reminder « vaisselle faite et rangée, poubelles vidées » (moved here from the hidden ménage page,
-    specs/sas-hide-settled-steps.md §3), except on an Airbnb stay (specs/airbnb-no-checkout-chores.md). Buttons **Valider et terminer** (commit) / **Quitter**.
+    specs/sas/sas-hide-settled-steps.md §3), except on an Airbnb stay (specs/platforms/airbnb-no-checkout-chores.md). Buttons **Valider et terminer** (commit) / **Quitter**.
 
 ### 3.2 Departure SAS — pages (in order, each conditional)
 13. **Récap séjour (intro, always).** Client, logement, dates, heure de départ. Button **Commencer**.
@@ -178,7 +180,7 @@ confirmation — records the caution status and the complement(s) on the reserva
     reservation (`endOfStayComplementAmount` + paid flag + detail). It does **not** touch the arrival
     `complementAmount`. The departure SAS sets it = **cleaning price** (ménage « Pas OK ») **+** the
     **missing linen/towels** selected at rule 14.ter. The **arrival** SAS can also add a line here — the
-    **bath-linen deferred to check-out** (rule 10.bis, `source='arrivalBathLinen'`, specs/sas-bath-linen-upsell.md).
+    **bath-linen deferred to check-out** (rule 10.bis, `source='arrivalBathLinen'`, specs/linen/sas-bath-linen-upsell.md).
     Such arrival-added lines are **displayed + counted + preserved** by the departure recap/commit (they are
     not silently dropped when the departure SAS rebuilds the detail).
 18.bis **Deferred arrival complement (2026-08-03).** Choosing **« En fin de séjour »** on the arrival
@@ -222,14 +224,14 @@ confirmation — records the caution status and the complement(s) on the reserva
       dashboard « Prêt » + « Arrivé » for that reservation.
     - **Departure commit** sets `checkOutDone = 1` — the **planning departure coche** = dashboard **« Parti »**.
     - **Forward-only, idempotent, never auto-unticked.** Each commit sets the flag(s) to 1; a re-opened +
-      re-committed SAS (specs/reopen-completed-sas.md) re-affirms them. The commit never sets a flag back to
+      re-committed SAS (specs/sas/reopen-completed-sas.md) re-affirms them. The commit never sets a flag back to
       0, so the operator's manual tick/untick on the planning or dashboard remains authoritative between SAS
       runs. (Unlike the caution / complement markers, these are not tri-state — completing the SAS is an
       unambiguous « done ».)
 
 **Edge cases:**
 - Caution already received → no caution page on arrival, even when reopening a completed SAS
-  (specs/sas-hide-settled-steps.md §3); caution-return page on departure only if received.
+  (specs/sas/sas-hide-settled-steps.md §3); caution-return page on departure only if received.
 - Reservation with no options, linen fine, cleaning included → arrival SAS = intro + (caution?) + recap
   (complement = pre-existing only; the ménage reminder rides on the recap, no dedicated ménage page).
 - `complementPaid=1` on arrival: adding items still records them; the recap warns the arrival complement was
@@ -251,7 +253,7 @@ confirmation — records the caution status and the complement(s) on the reserva
     composition et heure du petit déjeuner, note pour le départ, état de l'extincteur à l'arrivée et au
     départ, **prestations vendues au check-in** (titre × unités, montant, et « — 1 × 2 pers. servies »
     quand les couverts d'une option à carte ne sont pas toute la tablée —
-    [card-option-served-persons.md](card-option-served-persons.md) §3.3 rule 15).
+    [card-option-served-persons.md](../options/card-option-served-persons.md) §3.3 rule 15).
     Only fields that actually moved appear — a step the operator skipped writes nothing.
 26. **Never blocks the commit.** The history is written after the money is committed and inside a
     try/catch: a failure there is logged, never surfaced as a failed check-in.
@@ -277,7 +279,7 @@ confirmation — records the caution status and the complement(s) on the reserva
     are identities, added at the end). The caution page answers three ways, in this order in the footer: « Non » (outlined
     error), « Reporter au départ » (neutral), « Caution perçue » (filled, last). « Non » is stored as a marker,
     `reservations.cautionWaived` (0/1, additive migration), not as an amount: the caution stays live from the property until
-    received ([caution-live-from-property.md](caution-live-from-property.md)), and `resolveEffectiveCaution` reads **0** while
+    received ([caution-live-from-property.md](../payments/caution-live-from-property.md)), and `resolveEffectiveCaution` reads **0** while
     the marker is set and no caution is held. That one function feeds every reader — the fiche's ledger (the existing
     `caution` row « Sans objet », reservation-payment-ledger rule 74, built from the same effective amount in the
     controller's `ledgerFor`), the planning card and the home (no « Caution à percevoir »), the guest e-mails (no
@@ -418,9 +420,9 @@ confirmation — records the caution status and the complement(s) on the reserva
 - **`reservations` SAS-done markers** (idempotent ADD COLUMN, default null): `arrivalSasDoneAt TEXT`,
   `departureSasDoneAt TEXT` — set / refreshed to `datetime('now')` by the respective commit; drive the
   green-✓ state of the planning SAS buttons. The button stays clickable so a finished SAS can be
-  re-opened + re-edited (specs/reopen-completed-sas.md; superseded the 2026-06-13 disabled-lock).
+  re-opened + re-edited (specs/sas/reopen-completed-sas.md; superseded the 2026-06-13 disabled-lock).
 - Arrival complement items reuse `reservation_custom_options` (`inComplement=1`, plus `sasArrivalOrigin=1`
-  since 2026-06-15 so a re-opened SAS can REPLACE them without double-charging — specs/reopen-completed-sas.md).
+  since 2026-06-15 so a re-opened SAS can REPLACE them without double-charging — specs/sas/reopen-completed-sas.md).
 - **Planning coche + dashboard status flags** (pre-existing columns, no migration): `checkInReady`,
   `checkInDone`, `checkOutDone` (all `INTEGER DEFAULT 0`). §3.6 rule 22 — the arrival commit sets
   `checkInReady = 1` + `checkInDone = 1`, the departure commit sets `checkOutDone = 1` (set-only, never
@@ -457,7 +459,7 @@ existing reservations needed.
     ménage) is **not** a yes/no safety question → kept **neutral** (Ajouter = primary blue, Non merci
     discreet). Buttons full-width + stacked on `xs`, side-by-side on `sm+`, touch targets ≥ 48 px;
     « Valider et terminer » keeps its commit spinner.
-    **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rules 1-2, decision 5 of the UI/UX
+    **Amended 2026-10-19** (specs/design-system/ui-review-2026-10-19-operations.md rules 1-2, decision 5 of the UI/UX
     review): the footer now stacks in reading order, so the reassuring answer — filled — sits at the
     **bottom**, under the thumb (right from `sm`); its counterpart is a **neutral** tonal button, never
     black on red. « Dégât / litige » alone stays red, as an outlined error button. The caution reads
@@ -485,7 +487,7 @@ existing reservations needed.
   **CB / Chèque** (encaissé, compta), **Payé en liquide** (caisse interne, hors compta), and — arrival only —
   **En fin de séjour** (leave unpaid → recalled at check-out), **pre-selected on arrival** so validating the
   SAS without touching the buttons visibly means « encaissé au check-out ». The departure recap shows the same
-  buttons without « En fin de séjour », none pre-selected. See specs/sas-recap-payment-buttons.md. When the
+  buttons without « En fin de séjour », none pre-selected. See specs/sas/sas-recap-payment-buttons.md. When the
   recap settles the stay and the complement in one payment, the third button reads « Plus tard »
   (2026-10-27 spec review).
 - **Blanchisserie page**: existing stock fields kept; a new « Tarifs des éléments de linge » table below,
@@ -530,7 +532,7 @@ existing reservations needed.
 ### Planning-tile launch tests (vitest, `ReservationCard.test.js` + `DepartureMiniRow.test.js`)
 - [x] « Ouvrir la réservation » button → `onOpenReservation(id)`; SAS button → `onOpenSas(id)`.
 - [x] SAS button shows a green ✓ when `arrivalSasDoneAt` / `departureSasDoneAt` is set but **stays
-      clickable** to re-open + re-edit the SAS (specs/reopen-completed-sas.md; was a disabled no-op
+      clickable** to re-open + re-edit the SAS (specs/sas/reopen-completed-sas.md; was a disabled no-op
       until 2026-06-15).
 - [x] Client name link → `onOpenClient(clientId)`; toggling the ready/done checkbox fires no open handler;
       with all handlers omitted the tile is read-only (no action buttons, plain-text client name).

@@ -1,5 +1,5 @@
 /**
- * StaySalesSection — what a stay sold apart from the total being collected (specs/pricing-components.md §3 rules 32, 85; mock M3).
+ * StaySalesSection — what a stay sold apart from the total being collected (specs/pricing/pricing-components.md §3 rules 32, 85; mock M3).
  *
  * Props:
  *   `section` = `{ title, lines: [{ ref, label, totalCents, status, statusLabel, sourceLabel, block, groupLabel, addedOnReopen, offerable }], groups, totalCents,

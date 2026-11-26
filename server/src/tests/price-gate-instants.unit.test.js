@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 68 — `scripts/price-gate/recompute.js`: the instants a stay is read at. Derived from the
+// specs/pricing/pricing-components.md §3 rule 68 — `scripts/price-gate/recompute.js`: the instants a stay is read at. Derived from the
 // stored row (the capture day, the minute before and the minute of the arrival at 15:00 Paris, the noon after the departure),
 // never written in a test file, and right on the days the clock changes.
 process.env.TZ = 'Europe/Paris';

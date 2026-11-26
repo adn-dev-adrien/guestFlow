@@ -1,5 +1,5 @@
 /**
- * paidLineJudgment — the one judgment of a write that takes money away from a line a note paid (specs/pricing-components.md rules 23, 104;
+ * paidLineJudgment — the one judgment of a write that takes money away from a line a note paid (specs/pricing/pricing-components.md rules 23, 104;
  * stabilisation loop t5, S5-1). Every save of a stay passes through it (`applyUpdate`): the fiche's « Enregistrer », the line API
  * (`extraSale.changeLine` / `removeLine`), a sale, a restate. One formula, so a paid line offered in the fiche and the same line offered
  * through its action end the same way.

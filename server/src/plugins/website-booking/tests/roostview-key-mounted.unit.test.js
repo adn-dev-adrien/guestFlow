@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/roostview-api-key.md rule 6 (fixed at the 2026-10-27 spec review) — the read-only key judged on
+// specs/plugins/roostview-api-key.md rule 6 (fixed at the 2026-10-27 spec review) — the read-only key judged on
 // the REAL mounts. Since the chain is mounted once per prefix (routes/index.js), `req.path` alone is
 // only what follows the prefix (`/`, `/1`): the key matched none of its reads and answered 403 on every
 // route. Its reads answer 200 over HTTP; everything else stays 403.

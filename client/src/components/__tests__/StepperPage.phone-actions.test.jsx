@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 44 — the onboarding assistant follows the SAS rule on a
+// specs/plugins/plugins-phase-p-productisation.md rule 44 — the onboarding assistant follows the SAS rule on a
 // phone (UI/UX review 2026-10-18, decision 5): the primary action is filled and comes last, at the
 // bottom under the thumb; « Précédent » and « Plus tard » come before it, neutral.
 import React from 'react';

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** The planning `BreakfastDayCard` (and its test) no longer exists: breakfast items render through `client/src/components/OptionDayCard.jsx` with `theme='breakfast'` (+ `BreakfastPrepDialog.jsx`); data still comes from `breakfastModel`. Code paths refreshed.
+
 ---
 
 ## 1. Context
@@ -106,7 +108,7 @@ of breakfasts to prepare.
    arrival / departure / resource booking / laundry on it MUST still
    appear in the planning's day list. Extend the existing
    merged-date-set in
-   [PlanningPage.js:830-843](client/src/pages/PlanningPage.js#L830-L843)
+   [PlanningPage.js:830-843](client/src/pages/PlanningPage.jsx#L830-L843)
    to include `Object.keys(breakfastByDate).filter(non-empty)`.
 9. **No skip mechanism** — unlike laundry, breakfast doesn't get a
    skip toggle. If the operator didn't serve a breakfast, that's an
@@ -156,7 +158,7 @@ of breakfasts to prepare.
 
 **Reuse:**
 - The laundry aggregator's UNION ALL pattern
-  ([laundryModel.js:41-84](server/src/models/laundryModel.js#L41-L84))
+  ([laundryModel.js:41-84](server/src/plugins/linen/laundryModel.js#L41-L84))
   is the exact template for the breakfast model. Just swap the
   `countsAsBedLinen = 1` filter for `autoOptionType = 'breakfast'`
   and change the WHERE date logic.
@@ -168,7 +170,7 @@ of breakfasts to prepare.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/` | `components/BreakfastDayCard.js` | C | NEW — pure renderer. Props: `data: { items: [{ reservationId, clientName, propertyName, persons }], totalPersons }`. Returns `null` when `items.length === 0`. |
-| `pages/` | `pages/PlanningPage.js` | T | (1) New state `breakfastByDate: { [iso]: { items, totalPersons } }`. (2) In the `loadPlanning` `Promise.all` (after the existing laundry/inventory calls), add `api.getBreakfastPlanningSummary({ from, to })`. Same incremental-loading wiring in the infinite-scroll handler. (3) Extend the merged date-set ([PlanningPage.js:830-843](client/src/pages/PlanningPage.js#L830-L843)) with `Object.keys(breakfastByDate).filter(d => breakfastByDate[d].totalPersons > 0)`. (4) Mount `<BreakfastDayCard data={breakfastByDate[date]} />` in the day-cell render block, right after the `<LaundryDayCard>` and before the departures block. |
+| `pages/` | `pages/PlanningPage.js` | T | (1) New state `breakfastByDate: { [iso]: { items, totalPersons } }`. (2) In the `loadPlanning` `Promise.all` (after the existing laundry/inventory calls), add `api.getBreakfastPlanningSummary({ from, to })`. Same incremental-loading wiring in the infinite-scroll handler. (3) Extend the merged date-set ([PlanningPage.js:830-843](client/src/pages/PlanningPage.jsx#L830-L843)) with `Object.keys(breakfastByDate).filter(d => breakfastByDate[d].totalPersons > 0)`. (4) Mount `<BreakfastDayCard data={breakfastByDate[date]} />` in the day-cell render block, right after the `<LaundryDayCard>` and before the departures block. |
 | `api.js` | `api.js` | T | NEW: `getBreakfastPlanningSummary({ from, to })`. Same shape as `getLaundryPlanningSummary`. |
 | `tests/` | `client/src/components/__tests__/BreakfastDayCard.test.js` | C | 4 Vitest cases (see §7). |
 

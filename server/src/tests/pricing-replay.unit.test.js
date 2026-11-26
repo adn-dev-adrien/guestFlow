@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 34 — the prod replay hashes every money reader: `scripts/pricing-replay.mjs` extends the VAT
+// specs/pricing/pricing-components.md §3 rule 34 — the prod replay hashes every money reader: `scripts/pricing-replay.mjs` extends the VAT
 // golden replay with the live quote, the no-op save, the SAS plans, the cancellation preview, the arrival-payment detail, the
 // collected splits, the tourist-tax figure and the price gate's figures per stay, every standalone resource booking and the
 // accounting synthesis of every year, and the month readers (accounting CSV,

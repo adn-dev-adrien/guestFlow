@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 4 — the refund of a collected complement's excess is booked
+// specs/reservations/reservation-save-keeps-pricing.md rule 4 — the refund of a collected complement's excess is booked
 // in the accounts when it goes back by transfer, and not at all when it goes back « caisse interne »
 // (Adrien, 2026-10-29: the prefill defaults to the caisse interne when the complement was taken there).
 

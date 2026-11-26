@@ -1,4 +1,4 @@
-// Texts of the extra-sale screens (specs/pricing-components.md §6). The amounts and the status labels come from the server.
+// Texts of the extra-sale screens (specs/pricing/pricing-components.md §6). The amounts and the status labels come from the server.
 export const DISCOUNT_TARGETS = [
   { value: 'nights', label: 'Nuits' },
   { value: 'extras', label: 'Articles' },

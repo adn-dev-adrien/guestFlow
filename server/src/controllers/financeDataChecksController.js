@@ -1,4 +1,4 @@
-// « À vérifier » of the Suivi financier (specs/finance-data-checks.md §4.3) — thin: query → model → respond.
+// « À vérifier » of the Suivi financier (specs/accounting/finance-data-checks.md §4.3) — thin: query → model → respond.
 
 const model = require('../models/financeDataChecksModel');
 

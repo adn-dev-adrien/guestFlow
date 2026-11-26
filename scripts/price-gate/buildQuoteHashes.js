@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The whole-quote fingerprints of the price gate (specs/pricing-components.md §3 rules 4 and 68).
+ * The whole-quote fingerprints of the price gate (specs/pricing/pricing-components.md §3 rules 4 and 68).
  *
  *   DB_PATH=:memory: node scripts/price-gate/buildQuoteHashes.js <capturedAt ISO> <inputs.json> <production|synthetic> <out.json>
  *

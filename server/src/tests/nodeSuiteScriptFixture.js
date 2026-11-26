@@ -1,4 +1,4 @@
-// Shared by the specs/server-test-isolation.md rule 5 and rule 10 suites: runs a throw-away test file
+// Shared by the specs/tech/server-test-isolation.md rule 5 and rule 10 suites: runs a throw-away test file
 // with the exact flags of a package's `npm test` script, so the tests pin what CI runs, not a copy of it.
 const fs = require('node:fs');
 const os = require('node:os');

@@ -5,7 +5,7 @@
 const path = require('path');
 const fs = require('fs');
 
-// specs/ui-review-2026-10-19-operations.md rules 17, 27-29 — every word of the document is drawn by an
+// specs/design-system/ui-review-2026-10-19-operations.md rules 17, 27-29 — every word of the document is drawn by an
 // embedded face (SIL Open Font License, © Adobe, upstream release files unmodified): the serif of the
 // app (Source Serif 4 Semibold) for the titles, its sister Source Sans 3 for the body. Each is ONE
 // full file covering Latin, Latin Extended A/B, Vietnamese, Greek and Cyrillic, so « Łukasz Wójcik »,

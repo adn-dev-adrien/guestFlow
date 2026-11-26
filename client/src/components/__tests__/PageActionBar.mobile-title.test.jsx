@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rule 15 — on a phone the page title lives in the top bar: the page
+// specs/planning/shell-and-home-day-first.md rule 15 — on a phone the page title lives in the top bar: the page
 // bar publishes it and never draws it on xs, and a bar left with nothing to show is not drawn.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

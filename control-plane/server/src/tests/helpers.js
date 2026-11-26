@@ -53,13 +53,13 @@ const seedOf = (root, slug) => path.join(path.dirname(root), 'seeds', `${slug}.d
 
 // The database an instance is to start with. It waits beside the instances for the « database » step:
 // on a host that step creates it, and the « dir » step before it refuses one already there
-// (specs/hosting-h1-fleet-runtime.md rule 45). → the instance's data directory, once created
+// (specs/hosting/hosting-h1-fleet-runtime.md rule 45). → the instance's data directory, once created
 function makeInstance(root, slug, options) {
   writeInstanceDatabase(seedOf(root, slug), options);
   return path.join(root, slug, 'data');
 }
 
-// A release directory as the host keeps it (specs/hosting-h1-fleet-runtime.md H-D4): enough for the
+// A release directory as the host keeps it (specs/hosting/hosting-h1-fleet-runtime.md H-D4): enough for the
 // console to call it installed.
 function makeRelease(releasesDir, version) {
   const dir = path.join(releasesDir, version, 'server', 'src');

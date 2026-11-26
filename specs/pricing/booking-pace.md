@@ -15,7 +15,7 @@ rendering of rules 14-15 (UI/UX review 2026-10-18, decision 9): `docs/specs/2026
 
 ## 1. Context
 
-The Suivi financier (`specs/finance-dashboard-redesign.md`) looks at the past and the present: revenue
+The Suivi financier (`specs/accounting/finance-dashboard-redesign.md`) looks at the past and the present: revenue
 of a window, occupancy per month, comparison with last year on the months that are over or running.
 It says nothing about the months **ahead** in the way an operator steers them: *on this date, am I
 ahead or behind last year for the coming months?*

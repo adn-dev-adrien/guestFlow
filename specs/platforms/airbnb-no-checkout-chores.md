@@ -29,14 +29,14 @@ Done outside the code on 2026-10-26, in the Airbnb host console:
   guest no longer does, 55 min at 25 €/h) ÷ 0.845, Airbnb's 15.5 % host fee being taken on the cleaning
   fee too — a first 108 € forgot that); L'Estiva 0 € → **13 €** (its ménage is already in the nightly
   price). Proved on public quotes. The recipe carries these from
-  [tariff-recipe-platform-cleaning-fee.md](tariff-recipe-platform-cleaning-fee.md).
+  [tariff-recipe-platform-cleaning-fee.md](../pricing/tariff-recipe-platform-cleaning-fee.md).
 - **« Avant le départ » requests** reworded the same day to mention neither the dishes nor the trash
   (Adrien: guests who know do it anyway, the others stay free).
 - The Gîte's « départ après 10 h facturé une demi-nuit » (a penalty) removed from its requests.
 
 What is left in GuestFlow: when the cleaning is included, the **arrival SAS** tells the operator to
 « Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées » — on the hidden
-ménage page and on the recap (`specs/sas-hide-settled-steps.md` §3 rule 4). Said to an Airbnb guest,
+ménage page and on the recap (`specs/sas/sas-hide-settled-steps.md` §3 rule 4). Said to an Airbnb guest,
 that is exactly the oral request at arrival the policy forbids.
 
 The Airbnb mail intake (`server/src/plugins/airbnb-intake/intakeService.js`) already turns the Airbnb
@@ -81,7 +81,7 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
 ### Added at the `inte/plugins` sync (2026-10-27)
 
 8. **A platform setting, not a platform name.** GuestFlow is sold to other operators
-   (`specs/plugins-phase-p-productisation.md`): no channel is recognised by its name in the code. Each
+   (`specs/plugins/plugins-phase-p-productisation.md`): no channel is recognised by its name in the code. Each
    platform carries `forbidsGuestChores` (« Sans corvées de départ », Paramètres › Plateformes, a switch
    per row, saved with the page). `isChoreFreeChannel(platform)` reads the set of ticked platforms,
    cached like `isDirectChannel` and re-read at boot and after every save of that page. An own channel
@@ -108,7 +108,7 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
   migration ticks it (rule 9), but a NEW Airbnb-named row created later is not ticked until the operator
   switches it on — the code no longer knows the name.
 - An Airbnb stay still recorded as `Lodgify` (booked through Lodgify before 2026-10-15 and never
-  relabelled, `specs/lodgify-decommission.md`) keeps the reminder: those bookings predate the policy.
+  relabelled, `specs/platforms/lodgify-decommission.md`) keeps the reminder: those bookings predate the policy.
 - The « ✅ Le ménage est inclus » variant of the arrival ménage page is unreachable today (the step is
   dropped when the cleaning is included); its reminder is gated anyway, so it cannot come back unguarded.
 

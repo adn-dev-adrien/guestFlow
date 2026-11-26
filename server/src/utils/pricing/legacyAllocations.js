@@ -1,6 +1,6 @@
 /**
  * LEGACY ALLOCATIONS — which payment covered which line, read from what a stay stored before `payment_allocations`
- * existed (specs/pricing-components.md §3 rules 36, 74, §5 « Backfill »).
+ * existed (specs/pricing/pricing-components.md §3 rules 36, 74, §5 « Backfill »).
  *
  * A payment is split over the lines it covered only where the stay kept that truth:
  *

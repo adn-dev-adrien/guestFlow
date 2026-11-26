@@ -1,5 +1,5 @@
-// specs/arrival-moment-is-the-check-in.md §3 rule 3, amended 2026-11-16 (stabilisation loop t4, D4-2, D4-3).
-// specs/pricing-components.md rules 102 a, 103 b — the boot repair clears the arrival-extras baseline only of a stay the stay clock has not started, and never one that carved a line
+// specs/sas/arrival-moment-is-the-check-in.md §3 rule 3, amended 2026-11-16 (stabilisation loop t4, D4-2, D4-3).
+// specs/pricing/pricing-components.md rules 102 a, 103 b — the boot repair clears the arrival-extras baseline only of a stay the stay clock has not started, and never one that carved a line
 // out to the departure. Before, every restart between the check-in hour and the tick erased the baseline pricing-components rule 102 had laid: the departure part
 // of a grown line left every bucket (306 + 0 + 45 = 351 € for a final price of 363 €).
 process.env.DB_PATH = ':memory:';

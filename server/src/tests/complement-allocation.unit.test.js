@@ -1,5 +1,5 @@
 /**
- * specs/adjustable-complement-amounts.md §3.6 — ventilation comptable d'un complément d'arrivée
+ * specs/sas/adjustable-complement-amounts.md §3.6 — ventilation comptable d'un complément d'arrivée
  * ajusté. Chaque cas vérifie l'invariant qui justifie la brique : Σ postes == le montant annoncé,
  * au centime, sans jamais toucher ni l'hébergement ni la taxe de séjour.
  */
@@ -21,7 +21,7 @@ const DETAIL = [
   { kind: 'tax', label: 'Taxe de séjour', amount: 9.6 },
 ];
 
-// specs/adjustable-complement-amounts.md rule 31
+// specs/sas/adjustable-complement-amounts.md rule 31
 test('splitComplementByPoste — chaque ligne tombe sur son poste, Σ = le complément auto', () => {
   const split = splitComplementByPoste(DETAIL, 93.6);
   assert.deepEqual(split, { accommodation: 0, options: 24, resources: 60, tax: 9.6 });

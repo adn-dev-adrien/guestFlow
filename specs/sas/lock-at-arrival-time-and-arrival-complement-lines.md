@@ -38,7 +38,7 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
 ### 3.1 The lock moment
 
 1. A stay **has started** when one of these holds, evaluated by the server on the process clock
-   (Europe/Paris, `specs/server-timezone.md`):
+   (Europe/Paris, `specs/hosting/server-timezone.md`):
    - `startDate < today`;
    - `startDate = today` and `checkInTime` (`HH:MM`) is ≤ the current time;
    - `startDate = today` and the arrival was marked: `checkInDone = 1` or `arrivalSasDoneAt` set
@@ -86,7 +86,7 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
 
 ### 4.1 Server side (`server/src/`)
 
-- `utils/pricing/stayClock.js` — `hasStayStarted(row, today, nowTime)`: the rule 1 definition. It shipped first in `utils/arrivalMoment.js`, its interim home; reading of 2026-11-15 (sync of the pricing refonte, `specs/pricing-components.md` rules 44-46): PR C moved it into the STAY CLOCK, the only home of « started », and `arrivalMoment.js` stays deleted. Same answer, same tests (`stay-started-at-arrival-time.unit.test.js` requires it from the clock).
+- `utils/pricing/stayClock.js` — `hasStayStarted(row, today, nowTime)`: the rule 1 definition. It shipped first in `utils/arrivalMoment.js`, its interim home; reading of 2026-11-15 (sync of the pricing refonte, `specs/pricing/pricing-components.md` rules 44-46): PR C moved it into the STAY CLOCK, the only home of « started », and `arrivalMoment.js` stays deleted. Same answer, same tests (`stay-started-at-arrival-time.unit.test.js` requires it from the clock).
 - `utils/midStayExtrasWindow.js` — `midStayExtrasWindow` / `buildEditLock` call it instead of `startDate <= today`.
 - `controllers/reservationsController.js` — `pastReservationLocked`, `started`, ledger-edit `startedStay` call it; `getById` adds `arrivalComplementLines` and passes `nowTime`.
 - `models/reservationsModel.js` — `getEditLock` takes `nowTime`.

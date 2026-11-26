@@ -1,4 +1,4 @@
-// Shared fixture of specs/resource-booking-pricing-and-invoicing.md suites: an in-memory database with the plugin's
+// Shared fixture of specs/resources/resource-booking-pricing-and-invoicing.md suites: an in-memory database with the plugin's
 // table at its current migration, one « Bain fictif » (10:00-22:00, slot 30 min, minimum 60 min, guest 25 / 35 €/h from
 // 19:00, external 50 / 70 €/h), and logement 2 offering 60 min. No VAT period table: a sale outside a stay takes the
 // plugin's setting, passed in.

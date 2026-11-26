@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rule 30 (audit r3, external N5) — the messages, reminders and payouts of the
+// specs/platforms/airbnb-mail-intake.md rule 30 (audit r3, external N5) — the messages, reminders and payouts of the
 // sender, and a mail too large to read, are remembered like an intake, so the next pass skips them before
 // downloading them; the pass hands the reader a `seen` predicate and a cap, and takes the mails one by one.
 const test = require('node:test');

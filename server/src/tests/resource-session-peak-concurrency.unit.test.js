@@ -1,4 +1,4 @@
-// specs/hourly-resource-quantity-and-sas-scheduling.md rule 35 (adversarial review of the 2026-10-27
+// specs/resources/hourly-resource-quantity-and-sas-scheduling.md rule 35 (adversarial review of the 2026-10-27
 // fixes) — rule 34 counted every outside use touching a session instead of the most used at once: with a
 // resource ×2, bookings 17:00–18:30 and 19:30–21:00 refused a session 18:00–20:00 although one unit is
 // always free. The peak of simultaneous uses is compared, the turnover still kept after each use.

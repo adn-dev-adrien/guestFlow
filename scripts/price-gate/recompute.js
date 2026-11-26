@@ -1,7 +1,7 @@
 /**
  * What the price gate runs on a database, shared by the capture (`buildFixture.mjs`, on the anonymised
  * AND the real copy) and by the tests that replay the committed fixture, so both sides execute the same
- * steps (specs/pricing-components.md §3 rule 68):
+ * steps (specs/pricing/pricing-components.md §3 rule 68):
  *
  *   loadInputs(db, inputs)        the anonymised rows into a database `database.js` has just migrated, then its backfills
  *   recomputeStays(db)            { [reservationId]: figures } through the current code path
@@ -69,7 +69,7 @@ function loadInputs(db, inputs) {
   // `isDirectChannel` reads a set cached at boot, when this database still held the seeded platforms.
   app('utils/platformNameFormat.js').refreshDirectChannels(db);
   // The boot migrated an EMPTY database: the backfills of the stored columns run again on the rows just loaded, as the
-  // boot of a real database runs them (specs/pricing-components.md rule 36).
+  // boot of a real database runs them (specs/pricing/pricing-components.md rule 36).
   const lines = app('utils/pricingLinesMigration.js');
   lines.runPricingLinesMigration(db);
   lines.backfillRefundNettings(db, { force: true });
@@ -172,7 +172,7 @@ function refundInputsOf(db, id, row, quote) {
       };
     }
   }
-  // loop t18 A18-1 (specs/plugin-removal-resilience.md rule 3) — the journal is the accounting-export plugin's: on a tree that
+  // loop t18 A18-1 (specs/plugins/plugin-removal-resilience.md rule 3) — the journal is the accounting-export plugin's: on a tree that
   // does not ship it the stay has no journal (`[]`), and its other figures are still read instead of one `quote.error`.
   const { optionalPlugin } = app('plugins/sdk/testing.js');
   const accounting = optionalPlugin(() => app('plugins/accounting-export/accountingModel.js'));

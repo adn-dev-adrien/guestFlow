@@ -151,7 +151,7 @@ No component changes. On the fiche, the arrival complement shows 24,00 € (what
 - Reworking how the live preview computes the complement (the server-side authority added here makes
   the preview's value advisory, which is enough).
 - The bath-linen ghost line — separate cause, separate spec
-  ([sas-bath-linen-ghost-line.md](specs/sas-bath-linen-ghost-line.md)), shipped in the same PR.
+  ([sas-bath-linen-ghost-line.md](../linen/sas-bath-linen-ghost-line.md)), shipped in the same PR.
 
 ## 9. Open questions
 

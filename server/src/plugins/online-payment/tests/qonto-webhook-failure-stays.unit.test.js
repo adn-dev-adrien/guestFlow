@@ -1,4 +1,4 @@
-// specs/settings-one-save-and-automatic-webhook.md rule 15 and specs/qonto-settings-in-app.md rule 21 (audit R24 E24-2, E24-3). A failed webhook check stays on the page until
+// specs/settings/settings-one-save-and-automatic-webhook.md rule 15 and specs/settings/qonto-settings-in-app.md rule 21 (audit R24 E24-2, E24-3). A failed webhook check stays on the page until
 // a check succeeds: the poll that follows it in the same pass, or a reconciliation read, says nothing about the
 // subscription. Every origin a failure can carry has its French label in the status payload. Loopback fake only.
 const test = require('node:test');

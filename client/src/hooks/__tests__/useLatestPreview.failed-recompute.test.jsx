@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t23 S23-1) — a recompute that FAILS after an earlier answer leaves no
+// specs/plugins/plugins-phase-1-sdk.md rule 54 (reading of 2026-11-18, loop t23 S23-1) — a recompute that FAILS after an earlier answer leaves no
 // figure of that answer on screen and no money control set from it: `useLatestPreview` turns `data` null and `failed` true until a new
 // answer, and every screen that previews money through it (enumerated from the code below) shows the reason with « Réessayer », keeps its
 // commit disabled, keeps every draft input mounted and the focus in place, and draws the new answer once « Réessayer » brings it. A screen
@@ -366,7 +366,7 @@ const ROWS = {
       giftVouchersApi.offerPrice.mockImplementation(async () => { if (state.fail) throw offline(); return state.price || GIFT_PRICE; });
       renderWithShell(<NewVoucherPage />, { route: '/bons-cadeaux/nouveau', path: '/bons-cadeaux/nouveau' });
       await screen.findByText(/109,00/);
-      press(screen.getByRole('button', { name: /Ajouter au bon/ })); // specs/gift-voucher-campaigns.md rule 64: the extras sit in a fold, closed by default
+      press(screen.getByRole('button', { name: /Ajouter au bon/ })); // specs/gift-vouchers/gift-voucher-campaigns.md rule 64: the extras sit in a fold, closed by default
       await screen.findAllByRole('button', { name: 'Augmenter' });
     },
     async fail(state) { state.fail = true; press(screen.getAllByRole('button', { name: 'Augmenter' })[0]); await screen.findByText(/Service indisponible/); },

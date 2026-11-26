@@ -1,4 +1,4 @@
-// The host side of the plugin bundles in a production build (specs/plugins-phase-4-registry.md
+// The host side of the plugin bundles in a production build (specs/plugins/plugins-phase-4-registry.md
 // rules 5, 18, P27). A plugin's own ES module is built with React, MUI, emotion, the router and the
 // SDK as externals; `scripts/build-plugin-packages.mjs` turns each of those imports into a read of
 // `globalThis.__GUESTFLOW_HOST__.modules`, filled here with this app's own modules — one React, one

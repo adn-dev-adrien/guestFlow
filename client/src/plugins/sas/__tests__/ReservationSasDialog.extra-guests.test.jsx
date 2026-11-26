@@ -1,4 +1,4 @@
-// Guests added after a platform booking — specs/platform-extra-guest-complement.md §3.5 rule 17.
+// Guests added after a platform booking — specs/platforms/platform-extra-guest-complement.md §3.5 rule 17.
 //
 // The arrival recap shows the server-stored line, never edits the composition, and can offer it.
 import { screen, waitFor } from '@testing-library/react';
@@ -8,7 +8,7 @@ import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 vi.mock('../../../api', () => ({
@@ -23,7 +23,7 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
 });
 

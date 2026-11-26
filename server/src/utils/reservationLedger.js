@@ -1,5 +1,5 @@
 /**
- * The payments ledger of a reservation (specs/reservation-payment-ledger.md §3.1, §3.4, §3.5).
+ * The payments ledger of a reservation (specs/payments/reservation-payment-ledger.md §3.1, §3.4, §3.5).
  *
  * One row per money movement, in the order money moves, each with its amount, its state in words, at
  * most one action and whether (and why not) its amount can be edited. The fiche renders the rows as
@@ -91,7 +91,7 @@ const NEUTRAL_REFUND = Object.freeze({ refundOne: 'Paiement en ligne à rembours
 const basketSource = (link) => { try { return String(JSON.parse(link.basketJson).source || ''); } catch { return ''; } };
 
 /**
- * The row's words for refunds owed on baskets (specs/plugins-phase-1-sdk.md rule 47): the owning plugin's own labels
+ * The row's words for refunds owed on baskets (specs/plugins/plugins-phase-1-sdk.md rule 47): the owning plugin's own labels
  * (`ctx.paymentBasket({ labels })`) when every owed link is one declared source, the core's neutral words otherwise.
  */
 function basketRefundLabel(owed) {
@@ -103,7 +103,7 @@ function basketRefundLabel(owed) {
   return owed.length > 1 ? labels.refundMany : labels.refundOne;
 }
 
-// specs/plugins-phase-1-sdk.md rule 47 — a link billing its own basket (a plugin's order) is no bucket's link.
+// specs/plugins/plugins-phase-1-sdk.md rule 47 — a link billing its own basket (a plugin's order) is no bucket's link.
 const ofRow = (types) => (l) => types.includes(String(l.type)) && !l.basketJson;
 
 function pickLink(links, rowKey) {
@@ -125,7 +125,7 @@ function otherOpenLinks(links, rowKey, shown) {
     .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 }
 
-// specs/payment-link-lifecycle.md rule 24 — the moment a link stops, in the operator's day and hour (the
+// specs/payments/payment-link-lifecycle.md rule 24 — the moment a link stops, in the operator's day and hour (the
 // process runs in Europe/Paris). A sentinel or missing date (Qonto's `0001-01-01…`) is no moment.
 function linkEnd(link, stayYear) {
   const ms = Date.parse(String((link && link.expiresAt) || ''));
@@ -149,7 +149,7 @@ function lapsedLabel(link, stayYear, providerLabel) {
 }
 
 const BUCKET_LINK_TYPES = new Set(['deposit', 'balance', 'full']);
-// specs/payment-link-lifecycle.md rule 56 — paid after its withdrawal by hand, not settled yet.
+// specs/payments/payment-link-lifecycle.md rule 56 — paid after its withdrawal by hand, not settled yet.
 // Audit R11 (M1): also a `dates-taken` bucket payment held beside an installment plan (rule 63).
 const unsettledPayment = (link) => require('./withdrawnPayments').isUnsettled(link);
 // Review of #902 (O2, O3) — the amount in both confirmations; « Enregistrer » says what it does (a devis becomes a
@@ -201,7 +201,7 @@ function linkDetail(link, { stayYear, due, canRequest, canWithdraw = false, prov
   else label = WITHDRAWN_LABELS[link.cancelReason] || 'Lien retiré';
   // « Renvoyer la demande » only while the row is still due, and only once the previous link is gone
   // (rule 28): an open link is still the request, a paid one settled it. Dates taken by another stay
-  // refuse any new link (specs/payment-link-lifecycle.md rule 11): nothing to offer.
+  // refuse any new link (specs/payments/payment-link-lifecycle.md rule 11): nothing to offer.
   const resendable = due && canRequest && link.status !== 'open' && link.status !== 'paid'
     && link.cancelReason !== 'dates-taken' && !unsettledPayment(link)
     && ['deposit', 'balance', 'full'].includes(String(link.type));
@@ -209,7 +209,7 @@ function linkDetail(link, { stayYear, due, canRequest, canWithdraw = false, prov
     status: link.status,
     label,
     ...(resendable ? { resend: { type: String(link.type), label: 'Renvoyer la demande' } } : {}),
-    // specs/payment-link-lifecycle.md rule 42 — an open link of a stay that is not read-only.
+    // specs/payments/payment-link-lifecycle.md rule 42 — an open link of a stay that is not read-only.
     ...(canWithdraw && link.status === 'open' ? {
       withdraw: {
         linkId: Number(link.id),
@@ -261,15 +261,15 @@ function retainedLabel(refund, r, planRows) {
  * @param {object} [p.overpayment]  `{ ttc, lines }` — the live trop-perçu (reservation-refunds rule 34)
  * @param {object[]} [p.midStayNotes] the settled mid-stay notes
  * @param {number} [p.cautionAmount] the effective caution (live from the property until received)
- * @param {object|null} [p.installmentPlan] the `installmentPlan` payload (specs/direct-installments.md rule 5):
+ * @param {object|null} [p.installmentPlan] the `installmentPlan` payload (specs/payments/direct-installments.md rule 5):
  *                                  its installments REPLACE the acompte and solde rows
  * @param {object[]} [p.penalties]  the platform penalties of the stay (`{ amount, reason, date }`), drawn under the payout row
- *                                  (specs/reconciliation-assisted-matching.md rule 27)
+ *                                  (specs/accounting/reconciliation-assisted-matching.md rule 27)
  * @param {boolean} [p.canRequest]  a payment provider is ready (« Renvoyer la demande »)
  * @param {string|null} [p.providerLabel] the declared payment provider's name, for a deactivation still owed
- *                                  (specs/payment-link-lifecycle.md rule 24)
+ *                                  (specs/payments/payment-link-lifecycle.md rule 24)
  * @param {boolean} [p.nightsUnavailable] the stay's nights are closed or taken today: « Enregistrer sur le séjour »
- *                                  of a payment to settle confirms nobody (specs/payment-link-lifecycle.md rule 56)
+ *                                  of a payment to settle confirms nobody (specs/payments/payment-link-lifecycle.md rule 56)
  * @param {boolean} [p.stayReadOnly] the stay the links answer for is read-only (a devis converted into a cancelled
  *                                  stay): no withdrawal, a payment to settle is refunded only (rule 56, O4)
  * @param {Set<number>} [p.nettedRefundIds] on a cancelled stay, the refunds its avoir read (payment-schedule rule 55
@@ -298,7 +298,7 @@ function buildLedger({
   // Rule 56 — a payment received after a withdrawal by hand is settled on any stored stay (refund only when read-only).
   const settleContext = stored ? { readOnly: !canWithdraw, isDevis, nightsUnavailable: Boolean(nightsUnavailable) } : null;
   const stayYear = isoDay(r.startDate || (quote && quote.startDate) || live.startDate)?.slice(0, 4) || null;
-  // Rule 24 — the engine's own split (specs/plugins-phase-p-productisation.md rule 45): a named
+  // Rule 24 — the engine's own split (specs/plugins/plugins-phase-p-productisation.md rule 45): a named
   // channel carries a platform amount and commissions; only a platform SALE drops the acompte and is
   // settled by a payout.
   const channel = saleChannel(platform);
@@ -374,7 +374,7 @@ function buildLedger({
   const planRows = installmentPlan && installmentPlan.installments && installmentPlan.installments.length > 0
     ? installmentPlan.installments : null;
 
-  // ── Échéancier (specs/direct-installments.md rules 5, 8, 13, 14) ─────────
+  // ── Échéancier (specs/payments/direct-installments.md rules 5, 8, 13, 14) ─────────
   // The plan replaces the acompte and the solde: one row per installment, then the warning when the plan
   // holds more than the stay.
   if (planRows) {
@@ -515,7 +515,7 @@ function buildLedger({
           ? { tone: 'done', label: '✓ cohérent avec le virement' }
           : { tone: 'warning', label: `écart : ${formatEuros(gap)}` };
       }
-      // specs/platform-statement-after-payout.md rules 1, 3 — a platform sale's statement stays correctable once received,
+      // specs/platforms/platform-statement-after-payout.md rules 1, 3 — a platform sale's statement stays correctable once received,
       // with the transfer it is read against; a channel counted as a direct sale keeps its received solde frozen: that
       // money came from the guest (review H1).
       const receivedPayoutEdit = () => {
@@ -547,7 +547,7 @@ function buildLedger({
           action: canAct && balanceAmount > 0
             ? { kind: 'mark', label: ota ? 'Marquer reçu' : 'Marquer perçu', dateLabel: ota ? 'Reçu le' : 'Perçu le', payout: { expected: soldeCommission > 0 ? round2(balanceAmount - soldeCommission) : null } }
             : null,
-          // specs/platform-statement-after-payout.md rule 11 — a platform sale's statement is also written on a locked fiche.
+          // specs/platforms/platform-statement-after-payout.md rule 11 — a platform sale's statement is also written on a locked fiche.
           amountEdit: cancelled
             ? { editable: false, mode: 'none', min: null, max: null, reason: null }
             : { editable: true, mode: 'statement', min: null, max: null, reason: null, ...(ota ? { correctable: true } : {}) },
@@ -670,7 +670,7 @@ function buildLedger({
       detail: { slot: 'midStayNotes' },
     });
   }
-  // specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
+  // specs/plugins/plugins-phase-1-sdk.md rule 47 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
   // the money is on the link, nothing reached the fiche, the operator refunds it from the provider's space.
   const owedBaskets = obligations ? [] : (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
   // Rule 75 — with the register of obligations at hand, each open row is a row of its own with its close action. The lowered
@@ -767,7 +767,7 @@ function buildLedger({
     });
   }
 
-  // ── Paiements après retrait (specs/payment-link-lifecycle.md rule 63) ──────
+  // ── Paiements après retrait (specs/payments/payment-link-lifecycle.md rule 63) ──────
   // A payment to settle that no row above shows — an installment plan replaces the acompte and solde rows —
   // gets a row of its own, right after the buckets, so « Marquer remboursé » stays reachable. Beside a plan, an
   // acompte / solde / séjour payment is refunded only (Adrien, 2026-10-31): the plan holds the pre-arrival money.
@@ -922,7 +922,7 @@ function buildLedger({
   };
 }
 
-// specs/mixed-method-payments.md rules 21-22, 30-33 — the rows the operator marks by hand offer « Plusieurs
+// specs/payments/mixed-method-payments.md rules 21-22, 30-33 — the rows the operator marks by hand offer « Plusieurs
 // moyens » (`action.split`), and a row paid that way shows its settlements, their correction and the reste.
 const SPLIT_BUCKET_OF_ROW = {
   deposit: 'deposit', balance: 'balance', complement: 'complement', checkoutComplement: 'complement', endOfStayComplement: 'endOfStayComplement',

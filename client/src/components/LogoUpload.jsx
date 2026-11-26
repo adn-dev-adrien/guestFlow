@@ -83,7 +83,7 @@ export default function LogoUpload({
         direction={{ xs: 'column', sm: 'row' }}
         spacing={{ xs: 1.5, sm: 2 }}
         // In sx, not as a prop: MUI 9's Stack forwards unknown props to the DOM (React
-        // « alignItems »-on-DOM console error) and drops the style (specs/ds-sweep-settings.md §3.6).
+        // « alignItems »-on-DOM console error) and drops the style (specs/design-system/ds-sweep-settings.md §3.6).
         sx={{ alignItems: { xs: 'flex-start', sm: 'center' } }}
       >
         {showImage ? (

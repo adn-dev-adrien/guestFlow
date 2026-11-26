@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 42 and specs/pricing-components.md rule 86 (end review R1-4) — a sale's e-mail is logged like every other:
+// specs/sas/outside-booking-sas.md rule 42 and specs/pricing/pricing-components.md rule 86 (end review R1-4) — a sale's e-mail is logged like every other:
 // the rolling purge keeps it for the retention window after the later of its sale day and its send, and never takes it for an orphan of a stay.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

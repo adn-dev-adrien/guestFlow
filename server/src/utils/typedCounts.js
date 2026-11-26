@@ -1,6 +1,6 @@
 const { roundMoneyStrict } = require('./pricing/money');
 /**
- * Typed counts that no longer match the stay (specs/non-card-option-served-persons.md rules 20-23).
+ * Typed counts that no longer match the stay (specs/options/non-card-option-served-persons.md rules 20-23).
  *
  * A number of people or of nights typed by the operator stays frozen when the party or the dates
  * change: it is never extrapolated. The operator must then be told, so this says which lines to flag.

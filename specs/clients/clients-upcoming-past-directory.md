@@ -8,13 +8,15 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Extends** | [clients.md](clients.md) |
-| **Amendment 2026-10-28** | Branch `feature/clients-directory-and-fiche-tariff` · summary [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html) (interactive mockups, 1280 and 390 px) |
+| **Amendment 2026-10-28** | Branch `feature/clients-directory-and-fiche-tariff` · summary [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html) (interactive mockups, 1280 and 390 px) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 1 (third bullet), 3 and 5 now say what rules 11 and 17 made of them (three views, one sort select), instead of leaving the contradiction to a note.
 
 ---
 
 ## 1. Context
 
-The Clients page is one flat alphabetical list ([ClientsPage.jsx](../client/src/pages/ClientsPage.jsx)):
+The Clients page is one flat alphabetical list ([ClientsPage.jsx](../../client/src/pages/ClientsPage.jsx)):
 `GET /api/clients` returns every client ordered by `lastName, firstName`, and nothing on screen says
 whether a client is expected next week or last came three years ago. Finding « qui arrive bientôt »
 means going through the Planning instead.
@@ -38,10 +40,10 @@ past clients, sort either list by name, first name or stay date, and search acro
    - **À venir** — the client has at least one stay whose **end date is ≥ today**. A guest currently in
      a property counts as « à venir » (decision 2026-08-17): they are still in the operator's hands.
    - **Passés** — every stay of the client ended before today.
-   - **A client with no stay at all** (created by hand, devis never converted) is listed in **« À venir »**
-     with an empty date (decision 2026-08-17): nothing disappears from the screen the operator works on.
+   - **A client with no stay at all** (created by hand, devis never converted) is listed in its own
+     « Sans séjour » view (rule 11, which replaced the 2026-08-17 decision to list it in « À venir »).
 2. **Only real stays count** — `kind = 'reservation'`; a devis is not a stay.
-3. **Presentation:** two **tabs centred in the page action bar** (« À venir » / « Passés »), the pattern
+3. **Presentation:** three **tabs centred in the page action bar** (« À venir » / « Passés » / « Sans séjour », rule 11), the pattern
    already used by Options / Ressources. Only the active list is rendered. Each tab label carries its
    **count** for the current search (`À venir (3)`), which is what makes a search « afficher dans l'une
    ou l'autre des catégories » legible: an empty active tab with a non-zero count on the other one says
@@ -58,8 +60,8 @@ past clients, sort either list by name, first name or stay date, and search acro
 
 ### 3.3 Sorting
 
-5. Three **sortable headers**: **Nom**, **Prénom**, **Séjour** — a `TableSortLabel` each, click to sort,
-   click again to flip the direction (same interaction as the « Tarifs facturables » page).
+5. *(Retired 2026-11-26 — the three sortable headers were replaced by the single « Trier » select of rule 17.)*
+   > **Sans test** — retired rule
 6. **Default sort per tab**: « À venir » → `Séjour` ascending (the soonest arrival first); « Passés » →
    `Séjour` descending (the most recent stay first). Switching tab restores that tab's default.
 7. **A client with no date sorts last**, whatever the direction — an empty cell is never « the smallest ».
@@ -281,7 +283,7 @@ read time.
 - **Table (md+)**: `Nom` · `Prénom` · `Séjour` · `Email` · `Téléphone` · `CP` · `Ville` · actions. The
   three first headers carry a sort arrow. _(2026-09-25: the `Notes` column is removed — a note is too
   long to survive a 30-character truncation and too private for a shared screen; it lives in the client
-  sheet. Same for the chip the `xs` card used to carry. See `specs/clients.md` §6.)_
+  sheet. Same for the chip the `xs` card used to carry. See `specs/clients/clients.md` §6.)_
 - **Mobile (`xs`)**: the existing card gains a date line — « Séjour : 20/08/2026 » — under the name.
   Sorting stays available through the (hidden) table headers? No: on `xs` the cards are ordered by the
   same server sort, and the tab strip stays reachable; no extra control is added.
@@ -289,7 +291,7 @@ read time.
 
 ### Amendment 2026-10-28 — the directory (rules 11-22)
 
-Mockups: [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html).
+Mockups: [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html).
 
 - **Bar:** title « Clients », `PageTabs` centred « À venir 9 · Passés 49 · Sans séjour 20 » (`sm+`),
   slim strip under the bar on `xs`; « Nouveau client » stays the bar's action.

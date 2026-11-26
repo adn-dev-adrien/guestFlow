@@ -2,12 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code; rule 36 plugin 1.19.1, 2026-11-12) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). v1.16.0 (2026-10-19, UI/UX review 2026-10-18): refusal field by field (rule 28) and one accent colour (rule 29); the calendar and the sticky bar are in [wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rules 29–33. |
+| **Status** | Implemented (code; rule 36 plugin 1.19.1, 2026-11-12) — in production on the live site (plugin 1.23.0 on 2026-11-26). v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). v1.16.0 (2026-10-19, UI/UX review 2026-10-18): refusal field by field (rule 28) and one accent colour (rule 29); the calendar and the sticky bar are in [wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rules 29–33. |
 | **Branch** | `feature/wordpress-plugin` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Depends on** | [public-api.md](public-api.md) (the API this plugin consumes) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Status no longer says pending manual verification (plugin 1.23.0 is live); §4.1 block count and file list brought up to date (`integrations/wordpress/guestflow-booking/{blocks,includes,assets}`).
 
 ---
 
@@ -59,7 +61,7 @@ remaining the single source of truth for prices, availability, and validation.
    (`X-WP-Nonce`) emitted to the block script, so only the plugin's own frontend can trigger it.
    GuestFlow still enforces its own honeypot + rate limit (defense in depth). The plugin forwards the
    `_hp` honeypot field unchanged.
-6b. **Online full-payment (v1.3.0, specs/public-online-payment.md).** The booking block has a `payOnline`
+6b. **Online full-payment (v1.3.0, specs/site/public-online-payment.md).** The booking block has a `payOnline`
    option. When on, after the booking request creates the devis the block calls the proxy
    `POST /booking-requests/:id/pay` (nonce) → GuestFlow returns the Qonto hosted-payment URL → the
    visitor is redirected there to pay the **full stay**. Qonto returns them to the same page with
@@ -146,7 +148,7 @@ remaining the single source of truth for prices, availability, and validation.
     The calendar block's navigation buttons use the translated `calPrevMonth`/`calNextMonth`.
 20. **`Update URI: https://github.com/adn-dev-adrien/guestFlow`** is in the plugin header, so WordPress
     never offers a wordpress.org plugin of the same slug as an update; the self-update filter
-    (`specs/wordpress-plugin-self-update.md`) is unchanged.
+    (`specs/site/wordpress-plugin-self-update.md`) is unchanged.
 21. **No CGV published while GuestFlow requires them → no form.** `GET /public/v1/terms` answers
     `503 TERMS_NOT_CONFIGURED` with `details: [{ bookingClosed: <requireTermsAcceptance> }]` (field
     added, envelope unchanged). When `bookingClosed` is `true` the booking block renders « Réservation
@@ -274,7 +276,7 @@ remaining the single source of truth for prices, availability, and validation.
     est annulée. » (`paymentCancelled`, English « This booking has been cancelled. »). Against a
     GuestFlow that never answers `cancelled` nothing changes.
 34. **The payment return page stops on an expired link** (2026-10-30, plugin 1.19.0,
-    [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 30). When the status answers `expired`
+    [payment-link-lifecycle.md](../payments/payment-link-lifecycle.md) rule 30). When the status answers `expired`
     (the link lapsed unpaid, none open), the block stops polling and reads « Ce lien de paiement a
     expiré. Refaire la réservation depuis la page du logement. » (`paymentExpired`, English « This
     payment link has expired. Please book again from the accommodation's page. »). Against a GuestFlow
@@ -323,7 +325,7 @@ This is a standalone PHP/JS codebase, not part of GuestFlow's Node app. Layout:
 | `includes/class-gf-api-client.php` | C | Server-side HTTP client to `/public/v1` (`wp_remote_*`, key header, timeout, error normalization). **The only place the key is read.** `visitor_ip()` trusts a private/loopback proxy when `trust_local_proxies` is on (rule 14). |
 | `includes/class-gf-rest-proxy.php` | C | Registers `/wp-json/guestflow/v1/*` routes; validates params, calls the client, caches reads, enforces nonce on write. |
 | `includes/class-gf-cache.php` | C | Transient get/set/flush keyed by path+query; TTLs from settings. |
-| `includes/class-gf-blocks.php` | C | Registers the 3 blocks via `register_block_type` (one per `block.json`); enqueues shared front assets. |
+| `includes/class-gf-blocks.php` | C | Registers the blocks via `register_block_type` (one per `block.json`: `calendar`, `booking`, `properties` from this spec, plus `gift-voucher`, `gift-voucher-use` and `session-booking` added later by the gift-voucher and outside-session specs); enqueues shared front assets. |
 | `blocks/calendar/` | C | `block.json`, `render.php`, `editor.js`, `view.js`, `style.css` — availability calendar (build-free, plain JS). |
 | `blocks/booking/` | C | Same set — quote→request wizard (the core block). |
 | `blocks/properties/` | C | Same set — property list. |
@@ -333,6 +335,8 @@ This is a standalone PHP/JS codebase, not part of GuestFlow's Node app. Layout:
 | `includes/class-gf-blocks.php` + `languages/guestflow-booking-en_GB.po/.mo` | T (2026-10-19) | 9 strings added (`legendFree`, `legendTaken`, `nextAvailable`, `nextAvailableGo`, `fieldRequired`, `emailInvalid`, `barPickDates`, `barContinue`, `taxIncluded`), `requiredFields` removed. |
 | `bin/make-zip.sh` | C | Zips the plugin folder into `guestflow-booking.zip` (no build; excludes VCS/OS cruft). |
 | `.gitignore` | C | Ignores `*.zip` + OS cruft. |
+
+**Files added after this spec (current layout, verified 2026-11-26):** `includes/class-gf-language.php` (language of the page, `specs/site/site-english-version.md`), `class-gf-redirects.php` (the two printed gift-voucher links, `specs/gift-vouchers/gift-voucher-campaigns.md` rule 9), `class-gf-shortcodes.php` (`[guestflow_cgv]`, `specs/reservations/terms-acceptance-record.md`), `class-gf-updater.php` (`specs/site/wordpress-plugin-self-update.md`); `assets/pow.js` + `pow-worker.js` (rule 31), `attribution.js` (`specs/site/site-traffic-analytics.md`), `voucher-code.js` + `voucher-parts.js` (gift-voucher blocks).
 
 **Notes:**
 - **No build toolchain** (Rule 8): no `package.json`, no `node_modules/`, no `build/`. Block editor +
@@ -353,8 +357,8 @@ public-api spec + code (and this spec references it), never patched around in th
 | (all) | — | — | None in this spec until 2026-10-18. |
 | server | `plugins/website-booking/controllers/publicTermsController.js` | T | `TERMS_NOT_CONFIGURED` carries `details[0].bookingClosed` (rule 21). |
 | server | `plugins/website-booking/controllers/pluginUpdateController.js` | T | `TESTED_WP` kept current (rule 24). |
-| server | `plugins/website-booking/publicProjections.js` + `publicQuoteController.js` | T | `payment.onlineReady` on the quote (specs/public-online-payment.md rule 12). |
-| server + client | `siteConnectionController.js`, `SettingsWebsiteSection.jsx` | C | The URL and key the operator pastes (specs/plugins-phase-2-hosts.md rules 30–31). |
+| server | `plugins/website-booking/publicProjections.js` + `publicQuoteController.js` | T | `payment.onlineReady` on the quote (specs/site/public-online-payment.md rule 12). |
+| server + client | `siteConnectionController.js`, `SettingsWebsiteSection.jsx` | C | The URL and key the operator pastes (specs/plugins/plugins-phase-2-hosts.md rules 30–31). |
 | server | `plugins/website-booking/publicInputValidation.js`, `controllers/publicBookingRequestController.js`, `utils/publicLabels.js` | T (2026-10-19) | Each refused contact field gets `reason` + `message` in the request's language (rule 28; additive, public-api.md). Plugin manifest 1.2.0. |
 | server | `plugins/website-booking/nextAvailability.js`, `controllers/publicCatalogController.js`, `publicProjections.js` | C/T (2026-10-19) | `nextAvailableDate` on the availability payload (widget spec rule 30; additive). |
 
@@ -422,7 +426,7 @@ respects its container width.
 `showOptions` (bool, default true).
 - Step 1 — dates + guests: date range picker (blocked dates disabled via availability), adults/children/
   teens/babies steppers bounded by the property capacity. Since 2026-08-14
-  (specs/property-capacity-single-total.md §3 rule 13) that bound is ONE shared total: the `+` of
+  (specs/reservations/property-capacity-single-total.md §3 rule 13) that bound is ONE shared total: the `+` of
   adults/ados/enfants goes inert as soon as their sum reaches `maxGuests`, babies are capped by
   `maxBabies`, and a `Capacité : N voyageurs · N bébés` caption sits under the section title. Purpose:
   a visitor can no longer compose an occupancy the API rejects with `409 OVER_CAPACITY` at submit.

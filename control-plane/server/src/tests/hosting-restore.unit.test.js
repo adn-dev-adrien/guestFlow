@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 13–14 — every Sunday each customer's latest backup is
+// specs/hosting/hosting-h1-fleet-runtime.md rules 13–14 — every Sunday each customer's latest backup is
 // restored into a temporary folder, checked (integrity, reservations counted) and recorded, a failure
 // being an alert; « Restaurer à une date » stops the instance, keeps the current database aside as
 // guestflow.db.before-restore-<ts>, restores, restarts and checks health.

@@ -8,11 +8,13 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
 
-The arrival/departure SAS (`specs/arrival-departure-sas.md`, `ReservationSasDialog`) guides the operator
+The arrival/departure SAS (`specs/sas/arrival-departure-sas.md`, `ReservationSasDialog`) guides the operator
 through check-in/check-out. There is currently **no fire-extinguisher seal (« plomb ») check**, and no
 place to configure **repair charges** that can be billed to a guest. Adrien wants the operator to
 verify the extinguisher seal at both arrival and departure, bill its replacement when the guest broke
@@ -81,13 +83,13 @@ guest-billable amounts live in one place.
    safety check), placed just before the recap; the conditional tariff page follows it only on « Non ».
    The single commit at the recap is unchanged. The **arrival** SAS no longer has an extinguisher page.
    *(2026-10-27 spec review: « every departure » holds only while the `extinguisherCheck` setting of
-   the `sas` plugin is on — [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md)
+   the `sas` plugin is on — [plugins-phase-p-productisation.md](../plugins/plugins-phase-p-productisation.md)
    rule 16. Off, the departure shows no extinguisher page and the commit accepts no seal field.)*
 9. **« Précédent » navigation (new — all SAS pages).** The SAS gains a back affordance (a « ‹ » arrow in
    the header band, shown from the 2nd page on) that returns to the previous page; in-memory decisions
    are **preserved** (revisiting a page shows the prior answer). Going back writes nothing — only
    « Valider et terminer » commits. This relaxes the former forward-only rule (amended in
-   `specs/arrival-departure-sas.md` §3.0).
+   `specs/sas/arrival-departure-sas.md` §3.0).
    > **Sans test** — the header arrow only moves an in-memory page index; the commit it never makes is held by the SAS suites.
 8. **Recap reflects it.** The end-of-stay recap lists each billed extinguisher tariff line (« Plomb
    manquant », « Utilisation ») within the existing end-of-stay total; the arrival recap is unchanged.
@@ -116,7 +118,7 @@ guest-billable amounts live in one place.
 | `models/` | `repairAmountsModel.js` | C | `list()` + `replaceAll(items)` on `repair_amounts`, **preserving keyed rows** + re-seeding `extinguisher_seal`. `buildModel(db)` factory (mirror of `linenItemsModel`). |
 | `controllers/` | `settingsController.js` | T | `getRepairAmounts` / `updateRepairAmounts` (mirror of the linen-items handlers). |
 | `routes/` | `settings.js` | T | `GET /settings/repair-amounts`, `PUT /settings/repair-amounts`. |
-| `controllers/` | `sasController.js` | T | `getSas` payload gains `repairAmounts` (the list); `commitDeparture` passes `extinguisherSealOkAtDeparture` + `extinguisherCharges` through. |
+| `controllers/` | `plugins/sas/controller.js` | T | `getSas` payload gains `repairAmounts` (the list); `commitDeparture` passes `extinguisherSealOkAtDeparture` + `extinguisherCharges` through. |
 | `models/` | `reservationsModel.js` | T | `commitDepartureSas` **prices** `extinguisherCharges` from `repair_amounts`, appends the lines to the end-of-stay detail, and recomputes `endOfStayComplementAmount` as the authoritative sum (2026-06-17). `getByIdWithDetails` returns the seal fields via `r.*`. |
 | `models/` | `repairAmountsModel.js` | C | `PROTECTED_REPAIRS` (extinguisher_seal + extinguisher_use) re-seeded on `replaceAll`. |
 | `database.js` | `database.js` | T | Seed both extinguisher tariffs; relabel the legacy `extinguisher_seal` row in place. The `repair_amounts` table + the `extinguisherSealOk*` columns live in `schema.sql` (baseline #225). |

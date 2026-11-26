@@ -1,5 +1,5 @@
 /**
- * VatFranchiseAlert — « Seuil de franchise » on the home (specs/vat-optional-mode.md rule 42): the
+ * VatFranchiseAlert — « Seuil de franchise » on the home (specs/accounting/vat-optional-mode.md rule 42): the
  * server words the line (« 84 % atteint », « Dépassé de 1 240 € »); « Voir le suivi » opens the card in
  * the Suivi financier, where the figures and the way back to VAT are.
  */

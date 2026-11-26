@@ -1,4 +1,4 @@
-// Indemnités d'annulation dans l'export comptable — specs/cancellation-compensation.md §3.3.
+// Indemnités d'annulation dans l'export comptable — specs/payments/cancellation-compensation.md §3.3.
 // Money comes IN like an encaissement, but against no séjour: one debit on the client account, one
 // credit on the configured produit account, and a VAT line only if the operator made it taxable.
 
@@ -44,7 +44,7 @@ function freshDb({ vatRate = 0, account = null } = {}) {
   const db = new Database(':memory:');
   db.exec(SCHEMA);
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
-  // The account and its VAT rate are the export's own settings (specs/plugins-phase-2-hosts.md rule 19).
+  // The account and its VAT rate are the export's own settings (specs/plugins/plugins-phase-2-hosts.md rule 19).
   ensurePluginSettingsTable(db);
   createAccountSettings(db).write({ vatRateCancellationCompensation: vatRate, ...(account ? { cancellationCompensationAccount: account } : {}) });
   return { db, compensations: compensationsModel.buildModel(db), accounting: accountingModel.create(db) };
@@ -56,7 +56,7 @@ function banked(env, overrides = {}, receipt = { receivedAmount: 84, receivedDat
   return created;
 }
 
-// specs/cancellation-compensation.md rule 16
+// specs/payments/cancellation-compensation.md rule 16
 test('the trigger case — an 84 € indemnity is one balanced entry, no VAT', () => {
   const env = freshDb();
   banked(env);
@@ -75,14 +75,14 @@ test('the trigger case — an 84 € indemnity is one balanced entry, no VAT', (
   assert.equal(rows[0][PLATFORM], 'Airbnb', 'the payer is reported on the anchor row');
 });
 
-// specs/cancellation-compensation.md rule 14
+// specs/payments/cancellation-compensation.md rule 14
 test('a pending compensation is not accounting — no money moved yet', () => {
   const env = freshDb();
   env.compensations.create(DRAFT);
   assert.deepEqual(env.accounting.compensationsByMonth({ month: 8, year: 2026 }), []);
 });
 
-// specs/cancellation-compensation.md rule 15
+// specs/payments/cancellation-compensation.md rule 15
 test('the month follows the payment date, not the cancelled stay', () => {
   const env = freshDb();
   banked(env, {}, { receivedAmount: 84, receivedDate: '2026-09-02' });
@@ -90,7 +90,7 @@ test('the month follows the payment date, not the cancelled stay', () => {
   assert.equal(env.accounting.compensationsByMonth({ month: 9, year: 2026 }).length, 1);
 });
 
-// specs/cancellation-compensation.md rule 19
+// specs/payments/cancellation-compensation.md rule 19
 test('taxable indemnity (10 %) splits HT / TVA and still balances', () => {
   const env = freshDb({ vatRate: 10 });
   banked(env, {}, { receivedAmount: 84, receivedDate: '2026-08-28' });
@@ -113,7 +113,7 @@ test('a rounding-prone amount still balances to the cent', () => {
   assert.equal(Math.round(sumCredits * 100) / 100, 33.33);
 });
 
-// specs/cancellation-compensation.md rule 19
+// specs/payments/cancellation-compensation.md rule 19
 test('the produit account follows the setting — the entry is built at read time', () => {
   const env = freshDb({ account: '75880100' });
   banked(env);
@@ -121,7 +121,7 @@ test('the produit account follows the setting — the entry is built at read tim
   assert.deepEqual(money(rows, CREDIT), [['75880100', 84]]);
 });
 
-// specs/cancellation-compensation.md rule 17
+// specs/payments/cancellation-compensation.md rule 17
 test('an unnamed client falls back to the compensation id, never to a dead reservation', () => {
   const env = freshDb();
   banked(env, { clientFirstName: '', clientLastName: '' });
@@ -130,7 +130,7 @@ test('an unnamed client falls back to the compensation id, never to a dead reser
   assert.equal(rows[0][ACCOUNT], 'CXXXXX');
 });
 
-// specs/cancellation-compensation.md rule 18
+// specs/payments/cancellation-compensation.md rule 18
 test('the structured preview mirrors the CSV and carries the cancelled stay', () => {
   const env = freshDb();
   banked(env);
@@ -146,7 +146,7 @@ test('the structured preview mirrors the CSV and carries the cancelled stay', ()
   assert.equal(entry.lines[1].accountLabel, "Indemnité d'annulation");
 });
 
-// specs/cancellation-compensation.md rule 20
+// specs/payments/cancellation-compensation.md rule 20
 test('the produit account is classified as revenue, whatever 75xxxx the operator picks', () => {
   assert.equal(__test.classifyLine('75880000'), 'revenue');
   assert.equal(__test.classifyLine('75880100'), 'revenue');

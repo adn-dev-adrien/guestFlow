@@ -1,4 +1,4 @@
-// specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the three paths of the one validity reading
+// specs/devis/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the three paths of the one validity reading
 // that verification R32 found unpinned (mutants m7, m8, m10 survived every devis suite):
 // - m7: an unchanged start keeps its stored date, even after « Validité des devis » changed;
 // - m8: the fiche's preview of a moved devis reads the devis's real creation day, as the save does;

@@ -1,9 +1,9 @@
 /**
  * The first password change, forced while the account still has the default password.
  *
- * The server closes the session on that change (specs/admin-account-management.md §3.3 rule 15), so
+ * The server closes the session on that change (specs/hosting/admin-account-management.md §3.3 rule 15), so
  * the page leaves for the login with the confirmation and the account's email already filled in
- * (specs/plugins-phase-p-productisation.md rule 33), instead of an empty login with no message.
+ * (specs/plugins/plugins-phase-p-productisation.md rule 33), instead of an empty login with no message.
  */
 import React from 'react';
 import { useNavigate } from 'react-router';

@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 17 — a POST that only computes or previews writes nothing, so it does
+// specs/tech/inte-performance.md rule 17 — a POST that only computes or previews writes nothing, so it does
 // not tell the pages their counts moved (the side menu re-reads /properties on that event).
 import { vi } from 'vitest';
 import api from '../api';

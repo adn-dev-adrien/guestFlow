@@ -1,5 +1,5 @@
 /**
- * What the console knows of the instances it runs (specs/hosting-h1-fleet-runtime.md §5): the
+ * What the console knows of the instances it runs (specs/hosting/hosting-h1-fleet-runtime.md §5): the
  * `instances` row of each customer, the fleet updates and their items, the weekly restore checks,
  * the platform's email counters, the redirects of renamed addresses and the host alerts.
  */

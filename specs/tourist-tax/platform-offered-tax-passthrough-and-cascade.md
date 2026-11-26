@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | #302 (extends it) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 1-2 retired (superseded by `specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md` rule 2); only rules 3-7 (no compta change, fiche cascade) are live. The cascade is in `client/src/components/PricingSummary.jsx`, the commission-side figures in `specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md`.
+
 ---
 
 ## 1. Context
@@ -31,7 +33,7 @@ Resolved decisions (AskUserQuestion 2026-06-26): unified model — **engine sepa
 from the brut** (accommodation = 200) **and** **compta books it as a 46710000 pass-through** (visible,
 never CA). Commission button already subtracts the offered tax (shipped earlier on this branch).
 > **2026-08-24 — both halves of that decision are reversed** by
-> `specs/platform-brut-excludes-offered-tourist-tax.md`: neither the engine nor the commission button
+> `specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md`: neither the engine nor the commission button
 > subtracts the offered tax any more, because the brut never contained it. Only the cascade (§3.7)
 > and the « no compta change » conclusion (§3.4-3.6) survive from this spec.
 
@@ -44,20 +46,10 @@ ending on what the operator actually earns.
 ## 3. Functional rules
 
 ### Engine (`pricing.js`)
-1. ~~When a brut is pinned **and** the tax is offered-by-platform (`touristTaxOfferedByPlatform`), the
-   brut→accommodation back-solve subtracts the **original** tourist tax (the pre-zeroing
-   `touristTaxBreakdown.touristTaxTotal`), exactly like the reversed term added by PR #300:
-   `accommodation = max(0, brut − extra-guest − pre-arrival options/resources − reversedTax − offeredTax)`.~~
-   **SUPERSEDED 2026-08-24 by `specs/platform-brut-excludes-offered-tourist-tax.md` rule 2.** The
-   premise below — « the brut the guest paid includes the tax » — is false: the number the operator
-   copies off the statement is what the platform **bills us**, and Gîtes de France, Booking and Airbnb
-   all print it tourist-tax-excluded. Subtracting our own estimate under-stated the CA *and* the
-   commission by that estimate (accountant's report, réservation #22225), and the estimate is never
-   the platform's figure anyway (Booking bills 4,4 % of the stay where we compute a nightly per-person
-   rate). The back-solve now keeps only the `reversedTax` term.
-2. ~~Consequence: `finalPrice` = real accommodation (200), `totalStayPrice` = 200 (offered tax stays 0),
-   net perçu = 200 − commission.~~ **SUPERSEDED with rule 1** — `finalPrice` is now the whole brut.
-   `platformGrossAmount` and `touristTaxOriginalTotal` are still exposed for the cascade.
+1. *(Retired 2026-11-26 — the offered tax is no longer subtracted from the brut: the number on the platform's statement is tax-excluded; see specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md rule 2.)*
+   > **Sans test** — retired rule
+2. *(Retired 2026-11-26 — `finalPrice` is the whole brut; see specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md rule 2. `platformGrossAmount` and `touristTaxOriginalTotal` are still exposed for the cascade.)*
+   > **Sans test** — retired rule
 3. **No change** to direct, reversed (case 1, already handled), owner (case 3), or any booking without
    a brut. The offered tax **amount** is unchanged (still 0 in `touristTaxTotal`, original kept).
 

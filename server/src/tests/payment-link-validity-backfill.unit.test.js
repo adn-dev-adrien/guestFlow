@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 34 — the links already open at the upgrade get 36 hours of grace
+// specs/payments/payment-link-lifecycle.md rule 34 — the links already open at the upgrade get 36 hours of grace
 // from the install: `expiresAt = max(createdAt + 36 h, installedAt + 36 h)`, Qonto's zero-time sentinel and
 // complement links included; paid, cancelled and expired rows untouched; once, logged per link.
 

@@ -2,10 +2,10 @@ import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { renderFinance as renderLedger, dueRow, naRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/accounting-platform-commission-and-no-deposit.md §3.8 rule 25 + §7.3 — a platform without
-// acompte reads « Sans objet » on the acompte row (the server's words, specs/reservation-payment-ledger.md
-// rule 6); its statement fields (brut, per-échéance commissions — specs/platform-per-echeance-commission.md,
-// specs/platform-payment-entry.md) open from the payout row's amount (ledger).
+// specs/accounting/accounting-platform-commission-and-no-deposit.md §3.8 rule 25 + §7.3 — a platform without
+// acompte reads « Sans objet » on the acompte row (the server's words, specs/payments/reservation-payment-ledger.md
+// rule 6); its statement fields (brut, per-échéance commissions — specs/platforms/platform-per-echeance-commission.md,
+// specs/platforms/platform-payment-entry.md) open from the payout row's amount (ledger).
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), computePlatformCommission: vi.fn() } }));
 import api from '../../../api';
@@ -24,7 +24,7 @@ function renderFinance(overrides = {}) {
 
 const openStatement = () => fireEvent.click(within(document.querySelector('[data-row="balance"]')).getByRole('button', { name: /Modifier le montant/ }));
 
-// specs/booking-extranet-intake.md §4.1 — the commission is computed by the server; the button only
+// specs/platforms/booking-extranet-intake.md §4.1 — the commission is computed by the server; the button only
 // sends the figures and writes back what it answers, applied with the statement on « Valider ».
 async function calculate(ctx) {
   api.computePlatformCommission.mockResolvedValueOnce({ commission: 123.45 });
@@ -63,7 +63,7 @@ test('platform reservation: the payout row is the single encaissement, « Marque
   expect(screen.getByRole('button', { name: /^Marquer reçu/ })).toBeInTheDocument();
 });
 
-// specs/platform-deposit-toggle.md — « Acompte = Oui »: the commission of the acompte is a statement field.
+// specs/platforms/platform-deposit-toggle.md — « Acompte = Oui »: the commission of the acompte is a statement field.
 test('platform « Acompte = Oui »: the statement editor offers the acompte commission', () => {
   renderFinance({ form: { platform: 'Lodgify' }, pricingQuote: { platformTakesDeposit: true } });
   openStatement();
@@ -112,7 +112,7 @@ test('the reconciliation chip comes from the server, on the payout row', () => {
   expect(screen.getByText('écart : 26,00 €')).toBeInTheDocument();
 });
 
-// specs/platform-payment-calculer-button.md — « Calculer la commission » on demand, from the statement.
+// specs/platforms/platform-payment-calculer-button.md — « Calculer la commission » on demand, from the statement.
 test('« Calculer la commission »: disabled until the montant client is filled', () => {
   renderFinance({ form: { platform: 'GitesDeFrance', platformPayoutAmount: 520 } });
   openStatement();
@@ -129,7 +129,7 @@ test('« Calculer la commission »: sends an already-entered acompte commission'
   await calculate(ctx);
 });
 
-// specs/platform-brut-excludes-offered-tourist-tax.md rule 3 — the engine's tax estimate is never sent.
+// specs/tourist-tax/platform-brut-excludes-offered-tourist-tax.md rule 3 — the engine's tax estimate is never sent.
 test('« Calculer la commission »: the engine\'s tax estimate is never sent (platform collects and remits)', async () => {
   const ctx = renderFinance({
     form: { platform: 'Airbnb', platformGrossAmount: 600, platformPayoutAmount: 520 },

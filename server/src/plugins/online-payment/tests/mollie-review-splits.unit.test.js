@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 1, 2, 8 — which payments are split and how a split follows its
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 1, 2, 8 — which payments are split and how a split follows its
 // source: a complement link on the row the ledger draws, a card payment recorded on site corrected with the data (never with a
 // setting), a basket link with no ledger row of its own. Fictional data, dates relative to today.
 const test = require('node:test');

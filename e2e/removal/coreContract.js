@@ -1,4 +1,4 @@
-// The core's API contract for the removal matrix (specs/plugin-removal-resilience.md rule 9): every
+// The core's API contract for the removal matrix (specs/plugins/plugin-removal-resilience.md rule 9): every
 // endpoint answers 200 with its documented top-level keys (`keys`) or as a list (`array`), whichever
 // plugin is gone. One entry per read the core pages make.
 const pad = (n) => String(n).padStart(2, '0');

@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 61 (verification R44 L3) — the sum kept reaches every sender of a
+// specs/payments/payment-schedule-and-cancellation.md rule 61 (verification R44 L3) — the sum kept reaches every sender of a
 // guest e-mail, not only `reservationEmailSender`: the fiche's preview and manual send (`loadReservationGraph`, the
 // emails controller) and the daily auto pass (`emailAutoSendRunner`). Removing `cancellationKept` from either fails here.
 process.env.DB_PATH = ':memory:';

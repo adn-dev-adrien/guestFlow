@@ -1,5 +1,5 @@
 /**
- * Cleaning ("Ménage") option tagger (specs/j1-arrival-reminder-email.md §4.1 + §5).
+ * Cleaning ("Ménage") option tagger (specs/emails/j1-arrival-reminder-email.md §4.1 + §5).
  *
  * The J-1 reminder needs to know whether a reservation booked the end-of-stay cleaning. The
  * operator already has a "Ménage" option, but it carries no `autoOptionType`, so it can't be

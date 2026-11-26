@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 102 (stabilisation loop t2, N-1 to N-6, 2026-11-16) — one moment per gesture: the stay clock decides the fiche
+// specs/pricing/pricing-components.md §3 rule 102 (stabilisation loop t2, N-1 to N-6, 2026-11-16) — one moment per gesture: the stay clock decides the fiche
 // lock, the moment of a sale, the extras baseline, the arrival SAS and the change of an order at the door, at the `now` the caller injects (the wall
 // clock of this suite is weeks before the stays). Every stay below is booked 20 days ahead (`saleRound1Fixtures`, check-in 15:00).
 process.env.DB_PATH = ':memory:';

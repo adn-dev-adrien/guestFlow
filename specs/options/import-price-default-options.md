@@ -7,7 +7,7 @@
 | **Created** | 2026-07-03 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Extends** | [arrival-departure-sas.md](arrival-departure-sas.md) _(unrelated)_, iCal sync in `propertyIcalModel.js` |
+| **Extends** | [arrival-departure-sas.md](../sas/arrival-departure-sas.md) _(unrelated)_, iCal sync in `propertyIcalModel.js` |
 
 ---
 
@@ -21,14 +21,14 @@ correct figures.
 
 **Root cause (confirmed by code read + adversarial verification).** The import create path attaches
 the property defaults via `applyPropertyOptionDefaults` in
-[`propertyIcalModel.js:307-339`](../server/src/models/propertyIcalModel.js#L307-L339). Its INSERT
-statement [`propertyIcalModel.js:326-329`](../server/src/models/propertyIcalModel.js#L326-L329) writes
+[`propertyIcalModel.js:307-339`](../../server/src/models/propertyIcalModel.js#L307-L339). Its INSERT
+statement [`propertyIcalModel.js:326-329`](../../server/src/models/propertyIcalModel.js#L326-L329) writes
 `VALUES (?, ?, 1, 0, 0, ?, 0, ?)` — `quantity`, `unitPrice`, `billedUnits`, `totalPrice` are **SQL
 literals**; only `optionId`, `priceType` and `offered` are bound. So a paid default lands with all
 money fields at 0, identical to a free (`offered = 1`) default. The pricing engine
-(`calculateReservationQuote`, [`pricing.js:917`](../server/src/utils/pricing.js#L917)) is **never
+(`calculateReservationQuote`, [`pricing.js:917`](../../server/src/utils/pricing.js#L917)) is **never
 called** at import. The load-time SQL fallback in `getByIdWithDetails`
-([`reservationsModel.js:322-326`](../server/src/models/reservationsModel.js#L322-L326)) cannot rescue
+([`reservationsModel.js:322-326`](../../server/src/models/reservationsModel.js#L322-L326)) cannot rescue
 it either: `billedUnits` was persisted as a literal `0` (not NULL), so
 `COALESCE(billedUnits, quantity, 0)` short-circuits to 0 → `price × 0 = 0`.
 
@@ -38,7 +38,7 @@ it either: `billedUnits` was persisted as a literal `0` (not NULL), so
 the real `unitPrice`/`billedUnits`/`totalPrice`. Reopening reads those non-zero values.
 
 The current 0-pricing is **deliberate at the reservation level** (comment
-[`propertyIcalModel.js:300-306`](../server/src/models/propertyIcalModel.js#L300-L306): "iCal
+[`propertyIcalModel.js:300-306`](../../server/src/models/propertyIcalModel.js#L300-L306): "iCal
 reservations stay unpriced — the platform handles payment"). That intent is correct for the
 **reservation totals** (a platform booking's owner-net is not the rate-card price), but it wrongly
 also zeroes the **option lines**, which the operator does need to see.
@@ -59,11 +59,11 @@ default follows the new number of nights). The reservation-level totals
    and persist the engine-computed `quantity` / `unitPrice` / `billedUnits` / `totalPrice` on each
    `reservation_options` row — instead of literal zeros.
 2. **Free defaults stay free.** Pass `offeredOptionIds = [defaults where offered = 1]` so
-   `applyOfferedToLine` ([`pricing.js:673-680`](../server/src/utils/pricing.js#L673-L680)) zeroes their
+   `applyOfferedToLine` ([`pricing.js:673-680`](../../server/src/utils/pricing.js#L673-L680)) zeroes their
    `totalPrice` while keeping `unitPrice`/`originalTotalPrice` — exactly as a save does. `offered`
    persists as 1.
 3. **Per-property prices honoured.** The engine reads `property_option_prices` (override) else the
-   option base price ([`pricing.js:690,697`](../server/src/utils/pricing.js#L690)); no extra work.
+   option base price ([`pricing.js:690,697`](../../server/src/utils/pricing.js#L690)); no extra work.
 4. **Stay-driven quantity.** The engine computes `billedUnits = quantity × getTypeMultiplier(priceType,
    persons, nights)`. `nights` comes from the imported dates; `persons` from `event.adults` (children/
    teens/babies = 0, matching the values the import row itself stores). This reproduces exactly what a

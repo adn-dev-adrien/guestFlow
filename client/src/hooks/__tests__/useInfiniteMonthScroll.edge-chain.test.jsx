@@ -1,4 +1,4 @@
-// Spec: specs/cumulative-month-calendar.md rule 6 — the infinite scroll must not stall at its end when an
+// Spec: specs/planning/cumulative-month-calendar.md rule 6 — the infinite scroll must not stall at its end when an
 // appended month is shorter than the edge threshold (empty mobile agenda, fast wheel notch).
 import { act, renderHook } from '@testing-library/react';
 import useInfiniteMonthScroll from '../useInfiniteMonthScroll';

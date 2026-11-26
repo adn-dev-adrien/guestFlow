@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 5, 21 and 35 (R35-S2, R35-DB-M3, R35-M-M1) — the VAT of a
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 5, 21 and 35 (R35-S2, R35-DB-M3, R35-M-M1) — the VAT of a
 // resource booking, on a real core database: a walk-in guest takes the « TVA des ventes hors séjour » setting, a booking
 // on a stay its stay's rate, an instance out of VAT none. Once paid, the rate is frozen with the payment: the journal and
 // the invoice keep it whatever the setting or the VAT period says later; an unpaid booking's preview follows them.

@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 33 — after the forced first password change, the login
+// specs/plugins/plugins-phase-p-productisation.md rule 33 — after the forced first password change, the login
 // opens with its confirmation and the account's email filled in.
 import React from 'react';
 import { vi } from 'vitest';

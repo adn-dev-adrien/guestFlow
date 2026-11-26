@@ -1,4 +1,4 @@
-// The platform statement written outside the fiche save (specs/platform-statement-after-payout.md): on a received
+// The platform statement written outside the fiche save (specs/platforms/platform-statement-after-payout.md): on a received
 // payout or a locked fiche, the brut, the tax the platform kept and the commissions are corrected in one
 // transaction, the stay is never re-priced, and the correction is traced.
 

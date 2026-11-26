@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rule 12 — the logement calendar draws a closure like a stay: hatched on
+// specs/planning/calendar-property-parity.md rule 12 — the logement calendar draws a closure like a stay: hatched on
 // the second half of its first day, on the first half of its reopening day, all day between; the free half of
 // the reopening day still starts a selection.
 import React from 'react';

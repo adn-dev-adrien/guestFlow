@@ -1,5 +1,5 @@
 /**
- * The official plugin registry (specs/plugins-phase-4-registry.md rules 6–8, P23).
+ * The official plugin registry (specs/plugins/plugins-phase-4-registry.md rules 6–8, P23).
  *
  * The operator uploads `<id>-<version>.tgz` packages from the console page « Registre ». Each is read
  * with GuestFlow's own checks — the archive's members (rule 1) and the manifest (rule 2) — so a

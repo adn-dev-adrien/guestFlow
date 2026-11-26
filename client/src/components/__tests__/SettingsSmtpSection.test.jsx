@@ -1,7 +1,7 @@
 /**
  * SettingsSmtpSection — « Envoi » card of Paramètres → Emails & notifications.
  * Pure presentational: drives onChange / onChangePassword / onSendTest callbacks.
- * See specs/admin-account-management.md M3 and specs/settings-rationalization.md rules 11-12.
+ * See specs/hosting/admin-account-management.md M3 and specs/settings/settings-rationalization.md rules 11-12.
  */
 
 import React from 'react';
@@ -51,7 +51,7 @@ test('an override is shown as typed, with a way back to the derived value', () =
   expect(screen.getByRole('button', { name: 'Revenir à la valeur déduite' })).toBeInTheDocument();
 });
 
-// specs/settings-rationalization.md rule 11 — the port is not entered: it follows the security mode.
+// specs/settings/settings-rationalization.md rule 11 — the port is not entered: it follows the security mode.
 test('rule 11: there is no port field; the port in use is stated under the security select', () => {
   renderSection();
   expect(screen.queryByLabelText('Port')).not.toBeInTheDocument();

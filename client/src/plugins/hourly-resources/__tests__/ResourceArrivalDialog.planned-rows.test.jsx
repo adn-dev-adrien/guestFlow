@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 56 (d) (stabilisation loop t4 B4-6) — while a draft is typed, the open rows shown are the quote's: the amounts the commit
+// specs/sas/outside-booking-sas.md rule 56 (d) (stabilisation loop t4 B4-6) — while a draft is typed, the open rows shown are the quote's: the amounts the commit
 // will leave them (a 13 € link surplus that pays the beer being added reads 6,50 €), and « Marquer remboursé » waits for the draft to be saved — the stored
 // row is not what the screen shows. Loop t6 UI6-4 — the caption under the rows names the modifications, whatever made the draft dirty.
 import React from 'react';

@@ -1,5 +1,5 @@
 // A fiche with a custom line saves without inventing an options change
-// (specs/reservation-history-granular-diff.md rule 12).
+// (specs/reservations/reservation-history-granular-diff.md rule 12).
 //
 // The stored snapshot keyed custom lines `1_000_000 + rank among custom lines`, the payload snapshot
 // `2_000_000 + rank among ALL option lines`. The two never matched, so every save of a fiche carrying

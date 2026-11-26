@@ -1,5 +1,5 @@
 /**
- * The head's call of a plugin-owned family (specs/pricing-components.md §3 rules 5, 47; specs/plugins-phase-3c-hourly-resources.md
+ * The head's call of a plugin-owned family (specs/pricing/pricing-components.md §3 rules 5, 47; specs/plugins/plugins-phase-3c-hourly-resources.md
  * rules 1-4, 18) — the safety the engine always applied to what a plugin answers: pricing never fails because of a plugin.
  *
  * `contributionOf(family, config, request, stay, logger)` asks the family for the line and returns

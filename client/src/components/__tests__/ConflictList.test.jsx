@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 40, 41, 49 — ConflictList prints the records a refusal or a warning
+// specs/payments/payment-link-lifecycle.md rules 40, 41, 49 — ConflictList prints the records a refusal or a warning
 // names, the server's label and detail, one « Ouvrir » per row (new tab on desktop, in place on a phone).
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

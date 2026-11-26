@@ -12,7 +12,7 @@
 
 > **See also (2026-08-01):** this tarif page now also hosts **calendar season painting** — select a
 > period on the season calendar to (re)assign it to a season (existing or new) with a per-range minimum
-> nights, splitting the covering season server-side. See `specs/pricing-min-nights-per-range.md`.
+> nights, splitting the covering season server-side. See `specs/pricing/pricing-min-nights-per-range.md`.
 
 ## 1. Context
 
@@ -25,7 +25,7 @@ be **grossed up** so that, after commission, the owner still nets the season pri
 Today there's no help for this: the owner computes it by hand. Two facts from the codebase:
 - The set of platforms is already **aggregated from the properties' iCal imports**: `platformsModel`
   seeds the `platforms` table at boot from `SELECT DISTINCT platformLabel FROM ical_sources`
-  ([platformsModel.js:101](../server/src/models/platformsModel.js#L101)) and tops it up on every iCal
+  ([platformsModel.js:101](../../server/src/models/platformsModel.js#L101)) and tops it up on every iCal
   source change. So the platform name list the operator wants **already exists**.
 - No commission **rate** is stored per platform (a `commissionRatePercent` column existed but was dropped
   as "informational only, never used"). The accounting only derives commission **after the fact**
@@ -72,7 +72,7 @@ owner nets the season's price/night. The commission % is entered per platform an
    seasons scroll sideways.
 
 8. **The grid is also the reference of the fiche's price check** (2026-10-28,
-   [reservation-payment-ledger.md](reservation-payment-ledger.md) rules 58-63). A platform stay whose
+   [reservation-payment-ledger.md](../payments/reservation-payment-ledger.md) rules 58-63). A platform stay whose
    price is far below (−15 %) or above (+25 %, and at least 30 €) what this grid lists for its channel
    and nights raises one alert on the pricing summary. The check reads the cells `platformPrices()`
    returns — nothing here changes.
@@ -185,6 +185,6 @@ The `direct` platform keeps `0` and is never shown in this feature.
   persisting the global per-platform rate.
 - **Q2 — rounding granularity?** → **2 decimals** (cents), consistent with the engine.
 
-> **Amended 2026-10-28 by settings-input-guards** (specs/settings-input-guards.md rules 30, 48): a commission outside
+> **Amended 2026-10-28 by settings-input-guards** (specs/settings/settings-input-guards.md rules 30, 48): a commission outside
 > 0–99.99, with more than two decimals or not a number is refused (400 on the legacy `PUT /platforms/:id/commission`,
 > `null` from `platformsModel.setCommissionPercent`), never clamped.

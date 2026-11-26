@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 10, 11, 31, 32 — an unpaid devis or reservation whose nights a stay holding
+// specs/payments/payment-link-lifecycle.md rules 10, 11, 31, 32 — an unpaid devis or reservation whose nights a stay holding
 // its dates now covers loses its open links (`dates-taken`, deactivation owed), and no link is minted on it again
 // (409 DATES_UNAVAILABLE). Every way such a stay can appear withdraws: iCal import or re-date, conversion of the
 // other devis by its payment, an acompte recorded, a manual creation or save, « Rétablir », an approved iCal drift.

@@ -1,4 +1,4 @@
-// The books after a cancellation (specs/payment-schedule-and-cancellation.md §3.6 rules 30-34).
+// The books after a cancellation (specs/payments/payment-schedule-and-cancellation.md §3.6 rules 30-34).
 //
 // The acompte was booked as a séjour encaissement, with hébergement VAT, in a month that may already
 // be at the accountant's. That month must not change. The cancellation books the requalification in

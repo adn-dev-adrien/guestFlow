@@ -1,5 +1,5 @@
 /**
- * STEP midStay — SETTLEMENT (specs/pricing-components.md §3 rule 52).
+ * STEP midStay — SETTLEMENT (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Splits the extras sold during the stay from the pre-arrival ones and sums the accommodation base and the
  * subtotal.
@@ -47,7 +47,7 @@ const step = {
       ? baselineWithDerivedLines(ctx.clock.arrivalExtrasBaseline, finalOptionLines.filter(unpricedAtArrival))
       : ctx.clock.arrivalExtrasBaseline;
 
-    // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2-§3.3 — what exceeds the arrival baseline
+    // specs/sas/mid-stay-extras-to-end-of-stay-complement.md §3.2-§3.3 — what exceeds the arrival baseline
     // was sold DURING the stay: it belongs to the end-of-stay complement, so it is pulled out of the
     // pre-arrival split (`midStayUnforced`) and out of the arrival complement (`midStayForced`) below.
     // Once that complement is collected the split is frozen on the STORED lines: the collected money

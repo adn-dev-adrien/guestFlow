@@ -1,4 +1,4 @@
-// specs/breakfast-offer-price-server-side.md rules 1-3 — the price of one breakfast morning that the
+// specs/options/breakfast-offer-price-server-side.md rules 1-3 — the price of one breakfast morning that the
 // arrival SAS offer page shows comes from the server, priced by the very function the sale is billed with.
 
 const test = require('node:test');
@@ -71,7 +71,7 @@ test('rule 12 — additive: the offer keeps every earlier field and the SDK rang
   ['available', 'optionId', 'unitPrice', 'perPerson', 'defaultPersons', 'selectedPersons', 'maxPersons', 'mornings']
     .forEach((key) => assert.ok(key in b, key));
   // The breakfast price added no SDK entry point; the range later moved to ^2.5.0 for another reason
-  // (specs/airbnb-no-checkout-chores.md rule 8), so only « a range the running SDK satisfies » is pinned.
+  // (specs/platforms/airbnb-no-checkout-chores.md rule 8), so only « a range the running SDK satisfies » is pinned.
   const manifest = require('../plugins/sas/manifest.json');
   const { SDK_VERSION } = require('../plugins/sdk/version');
   assert.ok(require('semver').satisfies(SDK_VERSION, manifest.sdk), 'the running SDK satisfies the plugin range');

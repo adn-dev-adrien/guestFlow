@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.C rules 12–17 — a brand-new database starts neutral: no
+// specs/plugins/plugins-phase-p-productisation.md §3.C rules 12–17 — a brand-new database starts neutral: no
 // catering, no pool, a free baby cot, neutral sequence emails, no extinguisher row, an unsubscribe
 // page in the company's name.
 

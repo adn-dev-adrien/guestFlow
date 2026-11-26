@@ -1,4 +1,4 @@
-// specs/ical-sync-mapping-resilience.md rule 8 (audit R5-1) — an observation older than one already applied
+// specs/platforms/ical-sync-mapping-resilience.md rule 8 (audit R5-1) — an observation older than one already applied
 // is dropped, and two empty answers confirm each other only when the second fetch started after the first
 // completed. syncMany prefetches every feed at t0 but applies them one after the other, so a feed can reach
 // its turn after a fresher operator sync of the same source.

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 5–6 reworded: the fiche shows the gross « Total du séjour » and ends on « Total perçu sur le séjour » (= `sejourNetTotal`), per `specs/tourist-tax/platform-offered-tax-passthrough-and-cascade.md` rule 7 (`PricingSummary.jsx:966-985`).
+
 ---
 
 ## 1. Context
@@ -58,9 +60,11 @@ Plateforme ». Accounting and HT/TVA figures are untouched.
 ### Fiche display (`PricingSummary.js`)
 4. **Move** the « Complément à percevoir » line so it renders **right after « Taxe de séjour »**
    (before the HT/TVA block), instead of at the bottom.
-5. **« Total du séjour TTC »** shows `sejourNetTotal` (net of commission).
-6. Add a line **« Montant soumis à commission »** = the brut (`platformGrossAmount`) **right after**
-   « Total du séjour TTC », shown only when a brut exists (platform reservation with a brut entered).
+5. *(Reworded 2026-11-26.)* **« Total du séjour »** is the GROSS again; `sejourNetTotal` is shown on the last
+   line of the cascade, **« Total perçu sur le séjour »**
+   (`specs/tourist-tax/platform-offered-tax-passthrough-and-cascade.md` rule 7, `PricingSummary.jsx`).
+6. *(Reworded 2026-11-26.)* **« Montant soumis à commission »** (the brut) sits in the cascade after the
+   deductions (tourist tax, on-site compléments), shown only when one of those applies.
 7. Rename **« Net perçu TTC » → « Versement Plateforme »** (value unchanged = `platformNetReceivedAmount`).
 8. HT / TVA lines unchanged (the complement extras are already included; guard with a test).
 

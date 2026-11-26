@@ -9,9 +9,11 @@
 | **Created** | 2026-08-11 |
 | **Author** | Adrien |
 | **Source document** | `tarifs_aventura_lodge_2026_2.md` (11 Aug 2026 revision) |
-| **Companion files** | [architecture.md](architecture.md) · [plan.md](plan.md) |
-| **Amends** | [platform-price-from-commission.md](../platform-price-from-commission.md), [pricing-min-nights-per-range.md](../pricing-min-nights-per-range.md), [per-property-default-options.md](../per-property-default-options.md) |
+| **Companion files** | none — the architecture and plan files were folded into §4 on 2026-11-26 |
+| **Amends** | [platform-price-from-commission.md](../platforms/platform-price-from-commission.md), [pricing-min-nights-per-range.md](pricing-min-nights-per-range.md), [per-property-default-options.md](../options/per-property-default-options.md) |
 | **Related PR** | _(opened at the end of implementation)_ |
+
+> **Reviewed 2026-11-26 (spec reorganization).** §4 now carries the current code map (the engine lives in `server/src/plugins/tariff-recipes/`) and the API contract, folded from the retired architecture/plan companions; rule 26's local directory corrected.
 
 ---
 
@@ -46,10 +48,10 @@ rule, not a list of dates — and a rule can be applied to 2027 without anyone d
 | Piece | Where |
 |---|---|
 | Seasons with date ranges, colours, progressive tiers | `pricing_rules` + [PropertyPricingSeasonsPage.jsx](../../client/src/pages/PropertyPricingSeasonsPage.jsx) |
-| Minimum nights **per season and per date range** | [pricing-min-nights-per-range.md](../pricing-min-nights-per-range.md), enforced at save with a force-override |
+| Minimum nights **per season and per date range** | [pricing-min-nights-per-range.md](pricing-min-nights-per-range.md), enforced at save with a force-override |
 | French public holidays, computed | [frenchHolidays.js](../../server/src/utils/frenchHolidays.js) |
-| Per-property closures | [establishment-closures.md](../establishment-closures.md) |
-| Net-target → channel price gross-up | [platform-price-from-commission.md](../platform-price-from-commission.md) |
+| Per-property closures | [establishment-closures.md](establishment-closures.md) |
+| Net-target → channel price gross-up | [platform-price-from-commission.md](../platforms/platform-price-from-commission.md) |
 | « Comprise dans le tarif » option tagging | [pricing.js:1387](../../server/src/utils/pricing.js#L1387) |
 
 **What is missing.** Five gaps, four of them in the pricing engine and one structural:
@@ -74,7 +76,7 @@ priced by the configured curve.
 **Deliberate departure from the source document.** It asks to *delete* the linen and cleaning
 supplements. We keep them and mark them **included in the rate**: the laundry engine counts bed and
 bath linen **only from the option ticked on the reservation**
-([laundry-counts-explicit-option-only.md](../laundry-counts-explicit-option-only.md)), so deleting them
+([laundry-counts-explicit-option-only.md](../linen/laundry-counts-explicit-option-only.md)), so deleting them
 would silently drop the Lodge to zero sheets — and their reference value is exactly what we need to
 deduct from the tourist-tax base.
 
@@ -159,6 +161,17 @@ all-inclusive pricing as the first such recipe.
     daily tick with an idempotent no-op when the horizon is covered — equivalent to a monthly check,
     and simpler than tracking a last-run date.)
 
+12bis. **A reservation is priced by the tariff it was sold under.** Changing a recipe never re-prices
+    what is already stored, even when the reservation is opened and saved again. The nights and the
+    option lines were already frozen per date and per line; the property-level tariff (included guests,
+    extra-guest price and unit) is frozen too, in the reservation's `tariffSnapshot`, written when the
+    reservation is created. _(Written down 2026-11-26: tests and rules 58 and 62 cited it since the
+    extra-guest tiers shipped, but the line was missing from this section.)_
+12ter. **The reservations sold before the snapshot existed are stamped once.** A one-shot migration in
+    `database.js` writes each existing reservation's `tariffSnapshot` from its property's tariff at the
+    time of the migration, so the next save after a recipe change does not re-price them. _(Written
+    down 2026-11-26, like rule 12bis.)_
+
 ### 3.3 The calendar language
 
 13. **A base season paints the whole year**, and periods paint over it in declaration order. Last write
@@ -179,14 +192,14 @@ all-inclusive pricing as the first such recipe.
 15bis. **The raise stops at `capSeason`, or at the top rank when none is declared.** A grid whose
     highest season is a peak-summer price cannot let a holiday reach it: on the Gîte, whose top rank
     is Très haute at 538 €/night, an uncapped raise sells 25 December and 1 January at the August
-    rate ([tariff-recipe-gite](../tariff-recipe-gite/spec.md) §3.3 rule 13). `capSeason` names the
+    rate ([tariff-recipe-gite](tariff-recipe-gite.md) §3.3 rule 13). `capSeason` names the
     season the raise may not exceed; absent, the ceiling stays the highest declared rank, which is
     what every recipe written before the field carried — the Lodge included, whose cap already *is*
     its top rank. An unknown key is refused at load rather than ignored.
 15ter. **A cap never moves a night DOWN.** The night's own rank is a floor: 14 juillet and 15 août
     sit inside the summer core, above any sane cap, and the naive `min(cap, rank + amount)` would
     quietly demote them — 624 € over 2026 on the Gîte. They keep their price and take only the
-    block's minimum stay, which is rule 16ter's behaviour for a night already at the ceiling.
+    block's minimum stay, which is rule 16d's behaviour for a night already at the ceiling.
 16. **A public-holiday block is the run of consecutive non-working days around the holiday, minus its
     last day** — the guest checks out that morning:
 
@@ -209,7 +222,7 @@ all-inclusive pricing as the first such recipe.
     guest arriving Friday evening for two nights. Declared as `minNights: "block"` on the modifier
     (an integer forces a fixed value; absent imposes nothing, which is what a recipe without the
     setting keeps).
-16quater. **A block minimum RAISES a season's, it never lowers it.** The minimum written on a raised
+16c. **A block minimum RAISES a season's, it never lowers it.** The minimum written on a raised
     night is `max(block length, period override — or, when the period declares none, the night's own
     season minimum)` (rule 19bis), and it is recorded only when it exceeds what the season already
     demands, or when a period declares its own (rule 19bis) — otherwise every raised night would split
@@ -218,7 +231,7 @@ all-inclusive pricing as the first such recipe.
     4, making those three days the only ones in the entire summer where a shorter stay was bookable.
     A « pont » is a floor for a season that has none, not a licence inside one that has a higher one.
 
-16ter. **The minimum applies even where the rank cannot rise.** A block already at the top rank —
+16d. **The minimum applies even where the rank cannot rise.** A block already at the top rank —
     14 juillet, always inside high season — is not raised, but still carries its minimum and
     therefore still splits the range. Two overlapping blocks resolve to the longer one, and neither
     raises the same night twice.
@@ -251,7 +264,7 @@ all-inclusive pricing as the first such recipe.
 
 20. **Minimum nights already exist per season and per date range** and keep their current semantics: a
     range override wins over the season default, and the requirement over a stay is the maximum across
-    the nights it touches ([pricing-min-nights-per-range.md](../pricing-min-nights-per-range.md)). A
+    the nights it touches ([pricing-min-nights-per-range.md](pricing-min-nights-per-range.md)). A
     recipe simply declares them.
 20bis. **A season may cap the stay length.** `maxNights` is the exact mirror of the minimum: declared
     per season, overridable per date range, and **absent/NULL = unlimited**, which is what every
@@ -272,7 +285,7 @@ all-inclusive pricing as the first such recipe.
     *2026-10-27 audit:* the escape hatch is the back-office's alone. The website's public path
     refuses a maximum-stay or changeover breach like a minimum-stay one (`409 MAX_NIGHTS` /
     `CHANGEOVER`), its quote and calendar say so first, and its payment re-checks them —
-    [public-api.md](../public-api.md) rule 12. It used to refuse the minimum only.
+    [public-api.md](../site/public-api.md) rule 12. It used to refuse the minimum only.
 24. **iCal imports are never blocked by either rule.** A platform booking that violates the constraint
     is a fact to record, not a request to validate; it imports and is flagged, as today for minimum
     nights.
@@ -294,7 +307,8 @@ all-inclusive pricing as the first such recipe.
 ### 3.5 Where recipes live, and how they are updated
 
 26. **Two sources, in order: the repository, then a data directory.** Recipes shipped with GuestFlow
-    live in the repo. A directory outside it — `data/recipes/` on the Pi — is read afterwards and its
+    live in the repo (`server/src/plugins/tariff-recipes/recipes/`). A directory outside it — `recipes/` next to the database
+    file, or `GUESTFLOW_RECIPES_DIR` — is read afterwards and its
     recipes are added to the list; a recipe there with the same `id` **overrides** the bundled one.
     Dropping a file in that directory is therefore enough to update a recipe, with no release.
 27. **Recipes are validated at load**, and an invalid one is rejected individually with its error — it
@@ -442,12 +456,12 @@ all-inclusive pricing as the first such recipe.
     already renders « Comprise » at 0 € ([pricing.js:1387](../../server/src/utils/pricing.js#L1387)).
     They are never billed on top of the nightly rate, on any channel.
 48. ~~**Their reference value is deducted from the tourist-tax base.**~~ **Repealed 2026-08-20** by
-    [tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md), then
+    [tourist-tax-base-accommodation-only.md](../tourist-tax/tourist-tax-base-accommodation-only.md), then
     **reinstated in a new form 2026-08-22** — see 48ter. The original rule was scaled `per_person` for
     the linen lines, so the declared base shrank as the party grew, and it only applied once the
     operator had actually ticked the line: two identical stays could declare different amounts.
 48ter. **Their reference value leaves the tourist-tax base, as a per-stay forfait**
-    ([tourist-tax-included-services-deduction.md](../tourist-tax-included-services-deduction.md)).
+    ([tourist-tax-included-services-deduction.md](../tourist-tax/tourist-tax-included-services-deduction.md)).
     Cleaning and linen are sold INSIDE the night rate, so the dry night the commune taxes is the
     accommodation charged minus what the rate already covers. Two guards make it stable, which is what
     48 lacked: the person factor is `basePriceIncludedGuests` (2 on the Lodge) and **never** the real
@@ -539,7 +553,7 @@ all-inclusive pricing as the first such recipe.
 - Included options worth more than the accommodation on a very short discounted stay → tax base floored
   at 0, never negative.
 - Past reservation with a frozen tourist tax
-  ([tourist-tax-freeze-past-with-refresh.md](../tourist-tax-freeze-past-with-refresh.md)) → the frozen
+  ([tourist-tax-freeze-past-with-refresh.md](../tourist-tax/tourist-tax-freeze-past-with-refresh.md)) → the frozen
   amount wins; the deduction does not rewrite an already-declared tax.
 - Platform reservation with `platformGrossAmount` set → the pinned gross drives the tax base, minus the
   included-option deduction.
@@ -662,7 +676,7 @@ all-inclusive pricing as the first such recipe.
 ---
 
 68. **A tariff change alone never raises the fiche's stored-amounts switch** (2026-10-28,
-    [reservation-payment-ledger.md](reservation-payment-ledger.md) rule 57). The snapshot of rule 12bis is
+    [reservation-payment-ledger.md](../payments/reservation-payment-ledger.md) rule 57). The snapshot of rule 12bis is
     replayed, so re-applying a recipe leaves `storedDrift` false; and a platform stay is compared with the
     « Prix plateformes » grid of its channel (rules 31-34bis), never with the direct tariff, so a recipe
     change that moves the grid moves the check only for the nights priced on today's seasons.
@@ -687,7 +701,33 @@ all-inclusive pricing as the first such recipe.
 
 ## 4. Architecture
 
-Full code map in [architecture.md](architecture.md). Summary:
+**Current code map (2026-11-26).** The recipe engine is the `tariff-recipes` plugin; the pricing changes of
+Part B stay in core.
+
+- `server/src/plugins/tariff-recipes/` — `store.js` (load both sources, validate, resolve overrides, rules 26-27),
+  `seasonPlan.js` (pure: recipe + year → season ranges, rules 13-19), `model.js` (diff and transactional apply,
+  rules 8-12, 64), `controller.js` (thin), `horizon.js` (daily horizon pass, rule 12), `attention.js` (Dashboard
+  alert), `labels.js`, `platformCleaningFee.js`, `index.js` (routes + the `tariff_recipe_runs` migration),
+  `recipes/*.json` (the bundled recipes: data, no code).
+- `server/src/utils/changeover.js` — pure arrival/departure weekday check (rules 21-24).
+  `server/src/utils/pricing.js` and `utils/pricing/platformPrice.js` — extra-guest per night, tier carry-forward,
+  `grossFromNet`; `models/propertiesModel.js` `platformPrices`; `database.js` — the §5 columns, idempotent.
+- `client/src/plugins/tariff-recipes/` — `TariffRecipesPage.jsx` (browser), `TariffRecipeCard.jsx` (card + apply
+  preview dialog), `TariffRecipeRunsAlert.jsx`; core `PropertyPricingSeasonsPage.jsx` hosts the card, the calendar
+  markers + legend and the widened platform grid; `components/PricingSummary.jsx` renders the extra-guest, tax-base
+  and changeover lines.
+- **API** (all behind auth, apply admin-only): `GET /api/tariff-recipes` (`{ recipes[], invalid[] }`),
+  `GET /api/tariff-recipes/:id`, `GET /api/properties/:id/tariff-recipe/preview?recipeId=`,
+  `POST /api/properties/:id/tariff-recipe/apply` (`409` when blocking) and `.../detach`,
+  `GET/POST/DELETE /api/tariff-recipes/journal` (see `specs/pricing/tariff-change-journal.md`), `GET /api/tariff-recipes/runs`
+  + `POST .../runs/:runId/dismiss`. `POST /api/reservations/calculate-price` returns `changeoverBreached`,
+  `requiredArrivalWeekday`, `requiredDepartureWeekday`; reservation writes answer `409 { code: 'CHANGEOVER' }`
+  unless `forceChangeover` (mirrors `forceMinNights`).
+- **Production configuration** is a script in the deployment's private repository (since 2026-10-19), dry-run by
+  default, scoped to one property by name; it covers what a recipe deliberately does not (rule 6) and then calls the
+  model's apply, so the calendar keeps one implementation.
+
+Original summary:
 
 - **Server** — a new `utils/tariffRecipe.js` (load, validate, resolve sources) and `utils/seasonPlan.js`
   (pure derivation of a year's ranges from a recipe), a new `models/tariffRecipeModel.js` (diff and
@@ -731,7 +771,7 @@ Eleven idempotent columns and one small table. Recipes themselves are files, not
 | `properties` | `tariffRecipeVersion` | TEXT | `''` | The version actually applied, for the "recipe has moved" indicator. |
 | `properties` | `extraGuestPriceUnit` | TEXT | `'per_stay'` | `per_stay` (legacy, every existing property) or `per_night`. |
 | `properties` | `welcomePackCost` | REAL | `0` | Fixed per-stay cost the direct displayed price must cover. `0` = today's formula. |
-| `properties` | `platformCleaningFees` | TEXT | `'[]'` | Cleaning fee billed apart by a channel, net per platform — added by [tariff-recipe-platform-cleaning-fee.md](../tariff-recipe-platform-cleaning-fee.md). |
+| `properties` | `platformCleaningFees` | TEXT | `'[]'` | Cleaning fee billed apart by a channel, net per platform — added by [tariff-recipe-platform-cleaning-fee.md](tariff-recipe-platform-cleaning-fee.md). |
 | `pricing_rules` | `seasonKey` | TEXT | `NULL` | The recipe season this rule materialises. `NULL` = manual, never touched by an apply. |
 | `pricing_rules` | `seasonRank` | INTEGER | `NULL` | Cheap-to-expensive order; what "one rank up" walks. |
 | `pricing_rules` | `netTargetPerNight` | REAL | `NULL` | Channel-grid pivot (rule 34bis). `NULL` = `pricePerNight` is the net, legacy behaviour. |
@@ -749,7 +789,7 @@ them happen). Columns: `id`, `propertyId` (FK, cascade), `recipeId`, `recipeVers
 
 Per-range overrides for `minNights`, `changeoverArrival` and `changeoverDeparture` travel inside the
 existing `dateRanges` JSON, exactly as `minNights` already does
-([pricing-min-nights-per-range.md](../pricing-min-nights-per-range.md)) — no new column, and the
+([pricing-min-nights-per-range.md](pricing-min-nights-per-range.md)) — no new column, and the
 normalisation that already drops blank values is reused.
 
 **Data impact:** none. Every default reproduces current behaviour byte-for-byte: no recipe, per-stay
@@ -838,7 +878,7 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
       discount never above 30 % up to 60 nights (rules 36, 37).
 - [x] `tests/tourist-tax-base-accommodation-only.unit.test.js` — **replaces**
       `tests/tourist-tax-included-in-rate.unit.test.js` since rule 48 was repealed on 2026-08-20
-      ([tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md)): the base
+      ([tourist-tax-base-accommodation-only.md](../tourist-tax/tourist-tax-base-accommodation-only.md)): the base
       is the accommodation charged and seven extra variations — paid, offered, `includedInRate`, in
       Complément, custom option, resource — all yield the identical tax; the platform brut no longer
       derives it; `customPrice` and the discount do; a frozen tax is untouched; a flat per-adult
@@ -906,7 +946,7 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - **Modifier types beyond `public_holiday_bridge`** — school holidays, events, last-minute rules. The
   language is designed to take them; none is implemented here.
 - **Anchoring shoulders on the synced school-holiday dates.** The app has the data
-  ([school-holidays.md](../school-holidays.md)); the Saturday anchor reproduces the intended calendar
+  ([school-holidays.md](school-holidays.md)); the Saturday anchor reproduces the intended calendar
   without it.
 - **Conditional freebies** — « location matériel 18 € dès 3 nuits » is not expressible as a pricing
   rule; it stays a manual gesture. The plancha used to sit here (« offerte dès 2 nuits »); **since
@@ -958,10 +998,10 @@ _None. All three are answered below._
 
 **Amended (2026-08-22):** rule 48 is reinstated as **48ter**, in a party-independent form the
 operator cannot untick — see
-[tourist-tax-included-services-deduction.md](../tourist-tax-included-services-deduction.md).
+[tourist-tax-included-services-deduction.md](../tourist-tax/tourist-tax-included-services-deduction.md).
 
 **Amended (2026-08-20):** rule 48 is repealed — see
-[tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md). The tax base is
+[tourist-tax-base-accommodation-only.md](../tourist-tax/tourist-tax-base-accommodation-only.md). The tax base is
 the accommodation charged; no deduction, and no derivation from the platform brut either.
 
 **Resolved (2026-08-12) — tourist tax, both questions closed by the owner:**

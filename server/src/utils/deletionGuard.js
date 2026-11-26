@@ -1,6 +1,6 @@
 /**
  * THE delete guard of GuestFlow for stays, devis, clients and properties
- * (specs/payment-schedule-and-cancellation.md rules 49-52).
+ * (specs/payments/payment-schedule-and-cancellation.md rules 49-52).
  *
  * Deleting a row cascades its refunds, installments, penalties and CGV proof, and the accounting reads
  * them: a row that carries money is cancelled, never deleted. Money can sit on the stay or on a devis
@@ -12,7 +12,7 @@ const MONEY_MESSAGE = 'Un paiement est enregistré sur ce séjour : l’annuler 
 const CLIENT_MONEY_MESSAGE = 'Un paiement est enregistré sur une réservation de ce client : l’annuler plutôt que la supprimer.';
 const PROPERTY_MONEY_MESSAGE = 'Un paiement est enregistré sur une réservation de ce logement : l’annuler plutôt que la supprimer.';
 
-// specs/resource-booking-pricing-and-invoicing.md rule 34 — a resource booking sold outside a stay (plugin
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 34 — a resource booking sold outside a stay (plugin
 // `hourly-resources`) whose payment is recorded is a sale of the journal; once invoiced, Qonto states it. A delete of
 // what it points at would drop it (resource: cascade) or blank its buyer (client, property: SET NULL).
 // R36-DB-L1 — a caution received and not returned is the only record of what the guest is owed back.
@@ -86,7 +86,7 @@ const hasColumn = (database, table, name) => database.prepare(`PRAGMA table_info
 /**
  * R36-DB-M1 — the SQL condition « no resource booking names this client » on the clients row `alias`, empty when
  * the plugin table is absent. Every client cleanup (orphan popup, property delete, iCal sync) shares it: a client
- * booked on a resource, paid or not, is no orphan (specs/resource-booking-pricing-and-invoicing.md rule 34).
+ * booked on a resource, paid or not, is no orphan (specs/resources/resource-booking-pricing-and-invoicing.md rule 34).
  * End review R1-3 (pricing-components rule 74, outside-visit spec §5): nor is a client a sale outside a stay names, nor the shared
  * « Passage » client — deleting either would leave the sales (their invoice and payment identity) pointing at no one.
  */
@@ -136,7 +136,7 @@ function bookingMoneyBlocker(database, column, id) {
 /**
  * The refusal when a delete of the rows `ids` would wipe history the per-row routes protect, or null: a
  * cancelled or set-aside stay (accounting history, rule 25) or the CGV acceptance a converted devis carries
- * (specs/terms-acceptance-record.md rule 29). A forced client or property delete obeys the same refusals.
+ * (specs/reservations/terms-acceptance-record.md rule 29). A forced client or property delete obeys the same refusals.
  * `owner` is 'client' or 'property'; one short message per cause.
  */
 function historyBlocker(database, ids, owner) {

@@ -301,7 +301,7 @@ session — reception may not create anything.
       tap is an ordinary click on the `<span>` that holds the disabled button's tooltip — where a
       finger lands, since a disabled button takes no pointer event — never a `force: true` click on
       the button: that skips Playwright's hit-target check, and the planning keeps today pinned under
-      its bar until an operator gesture ([dashboard-planning-scroll.md](dashboard-planning-scroll.md)
+      its bar until an operator gesture ([dashboard-planning-scroll.md](../planning/dashboard-planning-scroll.md)
       rule 24), so a card that grew between the scroll and the click put today's ✓ under the
       coordinates and opened today's wizard. The old version failed 1 run in 30 beside the reception
       and planning specs on 4 workers; the new one passed 50 repetitions alone, 50 in that same mix,

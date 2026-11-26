@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 16–19 — the space brings its plugins to the licence's
+// specs/plugins/plugin-operator-provisioning.md rules 16–19 — the space brings its plugins to the licence's
 // activePlugins through the controller's own handlers, reports each outcome, and never loops on a failure.
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');

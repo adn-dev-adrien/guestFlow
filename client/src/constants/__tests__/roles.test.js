@@ -65,7 +65,7 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   // Every plugin active (the Solio configuration): the plugin gate has its own suite,
   // roles.plugins.test.js.
   const enabledPlugins = PLUGIN_IDS;
-  // An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
+  // An admin of a managed instance, where « Accès du support » exists (specs/hosting/hosting-h2-account-security.md rule 17).
   const admin = { roles: ['admin'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
   const accountant = { roles: ['accountant'], enabledPlugins };
   const both = { roles: ['admin', 'accountant'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
@@ -76,12 +76,12 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
     }
   });
 
-  // specs/accountant-accounting-export.md rule 22 — la barre latérale d'un comptable est minimale :
+  // specs/accounting/accountant-accounting-export.md rule 22 — la barre latérale d'un comptable est minimale :
   // Comptabilité, son mot de passe, et se déconnecter. Tout le reste lui est fermé, et c'est cette
   // table — pas un `hidden` d'affichage — qui le décide.
   test('accountant sees ONLY /comptabilite, /comptabilite/plateformes, the compensations and /mon-compte', () => {
     // accounting-platform-commission-and-no-deposit.md §3.7 rule 20 — accountant gains
-    // access to the dedicated per-platform commission config page; specs/plugins-phase-2-hosts.md
+    // access to the dedicated per-platform commission config page; specs/plugins/plugins-phase-2-hosts.md
     // rule 21 — and reads the core « Indemnités d'annulation » page.
     const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(accountant, p));
     expect(visible.sort()).toEqual(['/comptabilite', '/comptabilite/plateformes', '/finance/indemnites', '/mon-compte']);
@@ -93,7 +93,7 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
     }
   });
 
-  test('reception sees ONLY /, /planning and /mon-compte (specs/reception-role-checkin-only.md)', () => {
+  test('reception sees ONLY /, /planning and /mon-compte (specs/sas/reception-role-checkin-only.md)', () => {
     const reception = { roles: ['reception'], enabledPlugins };
     const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(reception, p));
     expect(visible.sort()).toEqual(['/', '/mon-compte', '/planning']);
@@ -139,7 +139,7 @@ describe('canSeeAnyRoute', () => {
   });
 });
 
-// specs/reception-sas-lock-after-commit.md §4.2 — mirror of the server predicate; every reception
+// reception-sas-lock-after-commit (spec never merged) §4.2 — mirror of the server predicate; every reception
 // restriction (reduced home, inert fiche links, SAS re-edit lock) keys on it.
 describe('isReceptionOnly', () => {
   test('reception alone (or with accountant) → true', () => {

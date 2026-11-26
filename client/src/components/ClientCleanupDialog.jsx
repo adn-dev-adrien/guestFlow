@@ -8,7 +8,7 @@
  *   - onConfirm: (ids: number[]) => Promise<void> | void
  *   - busy: boolean                  // true while the parent's onConfirm is in flight
  *
- * Behavior (see specs/clients.md §3 rule 8):
+ * Behavior (see specs/clients/clients.md §3 rule 8):
  *   - All rows are checked by default whenever `orphans` changes (re-open = fresh selection).
  *   - Master toggle reflects the current selection (indeterminate when mixed).
  *   - "Supprimer (N)" is disabled when N === 0 or while `busy`.

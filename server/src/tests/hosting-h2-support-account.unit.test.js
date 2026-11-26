@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 21-22 — the « Support GuestFlow » account is told by a
+// specs/hosting/hosting-h2-account-security.md rules 21-22 — the « Support GuestFlow » account is told by a
 // flag, never by its email, and nothing changes it nor recovers it as an administrator; the instance
 // accepts a support request or link only for its own slug, taken from the hosting or the licence.
 

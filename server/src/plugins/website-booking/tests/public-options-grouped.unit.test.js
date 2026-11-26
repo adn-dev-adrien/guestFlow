@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/option-categories.md §3 rules 13-15, §4.4 — the grouped shape of the public options payload.
+// specs/options/option-categories.md §3 rules 13-15, §4.4 — the grouped shape of the public options payload.
 //
 // Same harness as public-catalog-sort-by-price.unit.test.js: real projections + real grouping,
 // stubbed models, so the assertions are about what the controller actually ships to the widget.
@@ -93,7 +93,7 @@ test('a category left with one visible option out of two still renders, minus th
 });
 
 test('offered-by-default options are excluded from their group too', () => {
-  // specs/property-default-option-applicability.md rule 4 still applies inside a category.
+  // specs/options/property-default-option-applicability.md rule 4 still applies inside a category.
   const data = listOptions([
     { id: 1, title: 'Champagne', priceType: 'per_stay', price: 40, category: 'Boissons' },
     { id: 8, title: 'Jus offert', priceType: 'per_stay', price: 5, category: 'Boissons' },
@@ -114,7 +114,7 @@ test('a whitespace-only category is treated as ungrouped', () => {
 });
 
 test('alwaysVisible reaches the widget so it can pin the line without a selection', () => {
-  // specs/option-categories.md §3 rule 9bis — « Petit déjeuner » under « Restauration ».
+  // specs/options/option-categories.md §3 rule 9bis — « Petit déjeuner » under « Restauration ».
   const data = listOptions([
     { id: 1, title: 'Petit déjeuner', priceType: 'per_person', price: 12, category: 'Restauration', alwaysVisible: 1 },
     { id: 2, title: 'Planche S', priceType: 'per_stay', price: 17, category: 'Restauration' },

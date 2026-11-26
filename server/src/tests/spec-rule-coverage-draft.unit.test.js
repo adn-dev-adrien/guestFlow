@@ -1,4 +1,4 @@
-// specs/spec-rule-coverage.md rule 14 — a spec not delivered yet (Draft, or Approved straight from
+// specs/tech/spec-rule-coverage.md rule 14 — a spec not delivered yet (Draft, or Approved straight from
 // Draft) defers its rules; leaving Draft/Approved requires all of them; a delivered spec moved back to
 // Draft is never exempt; a rename does not hide the transition; the merge-base is the reference; and
 // code never ships citing a spec that is still exempt. Added for spec-first PRs (UI/UX review
@@ -102,6 +102,8 @@ test('rule 14 — a renamed spec is read under its old path', async () => {
     { path: 'specs/new-name.md', from: 'specs/old-name.md' },
     { path: 'specs/kept.md', from: 'specs/kept.md' },
     { path: 'specs/brand-new.md', from: null },
+    // specs/tech/spec-rule-coverage.md rule 20 — a spec in a domain folder is a spec like any other.
+    { path: 'specs/sub/dir.md', from: 'specs/sub/dir.md' },
   ]);
 });
 

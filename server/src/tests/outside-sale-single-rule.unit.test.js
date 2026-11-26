@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 124 — which articles sell with no stay is the families' own answer: `articles.outsideSale` is the one function, and the fiche's « Vendable hors séjour »,
+// specs/pricing/pricing-components.md rule 124 — which articles sell with no stay is the families' own answer: `articles.outsideSale` is the one function, and the fiche's « Vendable hors séjour »,
 // the counter, the « Autre article » suggestions and the sellability endpoint all read it; none keeps a list of families.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

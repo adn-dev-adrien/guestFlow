@@ -1,5 +1,5 @@
 /**
- * The HTML part of a guest email (specs/guest-email-texts-made-simple.md rules 37–39, UI/UX review
+ * The HTML part of a guest email (specs/emails/guest-email-texts-made-simple.md rules 37–39, UI/UX review
  * 2026-10-18, decision 15). The text the operator writes stays the one source: it is rendered as
  * today, sent unchanged as the `text/plain` part, and this module derives a sober `text/html`
  * alternative from that same rendered text — never from the template, so the two parts cannot say

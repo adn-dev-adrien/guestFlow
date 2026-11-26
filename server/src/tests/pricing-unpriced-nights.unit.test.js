@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 59 (audit 2026-10-27) — a night no season covers is named in the
+// specs/pricing/tariff-recipes.md §3 rule 59 (audit 2026-10-27) — a night no season covers is named in the
 // quote, so the public flows can refuse it and the fiche can warn.
 const test = require('node:test');
 const assert = require('node:assert/strict');

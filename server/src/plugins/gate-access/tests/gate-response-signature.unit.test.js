@@ -1,4 +1,4 @@
-// guestFlow signs its answers to Sowel — specs/gate-access-sowel-connector.md §3.4 rules 22b-22d.
+// guestFlow signs its answers to Sowel — specs/guest-app/gate-access-sowel-connector.md §3.4 rules 22b-22d.
 //
 // The vector below is PINNED on both sides: the Sowel `guestflow` plugin verifies the very same
 // inputs to the very same hex. Changing the canonical string here while the plugin keeps its own
@@ -12,7 +12,7 @@ const express = require('express');
 
 const { buildSignGateResponse, responseSignature } = require('../signResponse');
 
-// specs/gate-access-sowel-connector.md §3.4 rule 22c — the pinned vector.
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 22c — the pinned vector.
 test('pinned vector: secret "s3cret", request signature "abc", body {"ok":true}', () => {
   assert.equal(
     responseSignature('s3cret', 'abc', Buffer.from('{"ok":true}', 'utf8')),
@@ -37,7 +37,7 @@ async function serve(routes) {
   return { server, base: `http://127.0.0.1:${server.address().port}/public/v1/gate` };
 }
 
-// specs/gate-access-sowel-connector.md §3.4 rules 22b + 22c — the exact bytes sent are the bytes signed.
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rules 22b + 22c — the exact bytes sent are the bytes signed.
 test('a 2xx answer is signed over the exact bytes it carries, bound to the request signature', async () => {
   const { server, base } = await serve((r) => {
     r.get('/json', (_req, res) => res.json({ keys: [{ label: 'Gîte · R1 · Zoé' }], now: 'x' }));
@@ -68,7 +68,7 @@ test('a 2xx answer is signed over the exact bytes it carries, bound to the reque
   }
 });
 
-// specs/gate-access-sowel-connector.md §3.4 rule 22d — errors need no signature, and get none.
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 22d — errors need no signature, and get none.
 test('an error answer is not signed', async () => {
   const { server, base } = await serve((r) => {
     r.post('/results', (_req, res) => res.status(413).json({ error: { code: 'TOO_MANY' } }));
@@ -83,7 +83,7 @@ test('an error answer is not signed', async () => {
   }
 });
 
-// specs/gate-access-sowel-connector.md §3.4 rule 22d — mounted on the router, every route is covered.
+// specs/guest-app/gate-access-sowel-connector.md §3.4 rule 22d — mounted on the router, every route is covered.
 test('the real gate router signs every route: the middleware sits in front of all of them', () => {
   const { buildPublicRouter } = require('../publicRoutes');
   const { buildController } = require('../controller');

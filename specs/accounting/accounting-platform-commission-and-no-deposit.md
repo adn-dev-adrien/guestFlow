@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** « No deposit on platform reservations » (rules 5-10) now holds only for platforms whose `platformTakesDeposit` is off (the default), per `specs/platforms/platform-deposit-toggle.md`; the commission lines, the per-platform accounts page and the `6226xx` config are as specified (`server/src/plugins/accounting-export/platformAccountsModel.js`).
+
 ---
 
 ## 1. Context
@@ -192,7 +194,7 @@ Make every monthly CSV match the écriture model the accountant validated:
 
 ### 3.3 Data model — no deposit on platform reservations
 
-5. Adding a new platform reservation (form save where `platform !== 'direct'`):
+5. Adding a new platform reservation (form save where `platform !== 'direct'` **and the platform does not take an acompte**, `platforms.platformTakesDeposit = 0`, the default — `specs/platforms/platform-deposit-toggle.md`; a platform that does keeps the normal acompte/solde split, rules 5-8 do not apply to it):
    server enforces `depositAmount = 0`, `depositPaid = 0`, `depositPaidDate =
    NULL`, `depositDueDate = NULL`. Whatever the client sent is overridden
    silently with a one-time warning log. The whole `clientGrossAmount` lands on
@@ -324,7 +326,7 @@ Make every monthly CSV match the écriture model the accountant validated:
     aux commissions plateforme qui sont marquées 'TVA déductible' dans le Plan
     comptable plateformes."* No new endpoint — the existing `PUT /api/settings`
     accepts the new field.
-    **Amended 2026-10-28** (specs/settings-input-guards.md rules 32-34): « Compte par défaut » and
+    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 32-34): « Compte par défaut » and
     « Indemnités d'annulation » now sit inside the « Comptes » card, group « Commissions et produits
     divers »; their own cards are gone, storage and endpoint unchanged.
 18. **`Direct` row is always present + always disabled**:

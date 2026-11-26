@@ -1,7 +1,7 @@
 /**
  * TypedCountField — the stepper of a number the operator types (people served, nights), which turns
  * red when the party or the stay changed under it and offers to apply the new value
- * (specs/non-card-option-served-persons.md rules 20 and 26).
+ * (specs/options/non-card-option-served-persons.md rules 20 and 26).
  *
  * Props: label, value, min, max, onCommit(number), disabled, helperText, sx, plus
  *   - alert: { label, applyLabel } | null — from the quote's `typedCountAlerts`; the server decides.

@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 45 (audit R22, console N1 and N2) — an instance the console has lost track
+// specs/hosting/hosting-h1-fleet-runtime.md rule 45 (audit R22, console N1 and N2) — an instance the console has lost track
 // of keeps serving a closed customer and hands its guests' data to the next customer of that address. A rename waits
 // for the one before it, is never recorded as done on a directory it did not find, and a retry starts from the slug
 // the instance really left; the creation never settles on a database already at its address.

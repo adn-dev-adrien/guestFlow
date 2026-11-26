@@ -1,6 +1,6 @@
 /**
  * SettingsSystemUpdateSection — « Système et mises à jour » card in Réglages.
- * specs/self-update-and-releases.md §6.4.
+ * specs/hosting/self-update-and-releases.md §6.4.
  */
 
 import React from 'react';

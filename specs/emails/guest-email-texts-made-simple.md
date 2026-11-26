@@ -7,8 +7,8 @@
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Parent** | [`specs/plugins-phase-p-productisation.md`](plugins-phase-p-productisation.md) — texts as data (stay texts, mentions) |
-| **Summary for review** | [`docs/specs/2026-10-08-guest-email-texts-made-simple.html`](../docs/specs/2026-10-08-guest-email-texts-made-simple.html) |
+| **Parent** | [`specs/plugins/plugins-phase-p-productisation.md`](../plugins/plugins-phase-p-productisation.md) — texts as data (stay texts, mentions) |
+| **Summary for review** | [`docs/specs/2026-10-08-guest-email-texts-made-simple.html`](../../docs/specs/2026-10-08-guest-email-texts-made-simple.html) |
 
 ---
 
@@ -167,7 +167,7 @@ email shown beside the text. The whole wording can also go out and come back as 
     *2026-10-08:* the template list answers each row's `textsSection`; a shipped template's dialog links to
     it (the J-7's « Accroche par logement » editor is replaced by that link). The property's Séjour tab
     keeps a « Textes » card linking to `?propertyId=<id>#j7`, and its « Arrivée » block links to `#j2`. The
-    hook endpoints `/api/properties/email-hooks` stay (specs/settings-rationalization.md rule 17c); the
+    hook endpoints `/api/properties/email-hooks` stay (specs/settings/settings-rationalization.md rule 17c); the
     page writes hooks through `PUT /api/email-texts`.
 
 ### 3.D Live preview and test send
@@ -201,7 +201,7 @@ email shown beside the text. The whole wording can also go out and come back as 
     reports. The company address is `companyEmail`, else the sender address; without either the test is
     refused, naming Paramètres › Établissement.
 
-    *2026-10-17:* the test goes through the account mailer of specs/hosting-h2-account-security.md, so a
+    *2026-10-17:* the test goes through the account mailer of specs/hosting/hosting-h2-account-security.md, so a
     development instance with `GUESTFLOW_MAIL_OUTBOX` writes it to the mail catcher instead of SMTP. The
     preview renders again after every save or import.
 
@@ -216,7 +216,7 @@ email shown beside the text. The whole wording can also go out and come back as 
     unknown token, is refused with its line number, and nothing is saved until the owner confirms. An
     empty cell means « garder le texte actuel ». The literal `-` means « vider ».
 18. The parser and the one-transaction import reuse the translation catalogue's mechanism
-    (`utils/translationCsv.js`, `specs/translation-catalogue.md`).
+    (`utils/translationCsv.js`, `specs/site/translation-catalogue.md`).
 
     *2026-10-08:* the `clé` column holds one key space, shared with the page and the preview draft:
     `subject:<stableKey>`, `text:<key>`, `text:<key>@<propertyId>`, `mention:<id>:offer|booked`,
@@ -383,7 +383,7 @@ email shown beside the text. The whole wording can also go out and come back as 
     declared with those defaults) copies that default for an empty or NULL bound, as its emails
     used it (2026-10-23, inte/plugins review); an instance born after
     `plugins-phase-p-productisation.md` rule 14 reads empty as no pool.
-    **Amended 2026-10-28** (specs/settings-input-guards.md rules 22-27): « Piscine » on offers « Toute
+    **Amended 2026-10-28** (specs/settings/settings-input-guards.md rules 22-27): « Piscine » on offers « Toute
     l'année » (stored `01-01`/`12-31`) or « Saison »; the closing day is never before the opening day;
     « Les deux dates, ou aucune. » becomes « Les deux dates. ».
 35. **Typed text is never lost.** « Textes des emails » and the property page ask before leaving with
@@ -401,7 +401,7 @@ email shown beside the text. The whole wording can also go out and come back as 
 
 ### 3.J Guest emails in HTML (UI/UX review 2026-10-18, proposal 25, decision 15)
 
-The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email-automation.md` §8).
+The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/emails/email-automation.md` §8).
 
 37. **A guest email leaves as text and HTML.** Every email sent to a guest — the sequence (automatic
     or « Envoyer »), the manual send, the confirmation, the automatic pass of the other templates, and
@@ -578,7 +578,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     « Pendant le séjour » and read « Le jour de l'arrivée », editable. It is now « Demande d’échéance »,
     in « Avant l’arrivée » first (the payment emails of that moment), and its « Quand » is fixed: « À chaque
     échéance, à la demande ». The client mirror `constants/emailNames.js` (settings search) carries the name too.
-50. **The first preview does not wait** (performance review of 2026-10-28, `specs/inte-performance.md`).
+50. **The first preview does not wait** (performance review of 2026-10-28, `specs/tech/inte-performance.md`).
     The debounce of rule 13 (`PREVIEW_DELAY_MS`, 400 ms) applies to typing only. Opening the page, a
     section, another email of the section, another stay, the language, or a reload after a save renders
     the preview at once (`POST /api/emails/preview` sent in the same tick). Rule 13's « latest draft
@@ -797,7 +797,7 @@ See the summary page.
   520 px high (640 px from `md`), and the email itself, 600 px at most, fills the 390 px width with a
   20 px margin. The start assistant's preview stays text only. Interactive mock (the real renderer,
   editable text, 390 / 1280, light / dark):
-  [`docs/specs/2026-10-19-otp-field-and-guest-email-html.html`](../docs/specs/2026-10-19-otp-field-and-guest-email-html.html).
+  [`docs/specs/2026-10-19-otp-field-and-guest-email-html.html`](../../docs/specs/2026-10-19-otp-field-and-guest-email-html.html).
 
 ## 7. Test plan
 
@@ -877,7 +877,7 @@ and that the test send and a real send carry their HTML part, tag-free; client
 **Integrated review of inte/plugins (2026-10-19)** — rule 46: `components/__tests__/TokenTextField.never-focused.test.jsx` (3: appended with a
 space, no double space / empty field, at the caret once placed).
 
-**Performance review (2026-10-28, `specs/inte-performance.md`)** — rules 50–52:
+**Performance review (2026-10-28, `specs/tech/inte-performance.md`)** — rules 50–52:
 `pages/settings/__tests__/EmailTextsSettingsPage.performance.test.jsx` (6, fake timers: the preview is
 requested at 0 ms on open, on a section change and after a save; typing still waits 400 ms and sends
 once for a burst; a folded section's fields are absent and appear on opening; the payment section's

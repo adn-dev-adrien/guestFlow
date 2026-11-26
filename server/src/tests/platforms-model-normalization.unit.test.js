@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { runPlatformNamesNormalization } = require('../utils/normalizePlatformNamesMigration');
 
-// specs/normalize-platform-names.md §3.3 + §7.1.
+// specs/platforms/normalize-platform-names.md §3.3 + §7.1.
 // Drives the one-shot migration through a plain :memory: SQLite fixture, mirroring the
 // three tables the production migration walks.
 

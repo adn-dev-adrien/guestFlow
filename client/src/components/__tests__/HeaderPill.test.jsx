@@ -1,5 +1,5 @@
 /**
- * HeaderPill — the top-bar indicator (specs/self-update-and-releases.md §6.5).
+ * HeaderPill — the top-bar indicator (specs/hosting/self-update-and-releases.md §6.5).
  */
 
 import React from 'react';

@@ -7,7 +7,7 @@
 | **Created** | 2026-05-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3a** (of 3a/3b/3c). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3a** (of 3a/3b/3c). See `docs/rapports/ROADMAP.md`. |
 
 ---
 
@@ -87,7 +87,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    extension preview and extension (stored dates), and conversion into a reservation (stored dates).
    The payment `PATCH` carries no dates and is not checked. The iCal **import** needs no guard and is
    unchanged: the parser already drops an event whose date is not a real day and turns a reversed or
-   zero-night event into one night (`specs/ical-import-hardening.md` rule 21, F9), so a sync is never
+   zero-night event into one night (`specs/platforms/ical-import-hardening.md` rule 21, F9), so a sync is never
    refused for a feed's odd dates. A check of the prod snapshot of 2026-10-22 found no stored row with
    such dates, so there is no data migration.
    *Reading of 2026-11-02 (audit R19-L1) — a stay lasts at most 366 nights.* The guard also refuses a
@@ -96,7 +96,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    the stay night by night, synchronously, before the availability check: a departure typed as `9999-12-31`
    on `POST /reservations/calculate-price` took ~100 s and blocked every other request of the server
    meanwhile (the fiche quotes on every date change, so a year typed digit by digit reached it). 366 is the
-   iCal parser's length cap (`specs/ical-import-hardening.md` rule 21), and the two share the one constant
+   iCal parser's length cap (`specs/platforms/ical-import-hardening.md` rule 21), and the two share the one constant
    `utils/stayDates.MAX_STAY_NIGHTS`, so an imported event and an internal write obey the same bound. The
    public booking path keeps its own, tighter caps. The prod snapshot of 2026-10-22 (read on a copy) stores
    no stay longer than 14 nights, so no stored row or legitimate flow is refused.
@@ -121,7 +121,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    then false, so no quote, occupied dates or resources' availability is asked for it: they used to answer
    400. `hooks/useWelcomePack` skips only a *present* date that is not a real day or lies outside the window;
    missing, reversed or too-long dates are still asked, so the pack's per-stay lines apply before the dates
-   are sound (specs/welcome-pack-auto-options.md edge cases; review of PR #940, REG-1). A year still being typed, padded
+   are sound (specs/options/welcome-pack-auto-options.md edge cases; review of PR #940, REG-1). A year still being typed, padded
    to four digits (rule 14), is a real day and keeps the order / length / window messages; a stored date is
    always a real day, so the stored-row exemption of rule 13 is unchanged. Tests: client
    `utils/stayDates.real-day`, `pages/ReservationPage.real-day`, `hooks/useWelcomePack.real-day`.
@@ -131,8 +131,8 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    (`utils/stayDates.horizonEnd`, `dateBeyondHorizon`). One day past it is refused with « Date trop
    lointaine : 5 ans au plus. ». It is checked inside `stayDatesRefusal`, after rule 11's shape, order and
    length checks, so it runs on every path rule 11 lists: 400 `INVALID_STAY_DATES`, `field` naming the
-   first date past it. The same message refuses a closure (`specs/establishment-closures.md` rule 18,
-   reading of 2026-11-02) and the end of a finance custom window (`specs/finance-dashboard-redesign.md`
+   first date past it. The same message refuses a closure (`specs/pricing/establishment-closures.md` rule 18,
+   reading of 2026-11-02) and the end of a finance custom window (`specs/accounting/finance-dashboard-redesign.md`
    rule 51, reading of 2026-11-02). The past is not limited: history stays. The duration caps stay as
    they are: a stay 366 nights, a closure 731, a finance window 750 days.
    **Only an entered or edited date is held to it.** `stayDatesRefusal(start, end, { stored })` skips a
@@ -142,9 +142,9 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    devis). The paths that enter no date never refuse on it: a restore of a duplicate set aside, a devis
    extension and its preview, a devis converted into a reservation (stored dates). An iCal date drift
    approved is held to it on the dates it changes. Read paths never refuse a stored row: the occupied
-   dates and the planning reads keep only their 750-day span cap (`specs/establishment-closures.md` rule
+   dates and the planning reads keep only their 750-day span cap (`specs/pricing/establishment-closures.md` rule
    20), since the calendar and the planning are navigated, not typed, and must still show a stored row
-   past the horizon. The iCal **import** keeps its own 730-day horizon (`specs/ical-import-hardening.md`),
+   past the horizon. The iCal **import** keeps its own 730-day horizon (`specs/platforms/ical-import-hardening.md`),
    inside this one. The tariff recipes write their closures and seasons through their own model, not
    through these validators (`horizonYears` ≤ 5 counted from the current year), so a recipe never
    breaks; a recipe closure ending past the horizon stays editable as long as its dates are kept.
@@ -177,9 +177,9 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    |---|---|---|---|
    | `POST /reservations`, `PUT /reservations/:id`, `performUpdate`, `POST /reservations/calculate-price`, iCal drift approval | `startDate`, `endDate` | rule 11 + future side | + past side (`INVALID_STAY_DATES`) |
    | `POST /devis`, `PUT /devis/:id` | `startDate`, `endDate`; the API-only `validUntil` override | stays: rule 11 + future side; `validUntil` unchecked | stays + past side; `validUntil` a real day in the window unless kept (`field: 'validUntil'`) |
-   | `POST/PUT /establishment-closures`, `GET …/conflicts` | `startDate`, `endDate` | real day, order, 731 days, future side | + past side (`specs/establishment-closures.md` rule 18) |
-   | `GET /finance/dashboard?period=custom` | `from`, `to` | real day, order, 750 days, `to` future side | `from` and `to` both in the window (`specs/finance-dashboard-redesign.md` rule 51) |
-   | `PATCH /reservations/:id/payment` (acompte, solde, compléments, caution) and `POST /reservations/:id/arrival-payment` | `*PaidDate`, `cautionReceivedDate`, `cautionReturnedDate`, the arrival `date` | real day, not in the future | + not before the window (`utils/arrivalPaymentDate.validateCollectionDate`, `INVALID_PAYMENT_DATE`); a mark sent back with the date its row already stores is not re-judged (it meets « already perceived », rule 38 of `specs/reservation-payment-ledger.md`); a non-string date is refused and the day written is the judged one, never the raw text (rule 66 of `specs/reservation-payment-ledger.md`, 2026-11-03) |
+   | `POST/PUT /establishment-closures`, `GET …/conflicts` | `startDate`, `endDate` | real day, order, 731 days, future side | + past side (`specs/pricing/establishment-closures.md` rule 18) |
+   | `GET /finance/dashboard?period=custom` | `from`, `to` | real day, order, 750 days, `to` future side | `from` and `to` both in the window (`specs/accounting/finance-dashboard-redesign.md` rule 51) |
+   | `PATCH /reservations/:id/payment` (acompte, solde, compléments, caution) and `POST /reservations/:id/arrival-payment` | `*PaidDate`, `cautionReceivedDate`, `cautionReturnedDate`, the arrival `date` | real day, not in the future | + not before the window (`utils/arrivalPaymentDate.validateCollectionDate`, `INVALID_PAYMENT_DATE`); a mark sent back with the date its row already stores is not re-judged (it meets « already perceived », rule 38 of `specs/payments/reservation-payment-ledger.md`); a non-string date is refused and the day written is the judged one, never the raw text (rule 66 of `specs/payments/reservation-payment-ledger.md`, 2026-11-03) |
    | `PATCH /reservations/:id/payment` `adjustMidStayNote.paidDate` | a settled note's date | **unchecked** | real day, not in the future, in the window, unless kept |
    | `POST /reservations/:id/installments/:iid/payment` | `paidDate` | real day, not in the future | + not before the window |
    | `PUT /reservations/:id/installments` `dates` | `dueDate` | regex (`2027-02-30` passed), ≥ today, ≤ arrival | real day, ≤ today + 5 years (a stay stored past it) |
@@ -193,7 +193,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    | linen 1.2.2: `POST /laundry/skips`, `PUT /laundry/manual-additions/:date`, `PUT /laundry/extra-trips/:date` | `date` | real day | + in the window unless stored (`DATE_OUTSIDE_WINDOW`) |
    | school-holidays 1.0.5: `POST /school-holidays`, `PUT /school-holidays/:id` | the six zone dates | **unchecked** (only order) | real days in the window unless kept |
    | hourly-resources 1.3.4: `POST /resource-bookings`, `PUT …/:id`, `POST …/preview` | `date` | **unchecked** | real day in the window unless the booking's stored day |
-   | online-payment 1.5.2: `PUT /plugins/online-payment/settings` *(added 2026-11-03, audit R20-P1)* | `reconciliationStartDate` | regex (`2027-02-30`, `0002-10-31`, `9999-12-31` passed) | empty, or a real day in the window unless the stored value (`specs/qonto-bank-reconciliation.md` rule 48) |
+   | online-payment 1.5.2: `PUT /plugins/online-payment/settings` *(added 2026-11-03, audit R20-P1)* | `reconciliationStartDate` | regex (`2027-02-30`, `0002-10-31`, `9999-12-31` passed) | empty, or a real day in the window unless the stored value (`specs/accounting/qonto-bank-reconciliation.md` rule 48) |
    | `POST /reservations/calculate-price`, `POST /reservations`, `PUT /reservations/:id` (`performUpdate`), `POST /devis`, `PUT /devis/:id` | each option line's `cardOccurrences[].date`, each resource line's `sessions[].date` | regex only (`normalizeCardOccurrences`, `isValidSession`): `1900-01-01`, `9999-12-31`, `2099-02-30` billed and stored | a real day of the stay, arrival to departure morning inclusive (the fiche's grid), else « Date hors du séjour. » (`stayItemDatesRefusal`, `INVALID_STAY_DATES`, `field: 'cardOccurrences'` / `'sessions'`), unless the same line already stores it (`bookingLinesModel.getStoredItemDates`); the stay lies in the window, so they do too |
    | `POST /email-mentions/preview` (read only) | `startDate` | regex | a real day in the window, today otherwise: the preview never fails (`emailMentionsController.previewStartDate`) |
 
@@ -204,7 +204,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    occurrences and sessions were only checked by a regex — both are now rows of the table. No user date: the cancellation (today), the tourist-tax declaration (now), the dashboard
    snoozes (days), the support access (hours), the payment links (provider dates). Platform-provided dates
    keep their own rules and are not held to the window: the iCal import (its 730-day horizon,
-   `specs/ical-import-hardening.md`), the Booking / Airbnb / Gîtes de France intakes (they match an existing
+   `specs/platforms/ical-import-hardening.md`), the Booking / Airbnb / Gîtes de France intakes (they match an existing
    fiche and refuse a started stay), the bank reconciliation (Qonto's `settledAt`), the school-holidays sync
    (education.gouv.fr), the public website booking (not in the past, 730 days ahead at most). Read paths are
    not limited: the planning, the calendar, the occupied dates and the accounting exports of a month read
@@ -229,7 +229,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    date the device's day held back is asked as soon as the server's day accepts it (the availability and
    the quote stay de-duplicated by their key and signature). Test: client `pages/ReservationPage.server-day-arrives`.
 14. **Added 2026-11-02 (merge of PR #936 with #937) — a year typed digit by digit never freezes the fiche.**
-   Since a date can be typed on the keyboard again (`specs/datepicker-close-on-select.md`, reading of
+   Since a date can be typed on the keyboard again (`specs/planning/datepicker-close-on-select.md`, reading of
    2026-11-02), Chromium hands the fiche each digit of a year typed over a complete date: 0002, 0020, 0203,
    then the year. Rules 12 and 13 keep such a range from any request, and the fiche's own occupancy check
    (`utils/reservationConflicts.findFirstOccupiedDateInRange`) reads it like any other: it scans the

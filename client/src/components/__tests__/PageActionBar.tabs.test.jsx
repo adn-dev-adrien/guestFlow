@@ -1,6 +1,6 @@
-// specs/ds-tabs.md rules 2-3 — a page hands its PageTabs to the bar's `tabs` slot: the tabs live in
+// specs/design-system/ds-tabs.md rules 2-3 — a page hands its PageTabs to the bar's `tabs` slot: the tabs live in
 // the bar (one single instance in the DOM). Since 2026-10-19 the title of a phone is the top bar's
-// (specs/shell-and-home-day-first.md rule 15), so a mobile bar is never anonymous, tabs or not.
+// (specs/planning/shell-and-home-day-first.md rule 15), so a mobile bar is never anonymous, tabs or not.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -51,7 +51,7 @@ test('a bar without tabs is unchanged (no tablist)', () => {
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
 });
 
-// specs/ds-tabs.md rule 11 — beside tabs the row does not wrap on sm+: the tabs shrink and scroll in
+// specs/design-system/ds-tabs.md rule 11 — beside tabs the row does not wrap on sm+: the tabs shrink and scroll in
 // the room the title and the actions leave, so Save / Cancel never drop onto a row of their own; a
 // bar under 720 px still gives the tabs a second row.
 test('rule 11: beside tabs the row never wraps on sm+, and the tabs shrink to the room left', () => {

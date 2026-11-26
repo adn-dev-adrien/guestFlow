@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md §6 (responsive) and CLAUDE.md « Responsive design » — on a phone the mini SAS is full screen, the « Reste à payer » is kept at the top, the primary action is
+// specs/sas/outside-booking-sas.md §6 (responsive) and CLAUDE.md « Responsive design » — on a phone the mini SAS is full screen, the « Reste à payer » is kept at the top, the primary action is
 // the last one and full width under the thumb, every touch target is at least 44 px; read-only for a caller the server does not let write, with the server's reason.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -29,7 +29,7 @@ recognised a channel or a provider by its name, or spoke Solio's vocabulary:
 - One platform had two labels: the server said « Gîtes de France », the client chips « GitesDeFrance ».
 - `reservation.platform` was titled « Canal » on some screens and « Plateforme » on others.
 
-The model to follow is `platforms.forbidsGuestChores` (specs/airbnb-no-checkout-chores.md rules 8–9):
+The model to follow is `platforms.forbidsGuestChores` (specs/platforms/airbnb-no-checkout-chores.md rules 8–9):
 an operator setting per platform, a cached set read by the code, and a one-shot migration that writes
 today's knowledge onto an existing database only.
 

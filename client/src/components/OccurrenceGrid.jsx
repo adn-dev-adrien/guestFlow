@@ -3,10 +3,10 @@ import { Box, Stack, Typography, TextField, Chip } from '@mui/material';
 
 /**
  * OccurrenceGrid — the moments of a card option, as one row per day with a selectable chip per
- * time slot (specs/option-planning-card.md §3.2).
+ * time slot (specs/options/option-planning-card.md §3.2).
  *
  * Shared by the reservation fiche (where the operator schedules what the guest buys) and the arrival
- * SAS (where the same moments are sold at check-in — specs/sas-breakfast-and-catering-upsell.md).
+ * SAS (where the same moments are sold at check-in — specs/sas/sas-breakfast-and-catering-upsell.md).
  * Purely presentational: the caller owns the grid and the billed-quantity caption.
  *
  * Props:
@@ -44,7 +44,7 @@ export default function OccurrenceGrid({
 
   return (
     <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-      {/* Editable default hour(s) — shared across all days (specs/option-planning-card.md §3.2). */}
+      {/* Editable default hour(s) — shared across all days (specs/options/option-planning-card.md §3.2). */}
       {slotTimes && (
         <>
           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 1 }}>

@@ -1,5 +1,5 @@
 // @ts-check
-// specs/dashboard-planning-scroll.md rule 20 — while the past window loads, a thin progress bar sits right
+// specs/planning/dashboard-planning-scroll.md rule 20 — while the past window loads, a thin progress bar sits right
 // under the page bar. On a phone of a bare install the planning bar has a single action, handed to the
 // app's top bar: the bar is not drawn, the progress bar still is, fixed under the top bar.
 import { test, expect } from '@playwright/test';

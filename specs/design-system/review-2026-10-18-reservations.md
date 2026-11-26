@@ -53,7 +53,7 @@ The reservation screens say what they mean, on a phone, a tablet and a desktop.
    before, the lower engine price was struck above it and read as a discount.
 3. **The SAS counts steps without a total (F11).** The SAS header reads « Étape N ». An accepted upsell
    opens its own pages, so a total turned « 9/10 » into « 9/12 » and read as going backwards.
-   **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rule 3): the header reads « N sur M »
+   **Amended 2026-10-19** (specs/design-system/ui-review-2026-10-19-operations.md rule 3): the header reads « N sur M »
    again, M counting the questions — a page an answer opens keeps its question's number, so M never
    grows.
 4. **Impersonal texts (F12).** « Adresse en une ligne : n° rue CP ville » (client form), « Par défaut
@@ -91,7 +91,7 @@ The reservation screens say what they mean, on a phone, a tablet and a desktop.
 |---|---|---|
 | utils | `utils/pricing.js` | `withQuantityUnit` tags breakfast lines counting mornings (rule 5). |
 | utils | `utils/devisPdf.js` | `showsStruckOriginal`: strike only above (rule 2); `forceOriginal` removed. |
-| utils | `utils/qonto/qontoSettingsController.js` | Message (rule 4). Core code since specs/plugins-phase-3a-online-payment.md rule 22, so no plugin bump. |
+| utils | `utils/qonto/qontoSettingsController.js` | Message (rule 4). Core code since specs/plugins/plugins-phase-3a-online-payment.md rule 22, so no plugin bump. |
 
 ### 4.2 Client side (`client/src/`)
 

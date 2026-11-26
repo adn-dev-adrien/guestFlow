@@ -1,4 +1,4 @@
-// specs/ds-tabs.md rule 12 — switching to a plugin tab whose chunk is still loading keeps the bar
+// specs/design-system/ds-tabs.md rule 12 — switching to a plugin tab whose chunk is still loading keeps the bar
 // (title + tabs) drawn: the page never blinks to nothing between two tabs.
 import React, { lazy } from 'react';
 import { render, screen, act } from '@testing-library/react';

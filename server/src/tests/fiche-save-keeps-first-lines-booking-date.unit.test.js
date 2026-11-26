@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 36, 37, 99, 100 and 97(b) (loop t2 D2-1) — a fiche save stamps only the lines IT wrote with its own date: the stay's
+// specs/pricing/pricing-components.md §3 rules 36, 37, 99, 100 and 97(b) (loop t2 D2-1) — a fiche save stamps only the lines IT wrote with its own date: the stay's
 // first lines, written by the creation and left to the boot's reading, keep the booking's date, so a receipt dated between the booking and the save
 // is frozen with them.
 process.env.DB_PATH = ':memory:';

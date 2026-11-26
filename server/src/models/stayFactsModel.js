@@ -1,5 +1,5 @@
 /**
- * Stay facts — the property-side data the guest emails need (specs/guest-email-sequence.md §3.5,
+ * Stay facts — the property-side data the guest emails need (specs/emails/guest-email-sequence.md §3.5,
  * consumed by utils/stayContentContext.js).
  *
  * Read-only. Every query is guarded: a minimal or legacy schema (unit tests, an old database) yields
@@ -18,7 +18,7 @@ function tryAll(fn, fallback) {
   try { return fn(); } catch { return fallback; }
 }
 
-// The core may ask whether a plugin is live, never import it (specs/plugins-phase-0-foundation.md).
+// The core may ask whether a plugin is live, never import it (specs/plugins/plugins-phase-0-foundation.md).
 function hourlyResourcesLive() {
   try { return require('../plugins/sdk/registry').isLive('hourly-resources'); } catch { return false; }
 }
@@ -27,7 +27,7 @@ function loadStayFacts(database, reservation) {
   const propertyId = Number(reservation && reservation.propertyId);
 
   const optionMeta = {};
-  // No `titleEn`: English names live in the translation catalogue since specs/translation-catalogue.md,
+  // No `titleEn`: English names live in the translation catalogue since specs/site/translation-catalogue.md,
   // and naming the dropped column made this read fail — every booked catering option then went unseen.
   tryAll(() => database.prepare('SELECT id, title, seedKey, category, autoOptionType, displayToClient FROM options').all(), [])
     .forEach((o) => { optionMeta[o.id] = o; });
@@ -50,7 +50,7 @@ function loadStayFacts(database, reservation) {
 
   // Included nordic-bath minutes: those of the property's hourly resource that shows on the planning,
   // whatever its name, and only while hourly resources are a live plugin — without it nothing is
-  // sold by the hour (specs/plugins-phase-3c-hourly-resources.md rules 15, 18).
+  // sold by the hour (specs/plugins/plugins-phase-3c-hourly-resources.md rules 15, 18).
   const bathFreeMinutes = propertyId && hourlyResourcesLive()
     ? tryAll(() => {
       const row = database.prepare(`
@@ -81,14 +81,14 @@ function loadStayFacts(database, reservation) {
      ORDER BY p.id
   `).all(), []);
 
-  // The wording (specs/plugins-phase-p-productisation.md §3.A–3.B): the stored stay texts, global and
+  // The wording (specs/plugins/plugins-phase-p-productisation.md §3.A–3.B): the stored stay texts, global and
   // the property's own, and the mentions with their confirmation order.
   const texts = tryAll(() => stayTextsModel.buildModel(database).forContext(propertyId), { global: {}, property: {} });
   const mentionsModel = tryAll(() => emailMentionsModel.buildModel(database), null);
   const mentions = mentionsModel ? tryAll(() => mentionsModel.list(), []) : [];
   const confirmationOrder = mentionsModel ? tryAll(() => mentionsModel.confirmationOrder(), []) : [];
 
-  // specs/guest-email-texts-made-simple.md rules 1–3 — the facts of the J-2's arrival paragraphs.
+  // specs/emails/guest-email-texts-made-simple.md rules 1–3 — the facts of the J-2's arrival paragraphs.
   const arrival = propertyId
     ? tryAll(() => propertyArrivalFactsModel.buildModel(database).forEmail(propertyId), null)
     : null;
@@ -97,7 +97,7 @@ function loadStayFacts(database, reservation) {
 }
 
 /**
- * The sentence each booked resource carries once booked (specs/plugins-phase-p-productisation.md rule
+ * The sentence each booked resource carries once booked (specs/plugins/plugins-phase-p-productisation.md rule
  * 11), attached in place to the reservation's resource lines. Guarded like the facts above.
  */
 function attachResourceSentences(database, resources = []) {

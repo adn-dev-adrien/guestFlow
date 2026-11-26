@@ -55,13 +55,13 @@ button says why it is greyed, and the engine's own refinements never flicker on 
    *(2026-09-23 — this replaces a sticky « Suivant » that first scrolled to the options and only
    advanced on a second press. When the engine rebuilt its rows — a new quote after a party change —
    the scroll target moved and the button kept re-scrolling instead of advancing.)*
-   **Superseded 2026-10-19 by `specs/booking-drawer-friction.md` rule 14:** « Suivant » moves into a
+   **Superseded 2026-10-19 by `specs/site/booking-drawer-friction.md` rule 14:** « Suivant » moves into a
    sticky bar on screen 1, with the live total and the calendar's hint. It keeps the one job this rule
    protected — go to screen 2 — and never scrolls.
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 point 5 — une seule pression atteint l'écran 2.
 5. The sticky bottom bar therefore **belongs to screen 2 only** (« Retour » + the engine's submit
    button). On screen 1 it is hidden rather than left empty.
-   **Superseded 2026-10-19 by `specs/booking-drawer-friction.md` rules 14 and 16:** the bar serves both
+   **Superseded 2026-10-19 by `specs/site/booking-drawer-friction.md` rules 14 and 16:** the bar serves both
    screens; on screen 2 it relays both engine actions when the block offers the request without
    paying.
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 points 1 et 5 — barre absente sur l'écran 1, présente sur l'écran 2.
@@ -73,7 +73,7 @@ button says why it is greyed, and the engine's own refinements never flicker on 
    *(2026-09-23 — amended by rule 13: the engine's error hint now decides on its own, before the state
    of the two date fields.)*
    *(2026-10-19 — the reason now sits in the screen-1 sticky bar, above « Suivant »
-   (`specs/booking-drawer-friction.md` rule 15); while the stay is incomplete the bar also shows the
+   (`specs/site/booking-drawer-friction.md` rule 15); while the stay is incomplete the bar also shows the
    calendar's non-error hint, e.g. « Départ à partir du 22 novembre (2 nuits minimum). »)*
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 points 1 et 2 — le repli et la vraie raison du moteur.
 7. « Réserver » on screen 2 mirrors the engine's own submit button, label and disabled state included.
@@ -102,7 +102,7 @@ button says why it is greyed, and the engine's own refinements never flicker on 
 ### The engine's own look, inside the drawer (added 2026-09-23)
 
 11. Two date fields filled **no longer prove** the stay is sellable: since the engine keeps a refused
-    period on screen (`specs/wp-booking-widget-redesign.md` rule 26), « Suivant » must read the
+    period on screen (`specs/site/wp-booking-widget-redesign.md` rule 26), « Suivant » must read the
     engine's error hint **first** and only fall back to the state of the fields. Without this, a stay
     the server refuses would open screen 2, where nothing repeats the refusal.
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 point 6 — 1 nuit sur un minimum de 2, les deux dates remplies, « Suivant » gris et porteur de la phrase du moteur.
@@ -162,7 +162,7 @@ button says why it is greyed, and the engine's own refinements never flicker on 
 
 None.
 
-### 4.2 WordPress site (`mu-plugins/` of the site — the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30))
+### 4.2 WordPress site (`mu-plugins/` of the site — the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30))
 
 | File | T/C | Responsibility |
 |---|---|---|
@@ -177,7 +177,7 @@ Inside that file:
 | `construire()` (JS) | Distributes the blocks, builds screen 1's footer (button + reason), wires the engine's submit button |
 | `majNav()` / `raisonSuivant()` (JS) | Rules 4-7: which button is visible, enabled, and what the disabled one says |
 | `affiner()` / `affinerOptions()` (JS) | Rules 8-10: re-dressing the engine's rows, immediately |
-| `indicationBarre()`, `ecrire()` and the success observer (JS) | Added 2026-10-19 by `specs/booking-drawer-friction.md` rules 14-17 and 19-20: the screen-1 bar, the second action, `inert` on the hidden screen, the confirmation brought back into screen 2 |
+| `indicationBarre()`, `ecrire()` and the success observer (JS) | Added 2026-10-19 by `specs/site/booking-drawer-friction.md` rules 14-17 and 19-20: the screen-1 bar, the second action, `inert` on the hidden screen, the confirmation brought back into screen 2 |
 
 ### 4.3 API contract
 
@@ -194,7 +194,7 @@ No schema change.
   short is an instruction, not an error.
 - **Sticky bar**: hidden on screen 1 (`[hidden]` beats its `display: flex`), shown on screen 2 with
   « Retour » on the left and the submit button on the right.
-  *Amended 2026-10-19 (`specs/booking-drawer-friction.md` §6): shown on both screens — screen 1 carries
+  *Amended 2026-10-19 (`specs/site/booking-drawer-friction.md` §6): shown on both screens — screen 1 carries
   the hint, the total and « Suivant »; screen 2 puts the request without paying on a second row.*
 - **Mobile (≤600 px)**: the drawer takes the full width; the footer button is already full-width at
   every size, so nothing else changes. Verified at 420 px.
@@ -205,7 +205,7 @@ No schema change.
 ### Server unit tests
 
 None — no server code in this spec. The engine-side rules it relies on (the refusal message surviving
-its re-render) are covered by `specs/wp-booking-widget-redesign.md` rules 19-20.
+its re-render) are covered by `specs/site/wp-booking-widget-redesign.md` rules 19-20.
 
 ### Manual UI verification
 
@@ -236,10 +236,10 @@ Added 2026-09-23 (rules 11-13), same method, at 420 px and 1200 px:
 ## 8. Out of scope
 
 - The GuestFlow booking engine itself (`integrations/wordpress/guestflow-booking/`) — its share of the
-  same test session is specced in `specs/wp-booking-widget-redesign.md`.
+  same test session is specced in `specs/site/wp-booking-widget-redesign.md`.
 - The other `gf-seo-*` mu-plugins (facts, head, indexation, FAQ…).
 - Deploying to the WordPress host: these mu-plugins are copied by hand onto `.23`
-  (the versioned copy, not a deployment, lives in the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30)).
+  (the versioned copy, not a deployment, lives in the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30)).
 
 ## 9. Open questions
 

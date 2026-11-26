@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md rules 6-14 — the tourist-tax report's shaping, pure: the declaration rows the
+// specs/tourist-tax/tourist-tax-report-v2.md rules 6-14 — the tourist-tax report's shaping, pure: the declaration rows the
 // extraction already computed (one amount per stay, never a second computation), the stays a platform remits
 // itself, the declaration filter, the « Par nuit » register and the totals of the sticky bar. Every sum runs in
 // cents, so the register and the list add up to the same totals to the cent.

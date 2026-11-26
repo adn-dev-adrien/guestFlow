@@ -8,7 +8,7 @@
 | **Created** | 2026-10-15 |
 | **Author** | Adrien |
 | **Related PR** | — |
-| **Decision page** | [docs/specs/2026-10-15-gites-de-france-mail-intake.html](../docs/specs/2026-10-15-gites-de-france-mail-intake.html) |
+| **Decision page** | [docs/specs/2026-10-15-gites-de-france-mail-intake.html](../../docs/specs/2026-10-15-gites-de-france-mail-intake.html) |
 
 ---
 
@@ -176,7 +176,7 @@ choice in one click.
   (rule 17) and leave an orphan client otherwise.
 
 16. **Nothing is read before a property is tied to a gîte number.** The first boot of the plugin
-    system installs every catalogue plugin on an existing base (specs/plugins-phase-0-foundation.md
+    system installs every catalogue plugin on an existing base (specs/plugins/plugins-phase-0-foundation.md
     rules 10–12), so Solio gets this one active at once; until « N° de gîte » is filled for a
     property, the pass stops at « Aucun logement relié à un numéro de gîte » without opening the
     mailbox. A new customer's fresh base installs no plugin at all.
@@ -187,7 +187,7 @@ choice in one click.
     like a mail whose iCal fiche has not arrived; once the operator fills « N° de gîte », the next pass
     applies it. After 24 h the dashboard line shows that reason instead of « aucune fiche sur ces dates ».
     It used to end in a final `error` that no later pass looked at again (the Airbnb intake already
-    waited, `specs/airbnb-mail-intake.md` rule 11).
+    waited, `specs/platforms/airbnb-mail-intake.md` rule 11).
 19. *(Fixed at the 2026-10-27 spec review.)* The guest's client is created **in the same transaction as the
     fiche's update**: the plugin hands its find-or-create payload to `ctx.core.reservations.update(id, patch,
     { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first. A fiche the core
@@ -222,7 +222,7 @@ choice in one click.
     `imap.` counterpart, or a host one label away under the same parent (never two labels, a public suffix or an
     IP), a configured host elsewhere being refused at save and ignored at use. The card shows the host used.
     `imapHost`, `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId` are declared `supportLocked`:
-    refused to a support session when changed (`specs/hosting-h2-account-security.md` rule 18, which also refuses a
+    refused to a support session when changed (`specs/hosting/hosting-h2-account-security.md` rule 18, which also refuses a
     plugin rollback). Test:
     `server/src/tests/mail-intake-credential-destination.unit.test.js`.
 23. *(Added 2026-10-28, audit finding F4.)* **Field by field, never first match in the text.** The guest types his
@@ -482,7 +482,7 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
 ## 9. Open questions
 
 1. **IMAP host/port**: derived from the SMTP host by default, editable in the plugin settings —
-   confirm on the first « Tester la connexion ». *Amended 2026-10-25 (specs/airbnb-mail-intake.md rule 4):*
+   confirm on the first « Tester la connexion ». *Amended 2026-10-25 (specs/platforms/airbnb-mail-intake.md rule 4):*
    the default was the SMTP host itself (`smtp.gmail.com`), on which no IMAP pass can connect; it is now
    deduced as `imap.<domain>`. The reader moved to the SDK (`sdk.mailbox.readMailsFrom`), shared with the
    Airbnb intake plugin.

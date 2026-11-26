@@ -99,7 +99,7 @@ test('leaves distinct slugs alone (no over-merge of a typo platform)', () => {
   assert.equal(db.prepare('SELECT COUNT(*) c FROM platforms').get().c, 2);
 });
 
-// specs/normalize-platform-names.md §3.3 rule 16 — the second pass. Until 2026-08-24 the iCal sync
+// specs/platforms/normalize-platform-names.md §3.3 rule 16 — the second pass. Until 2026-08-24 the iCal sync
 // wrote the feed SLUG into `reservations.platform` (`abracadaroom`, `gites-de-france`), so a synced
 // booking carried a spelling no `platforms` row named. The dedup loop above only re-points values
 // that equal a duplicate row's name, so those references survived every boot and the calendar

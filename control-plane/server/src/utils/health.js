@@ -1,5 +1,5 @@
 /**
- * The health check of an instance (specs/hosting-h1-fleet-runtime.md rules 1.7, 10): `GET
+ * The health check of an instance (specs/hosting/hosting-h1-fleet-runtime.md rules 1.7, 10): `GET
  * /api/version` answers, and — when a version is expected — with that version. Polled until it does
  * or the time is up.
  */

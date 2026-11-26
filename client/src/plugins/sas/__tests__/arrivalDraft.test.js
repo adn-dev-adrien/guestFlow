@@ -1,4 +1,4 @@
-// specs/sas-arrival-total-server-side.md rules 4-7 — the arrival draft: intent only, one object for
+// specs/sas/sas-arrival-total-server-side.md rules 4-7 — the arrival draft: intent only, one object for
 // the preview and the commit.
 import buildArrivalDraft from '../arrivalDraft';
 
@@ -13,7 +13,7 @@ test('rules 6-7 — linen by item, kept lines by row, each with its gesture; no 
   expect(draft.linenItems).toEqual([{ itemId: 1, qty: 2, offered: true }]);
   expect(draft.keptLines).toEqual([{ customOptionId: 41, offered: true }]);
   expect(draft.cleaningAdded).toBe(true);
-  // specs/pricing-components.md rule 14 — one « Offrir » input: the upsells, then the lines.
+  // specs/pricing/pricing-components.md rule 14 — one « Offrir » input: the upsells, then the lines.
   expect(draft.offered).toEqual([{ kind: 'upsell', key: 'cleaning' }, { kind: 'option', id: 5 }, { kind: 'extraGuests', id: 0 }]);
   expect(draft).not.toHaveProperty('cleaningOffered');
   expect(draft).not.toHaveProperty('offeredExtras');

@@ -2,12 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code) — pending manual UI check on the running app |
+| **Status** | Implemented |
 | **Branch** | `feature/breakfast-time` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Extends** | [breakfast-option-and-planning-card.md](breakfast-option-and-planning-card.md) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Status set to Implemented (code shipped long ago); `BreakfastDayCard` is now `OptionDayCard` with `theme='breakfast'`.
 
 ---
 
@@ -33,7 +35,7 @@ breakfasts **sorted by time**.
 3. On the reservation page, when the breakfast option is enabled, a time field lets the operator set
    the desired breakfast time. It is **pre-filled with the option's default** the first time breakfast
    is enabled (and when empty); the operator can override it. Clearing it falls back to the default.
-4. *(Amended 2026-08-17 — [sas-breakfast-time-applies.md](sas-breakfast-time-applies.md).)* Since the
+4. *(Amended 2026-08-17 — [sas-breakfast-time-applies.md](../sas/sas-breakfast-time-applies.md).)* Since the
    per-morning planning cards shipped, the hour of a served morning is carried by its **occurrence**
    (`reservation_options.cardOccurrences[].time`); `reservations.breakfastTime` is the stay-level hour,
    used as the fallback when a stay has no occurrence — and writing it rewrites the occurrences, so the

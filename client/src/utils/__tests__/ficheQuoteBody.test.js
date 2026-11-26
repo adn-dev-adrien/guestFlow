@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t16, S16-2, 2026-11-17) — one request body for every quote of the fiche
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t16, S16-2, 2026-11-17) — one request body for every quote of the fiche
 // (live preview, save-time quote, « Actualiser les tarifs », ledger re-quote): what one carries, all carry.
 import { addIsoDays, localIsoToday } from '../isoDay';
 import { ficheQuoteBody, customOptionsPayload, selectedOptionsPayload, selectedResourcesPayload } from '../ficheQuoteBody';

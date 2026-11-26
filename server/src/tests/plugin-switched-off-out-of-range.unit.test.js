@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 61 (audit r5 review, residual) — a core update that ships a bundled
+// specs/plugins/plugins-phase-4-registry.md rule 61 (audit r5 review, residual) — a core update that ships a bundled
 // requirement at a version a registry-installed dependant's range refuses switches the dependant off at boot.
 const test = require('node:test');
 const assert = require('node:assert/strict');

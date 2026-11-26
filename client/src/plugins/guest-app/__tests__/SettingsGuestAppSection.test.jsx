@@ -1,4 +1,4 @@
-// specs/guest-app.md plan step 5, rule 58 — the « Application clients » card of Paramètres › Intégrations, saved through
+// specs/guest-app/guest-app.md plan step 5, rule 58 — the « Application clients » card of Paramètres › Intégrations, saved through
 // the plugin's own settings route (the only one that writes the guest host).
 import React, { createRef } from 'react';
 import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 42 — a platform payout of 0 € (commission ≥ solde) is never
+// specs/accounting/finance-dashboard-redesign.md rule 42 — a platform payout of 0 € (commission ≥ solde) is never
 // late: no row in « En retard », no stay counted, no home dashboard card. Final review 2026-10-18
 // (minor 4): the row stayed in the list at 0 € and counted as a stay.
 const { freshDb, insert, TODAY } = require('./financeDashboardFixture');

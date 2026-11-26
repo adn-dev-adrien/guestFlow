@@ -1,4 +1,4 @@
-// specs/calendar-property-parity.md rule 21 — the phone agenda carries the stays' colours: a solid ribbon in the
+// specs/planning/calendar-property-parity.md rule 21 — the phone agenda carries the stays' colours: a solid ribbon in the
 // server's colour and text colour, the right half on arrival with « ↓ 16:00 », the left half on departure with
 // « ↑ 10:00 », both halves on a turnover day, a tint for a past stay, a hatched ribbon for a closure.
 import React from 'react';

@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md §6 (audit R44-C-L1) — the fiche hands the dialog a fresh `row` object on
+// specs/payments/payment-schedule-and-cancellation.md §6 (audit R44-C-L1) — the fiche hands the dialog a fresh `row` object on
 // every render, and a failed cancel re-renders it: the dialog then cleared the reason and re-ticked « Prévenir le
 // client », so a retry mailed a guest the operator had chosen not to notify. The form now starts over only when the
 // dialog opens.

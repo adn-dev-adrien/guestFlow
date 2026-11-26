@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { generateDevisPdf, __test: { resolveLiveTaxTotals } } = require('../utils/devisPdf');
 const { __test: { computeValidUntil } } = require('../models/devisModel');
 
-// Non-regression coverage for specs/devis-pdf-and-tourist-tax-fixes.md.
+// Non-regression coverage for specs/devis/devis-pdf-and-tourist-tax-fixes.md.
 // PDF content streams are FlateDecode-compressed by PDFKit so asserting on text inside
 // the binary is unreliable; instead we (a) unit-test the pure date helper that drives
 // "Valable jusqu'au" and (b) smoke-generate the PDF for every scenario the spec calls
@@ -93,7 +93,7 @@ test('rule 18: touristTaxTotal = 0 → skip block without throwing', async () =>
   await assertValidPdf(buf);
 });
 
-// ── Consistency invariant — specs/devis-pdf-total-parity.md §3.2 rules 6-10.
+// ── Consistency invariant — specs/devis/devis-pdf-total-parity.md §3.2 rules 6-10.
 //
 // Two things must hold at once, and the second one used to break the first:
 //   (a) the grand total is the stay the table PRINTED plus the tax printed above it — always;

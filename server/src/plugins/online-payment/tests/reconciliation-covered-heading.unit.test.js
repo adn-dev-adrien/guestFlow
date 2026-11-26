@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) (stabilisation loop t12 UI12-2, 2026-11-17) — every
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 1 (second half) (stabilisation loop t12 UI12-2, 2026-11-17) — every
 // « couvre aussi » entry carries the server's `clientHeading` (the client name of a stay), so the screen never prints a
 // doubled label for an anonymous sale. Fictional data only.
 const test = require('node:test');

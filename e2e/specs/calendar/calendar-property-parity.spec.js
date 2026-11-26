@@ -1,5 +1,5 @@
 // @ts-check
-// specs/calendar-property-parity.md rules 1-2, 13, 17 — against the real app: a stay on a platform « Désactivé »
+// specs/planning/calendar-property-parity.md rules 1-2, 13, 17 — against the real app: a stay on a platform « Désactivé »
 // for its logement is in « Tous » and in the logement; scrolling up in the logement calendar shows the previous
 // month's title and its stay; at 390 px the logement calendar is a day agenda that scrolls into the next month.
 import { test, expect } from '@playwright/test';

@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 36 on the `app` host: the login page's pages carry
+// specs/hosting/control-plane-plans-and-access.md rule 36 on the `app` host: the login page's pages carry
 // `Referrer-Policy: same-origin`, so a browser posts its forms with their real `Origin` and they pass
 // the same-origin gate; `Origin: null` (what `no-referrer` makes a browser send) and another host are
 // refused.

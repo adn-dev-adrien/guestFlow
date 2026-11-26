@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 8 — a write that reaches stays from outside
+// specs/reservations/reservation-fiche-concurrency.md rule 8 — a write that reaches stays from outside
 // /api/reservations/:id (bank reconciliation, payment poll) answers with the stays THIS request wrote, and
 // never with a foreign write that landed while the handler awaited.
 const { listenLocal } = require('./listenLocal');

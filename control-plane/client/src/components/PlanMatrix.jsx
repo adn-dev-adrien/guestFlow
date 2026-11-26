@@ -1,5 +1,5 @@
 /**
- * PlanMatrix — the plan × plugin matrix of the catalogue (specs/control-plane-plans-and-access.md
+ * PlanMatrix — the plan × plugin matrix of the catalogue (specs/hosting/control-plane-plans-and-access.md
  * rules 2–3, §6). One row per plugin and one column per plan on sm+; one card per plan on xs. The
  * server decides each cell (`own`, `inherited`, `none`) and what a click does; this only renders.
  *

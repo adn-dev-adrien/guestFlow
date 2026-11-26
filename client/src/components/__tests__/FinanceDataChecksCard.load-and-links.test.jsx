@@ -1,4 +1,4 @@
-// specs/finance-data-checks.md §3 rules 15, 16 and 17 — the Suivi financier's « À vérifier »: what it asks, where its
+// specs/accounting/finance-data-checks.md §3 rules 15, 16 and 17 — the Suivi financier's « À vérifier »: what it asks, where its
 // items lead, and a refusal kept inside the card.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -31,7 +31,7 @@ test('rule 16: asks the page’s exercise and logement; a stay opens its fiche w
   open('Séjours terminés sans taxe');
   expect(screen.getByRole('link', { name: /202609011/ })).toHaveAttribute('href', `/reservations/412?from=${encodeURIComponent(FROM)}`);
   open('Mois passés');
-  // specs/tourist-tax-report-v2.md rule 31 (review R4-6) — the logement the item was counted on goes with it.
+  // specs/tourist-tax/tourist-tax-report-v2.md rule 31 (review R4-6) — the logement the item was counted on goes with it.
   expect(screen.getByRole('link', { name: /Septembre 2026/ })).toHaveAttribute('href', `/finance/tourist-tax?month=2026-09&propertyId=3&from=${encodeURIComponent(FROM)}`);
 });
 

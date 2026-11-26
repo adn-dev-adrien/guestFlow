@@ -1,6 +1,6 @@
 /**
  * D20 (Adrien, 2026-11-06) — the end-of-stay complement is collected once the guest has left
- * (specs/reservation-payment-ledger.md rule 68).
+ * (specs/payments/reservation-payment-ledger.md rule 68).
  *
  * « Check-out done » is the departure SAS committed (`departureSasDoneAt`) when the sas plugin is live;
  * without it, the last day of the stay has come (server local day, Europe/Paris, utils/localDate).

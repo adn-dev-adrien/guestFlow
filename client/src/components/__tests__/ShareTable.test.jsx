@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 15 and 16 — part-to-whole: the bar's widths are the server's
+ * specs/design-system/report-grammar.md §3 rules 15 and 16 — part-to-whole: the bar's widths are the server's
  * shares, a 0 share draws no segment, hovering or focusing a row brings its segment forward (and a
  * segment its row), the total row is the server's.
  */

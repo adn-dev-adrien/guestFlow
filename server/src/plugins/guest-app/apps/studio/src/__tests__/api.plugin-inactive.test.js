@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 63 (audit R37-C-L1, its class) — the plugin switched off while the studio is open: its
+// specs/guest-app/guest-app.md rule 63 (audit R37-C-L1, its class) — the plugin switched off while the studio is open: its
 // routes answer the loader's bare 404 `PLUGIN_INACTIVE`, which the operator reads as « Module inactif. », never the
 // code; a refusal's French sentence still reaches the operator as it is.
 import {

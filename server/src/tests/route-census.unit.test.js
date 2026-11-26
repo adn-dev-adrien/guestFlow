@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, census (2026-11-05) — the baselines are written by hand, so a new write route
+// specs/hosting/hosting-h2-account-security.md rule 68, census (2026-11-05) — the baselines are written by hand, so a new write route
 // could miss them in silence. This walks the routers Express really mounted, core and plugins: each POST, PUT, PATCH, DELETE
 // has a baseline row or an exemption with its reason. A router behind a wrapper function is not walked: website-booking's
 // /public/v1 tree, judged by its public-input-shape suites.

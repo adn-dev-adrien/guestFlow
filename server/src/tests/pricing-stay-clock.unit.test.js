@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 20 and 44 — STAY CLOCK `phaseOf`: the exact minutes, the calendar answers, the
+// specs/pricing/pricing-components.md §3 rules 20 and 44 — STAY CLOCK `phaseOf`: the exact minutes, the calendar answers, the
 // two DST days, malformed input refused, `now` injected. Every date below is an input of a pure function.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -194,7 +194,7 @@ test('rule 44 — an oracle over random stays and instants, the two DST days inc
   assert.ok(compared > 3000);
 });
 
-// specs/pricing-components.md §3 rule 45 (pass 4): the calendar answers and the SAS window of the call sites moved here.
+// specs/pricing/pricing-components.md §3 rule 45 (pass 4): the calendar answers and the SAS window of the call sites moved here.
 test('dayReached and dayPassed answer about a calendar day, with the semantics of the comparisons they replace', () => {
   const { dayReached, dayPassed } = require('../utils/pricing/stayClock');
   assert.equal(dayReached('2026-08-04', '2026-08-04'), true); // date-literal-ok — the clock is handed to the pure stay-clock functions

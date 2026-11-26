@@ -2,19 +2,21 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved (2026-07-06, with uniformization additions §3.4-§3.6) |
+| **Status** | Implemented (approved 2026-07-06, with uniformization additions §3.4-§3.6) |
 | **Branch** | one per phase — see §3.9 (umbrella spec, no single branch) |
 | **Created** | 2026-07-06 |
 | **Author** | Adrien |
 | **Related PR** | (one per phase) |
 | **Mockup** | [Design directions artifact](https://claude.ai/code/artifact/479a7c6b-e311-4c76-8b8e-537108490580) — direction C retained |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Status Approved → Implemented (all six phases shipped, §3.9; the `/design` page was removed 2026-08-22, only the dev-only `/design/report-grammar` workbench remains). The root `DESIGN.md` is the agent-facing digest of this spec and the reference.
+
 ---
 
 ## 1. Context
 
 GuestFlow's UI grew page by page. A 6-agent audit (2026-07-03, adversarially verified) found a **healthy
-core** — a single theme ([`client/src/theme.js`](../client/src/theme.js)), MUI palette tokens are the norm
+core** — a single theme ([`client/src/theme.js`](../../client/src/theme.js)), MUI palette tokens are the norm
 (333 palette-path usages, 0 hex Chips), 10 of the 13 CLAUDE.md §7 prescribed generics exist — but
 **consistency leaks in five places** across the 28 routed pages:
 
@@ -51,7 +53,7 @@ unknown URL = blank screen); `ForcedPasswordChange` (App.js:874) missing from in
 - *2026-08-22* — The `/design` showcase page is **removed** (route, sidebar entry under Réglages, and
   `pages/DesignPage.jsx`). The design system is an internal contract Claude follows when it builds or
   edits a page, not a feature the operator uses: nothing on that page was actionable for them, and it
-  cost a menu slot in an already dense Réglages. `specs/design-system-reference.md` becomes the single
+  cost a menu slot in an already dense Réglages. `specs/design-system/design-system-reference.md` becomes the single
   living reference, and the drift it used to expose is caught by the theme + component tests instead.
 - *2026-07-06* — Visual direction = **C · « Maison »** (hospitality identity) from the
   [3-direction mockup](https://claude.ai/code/artifact/479a7c6b-e311-4c76-8b8e-537108490580): deep fir-green
@@ -177,7 +179,7 @@ backend unchanged); this is pure presentational formatting.
 
 ### 3.8 Reference deliverables
 
-- **`specs/design-system-reference.md`** — the versioned reference: tokens table, typography roles,
+- **`specs/design-system/design-system-reference.md`** — the versioned reference: tokens table, typography roles,
   spacing scale, component catalogue with usage rules, do/don't. (Named `-reference`: macOS's
   case-insensitive filesystem forbids `DESIGN-SYSTEM.md` next to this file.) CLAUDE.md §7 points at it.
 - ~~**`/design` page** (admin-only route) — live showcase of tokens, type specimens and every generic
@@ -190,7 +192,7 @@ backend unchanged); this is pure presentational formatting.
 | Phase | Branch | Content | Size |
 |---|---|---|---|
 | **1 — Fondations & thème** | `feature/ds-theme-maison` | New `theme.js` (palette §3.1 + variants §3.2 + fonts), `ScrollToTop` on route change (§3.6), quick bug batch (ZONE_COLORS conflict, `#1976d2`→`primary.main` ×18, DevisPage alert bug, dead components), `formatCurrency`/`displayDate` centralization (§3.7), `/design` v1 (tokens+type) | M |
-| **2 — Composants** | `feature/ds-components` | §3.3 new generics + fixes (fullScreen dialogs, scaffold swap, ErrorBoundary, NotFound), `/design` v2 (catalogue), `specs/DESIGN-SYSTEM.md` | M/L |
+| **2 — Composants** | `feature/ds-components` | §3.3 new generics + fixes (fullScreen dialogs, scaffold swap, ErrorBoundary, NotFound), `/design` v2 (catalogue), `specs/design-system/design-system-reference.md` | M/L |
 | **3 — Sweep Réglages & admin** | `fix/ds-sweep-settings` | Settings*, PaymentsSettings, EmailTemplates, UserManagement, LinenStock, PlatformAccounts → PageActionBar + states + toasts + tokens + mobile tables | M |
 | **4 — Sweep Finance** | `fix/ds-sweep-finance` | Finance, Accounting, TouristTax, Devis → same + KPI cards on `kpiValue`/`kpiLabel` | M |
 | **5 — Sweep Planning & Dashboard** | `fix/ds-sweep-planning` | Dashboard, Planning, Calendar, ResourcePlanning, ReservationsUpcoming + the calendar/planning hex→token sweep (CalendarDayCell, ReservationCard, MiniDayPlanner, SAS dialog) + App shell (AppBar/Drawer) | L |
@@ -258,7 +260,7 @@ section C) — tokens in §3.1/§3.2. Key UX rules:
   the dense calendar surfaces the audit flagged as unverified).
 - French copy conventions unified during sweeps: save verb = « Enregistrer », add = « Ajouter » (+ noun),
   the two unsaved-changes wordings merge (§3.3).
-- Réglages carries no design-system entry: the reference lives in `specs/design-system-reference.md`,
+- Réglages carries no design-system entry: the reference lives in `specs/design-system/design-system-reference.md`,
   read by whoever writes the code, never by the operator.
 
 ## 7. Test plan
@@ -292,7 +294,7 @@ Per phase (details in phase specs):
 ## 10. Report grammar (2026-11-05)
 
 Report screens (tourist tax, accounting synthesis, occupancy/RevPAR, stay profile, data checks) are
-composed from one grammar, specified in **`specs/report-grammar.md`**: the KPI tile anatomy
+composed from one grammar, specified in **`specs/design-system/report-grammar.md`**: the KPI tile anatomy
 (`SelectableTile` with `info` + `comparison`, `YearOverYearBadge` report mode, « — vs N-1 » and one
 `NoComparisonNotice`), `Panel` with the `panelLabel` typography role, `PageTabs` item counts, and the
 report charts `TrendChart`, `AlignedDailyCumulativeCharts` and `ShareTable` (with the generic

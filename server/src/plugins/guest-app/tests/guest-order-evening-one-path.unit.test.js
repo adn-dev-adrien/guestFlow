@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 81, 82, 92 and specs/pricing-components.md rules 24, 90.3 (review defect D8, M1) — the bath's evening is billed ONE way: the offered evening hour
+// specs/guest-app/guest-app.md rules 81, 82, 92 and specs/pricing/pricing-components.md rules 24, 90.3 (review defect D8, M1) — the bath's evening is billed ONE way: the offered evening hour
 // owes its supplement as part of the session line (quote = commit), and the arrival SAS's own recompute does not bill that evening a second time.
 const fx = require('./guestOrderFixtures');
 

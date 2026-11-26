@@ -6,7 +6,7 @@ const settingsModel = require('../models/settingsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 
 /**
- * Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1 + §5). Plain non-secret
+ * Accounting closing month (specs/accounting/fiscal-year-and-nights-sold.md §3.1 + §5). Plain non-secret
  * integer column on the app_settings singleton, surfaced under an `accounting` block. Default 12 =
  * calendar year, i.e. the behaviour every annual figure had before this spec.
  */

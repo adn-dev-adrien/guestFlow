@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 12 — a test process starts without the shell's GuestFlow flags:
+// specs/tech/server-test-isolation.md rule 12 — a test process starts without the shell's GuestFlow flags:
 // the `npm test` preload deletes every GUESTFLOW_* variable but the runner's own GUESTFLOW_TEST_* knobs,
 // and the E2E servers, which set GUESTFLOW_DISABLE_OUTBOUND on purpose, never load it.
 const test = require('node:test');

@@ -1,8 +1,8 @@
 /**
- * The fleet (specs/control-plane-plans-and-access.md rules 8, 18 and 33): today's alerts, the emails
+ * The fleet (specs/hosting/control-plane-plans-and-access.md rules 8, 18 and 33): today's alerts, the emails
  * awaiting approval, the three counters as filters, and one line per customer — a table on sm+,
  * cards on xs. Sorting a column is presentation only; every value comes ready from the server.
- * Since the hosting (specs/hosting-h1-fleet-runtime.md rule 15) each line carries the measures of the
+ * Since the hosting (specs/hosting/hosting-h1-fleet-runtime.md rule 15) each line carries the measures of the
  * probe: version, process, last backup, last verified restore, disk, certificate.
  */
 import React, { useEffect, useMemo, useState } from 'react';

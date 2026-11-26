@@ -7,7 +7,9 @@
 | **Created** | 2026-06-19 |
 | **Author** | Adrien |
 | **Related PR** | #249 (initial), follow-up (global + case-1 charged) |
-| **Supersedes** | extends [per-platform-tourist-tax-collection.md](per-platform-tourist-tax-collection.md) (binary → three-way) |
+| **Supersedes** | extends per-platform-tourist-tax-collection.md (the former `per-platform-tourist-tax-collection`, deleted) (binary → three-way) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rules 1-5 and the edge cases now describe the global `platforms` row, the charged case 1 and the standard tax-in-balance booking, as the Revision above and `server/src/models/pricingInputModel.js` (`resolveGlobalPlatformTaxRow`) say. The binary spec it extends is deleted; this one is the reference.
 
 > **Revision (2026-06-19, follow-up PR).** Two corrections after the first cut (#249):
 > 1. **The mode is GLOBAL per platform** — it lives on the `platforms` table (like `platforms.color`),
@@ -26,7 +28,7 @@
 ## 1. Context
 
 Today the per-platform tourist-tax setting on each property's `ical_sources` row is **binary**
-(`collectsTouristTax`, see [per-platform-tourist-tax-collection.md](per-platform-tourist-tax-collection.md)):
+(`collectsTouristTax`, see per-platform-tourist-tax-collection.md (the former `per-platform-tourist-tax-collection`, deleted)):
 
 | `collectsTouristTax` | Meaning today | Quote | Suivi taxe de séjour | Comptabilité |
 |---|---|---|---|---|
@@ -65,36 +67,33 @@ the quote, the *Suivi taxe de séjour* report, and the *Comptabilité* export:
 
 ### Data / resolution
 
-1. Each `ical_sources` row keeps **`collectsTouristTax`** (1 = the platform charges the guest / the
-   tax is *offered* on our quote; 0 = we charge it at arrival) and gains a second boolean
-   **`touristTaxRemittedByPlatform`** (1 = the platform remits to the commune, we don't touch it;
-   0 = **we** remit). The two booleans encode exactly three valid states:
+1. Each **`platforms`** row (global per platform, see the Revision above) carries **`collectsTouristTax`**
+   (1 = the platform charges the guest; 0 = we charge it at arrival) and **`touristTaxRemittedByPlatform`**
+   (1 = the platform remits to the commune, we don't touch it; 0 = **we** remit). The two booleans encode
+   exactly three valid states:
    - `collectsTouristTax = 1, touristTaxRemittedByPlatform = 1` → **`platform`** (case 2).
    - `collectsTouristTax = 1, touristTaxRemittedByPlatform = 0` → **`platform_reversed`** (case 1).
    - `collectsTouristTax = 0, touristTaxRemittedByPlatform = 0` → **`owner`** (case 3).
    The invalid combo `collectsTouristTax = 0, touristTaxRemittedByPlatform = 1` (« we collect at
    arrival but the platform remits ») is **normalised away in the model**: whenever
    `collectsTouristTax = 0`, `touristTaxRemittedByPlatform` is forced to `0`.
-2. **Guest-facing quote is unchanged** between `platform` and `platform_reversed`: both are *offered*
-   (`isPlatformCollectingTouristTax` still reads `collectsTouristTax`, so the engine keeps zeroing
-   `touristTaxTotal` and the deposit/balance/complement schedule is identical). The ONLY difference
-   between case 1 and case 2 is **who remits** → Suivi + compta. `owner` keeps today's
-   collect-on-arrival schedule (tax in the complement from save 1).
+2. **Guest-facing quote** — only `platform` (case 2) is *offered*: the engine zeroes `touristTaxTotal`
+   (`touristTaxOriginalTotal` keeps the would-be amount). `platform_reversed` (case 1) is CHARGED, in the
+   balance (Revision point 2), and `owner` (case 3) is charged in the complement from save 1.
 3. **« We remit »** predicate (drives Suivi + compta inclusion), per reservation:
    - `platform = 'direct'` → we remit.
-   - non-direct → look up the property's iCal source matching `lower(platformKey)` **OR**
-     `lower(platformLabel)` (same dual-match as the existing rules) → we remit iff its
-     `touristTaxRemittedByPlatform = 0`. No matching source → **default to "platform remits"**
+   - non-direct → look up the `platforms` row by `lower(name)` (an iCal-imported hyphenated key is bridged
+     through `ical_sources.platformKey`/`platformLabel`; `resolveGlobalPlatformTaxRow`) → we remit iff its
+     `touristTaxRemittedByPlatform = 0`. No matching platform → **default to "platform remits"**
      (we don't remit), preserving the legacy hidden-from-Suivi behaviour for ad-hoc platforms.
 4. **Suivi taxe de séjour** (`getTouristTaxExtraction`) includes a reservation iff the « we remit »
-   predicate is true. Concretely the SQL `WHERE` swaps `s.collectsTouristTax = 0` →
-   `s.touristTaxRemittedByPlatform = 0`. The tax **amount** is recomputed from nights/persons/rate as
-   today (`computeTouristTaxBreakdown`), so case-1 reservations — whose stored `touristTaxTotal` is 0
-   because the tax is offered — still report the correct would-be amount.
+   predicate is true. Concretely the SQL `WHERE` reads the platform's `touristTaxRemittedByPlatform = 0`. The tax **amount** is the stored
+   (frozen once collected, `specs/tourist-tax/tourist-tax-matches-the-office-calculation.md` rules 10-12) or recomputed one.
 5. **Comptabilité (case 1 — `platform_reversed`):** the reversed tax is a **pass-through** we owe the
    commune, booked on `46710000`, not revenue. The platform settles in a single payout (deposit = 0
-   for platforms), so the tax rides the **`balance`** accounting entry:
-   - `taxTtc` for the balance entry gains the reversed tax (`= quote.touristTaxOriginalTotal`).
+   for platforms), so the tax rides the **`balance`** accounting entry through the standard
+   tax-in-balance path (stored `touristTaxTotal`, Revision point 2):
+   - `taxTtc` for the balance entry carries the reversed tax.
    - the entry's encaissement TTC (and net) grows by the same amount — the payout we banked
      included the tax.
    - the commission stays computed on the stay only (`effectiveGross − finalPrice`), untouched
@@ -114,12 +113,12 @@ the quote, the *Suivi taxe de séjour* report, and the *Comptabilité* export:
 
 ### Edge cases
 
-- A non-direct manual reservation whose platform has **no** iCal source on the property → « we don't
+- A non-direct manual reservation whose platform has **no** `platforms` row → « we don't
   remit » (legacy default) → hidden from Suivi, no tax in compta. To make it appear, the operator
-  configures the platform row (even URL-less) and picks `platform_reversed` / `owner`.
-- `ical_sources` table/column absent (minimal test DB) → resolvers swallow the SQL error and fall
+  creates the platform and picks `platform_reversed` / `owner`.
+- `platforms` table/columns absent (minimal test DB) → resolvers swallow the SQL error and fall
   back to « platform remits / offered » (defensive default).
-- A source switched `owner` → `platform_reversed`: future quotes stop charging the tax to the guest
+- A platform switched `owner` → `platform_reversed`: future quotes stop charging the tax to the guest
   (offered) but it keeps appearing in Suivi/compta. Past reservations keep their stored schedule
   (rule 6).
 - `direct` row has no tax selector (always « owner collects + we remit »); the cell shows « — ».
@@ -137,15 +136,15 @@ the quote, the *Suivi taxe de séjour* report, and the *Comptabilité* export:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `database.js` | [database.js](../server/src/database.js) | T | Idempotent `ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1` (PRAGMA-guarded). One-time backfill `UPDATE ical_sources SET touristTaxRemittedByPlatform = 0 WHERE collectsTouristTax = 0` so existing owner-collect rows correctly say « we remit ». |
-| `schema.sql` | [schema.sql](../server/src/schema.sql) | T | Add the column to the `CREATE TABLE ical_sources` for fresh installs. |
-| `utils/pricing.js` | [pricing.js](../server/src/utils/pricing.js) | T | Keep `isPlatformCollectingTouristTax` (reads `collectsTouristTax`). **New** `isTouristTaxRemittedByOwner(db, propertyId, platformKey)`: direct → true; else match source by `platformKey`/`platformLabel` → `touristTaxRemittedByPlatform = 0` ? true : false; no source/missing table → false. The quote returns a new boolean **`touristTaxRemittedByOwner`** (and keeps `touristTaxOfferedByPlatform`, `touristTaxCollectedOnArrival`, `touristTaxOriginalTotal`, `touristTaxTotal`). |
-| `models/financeModel.js` | [financeModel.js:389](../server/src/models/financeModel.js#L389) | T | `getTouristTaxExtraction` WHERE: `s.collectsTouristTax = 0` → `s.touristTaxRemittedByPlatform = 0` (the dual `platformKey`/`platformLabel` match is unchanged). |
+| `database.js` | [database.js](../../server/src/database.js) | T | Idempotent `ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1` (PRAGMA-guarded). One-time backfill `UPDATE ical_sources SET touristTaxRemittedByPlatform = 0 WHERE collectsTouristTax = 0` so existing owner-collect rows correctly say « we remit ». |
+| `schema.sql` | [schema.sql](../../server/src/schema.sql) | T | Add the column to the `CREATE TABLE ical_sources` for fresh installs. |
+| `utils/pricing.js` | [pricing.js](../../server/src/utils/pricing.js) | T | Keep `isPlatformCollectingTouristTax` (reads `collectsTouristTax`). **New** `isTouristTaxRemittedByOwner(db, propertyId, platformKey)`: direct → true; else match source by `platformKey`/`platformLabel` → `touristTaxRemittedByPlatform = 0` ? true : false; no source/missing table → false. The quote returns a new boolean **`touristTaxRemittedByOwner`** (and keeps `touristTaxOfferedByPlatform`, `touristTaxCollectedOnArrival`, `touristTaxOriginalTotal`, `touristTaxTotal`). |
+| `models/financeModel.js` | [financeModel.js:389](../../server/src/models/financeModel.js#L389) | T | `getTouristTaxExtraction` WHERE: `s.collectsTouristTax = 0` → `s.touristTaxRemittedByPlatform = 0` (the dual `platformKey`/`platformLabel` match is unchanged). |
 | `models/accountingModel.js` | [accountingModel.js:288](../server/src/models/accountingModel.js#L288) | T | `buildEntry`: when `quote.touristTaxOfferedByPlatform && quote.touristTaxRemittedByOwner` (case 1) and `kind === 'balance'`, add `round2(quote.touristTaxOriginalTotal)` to `taxTtc` (→ `46710000`) and to the encaissement TTC/net. Both the contrib-driven and legacy paths. Commission/buckets untouched. |
-| `models/propertyIcalModel.js` | [propertyIcalModel.js](../server/src/models/propertyIcalModel.js) | T | `SOURCE_COLUMNS` += `touristTaxRemittedByPlatform`. `createSource`/`updateSource` accept a single **`touristTaxCollection`** string (`'platform' \| 'platform_reversed' \| 'owner'`) → derive both booleans; keep accepting the legacy `collectsTouristTax` boolean (derive `remitted` from it). Normalise: `collectsTouristTax = 0 ⇒ touristTaxRemittedByPlatform = 0`. |
-| `models/platformsModel.js` | [platformsModel.js:231](../server/src/models/platformsModel.js#L231) | T | `listForProperty` SELECT += `touristTaxRemittedByPlatform`; each row exposes a derived **`touristTaxCollection`** string (+ keep `collectsTouristTax` for back-compat). Default (no source) → `'platform'`. |
-| `models/propertiesModel.js` | [propertiesModel.js:112](../server/src/models/propertiesModel.js#L112) | T | `getByIdWithDetails` nested `icalSources` SELECT += `touristTaxRemittedByPlatform` (so any consumer reading the nested array sees the same state). |
-| `models/reservationsModel.js` | [reservationsModel.js:451](../server/src/models/reservationsModel.js#L451) | T | The reservation detail mapping exposes **`touristTaxInComplementAmount`** = `touristTaxTotal` when the tax is routed to the complement (`touristTaxInComplement = 1` **or** (`platform != 'direct'` and `touristTaxTotal > 0`)), else `0`. Server-side derivation (fat backend) consumed by the SAS. |
+| `models/propertyIcalModel.js` | [propertyIcalModel.js](../../server/src/models/propertyIcalModel.js) | T | `SOURCE_COLUMNS` += `touristTaxRemittedByPlatform`. `createSource`/`updateSource` accept a single **`touristTaxCollection`** string (`'platform' \| 'platform_reversed' \| 'owner'`) → derive both booleans; keep accepting the legacy `collectsTouristTax` boolean (derive `remitted` from it). Normalise: `collectsTouristTax = 0 ⇒ touristTaxRemittedByPlatform = 0`. |
+| `models/platformsModel.js` | [platformsModel.js:231](../../server/src/models/platformsModel.js#L231) | T | `listForProperty` SELECT += `touristTaxRemittedByPlatform`; each row exposes a derived **`touristTaxCollection`** string (+ keep `collectsTouristTax` for back-compat). Default (no source) → `'platform'`. |
+| `models/propertiesModel.js` | [propertiesModel.js:112](../../server/src/models/propertiesModel.js#L112) | T | `getByIdWithDetails` nested `icalSources` SELECT += `touristTaxRemittedByPlatform` (so any consumer reading the nested array sees the same state). |
+| `models/reservationsModel.js` | [reservationsModel.js:451](../../server/src/models/reservationsModel.js#L451) | T | The reservation detail mapping exposes **`touristTaxInComplementAmount`** = `touristTaxTotal` when the tax is routed to the complement (`touristTaxInComplement = 1` **or** (`platform != 'direct'` and `touristTaxTotal > 0`)), else `0`. Server-side derivation (fat backend) consumed by the SAS. |
 | `controllers/` | propertyIcalController | — | No change — passes `req.body` through; the model owns the mapping. |
 
 ### 4.2 Client side (`client/src/`)
@@ -155,7 +154,7 @@ the quote, the *Suivi taxe de séjour* report, and the *Comptabilité* export:
 | `pages/PropertyDetail.js` | [PropertyDetail.js:591](../client/src/pages/PropertyDetail.js#L591) | T | Replace the « Taxe collectée » `Switch` with a 3-option `Select` (`renderTaxControl`) bound to `row.touristTaxCollection`; read-mode change persists immediately, edit-mode keeps a draft. `editDraft` + `upsertPlatformSource` + `handleToggleTax`→`handleSetTaxMode` send `touristTaxCollection`. `direct` still shows « — ». Column header « Taxe collectée » → « Taxe de séjour ». Mobile cards mirror the Select. |
 | `components/PricingSummary.js` | [PricingSummary.js](../client/src/components/PricingSummary.js) | T | When the tax is offered (`touristTaxOfferedByPlatform`), branch the caption on `quote.touristTaxRemittedByOwner`: case 1 → « Collectée par la plateforme, reversée — à déclarer (Suivi taxe de séjour) » ; case 2 (2026-06-20) → struck-through amount + a short **neutral** caption « Collectée et reversée à la commune par la plateforme » and **no « Offert » badge** (it isn't a geste commercial). |
 | `components/sas/ReservationSasDialog.js` | [ReservationSasDialog.js:324](../client/src/components/sas/ReservationSasDialog.js#L324) | T | Add a « Taxe de séjour : X € » line to the arrival recap detail when `r.touristTaxInComplementAmount > 0` (folded into `complementDetailLines` or rendered alongside). |
-| `api.js` | [api.js](../client/src/api.js) | T | iCal-source CRUD already exists; payload now carries `touristTaxCollection`. No new endpoint. |
+| `api.js` | [api.js](../../client/src/api.js) | T | iCal-source CRUD already exists; payload now carries `touristTaxCollection`. No new endpoint. |
 
 **Component reuse declaration:** no new generic component. The 3-option `Select` is a feature-local
 composition of existing MUI `Select`/`MenuItem` inside the `PropertyDetail` platform table (same place
@@ -225,7 +224,7 @@ reservations created before this change keep their stored schedule until re-save
 
   > **Built 2026-09-11, not before.** The code shipped the amount PLAIN, under a comment asserting the
   > opposite of this rule (« NOT struck-through (it isn't « offert ») »). The rule was right and was
-  > simply never implemented — the exact failure [spec-rule-coverage.md](spec-rule-coverage.md) was
+  > simply never implemented — the exact failure [spec-rule-coverage.md](../tech/spec-rule-coverage.md) was
   > written to surface. Fixed while implementing
   > [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md)
   > rule 13, which also makes the struck amount the one the platform actually withheld when the

@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — a cancelled voucher with its order and its ledger, so a purge has rows to drop and
+// specs/plugins/plugin-removal-resilience.md rule 11 — a cancelled voucher with its order and its ledger, so a purge has rows to drop and
 // holds no balance to refuse it.
 module.exports = {
   seed(db) {

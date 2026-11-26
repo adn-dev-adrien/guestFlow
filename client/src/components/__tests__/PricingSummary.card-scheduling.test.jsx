@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/unscheduled-card-option.md rules 6 + 9 — a card option sold without its moments is the
+// specs/options/unscheduled-card-option.md rules 6 + 9 — a card option sold without its moments is the
 // website's normal case, so « à planifier » is an ordinary state rather than an alarm; but it has to
 // be visible, or nobody can tell a breakfast with three mornings from one that still has none. And
 // when the operator plans less than what the guest paid, the gap is named on the line. Both figures

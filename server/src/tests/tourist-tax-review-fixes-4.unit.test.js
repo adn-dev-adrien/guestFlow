@@ -1,5 +1,5 @@
 // Review fixes, round 4 (final verification, 2026-11-06), through the real controllers:
-//   specs/tourist-tax-report-v2.md §3 rules 50 (D-HC21), 51 (V3R-4) and 52 (V3R-1).
+//   specs/tourist-tax/tourist-tax-report-v2.md §3 rules 50 (D-HC21), 51 (V3R-4) and 52 (V3R-1).
 // Each test owns a quarter of its own and moves the clock past it.
 process.env.DB_PATH = ':memory:';
 

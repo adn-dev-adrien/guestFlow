@@ -1,6 +1,6 @@
 /**
  * Breakfast model — per-day breakfast aggregation for the Planning page.
- * Spec: specs/breakfast-option-and-planning-card.md §3-§4.
+ * Spec: specs/options/breakfast-option-and-planning-card.md §3-§4.
  *
  * Returns a `{ 'YYYY-MM-DD': { items: [{ reservationId, clientName, propertyName,
  * persons }], totalPersons } }` map.
@@ -22,7 +22,7 @@
  * same convention as the bathroom-linen aggregator. Two regimes, because
  * `reservation_options.quantity` does not mean the same thing on both sides:
  *   - **occurrence-driven option** (`options.showsPlanningCard = 1`, the case since
- *     specs/breakfast-option-planning-card.md): the pricing engine stores
+ *     specs/options/breakfast-option-planning-card.md): the pricing engine stores
  *     `quantity = number of selected mornings` and `billedUnits = mornings × persons`
  *     ([pricing.js](../utils/pricing.js) `showsPlanningCard` branch). The head count is
  *     therefore the party ITSELF — multiplying by `quantity` would bill/serve
@@ -43,7 +43,7 @@ const { addDays } = require('../utils/dateDays');
 const { formatTimeShort } = require('../utils/dateFr');
 
 // Last-resort breakfast time when neither the reservation nor the option carries one
-// (specs/breakfast-time.md). The option column defaults to '09:00', so this rarely triggers.
+// (specs/options/breakfast-time.md). The option column defaults to '09:00', so this rarely triggers.
 const FALLBACK_BREAKFAST_TIME = '09:00';
 
 // Two-line ISO string comparators co-located here (lexicographic compare on the
@@ -95,7 +95,7 @@ function buildModel(database) {
   const cardDrivenExpr = HAS_SHOWS_PLANNING_CARD ? 'COALESCE(o.showsPlanningCard, 0)' : '0';
 
   // How many breakfasts are served each morning when the guests did not all take it
-  // (specs/card-option-served-persons.md §3.4 rule 16). NULL = the whole party. Guarded like the
+  // (specs/options/card-option-served-persons.md §3.4 rule 16). NULL = the whole party. Guarded like the
   // rest: a minimal schema without the column simply keeps serving the party.
   const HAS_CARD_PERSONS = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
@@ -141,7 +141,7 @@ function buildModel(database) {
   // People served EACH morning (rule 5). `quantity` is a morning COUNT on an occurrence-driven
   // option and a sub-occupation FACTOR on a legacy one — only the latter multiplies the party.
   // On the occurrence-driven regime the number of breakfasts is the operator's own
-  // (`cardPersons`, specs/card-option-served-persons.md §3.4 rule 16) when they said the children
+  // (`cardPersons`, specs/options/card-option-served-persons.md §3.4 rule 16) when they said the children
   // don't have breakfast, and the party otherwise.
   function morningPersons(row) {
     const personsBase = (Number(row.adults) || 0) + (Number(row.teens) || 0) + (Number(row.children) || 0);
@@ -149,7 +149,7 @@ function buildModel(database) {
       const served = Number(row.cardPersons);
       return Math.max(0, served > 0 ? Math.floor(served) : personsBase);
     }
-    // The people served when the operator typed a number (specs/non-card-option-served-persons.md
+    // The people served when the operator typed a number (specs/options/non-card-option-served-persons.md
     // rule 6); they enter neither the occupancy nor the tourist tax.
     const served = Number(row.cardPersons) > 0 ? Math.floor(Number(row.cardPersons)) : personsBase;
     return Math.max(0, Math.round(served * (Number(row.qtySum) || 0)));
@@ -236,7 +236,7 @@ function buildModel(database) {
   // « Préparé » marks of the mornings served WITHOUT stored occurrences (the fallback cards below:
   // a breakfast sold by the site or the API with no chosen mornings, or a property default). They have
   // no occurrence to carry the flag, so it lives in its own table, one row per reservation and morning
-  // (specs/breakfast-option-planning-card.md rule added at the 2026-10-27 spec review). Guarded so a
+  // (specs/options/breakfast-option-planning-card.md rule added at the 2026-10-27 spec review). Guarded so a
   // minimal test schema without the table reads every fallback card as not done.
   const HAS_FALLBACK_MARKS = (() => {
     try { return Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'breakfast_fallback_done'").get()); }
@@ -286,13 +286,13 @@ function buildModel(database) {
      * shown on the planning card; `time` is the effective hour (reservation override → option default
      * → fallback). Counts/note are the stored values, EXCEPT while the arrival SAS has never been
      * committed: pastries then default to `persons` and bread to `persons × 0.5` (half baguette per
-     * person — specs/sas-breakfast-bread-and-push.md rule 3). An explicit post-commit 0 stays 0.
+     * person — specs/sas/sas-breakfast-bread-and-push.md rule 3). An explicit post-commit 0 stays 0.
      */
     getForReservation(reservationId) {
       const r = forReservationStmt.get(Number(reservationId));
       if (!r) return { applicable: false, persons: 0, time: resolveOptionDefaultTime(), coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 0, cereals: 0, bread: 0, note: '' };
       const persons = morningPersons(r);
-      // Hour: the first selected occurrence wins (specs/breakfast-option-planning-card.md §6), else the
+      // Hour: the first selected occurrence wins (specs/options/breakfast-option-planning-card.md §6), else the
       // per-reservation breakfast hour, else the option default.
       const firstOcc = parseBreakfastOccurrences(r.breakfastCardOccurrences)[0];
       const time = (firstOcc && firstOcc.time)
@@ -313,7 +313,7 @@ function buildModel(database) {
       };
     },
 
-    // Push notice: minutes before the serving time (specs/sas-breakfast-bread-and-push.md rule 7),
+    // Push notice: minutes before the serving time (specs/sas/sas-breakfast-bread-and-push.md rule 7),
     // configured on the breakfast option, clamped to [0, 240], default 30. Guarded so minimal test
     // schemas without the column keep working.
     notifyLeadMinutes() {
@@ -336,13 +336,13 @@ function buildModel(database) {
      */
     breakfastByDate({ from, to }) {
       // Effective default time = the breakfast option's configured hour, else the hard fallback
-      // (specs/breakfast-time.md rule 4). Resolved once per call.
+      // (specs/options/breakfast-time.md rule 4). Resolved once per call.
       const optionDefaultRow = optionDefaultStmt ? optionDefaultStmt.get() : null;
       const optionDefaultTime = (optionDefaultRow && formatTimeShort(optionDefaultRow.breakfastTime))
         || FALLBACK_BREAKFAST_TIME;
 
       // The breakfast option id, so the planning card can drive the « fait » toggle through the
-      // generic occurrence endpoint (specs/breakfast-option-planning-card.md). One typed row (seed).
+      // generic occurrence endpoint (specs/options/breakfast-option-planning-card.md). One typed row (seed).
       let breakfastOptionId = null;
       try { const o = database.prepare("SELECT id FROM options WHERE autoOptionType = 'breakfast' ORDER BY id LIMIT 1").get(); breakfastOptionId = o ? o.id : null; } catch { breakfastOptionId = null; }
 
@@ -381,7 +381,7 @@ function buildModel(database) {
 
         const occurrences = parseBreakfastOccurrences(r.breakfastCardOccurrences);
         if (occurrences.length > 0) {
-          // Per-day selection (specs/breakfast-option-planning-card.md §4): one card per CHECKED
+          // Per-day selection (specs/options/breakfast-option-planning-card.md §4): one card per CHECKED
           // occurrence whose date ∈ window, at the occurrence's chosen hour.
           for (const o of occurrences) {
             if (o.date < String(from) || o.date > String(to)) continue;
@@ -400,7 +400,7 @@ function buildModel(database) {
         }
       }
       // Sort each day's breakfasts by time (earliest first), tie-break by client name then id —
-      // deterministic ordering for the planning card (specs/breakfast-time.md rule 6).
+      // deterministic ordering for the planning card (specs/options/breakfast-time.md rule 6).
       for (const date of Object.keys(result)) {
         result[date].items.sort((a, b) =>
           (a.breakfastTime || '').localeCompare(b.breakfastTime || '')

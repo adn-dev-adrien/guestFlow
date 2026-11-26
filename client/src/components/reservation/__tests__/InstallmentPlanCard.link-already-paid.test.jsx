@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 50 (audit R8 client N1) — « Envoyer la demande » of an installment
+// specs/payments/payment-link-lifecycle.md rule 50 (audit R8 client N1) — « Envoyer la demande » of an installment
 // refused 409 LINK_ALREADY_PAID has booked that payment on the server: the card says so and the fiche
 // re-reads its money; any other refusal only says so.
 import { render, screen, waitFor, within } from '@testing-library/react';

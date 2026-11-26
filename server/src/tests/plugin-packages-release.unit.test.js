@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 4, 5, 23, 24 and P26 — the release tooling of the plugin
+// specs/plugins/plugins-phase-4-registry.md rules 4, 5, 23, 24 and P26 — the release tooling of the plugin
 // packages: the build's import boundary and host rewrite (scripts/build-plugin-packages.mjs), the
 // version check (scripts/check-plugin-versions.mjs) and the plugin changelog lines folded into the
 // manifests (scripts/build-changelog.mjs).

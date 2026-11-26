@@ -1,5 +1,5 @@
 /**
- * Is this process the release a self-update has swapped in and its helper has not verified yet (specs/self-update-and-releases.md rules 30b, 31, 57)?
+ * Is this process the release a self-update has swapped in and its helper has not verified yet (specs/hosting/self-update-and-releases.md rules 30b, 31, 57)?
  *
  * `awaitingVerification({ status, version, now })` → true while `data/update-status.json` says the helper may still judge this very version:
  *   - the swap is in flight towards it (`swapping` / `restarting`) — with an error recorded too: that is the helper rolling it back;

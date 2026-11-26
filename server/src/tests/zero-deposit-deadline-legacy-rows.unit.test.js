@@ -1,4 +1,4 @@
-// specs/disable-deposit-per-reservation.md rule 11 (adversarial review of the 2026-10-27 spec-review
+// specs/payments/disable-deposit-per-reservation.md rule 11 (adversarial review of the 2026-10-27 spec-review
 // fixes) — a row stored before rule 10 with a 0 € acompte AND a deadline reads « no deadline » on both
 // sides of a save, so a past locked fiche still saves and an unlocked one writes no phantom history
 // row; the boot cleanup clears those deadlines where nothing was paid on the acompte.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The figures of the standalone resource bookings and of the platform price grids of the production copy (specs/pricing-components.md §3 rule 68).
+ * The figures of the standalone resource bookings and of the platform price grids of the production copy (specs/pricing/pricing-components.md §3 rule 68).
  *
  *   DB_PATH=:memory: node scripts/price-gate/buildResourceBookings.js <capturedAt ISO> <inputs.json> <out.json>
  *

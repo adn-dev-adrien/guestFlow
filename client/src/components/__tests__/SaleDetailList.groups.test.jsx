@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 13, 85 (mock M6) — an article sold on several lines reads under the server's title with its total, each line
+// specs/pricing/pricing-components.md §3 rules 13, 85 (mock M6) — an article sold on several lines reads under the server's title with its total, each line
 // below it with its own status and moment; an offered line stays in its group, struck through; the SAS section groups per block.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

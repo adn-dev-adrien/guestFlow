@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 6, 7, 8, 9, 10 and 11 — the report's shaping, pure: a row of ours keeps the
+// specs/tourist-tax/tourist-tax-report-v2.md §3 rules 6, 7, 8, 9, 10 and 11 — the report's shaping, pure: a row of ours keeps the
 // extraction's figures and adds its exempt persons, a platform's row is told apart, the declaration filter, the
 // register spread in whole cents and whole persons so it adds up to the list, and the totals of the sticky bar.
 

@@ -1,5 +1,5 @@
 /**
- * Grouping of operator notifications by time window (specs/public-request-abuse-and-grouping.md
+ * Grouping of operator notifications by time window (specs/site/public-request-abuse-and-grouping.md
  * rule 9). Generic: a `key` names one stream of events (`site-devis` today).
  *
  *   admit({ refId, kind }) → { immediate: true }   the first event of a window: notify now

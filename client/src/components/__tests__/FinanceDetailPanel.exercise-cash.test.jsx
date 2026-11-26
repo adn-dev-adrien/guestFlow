@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rules 16-17 — « Reste à encaisser » and « Encaissé » list one line per payment,
+// specs/planning/mobile-dashboard-exercise-cash.md rules 16-17 — « Reste à encaisser » and « Encaissé » list one line per payment,
 // grouped by month with the month's subtotal, the late group first; a line opens the fiche.
 import React from 'react';
 import { render, screen, within, fireEvent } from '@testing-library/react';

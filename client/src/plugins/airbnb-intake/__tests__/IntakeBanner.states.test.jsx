@@ -1,5 +1,5 @@
 // server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
-// specs/airbnb-mail-intake.md rules 13–14 — applied, proposal, error, each with its Airbnb link.
+// specs/platforms/airbnb-mail-intake.md rules 13–14 — applied, proposal, error, each with its Airbnb link.
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 74 and 76 (formerly finance-dashboard-redesign.md rule 50) — the complement excess does not depend
+// specs/pricing/pricing-components.md §3 rules 74 and 76 (formerly finance-dashboard-redesign.md rule 50) — the complement excess does not depend
 // on the day an edit was stamped: the lines the complement collected are read from its frozen split and the payments that name
 // them, so an edit made just after midnight Paris time, on the collection day or not, changes nothing. The tourist tax a legacy
 // complement collected (no stamp) is the one the allocations of its bucket name on the stay's tax line.

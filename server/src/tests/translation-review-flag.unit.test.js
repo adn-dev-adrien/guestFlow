@@ -1,5 +1,5 @@
 /**
- * specs/translation-catalogue.md rules 5, 11, 12, 13 — what an uploaded file is allowed to change.
+ * specs/site/translation-catalogue.md rules 5, 11, 12, 13 — what an uploaded file is allowed to change.
  *
  * The review flag is the subject: it is never stored, it is `sourceAtTime <> sourceText`, and the
  * only way to clear it is to empty that cell. Around it sit the three refusals an import owes the

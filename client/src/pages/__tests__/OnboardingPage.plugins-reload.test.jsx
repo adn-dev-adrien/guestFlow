@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 42 — a plugin installed from a package brings pages
+// specs/plugins/plugins-phase-p-productisation.md rule 42 — a plugin installed from a package brings pages
 // the open bundle lacks: leaving the assistant loads the app again instead of navigating inside it.
 import React from 'react';
 import { vi } from 'vitest';

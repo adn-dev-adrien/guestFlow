@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 30 — a number typed before a quote lands stays an edit, so it
+// specs/options/non-card-option-served-persons.md rule 30 — a number typed before a quote lands stays an edit, so it
 // can be saved, while a stored count the engine clamps opens clean. Echoes of the real page, quotes held back.
 import React from 'react';
 import { vi } from 'vitest';

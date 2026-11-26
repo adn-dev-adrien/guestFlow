@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | #768 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -51,7 +53,7 @@ line's `amount` as sent (`offerLine`, `:3374-3381`), re-prices **only** the exti
 1. **Three of four departure line kinds are stored at the browser's price.** The missing linen
    (`price × qty`, client), the end-of-stay cleaning (`data.cleaning.price` loaded with the dialog) and
    the carried / preserved lines (re-sent with their `amount`) are written verbatim. Only the
-   extinguisher lines are priced by the server (specs/extinguisher-seal-and-repair-amounts.md §3.2). A
+   extinguisher lines are priced by the server (specs/options/extinguisher-seal-and-repair-amounts.md §3.2). A
    price changed in « Facturables » between the dialog load and « Valider » is not seen; a crafted body
    can store any amount.
 2. **The operator's end-of-stay adjustment is shown as an offerable line, then ignored.** The
@@ -74,7 +76,7 @@ line's `amount` as sent (`offerLine`, `:3374-3381`), re-prices **only** the exti
    contributor in the repository; the departure commit never calls `sasCommitHooks`. Nothing priced by
    a plugin is involved — which keeps the SDK impact additive (§3.5).
 
-The owner's rule ([CLAUDE.md](../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays
+The owner's rule ([CLAUDE.md](../../CLAUDE.md) §6.0, restated 2026-10-23): **the front only displays
 money, it never computes it**, so that a figure is the same wherever it is read.
 
 ## 2. Goal
@@ -226,7 +228,7 @@ the commit runs, so that what the operator collects at the door is what the book
 ### 3.5 SDK and plugins
 
 26. **SDK 2.1.0, additive.** `planDepartureSas`, `resolveSasDepartureItems` and `buildDepartureSeed` join the
-    `reservationsModel` list of `server/src/plugins/sdk/coreModules.json`, and `departureSasPlan` joins
+    `reservationsModel` list of `server/src/plugins/sdk/coreModules.jsonon`, and `departureSasPlan` joins
     the core modules of `server/src/plugins/sdk/index.js` (the `sas` plugin's `departureRecap.js` reads
     it as `arrivalRecap.js` reads `arrivalSasPlan`). Adding entry points is a MINOR bump
     (`plugins/sdk/version.js`): `2.0.0` → `2.1.0`. Only `sas` moves, since only it calls the new entry

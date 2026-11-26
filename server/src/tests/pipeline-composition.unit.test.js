@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 52 and §7 (`pipeline-composition`) — the use case is a list of steps whose `requires` /
+// specs/pricing/pricing-components.md §3 rule 52 and §7 (`pipeline-composition`) — the use case is a list of steps whose `requires` /
 // `provides` are checked when it is built: taking any step out of the real `stayQuote`, or providing a key twice, fails the
 // build with the named code; `externalSale` and the other sales are not built in PR A.
 const test = require('node:test');

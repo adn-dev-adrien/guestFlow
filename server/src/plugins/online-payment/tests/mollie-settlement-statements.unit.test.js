@@ -1,4 +1,4 @@
-// specs/mollie-settlement-receipts.md rules 1-12 — the statement of a Mollie settlement, joined to its Qonto credit. No
+// specs/accounting/mollie-settlement-receipts.md rules 1-12 — the statement of a Mollie settlement, joined to its Qonto credit. No
 // network: the Qonto upload is a recording fake, and the Mollie API is never reachable (rule 12). Names and ids are fictitious.
 const test = require('node:test');
 const assert = require('node:assert/strict');

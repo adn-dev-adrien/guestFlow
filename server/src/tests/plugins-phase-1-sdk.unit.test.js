@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md — the plugin SDK: modules register their routes, tables, settings,
+// specs/plugins/plugins-phase-1-sdk.md — the plugin SDK: modules register their routes, tables, settings,
 // jobs, event handlers, email variables and SAS data; the core only asks the registry. Covers the
 // loader, isolation, migrations, settings, jobs, events, email variables, erasure and the gate paths
 // that used to run while the plugin was off.
@@ -82,13 +82,13 @@ function fakeRes() {
 
 // ---------- §3.A the modules (rules 1-4) ----------
 
-// specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds four modules to the five of this phase.
+// specs/plugins/plugins-phase-2-hosts.md rule 1 — phase 2 adds four modules to the five of this phase.
 const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
-// specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment, 3b Neat
-// (specs/plugins-phase-3b-neat.md rule 7).
+// specs/plugins/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment, 3b Neat
+// (specs/plugins/plugins-phase-3b-neat.md rule 7).
 const PHASE_3_IDS = ['online-payment', 'neat', 'hourly-resources'];
-// specs/gites-de-france-mail-intake.md — the first plugin added after the twelve; then
-// specs/booking-extranet-intake.md, specs/airbnb-mail-intake.md, specs/google-vacation-rentals-feed.md.
+// specs/platforms/gites-de-france-mail-intake.md — the first plugin added after the twelve; then
+// specs/platforms/booking-extranet-intake.md, specs/platforms/airbnb-mail-intake.md, specs/site/google-vacation-rentals-feed.md.
 const LATER_IDS = ['gites-de-france-intake', 'booking-intake', 'airbnb-intake', 'google-vacation-rentals'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
@@ -113,7 +113,7 @@ function importViolations(files) {
         if (!own && !target.startsWith('plugins/sdk')) out.push(`${rel} → ${spec}`);
       } else if (!inPlugin) {
         // The host side — the SDK, the loader and the module list — is the core's door to plugins;
-        // specs/plugins-phase-4-registry.md rules 2, 9, 11 add the manifest reader, the package store,
+        // specs/plugins/plugins-phase-4-registry.md rules 2, 9, 11 add the manifest reader, the package store,
         // the registry client and the host that ties them to the boot.
         const pluginTarget = target.match(/^plugins\/([^/.]+)/);
         const host = !pluginTarget || ['sdk', 'loader', 'index', 'manifest', 'host', 'packageStore', 'registryClient'].includes(pluginTarget[1]);
@@ -349,24 +349,24 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   const HOUR = 60 * 60 * 1000;
   // The payment poll joined in phase 3a with its own cadence: 8 h, first pass at 110 s; the Neat pass
   // in phase 3b: 5 min, first pass at 150 s; the Gîtes de France mail intake: a 15-min tick that reads
-  // the mailbox every `pollEveryHours`, first tick at 120 s (specs/gites-de-france-mail-intake.md rule 2);
-  // the bank reconciliation read: 8 h, first pass at 240 s (specs/qonto-bank-reconciliation.md rule 5);
-  // the Airbnb mail intake: a 15-min tick, first tick at 180 s (specs/airbnb-mail-intake.md rule 2);
-  // the Google Vacation Rentals full re-send: an hourly tick, first at 150 s (specs/google-vacation-rentals-feed.md rule 13);
-  // the purge of untouched website requests: daily, first at 10 min (specs/public-request-abuse-and-grouping.md rule 10);
-  // the payment link lifecycle pass: every 15 min, first at 15 min (specs/payment-link-lifecycle.md rule 16);
-  // the purge of expired guest sessions: daily, first at 200 s (specs/guest-app.md §5);
-  // the expiry of unpaid guest orders: every minute, first at 30 s (specs/guest-app.md rule 36);
-  // the stock's arrival sweep: every 5 min, first at 45 s (specs/guest-app.md rule 37ter).
-  // the invoices of resource bookings: hourly, first at 5 min (specs/resource-booking-pricing-and-invoicing.md rule 18).
-  // the purge of the house's light commands: daily, first at 170 s (specs/guest-app-home-automation.md §5);
-  // the gift vouchers' purges, daily: unpaid orders after 7 days, first at 300 s, code checks after 30 days, first at 330 s (specs/gift-vouchers.md rules 18, 35);
-  // their receipts' retry: every 15 min, first at 240 s (specs/gift-vouchers.md rule 23);
-  // the version files of their visual library: daily, first at 360 s (specs/gift-voucher-campaigns.md rule 48);
-  // the holds a quote never paid for give back their voucher: hourly, first at 270 s (specs/gift-vouchers.md rule 37);
-  // the slots held 15 minutes while a remainder is paid are tidied every minute, first at 90 s, and the uses of a voucher past their 15 minutes lapse every minute, first at 100 s (specs/gift-voucher-campaigns.md rule 29);
-  // the Mollie statements joined to their Qonto credit: hourly, first at 7 min (specs/mollie-settlement-receipts.md rule 8);
-  // the sessions ordered on the website whose 15 minutes ended unpaid lapse every minute, first at 95 s (specs/site-outside-resource-booking.md rule 12).
+  // the mailbox every `pollEveryHours`, first tick at 120 s (specs/platforms/gites-de-france-mail-intake.md rule 2);
+  // the bank reconciliation read: 8 h, first pass at 240 s (specs/accounting/qonto-bank-reconciliation.md rule 5);
+  // the Airbnb mail intake: a 15-min tick, first tick at 180 s (specs/platforms/airbnb-mail-intake.md rule 2);
+  // the Google Vacation Rentals full re-send: an hourly tick, first at 150 s (specs/site/google-vacation-rentals-feed.md rule 13);
+  // the purge of untouched website requests: daily, first at 10 min (specs/site/public-request-abuse-and-grouping.md rule 10);
+  // the payment link lifecycle pass: every 15 min, first at 15 min (specs/payments/payment-link-lifecycle.md rule 16);
+  // the purge of expired guest sessions: daily, first at 200 s (specs/guest-app/guest-app.md §5);
+  // the expiry of unpaid guest orders: every minute, first at 30 s (specs/guest-app/guest-app.md rule 36);
+  // the stock's arrival sweep: every 5 min, first at 45 s (specs/guest-app/guest-app.md rule 37ter).
+  // the invoices of resource bookings: hourly, first at 5 min (specs/resources/resource-booking-pricing-and-invoicing.md rule 18).
+  // the purge of the house's light commands: daily, first at 170 s (specs/guest-app/guest-app-home-automation.md §5);
+  // the gift vouchers' purges, daily: unpaid orders after 7 days, first at 300 s, code checks after 30 days, first at 330 s (specs/gift-vouchers/gift-vouchers.md rules 18, 35);
+  // their receipts' retry: every 15 min, first at 240 s (specs/gift-vouchers/gift-vouchers.md rule 23);
+  // the version files of their visual library: daily, first at 360 s (specs/gift-vouchers/gift-voucher-campaigns.md rule 48);
+  // the holds a quote never paid for give back their voucher: hourly, first at 270 s (specs/gift-vouchers/gift-vouchers.md rule 37);
+  // the slots held 15 minutes while a remainder is paid are tidied every minute, first at 90 s, and the uses of a voucher past their 15 minutes lapse every minute, first at 100 s (specs/gift-vouchers/gift-voucher-campaigns.md rule 29);
+  // the Mollie statements joined to their Qonto credit: hourly, first at 7 min (specs/accounting/mollie-settlement-receipts.md rule 8);
+  // the sessions ordered on the website whose 15 minutes ended unpaid lapse every minute, first at 95 s (specs/site/site-outside-resource-booking.md rule 12).
   assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [60 * 1000, 60 * 1000, 60 * 1000, 60 * 1000, 5 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR]);
   assert.deepEqual(timeouts.sort((a, b) => a - b), [30 * 1000, 45 * 1000, 60 * 1000, 90 * 1000, 95 * 1000, 100 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 170 * 1000, 180 * 1000, 200 * 1000, 240 * 1000, 240 * 1000, 270 * 1000, 300 * 1000, 300 * 1000, 330 * 1000, 360 * 1000, 420 * 1000, 600 * 1000, 900 * 1000]);
   const ran = [];
@@ -429,9 +429,9 @@ test('rule 9: Google subscribes to the five events it used to be called for', { 
   const db = freshDb();
   boot(db, { installed: [] });
   // reservation.paid (phase 3a) changes nothing in a calendar event, nor does a price
-  // (pricing.changed, specs/google-vacation-rentals-feed.md rule 12), nor a platform penalty
-  // (platform-penalty.changed, specs/reconciliation-assisted-matching.md rule 34), nor a refund owed
-  // (extraSale.refundOwed, specs/pricing-components.md rule 55), nor a sale with no stay (standaloneSale.sold): it moves money, not a session. A sale, a moved line and a removed
+  // (pricing.changed, specs/site/google-vacation-rentals-feed.md rule 12), nor a platform penalty
+  // (platform-penalty.changed, specs/accounting/reconciliation-assisted-matching.md rule 34), nor a refund owed
+  // (extraSale.refundOwed, specs/pricing/pricing-components.md rule 55), nor a sale with no stay (standaloneSale.sold): it moves money, not a session. A sale, a moved line and a removed
   // line do change what the event lists (a bath session): the three other sale events are subscribed.
   assert.deepEqual([...registry.get('google-calendar').handlers.keys()].sort(),
     eventBus.EVENTS.filter((e) => !['reservation.paid', 'pricing.changed', 'platform-penalty.changed', 'extraSale.refundOwed', 'standaloneSale.sold'].includes(e)).sort());

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The crafted platform intakes of the price gate, replayed on the synthetic stays (specs/pricing-components.md §3
+ * The crafted platform intakes of the price gate, replayed on the synthetic stays (specs/pricing/pricing-components.md §3
  * rules 68 and 71).
  *
  *   DB_PATH=:memory: node scripts/price-gate/replaySyntheticIntakes.js <capturedAt ISO> <inputs.json> <intakes.json> <out.json>

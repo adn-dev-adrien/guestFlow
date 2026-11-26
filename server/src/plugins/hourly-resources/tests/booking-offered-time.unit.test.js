@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rules 7-10 — offered time, by steps of 15 minutes.
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 7-10 — offered time, by steps of 15 minutes.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed, book, DAY } = require('./standaloneBookingFixture');

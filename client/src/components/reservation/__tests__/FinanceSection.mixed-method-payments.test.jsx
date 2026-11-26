@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 17, 20, 30, 32-33 — the fiche: « Plusieurs moyens » in the mark form, the
+// specs/payments/mixed-method-payments.md rules 17, 20, 30, 32-33 — the fiche: « Plusieurs moyens » in the mark form, the
 // settlements of a paid row, their correction and the reste à percevoir.
 import { screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

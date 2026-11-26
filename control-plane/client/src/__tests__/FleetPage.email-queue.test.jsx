@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 18 and 33 — the home page's « Emails à valider »: the
+// specs/hosting/control-plane-plans-and-access.md rules 18 and 33 — the home page's « Emails à valider »: the
 // frozen text on « Voir », « Envoyer » and « Ignorer » through the server, and the Qonto alert that
 // opens the Paiements page.
 import React from 'react';

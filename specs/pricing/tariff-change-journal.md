@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | https://github.com/adn-dev-adrien/guestFlow/pull/422 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4.1 server map is now in the `tariff-recipes` plugin: routes `/api/tariff-recipes/journal` (`server/src/plugins/tariff-recipes/index.js`, `controller.js`, `model.js`); the core model stays `server/src/models/tariffChangeJournalModel.js`.
+
 ---
 
 ## 1. Context
@@ -49,7 +51,7 @@ changement de grille sur les réservations.
 4. `occurredAt` et `createdAt` sont **deux choses différentes** : on peut déclarer aujourd'hui un
    déploiement fait la semaine dernière. Les statistiques lisent `occurredAt`.
    *Reading of 2026-11-02 — the date window.* A manual entry's `occurredAt` lies in [today − 5 years, today + 5 years],
-   the French message otherwise; an apply or a backfill writes its own dates and is not judged (`specs/reservations-backend-mvc.md` rule 13, second reading).
+   the French message otherwise; an apply or a backfill writes its own dates and is not judged (`specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 5. **Un événement `recipe` est écrit automatiquement** à chaque application de recette qui modifie
    effectivement quelque chose. Une application sans effet (le diff ne change aucune saison et
    n'ajoute aucune fermeture) **n'écrit rien** : il n'y a pas eu de changement tarifaire.

@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md §6 (audit R44-C-L2) — « Annuler le séjour » and « Supprimer » on a fiche
+// specs/payments/payment-schedule-and-cancellation.md §6 (audit R44-C-L2) — « Annuler le séjour » and « Supprimer » on a fiche
 // holding unsaved changes: the cancel replaced the fiche and lost the typed edits, or the leave guard then offered
 // « Enregistrer et quitter » on a stay that was cancelled (409) or deleted (500). Both are held with « Enregistrer
 // d'abord les modifications. », focusable and inert, as « Transformer en devis » (#918); a clean fiche offers them.

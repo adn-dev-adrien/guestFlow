@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 12 (audit R8 client N1) — a refused write that still wrote the
+// specs/reservations/reservation-fiche-concurrency.md rule 12 (audit R8 client N1) — a refused write that still wrote the
 // stay (409 LINK_ALREADY_PAID books the payment, then refuses the new link) tells the open fiche the versions
 // it moved, like a write that succeeded; a refusal that wrote nothing puts nothing on the event.
 import { vi } from 'vitest';

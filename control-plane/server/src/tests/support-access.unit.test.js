@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 12-14 — the console's side of support access: the
+// specs/hosting/hosting-h2-account-security.md rules 12-14 — the console's side of support access: the
 // request is signed and written next to the licence, a new one replaces the pending reason, the state
 // is read from the instance's database, and « Ouvrir l'espace » mints a 2-minute single-use link only
 // while the customer's access is open — and it is the instance's own verifier that accepts it.

@@ -1,4 +1,4 @@
-// specs/property-deposit-switch.md rule 14 — the « Annulation » helper follows the acompte switch: with no
+// specs/payments/property-deposit-switch.md rule 14 — the « Annulation » helper follows the acompte switch: with no
 // acompte there is no acompte to keep, the cancellation follows the CGV.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 112 (stabilisation loop t7, B7-3) — a trop-perçu made of a cash note AND a card note: the fiche serves the
+// specs/pricing/pricing-components.md §3 rule 112 (stabilisation loop t7, B7-3) — a trop-perçu made of a cash note AND a card note: the fiche serves the
 // cash part apart (`overpaymentCash`, the ledger's `refundPrefill.cashPart`), the refund dialog opens on it « Caisse interne », and once it is
 // given back the rest defaults to the means it came by (`cashNoteExcessCents` deducts the cash a caisse-interne refund settled). The avoir covers
 // only the booked money.

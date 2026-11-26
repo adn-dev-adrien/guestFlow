@@ -1,5 +1,5 @@
 // @ts-check
-// specs/booking-pace.md rules 14-15 (UI/UX review 2026-10-18, decision 9): on a phone « Réservations à
+// specs/pricing/booking-pace.md rules 14-15 (UI/UX review 2026-10-18, decision 9): on a phone « Réservations à
 // venir, à date » stays a chart that scrolls under a fixed axis, set on the current month, and one tap
 // opens a month's pickup curve. On a wide screen, one click does.
 import { test, expect } from '@playwright/test';

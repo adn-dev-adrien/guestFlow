@@ -7,7 +7,9 @@
 | **Created** | 2026-05-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc S — Security hardening (PR 1 of 2). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc S — Security hardening (PR 1 of 2). See `docs/rapports/ROADMAP.md`. |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 2 user shape (`roles` array, not `role`; `usersModel.toSafeUser`) and rule 5 (other users are managed in-app since specs/hosting/admin-account-management.md).
 
 ---
 
@@ -18,7 +20,7 @@ mounts every `/api/*` router with no auth middleware and `app.use(cors())` is wi
 finds the URL can read/write reservations, clients, finances, and **read the Google service-account
 private key in clear text** (`database.js` stores `googleServiceAccountPrivateKey` unencrypted;
 `settingsModel` upserts it as-is). These are the two CRITICAL findings of the security audit
-(see `specs/ROADMAP.md` Bloc S).
+(see `docs/rapports/ROADMAP.md` Bloc S).
 
 In production the Express server also serves the React build (`index.js:55-58`), so the client and API
 are **same-origin** — a session cookie is the natural fit. In dev, the client runs on `:3000` and the
@@ -43,7 +45,7 @@ supports multiple users later, but ships with a single admin account for now.
    and `/uploads` are also reachable unauthenticated (the SPA shell + images); sensitive data only
    flows through `/api`.
 2. **Login** (`POST /api/auth/login` with `{ email, password }`): on success, establishes a session and
-   returns the safe user object (`{ id, email, role }`); on failure returns `401 INVALID_CREDENTIALS`.
+   returns the safe user object (`{ id, email, firstName, lastName, roles, isActive, … }` — `usersModel.toSafeUser`; `roles` is an array, see specs/hosting/admin-account-management.md); on failure returns `401 INVALID_CREDENTIALS`.
    Login is rate-limited (see PR2; in PR1 a minimal in-memory throttle on `/api/auth/login`).
 3. **Session** is a server-side session keyed by an httpOnly, `secure` (prod), `sameSite=lax` cookie,
    persisted in SQLite so it survives PM2 restarts. Logout destroys the session.
@@ -55,7 +57,7 @@ supports multiple users later, but ships with a single admin account for now.
    **Anti-fixation (AUTH-2):** the session id is regenerated on login, so a session id planted
    before authentication cannot be reused after it.
    > **2026-10-18 (merge into `inte/plugins`, H2):** the session id is also regenerated after the
-   > second step, the password reset and the support sign-in link (`specs/hosting-h2-account-security.md`).
+   > second step, the password reset and the support sign-in link (`specs/hosting/hosting-h2-account-security.md`).
    > The support account is never active — it cannot log in with a password — so an open support
    > session (`supportAccessId` in the session) is not rejected for `isActive = 0`; whether that
    > access still holds is decided by `supportAudit`.
@@ -74,7 +76,7 @@ supports multiple users later, but ships with a single admin account for now.
    (default `admin`) and a `mustChangePassword` flag. On boot, if the table is empty, seed **one admin
    with fixed default credentials documented in the README** (e.g. `admin@guestflow.local` /
    `ChangeMe!2026`), `mustChangePassword = 1`. No env vars needed. In-app management of *other* users is
-   **out of scope here** — deferred to a later spec when a 2nd user is actually needed.
+   **out of scope here** — delivered by `specs/hosting/admin-account-management.md`.
 6. **A session whose user `mustChangePassword` is restricted.** While the flag is set, the only
    endpoints the session may reach are `GET /api/auth/me`, `POST /api/auth/change-password`, and
    `POST /api/auth/logout`; **every other `/api` route returns `403 PASSWORD_CHANGE_REQUIRED`**

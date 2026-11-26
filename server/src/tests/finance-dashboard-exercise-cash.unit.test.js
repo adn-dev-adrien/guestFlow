@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/mobile-dashboard-exercise-cash.md §3.C — « Encaissé » / « Reste à encaisser » on the window's stays,
+// specs/planning/mobile-dashboard-exercise-cash.md §3.C — « Encaissé » / « Reste à encaisser » on the window's stays,
 // their month-grouped details and the cash projection. The clock is pinned on 2026-11-05.
 test.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
 const { freshDb, insert, sum } = require('./financeDashboardFixture');

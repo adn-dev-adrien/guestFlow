@@ -1,5 +1,5 @@
 // The months of an exercise, in exercise order (a September closing starts in October) — shared by the
-// Suivi financier's month series (specs/finance-dashboard-redesign.md rule 22). Pure.
+// Suivi financier's month series (specs/accounting/finance-dashboard-redesign.md rule 22). Pure.
 
 const { MONTH_NAMES } = require('./financeWindow');
 

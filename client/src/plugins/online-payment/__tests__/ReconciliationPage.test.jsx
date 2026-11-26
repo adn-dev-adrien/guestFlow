@@ -7,7 +7,7 @@ import DialogProvider from '../../../components/DialogProvider';
 import ReconciliationPage from '../ReconciliationPage';
 import { proposed, gap, done, COUNTS, BULK, credit } from './reconciliationFixtures';
 
-// specs/qonto-bank-reconciliation.md rule 28, §6 — the Suivi financier page: counters, tabs read from the
+// specs/accounting/qonto-bank-reconciliation.md rule 28, §6 — the Suivi financier page: counters, tabs read from the
 // server per view, confirm / discard on a row, credits no fiche claims, the disconnected state.
 
 const navigate = vi.fn();

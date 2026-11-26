@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rule 29 — an `ariaDisabled` action is dimmed, focusable and inert, in
+// specs/planning/dashboard-planning-scroll.md rule 29 — an `ariaDisabled` action is dimmed, focusable and inert, in
 // the bar and in the phone's overflow menu alike.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

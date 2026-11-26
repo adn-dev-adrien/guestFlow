@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 45 (review of PR #803) — an existing stay on a channel
+// specs/plugins/plugins-phase-p-productisation.md rule 45 (review of PR #803) — an existing stay on a channel
 // counted as direct keeps the schedule it was stored with: the engine's direct rule applies to new
 // stays only. Before, the next recompute opened an overdue acompte on a stay sold as one payment,
 // dropped a stored acompte through the last-minute rule, and refused any save of a past fiche.

@@ -9,6 +9,8 @@
 | **Related PR** | [#340](https://github.com/adn-dev-adrien/guestFlow/pull/340) |
 | **Amends** | [finance-overview-rework.md](finance-overview-rework.md) §3.2 item 5 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** The card, its breakdown dialog and the pie are gone: the Suivi financier dashboard has no « En attente de règlement » card, and « Reste à encaisser » now counts the window's stays (`specs/planning/mobile-dashboard-exercise-cash.md` rule 11). Rules 1-3 and 7-8 (global scope, `remainingToPay` amount in `getSummary().totalPending` and `getOperational().pending`) are live in the model.
+
 ---
 
 ## 1. Context
@@ -30,7 +32,7 @@ Adrien reported (2026-07-17, prod):
 The other two figures already match Adrien's rules and stay unchanged: « Revenu total » =
 Σ `totalSejour` of the period's reservations (`endDate` in range); « Encaissé » = Σ paid components
 (net of each échéance's commission, caisse interne excluded) of the period's reservations. All
-figures are already **net of platform commission** (specs/fiche-total-sejour-net-of-commission.md).
+figures are already **net of platform commission** (specs/platforms/fiche-total-sejour-net-of-commission.md).
 
 ## 2. Goal
 
@@ -50,14 +52,12 @@ Decision (AskUserQuestion, 2026-07-17): amount = **restant dû** (`remainingToPa
    the unpaid échéances' commissions). Invariant: card value === Σ of the operational tab's
    « En attente de paiement » chip (`pending.totals.remainingToPay`).
 3. **HT counterpart** follows: `totalPendingHt` = Σ `htAmount(r, remainingToPay(r), vatRate)`.
-4. **`getBreakdown('totalPending')` mirrors**: include = `endDate < today && !isSettled(r)` (no
-   period bound — the breakdown query keeps receiving `from`/`to` for the other metrics but ignores
-   them for this one); amount = `remainingToPay(r)`. Dialog subtitle no longer implies the period.
-5. **Client card**: caption « sur la période » is replaced by « séjours terminés » (it is not a
-   period figure anymore). No client-side computation (unchanged — reads `summary.totalPending`).
-6. **« Répartition » pie**: keeps plotting the two card values (« Encaissé » period vs « En
-   attente » global) — the pie mirrors the cards the user sees. Documented as a deliberate mixed
-   scope (the pie is a visual echo of the cards, not an accounting statement).
+4. *(Retired 2026-11-26 — `getBreakdown` and its dialog are gone.)*
+   > **Sans test** — retired rule
+5. *(Retired 2026-11-26 — the card is gone; the dashboard tile « Reste à encaisser » follows the exercise window, specs/planning/mobile-dashboard-exercise-cash.md rule 11.)*
+   > **Sans test** — retired rule
+6. *(Retired 2026-11-26 — the « Répartition » pie is gone.)*
+   > **Sans test** — retired rule
 7. **« Revenu total » and « Encaissé » unchanged** (they already match the requested rules); pinned
    by existing tests.
 8. **Operational « Paiements en attente » tab unchanged** (already global + correct); its

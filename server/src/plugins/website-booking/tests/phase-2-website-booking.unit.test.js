@@ -1,4 +1,4 @@
-// specs/plugins-phase-2-hosts.md §3.F (rules 23-27) and the website part of §3.G (rules 28-29): the
+// specs/plugins/plugins-phase-2-hosts.md §3.F (rules 23-27) and the website part of §3.G (rules 28-29): the
 // website-booking module owns /public/v1 except /public/v1/gate, its API key, the « Demandes du site »
 // alert and the CGV enforcement switch. Real routers, real controllers and a real in-memory database,
 // driven over HTTP through the plugin loader — as index.js mounts them.
@@ -83,7 +83,7 @@ function withSecretsSpy(fn) {
     .finally(() => { localEnv.getOrCreateSecret = original; });
 }
 
-test('specs/plugins-phase-2-hosts.md rule 23 — every /public/v1 prefix answers 404 PLUGIN_INACTIVE while website-booking is off, and /public/v1/gate still answers', () => withSecretsSpy(async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 23 — every /public/v1 prefix answers 404 PLUGIN_INACTIVE while website-booking is off, and /public/v1/gate still answers', () => withSecretsSpy(async () => {
   const app = boot({ installed: ['gate-access'] });
   for (const [method, url] of [
     ['GET', '/public/v1/properties'], ['GET', '/public/v1/properties/1/availability'], ['GET', '/public/v1/terms'],
@@ -98,7 +98,7 @@ test('specs/plugins-phase-2-hosts.md rule 23 — every /public/v1 prefix answers
   assert.notEqual(gate.body && gate.body.error, 'PLUGIN_INACTIVE');
 }));
 
-test('specs/plugins-phase-2-hosts.md rule 23 — once installed, the same paths answer behind the API key', { skip: skipWithout(['gate-access']) }, () => withSecretsSpy(async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 23 — once installed, the same paths answer behind the API key', { skip: skipWithout(['gate-access']) }, () => withSecretsSpy(async () => {
   const app = boot({ installed: [ID] });
   assert.equal((await call(app, 'GET', '/public/v1/properties')).status, 401, 'the key is checked first');
   const list = await call(app, 'GET', '/public/v1/properties', { headers: visitor('198.51.100.1') });
@@ -110,9 +110,9 @@ test('specs/plugins-phase-2-hosts.md rule 23 — once installed, the same paths 
   assert.deepEqual(gate.body, inactive('gate-access'), 'gate-access keeps its own switch');
 }));
 
-// Amended by specs/plugins-phase-3a-online-payment.md rule 5: the second plugin is whichever declares
+// Amended by specs/plugins/plugins-phase-3a-online-payment.md rule 5: the second plugin is whichever declares
 // the payment provider — online-payment, here.
-test('specs/plugins-phase-2-hosts.md rule 23 — /booking-requests/:id/pay and /status need website-booking AND online-payment', { skip: skipWithout(['online-payment']) }, () => withSecretsSpy(async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 23 — /booking-requests/:id/pay and /status need website-booking AND online-payment', { skip: skipWithout(['online-payment']) }, () => withSecretsSpy(async () => {
   const withPayments = [gateAccess, websiteBooking, require('../../online-payment')];
   let app = boot({ installed: [ID], modules: withPayments });
   for (const [method, url] of [['POST', '/public/v1/booking-requests/1/pay'], ['GET', '/public/v1/booking-requests/1/status']]) {
@@ -127,7 +127,7 @@ test('specs/plugins-phase-2-hosts.md rule 23 — /booking-requests/:id/pay and /
   assert.notEqual(both.body && both.body.error, 'PLUGIN_INACTIVE', 'the core handler answers');
 }));
 
-test('specs/plugins-phase-2-hosts.md rule 23 — the shared public limiter counts a request once', () => withSecretsSpy(async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 23 — the shared public limiter counts a request once', () => withSecretsSpy(async () => {
   const app = boot({ installed: [ID, 'gate-access'] });
   const ip = '198.51.100.3';
   const remaining = [];
@@ -138,7 +138,7 @@ test('specs/plugins-phase-2-hosts.md rule 23 — the shared public limiter count
   assert.deepEqual(remaining, [49, 48, 47]);
 }));
 
-test('specs/plugins-phase-2-hosts.md rules 24, 29 — the API key is created on install and at the boot of an installed plugin only', () => withSecretsSpy(async (calls) => {
+test('specs/plugins/plugins-phase-2-hosts.md rules 24, 29 — the API key is created on install and at the boot of an installed plugin only', () => withSecretsSpy(async (calls) => {
   boot({ installed: [] });
   assert.deepEqual(calls.filter((n) => n === 'PUBLIC_API_KEY'), [], 'not installed: no key at boot');
   await loader.runInstallHooks(ID);
@@ -150,7 +150,7 @@ test('specs/plugins-phase-2-hosts.md rules 24, 29 — the API key is created on 
   assert.ok(!index.includes("getOrCreateSecret('PUBLIC_API_KEY'"), 'rule 29: the core boot no longer creates it');
 }));
 
-test('specs/plugins-phase-2-hosts.md rule 25 — the pending website requests answer 404 while the plugin is off (gap 2)', () => withSecretsSpy(async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 25 — the pending website requests answer 404 while the plugin is off (gap 2)', () => withSecretsSpy(async () => {
   let app = boot({ installed: [] });
   const off = await call(app, 'GET', '/api/dashboard/public-devis-pending');
   assert.equal(off.status, 404);
@@ -158,11 +158,11 @@ test('specs/plugins-phase-2-hosts.md rule 25 — the pending website requests an
   app = boot({ installed: [ID] });
   const on = await call(app, 'GET', '/api/dashboard/public-devis-pending');
   assert.equal(on.status, 200);
-  // specs/public-request-abuse-and-grouping.md rule 11 — the requests of the last hour ride along.
+  // specs/site/public-request-abuse-and-grouping.md rule 11 — the requests of the last hour ride along.
   assert.deepEqual(on.body, { alerts: [], requestsLastHour: 0 });
 }));
 
-test('specs/plugins-phase-2-hosts.md rule 25 — the enforcement reads and writes plugin_settings, not app_settings', () => withSecretsSpy(async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 25 — the enforcement reads and writes plugin_settings, not app_settings', () => withSecretsSpy(async () => {
   db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'website-booking'").run();
   let app = boot({ installed: [] });
   assert.deepEqual((await call(app, 'PUT', '/api/terms/enforcement', { body: { requireTermsAcceptance: false } })).body, inactive(ID));
@@ -190,12 +190,12 @@ test('specs/plugins-phase-2-hosts.md rule 25 — the enforcement reads and write
   }
 }));
 
-test('specs/plugins-phase-2-hosts.md rule 28 — the plugin copies its two app_settings once, skipping empty values', () => withSecretsSpy(async () => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 28 — the plugin copies its two app_settings once, skipping empty values', () => withSecretsSpy(async () => {
   db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'website-booking'").run();
   db.prepare("DELETE FROM migrations WHERE name LIKE 'plugin:website-booking:%'").run();
   db.prepare("UPDATE app_settings SET requireTermsAcceptance = 0, lastSeenPluginVersion = '' WHERE id = 1").run();
   boot({ installed: [] });
-  // The copy, then the request tables of specs/public-request-abuse-and-grouping.md §5 (v1, v2, and
+  // The copy, then the request tables of specs/site/public-request-abuse-and-grouping.md §5 (v1, v2, and
   // v3 dropping the issued-challenge log, rule 29).
   assert.equal(loader.migrate(db, ID), 4);
   assert.equal(settingsModel.raw(ID, 'requireTermsAcceptance'), '0');
@@ -208,7 +208,7 @@ test('specs/plugins-phase-2-hosts.md rule 28 — the plugin copies its two app_s
   db.prepare("UPDATE app_settings SET requireTermsAcceptance = 1, lastSeenPluginVersion = '' WHERE id = 1").run();
 }));
 
-test('specs/plugins-phase-2-hosts.md rule 27 — the erasure lists and resets the two settings and keeps devis, acceptances and the key', () => withSecretsSpy(async (calls) => {
+test('specs/plugins/plugins-phase-2-hosts.md rule 27 — the erasure lists and resets the two settings and keeps devis, acceptances and the key', () => withSecretsSpy(async (calls) => {
   db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'website-booking'").run();
   boot({ installed: [ID] });
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel, loader: () => loader });

@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rules 16-21 — the amount editor proposes, the server decides:
+// specs/payments/reservation-payment-ledger.md rules 16-21 — the amount editor proposes, the server decides:
 // the refusal is printed under the field (typed value kept, « Valider » disabled), the effects of an
 // accepted amount are printed as they come, « Valider » hands back the server's formPatch verbatim.
 import React from 'react';

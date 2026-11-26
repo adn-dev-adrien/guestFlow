@@ -8,11 +8,13 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4.1 current-file-map note added: the public-API controllers, routes and projections live in `plugins/website-booking/`; no rule changed.
+
 ---
 
 ## 1. Context
 
-English reached the site in September 2026 (`specs/site-english-version.md`). The translations it needs
+English reached the site in September 2026 (`specs/site/site-english-version.md`). The translations it needs
 were bolted onto each table as they were required: `options.titleEn`, `resources.nameEn`, and a field
 beside the French one on every editing screen. Three things came out of that, measured on 2026-09-25.
 
@@ -84,7 +86,7 @@ column rather than a schema change.
 
 14. **An untranslated title falls back to French.** Never an empty label, never a key — the rule the
     public API has had since day one.
-15. **An untranslated description is omitted**, as it is today (`specs/site-english-version.md` rule 7):
+15. **An untranslated description is omitted**, as it is today (`specs/site/site-english-version.md` rule 7):
     a missing line reads better than a foreign paragraph. A *translated* one is now served, which is
     the whole point of adding descriptions to the catalogue.
 16. **A category is translated as a label only.** Grouping keeps using the French text as its key, and
@@ -99,7 +101,7 @@ column rather than a schema change.
     > personne », les refus du tunnel) vivent dans `publicLabels.js`, qui est du CODE et connaît
     > `fr` et `en`. Une 3ᵉ langue les laisse en français tant que ce dictionnaire n'a pas sa carte.
     > Le catalogue, lui, est prêt : c'est la donnée de l'exploitant qui est déjà multilingue.
-18. **`lang` stays additive and never fails** (`specs/site-english-version.md` rule 1): an unknown or
+18. **`lang` stays additive and never fails** (`specs/site/site-english-version.md` rule 1): an unknown or
     absent language reads as French.
 
 ### 3.4 What leaves the interface
@@ -110,7 +112,7 @@ column rather than a schema change.
 20. **The Settings page gains a « Traductions » card**: how many entries, how many still untranslated
     per language, how many flagged « à revérifier », and the two buttons — download, upload.
     *Note 2026-10-18 (review):* its explanation is impersonal, like every UI text (it used « tu ») —
-    the wording of specs/ds-components.md rule 25: « Traductions : télécharger le fichier, remplir les
+    the wording of specs/design-system/ds-components.md rule 25: « Traductions : télécharger le fichier, remplir les
     colonnes, le renvoyer. Une colonne de plus = une langue de plus. »
 
 **Edge cases:**
@@ -152,6 +154,8 @@ column rather than a schema change.
 > the counts are all server work. The client renders a card with two buttons and a summary it is given.
 
 ### 4.1 Server side (`server/src/`)
+
+> **Current file map (2026-11-26).** The public-API files named below (`routes/public/*`, `controllers/public/public{Catalog,Quote,BookingRequest,Terms}Controller.js`, `utils/publicProjections.js`, `utils/publicInputValidation.js`) now live in `server/src/plugins/website-booking/` (`routes/`, `controllers/`, and the plugin root); `controllers/public/publicPaymentController.js` stays in the core.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -271,7 +275,7 @@ counts before and after are logged, and the migration refuses to drop if they di
   texte français a changé depuis la traduction »
 - « Les traductions se font dans un fichier : télécharge-le, remplis les colonnes de langue,
   renvoie-le. »
-  > **Changed 2026-10-18** (specs/ds-components.md rule 25, no « tu » on screen): « Traductions :
+  > **Changed 2026-10-18** (specs/design-system/ds-components.md rule 25, no « tu » on screen): « Traductions :
   > télécharger le fichier, remplir les colonnes, le renvoyer. Une colonne de plus = une langue de
   > plus. » The removal confirmation ends « … vérifier le fichier avant de continuer. »
 - Removal confirmation: « Ce fichier retire 4 traductions » / « 4 cases de langue sont vides alors
@@ -343,7 +347,7 @@ dialog, with the components behind them.
 - [ ] Empty a cell → the confirmation appears and names the count.
 - [ ] Upload a file saved by Excel (`;`, BOM) → accepted.
 - [ ] Regression: the French drawer is unchanged; the English drawer keeps its yes/no switches and its
-      price suffixes (`specs/site-english-version.md` rule 58).
+      price suffixes (`specs/site/site-english-version.md` rule 58).
 - [ ] `xs`, `md`, `lg`.
 
 ## 8. Out of scope

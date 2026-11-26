@@ -1,5 +1,5 @@
 /**
- * Per-devis capability token for the public payment flow (specs/public-online-payment.md §7).
+ * Per-devis capability token for the public payment flow (specs/site/public-online-payment.md §7).
  *
  * The public `/pay` and `/status` routes are addressed by the sequential devis row id, which is
  * guessable. To stop enumeration (reading another booking's recap, minting its payment link), each

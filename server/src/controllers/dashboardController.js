@@ -1,6 +1,6 @@
 /**
  * Dashboard controller — aggregate endpoints feeding the Dashboard page. The linen shortage alert
- * belongs to the `linen` plugin (specs/plugins-phase-2-hosts.md rule 15).
+ * belongs to the `linen` plugin (specs/plugins/plugins-phase-2-hosts.md rule 15).
  */
 
 const reservationsModel = require('../models/reservationsModel');
@@ -22,17 +22,17 @@ function buildController({
   icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
   emitPluginEvent = defaultEmitPluginEvent,
   // Links abandoned by an approved cancellation are deactivated at the provider after the commit; a failure
-  // leaves their retry marker (specs/plugins-phase-3a-online-payment.md rule 8).
+  // leaves their retry marker (specs/plugins/plugins-phase-3a-online-payment.md rule 8).
   deactivateLinks = (links) => require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel: require('../models/paymentLinksModel') }),
   notifyBookingConflict = (id, options) => require('../utils/notificationService').notifyBookingConflict(id, options),
   // Injected so the deadline endpoints stay testable without Qonto/SMTP: production wires the real
   // payments controller lazily (it pulls the Qonto client, which must not load with the dashboard).
   sendDepositRequest = (id) => require('./paymentsController').sendDepositRequestFor(id),
   sendBalanceRequest = (id) => require('./paymentsController').sendBalanceRequestFor(id),
-  // specs/plugins-phase-3a-online-payment.md rule 5 — a request is a payment link: without a provider
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 5 — a request is a payment link: without a provider
   // the row offers no « Envoyer la demande / Relancer » and the endpoint refuses.
   hasPaymentProvider = () => Boolean(require('../utils/paymentProviders').active()),
-  // specs/plugins-phase-3a-online-payment.md rule 25 — without a provider the request leaves as an
+  // specs/plugins/plugins-phase-3a-online-payment.md rule 25 — without a provider the request leaves as an
   // email the operator reads first: the id of the template that reads well without a link, or null.
   requestTemplateId = (type, requestSent) => {
     const { draftTemplateFor } = require('../utils/paymentRequestDraft');
@@ -41,9 +41,9 @@ function buildController({
     ).all();
     return draftTemplateFor(templates, type, requestSent);
   },
-  // specs/direct-installments.md rule 22 — the unpaid installments three days past their due date.
+  // specs/payments/direct-installments.md rule 22 — the unpaid installments three days past their due date.
   lateInstallments = (today) => require('./installmentsController').lateInstallments(today),
-  // specs/payment-schedule-and-cancellation.md rule 60 — what cancelling now would keep, from the cancel's own figures.
+  // specs/payments/payment-schedule-and-cancellation.md rule 60 — what cancelling now would keep, from the cancel's own figures.
   cancellationPreviewFor = (id) => require('./reservationCancellationController').previewFor(id),
   today: injectedToday = null,
 } = {}) {
@@ -62,7 +62,7 @@ function buildController({
      * GET /api/dashboard/ical-date-drift
      *
      * Returns every pending date-drift approval for iCal-locked reservations
-     * (specs/ical-sync-override-locked-dates.md §4.3). Empty `alerts: []` when nothing pending.
+     * (specs/platforms/ical-sync-override-locked-dates.md §4.3). Empty `alerts: []` when nothing pending.
      */
     icalDateDrift(req, res) {
       const alerts = injectedIcalDateDriftModel.listPending();
@@ -82,7 +82,7 @@ function buildController({
       if (result.error) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.field ? { field: result.field } : {}) });
       res.json({ ok: true });
       // Approved date override → plugins react after the response, so the committed approval can
-      // never be turned into a 500 by them (specs/plugins-phase-1-sdk.md rule 9).
+      // never be turned into a 500 by them (specs/plugins/plugins-phase-1-sdk.md rule 9).
       if (result.reservationId) emitPluginEvent('reservation.updated', { reservationId: result.reservationId });
       if (result.conflict) Promise.resolve(notifyBookingConflict(result.reservationId, { origin: 'ical' })).catch(() => {});
       return undefined;
@@ -105,7 +105,7 @@ function buildController({
      * GET /api/dashboard/ical-cancellation
      *
      * Returns every pending cancellation approval for iCal-imported reservations whose UID
-     * has fallen out of every source feed (specs/ical-cancellation-approval.md §4.3).
+     * has fallen out of every source feed (specs/platforms/ical-cancellation-approval.md §4.3).
      * Empty `alerts: []` when nothing pending.
      */
     icalCancellation(req, res) {
@@ -126,7 +126,7 @@ function buildController({
     approveIcalCancellation(req, res) {
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
-      // Optional compensation block (specs/cancellation-compensation.md §3.2): when the platform
+      // Optional compensation block (specs/payments/cancellation-compensation.md §3.2): when the platform
       // owes an indemnity for the cancelled stay, it is created in the SAME transaction as the
       // deletion. Absent body ⇒ `null` ⇒ the historical delete-only behaviour, untouched.
       const parsedCompensation = validateApprovalCompensation((req.body || {}).compensation);
@@ -136,7 +136,7 @@ function buildController({
       const result = injectedIcalCancellationModel.approve(id, parsedCompensation.value);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
       res.json({ ok: true, outcome: result.outcome, compensationId: result.compensationId ?? null });
-      // Approved cancellation → plugins react after the response (specs/plugins-phase-1-sdk.md
+      // Approved cancellation → plugins react after the response (specs/plugins/plugins-phase-1-sdk.md
       // rule 9). Also fired on 'reservation_gone': a Google event may still exist as an orphan.
       if (result.reservationId) emitPluginEvent('reservation.cancelled', { reservationId: result.reservationId });
       if (result.cancelledLinks && result.cancelledLinks.length > 0) Promise.resolve(deactivateLinks(result.cancelledLinks)).catch(() => {});
@@ -162,7 +162,7 @@ function buildController({
      * GET /api/dashboard/new-reservations
      *
      * Returns every reservation created during the last 24 hours, whatever its origin, fully shaped
-     * for display (specs/dashboard-ical-new-reservations.md). Read-only notification card — empty
+     * for display (specs/planning/dashboard-ical-new-reservations.md). Read-only notification card — empty
      * `alerts: []` when nothing arrived.
      */
     newReservations(req, res) {
@@ -173,7 +173,7 @@ function buildController({
     /**
      * GET /api/dashboard/repaired-reservation-numbers
      *
-     * The stays the boot repair numbered (specs/reservation-number-and-search.md rule 15), ready to
+     * The stays the boot repair numbered (specs/reservations/reservation-number-and-search.md rule 15), ready to
      * render. Empty `alerts: []` once every one has been checked.
      */
     repairedReservationNumbers(req, res) {
@@ -195,7 +195,7 @@ function buildController({
     /**
      * GET /api/dashboard/dates-taken
      *
-     * The stays whose dates another stay took, told or not (specs/payment-link-lifecycle.md rule 43): one row per
+     * The stays whose dates another stay took, told or not (specs/payments/payment-link-lifecycle.md rule 43): one row per
      * stay, every word written by the server (utils/datesTakenNotice.datesTakenCard). Empty `alerts: []` → no card.
      */
     datesTaken(req, res) {
@@ -219,13 +219,13 @@ function buildController({
     /**
      * GET /api/dashboard/payment-deadlines
      *
-     * Every direct reservation with a missed payment deadline (specs/payment-schedule-and-cancellation.md
+     * Every direct reservation with a missed payment deadline (specs/payments/payment-schedule-and-cancellation.md
      * §3.4). Rows arrive ready to render: state, severity, amounts, days late, and which actions apply.
      * Empty `rows: []` when nothing is late — the card then draws nothing.
      */
     paymentDeadlines(req, res) {
       const today = resolveToday();
-      // specs/platform-payout-due-date.md rule 12bis — the payout deadline is derived from the
+      // specs/platforms/platform-payout-due-date.md rule 12bis — the payout deadline is derived from the
       // departure and the PLATFORM's delay, so each candidate carries its platform's setting. Resolved
       // here (one lookup per distinct channel) to keep `paymentDeadlines` pure and clock-free.
       const payoutDaysByPlatform = new Map();
@@ -276,7 +276,7 @@ function buildController({
       if (type !== 'deposit' && type !== 'balance') {
         return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de relance invalide (deposit/balance).' });
       }
-      // specs/platform-payout-due-date.md rule 20 — a platform booking is paid by the platform, never
+      // specs/platforms/platform-payout-due-date.md rule 20 — a platform booking is paid by the platform, never
       // by the guest. The card already hides the button; refusing here means the email cannot be sent
       // by hand either, whatever a stale client or a direct API call asks for. Checked BEFORE the
       // provider: the reason a platform stay gets no reminder does not depend on the configuration.
@@ -294,7 +294,7 @@ function buildController({
           : await sendBalanceRequest(id);
         return res.status(httpStatus).json(body);
       } catch (err) {
-        // specs/payment-link-lifecycle.md rule 50 — a refusal of the request service (409 LINK_ALREADY_PAID booked
+        // specs/payments/payment-link-lifecycle.md rule 50 — a refusal of the request service (409 LINK_ALREADY_PAID booked
         // the payment) keeps its status and code, so the card re-reads its rows; only an unknown failure is a 502.
         if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
         return res.status(502).json({ error: 'REMINDER_FAILED', message: String((err && err.message) || err) });

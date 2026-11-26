@@ -11,7 +11,7 @@ import {
  * - **Default (resources)** — an EMPTY array means « Tous les logements » (global). Selecting every
  *   property collapses back to `[]`. A `-1` sentinel row represents the global state in the menu.
  *
- * - **`emptyMeansNone` (options, specs/option-property-scope.md)** — the scope is EXPLICIT: « Tous les
+ * - **`emptyMeansNone` (options, specs/options/option-property-scope.md)** — the scope is EXPLICIT: « Tous les
  *   logements » stores **every current property id**; a specific subset stores those ids; an EMPTY array
  *   means **« Aucun logement »** (available nowhere). No `-1` sentinel — « Tous » is just "all ids".
  *

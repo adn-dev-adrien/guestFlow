@@ -1,4 +1,4 @@
-// specs/cancellation-insurance.md §3.1 rule 2 and §3.2 rule 14 (spec review of 2026-10-27, agent 3 F6) —
+// specs/payments/cancellation-insurance.md §3.1 rule 2 and §3.2 rule 14 (spec review of 2026-10-27, agent 3 F6) —
 // the insurance is not deletable (DELETE answered 200 and archived it, where the breakfast auto option
 // answers 409), and a percentage carries at most 2 decimals (4.333 was accepted).
 

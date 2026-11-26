@@ -7,7 +7,7 @@
 | **Created** | 2026-05-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3c-1** (of 3c-1/3c-2/3c-3). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 3 — Réservations & Calendar, slice **3c-1** (of 3c-1/3c-2/3c-3). See `docs/rapports/ROADMAP.md`. |
 
 ---
 
@@ -59,7 +59,7 @@ backward-compatible capabilities so it can host this (and future) richer bars.
    - **Title** = current `computedTitle`. **Subtitle** = the "Tarifs actuels appliqués (non sauvegardé)"
      chip, shown only when `useCurrentPricing`.
    - **actionsBefore** (in order, conditional as today): **« Nouvelle note » (success, `PointOfSale`)**
-     when `midStayNoteAccess(...).visible` — see [mid-stay-notes.md](mid-stay-notes.md) §3.5 rule 17;
+     when `midStayNoteAccess(...).visible` — see [mid-stay-notes.md](../sas/mid-stay-notes.md) §3.5 rule 17;
      "Créer un devis" (info) when `!isDevisMode && !reservationId`;
      "Transformer en devis" (info) when `!isDevisMode && reservationId` **&& la réservation est
      DIRECTE** (2026-08-07 : une réservation plateforme n'est pas devisée par nous — son tarif vient

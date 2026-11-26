@@ -1,4 +1,4 @@
-// specs/gift-vouchers.md rules 33-35 — checking a code in public: the proof of work, the three limits, the mistyped code that
+// specs/gift-vouchers/gift-vouchers.md rules 33-35 — checking a code in public: the proof of work, the three limits, the mistyped code that
 // is not counted, the cancelled code that answers unknown, and nothing typed kept.
 const test = require('node:test');
 const assert = require('node:assert/strict');

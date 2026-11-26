@@ -1,7 +1,7 @@
 /**
  * The reservation graph every guest email renders from — one loader shared by the preview/send
  * controller, the payment confirmation and the guest email sequence, so the three paths can never
- * render the same template differently (specs/guest-email-sequence.md §4.1).
+ * render the same template differently (specs/emails/guest-email-sequence.md §4.1).
  *
  * Kind-agnostic on purpose: it loads a reservation or a devis (the deposit reminder targets devis).
  * Returns null when the row does not exist.
@@ -11,10 +11,10 @@ const reservationsModel = require('../models/reservationsModel');
 const { loadStayFacts, attachResourceSentences } = require('../models/stayFactsModel');
 const { notDepartureCharge } = require('./departureChargeLines');
 
-// specs/j2-email-arrival-complement-line.md — the SAME arrival-complement breakdown the SAS shows.
+// specs/emails/j2-email-coffee-and-sas-complement.md — the SAME arrival-complement breakdown the SAS shows.
 // Guarded: `getByIdWithDetails` needs the full schema, so on a minimal/legacy DB this returns null
 // and the context builder falls back to its inline partial list.
-// specs/pricing-components.md rule 91 — read from the sale detail (lines and amount measured identical to the stored breakdown on every
+// specs/pricing/pricing-components.md rule 91 — read from the sale detail (lines and amount measured identical to the stored breakdown on every
 // stay of the prod copy of 2026-11-11); the stored breakdown stays the reading of a stay the engine cannot quote, and of a database other
 // than the application's (the sale detail reads the application's own).
 function loadArrivalComplementDetail(database, reservationId) {
@@ -29,7 +29,7 @@ function loadArrivalComplementDetail(database, reservationId) {
   }
 }
 
-// specs/terms-acceptance-record.md rules 26 and 29 — the CGV version `{{cgvUrl}}` points at: the one the
+// specs/reservations/terms-acceptance-record.md rules 26 and 29 — the CGV version `{{cgvUrl}}` points at: the one the
 // guest accepted (on the stay, or on the devis it was converted from), else the current one, else null.
 // Guarded like the loader above: a minimal/legacy schema without the CGV tables simply yields no link.
 function loadTermsVersion(database, reservationId) {
@@ -60,7 +60,7 @@ function loadReservationGraph(database, reservationId) {
     ? database.prepare('SELECT * FROM properties WHERE id = ?').get(reservation.propertyId)
     : null;
   // Joined options / resources. The English name no longer lives on the row: it comes from the
-  // translation catalogue (specs/translation-catalogue.md rule 2), read once for the whole graph
+  // translation catalogue (specs/site/translation-catalogue.md rule 2), read once for the whole graph
   // rather than once per line. `titleEn` / `nameEn` keep their names here because that is what the
   // context builder reads, and they keep their meaning: NULL when there is no translation, so the
   // builder's French fallback still decides.
@@ -79,11 +79,11 @@ function loadReservationGraph(database, reservationId) {
   require('./translationResolver').attachEnglishNames(database, { options, resources });
   attachResourceSentences(database, resources);
   // Custom (free-text) options — needed for the J-1 complement breakdown
-  // (specs/j1-complement-to-collect.md §3). `description` is the label, `amount` the value.
+  // (specs/emails/j2-email-coffee-and-sas-complement.md §3). `description` is the label, `amount` the value.
   const customOptions = database.prepare(`
     SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}
   `).all(id);
-  // Does the reservation's PROPERTY provide bed linen by default? (specs/j1-linen-default-message.md
+  // Does the reservation's PROPERTY provide bed linen by default? (specs/emails/j1-linen-default-message.md
   // §3 rule 1) — the bed-linen option is a default-offered option for that property.
   const bedLinenProvidedByDefault = reservation.propertyId
     ? Boolean(database.prepare(`
@@ -96,7 +96,7 @@ function loadReservationGraph(database, reservationId) {
   const arrivalComplementDetail = loadArrivalComplementDetail(database, id);
   const stayFacts = loadStayFacts(database, reservation);
   const termsVersion = loadTermsVersion(database, id);
-  // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, the cancellation's own figure.
+  // specs/payments/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, the cancellation's own figure.
   const cancellationKept = require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation);
   return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail, stayFacts, termsVersion, cancellationKept };
 }

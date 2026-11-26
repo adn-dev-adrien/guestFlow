@@ -1,4 +1,4 @@
-// Planning-card options in the public flow (specs/public-planning-options.md): with
+// Planning-card options in the public flow (specs/site/public-planning-options.md): with
 // `planningCardAsQuantity`, the client's quantity is billed as the occurrence count
 // (quantity × (perPerson ? persons : 1) × unitPrice) and the line is left unscheduled; without the
 // flag (admin), a planning-card option still requires scheduled occurrences.
@@ -11,7 +11,7 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { liveHourlyResources } = require('./hourlyResourcesFixture');
 
-// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins/plugins-phase-3c-hourly-resources.md rule 11).
 liveHourlyResources();
 
 function seedDb() {
@@ -59,7 +59,7 @@ function quote(db, over) {
   return calculateReservationQuote({ db, ...STAY, ...over });
 }
 
-// specs/site-meal-portions.md rule 1 — the quantity counts PORTIONS since 2026-09-22; it used to
+// specs/site/site-meal-portions.md rule 1 — the quantity counts PORTIONS since 2026-09-22; it used to
 // count séances and get multiplied by the party.
 test('public flow: per-person planning option billed quantity × unitPrice (portions)', () => {
   const q = quote(seedDb(), { selectedOptions: [{ optionId: 6, quantity: 2 }], planningCardAsQuantity: true });
@@ -84,7 +84,7 @@ test('public flow: quantity 0 → no line', () => {
   assert.equal(q.optionLines.find((l) => l.optionId === 6), undefined);
 });
 
-// specs/unscheduled-card-option.md rule 1 — this used to assert the opposite («  still dropped »),
+// specs/options/unscheduled-card-option.md rule 1 — this used to assert the opposite («  still dropped »),
 // and that drop is precisely what erased a breakfast the guest had paid for on the first save of any
 // reservation born on the website.
 test('admin flow (flag off): a planning-card option with NO occurrences keeps its line', () => {
@@ -104,9 +104,9 @@ test('admin flow (flag off): a planning-card option WITH occurrences prices by o
   assert.equal(line.totalPrice, 32);
 });
 
-// ---- Hourly-scheduled RESOURCES in the public flow (specs/wp-booking-widget-redesign.md §3.10) ----
+// ---- Hourly-scheduled RESOURCES in the public flow (specs/site/wp-booking-widget-redesign.md §3.10) ----
 // The site sells N hours as a bare quantity; the host schedules the sessions later.
-// Since specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rules 1-3 the ADMIN fiche behaves
+// Since specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.1 rules 1-3 the ADMIN fiche behaves
 // the same way — selling by the hour is the default everywhere and `planningCardAsQuantity` no longer
 // gates the resource branch. Sessions, when present and valid, still win.
 
@@ -142,7 +142,7 @@ test('public flow: sessions still win over the bare quantity when provided', { s
 test('admin flow (flag off): an hourly-scheduled resource with NO sessions is billed by quantity', { skip: skipWithout(['hourly-resources']) }, () => {
   // Regression guard for the reported bug: enabling the Bain nordique on a devis used to return NO
   // line at all, so the resource vanished from the summary and from the total
-  // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 1).
+  // (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §1 defect 1).
   const q = quote(seedHourlyResource(seedDb()), { selectedResources: [{ resourceId: 3, quantity: 2 }] });
   const line = q.resourceLines.find((l) => l.resourceId === 3);
   assert.ok(line, 'an enabled hourly resource must never be dropped from the quote');

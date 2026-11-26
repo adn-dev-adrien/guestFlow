@@ -7,19 +7,19 @@
 | **Created** | 2026-07-03 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [online-payments-qonto.md](online-payments-qonto.md) (link creation), [public-online-payment.md](public-online-payment.md) (UC2 amounts), [single-vat-rate.md](single-vat-rate.md) (the one global `vatRate`), [public-online-deposit.md](public-online-deposit.md) (deposit/balance links get the same treatment) |
+| **Related** | [online-payments-qonto.md](online-payments-qonto.md) (link creation), [public-online-payment.md](../site/public-online-payment.md) (UC2 amounts), [single-vat-rate.md](../accounting/single-vat-rate.md) (the one global `vatRate`), [public-online-deposit.md](../site/public-online-deposit.md) (deposit/balance links get the same treatment) |
 
 ---
 
 ## 1. Context
 
 Every Qonto payment link is created with a single basket item at **`vat_rate: "0"`**
-([qontoClient.js:119-133](../server/src/utils/qontoClient.js#L119)). The hosted payment page therefore
+([qontoClient.js:119-133](../../server/src/utils/qonto/qontoClient.js#L119)). The hosted payment page therefore
 displays « TVA (%) 0 % — Montant de la TVA 0,00 EUR — Total HT = Total TTC » (seen on the 2026-07-02
 prod E2E screenshots), which is wrong: GuestFlow has a configured global VAT rate
 (`app_settings.vatRate`, default 10 %, Paramètres → « Taux de TVA »), the pricing engine already
 decomposes every TTC total into HT + VAT (`accommodationVatAmount`, `optionsVatAmount`,
-`resourcesVatAmount`, `totalVatAmount` — [pricing.js:1561-1578](../server/src/utils/pricing.js#L1561)),
+`resourcesVatAmount`, `totalVatAmount` — [pricing.js:1561-1578](../../server/src/utils/pricing.js#L1561)),
 and the devis PDF prints the same decomposition. The **tourist tax is VAT-exempt** (outside every VAT
 bucket, engine + PDF).
 
@@ -49,7 +49,7 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
      « Taxe de séjour » = `touristTaxTotal` at `"0"` (only when the tax is part of the charge;
      omitted when `collectedOnArrival` or zero).
    - `deposit`: single item « Acompte séjour » at `vatRate` (deposit base is accommodation-only —
-     VAT-liable, no tax component per [tourist-tax-on-solde.md](tourist-tax-on-solde.md)).
+     VAT-liable, no tax component per [tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md)).
    - `balance`: item « Solde séjour » = balance minus tourist tax at `vatRate` + item
      « Taxe de séjour » at `"0"` (the tax rides on the solde).
    - `complement`: single item at `vatRate` (existing complement flows).
@@ -113,7 +113,7 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
     when the tax rides on the solde — for a devis (engine replay), a reservation (stored columns, rule 8)
     and the public payment alike. A tax paid on arrival (collected there or forced to the Complément)
     leaves no tax line.
-11. **The basket rate is the reservation's period rate (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md)).**
+11. **The basket rate is the reservation's period rate (2026-10-28, Implemented — [vat-optional-mode.md](../accounting/vat-optional-mode.md)).**
     « The global `vatRate` » of rules 2 and 8 reads as the rate of the row's VAT period (a devis not
     converted: the period in force). Under « Sans TVA » every item goes at `"0"` with the same items and
     the same charged total. A link already open keeps the basket it was created with.
@@ -186,7 +186,7 @@ None. (`payment_links.amountCents` stays the single source of the charged total.
 
 ## 8. Out of scope
 
-- Multi-rate VAT (the app is single-rate by design — [single-vat-rate.md](single-vat-rate.md)).
+- Multi-rate VAT (the app is single-rate by design — [single-vat-rate.md](../accounting/single-vat-rate.md)).
 - Retro-editing existing open links.
 - VAT on the WordPress-side display (site shows TTC totals only, unchanged).
 

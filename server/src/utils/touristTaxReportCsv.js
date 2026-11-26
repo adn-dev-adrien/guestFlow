@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md rule 13 — the CSV of the selection on screen: the list (one row per stay) or the
+// specs/tourist-tax/tourist-tax-report-v2.md rule 13 — the CSV of the selection on screen: the list (one row per stay) or the
 // register (one row per night), then a total line read from the report's own totals. Pure; French Excel format
 // through utils/csv.js (`;`, BOM, comma decimals, formula cells neutralised).
 

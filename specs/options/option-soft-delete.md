@@ -8,11 +8,13 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
 
-Deleting an option in Réglages → Options ([OptionsPage.js](../client/src/pages/OptionsPage.js)) currently
+Deleting an option in Réglages → Options ([OptionsPage.js](../../client/src/pages/OptionsPage.jsx)) currently
 **hard-deletes** the row (`optionsModel.remove` → `DELETE FROM options` + `DELETE FROM property_options`).
 There's no guard against deleting an option that reservations already use; the `reservation_options →
 options` JOIN that the reservation fiche / accounting / history rely on for the option **title** would

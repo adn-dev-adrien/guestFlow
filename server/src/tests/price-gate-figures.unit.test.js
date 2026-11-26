@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 68 and 70 — `scripts/price-gate/figuresOf.js`: the figure set of one stay from its
+// specs/pricing/pricing-components.md §3 rules 68 and 70 — `scripts/price-gate/figuresOf.js`: the figure set of one stay from its
 // quote and stored row, flat, every number exactly as the code returned it.
 const test = require('node:test');
 const assert = require('node:assert/strict');

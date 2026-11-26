@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 2, 4 and 16 — the KPI tile of a report: label and « i »
+ * specs/design-system/report-grammar.md §3 rules 2, 4 and 16 — the KPI tile of a report: label and « i »
  * definition, value, secondary line, year-over-year pill; the definition opens on a click and closes
  * on a second click, a click outside or Escape (focus back on the button).
  */

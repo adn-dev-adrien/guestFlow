@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 22 — the console never reaches inside a GuestFlow
+// specs/plugins/plugins-phase-3a-online-payment.md rule 22 — the console never reaches inside a GuestFlow
 // plugin: the Qonto library it shares with the instance is core code (`server/src/utils/qonto`). Moving
 // or renaming a file of the online-payment plugin cannot break the console's billing.
 const test = require('node:test');

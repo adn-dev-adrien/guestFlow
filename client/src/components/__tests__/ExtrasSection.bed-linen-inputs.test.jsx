@@ -5,10 +5,10 @@ import { vi } from 'vitest';
 import ExtrasSection from '../reservation/ExtrasSection';
 import { ReservationFormProvider } from '../reservation/ReservationFormContext';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
-// specs/bed-config-in-linen-card.md §3 rules 2 + 3 + 10 + §7.2.
+// specs/linen/bed-config-in-linen-card.md §3 rules 2 + 3 + 10 + §7.2.
 // Pin the new placement of the bed counters INSIDE the "Linge de lit" option card and the
 // auto-zero on Switch OFF behaviour.
 
@@ -114,7 +114,7 @@ test('bed-linen option enabled → lits doubles/simples + "Suggérer les lits" r
   }));
   expect(screen.getByLabelText(/Lits doubles/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/Lits simples/i)).toBeInTheDocument();
-  // specs/bed-config-in-linen-card.md §10 follow-up #6 — "Lits bébé" moved OUT of the linen card
+  // specs/linen/bed-config-in-linen-card.md §10 follow-up #6 — "Lits bébé" moved OUT of the linen card
   // into the Voyageurs card (shown whenever babies > 0). It must NOT be here anymore.
   expect(screen.queryByLabelText(/Lits bébé/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Suggérer les lits/i })).toBeInTheDocument();
@@ -150,7 +150,7 @@ test('Switch ON → OFF calls setOptionEnabled(optId, false) for the bed-linen o
 });
 
 test('CREATE mode — bed-linen option forced by property default → Switch checked + disabled + bed inputs + "Inclus" caption', () => {
-  // specs/reservation-option-immutability.md rule 4 — ReservationPage passes a populated
+  // specs/reservations/reservation-option-immutability.md rule 4 — ReservationPage passes a populated
   // bedLinenForcedOptionIds ONLY when creating. The new reservation has no explicit entry in
   // `selectedOptions`, but the property declares the option a default: the Switch shows ON +
   // disabled and the bed-inputs sub-block surfaces because the contract treats it as enabled.
@@ -170,7 +170,7 @@ test('CREATE mode — bed-linen option forced by property default → Switch che
 });
 
 test('EDIT mode (empty forced set) — a property-default option the reservation lacks renders as a normal OFF toggle, no "Inclus"', () => {
-  // specs/reservation-option-immutability.md rule 4 — in edit mode ReservationPage passes an EMPTY
+  // specs/reservations/reservation-option-immutability.md rule 4 — in edit mode ReservationPage passes an EMPTY
   // bedLinenForcedOptionIds, so an existing reservation is frozen: a property default it doesn't
   // already carry shows as a normal, toggleable Switch (OFF, enabled), never forced "Inclus", and
   // no bed inputs surface. The operator can still add it manually.

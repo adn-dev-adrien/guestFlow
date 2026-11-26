@@ -6,11 +6,11 @@ const devisModel = require('../models/devisModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/tech/server-test-isolation.md rule 6). */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 /**
- * Property option defaults on a site devis (specs/site-booking-notifications.md §3 rules 13–15).
+ * Property option defaults on a site devis (specs/site/site-booking-notifications.md §3 rules 13–15).
  *
  * Drives `devisModel.create` (what the public booking-request controller calls). The property has
  * two default options:
@@ -62,7 +62,7 @@ function freshModel() {
   db.prepare("INSERT INTO options (id, title, priceType, price, autoOptionType, autoEnabled) VALUES (6, 'Petit déjeuner', 'per_person', 9, 'breakfast', 0)").run();
   // 3 = plain paid option, what the visitor adds explicitly.
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (3, 'Ménage', 'per_stay', 80)").run();
-  // specs/option-property-scope.md: options are applicable only where explicitly linked — link all to Gite.
+  // specs/options/option-property-scope.md: options are applicable only where explicitly linked — link all to Gite.
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 8), (1, 6), (1, 3)').run();
   return { model: devisModel.buildModel(db), db };
 }

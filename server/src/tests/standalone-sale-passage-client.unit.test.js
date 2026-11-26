@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 74 and specs/outside-booking-sas.md rule 8 — who a standalone sale belongs to: the shared « Passage » client (seeded once),
+// specs/pricing/pricing-components.md §3 rule 74 and specs/sas/outside-booking-sas.md rule 8 — who a standalone sale belongs to: the shared « Passage » client (seeded once),
 // an exact e-mail match (case-insensitive, trimmed) and nothing fuzzy, « Enregistrer comme client » needing a name, a quote creating nothing.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

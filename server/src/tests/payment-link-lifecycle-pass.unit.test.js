@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 1, 2, 13, 16, 22 — the lifecycle pass: one transaction that moves
+// specs/payments/payment-link-lifecycle.md rules 1, 2, 13, 16, 22 — the lifecycle pass: one transaction that moves
 // every open link whose time is up out of `open` (lapsed → `expired`, withdrawn → `cancelled`), each move
 // conditional on `open`; it runs at the start of every poll pass, before the owed deactivations.
 

@@ -1,5 +1,5 @@
 /**
- * SalePaymentLink — the validity of a minted link (specs/outside-booking-sas.md rules 40-42, 48; round-1 finding UI-15): « valable jusqu’au … » prints the server's
+ * SalePaymentLink — the validity of a minted link (specs/sas/outside-booking-sas.md rules 40-42, 48; round-1 finding UI-15): « valable jusqu’au … » prints the server's
  * Europe/Paris `expiresLabel` as is, never the browser's reading of `expiresAt`. The reception's payload hides the address (`email: null`) but says `hasEmail`.
  */
 import React from 'react';

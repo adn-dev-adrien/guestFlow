@@ -7,7 +7,9 @@
 | **Created** | 2026-05-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 4 — Devis (partial; full Devis MVC remains a later slice). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 4 — Devis (partial; full Devis MVC remains a later slice). See `docs/rapports/ROADMAP.md`. |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 2 confirmation copy aligned with the code (`ReservationPage.jsx:3495`, « Continuer ? »); client file names are now `.jsx`.
 
 ---
 
@@ -37,7 +39,7 @@ reservation editor.
 1. **No standalone "Passer en réservation" action.** It is removed from the devis editor action bar.
 2. **Accept = convert.** Setting the devis status to **Accepté** (in the action-bar dropdown) triggers a
    confirmation: *« En acceptant ce devis, il sera enregistré puis converti en réservation (les dates
-   seront bloquées). Voulez-vous continuer ? »* with actions **Annuler** / **Convertir en réservation**.
+   seront bloquées). Continuer ? »* with actions **Annuler** / **Convertir en réservation**.
 3. **On confirm:** the current devis edits are **saved first** (so the reservation reflects them), then
    `convert-to-reservation` is called, then the app navigates to the **created reservation**
    (`/reservations/:id`). The reservation is therefore already persisted — no extra manual save, and the
@@ -66,11 +68,11 @@ reservation editor.
    range the HTTP route answers `409 DATES_UNAVAILABLE` with the French message of the check, creates
    nothing and leaves the devis as it was. The **paid-link path** (`paymentPollRunner`) passes
    `{ allowConflict: true }`: the money is already in, so the stay is created and flagged
-   `bookingConflictAt` with the admin notification, as before (`specs/online-payments-qonto.md` §3.3).
+   `bookingConflictAt` with the admin notification, as before (`specs/payments/online-payments-qonto.md` §3.3).
 10. **A conversion checks the stock** _(added 2026-11-05, audit R23-1)_. A devis holds no stock, so the
    conversion is the only place left to judge it. After the dates (rule 9), under the same condition,
    `convertToReservation` judges the devis's cots and its resource lines (every price type but
-   `per_hour`) with `reservationsModel.heldStockRefusal`, on the peak of `specs/reservations-backend-mvc.md`
+   `per_hour`) with `reservationsModel.heldStockRefusal`, on the peak of `specs/tech/reservations-backend-mvc.md`
    rule 21. Past the stock: `409 STOCK_UNAVAILABLE` with the words of a new stay (« Lits bébé indisponibles:
    0 restant(s) pour cette période. », « Ressource 'X' indisponible: … »), nothing created, the devis as it
    was. Only the stock is judged: a party smaller than its cots is the devis save's matter. The **paid-link
@@ -105,8 +107,8 @@ No server change at the time of this spec. No new dependency. *Since 2026-10-28:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `ReservationPage.js` | T | Remove the "Passer en réservation" action + its icon import; add `handleDevisStatusChange` (confirm → save → convert → navigate with `?from=/calendar`); wire the status `Select` to it; make `refreshToCurrentPricing` work in devis mode. **Rework the unsaved-changes baseline effect** (rule 8): for an existing record, set `initialSnapshot` only after the first `pricingQuote` has applied. |
-| `components/reservation/` | `FinanceSection.js` | T | Show "Actualiser tarifs" when `isDevisMode || reservationId`. |
+| `pages/` | `ReservationPage.jsx` | T | Remove the "Passer en réservation" action + its icon import; add `handleDevisStatusChange` (confirm → save → convert → navigate with `?from=/calendar`); wire the status `Select` to it; make `refreshToCurrentPricing` work in devis mode. **Rework the unsaved-changes baseline effect** (rule 8): for an existing record, set `initialSnapshot` only after the first `pricingQuote` has applied. |
+| `components/reservation/` | `FinanceSection.jsx` | T | Show "Actualiser tarifs" when `isDevisMode || reservationId`. |
 | `utils/` | `navigation.js` | — | Reused (`getFromParam`, `navigateBackWithFrom`). |
 
 **Component reuse declaration:**

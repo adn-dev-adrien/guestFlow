@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** The « Paiements en attente » tab is gone; its table is `client/src/components/OperationalPaymentsTable.jsx`, opened by the tiles of `specs/accounting/finance-dashboard-redesign.md`. The money rules (3, 7) are live in `utils/reservationSettlement.js`.
+
 ---
 
 ## 1. Context
@@ -15,7 +17,7 @@
 The « Suivi financier » → « Suivi opérationnel » → **Paiements en attente** table
 ([FinancePage.js](../client/src/pages/FinancePage.js) ~L398-486) shows, per past-unsettled
 reservation: Acompte, Solde, **Reste à payer**, Total de séjour. The "Reste à payer" comes from
-`computePaymentStatus().remainingDue` ([paymentStatus.js](../server/src/utils/paymentStatus.js)),
+`computePaymentStatus().remainingDue` ([paymentStatus.js](../../server/src/utils/paymentStatus.js)),
 which is `finalPrice − (depositPaid ? deposit) − (balancePaid ? balance)` — it **ignores the two
 complements** (complément d'arrivée + complément de fin de séjour). So the operational view
 disagrees with the reservation fiche ([FinanceSection.js](../client/src/components/reservation/FinanceSection.js)),
@@ -25,7 +27,7 @@ Concretely: a stay whose deposit + balance are paid but whose complement is stil
 "Reste à payer" that doesn't reflect the complement, and the table has no column for it.
 
 The finance model already has the right primitives:
-[financeModel.js](../server/src/models/financeModel.js) `totalSejour(r)` (sum of the 4 buckets,
+[financeModel.js](../../server/src/models/financeModel.js) `totalSejour(r)` (sum of the 4 buckets,
 caisse-interne complements excluded), `comptaCollected(r)` (paid, off-books excluded), and
 `isSettled(r)` (every applicable bucket paid / cash / disabled / zero).
 

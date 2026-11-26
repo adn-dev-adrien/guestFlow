@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 59 (audit of 2026-10-28, finding M1) — changing your own
+// specs/hosting/hosting-h2-account-security.md rule 59 (audit of 2026-10-28, finding M1) — changing your own
 // email asks the current password, and a current code when the second step is on; the old address is
 // told. A name-only save asks nothing.
 

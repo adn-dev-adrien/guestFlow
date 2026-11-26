@@ -7,8 +7,8 @@
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [single-vat-rate.md](single-vat-rate.md) (the one rate — amended by its rule 14), [payment-links-vat.md](payment-links-vat.md) (link baskets — amended by its rule 11), [accountant-accounting-export.md](accountant-accounting-export.md) (journal — amended by its rule 37), [fiscal-year-and-nights-sold.md](fiscal-year-and-nights-sold.md) (the exercise, unchanged), [tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md) (the HT base of the proportional tax), [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) (GuestFlow sold to other operators), [finance-dashboard-redesign.md](finance-dashboard-redesign.md) (the Suivi financier — gains one card), [shell-and-home-day-first.md](shell-and-home-day-first.md) (the home's attention box — gains one core subject) |
-| **HTML summary** | [docs/specs/2026-10-28-vat-optional-mode.html](../docs/specs/2026-10-28-vat-optional-mode.html); franchise threshold: [docs/specs/2026-10-28-vat-franchise-threshold.html](../docs/specs/2026-10-28-vat-franchise-threshold.html) |
+| **Related** | [single-vat-rate.md](single-vat-rate.md) (the one rate — amended by its rule 14), [payment-links-vat.md](../payments/payment-links-vat.md) (link baskets — amended by its rule 11), [accountant-accounting-export.md](accountant-accounting-export.md) (journal — amended by its rule 37), [fiscal-year-and-nights-sold.md](fiscal-year-and-nights-sold.md) (the exercise, unchanged), [tourist-tax-matches-the-office-calculation.md](../tourist-tax/tourist-tax-matches-the-office-calculation.md) (the HT base of the proportional tax), [plugins-phase-p-productisation.md](../plugins/plugins-phase-p-productisation.md) (GuestFlow sold to other operators), [finance-dashboard-redesign.md](finance-dashboard-redesign.md) (the Suivi financier — gains one card), [shell-and-home-day-first.md](../planning/shell-and-home-day-first.md) (the home's attention box — gains one core subject) |
+| **HTML summary** | [docs/specs/2026-10-28-vat-optional-mode.html](../../docs/specs/2026-10-28-vat-optional-mode.html); franchise threshold: [docs/specs/2026-10-28-vat-franchise-threshold.html](../../docs/specs/2026-10-28-vat-franchise-threshold.html) |
 
 ---
 
@@ -29,32 +29,32 @@ companies: no accountant, no VAT. Today every install is VAT-registered by const
 ### 1.1 Where VAT lives today (code at `origin/inte/plugins` 714ed5e4)
 
 There is **one global rate**, `app_settings.vatRate` (REAL, default 10), edited on Paramètres › TVA &
-exercice ([SettingsVatSection.jsx](../client/src/components/SettingsVatSection.jsx),
-[VatFiscalSettingsPage.jsx](../client/src/pages/settings/VatFiscalSettingsPage.jsx)). It is **read live,
+exercice ([SettingsVatSection.jsx](../../client/src/components/SettingsVatSection.jsx),
+[VatFiscalSettingsPage.jsx](../../client/src/pages/settings/VatFiscalSettingsPage.jsx)). It is **read live,
 by every consumer, at every read** — there is no per-reservation snapshot. That is a deliberate earlier
 choice ([single-vat-rate.md](single-vat-rate.md) rule 12: « retroactive »). The rate is read directly from
 `app_settings` in **eleven places**:
 
 | # | Reader | What it does with the rate |
 |---|---|---|
-| 1 | [utils/pricing.js:1334](../server/src/utils/pricing.js#L1334) `getGlobalVatRate` → `:1519`, `:2348`, `:2427-2444` | Quote: extracts VAT from each TTC bucket; feeds the tourist-tax base (`accommodationVatRate`). |
-| 2 | [utils/pricing.js:472-487](../server/src/utils/pricing.js#L472) `computeTouristTaxBreakdown` | **Proportional tourist tax**: base HT = TTC ÷ (1 + rate). The only place where the rate changes a TTC figure. |
-| 3 | [controllers/reservationsController.js:781](../server/src/controllers/reservationsController.js#L781) | `storedSummary` « Total HT / TVA x % ». |
-| 4 | [models/financeModel.js:103](../server/src/models/financeModel.js#L103), `:377`, `:825`, `:993` | Finance dashboard HT figures (`htAmount`). |
-| 5 | [utils/devisPdf.js:274](../server/src/utils/devisPdf.js#L274) | Devis PDF « Prix HT / TVA % / Total TTC » columns, « Sous-total HT ». |
-| 6 | [utils/devisQuote.js:83](../server/src/utils/devisQuote.js#L83) | Devis payment-link basket rate. |
-| 7 | [utils/publicPaymentMode.js:17](../server/src/utils/publicPaymentMode.js#L17) | Public payment basket rate. |
-| 8 | [controllers/paymentsController.js:111](../server/src/controllers/paymentsController.js#L111), `:140`, `:163` | Admin link baskets (quote key, then `financeModel.helpers.getVatRate`). |
-| 9 | [controllers/refundsController.js:48](../server/src/controllers/refundsController.js#L48), `:57` | Refund lines — **frozen** at refund time in `reservation_refund_lines.vatRate`. |
-| 10 | [controllers/reservationCancellationController.js:51](../server/src/controllers/reservationCancellationController.js#L51) | Requalified acompte lines on cancellation. |
-| 11 | [plugins/accounting-export/accountingModel.js:392](../server/src/plugins/accounting-export/accountingModel.js#L392) `buildCommissionContext` (via `sdk.coreModule('settingsModel')`) | Every journal entry: 4457x VAT credits, end-of-stay / mid-stay / arrival adjustments. |
+| 1 | [utils/pricing.js:1334](../../server/src/utils/pricing.js#L1334) `getGlobalVatRate` → `:1519`, `:2348`, `:2427-2444` | Quote: extracts VAT from each TTC bucket; feeds the tourist-tax base (`accommodationVatRate`). |
+| 2 | [utils/pricing.js:472-487](../../server/src/utils/pricing.js#L472) `computeTouristTaxBreakdown` | **Proportional tourist tax**: base HT = TTC ÷ (1 + rate). The only place where the rate changes a TTC figure. |
+| 3 | [controllers/reservationsController.js:781](../../server/src/controllers/reservationsController.js#L781) | `storedSummary` « Total HT / TVA x % ». |
+| 4 | [models/financeModel.js:103](../../server/src/models/financeModel.js#L103), `:377`, `:825`, `:993` | Finance dashboard HT figures (`htAmount`). |
+| 5 | [utils/devisPdf.js:274](../../server/src/utils/devisPdf.js#L274) | Devis PDF « Prix HT / TVA % / Total TTC » columns, « Sous-total HT ». |
+| 6 | [utils/devisQuote.js:83](../../server/src/utils/devisQuote.js#L83) | Devis payment-link basket rate. |
+| 7 | [utils/publicPaymentMode.js:17](../../server/src/utils/publicPaymentMode.js#L17) | Public payment basket rate. |
+| 8 | [controllers/paymentsController.js:111](../../server/src/controllers/paymentsController.js#L111), `:140`, `:163` | Admin link baskets (quote key, then `financeModel.helpers.getVatRate`). |
+| 9 | [controllers/refundsController.js:48](../../server/src/controllers/refundsController.js#L48), `:57` | Refund lines — **frozen** at refund time in `reservation_refund_lines.vatRate`. |
+| 10 | [controllers/reservationCancellationController.js:51](../../server/src/controllers/reservationCancellationController.js#L51) | Requalified acompte lines on cancellation. |
+| 11 | [plugins/accounting-export/accountingModel.js:392](../../server/src/plugins/accounting-export/accountingModel.js#L392) `buildCommissionContext` (via `sdk.coreModule('settingsModel')`) | Every journal entry: 4457x VAT credits, end-of-stay / mid-stay / arrival adjustments. |
 
-Plus the wording: [settingsSummaryController.js:68](../server/src/controllers/settingsSummaryController.js#L68)
-(« TVA 10 % · exercice clos fin … »), [PricingSummary.jsx:815-825](../client/src/components/PricingSummary.jsx#L815),
+Plus the wording: [settingsSummaryController.js:68](../../server/src/controllers/settingsSummaryController.js#L68)
+(« TVA 10 % · exercice clos fin … »), [PricingSummary.jsx:815-825](../../client/src/components/PricingSummary.jsx#L815),
 [StoredPricingSummary.jsx:50-51](../client/src/components/reservation/StoredPricingSummary.jsx#L50),
-[FinanceHero.jsx:71](../client/src/components/FinanceHero.jsx#L71) (« HT · net de commissions »),
-[FinanceDetailPanel.jsx:229](../client/src/components/FinanceDetailPanel.jsx#L229) (TTC / HT columns),
-[PropertyTariffTab.jsx:166](../client/src/components/property/PropertyTariffTab.jsx#L166) (« prix TTC »).
+[FinanceHero.jsx:71](../../client/src/components/FinanceHero.jsx#L71) (« HT · net de commissions »),
+[FinanceDetailPanel.jsx:229](../../client/src/components/FinanceDetailPanel.jsx#L229) (TTC / HT columns),
+[PropertyTariffTab.jsx:166](../../client/src/components/property/PropertyTariffTab.jsx#L166) (« prix TTC »).
 
 Key properties of the engine, verified in the code:
 
@@ -123,12 +123,12 @@ under a threshold set by law and revised over time. Crossing it brings VAT back 
 GuestFlow does not know the figure that applies to a given operator (it depends on the activity and
 changes with finance laws), so **the operator types it**; GuestFlow never ships, suggests or asserts a
 legal amount. What GuestFlow does know is the money: every payment is already dated, per bucket, in
-`financeDashboardModel.paymentsLedger` ([financeDashboardModel.js:324](../server/src/models/financeDashboardModel.js#L324)
+`financeDashboardModel.paymentsLedger` ([financeDashboardModel.js:324](../../server/src/models/financeDashboardModel.js#L324)
 — acompte, solde / versement plateforme, compléments, échéances, notes en séjour, ajustements à
 l'arrivée, minus refunds on their own date). The share of a payment that is tourist tax is already
-derived per stay by `htAmount` ([financeModel.js:120](../server/src/models/financeModel.js#L120)). The
+derived per stay by `htAmount` ([financeModel.js:120](../../server/src/models/financeModel.js#L120)). The
 expected dates of unpaid buckets already exist (`depositDueDate`, `balanceDueDate`, installment
-`dueDate`, platform payout = `endDate + payoutDueDays`, [financeModel.js:195-255](../server/src/models/financeModel.js#L195)).
+`dueDate`, platform payout = `endDate + payoutDueDays`, [financeModel.js:195-255](../../server/src/models/financeModel.js#L195)).
 An amount typed in Paramètres and read by the Suivi financier already exists too: the revenue goal
 (`utils/revenueGoals.js`, `SettingsFiscalYearSection`, the goal bar of `FinanceHero`). The follow-up
 reuses all four; it adds no new money rule.
@@ -227,7 +227,7 @@ warned before and when it crosses it.
     28/10/2026) » (« correction » for scope `all`); the non-tax lines of its refunds are re-rated to the
     new rate, their TTC unchanged. A future-dated `booking` switch reassigns nothing now.
     > **Reading of 2026-11-02 (review of PR #925).** « Non-tax lines » excludes the `indemnity` lines too
-    > (specs/reservation-refunds.md rule 48): what a refund gave back from a cancellation indemnity is no sale,
+    > (specs/payments/reservation-refunds.md rule 48): what a refund gave back from a cancellation indemnity is no sale,
     > it stays at 0 % through a switch and its undo (rule 26).
 17. **Preview before confirmation.** The dialog shows, from the server, for the exact inputs: reservations
     whose regime or rate changes; of which with money collected; stays whose tourist tax changes, with the total delta;
@@ -382,7 +382,7 @@ Appended, never renumbered; each narrows or completes a rule above.
       counts once it is received. A stay whose client or logement was deleted is left out, as in
       « Encaissé » (the ledger's own joins).
       > **Reading of 2026-11-02 (review of PR #925).** A refund that gave part of an indemnity back
-      > (specs/reservation-refunds.md rule 48, lines of bucket `indemnity`) subtracts that share **at face
+      > (specs/payments/reservation-refunds.md rule 48, lines of bucket `indemnity`) subtracts that share **at face
       > value**, like the indemnity it reduces; the rest of it keeps the ratio of c. `paymentsLedger` carries the
       > share as `indemnity` on the refund row only for this reader (`withCommission`).
     The calendar year is used whatever the exercise of Paramètres (the exercise drives the books, the
@@ -611,7 +611,7 @@ renders (rule 44). Not encrypted (not a secret).
 
 ## 6. UI / UX
 
-Interactive mockups: [docs/specs/2026-10-28-vat-optional-mode.html](../docs/specs/2026-10-28-vat-optional-mode.html).
+Interactive mockups: [docs/specs/2026-10-28-vat-optional-mode.html](../../docs/specs/2026-10-28-vat-optional-mode.html).
 
 ### 6.1 Paramètres › TVA & exercice — card « TVA »
 

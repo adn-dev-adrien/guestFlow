@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { simulateInventory, ALL_TYPES } = require('../linenInventory');
 const { constantSchedule } = require('./laundry-schedule-fixtures');
 
-// specs/laundry-extra-trip.md §3.3 + §7 — engine-level coverage for extra laundry trips.
+// specs/linen/laundry-extra-trip.md §3.3 + §7 — engine-level coverage for extra laundry trips.
 //
 // An extra trip on a free date D: before the check-ins, the whole at-laundry POOL comes back
 // (or the declared per-type quantities, capped at the pool); then the whole dirty pile is dropped.
@@ -161,11 +161,11 @@ test('an extra trip ON today is executed by the loop, not the init (rule 13)', (
   assertConservation(r, STOCK, 'extra on today');
 });
 
-test('a partial remainder is tracked even when the last regular trip was skipped (specs/linen-laundry-days.md rule 16)', () => {
+test('a partial remainder is tracked even when the last regular trip was skipped (specs/linen/linen-laundry-days.md rule 16)', () => {
   // today = 06-16 (a Tuesday) but SKIPPED → the last regular trip is 06-09. The former 7-day seed
   // guard did not fire here, so the remainder of the partial extra trip of 06-11 (A: 1 single + 1
   // double) was lost — only B showed at the laundry. The warm-up replay now carries it: this was the
-  // « known approximation » of specs/laundry-extra-trip.md rule 13, exact since rule 16.
+  // « known approximation » of specs/linen/laundry-extra-trip.md rule 13, exact since rule 16.
   const r = run({
     from: '2026-06-16', skippedDates: new Set(['2026-06-16']),
     extraTrips: new Map([['2026-06-11', { pickUpAll: false, pickUp: { single: 1 } }]]),

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The plugin removal matrix (specs/plugin-removal-resilience.md rules 7, 13, 14, 15).
+ * The plugin removal matrix (specs/plugins/plugin-removal-resilience.md rules 7, 13, 14, 15).
  *
  *   list                              the plugin ids of the tree, as JSON (the CI matrix is built from it)
  *   remove <id> [--root dir]          delete a plugin — and the plugins that require it — from the tree:

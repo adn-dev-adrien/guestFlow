@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 15 and 51 — TOTALS aggregates and holds no formula: the sums of the provided parts, the
+// specs/pricing/pricing-components.md §3 rules 15 and 51 — TOTALS aggregates and holds no formula: the sums of the provided parts, the
 // discount unit's amount, the VAT unit's per-rate rows passed through as they came, and a static check that `totals.js` has
 // no arithmetic of its own (no `*`, `/`, `roundMoney`, no percent) beyond calling the shared helpers.
 const test = require('node:test');

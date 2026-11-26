@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 27 (audit R43-RES-L2) — a stay
+// specs/tech/reservations-backend-mvc.md rule 27 (audit R43-RES-L2) — a stay
 // refused on a closure answered « … « Audit » du 2027-10-04 au 2027-10-08. », the stored ISO days in a French sentence;
 // the season overlap refusals did the same. Every one now writes its days the way the screens do: 04/10/2027.
 const test = require('node:test');

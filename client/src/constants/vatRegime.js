@@ -1,4 +1,4 @@
-// French labels of the VAT regime card and its switch dialog (specs/vat-optional-mode.md §6).
+// French labels of the VAT regime card and its switch dialog (specs/accounting/vat-optional-mode.md §6).
 // The sentences about a period and the lines of « Ce qui change » come from the server.
 
 export const VAT_BASIS = Object.freeze({ BOOKING: 'booking', ARRIVAL: 'arrival', ALL: 'all' });

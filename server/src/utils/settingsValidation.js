@@ -115,7 +115,7 @@ function validateQuoteValidityDays(value) {
   return null;
 }
 
-// How far ahead the public may book a lodging, in whole months (specs/gift-voucher-campaigns.md rule 51).
+// How far ahead the public may book a lodging, in whole months (specs/gift-vouchers/gift-voucher-campaigns.md rule 51).
 // Empty/absent is accepted: the controller then leaves the stored value alone.
 const BOOKING_HORIZON_REFUSAL = 'Doit être un nombre entier de mois entre 1 et 36.';
 function validateBookingHorizonMonths(value) {
@@ -132,7 +132,7 @@ function validateVatRate(value) {
   return null;
 }
 
-// Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). 1 = January … 12 = December
+// Accounting closing month (specs/accounting/fiscal-year-and-nights-sold.md §3.1). 1 = January … 12 = December
 // (calendar year). Empty/absent is accepted: the controller's per-field « absent → preserve »
 // semantics then leave the stored value alone.
 function validateFiscalYearEndMonth(value) {
@@ -143,10 +143,10 @@ function validateFiscalYearEndMonth(value) {
   return null;
 }
 
-// SMTP validators (specs/admin-account-management.md M3).
+// SMTP validators (specs/hosting/admin-account-management.md M3).
 /**
  * The SMTP port is not asked for any more: it IS the security mode, said twice
- * (specs/settings-one-save-and-automatic-webhook.md §3 rule 5).
+ * (specs/settings/settings-one-save-and-automatic-webhook.md §3 rule 5).
  */
 const SMTP_PORT_STARTTLS = 587;
 const SMTP_PORT_IMPLICIT_TLS = 465;
@@ -166,7 +166,7 @@ function validatePublicUrl(value) {
   }
 }
 
-// Pool season bound, « MM-DD » (specs/guest-email-sequence.md §5). Empty keeps the default.
+// Pool season bound, « MM-DD » (specs/emails/guest-email-sequence.md §5). Empty keeps the default.
 function validateMonthDay(value) {
   if (value == null || value === '') return null;
   const match = String(value).match(/^(\d{2})-(\d{2})$/);

@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rules 5 and 6 — the pricing summary warns, server-worded, about
+// specs/reservations/reservation-save-keeps-pricing.md rules 5 and 6 — the pricing summary warns, server-worded, about
 // a commission far above the platform's configured rate (#22201: 91,5 % on a channel at 5 %) and about a
 // tourist tax the engine no longer prices as the fiche stored it (#22270, #22282, #22301, #22304: stored
 // 0 since before Booking was switched to « nous reverse » the tax).

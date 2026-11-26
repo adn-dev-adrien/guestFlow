@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 4-9 — TenderLines: the last untyped line shows the remainder, typing in
+// specs/payments/mixed-method-payments.md rules 4-9 — TenderLines: the last untyped line shows the remainder, typing in
 // it freezes it, the meter says where the operator stands, and the lines reported upward are in cents.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

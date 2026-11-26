@@ -1,5 +1,5 @@
 // @ts-check
-// specs/ui-review-2026-10-19-operations.md rules 11, 12 and 16 — against the real app: the fiche keeps
+// specs/design-system/ui-review-2026-10-19-operations.md rules 11, 12 and 16 — against the real app: the fiche keeps
 // its total on screen below 1200 px and opens the summary in a sheet; the calendar filter is usable on
 // a phone.
 import { test, expect } from '@playwright/test';

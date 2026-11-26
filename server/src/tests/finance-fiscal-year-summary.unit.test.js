@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/fiscal-year-and-nights-sold.md §3.1-§3.5 — getSummary read through a NON-calendar exercise
+// specs/accounting/fiscal-year-and-nights-sold.md §3.1-§3.5 — getSummary read through a NON-calendar exercise
 // (closing September ⇒ 1 Oct … 30 Sep), attributed by the solde payment date, with the nights sold
 // per logement and the exercise selector's options.
 const financeModel = require('../models/financeModel');
@@ -13,7 +13,7 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
-    -- specs/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
+    -- specs/site/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
     requestOrigin TEXT, attributionChannel TEXT, devisStatus TEXT, createdAt TEXT,
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',

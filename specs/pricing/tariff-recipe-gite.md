@@ -7,9 +7,11 @@
 | **Created** | 2026-08-24 |
 | **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 festive peaks, Q2 commission, Q7 the pivot rebuilt on the Gîtes-de-France net, Q5 answered by measurement, L'Ardéchoise added) · 2026-10-30 (25 December moved out of Noël, rule 14bis) |
 | **Author** | Adrien |
-| **Companion** | [etude.md](etude.md) — the analysis this spec rests on |
-| **Builds on** | [tariff-recipes](../tariff-recipes/spec.md) (the recipe engine), [platform-price-from-commission](../platform-price-from-commission.md) (the channel grid) |
+| **Companion** | `tariff-recipe-gite-study.md` — the analysis this spec rests on (a dated 2026-08-24 snapshot, moved to `docs/rapports/`); the HTML rendering is `docs/tarifs/2026-08-25-gite-etude-tarifaire.html` |
+| **Builds on** | [tariff-recipes](tariff-recipes.md) (the recipe engine), [platform-price-from-commission](../platforms/platform-price-from-commission.md) (the channel grid) |
 | **Related PR** | (link once opened) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths in §4.1 repointed to the `tariff-recipes` plugin (recipe now `server/src/plugins/tariff-recipes/recipes/gite-2027.json`, version 3.7.0 not 3.0.0).
 
 ---
 
@@ -18,7 +20,7 @@
 The Lodge's tariff became a **recipe** in August 2026: one declarative JSON document holding the
 seasons, the rules that carve the year into them, the prices, the discount curve and the minimum
 stays — so 2027 is derived rather than redrawn, and every channel's price comes from one net target
-([specs/tariff-recipes/spec.md](../tariff-recipes/spec.md)). The Gîte was left out of that work.
+([specs/pricing/tariff-recipes.md](tariff-recipes.md)). The Gîte was left out of that work.
 
 Today the Gîte's tariff exists only as its residue: 5 rows in `pricing_rules`, 13 progressive tiers
 each, and date ranges painted by hand on the tariff page. Three consequences:
@@ -30,7 +32,7 @@ each, and date ranges painted by hand on the tariff page. Three consequences:
    outside it.
 3. **A season is silently broken.** Très haute's tiers contradict the model every other season
    follows *and contradict their own long-stay tail*, under-pricing the 42 highest-demand nights of
-   the year by 16,5 % ([etude.md §1.3](etude.md)).
+   the year by 16,5 % ([etude.md §1.3](../../docs/rapports/tariff-recipe-gite-study.md)).
 
 And the Gîte has no net target: `pricing_rules.netTargetPerNight` is NULL on all five seasons, so
 the channel grid grosses the **displayed** price up as if it were net, and every channel's price
@@ -52,7 +54,7 @@ a calendar.
 1. **The net is the anchor, and it is a FLOOR.** `netTargetPerNight` is what the owner receives on
    any channel and never less. It is **measured, not declared**: a least-squares fit of the recipe's
    own degressivity curve against the 15 Gîtes-de-France stays on record — 288 / 302 / 341 / 413 €,
-   residual 48,84 € ([étude §3](etude.md)). _(Owner's call, 2026-08-28: « tu calcules ce que je gagne
+   residual 48,84 € ([étude §3](../../docs/rapports/tariff-recipe-gite-study.md)). _(Owner's call, 2026-08-28: « tu calcules ce que je gagne
    avec Gîte de France et ça devient la référence […] je ne veux jamais descendre en dessous ».)_
 2. **Gîtes de France keeps the prices it charges today, and nothing is configured on that channel.**
    Grossed up from the floor at its 10 %, it comes out at 320 / 336 / 379 / 459 / 937 / 1 009 € — the
@@ -60,7 +62,7 @@ a calendar.
    sur Gîtes de France, et c'est eux qui doivent régir tout le reste ».)_ The rollout therefore
    touches Lodgify, GreenGo and Abracadaroom, never Gîtes de France.
 3. **Every channel is grossed up from the floor**, `ceil(net ÷ (1 − commission))`. Existing behaviour
-   of [platform-price-from-commission](../platform-price-from-commission.md); the recipe only supplies
+   of [platform-price-from-commission](../platforms/platform-price-from-commission.md); the recipe only supplies
    the pivot it was missing.
 4. **The direct channel carries a 15 € uplift**, so it lands level with the cheapest channel while
    paying only 5 % — which is where the extra margin on a direct booking comes from.
@@ -76,7 +78,7 @@ a calendar.
 5. **Two identities must hold, per season, or the grid lies.** `ceil((net + 15) ÷ 0,95)` must return
    `pricePerNight` unchanged, and `pricePerNight` must be **≤ the cheapest platform price**. The first
    is what proves the net was persisted rather than dropped by the apply — a failure that shipped once
-   on the Lodge ([tariff-recipes §3.6 rule 34bis](../tariff-recipes/spec.md); trap 15 of the
+   on the Lodge ([tariff-recipes §3.6 rule 34bis](tariff-recipes.md); trap 15 of the
    `tariff-recipe` skill). The second is what keeps booking direct from costing the guest more than a
    platform. Both asserted in the test suite, season by season.
 6. **The band is 12,5 % to 14,4 % on the ordinary seasons, 16,7 % on Noël.** The owner asked for 10 %
@@ -86,7 +88,7 @@ a calendar.
 
 ### 3.2 The degressivity
 
-5. **A week is four nights.** Nights 1 and 2 at the full rate; a 7-night week at exactly 4 × the
+26. **A week is four nights.** Nights 1 and 2 at the full rate; a 7-night week at exactly 4 × the
    nightly rate, nights 3 to 7 interpolating linearly; past a week, each further night at a seventh
    of a week. One table for the five seasons:
 
@@ -95,10 +97,10 @@ a calendar.
    | Discount | 0 % | 0 % | 20 % | 30 % | 36 % | 40 % | 42,857 % | 42,857 % |
 
    This is the model the four sound seasons already bill, reproduced to the cent.
-6. **The 8-night row is not a duplicate of the 7-night one.** Without it the engine's carry-forward
+27. **The 8-night row is not a duplicate of the 7-night one.** Without it the engine's carry-forward
    repeats the *7th night's marginal price* (100,80 € in Très basse) instead of a seventh of a week
    (144 €), and a two-week stay loses 15 %.
-7. **Très haute's curve is rebuilt from rule 5** rather than kept. Its stored tiers price a week at
+7. **Très haute's curve is rebuilt from rule 26** rather than kept. Its stored tiers price a week at
    1 794,75 € while its own 15th-night tier (307 €) is a seventh of a 2 150 € week, and its 6th night
    is billed 21,50 €. The repair raises a peak week from 1 794,75 € to 2 152 €.
 8. **The 8th night costs more than the 7th, and that is kept.** A consequence of the week-based
@@ -227,7 +229,7 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     it exposed an engine defect: the 3-night 14-juillet block sits inside it and used to write its own
     minimum over the season's, making those three days the only short stays bookable all summer. A
     block minimum now raises a season's and never lowers it
-    ([tariff-recipes §3.3 rule 16quater](../tariff-recipes/spec.md)).
+    ([tariff-recipes §3.3 rule 16c](tariff-recipes.md)).
 
 25. **One colour per PRICE RANK, green to red** — not a ramp proportional to price.
     _(Owner's call, 2026-08-28: « je veux juste que tu classes les tarifs et que tu attribues une
@@ -274,11 +276,11 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     rank and carries the block's own length as a minimum stay, exactly as on the Lodge. The cap is
     what makes the rule usable here: the Gîte's highest rank is the Nouvel An season, and an uncapped
     raise would sell 25 December at its rate. Declared as `capSeason: "high"`, which the engine gained
-    for this recipe ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)).
+    for this recipe ([tariff-recipes §3.3 rules 15bis-15ter](tariff-recipes.md)).
     _(Owner's call, 2026-08-25.)_
 13bis. **A night already above the cap is not raised, but still carries its minimum.** 14 juillet and
     15 août sit inside the summer core: they keep their Très haute price and take only the block's
-    minimum stay — the behaviour rule 16ter already defined for a night at the ceiling.
+    minimum stay — the behaviour rule 16d already defined for a night at the ceiling.
 13ter. **The festive premium sits on four nights and nowhere else.** _(Owner's call, 2026-08-28:
     « seulement ces nuits soient à un tarif fort ».)_ Rule 6 lays the whole 19 December → 1 January
     block down in Haute; rules 7 to 9 then cut two peaks and a lull out of it:
@@ -299,7 +301,7 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
 
 13quater. **The two premium rates are solved, not chosen.** « Compare avec ce que j'ai gagné l'année
     dernière pour définir le tarif augmenté de la plus-value » — target the 2025 takings **+ 20 %**,
-    all of it loaded on the premium nights ([étude §5 Q1bis](etude.md) for the arithmetic).
+    all of it loaded on the premium nights ([étude §5 Q1bis](../../docs/rapports/tariff-recipe-gite-study.md) for the arithmetic).
     **The base is the RENTAL, not the invoice total** — corrected 2026-08-28 against the owner's own
     records. Réveillon: Abritel billed 1 222 € tourist tax included, so 1 201 € of rental →
     1 441,20 € targeted → **938 €** for the night of the 31st, landing on +20,00 % to the cent. Noël:
@@ -324,8 +326,9 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     It paints **Haute** over the Moyenne stretch of June. The minimum stay is the Gîte's own **2
     nights**, not the Lodge's 1: a ten-person house is not sold by the night to a lone cyclist.
     _(Added 2026-08-28 at the owner's prompt — it was missing from the first draft.)_
-13quater. **The rest of the year-end block is unchanged.** 19 → 29 December stays Haute, Christmas
+33. **The rest of the year-end block is unchanged.** 19 → 29 December stays Haute, Christmas
     included; the recipe adds the réveillon on top rather than redrawing the fêtes.
+    > **Sans test** — renumbered 2026-11-26 (its number was used twice in §3); no test cited it under the old number either.
 14. **No recurring closure.** The Gîte is open all year, unlike the Lodge.
 14bis. **25 December is a Très haute night, not a Noël one** (recipe 3.7.0). _(Owner's call,
     2026-10-30, after changing 25/12/2026 by hand in production the day before: « très haute saison
@@ -335,7 +338,7 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     the 60 % tier as the 3rd night of a 23 → 26 stay (375 + 972 + 180,40 = **1 527,40 €**). Its
     minimum is **2 nights**, declared on the `christmas-day` period and not the season's 4; the 25th
     being a public holiday, this needed the engine to stop folding the season minimum back in over a
-    period's own ([tariff-recipes §3.3 rule 19bis](../tariff-recipes/spec.md)). The figures in rule
+    period's own ([tariff-recipes §3.3 rule 19bis](tariff-recipes.md)). The figures in rule
     13ter are those of the 2026-08-28 version — the recipe file is the source for current prices.
 
 ### 3.4 Stay constraints
@@ -349,18 +352,23 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
 
 ### 3.5 What the recipe does not touch
 
-18. **The Gîte stays whole-house priced.** No included-guest threshold, no extra-guest supplement:
+28. **The Gîte stays whole-house priced.** No included-guest threshold, no extra-guest supplement:
     `basePriceIncludedGuests = 0` and `extraGuestPrice = 0` are unchanged, and the recipe declares no
     `extraGuest` block. _(See §9 Q3.)_
-19. **No welcome pack.** `welcomePackCost` stays 0 — the direct displayed price carries no fixed cost
+    > **Sans test** — renumbered 2026-11-26 (its number was used twice in §3); no test cited it under the old number either.
+29. **No welcome pack.** `welcomePackCost` stays 0 — the direct displayed price carries no fixed cost
     to finance, unlike the Lodge's.
-20. **What is included in the rate is unchanged**: bed linen is a property default marked « offered »,
+    > **Sans test** — renumbered 2026-11-26 (its number was used twice in §3); no test cited it under the old number either.
+30. **What is included in the rate is unchanged**: bed linen is a property default marked « offered »,
     cleaning (80 €/stay) and bath linen (8 €/person) are billed on top. Options are per-property, not
-    recipe-owned ([tariff-recipes §3.1 rule 6](../tariff-recipes/spec.md)).
-21. **The tourist-tax configuration is untouched** — `per_day_per_person` at 1,20 €. Every price in
+    recipe-owned ([tariff-recipes §3.1 rule 6](tariff-recipes.md)).
+    > **Sans test** — renumbered 2026-11-26 (its number was used twice in §3); no test cited it under the old number either.
+31. **The tourist-tax configuration is untouched** — `per_day_per_person` at 1,20 €. Every price in
     this spec is exclusive of it.
-22. **Season labels and colours are reused verbatim** from the Gîte's current seasons, so the first
-    apply **adopts** them instead of blocking on them ([tariff-recipes §3.2 rule 9bis](../tariff-recipes/spec.md)).
+    > **Sans test** — renumbered 2026-11-26 (its number was used twice in §3); no test cited it under the old number either.
+32. **Season labels and colours are reused verbatim** from the Gîte's current seasons, so the first
+    apply **adopts** them instead of blocking on them ([tariff-recipes §3.2 rule 9bis](tariff-recipes.md)).
+    > **Sans test** — renumbered 2026-11-26 (its number was used twice in §3); no test cited it under the old number either.
 
 **Edge cases:**
 - A stay straddling two seasons → the discount tier comes from the position in the stay, the price
@@ -383,13 +391,13 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `recipes/` | `gite-2027.json` | C | The Gîte's whole tariff model: 5 seasons with displayed price + net target, the shared discount table, the 6 calendar rules, no closure, no modifier. |
-| `utils/` | `tariffRecipe.js` | T | Validates the modifier's new `capSeason` against the declared season keys. |
-| `utils/` | `seasonPlan.js` | T | Caps the holiday raise at `capSeason`'s rank, with the night's own rank as a floor so a cap never demotes. |
-| `tests/` | `season-plan-generator.unit.test.js` | T | 4 tests on the cap: it stops the raise, it never demotes, an unknown key is refused, and its absence keeps the old ceiling. |
-| `tests/` | `shipped-recipes-guard.unit.test.js` | T | Bounds its reachability reach by the cap. |
-| `models/` | `tariffRecipeModel.js` | — | Unchanged — the apply writes the seasons, ranges and net targets. |
-| `tests/` | `gite-recipe-end-to-end.unit.test.js` | C | The shipped file, end to end: validation, the two arithmetic identities, the 2026/2027 calendars to the day, full-year coverage, and 8 priced control cases through `calculateReservationQuote`. |
+| `plugins/tariff-recipes/recipes/` | `gite-2027.json` | C | The Gîte's whole tariff model: 5 seasons with displayed price + net target, the shared discount table, the 6 calendar rules, no closure, no modifier. |
+| `plugins/tariff-recipes/` | `store.js` | T | Validates the modifier's new `capSeason` against the declared season keys. |
+| `plugins/tariff-recipes/` | `seasonPlan.js` | T | Caps the holiday raise at `capSeason`'s rank, with the night's own rank as a floor so a cap never demotes. |
+| `plugins/tariff-recipes/tests/` | `season-plan-generator.unit.test.js` | T | 4 tests on the cap: it stops the raise, it never demotes, an unknown key is refused, and its absence keeps the old ceiling. |
+| `plugins/tariff-recipes/tests/` | `shipped-recipes-guard.unit.test.js` | T | Bounds its reachability reach by the cap. |
+| `plugins/tariff-recipes/` | `model.js` | — | Unchanged — the apply writes the seasons, ranges and net targets. |
+| `plugins/tariff-recipes/tests/` | `gite-recipe-end-to-end.unit.test.js` | C | The shipped file, end to end: validation, the two arithmetic identities, the 2026/2027 calendars to the day, full-year coverage, and 8 priced control cases through `calculateReservationQuote`. |
 
 **Notes:** no new dependency, no migration, no route, no controller. The one engine change is
 additive and defaults to today's behaviour, so the Lodge's recipe derives byte-identically. The
@@ -432,12 +440,12 @@ for **+1 157,92 € (+5,2 %)** on the direct price. Winter rises and summer fall
 goes 504 € → 640 € (+27 %), mid-July 1 074,50 € → 904 € (−16 %) — which is what the measurement
 demanded: the old grid charged 252 € a night in winter where the owner nets 288 € on Gîtes de France
 and 407 € on the platforms, and 537,50 € at the summer peak where Gîtes de France nets him 413 €
-([etude.md §4](etude.md)).
+(study §4).
 
 ## 6. UI / UX
 
 No new screen and no new string. The recipe shows up in **Paramètres → Recettes tarifaires** (source
-« Livrée », version 3.0.0) and becomes selectable on the Gîte's tariff page, where the apply dialog
+« Livrée », version 3.7.0) and becomes selectable on the Gîte's tariff page, where the apply dialog
 shows the diff before writing. Both screens already exist and are already responsive.
 
 `PageActionBar`: unchanged on both pages.
@@ -447,7 +455,7 @@ shows the diff before writing. Both screens already exist and are already respon
 ### Server unit tests
 - [x] `tests/gite-recipe-end-to-end.unit.test.js` — the shipped file validates, and each season
       prices 2 nights at 2 × base, a week at 4 × base and every further night at a seventh of a
-      week, with a total that never decreases (rules 5-8).
+      week, with a total that never decreases (rules 26, 27, 7 and 8).
 - [x] — `ceil(net / 0,95)` returns each season's displayed price, and `net = price × 0,95`
       (rules 1-3).
 - [x] — the 2026 and 2027 calendars are derived to the day (rules 9-11).
@@ -460,17 +468,17 @@ shows the diff before writing. Both screens already exist and are already respon
       the réveillon, a stay straddling the peak/high boundary and the 2027 peak week; minimum
       2 nights, 3 on the 14 juillet block, no ceiling (rules 15-17).
 - [x] `tests/season-plan-generator.unit.test.js` — the cap itself, on a synthetic five-rank grid
-      ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)).
+      ([tariff-recipes §3.3 rules 15bis-15ter](tariff-recipes.md)).
 - [x] `tests/season-plan-period-min-under-holiday.unit.test.js` — a period minimum below its season's
       survives a public holiday, and the block still raises it (rule 14bis, tariff-recipes rule 19bis).
 
 ### Applied against a copy of the production data
 - [x] **The first apply adopts all five existing seasons and creates only Nouvel An** — no obstacle,
-      no conflict, no warning. This is the day-one wall rule 22 exists to avoid, and it holds.
+      no conflict, no warning. This is the day-one wall rule 32 exists to avoid, and it holds.
 - [x] The property ends up with `tariffRecipeId = gite-2027`, six ranked seasons carrying their net
       targets, 2026 **and** 2027 generated, and one line in the tariff-change journal.
 - [x] **Re-applying writes nothing** and adds no journal line (rule 11). It did not, at first — see
-      the label-casing fix in [tariff-recipes §3.2 rule 11bis](../tariff-recipes/spec.md), found here.
+      the label-casing fix in [tariff-recipes §3.2 rule 11bis](tariff-recipes.md), found here.
 
 ### Manual UI verification
 - [ ] **Not done — needs the operator.** The apply above ran against a *copy* of the database, never
@@ -495,7 +503,7 @@ shows the diff before writing. Both screens already exist and are already respon
 
 - **Q1 — Turn the public-holiday long weekends on?**
   - **A (2026-08-25): yes, capped at Haute.** The engine gained `capSeason` for it
-    ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)), including the half that is
+    ([tariff-recipes §3.3 rules 15bis-15ter](tariff-recipes.md)), including the half that is
     easy to get wrong: a cap must never move a night down, or 14 juillet and 15 août lose 624 € over
     2026. Effect: 13 nights raised in 2026, 14 in 2027, 12 in 2028, **+452,80 €** over the 24 stays
     already on the books.
@@ -514,7 +522,7 @@ shows the diff before writing. Both screens already exist and are already respon
     boundary. Smoothing it would have cut a 14-night peak stay by 15 %.
 - **Q7 — What net should the pivot be anchored on?** — **answered 2026-08-28: what Gîtes de France
   actually pays, measured on 15 stays; that net is a FLOOR, never a target.** See rules 3bis-3quater
-  and [étude §3](etude.md). Gîtes de France keeps the prices it charges today; every other channel is
+  and [étude §3](../../docs/rapports/tariff-recipe-gite-study.md). Gîtes de France keeps the prices it charges today; every other channel is
   grossed up from the same floor; the direct channel gets a 16 € uplift so it lands level with the
   cheapest channel while still paying only 5 %, which is where the extra margin on a direct booking
   comes from.
@@ -526,7 +534,7 @@ shows the diff before writing. Both screens already exist and are already respon
 
 - **Q6 — What are the festive rates?** — **answered 2026-08-28: 908 € on 24-25 December, 938 € on
   31 December, both flat, everything around them back in Haute or Moyenne.** See rules 13ter to
-  13quinquies and [étude §5 Q1bis](etude.md).
+  13quinquies and [étude §5 Q1bis](../../docs/rapports/tariff-recipe-gite-study.md).
   - A: the premium is concentrated on four nights, and both rates are solved from the 2025 takings
     plus 20 % rather than picked. An earlier answer the same day — 750 € spread over 30 December to
     1 January — was superseded: it charged the réveillon rate to a guest *arriving* on 1 January.

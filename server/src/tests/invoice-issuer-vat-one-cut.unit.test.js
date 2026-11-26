@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 64 and 65 (Q-C8) — the Qonto invoice issuer cuts the VAT through the VAT component and not through a
+// specs/pricing/pricing-components.md §3 rules 64 and 65 (Q-C8) — the Qonto invoice issuer cuts the VAT through the VAT component and not through a
 // formula of its own, and no issued document moves: the HT of a line and the TTC Qonto will compute are the float arithmetic the issuer
 // always used (`netFirstCents` / `ttcFromNetCents`), for every rate and every cent amount of a fuzz.
 const test = require('node:test');

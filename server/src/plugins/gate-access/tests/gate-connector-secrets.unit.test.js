@@ -1,4 +1,4 @@
-// The three values the Sowel plugin needs, shown to admins — specs/gate-access-sowel-connector.md
+// The three values the Sowel plugin needs, shown to admins — specs/guest-app/gate-access-sowel-connector.md
 // §3.6 rules 29b-29c.
 
 const test = require('node:test');
@@ -19,7 +19,7 @@ function call(controller, req = {}) {
   return { headers, payload };
 }
 
-// specs/gate-access-sowel-connector.md §3.6 rule 29b
+// specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29b
 test('the secrets endpoint hands the address and both secrets, never cached', () => {
   const saved = { k: process.env.GATE_API_KEY, s: process.env.GATE_SIGNING_SECRET };
   process.env.GATE_API_KEY = 'key-value';
@@ -40,7 +40,7 @@ test('the secrets endpoint hands the address and both secrets, never cached', ()
   }
 });
 
-// specs/gate-access-sowel-connector.md §3.6 rule 29b — admins only.
+// specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29b — admins only.
 test('reception and the accountant cannot read the secrets', () => {
   for (const roles of [['reception'], ['accountant']]) {
     let passed = false;
@@ -50,7 +50,7 @@ test('reception and the accountant cannot read the secrets', () => {
   }
 });
 
-// specs/gate-access-sowel-connector.md §3.6 rule 29c — the address.
+// specs/guest-app/gate-access-sowel-connector.md §3.6 rule 29c — the address.
 test('the address is the configured public URL, else the origin the admin browses from, flagged', () => {
   const req = { protocol: 'https', get: () => 'guestflow.local:4000' };
   assert.deepEqual(guestflowAddress({ publicUrl: ' https://gf.example.fr// ', req }), { value: 'https://gf.example.fr', source: 'setting' });

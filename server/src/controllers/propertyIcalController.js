@@ -12,7 +12,7 @@ function respond(res, result) {
   return res.json(result.data);
 }
 
-// specs/platforms-and-ical-rework.md §4.3 — merged list: every platform (built-ins ∪ DB) + this
+// specs/platforms/platforms-and-ical-rework.md §4.3 — merged list: every platform (built-ins ∪ DB) + this
 // property's iCal-source config + the global colour. Thin: the model owns the merge.
 function listPlatforms(req, res) {
   res.json({ platforms: platformsModel.listForProperty(Number(req.params.id)) });

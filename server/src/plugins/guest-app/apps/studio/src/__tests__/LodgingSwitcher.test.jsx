@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 11quater, 48 — the studio opens on GuestFlow's own lodgings: their live names, a lodging
+// specs/guest-app/guest-app.md rules 11quater, 48 — the studio opens on GuestFlow's own lodgings: their live names, a lodging
 // out of the app greyed « Hors application » yet selectable.
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

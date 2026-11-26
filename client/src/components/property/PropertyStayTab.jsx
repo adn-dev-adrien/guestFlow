@@ -1,7 +1,7 @@
 /**
- * PropertyStayTab — « Séjour » tab of the property page (specs/settings-rationalization.md
+ * PropertyStayTab — « Séjour » tab of the property page (specs/settings/settings-rationalization.md
  * rules 17c, 21): the facts the guest emails read (parking distance, wifi), the arrival facts of the
- * J-2 (specs/guest-email-texts-made-simple.md rules 1–2) and the early-arrival / late-departure
+ * J-2 (specs/emails/guest-email-texts-made-simple.md rules 1–2) and the early-arrival / late-departure
  * options. The property's own texts and its J-7 hook are written on « Textes des emails », linked
  * from here (rule 12).
  *
@@ -12,7 +12,7 @@
  *   arrival — { draft, saved, errors, onChange } of the « Arrivée » block, held by the page (rule 35)
  *   savedSeason — { start, end } of the stored pool season ('' when none), what « Saison » comes back to
  *
- * Cleaning, towels and bed linen (specs/guest-email-texts-made-simple.md rule 28): « Selon les options » leaves
+ * Cleaning, towels and bed linen (specs/emails/guest-email-texts-made-simple.md rule 28): « Selon les options » leaves
  * the emails to the options; empty means not said yet, and the emails stay silent on it. The pool
  * season (rule 34) is the property's: off, no pool sentence at all.
  */

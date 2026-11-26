@@ -1,5 +1,5 @@
 /**
- * specs/report-grammar.md §3 rules 24 and 25 — review round R5: an open tile with a definition keeps
+ * specs/design-system/report-grammar.md §3 rules 24 and 25 — review round R5: an open tile with a definition keeps
  * its pointer toward the panel, and a screen reader hears the figure, its line and its pill.
  */
 import React from 'react';

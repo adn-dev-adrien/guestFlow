@@ -1,5 +1,5 @@
 // @ts-check
-// specs/linen-laundry-days.md §7.3 — Tuesday + Thursday with a two-day turnaround, end to end: the Linge
+// specs/linen/linen-laundry-days.md §7.3 — Tuesday + Thursday with a two-day turnaround, end to end: the Linge
 // page edits and saves the schedule (refusals shown before Save), the Planning then draws a card on both
 // laundry days, the Thursday one telling where its pick-up comes from. One run at 390 px.
 import { test, expect } from '../../fixtures/test.js';

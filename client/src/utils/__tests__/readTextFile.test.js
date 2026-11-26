@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 23 — a CSV saved by Excel as Windows-1252 keeps its
+// specs/emails/guest-email-texts-made-simple.md rule 23 — a CSV saved by Excel as Windows-1252 keeps its
 // accents; a UTF-8 one is read as is.
 import readTextFile from '../readTextFile';
 

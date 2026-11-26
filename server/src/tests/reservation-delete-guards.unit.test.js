@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rules 49-52 (and specs/terms-acceptance-record.md rule 29) — the
+// specs/payments/payment-schedule-and-cancellation.md rules 49-52 (and specs/reservations/terms-acceptance-record.md rule 29) — the
 // DELETE /api/reservations/:id route used to bypass every read-only and archive guard of the fiche
 // (audit 2026-10-28): it erased cancelled stays with their refunds and devis with their CGV proof,
 // and left the payment links of a deleted row payable at the provider.

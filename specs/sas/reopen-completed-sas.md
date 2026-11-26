@@ -7,7 +7,7 @@
 | **Created** | 2026-06-15 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Extends** | [arrival-departure-sas.md](arrival-departure-sas.md), [extinguisher-seal-and-repair-amounts.md](extinguisher-seal-and-repair-amounts.md), [sas-breakfast-and-handover-note.md](sas-breakfast-and-handover-note.md) |
+| **Extends** | [arrival-departure-sas.md](arrival-departure-sas.md), [extinguisher-seal-and-repair-amounts.md](../options/extinguisher-seal-and-repair-amounts.md), [sas-breakfast-and-handover-note.md](sas-breakfast-and-handover-note.md) |
 
 ---
 
@@ -71,7 +71,7 @@ flags follow the checkbox faithfully. A SAS never reverts to "not done".
    caution-return step is shown **even when already returned** (pre-ticked), so a mis-marked return
    can be corrected. Other step gating (portal, options, breakfast applicability, bed-linen alert,
    missing-items ask) is unchanged. Forward + « Précédent » navigation unchanged.
-   **Superseded for the arrival caution (specs/sas-hide-settled-steps.md §3):** the arrival caution
+   **Superseded for the arrival caution (specs/sas/sas-hide-settled-steps.md §3):** the arrival caution
    step is now hidden as soon as it's received, **even in edit mode**. Its state is still pre-filled
    (so the recap notes « Caution marquée comme perçue ») and left untouched on re-commit; correcting a
    mis-marked *arrival* caution is done from the reservation fiche, not the SAS.

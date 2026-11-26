@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 16-18 — « Enregistrer le brouillon » leaves the page clean once the server has trimmed it,
+// specs/guest-app/guest-app.md rules 16-18 — « Enregistrer le brouillon » leaves the page clean once the server has trimmed it,
 // a save refused half-way never creates a block twice even when the page cannot be read back (§4.2), and
 // « Annuler » puts the saved text back in the block editors.
 import { describe, expect, it, vi } from 'vitest';

@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 35 (audit R20, E20-1) — applying a mail keeps the planned moments
+// specs/platforms/gites-de-france-mail-intake.md rule 35 (audit R20, E20-1) — applying a mail keeps the planned moments
 // of a planning-card option: its `cardOccurrences` and `cardPersons` reach the core as the fiche's own save
 // sends them (`ctx.core.reservations.updateBody`, SDK 2.21.0), on the auto-apply and on « Appliquer ». Real
 // in-memory database, real reservations controller, real `ctx.core.reservations.update`, real intake service.

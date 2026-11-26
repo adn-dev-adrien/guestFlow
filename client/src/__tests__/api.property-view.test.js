@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 14 — the reservation fiche asks for the property's `stay` view.
+// specs/tech/inte-performance.md rule 14 — the reservation fiche asks for the property's `stay` view.
 import { vi } from 'vitest';
 import api from '../api';
 

@@ -141,7 +141,7 @@ No change.
 - Applying the arithmetic input to other money fields (deposit/balance/caution overrides) — easy
   follow-up now that `ArithmeticTextField` exists, but not requested.
   - 2026-07-20 update: the custom option « Prix TTC » field adopted it (third usage site) — see
-    specs/custom-option-amount-comma.md. Deposit/balance/caution overrides remain open.
+    specs/options/custom-option-amount-comma.md. Deposit/balance/caution overrides remain open.
 - Percentages and units inside the expression (`100 %`, `3 nuits`). ~~Currency symbols~~ —
   **resolved 2026-09-25**: a currency symbol and thousands separators ARE tolerated (rules 8-9).
   Excluding them was the bug, not the boundary.

@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 13, 15, 25 — the licence carries the operator's choice
+// specs/plugins/plugin-operator-provisioning.md rules 13, 15, 25 — the licence carries the operator's choice
 // (and only once it is seeded), a new customer starts with the modules ticked in the form, and an
 // existing customer is seeded from what its space runs before any licence carries activePlugins.
 const test = require('node:test');

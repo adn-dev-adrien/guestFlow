@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { buildController } = require('../controllers/dashboardController');
 
-// HTTP shaping for the iCal date-drift Dashboard endpoints (specs/ical-sync-override-locked-dates.md §4.3).
+// HTTP shaping for the iCal date-drift Dashboard endpoints (specs/platforms/ical-sync-override-locked-dates.md §4.3).
 // The drift model is faked — we are only validating route → controller → response shape.
 
 function makeFake({ pending = [], approveResult = { ok: true }, rejectResult = { ok: true } } = {}) {

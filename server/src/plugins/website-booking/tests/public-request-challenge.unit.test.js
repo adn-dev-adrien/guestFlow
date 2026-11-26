@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/public-request-abuse-and-grouping.md rules 1-5b and the transition edge case — the proof of
+// specs/site/public-request-abuse-and-grouping.md rules 1-5b and the transition edge case — the proof of
 // work in front of POST /public/v1/booking-requests: a signed challenge, one hash to check it, spent
 // once, never sooner than 3 s after it was issued; a difficulty that grows per address and slightly
 // under a flood, capped; enforced only once the site's plugin reported a version that solves it.

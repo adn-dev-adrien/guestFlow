@@ -6,13 +6,13 @@
 | **Branch** | `feature/admin-public-request-badge` _(user-managed)_ |
 | **Created** | 2026-06-09 |
 | **Author** | Adrien |
-| **Depends on** | [public-api.md](public-api.md) (#142 — the `requestOrigin='public'` draft devis) |
+| **Depends on** | [public-api.md](../site/public-api.md) (#142 — the `requestOrigin='public'` draft devis) |
 
 ---
 
 ## 1. Context
 
-The public API ([public-api.md](public-api.md)) creates a **draft devis** flagged
+The public API ([public-api.md](../site/public-api.md)) creates a **draft devis** flagged
 `requestOrigin='public'` for each booking request submitted from the WordPress showcase site. Until
 now there was no way for the operator to tell those apart from internally-created devis in the admin
 **Devis** list — the request would silently sit among the others.

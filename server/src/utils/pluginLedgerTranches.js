@@ -1,5 +1,5 @@
 /**
- * The bank tranches live plugins add to the payments ledger (specs/mollie-rolling-reserve-and-incoming-payments.md
+ * The bank tranches live plugins add to the payments ledger (specs/payments/mollie-rolling-reserve-and-incoming-payments.md
  * rules 18-19), declared with `ctx.ledgerBankTranches`. A paid row of the ledger gains `bankTranches[]` (the dated
  * lines under it) and the ledger a `schedule` (the one-line recap of the money still to arrive). A provider that
  * throws leaves the ledger as it was and costs a log line: a plugin never fails the fiche.

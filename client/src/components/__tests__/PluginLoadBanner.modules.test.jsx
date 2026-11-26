@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 18 (review of 2026-10-17) — when the plugin bundles could
+// specs/plugins/plugins-phase-4-registry.md rule 18 (review of 2026-10-17) — when the plugin bundles could
 // not be listed, the app says so and offers a reload instead of looking complete.
 import React from 'react';
 import { render, screen } from '@testing-library/react';

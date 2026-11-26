@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t17, UI17-1, 2026-11-18 — the ui-process reviewer's probe C made
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t17, UI17-1, 2026-11-18 — the ui-process reviewer's probe C made
 // permanent). The ledger's amount editor re-asks the quote with the fiche's body built when it is sent, never the body the last live quote
 // cached: after a save that keeps the fiche open (here « Envoyer la demande de solde ») a typed line is stored, so the ledger re-quote names
 // its stored row and no longer sends it `newLine`; before that save it is new.

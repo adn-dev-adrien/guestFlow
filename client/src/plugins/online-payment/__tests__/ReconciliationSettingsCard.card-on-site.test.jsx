@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rule 3 — « CB sur place via Mollie depuis » (`mollieCardOnSiteSince`;
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 3 — « CB sur place via Mollie depuis » (`mollieCardOnSiteSince`;
 // empty = off): loaded from the server, saved with the card, the server's refusal shown on the field.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

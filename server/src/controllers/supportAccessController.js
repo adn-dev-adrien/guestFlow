@@ -1,5 +1,5 @@
 /**
- * Support access with consent (specs/hosting-h2-account-security.md rules 12–17).
+ * Support access with consent (specs/hosting/hosting-h2-account-security.md rules 12–17).
  *
  * - The console's request arrives as a signed file next to the licence (utils/supportAccess.js); it
  *   becomes the banner every administrator sees, « Autoriser 24 h » / « Refuser » (rule 12).

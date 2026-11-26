@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rules 5 and 6 — the fiche prints the notices the server worded.
+// specs/reservations/reservation-save-keeps-pricing.md rules 5 and 6 — the fiche prints the notices the server worded.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';

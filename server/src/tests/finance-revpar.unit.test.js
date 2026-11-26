@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-revpar-year-over-year.md §3 rules 1, 2 and 3 — RevPAR = the page's revenue ÷ the open
+// specs/accounting/finance-revpar-year-over-year.md §3 rules 1, 2 and 3 — RevPAR = the page's revenue ÷ the open
 // nights of the window, the open nights being the occupancy denominator itself (closures and nights
 // before a logement's data excluded); the revenue per night sold is the existing figure.
 // The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar

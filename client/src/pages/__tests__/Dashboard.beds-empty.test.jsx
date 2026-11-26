@@ -1,4 +1,4 @@
-// specs/bed-config-in-linen-card.md rule 11 (audit 2026-10-27) — a stay without any bed count (no
+// specs/linen/bed-config-in-linen-card.md rule 11 (audit 2026-10-27) — a stay without any bed count (no
 // bed-linen option: the server zeroes them, rule 7) shows no « Lits : D:0 / S:0 / B:0 ».
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

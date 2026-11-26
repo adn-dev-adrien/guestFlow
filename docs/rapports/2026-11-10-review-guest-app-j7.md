@@ -13,7 +13,7 @@ Worktree the `gf-feat-guest-app-j7` worktree, base `778fdb38` (inte/plugins at R
 | `check-spec-coverage` | OK (guest-app.md not listed missing) |
 | `check-plugin-versions` | OK (17 plugins bumped) |
 | `build-changelog` | OK; 3 fragments present |
-| Merge with current `origin/inte/plugins` (9b9e64ae, R42) | **CONFLICT** in `specs/guest-email-sequence.md`. Both sides add a rule **37**: R42-PUB-L1 « unsubscribe page declares its language » and this branch's « J-7 may carry the Mon séjour paragraph ». |
+| Merge with current `origin/inte/plugins` (9b9e64ae, R42) | **CONFLICT** in `specs/emails/guest-email-sequence.md`. Both sides add a rule **37**: R42-PUB-L1 « unsubscribe page declares its language » and this branch's « J-7 may carry the Mon séjour paragraph ». |
 | sendMode of templates | Unchanged. All J-x templates are still `manual`. The script's PUT sends body/bodyEn only. Verified on shadow before and after the insert. |
 | INVARIANTS | D28 holds on shadow: the GdF number opens a session, direct core numbers 202611002 and 22326's answer 404 STAY_NOT_FOUND. R36-M-H1 / R37 free-units paths are untouched. No other entry undone found. |
 

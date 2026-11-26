@@ -1,4 +1,4 @@
-// specs/spec-rule-coverage.md rule 13 — a superseded spec no longer describes the product: its rules
+// specs/tech/spec-rule-coverage.md rule 13 — a superseded spec no longer describes the product: its rules
 // leave the report and never block the gate. Found when master's superseded
 // finance-exercise-overview-charts spec reached `inte/plugins` (#649) with its tests already deleted.
 const test = require('node:test');

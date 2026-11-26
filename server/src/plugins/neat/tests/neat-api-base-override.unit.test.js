@@ -1,5 +1,5 @@
 /**
- * specs/plugins-phase-3b-neat.md rule 24 — `NEAT_API_BASE` points the Neat client at a local mock,
+ * specs/plugins/plugins-phase-3b-neat.md rule 24 — `NEAT_API_BASE` points the Neat client at a local mock,
  * like `QONTO_API_BASE` does for Qonto, so the plugin can be exercised end to end without the real
  * API (mega review #5, N9). Without it, the environment's own base URL applies.
  */

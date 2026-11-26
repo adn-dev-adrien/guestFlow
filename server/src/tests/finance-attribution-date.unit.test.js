@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/fiscal-year-and-nights-sold.md §3.2 — a stay is attached to an accounting window by the date
+// specs/accounting/fiscal-year-and-nights-sold.md §3.2 — a stay is attached to an accounting window by the date
 // its SOLDE was collected, falling back to its departure date. The rule exists twice (a JS helper for
 // row-level code, a SQL expression so the windows stay a `WHERE`); this file pins BOTH, and pins them
 // against each other.
@@ -39,7 +39,7 @@ test('a datetime payment date is normalised to a plain day', () => {
 });
 
 test('a stay with NO solde at all falls back to the departure date', () => {
-  // specs/fiscal-year-and-nights-sold.md §3 « Edge cases » — fully prepaid on the acompte, or a
+  // specs/accounting/fiscal-year-and-nights-sold.md §3 « Edge cases » — fully prepaid on the acompte, or a
   // platform net-payout: nothing was ever collected ON THE SOLDE, so the departure carries it.
   // Attributing it to the acompte could push an August stay into the previous exercise.
   assert.equal(
@@ -55,7 +55,7 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
-    -- specs/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
+    -- specs/site/site-traffic-analytics.md — read by the « Canaux de réservation » breakdown.
     requestOrigin TEXT, attributionChannel TEXT, devisStatus TEXT, createdAt TEXT,
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
@@ -77,7 +77,7 @@ const ROWS = [
   { id: 3, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 500, balancePaid: 1, balancePaidDate: '' },
   { id: 4, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 500, balancePaid: 1, balancePaidDate: '2026-09-28 14:32:00' },
   { id: 5, startDate: '2026-08-14', endDate: '2026-08-20', balanceAmount: 0, balancePaid: 0, balancePaidDate: null },
-  // specs/direct-installments.md rule 37 — a plan with every installment collected: the day of the last one.
+  // specs/payments/direct-installments.md rule 37 — a plan with every installment collected: the day of the last one.
   { id: 6, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 0, balancePaid: 0, balancePaidDate: null, installmentsLastPaidDate: '2026-07-02' },
   { id: 7, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 0, balancePaid: 0, balancePaidDate: null, installmentsLastPaidDate: '2026-07-02 09:15:00' },
   // …and a plan still open (no last date stored) keeps the departure.

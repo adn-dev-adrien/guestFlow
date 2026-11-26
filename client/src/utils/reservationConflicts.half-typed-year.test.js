@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 14 (2026-11-02, merge of PR #936 with #937) — a year typed digit by
+// specs/tech/reservations-backend-mvc.md rule 14 (2026-11-02, merge of PR #936 with #937) — a year typed digit by
 // digit passes through 0002, 0020, 0203: the fiche's occupancy check reads such a range like any other, and
 // never walks it night by night (an arrival at 0002 before a stored departure froze the tab).
 import { findFirstOccupiedDateInRange, getRangeOccupancyConflictInfo } from './reservationConflicts';

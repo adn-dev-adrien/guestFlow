@@ -107,7 +107,7 @@ test('demoted mid-session → req.user carries the CURRENT roles, not the login 
   assert.deepEqual(req.session.user.roles, ['reception']);
 });
 
-// specs/security-auth-encryption.md rule 3 with specs/hosting-h2-account-security.md rule 21 — the
+// specs/hosting/security-auth-encryption.md rule 3 with specs/hosting/hosting-h2-account-security.md rule 21 — the
 // support account is never active (no password login); the session its sign-in link opened carries the
 // access id, and supportAudit decides whether that access still holds.
 test('an open support session passes although the support account is inactive', () => {

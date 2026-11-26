@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rules 7, 17 and 32 — the renewal invoice: created in Qonto
+// specs/hosting/control-plane-plans-and-access.md rules 7, 17 and 32 — the renewal invoice: created in Qonto
 // on the day the customer enters its `due` window, at the customer's catalogue price, once per
 // period, retried until it succeeds, never without a working connection.
 

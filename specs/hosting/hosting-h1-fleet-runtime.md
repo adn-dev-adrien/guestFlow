@@ -7,9 +7,9 @@
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — D3, D5, §9, phase H of §12 |
-| **Console** | [`specs/control-plane-plans-and-access.md`](control-plane-plans-and-access.md) — the manual steps of rules 7, 20–22 become automatic here |
-| **Summary for review** | [`docs/specs/2026-10-08-hosting-h1-fleet-runtime.html`](../docs/specs/2026-10-08-hosting-h1-fleet-runtime.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — D3, D5, §9, phase H of §12 |
+| **Console** | [`specs/hosting/control-plane-plans-and-access.md`](control-plane-plans-and-access.md) — the manual steps of rules 7, 20–22 become automatic here |
+| **Summary for review** | [`docs/specs/2026-10-08-hosting-h1-fleet-runtime.html`](../../docs/specs/2026-10-08-hosting-h1-fleet-runtime.html) |
 
 ---
 

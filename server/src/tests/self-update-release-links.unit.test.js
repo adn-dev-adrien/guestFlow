@@ -7,7 +7,7 @@ const path = require('node:path');
 const { linkPersistentPath, linkPersistentPaths } = require('../utils/releaseLinks');
 const { resolvePaths } = require('../utils/deploymentPaths');
 
-// specs/self-update-and-releases.md §3.D rule 25b.
+// specs/hosting/self-update-and-releases.md §3.D rule 25b.
 //
 // The failure this prevents is the quiet one: a release archive is code only, so a swapped-in tree
 // has no `.env.local`. The new version boots perfectly, generates a fresh session secret and a

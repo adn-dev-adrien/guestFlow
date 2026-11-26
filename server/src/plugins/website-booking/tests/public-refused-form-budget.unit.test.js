@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// Adrien's decision D18 (2026-11-05), specs/public-api.md rule 9 and specs/public-request-abuse-and-grouping.md rule 6
+// Adrien's decision D18 (2026-11-05), specs/site/public-api.md rule 9 and specs/site/public-request-abuse-and-grouping.md rule 6
 // (readings of 2026-11-05): a booking request refused for its input (422) gives its hit back to the 5-per-hour budget.
 // Everything else still spends it, and the broad limit and the proof of work stand. Real router, limiters and controller.
 const { test, before, after } = require('node:test');

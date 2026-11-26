@@ -1,5 +1,5 @@
 /**
- * « Réservations à venir », shaped for display (specs/upcoming-reservations-cards.md rule 6): the
+ * « Réservations à venir », shaped for display (specs/planning/upcoming-reservations-cards.md rule 6): the
  * arrivals grouped by day, each day with its French label, whether it is today, and how many of its
  * stays are ready. The page renders this and counts nothing (CLAUDE.md §6.0).
  */
@@ -47,7 +47,7 @@ function groupArrivalsByDay(reservations, today) {
   };
 }
 
-// What the arrival card and its page read, field by field (specs/inte-performance.md rule 12). The
+// What the arrival card and its page read, field by field (specs/tech/inte-performance.md rule 12). The
 // fiche behind a card is fetched by the fiche itself; the SAS opens by id and loads its own data.
 const CARD_FIELDS = [
   'id', 'startDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'platform', 'checkInTime', 'checkInReady',
@@ -71,7 +71,7 @@ const DEPARTURE_FIELDS = [
   'departureHandoverNote', 'departureSasDoneAt', 'departureSasLock', 'checkOutStatusEditable',
 ];
 
-/** One departure as `DepartureMiniRow` renders it (specs/inte-performance.md rule 22). */
+/** One departure as `DepartureMiniRow` renders it (specs/tech/inte-performance.md rule 22). */
 function toDepartureRow(reservation) {
   return pick(reservation, DEPARTURE_FIELDS);
 }

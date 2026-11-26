@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 18 — the closed list of block types, each one's data judged at the boundary, rich text
+// specs/guest-app/guest-app.md rule 18 — the closed list of block types, each one's data judged at the boundary, rich text
 // sanitised on the server (paragraphs, bold, italic, lists, links to https: / tel: / mailto: only), and a button
 // whose target the session cannot follow left out of the guest's payload.
 const test = require('node:test');

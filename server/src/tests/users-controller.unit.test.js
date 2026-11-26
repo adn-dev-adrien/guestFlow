@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { buildController } = require('../controllers/usersController');
 
 // Pure-controller tests with hand-rolled fakes for usersModel + settingsModel + emailService +
-// passwordGenerator. We verify the orchestration rules from specs/admin-account-management.md:
+// passwordGenerator. We verify the orchestration rules from specs/hosting/admin-account-management.md:
 //   - create / reset send the email BEFORE persisting; on email failure NOTHING is persisted
 //   - SMTP-not-configured + public-url-not-configured short-circuit with 400
 //   - the temporary password is never returned in the response

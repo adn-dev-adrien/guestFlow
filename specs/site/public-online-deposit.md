@@ -7,8 +7,10 @@
 | **Created** | 2026-07-03 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Superseded in part** | [property-deposit-switch.md](property-deposit-switch.md) _(2026-09-20)_ — the toggle created here is renamed `depositEnabled` and now governs the acompte **everywhere**, not just on the website. Rules 1–2 and §5 below are amended accordingly; everything else (the deposit link, the balance cron, the plugin) stands. |
-| **Related** | [public-online-payment.md](public-online-payment.md) (UC2 full payment — this spec adds a per-property mode on top), [online-payments-qonto.md](online-payments-qonto.md) (links/poll/emails), [tourist-tax-on-solde.md](tourist-tax-on-solde.md) (deposit base excludes the tax), [payment-links-vat.md](payment-links-vat.md) (VAT items on the same links) |
+| **Superseded in part** | [property-deposit-switch.md](../payments/property-deposit-switch.md) _(2026-09-20)_ — the toggle created here is renamed `depositEnabled` and now governs the acompte **everywhere**, not just on the website. Rules 1–2 and §5 below are amended accordingly; everything else (the deposit link, the balance cron, the plugin) stands. |
+| **Related** | [public-online-payment.md](public-online-payment.md) (UC2 full payment — this spec adds a per-property mode on top), [online-payments-qonto.md](../payments/online-payments-qonto.md) (links/poll/emails), [tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md) (deposit base excludes the tax), [payment-links-vat.md](../payments/payment-links-vat.md) (VAT items on the same links) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 8 automatic balance send retired (no `balanceRequestRunner`; payment-request templates are never auto-sent — `server/src/utils/emailAutoSendRunner.js`, `specs/emails/no-automatic-email-without-approval.md` rule 11).
 
 ---
 
@@ -24,12 +26,12 @@ What exists today:
 - Properties already carry `depositPercent` (30), `depositDaysBefore` (30), `balanceDaysBefore` (7) —
   edited in the « Acompte & Solde » card of `PropertyDetail.js`.
 - The engine computes `depositAmount` = accommodation pre-arrival × `depositPercent`/100 (the tourist
-  tax rides entirely on the solde, per [tourist-tax-on-solde.md](tourist-tax-on-solde.md)) and
+  tax rides entirely on the solde, per [tourist-tax-on-solde.md](../tourist-tax/tourist-tax-on-solde.md)) and
   `balanceAmount` = remainder; both are persisted on the devis row and exposed in the public quote.
 - The paid-link effect **already supports deposits**: a paid `deposit` link on a `kind='devis'` row
   converts it to a reservation, sets `depositPaid=1` (NOT `balancePaid`), re-checks availability
   (conflict flag + admin notify) and sends the confirmation email
-  ([paymentPollRunner.js](../server/src/utils/paymentPollRunner.js) `applyPaidEffect`).
+  ([paymentPollRunner.js](../../server/src/utils/paymentPollRunner.js) `applyPaidEffect`).
 - A paid `balance` link on a reservation sets `balancePaid=1` silently (no email) — correct.
 - **Nothing exists to collect the balance by email**: no `balance_request` template
   (`REQUEST_TEMPLATES` has only `deposit`), and the « Relances » payment-timing settings
@@ -47,13 +49,13 @@ When the mode is « paiement unique », the site no longer displays Acompte/Sold
 1. **New per-property toggle « Acompte en ligne »** (`properties.publicDepositEnabled`, boolean,
    **default OFF** — decision 2026-07-03: no silent behavior change at deploy). Shown in the existing
    « Acompte & Solde » card on the property page, next to `depositPercent`.
-   _Amended 2026-09-20 ([property-deposit-switch.md](property-deposit-switch.md) rules 1, 9-11): the
+   _Amended 2026-09-20 ([property-deposit-switch.md](../payments/property-deposit-switch.md) rules 1, 9-11): the
    column is `properties.depositEnabled`, the label is « Acompte » tout court, and it lives at the top
    of a card of its own — the toggle is no longer website-only._
 2. **The server decides the payment mode** — never the client. Effective mode for a quote/devis:
    `deposit` when the property has `publicDepositEnabled=1` **and** the computed `depositAmount > 0`
    (a `depositPercent` of 0 or a zero deposit falls back to `full`); otherwise `full`.
-   _Amended 2026-09-20 ([property-deposit-switch.md](property-deposit-switch.md) rules 2, 7): the
+   _Amended 2026-09-20 ([property-deposit-switch.md](../payments/property-deposit-switch.md) rules 2, 7): the
    column is `depositEnabled`, and a disabled property now has a zero deposit by construction — the
    engine sees to it — so the second condition can no longer fire on its own. It stays as the
    defensive read for a missing column or an unknown property._
@@ -83,15 +85,7 @@ When the mode is « paiement unique », the site no longer displays Acompte/Sold
    - New email template **`balance_request`** (FR/EN), seeded like `deposit_request`: stay recap,
      « Solde à régler : {{balanceAmount}} », the Qonto payment link URL (`{{paymentLink}}`,
      `{{#if hasPaymentLink}}` fallback like the existing templates).
-   - **Automatic send**: a daily scheduled pass (same 08:00-tick pattern as the auto-email cron) selects
-     reservations with `kind='reservation'`, `balancePaid=0`, `balanceAmount > 0`, a **paid `deposit`
-     payment link** (proof the deposit was collected online — covers both the public flow and UC1
-     email-paid deposits), and `balanceDueDate ≤ today`. For each: create/reuse the `type='balance'`
-     Qonto link (amount = stored `balanceAmount`; in deposit mode the tourist tax rides on the solde,
-     so balance = remainder incl. tax) and send `balance_request`. Dedup: one send ever per
-     (template, reservation) pair via the existing `email_log` mechanism; a `failed` send retries the
-     next day (existing `existsFor(status='sent')` semantics). Qonto disconnected → skip + log, retry
-     next day.
+   - **Automatic send** — *(Retired 2026-11-26 — no daily pass sends the balance request any more: `utils/balanceRequestRunner.js` no longer exists, and a payment-request template (`PAYMENT_STABLE_KEYS`, `balance_request` included) is never sent by a cron; the `balanceDueDate` anchor of `utils/emailAutoSendRunner.js` only proposes it in « Emails à envoyer » or sends it on the operator's click; see `specs/emails/no-automatic-email-without-approval.md` rule 11.)*
    - **Manual button** « Envoyer la demande de solde » on the reservation fiche (`PageActionBar`,
      mirror of « Envoyer la demande d'acompte ») — visible when `kind='reservation'`,
      `balanceAmount > 0`, `balancePaid=0`, **et la réservation est DIRECTE**. Uses the same service
@@ -141,7 +135,7 @@ When the mode is « paiement unique », the site no longer displays Acompte/Sold
 | `utils/` | `devisQuote.js` | T | New `depositPaymentCents(db, devisId)` — raw-column read (anti-drift + enrichDevis trap documented at the definition). |
 | `utils/` | `paymentRequestService.js` | T | `REQUEST_TEMPLATES.balance = 'balance_request'`; reuse-check extended: open link of the wrong type for the requested type is cancelled + re-minted. |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | Seed `balance_request` FR/EN (event-triggered set: excluded from the manual pending queue). |
-| `utils/` | `balanceRequestRunner.js` | C | Pure, injectable daily pass (rule 8): select eligible reservations → ensure `balance` link → send template → log. Unit-testable like `emailAutoSendRunner`. |
+| `utils/` | `balanceRequestRunner.js` | C | *(Removed — the automatic daily pass was retired, rule 8.)* |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Wire the daily balance pass (08:00-tick pattern, once per local day). |
 | `controllers/` | `paymentsController.js` | T | `sendPaymentRequestEmail` accepts type `balance` (route already generic); resolveAmountCents already handles `balance`. |
 | `routes/` | — | — | (none — existing routes are generic on type) |
@@ -192,7 +186,7 @@ into the `<container>` container (see memory `wp-plugin-deploy-gap`, incident 20
   `database.js` **and** `schema.sql` baseline (both required, migrations-baseline convention).
   Existing rows default to 0 → behavior unchanged until the operator opts in.
   _Renamed `properties.depositEnabled` on 2026-09-20 by
-  [property-deposit-switch.md](property-deposit-switch.md) §5, values preserved._
+  [property-deposit-switch.md](../payments/property-deposit-switch.md) §5, values preserved._
 - New seeded email template `balance_request` (FR/EN) — additive, `email_templates` rows created by
   the existing registry seeding (idempotent by stableKey).
 - No new table. `payment_links.type='balance'` already valid.

@@ -1,5 +1,5 @@
 /**
- * The sending server deduced from the sending address (specs/settings-rationalization.md rule 28;
+ * The sending server deduced from the sending address (specs/settings/settings-rationalization.md rule 28;
  * UI/UX review 2026-10-18, decision 14). The operator types an address and a password; the server
  * recognises the provider — first by the address's own domain (gmail.com, orange.fr…), then by the
  * domain's MX records — and proposes its host and security. The port follows the security (rule 11).

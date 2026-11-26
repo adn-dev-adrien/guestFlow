@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rule 8 — a release is installed on the host once: downloaded with
+// specs/hosting/hosting-h1-fleet-runtime.md rule 8 — a release is installed on the host once: downloaded with
 // its SHA256SUMS, verified (a bad hash is refused and leaves nothing behind), unpacked to
 // <releases>/<version>, its dependencies installed there; the page « Versions » lists the installed
 // releases and how many instances run each.

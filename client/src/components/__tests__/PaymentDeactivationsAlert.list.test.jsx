@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 67 — the home card of withdrawn payment links still payable at the provider lists each
+// specs/payments/payment-link-lifecycle.md rule 67 — the home card of withdrawn payment links still payable at the provider lists each
 // link (kind, amount, reference, stay, reason, date) so the operator can find it at Qonto, and opens Paiements en ligne.
 import React from 'react';
 import { vi } from 'vitest';

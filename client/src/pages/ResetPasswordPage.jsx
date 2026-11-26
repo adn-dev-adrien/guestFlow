@@ -1,6 +1,6 @@
 /**
  * ResetPasswordPage — « Nouveau mot de passe » at `/nouveau-mot-de-passe?token=…`, opened from the
- * reset email (specs/hosting-h2-account-security.md rule 4). The existing password rules apply
+ * reset email (specs/hosting/hosting-h2-account-security.md rule 4). The existing password rules apply
  * (10 characters at least, confirmation); saving logs the user in — through the second step when the
  * account has one, which a reset never bypasses.
  */

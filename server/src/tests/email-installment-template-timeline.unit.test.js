@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 49 (adversarial review of the 2026-10-27 fixes) — the
+// specs/emails/guest-email-texts-made-simple.md rule 49 (adversarial review of the 2026-10-27 fixes) — the
 // `installment_request` template had no entry in utils/emailTimeline.js nor utils/templateWhen.js:
 // Emails › Modèles showed its long seed name, put it « Pendant le séjour » and read « Le jour de
 // l'arrivée », editable. It is « Demande d’échéance », before the arrival with the payment emails,

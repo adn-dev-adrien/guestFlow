@@ -1,6 +1,6 @@
-// specs/shell-and-home-day-first.md rules 23 + 26 (2026-10-27 audit) — on a 390 px phone the planning bar
+// specs/planning/shell-and-home-day-first.md rules 23 + 26 (2026-10-27 audit) — on a 390 px phone the planning bar
 // was an empty band holding only the laundry icon (a plugin node, which the bar never moves to the
-// top bar). specs/dashboard-planning-scroll.md rule 22: the plugin buttons stay in the band beside
+// top bar). specs/planning/dashboard-planning-scroll.md rule 22: the plugin buttons stay in the band beside
 // « Aujourd'hui »; without any plugin button the lone « Aujourd'hui » icon moves to the top bar; no
 // date strip any more.
 import React from 'react';
@@ -19,7 +19,7 @@ vi.mock('../../api', () => ({
   default: {
     getPlanningDays: vi.fn(async (range) => (await import('./planningDaysFixtures')).daysPayload(range)),
     // The server's date, in the week the clocks go back: the windows must still be 14 days long,
-    // whatever the time zone the suite runs in (specs/ds-sweep-planning.md rule 28).
+    // whatever the time zone the suite runs in (specs/design-system/ds-sweep-planning.md rule 28).
     getToday: vi.fn().mockResolvedValue({ today: '2026-10-25' }),
   },
 }));

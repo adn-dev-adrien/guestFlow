@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 30 (and specs/wordpress-plugin.md rule 34) — on the payment return
+// specs/payments/payment-link-lifecycle.md rule 30 (and specs/site/wordpress-plugin.md rule 34) — on the payment return
 // page, a status `expired` (the link lapsed unpaid, none open) stops the polling and says what to do.
 import { screen } from '@testing-library/react';
 import { bookingContainer, catalogueRoutes, loadBlock } from './wordpressBookingFixtures';

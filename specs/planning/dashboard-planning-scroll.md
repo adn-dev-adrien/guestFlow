@@ -58,7 +58,7 @@ Rendering to validate before code: `docs/specs/2026-10-28-dashboard-planning-scr
   is the reference Adrien names: it opens on today, prepends/appends months at both edges of its own
   scroller, keeps the month in view in place when it prepends (anchor `data-month-anchor`), chains
   short months, offers « Aujourd'hui », and loads each month window once. Its hook is month-shaped and
-  bound to an inner scroller; the planning scrolls the **window** (specs/ds-sweep-planning.md rule 6 —
+  bound to an inner scroller; the planning scrolls the **window** (specs/design-system/ds-sweep-planning.md rule 6 —
   the sticky bar must survive scrolling).
 
 **Specs that describe what goes away** (amended in §10): `shell-and-home-day-first.md` rules 1, 19, 26;
@@ -78,7 +78,7 @@ any more.
 ### 3.A Home — the day lists (server)
 
 1. **One call for the day lists.** `GET /api/planning/today` returns `{ today, departures, arrivals,
-   nextArrival }` built on the server's day (`getTodayIsoDate`, specs/server-timezone.md):
+   nextArrival }` built on the server's day (`getTodayIsoDate`, specs/hosting/server-timezone.md):
    `departures` = the stays (`kind = 'reservation'`, devis and cancelled stays excluded) whose
    `endDate` is today, ordered by check-out time (unset last), then id; `arrivals` = those whose
    `startDate` is today, ordered by check-in time (unset last), then id. Each stay is in the detailed
@@ -100,16 +100,16 @@ any more.
 4. **An empty list folds to one line.** With no departure today, « Départs » is a single line —
    the section title and « Aucun départ aujourd'hui » in muted text — with no table, no card and nothing
    to unfold. Same for « Arrivées » (« Aucune arrivée aujourd'hui »). The order stays departures, then
-   arrivals (specs/reception-role-checkin-only.md §6). A non-empty list renders exactly as today
+   arrivals (specs/sas/reception-role-checkin-only.md §6). A non-empty list renders exactly as today
    (table from 940 px of container, cards below — shell-and-home-day-first rule 25).
 5. **« Prochaine arrivée » under the folded arrivals line.** When `nextArrival` is set, the folded
    « Arrivées » line is followed by a block headed by the date, set large and in figures-friendly sans
-   (dates never serif, specs/design-system.md): `label` in bold and `relativeLabel` beside it in a soft
+   (dates never serif, specs/design-system/design-system.md): `label` in bold and `relativeLabel` beside it in a soft
    chip. Under it, one compact row per stay: check-in hour (default « 15:00 »), logement, client,
    beds to prepare (`bedsLabel`, omitted when the stay has none). No « Prêt » / « Arrivé » check box —
    the operational ticks belong to the day itself and to the Planning. A row opens the fiche for an
    admin (`withFrom('/')`); for a reception account the row is inert (its SAS is locked to its own day,
-   specs/reception-sas-today-only.md). When `nextArrival` is `null`, the folded line reads « Aucune
+   specs/sas/reception-sas-today-only.md). When `nextArrival` is `null`, the folded line reads « Aucune
    arrivée aujourd'hui · aucune arrivée prévue ».
 6. **No date in the page bar.** The home's bar is « Tableau de bord » alone: no arrows, no date input,
    no « Aujourd'hui », no phone strip under the bar. The section titles lose their « — <date> »
@@ -137,7 +137,7 @@ any more.
 10. **The replaced reads leave.** `GET /api/planning/alerts` and `GET /api/planning/option-cards` lose
     their only caller and are removed with their controller methods and client wrappers;
     `GET /api/planning/breakfast` stays (the breakfast push deep-link reads one day through it,
-    specs/sas-breakfast-bread-and-push.md rule 10); `POST /api/planning/option-cards/done` stays.
+    specs/sas/sas-breakfast-bread-and-push.md rule 10); `POST /api/planning/option-cards/done` stays.
 
 ### 3.D Planning — the timeline (client)
 

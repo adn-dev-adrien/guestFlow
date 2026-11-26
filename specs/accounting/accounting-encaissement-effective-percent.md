@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | [#334](https://github.com/adn-dev-adrien/guestFlow/pull/334) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 1 (gross-up ratio) rewritten to match `specs/accounting/accounting-books-the-money-collected.md` rule 1; the effective percent, the net and the credit lines (rules 2-11) are unchanged.
+
 ---
 
 ## 1. Context
@@ -57,15 +59,15 @@ Decisions taken with Adrien on 2026-07-15 (AskUserQuestion):
   (= what the money says), not the property's raw `depositPercent`. When the deposit was computed
   automatically, the effective percent *equals* the property setting; when it was overridden
   (Bravo: 67,13 → 51,14 %), the entry stays balanced and matches the real payment.
-- Tourist tax keeps riding **entirely on the solde** (`specs/tourist-tax-on-solde.md` unchanged):
+- Tourist tax keeps riding **entirely on the solde** (`specs/tourist-tax/tourist-tax-on-solde.md` unchanged):
   no tax line on the deposit entry; the deposit card has exactly 5 lines (client, commission,
   gîte, options, TVA).
 
 ### Rules
 
-1. **Gross-up ratio.** Per reservation:
+1. **Gross-up ratio.** *(Rewritten by `specs/accounting/accounting-books-the-money-collected.md` rule 1: the denominator also counts the end-of-stay complement, the ratio only applies to the legacy « solde = net » shape and is 1 on any drifted schedule.)* Per reservation:
    - entered-commission model (`acompteCommissionAmount + platformCommissionAmount > 0`):
-     `ratio = (finalPrice + touristTaxTotal) / Σ(depositAmount + balanceAmount + complementAmount)`.
+     `ratio = (finalPrice + touristTaxTotal) / Σ(depositAmount + balanceAmount + complementAmount + endOfStayComplementAmount)` when that sum is the legacy « solde = net » shape, else 1.
      For every reservation written by the current engine the schedule sums to exactly
      `finalPrice + touristTaxTotal`, so **ratio = 1** and stored amounts pass through unscaled.
      Rows from the old « solde = net » era (e.g. prod #7: balance 903, finalPrice 994, commission 91)
@@ -95,7 +97,7 @@ Decisions taken with Adrien on 2026-07-15 (AskUserQuestion):
    Bravo: deposit 67,13/131,28 = 51,14 %, balance (67,13 − 2,98)/131,28 = 48,86 %.
 8. **Credit lines**: each bucket credits `HT × pct` where `HT = bucketTtc / (1 + vatRate/100)`;
    the VAT credit = Σ over buckets of `bucketTtc × pct × vatRate/(100 + vatRate)`, grouped by rate.
-   `vatRate` is the single global rate (`app_settings.vatRate`, `specs/single-vat-rate.md`) — there
+   `vatRate` is the single global rate (`app_settings.vatRate`, `specs/accounting/single-vat-rate.md`) — there
    is no per-property VAT. Bravo deposit → gîte **40,11**, options **20,92**, TVA **6,10**;
    balance → 38,33 / 19,99 / 5,83 + taxe 2,98.
 9. **Balance guarantee**: Σ credits = CA = Σ debits (CCLIENT net + commission lines); the ≤ 2-cent

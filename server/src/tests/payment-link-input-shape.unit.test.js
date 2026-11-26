@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2 section 4) — a payment link and its request,
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2 section 4) — a payment link and its request,
 // from a provider that is ready (a fake: nothing leaves the machine): a type of another shape is INVALID_TYPE, never a link.
 const fs = require('node:fs');
 const os = require('node:os');

@@ -73,7 +73,7 @@ filtered out of the payload; they still are).
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `ArithmeticTextField` | Third adoption (after `customPrice` + `clientGrossAmount`, specs/reservation-price-arithmetic.md). |
+| **Consumed (existing generic)** | `ArithmeticTextField` | Third adoption (after `customPrice` + `clientGrossAmount`, specs/reservations/reservation-price-arithmetic.md). |
 | **Created (new generic)** | — | |
 | **Specific (kept feature-local)** | — | |
 
@@ -113,7 +113,7 @@ None.
 ## 8. Out of scope
 
 - Adopting `ArithmeticTextField` on other money fields (deposit/balance/caution overrides) —
-  still the follow-up noted in specs/reservation-price-arithmetic.md.
+  still the follow-up noted in specs/reservations/reservation-price-arithmetic.md.
 - Any server-side validation change.
 
 ## 9. Open questions

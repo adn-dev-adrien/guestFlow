@@ -1,5 +1,5 @@
 /**
- * The three catalogue fields of an article sold outside a stay (owner Q-C11; specs/pricing-components.md §3 rules 53, 88): « Vendable hors séjour » (`sellableExternally`), its VAT class
+ * The three catalogue fields of an article sold outside a stay (owner Q-C11; specs/pricing/pricing-components.md §3 rules 53, 88): « Vendable hors séjour » (`sellableExternally`), its VAT class
  * (`vatClass`: `options`, `resources`, `drinks`, `catering`; empty = the class of its kind) and the external rate of that class (`externalVatRate`, in percent, the one rate of the whole class).
  * Authoritative validation (the only one that can reject a write) and the write, shared by the option and the resource forms.
  *

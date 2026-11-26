@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 37 — on touch only the one-line subject sentence grows to
+// specs/design-system/ui-review-2026-10-19-operations.md rule 37 — on touch only the one-line subject sentence grows to
 // 44 px; a hit area around a multi-line body sentence would cover the end of the sentence before it and
 // send the tap to the wrong editor. jsdom has no pointer media: this reads the emitted rules, and the
 // browser measurement (0 misdirected sentences at 390, 900 and 1024) is in the spec.

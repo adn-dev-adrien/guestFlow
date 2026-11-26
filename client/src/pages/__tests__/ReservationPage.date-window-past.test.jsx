@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 13, past reading (Adrien's decision of 2026-11-02) — the fiche says
+// specs/tech/reservations-backend-mvc.md rule 13, past reading (Adrien's decision of 2026-11-02) — the fiche says
 // « Date trop ancienne : 5 ans au plus. » under the dates for a date typed before today − 5 years, asks neither a
 // quote nor the occupied dates for it, and « Enregistrer » refuses before any request. Today − 5 years itself
 // passes, and a date the record already carries is not held to the window.

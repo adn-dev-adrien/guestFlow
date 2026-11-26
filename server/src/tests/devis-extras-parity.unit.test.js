@@ -1,5 +1,5 @@
 /**
- * specs/devis-extras-parity-and-price-lock.md — a devis must keep everything a reservation keeps.
+ * specs/devis/devis-extras-parity-and-price-lock.md — a devis must keep everything a reservation keeps.
  *
  * Pins the five losses measured in §1: the planning-card occurrences and the hourly-resource sessions
  * used to be stripped before the engine ran (so the lines returned `null` and vanished with their
@@ -18,7 +18,7 @@ const Database = require('better-sqlite3');
 const devisModel = require('../models/devisModel');
 const { liveHourlyResources } = require('./hourlyResourcesFixture');
 
-// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins/plugins-phase-3c-hourly-resources.md rule 11).
 liveHourlyResources();
 const { calculateReservationQuote } = require('../utils/pricing');
 

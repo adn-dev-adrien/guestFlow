@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths corrected to the current tree (SAS and accounting export now live under `server/src/plugins/`, `client/src/plugins/sas/`; `.js` components are `.jsx`) and relative links re-based for the folder move.
+
 ---
 
 ## 1. Context
@@ -37,7 +39,7 @@ Building blocks reused untouched:
 - the mid-stay split (`midStayExtras.js`): every euro sold after arrival is identified per line key
   (`opt:<id>` / `res:<id>` / `custom:<label>`) and carved out of the frozen pre-arrival buckets;
 - the option catalogue with collapsible categories (Boissons / Restauration —
-  [option-categories.md](option-categories.md)) as the source for in-stay sales;
+  [option-categories.md](../options/option-categories.md)) as the source for in-stay sales;
 - the « caisse interne » convention ([cash-complement-and-endofstay-finance.md](cash-complement-and-endofstay-finance.md)):
   cash-settled money counts in the financial tracking but stays out of the accounting.
 
@@ -82,7 +84,7 @@ becomes **the remainder** — collected at check-out exactly as today.
      the new amounts land in the remainder like any mid-stay sale. A **planning-card option**
      (petit-déjeuner…) is billed by its scheduled occurrences, never by a raw quantity — like the
      fiche, which shows no Qté field for it, the dialog offers a simple **« Ajouter » / « Ajouté ✓ »**
-     and the days stay editable on the fiche ([option-planning-card.md](option-planning-card.md) §3.4).
+     and the days stay editable on the fiche ([option-planning-card.md](../options/option-planning-card.md) §3.4).
      Auto-timed options (arrivée anticipée / départ tardif) are never a mid-stay sale and are absent.
 5bis. **The baseline the preview uses.** The arrival baseline is captured lazily, on the first save
    at/after `startDate` ([mid-stay-extras-to-end-of-stay-complement.md](mid-stay-extras-to-end-of-stay-complement.md) §3.1
@@ -90,7 +92,7 @@ becomes **the remainder** — collected at check-out exactly as today.
    read 0 € for a prestation just added. The **read path synthesizes** the baseline the next save
    would store (the currently stored extras) so the preview matches the post-save reality — and
    never writes. Once captured, the stored baseline always wins. **Corrected 2026-11-05 (audit R23-C8):** the
-   baseline is due on the arrival act, not on the date (specs/arrival-moment-is-the-check-in.md): a check-in, an arrival
+   baseline is due on the arrival act, not on the date (specs/sas/arrival-moment-is-the-check-in.md): a check-in, an arrival
    SAS or a collected complement. A started stay with none of them has no baseline for the preview, which synthesizes none,
    so the note total stays 0 € for an addition. **Corrected 2026-11-05 (R23 verification F3):** the save is another
    matter: on a locked fiche `enterMidStayExtrasWindow` stores the baseline whether or not the check-in was marked, as rule 23 says.
@@ -194,7 +196,7 @@ becomes **the remainder** — collected at check-out exactly as today.
       then `settleMidStayNote(id, { items })` moves them as before (rule 8). An `items` field sent by a
       client is ignored.
     _Reading of 2026-11-19 (loop t26 UI26-2):_ the preview goes through `useLatestPreview`, like every money preview
-    (specs/plugins-phase-1-sdk.md rule 54). « Total de la note » reads « — » until the first answer and after a failed one — never
+    (specs/plugins/plugins-phase-1-sdk.md rule 54). « Total de la note » reads « — » until the first answer and after a failed one — never
     « 0,00 € » for an unknown total —; a failure shows its reason with « Réessayer », and « À encaisser : — » / « Encaisser — » when
     « Plusieurs moyens » is open. While a recompute is asked (a key ticked, a prestation added) the latest total stays, dimmed, and
     « CB / Chèque », « Caisse interne » and « Encaisser … » are disabled until the answer for the note on screen (no action on an unknown
@@ -323,7 +325,7 @@ transaction) — the next quote/save reconverges by construction (`remaining = m
 
 ## 5. Data model
 
-Idempotent `ALTER TABLE` block in [database.js](../server/src/database.js):
+Idempotent `ALTER TABLE` block in [database.js](../../server/src/database.js):
 
 ```sql
 ALTER TABLE reservations ADD COLUMN midStaySettledNotes TEXT DEFAULT NULL;

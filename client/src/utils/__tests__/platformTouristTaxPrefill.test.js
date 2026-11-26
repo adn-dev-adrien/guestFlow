@@ -1,6 +1,6 @@
 import { resolvePlatformTouristTaxPrefill } from '../platformTouristTaxPrefill';
 
-// specs/platform-tourist-tax-out-of-the-commission.md rule 4 — the « Taxe de séjour retenue » box is
+// specs/tourist-tax/platform-tourist-tax-out-of-the-commission.md rule 4 — the « Taxe de séjour retenue » box is
 // seeded with the engine's figure on a fiche that has nothing typed in it yet, and never written
 // into again. Rule 2 is what makes the « never again » part matter: an empty box on a fiche that
 // already carries a brut means that brut is tax-excluded, so re-seeding it would silently move that

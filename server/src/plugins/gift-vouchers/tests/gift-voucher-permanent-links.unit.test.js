@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 9 — `GET /public/v1/gift-vouchers/links/:slug`: the target a permanent link `/<base>/offrir/<slug>` leads to, asked by the WordPress connector.
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 9 — `GET /public/v1/gift-vouchers/links/:slug`: the target a permanent link `/<base>/offrir/<slug>` leads to, asked by the WordPress connector.
 // The purchase page opened on the campaign; nothing for a campaign that is unknown, a one-shot, a draft or closed (the connector then falls back to the purchase page itself).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

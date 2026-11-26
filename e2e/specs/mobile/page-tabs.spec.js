@@ -1,5 +1,5 @@
 // @ts-check
-// specs/ds-tabs.md rules 2-3 — on a phone the tabs are the SECOND ROW of the page's sticky bar,
+// specs/design-system/ds-tabs.md rules 2-3 — on a phone the tabs are the SECOND ROW of the page's sticky bar,
 // under a title that stays visible. Before this spec, the tab wrappers drew their strip ABOVE the
 // bar and the page showed no title at all.
 // Also rule 10: nothing about the tabs' content moved — same labels, and `?tab=` still drives the
@@ -49,7 +49,7 @@ test('switching tab on a phone keeps the title + tabs in the same block', async 
   await expect(page.getByRole('tab', { name: 'Ressources' })).toHaveAttribute('aria-selected', 'true');
 });
 
-// specs/ds-tabs.md rule 12 — a lazy plugin tab keeps the bar drawn while its chunk loads.
+// specs/design-system/ds-tabs.md rule 12 — a lazy plugin tab keeps the bar drawn while its chunk loads.
 test('switching to a plugin tab never leaves the page without tabs', async ({ page }) => {
   await page.goto('/parametres/options-ressources');
   await expect(page.getByRole('tab')).toHaveCount(4, { timeout: 10_000 });
@@ -58,7 +58,7 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
     window.__tabYs = new Set();
     // The strip is measured in the viewport: a bar that moves on the screen is caught, whatever moved it. The support access request, a
     // banner of the whole app that once pushed the bar 238 px down mid-switch, is filed in a project of its own (e2e/projects.js).
-    // specs/e2e-playwright-smoke-suite.md rule 20 — never beside this spec.
+    // specs/tech/e2e-playwright-smoke-suite.md rule 20 — never beside this spec.
     // A Y counts once it held for two consecutive frames: a single-frame reading is a sampling artefact, a bar that really jumps stays in
     // the layout for more than one frame and is caught.
     let previous = null;

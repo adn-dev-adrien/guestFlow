@@ -1,4 +1,4 @@
-// specs/dashboard-planning-scroll.md rules 13, 18, 19 — the shared edge-scroll hook, on the window and on an
+// specs/planning/dashboard-planning-scroll.md rules 13, 18, 19 — the shared edge-scroll hook, on the window and on an
 // element scroller: edges ask for more, a prepend or a release above keeps the first visible item in place,
 // the chain is bounded, and « scroll to a key » is instant under reduced motion.
 import React, { useRef, useState } from 'react';

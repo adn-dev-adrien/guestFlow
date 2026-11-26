@@ -8,7 +8,9 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Builds on** | [`plugins-phase-0-foundation.md`](plugins-phase-0-foundation.md) rule 28 (bare install), [`plugins-phase-1-sdk.md`](plugins-phase-1-sdk.md) rules 2–4, [`plugins-phase-4-registry.md`](plugins-phase-4-registry.md) rules 14, 19 |
-| **Summary for review** | [`docs/specs/2026-10-28-plugin-removal-resilience.html`](../docs/specs/2026-10-28-plugin-removal-resilience.html) |
+| **Summary for review** | [`docs/specs/2026-10-28-plugin-removal-resilience.html`](../../docs/specs/2026-10-28-plugin-removal-resilience.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** The « 16 plugins » counts are the 2026-10-28 audit snapshot: the catalogue now holds 18 manifests (`guest-app`, `gift-vouchers` added); the matrix is driven by the plugin folders, so the rules apply to them unchanged.
 
 ---
 
@@ -544,7 +546,7 @@ rule 3 (core tests name the plugins they need instead of moving or being rewritt
 (engine suites keep real subjects but name them; one fixture suite added), rules 9, 11, 12 (a child-process
 pass runner instead of an in-process trigger; row counts taken from the erasure declarations; a
 pre-removal money snapshot), rule 16 (blockers cleared in the sweep's database), rule 18 (no per-process database preload: the suite is serial; it took ~3½ minutes when this was written and 13 to 15 minutes on CI by
-2026-11-10, so the removal cell's cap is 35 minutes — audit R38-S1). *Amended 2026-11-23 (specs/server-test-isolation.md rule 24):* the preload now gives every test process its own database and replaces the cell's `DB_PATH`, so the suite runs four files at a time there too; the 35-minute cap stays. Qonto and Neat are pointed at a dead local port (`QONTO_API_BASE`,
+2026-11-10, so the removal cell's cap is 35 minutes — audit R38-S1). *Amended 2026-11-23 (specs/tech/server-test-isolation.md rule 24):* the preload now gives every test process its own database and replaces the cell's `DB_PATH`, so the suite runs four files at a time there too; the 35-minute cap stays. Qonto and Neat are pointed at a dead local port (`QONTO_API_BASE`,
 `NEAT_API_BASE`); Google and Météo-France have no credentials in the seeded database, so no cell reaches them.
 The wave's operator-managed mode hides the plugin lifecycle routes; the matrix removes code, not rows, and the
 sweep runs on a space that is not operator-managed.

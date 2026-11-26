@@ -1,5 +1,5 @@
 /**
- * The support session's guard and trace (specs/hosting-h2-account-security.md rules 14–16, 18, 19),
+ * The support session's guard and trace (specs/hosting/hosting-h2-account-security.md rules 14–16, 18, 19),
  * mounted on `/api` before every router.
  *
  * - A support session is recognised by the marker its sign-in link left in the session

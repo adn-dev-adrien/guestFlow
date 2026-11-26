@@ -1,4 +1,4 @@
-// Shared fixture of the held-dates suites (specs/payment-link-lifecycle.md rules 10-12, 31-33, 37-39, 46, 48): the
+// Shared fixture of the held-dates suites (specs/payments/payment-link-lifecycle.md rules 10-12, 31-33, 37-39, 46, 48): the
 // app's database in memory (the callers of rule 32 write through it), made-up stays and links, an iCal feed stub.
 // Nothing leaves the process: no provider is connected, so a withdrawn link keeps its deactivation marker until a
 // suite's fake provider reads it (`providerReads`).

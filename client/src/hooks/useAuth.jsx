@@ -8,7 +8,7 @@ import api from '../api';
  * Bootstraps the current user via `GET /api/auth/me` on mount, exposes `login` / `logout` /
  * `changePassword`, re-reads `/api/auth/me` when the route changes or the tab comes back (at most once
  * every 30 s) so a module the operator switched off leaves the menu
- * (specs/plugin-operator-provisioning.md rule 36), and listens for the global `guestflow:unauthenticated` event (fired by api.js on a
+ * (specs/plugins/plugin-operator-provisioning.md rule 36), and listens for the global `guestflow:unauthenticated` event (fired by api.js on a
  * 401) to drop the session and send the user back to the login screen.
  */
 const AuthContext = createContext(null);
@@ -73,7 +73,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   // → the user, or `{ step: 'second-factor', … }` when the account has a second step
-  // (specs/hosting-h2-account-security.md rule 7): the login page then asks for the code.
+  // (specs/hosting/hosting-h2-account-security.md rule 7): the login page then asks for the code.
   const login = useCallback(async (email, password) => {
     const me = await api.login(email, password);
     if (me && me.step) return me;
@@ -106,7 +106,7 @@ export function AuthProvider({ children }) {
     await api.changePassword(currentPassword, newPassword);
     if (wasMustChange) {
       // Server destroyed the session — drop the local auth state so the next render goes through
-      // the AuthGate again (specs/admin-account-management.md §3.3 rule 15). The caller
+      // the AuthGate again (specs/hosting/admin-account-management.md §3.3 rule 15). The caller
       // (UserManagementPage) navigates to /login?reason=password-changed for the snackbar.
       setUser(null);
     } else {

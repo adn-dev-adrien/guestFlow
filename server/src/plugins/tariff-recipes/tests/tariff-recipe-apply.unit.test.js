@@ -10,7 +10,7 @@ const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 /** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it, so the date window never drops them. */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
-// specs/tariff-recipes/spec.md §3.2 rules 7-12 — diff shape, orphan removal, manual seasons as
+// specs/pricing/tariff-recipes.md §3.2 rules 7-12 — diff shape, orphan removal, manual seasons as
 // obstacles, transactional rollback, idempotent re-apply, pre-horizon ranges preserved.
 
 function createDb() {
@@ -125,7 +125,7 @@ test('a manual season with an UNRELATED label stays an obstacle (rule 9)', () =>
   const out = model.preview(1, 'aventura-test');
   assert.equal(out.blocking, true);
   assert.ok(out.warnings.some((w) => w.includes('Peinte à la main')));
-  // specs/tariff-recipes/spec.md §3.2 rule 9ter — the blocked dates are RECORDED, not just mentioned
+  // specs/pricing/tariff-recipes.md §3.2 rule 9ter — the blocked dates are RECORDED, not just mentioned
   // in a sentence, so the UI can list them.
   assert.ok(out.conflicts.length > 0);
   for (const conflict of out.conflicts) {

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 28–32 — the start assistant on a fresh instance:
+// specs/emails/guest-email-texts-made-simple.md rules 28–32 — the start assistant on a fresh instance:
 // rule 28 nothing is asserted to a guest that the owner did not say (deposit, cleaning, towels, bed linen),
 // rule 29 its property is edited, never created twice, rule 30 the article comes from the name,
 // rule 31 the sample stay keeps the property's times, rule 32 the key-box code has its own field.

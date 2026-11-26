@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const { parseReleaseNotes, splitSummary } = require('../utils/releaseClient');
 
-// specs/self-update-and-releases.md §6.2 (20c) — a release carries a short operator digest, and
+// specs/hosting/self-update-and-releases.md §6.2 (20c) — a release carries a short operator digest, and
 // that block alone is what the update dialog shows. Everything else is published but folded.
 
 const WITH_DIGEST = [
@@ -112,7 +112,7 @@ test('sectionFor cuts exactly one version out of a CHANGELOG', async () => {
   assert.equal(sectionFor(changelog, '9.9.9'), null);
 });
 
-// specs/self-update-and-releases.md rule 56 — the `detail--` footer closing a condensed section is a paragraph after a
+// specs/hosting/self-update-and-releases.md rule 56 — the `detail--` footer closing a condensed section is a paragraph after a
 // blank line: it must not be glued onto the last bullet above it.
 test('a paragraph after a blank line is a note of its own, not the tail of the last bullet', () => {
   const body = [

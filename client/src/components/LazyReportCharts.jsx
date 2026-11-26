@@ -1,5 +1,5 @@
 /**
- * LazyReportCharts — the report charts as the plugin SDK hands them out (specs/report-grammar.md
+ * LazyReportCharts — the report charts as the plugin SDK hands them out (specs/design-system/report-grammar.md
  * rule 20): Recharts (~110 kB gzip) loads with the first chart drawn, never with the app shell. The
  * SDK is part of the initial bundle, so a static re-export would make every first page pay for it.
  * While the chart's code arrives, a quiet box of the chart's height holds its place.

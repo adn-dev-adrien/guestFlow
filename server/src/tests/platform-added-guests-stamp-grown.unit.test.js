@@ -1,5 +1,5 @@
 // The addition above what the declared row held (audit R23-DB-1):
-//   specs/platform-added-guests-tourist-tax.md rule 29 — a row of its own for the difference; the merged case stands.
+//   specs/tourist-tax/platform-added-guests-tourist-tax.md rule 29 — a row of its own for the difference; the merged case stands.
 process.env.DB_PATH = ':memory:';
 process.env.NODE_ENV = 'test';
 

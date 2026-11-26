@@ -1,7 +1,7 @@
 /**
  * EmailHistoryPage — paginated log of every send / failure / acknowledged-skip
- * (specs/email-automation.md §6.5), and the « Simulation » tab of the guest email sequence
- * (specs/guest-email-sequence.md §6.2).
+ * (specs/emails/email-automation.md §6.5), and the « Simulation » tab of the guest email sequence
+ * (specs/emails/guest-email-sequence.md §6.2).
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,10 +23,10 @@ import { displayDateTime } from '../utils/formatters';
 
 const PAGE_SIZE = 50;
 
-// Maps the email-log domain status to the shared StatusBadge (specs/ds-components.md §3.5 — the
+// Maps the email-log domain status to the shared StatusBadge (specs/design-system/ds-components.md §3.5 — the
 // page used to ship its own shadowing StatusBadge with a divergent outlined rendering).
 function EmailStatusBadge({ status, channel, statusLabel }) {
-  // The server names an exceptional send itself (specs/payment-link-lifecycle.md rule 44).
+  // The server names an exceptional send itself (specs/payments/payment-link-lifecycle.md rule 44).
   if (status === 'sent' && statusLabel) return <StatusBadge status="success" label={statusLabel} wrap />;
   if (status === 'sent') {
     return channel === 'manual'
@@ -178,14 +178,14 @@ export default function EmailHistoryPage() {
         hasItems={rows.length > 0}
         emptyColSpan={6}
         emptyText={loading ? 'Chargement…' : 'Aucun email dans l\'historique'}
-        /* specs/email-history-rolling-window.md rule 10 — cards whenever the table would be clipped. */
+        /* specs/emails/email-history-rolling-window.md rule 10 — cards whenever the table would be clipped. */
         items={rows}
         cardsBelow="md"
         cardsBelowWidth={920}
         getKey={(r) => r.id}
         renderRow={(r) => (
           <TableRow key={r.id} hover>
-            {/* Europe/Paris, worded by the server (specs/email-history-rolling-window.md rule 8). */}
+            {/* Europe/Paris, worded by the server (specs/emails/email-history-rolling-window.md rule 8). */}
             <TableCell>{r.sentAtLabel || displayDateTime(r.sentAt)}</TableCell>
             <TableCell>
               <Stack>

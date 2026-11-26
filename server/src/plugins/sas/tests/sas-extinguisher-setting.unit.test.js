@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 16 — the extinguisher check belongs to the SAS plugin and
+// specs/plugins/plugins-phase-p-productisation.md rule 16 — the extinguisher check belongs to the SAS plugin and
 // is off by default: the core inserts no repair row, turning the check on inserts its two rows, and
 // with the check off a save of the « Facturables » list never brings them back.
 

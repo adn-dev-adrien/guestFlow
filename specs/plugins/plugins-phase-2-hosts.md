@@ -7,9 +7,11 @@
 | **Created** | 2026-10-01 |
 | **Author** | Adrien |
 | **Related PR** | [#650](https://github.com/adn-dev-adrien/guestFlow/pull/650) (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §5.3 owner's split, §6 extension points, phasing §12 |
-| **Previous phase** | [`specs/plugins-phase-1-sdk.md`](plugins-phase-1-sdk.md) (merged into `inte/plugins`, #632) |
-| **Summary for review** | [`docs/specs/2026-10-01-plugins-phase-2-hosts.html`](../docs/specs/2026-10-01-plugins-phase-2-hosts.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — §5.3 owner's split, §6 extension points, phasing §12 |
+| **Previous phase** | [`specs/plugins/plugins-phase-1-sdk.md`](plugins-phase-1-sdk.md) (merged into `inte/plugins`, #632) |
+| **Summary for review** | [`docs/specs/2026-10-01-plugins-phase-2-hosts.html`](../../docs/specs/2026-10-01-plugins-phase-2-hosts.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** No rule changed. Still governs: `ctx.roleAccess`, the `planning.days` / `planning.actions` / `sas.*.steps` host slots, and the boundaries of the `sas`, `linen`, `accounting-export` and `website-booking` plugins; file maps are the as-moved layout (`server/src/plugins/<id>/`).
 
 ---
 
@@ -58,7 +60,7 @@ Owner's decisions (2026-10-01, questionnaire):
   account number and VAT rate, which only the export reads, move with `accounting-export`.
 - **P8** — the CGV bug found during the mapping (a converted website request lost the display of its
   acceptance) is fixed on its own on `master`:
-  [#648](https://github.com/adn-dev-adrien/guestFlow/pull/648), `specs/terms-acceptance-record.md`
+  [#648](https://github.com/adn-dev-adrien/guestFlow/pull/648), `specs/reservations/terms-acceptance-record.md`
   rule 29.
 
 Before this phase, `inte/plugins` was brought up to date with `master` v3.8.0
@@ -235,7 +237,7 @@ without the core knowing it.
       and « Ajouter » for the admin; then the existing `CancellationCompensationsSection`: « Encaissées en
       <mois> » and « En attente », whatever the month;
     - *2026-10-18 (review):* the bar reads « Indemnités » on a phone (the full title was cut to
-      « Indemnités d'an… ») — and on every width since specs/ds-components.md rule 25 — and the card's explanation is impersonal: « Ce qu'une plateforme verse pour
+      « Indemnités d'an… ») — and on every width since specs/design-system/ds-components.md rule 25 — and the card's explanation is impersonal: « Ce qu'une plateforme verse pour
       un séjour annulé, ou l'acompte conservé faute de règlement. »;
     - « Encaisser », « Rouvrir » and « Modifier » for the admin, and « Supprimer » on a pending one (new
       in the screen; the API already refused deleting a banked one). Read-only for an accountant
@@ -369,7 +371,7 @@ without the core knowing it.
     `GET /api/settings/website-connection` answers `{ address: { value, source }, apiKey }`,
     `Cache-Control: no-store`, creating the key if it is missing; a support session is refused it
     (`credentials`) — and the regenerate route of rule 31 too: the plugin declares both with
-    `ctx.secretRoutes` (specs/hosting-h2-account-security.md rule 23), beside the core policy's own
+    `ctx.secretRoutes` (specs/hosting/hosting-h2-account-security.md rule 23), beside the core policy's own
     entry. No more SSH to read `.env.local`.
     > **2026-10-23 (review of inte/plugins):** a connection that cannot be read is said in the card
     > (« Site internet : connexion illisible. » with « Réessayer »), never an empty tab; a support

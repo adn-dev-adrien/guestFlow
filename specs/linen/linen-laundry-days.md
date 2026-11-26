@@ -10,7 +10,9 @@
 | **Plugin** | `linen` (Linge et blanchisserie) — 1.1.2 → **1.2.0** (both lots in one release) |
 | **Amends** | [weekly-bed-linen-tracking.md](weekly-bed-linen-tracking.md) (rule 37), [linen-inventory-shortage-tracking.md](linen-inventory-shortage-tracking.md) (rule 18), [skip-laundry-trip.md](skip-laundry-trip.md) (rule 15), [laundry-extra-trip.md](laundry-extra-trip.md) (rule 21) |
 | **Coordinates with** | `dashboard-planning-scroll` (Planning as an infinite past/future scroll — this spec only needs the existing per-day `planning.days` slot) |
-| **HTML summary** | [docs/specs/2026-10-28-linen-laundry-days.html](../docs/specs/2026-10-28-linen-laundry-days.html) |
+| **HTML summary** | [docs/specs/2026-10-28-linen-laundry-days.html](../../docs/specs/2026-10-28-linen-laundry-days.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Noted that `SettingsLaundrySection.jsx` is deleted (replaced by `LaundryScheduleSection.jsx`); the link in context points to a removed file.
 
 ---
 
@@ -24,18 +26,18 @@ dans le calcul du stock. »
 What the code does today (`origin/inte/plugins` 714ed5e4):
 
 - **One laundry weekday, period.** The `linen` plugin stores a single integer setting
-  `laundryWeekday` (default 2 = Tuesday) — [settings.js:9-16](../server/src/plugins/linen/settings.js#L9-L16).
-  The Linge page edits it with a single `Select` — [SettingsLaundrySection.jsx:47-60](../client/src/plugins/linen/SettingsLaundrySection.jsx#L47-L60).
+  `laundryWeekday` (default 2 = Tuesday) — [settings.js:9-16](../../server/src/plugins/linen/settings.js#L9-L16).
+  The Linge page edited it with a single `Select` (the since-deleted `SettingsLaundrySection.jsx`, replaced by `LaundryScheduleSection.jsx`).
 - **The « week » is hard-coded everywhere.** The windows and lookbacks step in 7-day jumps:
   `findLaundryDaysInRange`, `previousNonSkippedLaundryDay`, `previousNonSkippedRegularBefore`
-  ([laundryWindow.js:50-126](../server/src/plugins/linen/laundryWindow.js#L50-L126)); the trip ledger
-  tests `weekdayOf(date) === weekday` ([laundryTripLedger.js:124](../server/src/plugins/linen/laundryTripLedger.js#L124));
+  ([laundryWindow.js:50-126](../../server/src/plugins/linen/laundryWindow.js#L50-L126)); the trip ledger
+  tests `weekdayOf(date) === weekday` ([laundryTripLedger.js:124](../../server/src/plugins/linen/laundryTripLedger.js#L124));
   the stock engine seeds `atLaundry` from a 7-day window and tests the same equality per day
-  ([linenInventory.js:312-336, 387](../server/src/plugins/linen/linenInventory.js#L312-L336)).
+  ([linenInventory.js:312-336, 387](../../server/src/plugins/linen/linenInventory.js#L312-L336)).
   A second weekday cannot be expressed without touching all three.
 - **No laundry turnaround.** Linen dropped on a trip comes back on the *next* trip, whatever the gap: a
-  regular trip « takes the whole pool back » ([laundryTripLedger.js:147-157](../server/src/plugins/linen/laundryTripLedger.js#L147-L157),
-  [linenInventory.js:401-410](../server/src/plugins/linen/linenInventory.js#L401-L410)). With one trip
+  regular trip « takes the whole pool back » ([laundryTripLedger.js:147-157](../../server/src/plugins/linen/laundryTripLedger.js#L147-L157),
+  [linenInventory.js:401-410](../../server/src/plugins/linen/linenInventory.js#L401-L410)). With one trip
   a week this was harmless (7 days ≥ any laundry delay). With Tuesday + Thursday it silently assumes a
   48-hour laundry: if the laundry needs three days, the Thursday pick-up and the stock projection are
   both wrong — and the shortage forecast, the one figure meant to warn ahead, is optimistic.
@@ -46,17 +48,17 @@ What the code does today (`origin/inte/plugins` 714ed5e4):
   `dashboard-planning-scroll` lets the operator scroll into the past.
 - **The stock engine's initial state is a pile of special cases**: a 7-day-guarded seed, the
   `seedIsTodaysDrop` exception, a replay of past extra trips, and a pinned « known approximation »
-  ([linenInventory.js:295-375](../server/src/plugins/linen/linenInventory.js#L295-L375),
+  ([linenInventory.js:295-375](../../server/src/plugins/linen/linenInventory.js#L295-L375),
   [laundry-extra-trip.md](laundry-extra-trip.md) rule 13). Each assumes a weekly cycle.
 - **The client still shapes the laundry days.** `planningDays.js` merges five endpoints, sums the
-  counts and decides which day is shown ([planningDays.js:5-44](../client/src/plugins/linen/planningDays.js#L5-L44)) —
+  counts and decides which day is shown ([planningDays.js:5-44](../../client/src/plugins/linen/planningDays.js#L5-L44)) —
   a CLAUDE.md §6.0 violation, and five requests per scroll window.
 - **Small bug met on the way**: the shortage alert's labels miss the bath mat, so a bath-mat shortage
-  reads « bathMat » ([shortageController.js:6-13](../server/src/plugins/linen/shortageController.js#L6-L13)).
+  reads « bathMat » ([shortageController.js:6-13](../../server/src/plugins/linen/shortageController.js#L6-L13)).
 
 The Planning already has the generic extension point this needs: the `planning.days` slot, whose
 `load({ from, to })` returns `{ [date]: entry }` and whose host merges windows as the scroll reaches
-them ([PlanningPage.jsx:195-240](../client/src/pages/PlanningPage.jsx#L195-L240)). **No core change.**
+them ([PlanningPage.jsx:195-240](../../client/src/pages/PlanningPage.jsx#L195-L240)). **No core change.**
 
 ## 2. Goal
 
@@ -138,7 +140,7 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
     horizon (no projection of the past). The client's `planningDays.js` becomes one call: no sum, no
     filter.
 14. **The laundry card is not a ticked task.** It keeps counting zero in the day counter
-    ([planning-day-task-count.md](planning-day-task-count.md)); « non réalisé » stays the only state the
+    ([planning-day-task-count.md](../planning/planning-day-task-count.md)); « non réalisé » stays the only state the
     operator records. _(Arbitration A3 — recommended option.)_
 
 ### 3.3 Stock projection
@@ -340,7 +342,7 @@ listed in §7.4.
 
 ## 6. UI / UX
 
-Interactive mockup: [docs/specs/2026-10-28-linen-laundry-days.html](../docs/specs/2026-10-28-linen-laundry-days.html).
+Interactive mockup: [docs/specs/2026-10-28-linen-laundry-days.html](../../docs/specs/2026-10-28-linen-laundry-days.html).
 
 ### 6.1 Paramètres › Linge — « Blanchisserie » card
 
@@ -407,7 +409,7 @@ when the spell still runs at the horizon.
 
 ## 7. Test plan
 
-Every rule is cited by at least one test (`specs/linen-laundry-days.md §3.x rule N`, checked by
+Every rule is cited by at least one test (`specs/linen/linen-laundry-days.md §3.x rule N`, checked by
 `node scripts/check-spec-coverage.mjs`). The four appended rules are cited too:
 `weekly-bed-linen-tracking.md rule 37`, `skip-laundry-trip.md rule 15` and `laundry-extra-trip.md rule 21`
 by the multi-day ledger file, `linen-inventory-shortage-tracking.md rule 18` by the multi-day inventory file.

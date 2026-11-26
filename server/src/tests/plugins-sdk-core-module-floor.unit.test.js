@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md, SDK 2.5.0 note (audit 2026-10-27) — a plugin may only reach a core
+// specs/plugins/plugins-phase-1-sdk.md, SDK 2.5.0 note (audit 2026-10-27) — a plugin may only reach a core
 // module, or a name of one, that exists at the FLOOR of the SDK range its manifest declares. The core
 // refuses a package whose range the running SDK does not satisfy (phase 4 rule 12), so a plugin that
 // declares `^2.0.0` but calls `coreModule('installmentPlan')` (SDK 2.5.0) would load on a 2.4 core and
@@ -67,11 +67,11 @@ test('the audit case: accounting-export reaches paymentSettlementsModel (SDK 2.2
   assert.ok(semver.gte(semver.minVersion(readSourceManifest('accounting-export').sdk), '2.24.0'));
 });
 
-// specs/plugins-phase-1-sdk.md rule 37 — `coreModule('stayDates')` ships with SDK 2.20.0, hands the stay's own guard
+// specs/plugins/plugins-phase-1-sdk.md rule 37 — `coreModule('stayDates')` ships with SDK 2.20.0, hands the stay's own guard
 // too, and its consumers declare that floor; the tariff recipes reach the window through the core models. online-payment
 // joined with its reconciliation start date (audit R20-P1).
-// specs/plugins-phase-1-sdk.md rule 41 — accounting-export reads the entered-date window for the synthesis's periods.
-// guest-app joins with specs/guest-app.md rules 28, 40 (the service-hour exception dates, the slot dates it reads).
+// specs/plugins/plugins-phase-1-sdk.md rule 41 — accounting-export reads the entered-date window for the synthesis's periods.
+// guest-app joins with specs/guest-app/guest-app.md rules 28, 40 (the service-hour exception dates, the slot dates it reads).
 test('rule 37: stayDates is an SDK 2.20.0 module; accounting-export, linen, online-payment, school-holidays, hourly-resources and guest-app declare ^2.20.0 at least', () => {
   assert.equal(moduleSince.get('stayDates'), '2.20.0');
   assert.deepEqual(Object.keys(require('../utils/stayDates')).sort(), [...CONTRACT.stayDates].sort());
@@ -81,7 +81,7 @@ test('rule 37: stayDates is an SDK 2.20.0 module; accounting-export, linen, onli
   consumers.forEach((id) => assert.ok(semver.gte(semver.minVersion(readSourceManifest(id).sdk), '2.20.0'), id));
 });
 
-// specs/plugins-phase-1-sdk.md rule 57 — the arrival SAS's re-open seed is a contract name of SDK 2.32.0, and sas ranges that floor.
+// specs/plugins/plugins-phase-1-sdk.md rule 57 — the arrival SAS's re-open seed is a contract name of SDK 2.32.0, and sas ranges that floor.
 test('rule 57: reservationsModel#buildArrivalSeed is an SDK 2.32.0 name; sas reads it and declares ^2.32.0 at least', { skip: skipWithout(['sas']) }, () => {
   assert.ok(CONTRACT.reservationsModel.includes('buildArrivalSeed'));
   assert.deepEqual(namesSince.filter((n) => n.name === 'buildArrivalSeed'), [{ module: 'reservationsModel', name: 'buildArrivalSeed', version: '2.32.0' }]);

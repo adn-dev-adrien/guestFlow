@@ -1,5 +1,5 @@
 /**
- * STEP platformPayment — PLATFORM PAYMENT (specs/pricing-components.md §3 rule 52).
+ * STEP platformPayment — PLATFORM PAYMENT (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Clamps the commissions entered for the platform and computes the net it pays out.
  * `apply(ctx)` returns a new context and never mutates the one it receives.

@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 20 (review of #954, audit R21-M1's class) — « Utiliser les tarifs
+// specs/reservations/reservation-save-keeps-pricing.md rule 20 (review of #954, audit R21-M1's class) — « Utiliser les tarifs
 // actuels » and a change of logement drop the stored snapshot so the catalogue prices the lines again. The contribs
 // travelled in that snapshot, so a catalogue line came back with none: the journal held on that save, then moved at
 // the next priced one, on entries already booked.

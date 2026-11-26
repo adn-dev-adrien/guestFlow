@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rule 11 — a gate key result for the direct stay and the connector state.
+// specs/plugins/plugin-removal-resilience.md rule 11 — a gate key result for the direct stay and the connector state.
 module.exports = {
   seed(db, { stays }) {
     db.prepare(`INSERT INTO gate_key_results (reservationId, action, ok, state, code, url, receivedAt, propertyId)

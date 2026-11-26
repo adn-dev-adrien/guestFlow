@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 124 — « Vendable hors séjour » explains before the save: an article the engine cannot sell with no stay leaves the switch inert (focusable,
+// specs/pricing/pricing-components.md rule 124 — « Vendable hors séjour » explains before the save: an article the engine cannot sell with no stay leaves the switch inert (focusable,
 // `aria-disabled`) with the reason as its helper; one saved before and already checked stays active so it can be unchecked, the reason in the error colour then « Décocher pour enregistrer. ».
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

@@ -7,7 +7,7 @@ const {
   buildHelperArgs, buildSpawnCommand, resolveSetsid, spawnHelper, HELPER_SCRIPT, DEFAULT_TIMEOUT_SECONDS,
 } = require('../utils/updateHelper');
 
-// specs/self-update-and-releases.md §3.E rule 28 + §4.1. This is the boundary where a version string
+// specs/hosting/self-update-and-releases.md §3.E rule 28 + §4.1. This is the boundary where a version string
 // stops being data and becomes part of a command line, so it is where the validation has to be.
 
 const PATHS = {

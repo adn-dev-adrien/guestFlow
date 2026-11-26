@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 95 (stabilisation loop t4, S4-5, 2026-11-16) — before the stay clock reaches the arrival, a stay whose extras are
+// specs/pricing/pricing-components.md §3 rule 95 (stabilisation loop t4, S4-5, 2026-11-16) — before the stay clock reaches the arrival, a stay whose extras are
 // carved out early (its arrival complement collected) still never moves a plan or arrival line to the departure: `saleDetail` serves it no departure
 // moment and the line API refuses it (409 MOMENT_NOT_AVAILABLE). A line the sale stamped `departure` keeps its way there and back.
 process.env.DB_PATH = ':memory:';

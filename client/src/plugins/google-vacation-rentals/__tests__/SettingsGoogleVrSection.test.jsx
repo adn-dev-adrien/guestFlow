@@ -1,4 +1,4 @@
-// specs/google-vacation-rentals-feed.md rules 16-17, §6 — the settings tab: Envoi refused without a
+// specs/site/google-vacation-rentals-feed.md rules 16-17, §6 — the settings tab: Envoi refused without a
 // partner id (shown at once, nothing written), confirmed otherwise; the last check's mismatches listed
 // with both amounts, as the server returns them.
 import React, { createRef } from 'react';

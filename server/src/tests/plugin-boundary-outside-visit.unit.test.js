@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 2-3 — the screen and the session line belong to `hourly-resources`, the visit's money to the core: with the plugin off, the
+// specs/sas/outside-booking-sas.md rules 2-3 — the screen and the session line belong to `hourly-resources`, the visit's money to the core: with the plugin off, the
 // documents it wrote stay readable (core rows: lines, payments, totals) and its `resource` suggestion context disappears; nothing in the visit's code names a
 // resource or a platform.
 process.env.DB_PATH = ':memory:';

@@ -8,7 +8,7 @@
  *
  * It is called from the account lifecycle (deactivation, role change, password reset/change) so
  * the control an admin reaches for after an employee leaves actually ends the live session, not
- * only future logins. See specs/security-auth-encryption.md rule 3 (Revocation) and the
+ * only future logins. See specs/hosting/security-auth-encryption.md rule 3 (Revocation) and the
  * 2026-10-08 infrastructure audit, finding AUTH-1.
  *
  * `buildModel(db)` factory for tests; a default instance is bound to the production database.
@@ -23,7 +23,7 @@ const db = require('../database');
 
 // A session belongs to a user once logged in (`sess.user.id`) and while it waits for the second step
 // (`sess.pendingTwoFactor.userId`): a deactivation or a password reset must end that one too, or the
-// code typed a minute later would still open it (specs/security-auth-encryption.md rule 3).
+// code typed a minute later would still open it (specs/hosting/security-auth-encryption.md rule 3).
 const OWNED_BY = "CAST(json_extract(sess, '$.user.id') AS INTEGER) = @id"
   + " OR CAST(json_extract(sess, '$.pendingTwoFactor.userId') AS INTEGER) = @id";
 

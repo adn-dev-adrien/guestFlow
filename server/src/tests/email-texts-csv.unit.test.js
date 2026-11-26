@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.E rules 16–18 — the whole wording as one CSV: exported
+// specs/emails/guest-email-texts-made-simple.md §3.E rules 16–18 — the whole wording as one CSV: exported
 // with a BOM and `;`, read back in any column order and with either separator, shown before anything
 // is saved, refused row by row with its line number, an empty cell keeping the text and `-` emptying it.
 

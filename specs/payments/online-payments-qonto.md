@@ -2,11 +2,13 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Phase 2 (deposit happy-path + confirmation email) Implemented — validated on sandbox; balance/reminders/abandonment deferred |
+| **Status** | Implemented — Qonto links, polling, deposit/balance/full-payment links, confirmation e-mail. Automatic reminders, abandonment and the « non réglées » page were never built (rules 12-17 retired). |
 | **Branch** | `feature/qonto-online-payments-phase2` _(user-managed)_ |
 | **Created** | 2026-06-11 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Status updated; rules 12, 13, 15, 16, 17 retired (automatic abandonment/dunning replaced by the operator-driven schedule of `payment-schedule-and-cancellation.md`; `cancelledUnpaidAt`, `paymentTimings` and `UnpaidReservationsPage` no longer exist in the code). The configurable reminder/abandonment offsets of rule 1 do not exist either.
 
 ---
 
@@ -14,9 +16,9 @@
 
 GuestFlow already receives **pre-reservations** from the WordPress site as **devis** (kind='devis',
 dates NOT blocked) via the public booking API, and can convert a devis to a reservation
-(`devisModel.convertToReservation` — [devisController.js:67](../server/src/controllers/devisController.js#L67)).
+(`devisModel.convertToReservation` — [devisController.js:67](../../server/src/controllers/devisController.js#L67)).
 It also has a complete **email automation** stack: templated emails with `dayOffset` scheduling, a
-daily ~08:00 cron pass (`emailAutoSendRunner` via [scheduledTasks.js:110](../server/src/scheduledTasks.js#L110)),
+daily ~08:00 cron pass (`emailAutoSendRunner` via [scheduledTasks.js:110](../../server/src/scheduledTasks.js#L110)),
 manual + auto send modes, `email_log`, and a dashboard "pending emails" widget. Settings hold the
 **company name + logo + SMTP** (encrypted at rest, AES-256-GCM via `utils/encryption.js`).
 
@@ -140,35 +142,25 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
     > Amended 2026-10-30 by [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 35: the link is no
     > longer re-offered read-only — the send resolves the acompte link (reused while it has 24 h left,
     > else minted) and the e-mail states its end of validity (rule 36). Still sent by hand.
-12. **Deposit overdue → devis abandoned + client email.** At the configured offset after the deposit
-    due date (default **J+1**) with the deposit still unpaid, the **devis is switched to "abandoned"**
-    (it never became a reservation; no dates were blocked), a **dashboard message** + **host email**
-    are posted, and a **mail is sent to the guest** telling them the reservation is **considered
-    abandoned** (dates released, deposit was required to hold them). The abandoned devis lands on the
-    "Réservations non réglées" page (§3.6).
+12. *(Retired 2026-11-26 — a devis is never abandoned automatically and no cron emails the guest; payment e-mails are proposed and sent by the operator; see specs/payments/payment-schedule-and-cancellation.md rules 36-44.)*
+    > **Sans test** — retired rule
 
 ### 3.5 Balance → reminders → overdue
 
-13. **J-10 before the balance due date** (offset configurable): auto email with the **same recap as the
-    deposit email** but for the **balance** (balance amount + due date), a **new Qonto payment link**
-    for the balance amount, and the notice: **without the balance paid by the deadline, the
-    reservation is considered abandoned and re-listed, with no refund of the deposit.**
+13. *(Retired 2026-11-26 — the balance request e-mail is manual, its daily pass was removed; see specs/payments/payment-schedule-and-cancellation.md rule 38.)*
+    > **Sans test** — retired rule
 14. **On balance paid:** mark `balancePaid=true` on the reservation, post a **dashboard message**, send
     a **host notification email**, and send the **guest** a confirmation email ("solde reçu") with the
     stay recap.
-15. **J-5 and J-day (balance unpaid)** (offsets configurable): auto **reminder** email to the guest
-    (dunning), with the link.
-16. **J+1 after the due date (still unpaid)** (offset configurable): post a **dashboard message** +
-    **host email** ("balance not paid, must be released"), **and a mail to the guest** informing them
-    the reservation is abandoned (no deposit refund). The dashboard notification carries a **Cancel**
-    button → moves the reservation to the **"Réservations non réglées"** archive page and **frees the
-    dates** (excluded from occupancy/planning).
+15. *(Retired 2026-11-26 — balance reminders are manual, never an automatic dunning; see specs/payments/payment-schedule-and-cancellation.md rule 39.)*
+    > **Sans test** — retired rule
+16. *(Retired 2026-11-26 — a reservation unpaid after its solde is cancelled by the operator in one click, never automatically; see specs/payments/payment-schedule-and-cancellation.md rule 11.)*
+    > **Sans test** — retired rule
 
 ### 3.6 "Réservations non réglées" archive
 
-17. Both an **abandoned devis** (deposit overdue, §3.4 rule 12) and a **released reservation** (balance
-    overdue + cancelled, rule 16) land on a dedicated **"Réservations non réglées"** page, kept for
-    records / audit. A reservation moved there has its dates **freed** (occupancy excludes it).
+17. *(Retired 2026-11-26 — there is no « Réservations non réglées » page and no `cancelledUnpaidAt` column; an operator-cancelled stay keeps its row with kind `cancelled`, see specs/payments/payment-schedule-and-cancellation.md rules 11 and 24.)*
+    > **Sans test** — retired rule
 
 ### 3.7 Last-minute booking — full payment, no deposit
 

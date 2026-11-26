@@ -1,4 +1,4 @@
-// specs/google-calendar-oauth-rework.md rule 28 (audit R5-2) — reconcile pushes each stay through the same
+// specs/settings/google-calendar-oauth-rework.md rule 28 (audit R5-2) — reconcile pushes each stay through the same
 // per-reservation order as the hooks, and re-reads the stay inside it: a cancellation answered while the
 // reconcile walks its list must not be undone by the reconcile's stale snapshot.
 const test = require('node:test');

@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | https://github.com/adn-dev-adrien/guestFlow/pull/577 |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §4 file map: `PricedItemsPage` and `BillableAmountsPage` no longer exist (the billable amounts are the SAS plugin tab `client/src/plugins/sas/BillableAmountsTab.jsx`, rendered inside the settings page that uses `PageTabs`); the 12 rules and `components/PageTabs.jsx` stand.
+
 ---
 
 ## 1. Context
@@ -27,7 +29,7 @@ On top of the inconsistency, the wrapper pattern has a **defect on `xs`**: `Opti
 hides its title on `xs`, the page shows a strip of tabs followed by a white bar containing nothing but
 « Nouvelle option » — **no page title at all**.
 
-`specs/design-system.md` never covered tabs: the « Maison » direction defines typography, radius, cards,
+`specs/design-system/design-system.md` never covered tabs: the « Maison » direction defines typography, radius, cards,
 badges and the sticky bar, but no tab role. Every page therefore invented its own.
 
 ## 2. Goal
@@ -45,7 +47,7 @@ on desktop as on mobile — and a page can no longer invent its own.
 3. **The title is always visible when tabs are present.** Passing `tabs` to `PageActionBar` implies
    `titleOnXs`: the mobile bar can never be an anonymous row of actions again.
    > 2026-10-19: the intent holds, the means changed — on `xs` every page title now lives in the top
-   > bar (`specs/shell-and-home-day-first.md` rule 15) and `titleOnXs` is gone.
+   > bar (`specs/planning/shell-and-home-day-first.md` rule 15) and `titleOnXs` is gone.
 4. **Card-level tabs** (a switch that belongs to one card or dialog, not to the page) use the same
    component with `variant="card"`: same typography, left-aligned, a bottom divider and a standard
    `mb: 2` rhythm. No forced width, no `fullWidth` stretching.
@@ -63,7 +65,7 @@ on desktop as on mobile — and a page can no longer invent its own.
    look (rule 5, 6), so a stray `<Tabs>` written later still lands on the house style; `PageTabs` carries
    the structure and the behaviour (rules 4, 7, 8).
 10. **Nothing about tab content changes** — same labels, same order, same `?tab=` URLs, same routes.
-11. **The tabs give way, never the actions** (added 2026-10-22, specs/integrations-tab-per-plugin.md,
+11. **The tabs give way, never the actions** (added 2026-10-22, specs/plugins/integrations-tab-per-plugin.md,
     seven tabs on Intégrations). On `sm+` a bar with `tabs` does not wrap its row: the title side and the
     actions keep their width (the title side at least `min(100%, 17rem)`, room for a one-line
     « Dernière mise à jour » under the title), and the tab strip shrinks to the room left and scrolls

@@ -1,5 +1,5 @@
 /**
- * Extras sold on a LOCKED fiche — specs/mid-stay-extras-on-locked-fiche.md.
+ * Extras sold on a LOCKED fiche — specs/sas/mid-stay-extras-on-locked-fiche.md.
  *
  * From its check-in date a reservation is locked, yet extras are routinely sold to a guest who is
  * already on site. This module owns the pure rules of that door: when it is open (rule 1), which
@@ -100,7 +100,7 @@ function arrivalLineFloors(baselineRaw, beforeLines) {
       const rounded = entry.hourly ? ceil2(estimate) : Math.ceil(estimate - 1e-9);
       minQuantity = Math.min(entry.quantity, Math.max(rounded, Math.min(1, entry.quantity)));
     }
-    // The same floor in what the field shows (specs/non-card-option-served-persons.md rule 17): a
+    // The same floor in what the field shows (specs/options/non-card-option-served-persons.md rule 17): a
     // non-card line's `quantity` is 1, so only its count can say how many people were sold.
     const typedFloor = entry.typedCount == null ? {} : {
       minTypedCount: entry.total > arrivalAmount + 0.005
@@ -130,7 +130,7 @@ function arrivalExtrasViolations(baselineRaw, beforeLines, afterLines) {
     if (!wasOffered && isAllOffered(next)) { violations.push({ key, reason: 'offered' }); continue; }
     if (next.quantity + EPSILON < floor.minQuantity) { violations.push({ key, reason: 'reduced' }); continue; }
     // An offered line's quantity is 1 and its amount 0: only its count can shrink
-    // (specs/non-card-option-served-persons.md rule 27). The floor is whole so a drifted line can
+    // (specs/options/non-card-option-served-persons.md rule 27). The floor is whole so a drifted line can
     // still be repaired by typing the whole number it reads as (rule 18).
     if (wasOffered && floor.minTypedCount != null && next.frozenCount != null
       && next.frozenCount < Math.floor(floor.minTypedCount + EPSILON)) {

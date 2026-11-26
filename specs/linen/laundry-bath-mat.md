@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -16,22 +18,22 @@ The laundry ("blanchisserie") workflow tracks **six** linen types — bed sheets
 (`single`, `double`, `baby`) and towels (`large`, `medium`, `small`) — across a fixed pipeline:
 
 - Per-type stock in `app_settings` (`bedLinenStock*` / `towelStock*`), edited on the
-  **Blanchisserie** settings page ([LinenStockPage.js](../client/src/pages/LinenStockPage.js)).
+  **Blanchisserie** settings page ([LinenStockPage.js](../../client/src/plugins/linen/LinenStockPage.jsx)).
 - Demand is driven by two **auto-seeded linen options**: "Linge de lit" (`autoOptionType =
   'bed_linen'`, `countsAsBedLinen = 1`) and "Linge de toilette" (`autoOptionType =
   'bathroom_linen'`, `countsAsBathroomLinen = 1`), seeded by
-  [bedLinenSeed.js](../server/src/utils/bedLinenSeed.js) /
-  [bathroomLinenSeed.js](../server/src/utils/bathroomLinenSeed.js).
+  [bedLinenSeed.js](../../server/src/utils/bedLinenSeed.js) /
+  [bathroomLinenSeed.js](../../server/src/utils/bathroomLinenSeed.js).
 - A linen option is **active** on a reservation when it is either selected explicitly
   (`reservation_options`) **or** set as a property default (`property_option_defaults`, fallback).
 - Each linen option supports — generically, for every option — a per-property **price**
   (`OptionPriceSection` → `property_option_prices`), a per-property **"inclus par défaut"**
   toggle (`OptionDefaultsSection` → `property_option_defaults`), and a read-only defaults mirror
-  (`OptionPropertyDefaultsMirror`), all in [OptionsPage.js](../client/src/pages/OptionsPage.js).
-- Per-day drop-off/pick-up are aggregated in [laundryModel.js](../server/src/models/laundryModel.js),
-  surfaced by [planningController.js](../server/src/controllers/planningController.js); stock is
-  simulated by the pure engine [linenInventory.js](../server/src/utils/linenInventory.js) and
-  rendered by [LaundryDayCard.js](../client/src/components/LaundryDayCard.js).
+  (`OptionPropertyDefaultsMirror`), all in [OptionsPage.js](../../client/src/pages/OptionsPage.jsx).
+- Per-day drop-off/pick-up are aggregated in [laundryModel.js](../../server/src/plugins/linen/laundryModel.js),
+  surfaced by [planningController.js](../../server/src/controllers/planningController.js); stock is
+  simulated by the pure engine [linenInventory.js](../../server/src/plugins/linen/linenInventory.js) and
+  rendered by [LaundryDayCard.js](../../client/src/plugins/linen/LaundryDayCard.jsx).
 
 Bath mats go to the wash with stays but have no type today: invisible in counts and stock.
 
@@ -109,7 +111,7 @@ added on the Blanchisserie page.
 
 13. **The manual line of a laundry trip counts bath mats too** (lifts the §8 deferral and the edge case
     above): a « Tapis » stepper under « Serviettes », signed like the other types
-    (specs/laundry-manual-removals.md), stored in `laundry_trip_manual_additions.bathMats` (plugin
+    (specs/linen/laundry-manual-removals.md), stored in `laundry_trip_manual_additions.bathMats` (plugin
     migration `manual_additions_bath_mats_v1`, existing rows read 0), folded into À apporter / À
     récupérer and washed by the stock simulation. *Why:* the card counts the mats, and none could be
     added or withdrawn by hand.
@@ -210,11 +212,11 @@ defaults mirror. The `countsAsBathMat` flag is not shown (seed-managed), identic
 `countsAsBathroomLinen` is hidden. Responsive: per-property rows stack on `xs` (mirror the price
 section).
 
-**Blanchisserie page** ([LinenStockPage.js](../client/src/pages/LinenStockPage.js)) — the Serviettes
+**Blanchisserie page** ([LinenStockPage.js](../../client/src/plugins/linen/LinenStockPage.jsx)) — the Serviettes
 card gains a 4th field « Tapis de bain » next to Grandes / Moyennes / Petites (`clampInt`, 0 = non
 suivi). Stacks on `xs`, two-up on `lg` as today. PageActionBar/dirty-guard unchanged.
 
-**Laundry card** ([LaundryDayCard.js](../client/src/components/LaundryDayCard.js)) — « Serviettes »
+**Laundry card** ([LaundryDayCard.js](../../client/src/plugins/linen/LaundryDayCard.jsx)) — « Serviettes »
 line gains `… · N tapis` when `bathMats > 0` ("tapis" invariable); availability line shows the
 bath-mat figure when stock is tracked, red on shortage.
 

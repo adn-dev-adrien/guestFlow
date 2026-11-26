@@ -1,4 +1,4 @@
-// « Revenu par mois » written without hover (specs/finance-dashboard-redesign.md rule 44): which
+// « Revenu par mois » written without hover (specs/accounting/finance-dashboard-redesign.md rule 44): which
 // month carries its total above its column, on which segment, and the compact French text. Pure.
 
 // A total smaller than this share of the tallest column is left to the tooltip: its label would sit

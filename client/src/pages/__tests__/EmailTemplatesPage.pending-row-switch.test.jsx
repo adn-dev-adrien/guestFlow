@@ -1,4 +1,4 @@
-// specs/email-automation.md rule 21 — one send dialog serves every pending row: the second row opens
+// specs/emails/email-automation.md rule 21 — one send dialog serves every pending row: the second row opens
 // on its own template and sends it, whatever the first row was.
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';

@@ -1,4 +1,4 @@
-// specs/plugin-dependencies.md rules 17–18 — the « Modules » of a customer print « Nécessite » and
+// specs/plugins/plugin-dependencies.md rules 17–18 — the « Modules » of a customer print « Nécessite » and
 // « Utilisé par », and a switch that takes other modules along names them and sends one flag.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';

@@ -1,6 +1,6 @@
 /**
  * One-shot migration: public devis lines whose quantity meant SÉANCES now mean PORTIONS
- * (specs/site-meal-portions.md rule 11).
+ * (specs/site/site-meal-portions.md rule 11).
  *
  * Before this change a website visitor's « 2 » on a per-person card option billed 2 × persons; the
  * stored line therefore carries `quantity = 2` and `billedUnits = 2 × persons`. Now the engine bills

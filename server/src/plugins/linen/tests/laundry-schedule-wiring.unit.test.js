@@ -1,4 +1,4 @@
-// specs/linen-laundry-days.md §4.1 + §4.3 — the schedule routes as the loader mounts them behind the
+// specs/linen/linen-laundry-days.md §4.1 + §4.3 — the schedule routes as the loader mounts them behind the
 // `linen` plugin: answered only while it is active, backed by the migrated table.
 const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
@@ -60,7 +60,7 @@ async function request(app, method, url, body) {
   }
 }
 
-test('specs/linen-laundry-days.md §4.3: the schedule routes answer 404 while the plugin is not installed', async () => {
+test('specs/linen/linen-laundry-days.md §4.3: the schedule routes answer 404 while the plugin is not installed', async () => {
   const { app } = boot({ installed: false });
   for (const [method, url] of [['GET', '/api/laundry/schedule'], ['PUT', '/api/laundry/schedule'], ['POST', '/api/laundry/schedule/preview']]) {
     const res = await request(app, method, url, method === 'GET' ? undefined : { weekdays: [2], turnaroundDays: 1 });
@@ -69,7 +69,7 @@ test('specs/linen-laundry-days.md §4.3: the schedule routes answer 404 while th
   }
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 4: a fresh install answers { Tuesday, 1 day } and no pending version', async () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 4: a fresh install answers { Tuesday, 1 day } and no pending version', async () => {
   const { app } = boot({ installed: true });
   const res = await request(app, 'GET', '/api/laundry/schedule');
   assert.equal(res.status, 200);
@@ -80,7 +80,7 @@ test('specs/linen-laundry-days.md §3.1 rule 4: a fresh install answers { Tuesda
   assert.match(res.body.tomorrow, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 5: PUT then GET round-trips the pending version, a refusal is a 400 and the preview writes nothing', async () => {
+test('specs/linen/linen-laundry-days.md §3.1 rule 5: PUT then GET round-trips the pending version, a refusal is a 400 and the preview writes nothing', async () => {
   const { app, db } = boot({ installed: true });
   const saved = await request(app, 'PUT', '/api/laundry/schedule', { weekdays: [4, 2], turnaroundDays: 2 });
   assert.equal(saved.status, 200);
@@ -102,7 +102,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: PUT then GET round-trips the pen
   assert.equal(rows(), before);
 });
 
-test('specs/linen-laundry-days.md §3.5 rule 25: the 1.2.0 changelog of the plugin says, in French, impersonal and short, what changed', () => {
+test('specs/linen/linen-laundry-days.md §3.5 rule 25: the 1.2.0 changelog of the plugin says, in French, impersonal and short, what changed', () => {
   const manifest = require('../manifest.json');
   const lines = manifest.changelog['1.2.0'];
   assert.ok(lines.includes('Plusieurs jours de blanchisserie par semaine.'));

@@ -7,7 +7,7 @@
 | **Created** | 2026-10-18 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Depends on** | `specs/ical-export-closures.md` (the closure events, unchanged here) |
+| **Depends on** | `specs/platforms/ical-export-closures.md` (the closure events, unchanged here) |
 
 ---
 
@@ -28,7 +28,7 @@ ATTENDEE:mailto:m.vasseur@example.fr
 Measured on a copy of the Solio database by the review of 2026-10-18 (M1): 18 `ATTENDEE` lines in the
 Gîte's feed, 14 in the lodge's, real names in `SUMMARY`. The guests of one platform were handed to its
 competitors, and to anyone holding the URL (the token is the only protection). The question was parked
-by `specs/ical-export-closures.md` §8 on 2026-09-20 as « worth its own spec »: this is that spec. GuestFlow
+by `specs/platforms/ical-export-closures.md` §8 on 2026-09-20 as « worth its own spec »: this is that spec. GuestFlow
 is now sold to other operators, which makes it a GDPR matter for them too.
 
 A platform needs nothing but the dates to block them.
@@ -49,10 +49,10 @@ The feed says when the property is taken, and nothing about who takes it.
 3. **What the platforms rely on is unchanged**: `UID:reservation-<id>@guestflow.local` (stable, so a
    platform updates the same block across fetches), `DTSTART` / `DTEND` (start inclusive, end
    exclusive), `TRANSP:OPAQUE`, the devis exclusion (`kind = 'reservation'` only) and the closure
-   events of `specs/ical-export-closures.md`.
+   events of `specs/platforms/ical-export-closures.md`.
 4. **Versioning.** No platform reads `SUMMARY`, `DESCRIPTION` or `ATTENDEE` to block dates, so no consumer
    loses a contract: the change ships as a **Z** fix on `master` and a **Y** on `inte/plugins`. The
-   operator decides at release time whether it deserves an X (`specs/self-update-and-releases.md`
+   operator decides at release time whether it deserves an X (`specs/hosting/self-update-and-releases.md`
    §3.A rule 2) — see §9.
    > **Sans test** — a versioning judgement; the behaviour it rests on is rules 1–3.
 

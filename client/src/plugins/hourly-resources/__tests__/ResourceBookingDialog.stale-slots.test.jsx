@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rule 32 — the occupied slots drawn in the booking dialog
+// specs/plugins/plugins-phase-3c-hourly-resources.md rule 32 — the occupied slots drawn in the booking dialog
 // are always those of the date on screen: the late answer for a date just left is dropped.
 import React from 'react';
 import { vi } from 'vitest';

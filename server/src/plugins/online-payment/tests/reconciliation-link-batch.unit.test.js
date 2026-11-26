@@ -1,4 +1,4 @@
-// specs/reconciliation-assisted-matching.md rule 8 — « Rattacher » sends every pair in one call: all pairs
+// specs/accounting/reconciliation-assisted-matching.md rule 8 — « Rattacher » sends every pair in one call: all pairs
 // and their fiche writes succeed together or none is stored. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -26,7 +26,7 @@ test('rule 8 — two credits cover the acompte: the fiche is marked received at 
   assert.equal(lines().length, 2);
 });
 
-test('rule 8 — specs/qonto-bank-reconciliation.md rule 37: a partial cover stores the lines and marks nothing', () => {
+test('rule 8 — specs/accounting/qonto-bank-reconciliation.md rule 37: a partial cover stores the lines and marks nothing', () => {
   const id = stay();
   const { controller, transactions } = build();
   transactions.upsertMany([credit('a', 15000, { settledAt: at(dayAt(-13)) })], { bankAccountId: 'acc-1' });
@@ -81,7 +81,7 @@ test('rule 8 — at most 10 credits per call; an empty call is refused', () => {
   assert.equal(controller.linkBatch({ pairs: [], user: USER }).status, 422);
 });
 
-test('rule 8 — specs/qonto-bank-reconciliation.md rule 38: « Défaire » on each credit takes the fiche back', () => {
+test('rule 8 — specs/accounting/qonto-bank-reconciliation.md rule 38: « Défaire » on each credit takes the fiche back', () => {
   const id = stay();
   const { controller, transactions } = build();
   transactions.upsertMany([credit('a', 15000, { settledAt: at(dayAt(-13)) }), credit('b', 15000, { settledAt: at(dayAt(-11)) })], { bankAccountId: 'acc-1' });

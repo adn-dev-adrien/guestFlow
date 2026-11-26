@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const propertyIcalModel = require('../models/propertyIcalModel');
 const { globalFetch } = require('./icalFetchFixture');
 
-// specs/ical-sync-mapping-resilience.md — guards against the 2026-07-21 GdF incident:
+// specs/platforms/ical-sync-mapping-resilience.md — guards against the 2026-07-21 GdF incident:
 // one degenerate empty 200 wiped every UID→reservation mapping, and the next sync
 // duplicated every reservation whose icalOriginalSummary predated the column.
 // Covers: step ①bis UID fallback (rules 1), well-formed ICS rejection (rule 2),

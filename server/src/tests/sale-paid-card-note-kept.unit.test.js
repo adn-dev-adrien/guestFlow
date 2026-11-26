@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 23 and specs/guest-app.md rule 113 (stabilisation loop t5, A5-1, 2026-11-16) — a note paid online (an app or shop card order) is the
+// specs/pricing/pricing-components.md §3 rule 23 and specs/guest-app/guest-app.md rule 113 (stabilisation loop t5, A5-1, 2026-11-16) — a note paid online (an app or shop card order) is the
 // establishment's money: its line given back on a live stay is owed back through the register, never by cancelling the note. Before: the
 // cancel put the line back « à percevoir » and, the line then offered, the money received by card was recorded nowhere.
 process.env.DB_PATH = ':memory:';

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { resolveComplementPayment } = require('../utils/complementPayment');
 
-// specs/cash-complement-and-endofstay-finance.md §3.2 — « caisse interne » payment resolver.
+// specs/sas/cash-complement-and-endofstay-finance.md §3.2 — « caisse interne » payment resolver.
 const TODAY = '2026-06-14';
 
 test('cash (caisse interne) implies paid + sets today when no date', () => {

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 68 — `helpers/priceGateCompare.js`: exact (`Object.is`), every difference returned, the
+// specs/pricing/pricing-components.md §3 rule 68 — `helpers/priceGateCompare.js`: exact (`Object.is`), every difference returned, the
 // allowlist absorbs exactly one field of one stay with exactly its old and corrected values.
 const test = require('node:test');
 const assert = require('node:assert/strict');

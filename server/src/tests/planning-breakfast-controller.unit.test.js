@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { buildController } = require('../controllers/planningController');
 
-// specs/breakfast-option-and-planning-card.md §4.3 + §7.1. Pins the controller-level
+// specs/options/breakfast-option-and-planning-card.md §4.3 + §7.1. Pins the controller-level
 // shape of the GET /api/planning/breakfast endpoint: from/to validation, 400 codes, and
 // payload structure. Model is fully stubbed — its own contract is pinned in
 // `breakfast-model.unit.test.js`.

@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 30, specs/airbnb-mail-intake.md rule 30 (audit r3, external N5) —
+// specs/platforms/gites-de-france-mail-intake.md rule 30, specs/platforms/airbnb-mail-intake.md rule 30 (audit r3, external N5) —
 // a flood of mails from the sender costs a bounded number of downloads and a bounded amount of memory:
 // known Message-IDs are skipped before the body is downloaded, mails are handed over one by one, and a pass
 // reads at most `limit` of them, newest first.
@@ -90,7 +90,7 @@ test('rule 30: an oversized part is handed over as a skipped mail, so the caller
   assert.equal(delivered[0].text, '');
 });
 
-// specs/gites-de-france-mail-intake.md rule 31, specs/airbnb-mail-intake.md rule 31 (review of PR #865).
+// specs/platforms/gites-de-france-mail-intake.md rule 31, specs/platforms/airbnb-mail-intake.md rule 31 (review of PR #865).
 test('plugins-phase-1-sdk.md rule 32: a DKIM-verified mail older than 300 forgeries is delivered in the first pass, outside the cap', async () => {
   const stats = { downloads: 0, verified: new Set([1]) };
   const delivered = [];

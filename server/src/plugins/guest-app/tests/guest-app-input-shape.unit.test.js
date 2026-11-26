@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 1, 3, 6, 28, 40, 41 and 16-18, 48 — the guest and studio routes against malformed bodies. A
+// specs/guest-app/guest-app.md rules 1, 3, 6, 28, 40, 41 and 16-18, 48 — the guest and studio routes against malformed bodies. A
 // stay link, a poster code or a lookup whose fields are not text answers the same generic 404 as a wrong code (no
 // oracle, never a 500); the service hours, the delivery times and the slots answer a field of the wrong type with a
 // 400, never a 500; so do the studio's pages, blocks and photos.
@@ -104,7 +104,7 @@ test('rules 28, 41: delivery times and slots answer a malformed cart or id with 
   }
 });
 
-// specs/guest-app.md rules 16-18, 48 — the studio's write routes answer a field of the wrong type with a 400 and a
+// specs/guest-app/guest-app.md rules 16-18, 48 — the studio's write routes answer a field of the wrong type with a 400 and a
 // French message, never a 500.
 test('rules 16-18, 48: the studio routes answer a malformed body with a 400', () => withApi(async ({ call, db }) => {
   const model = require('../models/bookletModel')(db);

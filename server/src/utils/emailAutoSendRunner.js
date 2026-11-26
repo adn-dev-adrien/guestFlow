@@ -1,6 +1,6 @@
 /**
  * Email auto-send runner — invoked by the daily 08:00 pass that `utils/emailAutoSendScheduler`
- * schedules (specs/email-automation.md §3 rule 7). Iterates every enabled `auto` template + every
+ * schedules (specs/emails/email-automation.md §3 rule 7). Iterates every enabled `auto` template + every
  * matching reservation;
  * skips pairs that already produced a `sent` row in `email_log`; renders + sends + logs.
  *
@@ -10,7 +10,7 @@
  * Returns `{ sentCount, skippedCount, failedCount, results: [{ templateId, reservationId,
  * status, errorMessage? }] }` so the caller can log a one-line summary + the test can
  * assert behaviour. Adds `blocked: true` when the operator has not authorised automatic sending
- * (specs/no-automatic-email-without-approval.md §3 rule 2) — the pass then does nothing at all.
+ * (specs/emails/no-automatic-email-without-approval.md §3 rule 2) — the pass then does nothing at all.
  */
 
 const { renderTemplate } = require('./emailTemplateRenderer');
@@ -33,7 +33,7 @@ async function performAutoEmailPass(deps) {
   const { database, templatesModel, logModel, settingsModel, emailServiceFactory } = deps;
   const today = deps.today || todayIso();
 
-  // 0. No template in « auto » mode (specs/settings-rationalization.md rule 17b) → this pass is a
+  // 0. No template in « auto » mode (specs/settings/settings-rationalization.md rule 17b) → this pass is a
   // no-op: nothing is listed, nothing is rendered, no SMTP connection is opened and no `email_log`
   // row is written. The day's due « manual » templates are not lost — `emailLogModel.listPending`
   // surfaces them in the « à valider » queue, where one click sends them.
@@ -48,7 +48,7 @@ async function performAutoEmailPass(deps) {
 
   // 1. List every enabled auto template once. Manual templates are out of the cron's scope —
   // they surface on the dashboard pending list instead.
-  // The six guest-sequence templates have their own scheduler and ledger (specs/guest-email-sequence.md
+  // The six guest-sequence templates have their own scheduler and ledger (specs/emails/guest-email-sequence.md
   // rule 19): this legacy dayOffset pass never touches them, so a sequence email has one sender only.
   const templates = templatesModel.listEnabled()
     .filter(templateAutoSends)
@@ -58,21 +58,21 @@ async function performAutoEmailPass(deps) {
   }
 
   // 2. Reservations matching `<anchor date> + dayOffset = today`. One query per anchor, picked per
-  // template, so each template's offset stays independent (specs/email-automation.md §3 rule 7 +
-  // specs/payment-schedule-and-cancellation.md §3.7 rule 41).
+  // template, so each template's offset stays independent (specs/emails/email-automation.md §3 rule 7 +
+  // specs/payments/payment-schedule-and-cancellation.md §3.7 rule 41).
   //   • 'start'          → the arrival date (legacy default);
   //   • 'depositDueDate' → the acompte deadline, and only while the acompte is still unpaid;
   //   • 'balanceDueDate' → the solde deadline, same guard.
   // A payment anchor whose échéance gets paid stops matching immediately: the dunning email cannot
   // chase money that has arrived, dedup or no dedup.
-  // The own channels are platformNameFormat's, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  // The own channels are platformNameFormat's, read at query time (specs/plugins/plugins-phase-p-productisation.md rule 19).
   registerDirectChannelSql(database);
   const findReservationsStmt = database.prepare(`
     SELECT * FROM reservations
     WHERE COALESCE(kind, 'reservation') = 'reservation'
       AND date(startDate, ? || ' days') = ?
   `);
-  // specs/platform-payout-due-date.md §3.3 rules 22-23 — a MONEY template never leaves for a platform
+  // specs/platforms/platform-payout-due-date.md §3.3 rules 22-23 — a MONEY template never leaves for a platform
   // booking. Its acompte and solde are the platform's, not the guest's: asking an Airbnb guest for a
   // solde they already paid Airbnb is wrong whatever the date. This mirrors the filter
   // `balanceRequestRunner.selectEligible` has always had; without it the `balance_reminder` template
@@ -116,7 +116,7 @@ async function performAutoEmailPass(deps) {
   const findCustomOptions = database.prepare(`
     SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}
   `);
-  // Property provides bed linen by default? (specs/j1-linen-default-message.md §3 rule 1)
+  // Property provides bed linen by default? (specs/emails/j1-linen-default-message.md §3 rule 1)
   const findBedLinenDefault = database.prepare(`
     SELECT 1 FROM property_option_defaults d
     JOIN options o ON o.id = d.optionId
@@ -159,7 +159,7 @@ async function performAutoEmailPass(deps) {
       const property = reservation.propertyId ? findProperty.get(reservation.propertyId) : null;
       const options  = findOptions.all(reservation.id);
       const resources = findResources.all(reservation.id);
-      // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
+      // The English names come from the translation catalogue (specs/site/translation-catalogue.md rule 2).
       require('./translationResolver').attachEnglishNames(database, { options, resources });
       require('../models/stayFactsModel').attachResourceSentences(database, resources);
       const customOptions = findCustomOptions.all(reservation.id);
@@ -167,17 +167,17 @@ async function performAutoEmailPass(deps) {
         ? Boolean(findBedLinenDefault.get(reservation.propertyId))
         : false;
 
-      // specs/email-client-language-and-fiche-polish.md §3 rule 2: render in the CLIENT's language (then the
+      // specs/emails/email-client-language-and-fiche-polish.md §3 rule 2: render in the CLIENT's language (then the
       // reservation as a transitional fallback, then FR). EN body if filled, else FR.
       const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
-      // specs/j2-email-arrival-complement-line.md — same arrival-complement breakdown as the SAS recap.
+      // specs/emails/j2-email-coffee-and-sas-complement.md — same arrival-complement breakdown as the SAS recap.
       // Guarded: getByIdWithDetails needs the full schema (minimal test schemas → null → inline fallback).
       const arrivalComplementDetail = loadArrivalComplementDetail(database, reservation.id);
       const termsVersion = loadTermsVersion(database, reservation.id);
       const context = buildContext({
         reservation, client, property, options, resources, customOptions,
         bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail, termsVersion,
-        // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
+        // specs/payments/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
         cancellationKept: require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation),
         pluginContext: pluginEmailContext(reservation.id),
       });
@@ -188,7 +188,7 @@ async function performAutoEmailPass(deps) {
       );
       const to = String(client?.email || '').trim();
 
-      // specs/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking
+      // specs/emails/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking
       // guest: the pass skips it and the history says why.
       if (englishMissing(template, lang)) {
         const row = logModel.insert({

@@ -1,0 +1,13 @@
+# Hosting — releases and self-update, security foundation, accounts, control plane and fleet, backup, timezone
+
+Start with: `self-update-and-releases` (version meaning, release pipeline, update engine; CLAUDE.md §5.6). See also: `plugins/`, `settings/`.
+
+- `security-auth-encryption` — every `/api` route needs a session; scrypt passwords, forced first-login change, session revalidation and revocation, AES-256-GCM encrypted settings columns. Code: `server/src/middleware/requireAuth.js`, `server/src/utils/encryption.js`, `server/src/models/sessionsModel.js`.
+- `security-hardening` — CORS allowlist, helmet and CSP gated by `HTTPS_ENABLED`, login and API rate limits, upload whitelists, money validation at write boundaries. Code: `server/src/utils/securityConfig.js`, `server/src/middleware/rateLimiters.js`.
+- `self-update-and-releases` — `X.Y.Z` meaning, tag-driven release workflow, signed `SHA256SUMS`, operator digest, hourly detection and in-app install with swap helper and auto-rollback. Code: `server/src/controllers/systemController.js`, `server/scripts/apply-update.sh`, `.github/workflows/release.yml`.
+- `backup-restore` — off-device backup pulled over SSH (`sqlite3 .backup`, integrity check, manifest, rotation) and restore that never destroys current state. Code: `scripts/backup-from-pi.sh`, `scripts/restore-to-pi.sh`.
+- `server-timezone` — the server runs on Europe/Paris whatever the host says, so wall-clock schedulers compare like with like. Code: `server/src/utils/localDate.js`.
+- `admin-account-management` — admin-managed users with role set (admin, accountant, reception), temporary passwords, soft delete, SMTP test, `/mon-compte` and Paramètres → Utilisateurs. Code: `server/src/controllers/usersController.js`, `server/src/models/usersModel.js`, `client/src/pages/UserManagementPage.jsx`.
+- `control-plane-plans-and-access` — console and instance licence (`licence.jws`): plans, plugin gating by plan, quotas, read-only subscription state, billing, customer login. Code: `control-plane/server/src`, `server/src/utils/licence.js`, `server/src/middleware/enforceSubscription.js`.
+- `hosting-h1-fleet-runtime` — the console runs the fleet: provisioning, routing, per-instance backups, updates and monitoring of hosted instances. Code: `control-plane/server/src/tasks/scheduler.js`, `control-plane/server/src/routes/fleet.js`, `deploy/hosting`.
+- `hosting-h2-account-security` — forgotten password, two-step login (TOTP and mail code), support access granted with consent and audited, authz audit fixes. Code: `server/src/utils/accountSecurityServices.js`, `server/src/controllers/twoFactorController.js`, `server/src/controllers/supportAccessController.js`.

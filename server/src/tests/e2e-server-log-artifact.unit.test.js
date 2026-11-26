@@ -1,4 +1,4 @@
-// specs/e2e-playwright-smoke-suite.md rule 21 — the server log is an artifact: every playwright config
+// specs/tech/e2e-playwright-smoke-suite.md rule 21 — the server log is an artifact: every playwright config
 // writes the webServer output to a file, and each e2e.yml job uploads it.
 const test = require('node:test');
 const assert = require('node:assert/strict');

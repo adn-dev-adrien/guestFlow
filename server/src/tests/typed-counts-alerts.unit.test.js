@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 19, 20, 23 and 25 (audit R21-S5) — the pure reading behind every
+// specs/options/non-card-option-served-persons.md rules 19, 20, 23 and 25 (audit R21-S5) — the pure reading behind every
 // flag: who counts in the party, what a stay's nights are, which line a change of party or stay flags, and the
 // floor a typed count takes on its way into the engine.
 

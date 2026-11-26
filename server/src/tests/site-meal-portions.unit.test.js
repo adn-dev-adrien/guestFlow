@@ -1,4 +1,4 @@
-// Meals counted in portions on the website (specs/site-meal-portions.md): a per-person planning-card
+// Meals counted in portions on the website (specs/site/site-meal-portions.md): a per-person planning-card
 // option's quantity means PORTIONS — one breakfast, one cover — capped by what the stay can serve,
 // clamped on the live quote and refused on the booking request. Also covers the labels, the caps the
 // quote publishes, the property-default quantity and the migration of devis stored under the old
@@ -8,7 +8,7 @@ const test = require('node:test');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
-// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// The public boundary refuses a stay starting before today (specs/site/public-api.md rule 8) and these
 // fixtures' dates are fixed: today is pinned before all of them.
 require('../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Database = require('better-sqlite3');
@@ -315,7 +315,7 @@ function buildBookingController({ options, captures }) {
   const dbMock = {
     transaction: (fn) => (...args) => fn(...args),
     // Only the property read answers: no open quote of the same stay, no earlier request for the
-    // e-mail (specs/public-request-abuse-and-grouping.md rules 7, 12).
+    // e-mail (specs/site/public-request-abuse-and-grouping.md rules 7, 12).
     prepare: (sql) => ({ get: () => (/FROM properties/i.test(sql) ? { maxGuests: 10, maxBabies: 2 } : undefined), run: () => ({ changes: 1 }) }),
   };
   const mocks = {

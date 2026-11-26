@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 3 and 70 — PLATFORM PAYMENT is wired: the penalties controller, the stored summary, the gross
+// specs/pricing/pricing-components.md §3 rules 3 and 70 — PLATFORM PAYMENT is wired: the penalties controller, the stored summary, the gross
 // fallback of the payment mark and the Airbnb intake's payment block ask the unit instead of carrying the formulas.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,5 +1,5 @@
 /**
- * specs/qonto-settings-in-app.md rule 21 (audit R24 E24-3) — the last Qonto failure names where it came from with the
+ * specs/settings/qonto-settings-in-app.md rule 21 (audit R24 E24-3) — the last Qonto failure names where it came from with the
  * server's French label, never a raw origin code.
  */
 import React from 'react';

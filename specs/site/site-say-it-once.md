@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-The site's README (`integrations/wordpress/solio-site/README.md` at the time, the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30)) states the site's own rule: *« un fait ne soit
+The site's README (`integrations/wordpress/solio-site/README.md` at the time, the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30)) states the site's own rule: *« un fait ne soit
 affiché qu'à un endroit par page »*. Measured against the live site on 2026-09-24, four blocks
 break it.
 
@@ -77,7 +77,7 @@ in the WordPress database.
 
 Untouched. No GuestFlow endpoint, model or task takes part.
 
-### 4.2 Site side (the site's mu-plugins — the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30))
+### 4.2 Site side (the site's mu-plugins — the deployment's private repository since 2026-10-19 ([phase P](../plugins/plugins-phase-p-productisation.md) rule 30))
 
 | File | Change |
 |---|---|
@@ -170,10 +170,10 @@ redirect lines were changed in place instead, and the file is now identical to `
   an editor-facing API, not dead code, and re-placing either is one edit.
 - The « dégressif » wording elsewhere: the lodging FAQs, `[solio_tarifs_nuits]` and the meta
   descriptions keep it, because that is now its single home.
-- `specs/site-lodging-fact-zones.md`, which rearranges the *fact* blocks of the same two pages and
+- `specs/site/site-lodging-fact-zones.md`, which rearranges the *fact* blocks of the same two pages and
   shipped as PR #592 while this one was open. The two changes touch different blocks; the only
   overlap is the `gf-seo-blocks.php` row of the site README, resolved by keeping both statements.
-- The English version of any of this (`specs/site-english-version.md`).
+- The English version of any of this (`specs/site/site-english-version.md`).
 
 ## 9. Open questions
 

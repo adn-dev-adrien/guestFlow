@@ -1,5 +1,5 @@
 /**
- * Extra sales controller — HTTP face of `utils/extraSale.js` (specs/pricing-components.md §4.3).
+ * Extra sales controller — HTTP face of `utils/extraSale.js` (specs/pricing/pricing-components.md §4.3).
  *
  *   POST  /api/reservations/:id/extras/quote        { requests, payment }                      priced, nothing written
  *   POST  /api/reservations/:id/extras              { requests, payment, acceptedTotalCents }  409 PRICE_CHANGED when the price moved

@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 10 and 14-17 — what Mollie says about a settlement, read-only,
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 10 and 14-17 — what Mollie says about a settlement, read-only,
 // and what the reconciliation does when Mollie cannot be read. No network: the client takes an injected `fetch`.
 const test = require('node:test');
 const assert = require('node:assert/strict');

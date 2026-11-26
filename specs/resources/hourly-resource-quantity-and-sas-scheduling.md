@@ -9,6 +9,8 @@
 | **Related PR** | (link once opened) |
 | **Amendment** | 2026-11-10 — rules 36-38 (`heatFrom`, free minutes at the day rate, an app order's evening supplement), for `guest-app.md` rules 78-84 — **Implemented** in pricing-components PR C (hourly-resources 1.8.0) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Code paths refreshed to the current plugin layout (linen/sas/hourly-resources plugins, .jsx files); no behaviour change found.
+
 ---
 
 ## 1. Context
@@ -18,7 +20,7 @@ on shows the resource card with « Total: 0,00 € », but the **Résumé tarifa
 « Bain nordique » line and the total ignores it**. Reproduced live (browser + API).
 
 The platform is **not** involved: `isDirectChannel()` is consulted only for option free-units
-([pricing.js:1301](../server/src/utils/pricing.js#L1301), `applyFreeUnitsToLine`); resources never read
+([pricing.js:1301](../../server/src/utils/pricing.js#L1301), `applyFreeUnitsToLine`); resources never read
 it, and `platformGrossPin` is explicitly non-direct only. Four independent defects are in play.
 
 **Defect 1 — an enabled hourly-scheduled resource with no session is silently erased.**
@@ -33,11 +35,11 @@ if (hourlyScheduled && !(planningCardAsQuantity && sessions.length === 0)) {
 ```
 
 Flipping the fiche Switch only sets `quantity: 1`
-([ReservationPage.jsx:1480-1487](../client/src/pages/ReservationPage.jsx#L1480-L1487)); it seeds no
+([ReservationPage.jsx:1480-1487](../../client/src/pages/ReservationPage.jsx#L1480-L1487)); it seeds no
 session. `planningCardAsQuantity` is the **public/WordPress** escape hatch only
-([devisModel.js:349](../server/src/models/devisModel.js#L349)), so on an admin fiche the engine returns
+([devisModel.js:349](../../server/src/models/devisModel.js#L349)), so on an admin fiche the engine returns
 `null`. The summary renders exclusively `quote.resourceLines`
-([PricingSummary.jsx:467](../client/src/components/PricingSummary.jsx#L467)) — no line, no money, no
+([PricingSummary.jsx:467](../../client/src/components/PricingSummary.jsx#L467)) — no line, no money, no
 warning. Measured on `POST /api/reservations/calculate-price` (Lodge, 11→14/09/2026, direct):
 
 | Payload | `resourceLines` | Total |
@@ -47,29 +49,29 @@ warning. Measured on `POST /api/reservations/calculate-price` (Lodge, 11→14/09
 
 **Defect 2 — on a blank « Nouveau devis » the Ressources block never renders at all.**
 `loadPropertyContext` fills `availableResources` from `propDetails.resources`
-([ReservationPage.jsx:280-285](../client/src/pages/ReservationPage.jsx#L280-L285)), but
+([ReservationPage.jsx:280-285](../../client/src/pages/ReservationPage.jsx#L280-L285)), but
 `GET /api/properties/:id` **has no `resources` key** — `propertiesModel.getByIdWithDetails` returns
 `closureRanges, pricingRules, rateInclusions, documents, optionIds, options, optionGroups, icalSources`
 and nothing else. That branch is dead code. The only real setter is `loadResourcesAvailability`
-([ReservationPage.jsx:1030-1043](../client/src/pages/ReservationPage.jsx#L1030-L1043)), which returns
+([ReservationPage.jsx:1030-1043](../../client/src/pages/ReservationPage.jsx#L1030-L1043)), which returns
 early without both dates and is called from just four places (edit reservation, edit devis, init,
 Logement select change) — **no effect re-runs it when the operator types the dates**. Verified in the
 browser: `/reservations/new?mode=devis`, dates filled → still zero resources, and no availability
 request fired. This contradicts
-[devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md) §3 rule 1, marked
+[devis-extras-parity-and-price-lock.md](../devis/devis-extras-parity-and-price-lock.md) §3 rule 1, marked
 `Implemented`.
 
 **Defect 3 — `recomputeDevisQuote` drops sessions.**
-[devisQuote.js:36](../server/src/utils/devisQuote.js#L36) rebuilds `selectedResources` **without**
-`sessions`, unlike the PDF path ([devisController.js:119](../server/src/controllers/devisController.js#L119)).
+[devisQuote.js:36](../../server/src/utils/devisQuote.js#L36) rebuilds `selectedResources` **without**
+`sessions`, unlike the PDF path ([devisController.js:119](../../server/src/controllers/devisController.js#L119)).
 Any hourly-scheduled resource is erased again on that recompute.
 
 **Defect 4 — the slot-conflict check ignores reservation sessions.**
-`countConflicts` ([resourceBookingsModel.js:92-104](../server/src/models/resourceBookingsModel.js#L92-L104))
+`countConflicts` ([resourceBookingsModel.js:92-104](../../server/src/plugins/hourly-resources/bookingsModel.js#L92-L104))
 queries `resource_bookings` only. Sessions stored on `reservation_resources.sessions` are invisible to
 it, so a standalone booking can be created straight on top of a guest session. The planning view papers
 over this by merging the two lists **client-side**
-([ResourcePlanningPage.jsx:99-120](../client/src/pages/ResourcePlanningPage.jsx#L99-L120)) — a
+([ResourcePlanningPage.jsx:99-120](../../client/src/plugins/hourly-resources/ResourcePlanningPage.jsx#L99-L120)) — a
 fat-backend violation, and no protection at write time.
 
 **Product decision behind this spec.** Requiring the operator to schedule the sessions at quote time is
@@ -112,10 +114,10 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 3. **`planningCardAsQuantity` becomes a no-op for resources.** The public/WordPress callers
    (`publicQuoteController`, `publicBookingRequestController`, `devisModel.computeQuote`) keep passing
    it harmlessly; the engine no longer branches on it for resources. Its option-side behaviour
-   ([pricing.js:1429](../server/src/utils/pricing.js#L1429)) is untouched.
+   ([pricing.js:1429](../../server/src/utils/pricing.js#L1429)) is untouched.
 4. **The fiche shows an « Heures » field again for these resources.** `ExtrasSection` currently replaces
    it with an empty spacer when `isHourlyScheduled`
-   ([ExtrasSection.jsx:327-342](../client/src/components/reservation/ExtrasSection.jsx#L327-L342)). The
+   ([ExtrasSection.jsx:327-342](../../client/src/components/reservation/ExtrasSection.jsx#L327-L342)). The
    quantity field comes back, with helper text « Heures vendues — planifiées au check-in ». The session
    editor stays available underneath for the operator who *does* know the slot.
 5. **Unscheduled hours are flagged in the summary.** A resource line with hours sold and no session
@@ -135,12 +137,12 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
    `resources` array (the property-applicable catalogue with its resolved per-property `price` and
    `freeMinutes`), so `loadPropertyContext`'s existing branch finally has data and the Ressources block
    renders on a blank « Nouveau devis » / « Nouvelle réservation » — spec parity with
-   [devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md) §3 rule 1.
+   [devis-extras-parity-and-price-lock.md](../devis/devis-extras-parity-and-price-lock.md) §3 rule 1.
 9. **Availability refreshes when the stay range becomes complete.** A `useEffect` on
    `(selectedProp, form.startDate, form.endDate)` re-runs `loadResourcesAvailability` as soon as both
    dates are set, so « déjà réservée » and the remaining quantity are correct without touching the
    Logement select. Until then the catalogue from rule 8 is shown with its nominal quantity.
-10. **`recomputeDevisQuote` passes `sessions`** ([devisQuote.js:36](../server/src/utils/devisQuote.js#L36)),
+10. **`recomputeDevisQuote` passes `sessions`** ([devisQuote.js:36](../../server/src/utils/devisQuote.js#L36)),
     aligning it with the PDF path.
 
 ### 3.3 Thermal readiness model (new)
@@ -177,7 +179,7 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 ### 3.4 Placing the hours — new arrival SAS step
 
 17. **New page « Planifier les ressources »**, inserted in the arrival SAS **right after « Options
-    réservées »** ([arrival-departure-sas.md](arrival-departure-sas.md) §3.1 rule 7). Applicable only
+    réservées »** ([arrival-departure-sas.md](../sas/arrival-departure-sas.md) §3.1 rule 7). Applicable only
     when the reservation carries ≥ 1 hourly-scheduled resource with **remaining hours > 0**
     (`quantity` − hours already placed in `sessions`). Skipped otherwise, like every other conditional
     page.
@@ -242,7 +244,7 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
     rules 12 and 15 — a second block can then legitimately sit right after the first (hot, remise en
     état only). The client sends its in-memory blocks as `pending` on each availability refresh.
 26. **Re-opening a completed SAS shows the already-placed blocks** and lets the operator remove or move
-    them (specs/reopen-completed-sas.md). A removed block frees its slot; the supplement is recomputed
+    them (specs/sas/reopen-completed-sas.md). A removed block frees its slot; the supplement is recomputed
     from scratch on each commit, never accumulated.
 27. **The commit is atomic and re-validated server-side.** Opening window, capacity, turnover, thermal
     readiness, minimum duration and the remaining-hours budget are all re-checked at commit time; a
@@ -265,7 +267,7 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 
 ### 3.6 The evening is billed once (fix, 2026-10-05)
 
-Found while mapping phase 3c of the plugins (`specs/plugins-phase-3c-hourly-resources.md` §1, defects
+Found while mapping phase 3c of the plugins (`specs/plugins/plugins-phase-3c-hourly-resources.md` §1, defects
 1–2). Three money defects, all from the same seam between the line and the supplement:
 
 - **The evening was billed twice.** After the SAS placed an evening hour (supplement on the
@@ -396,7 +398,7 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 
 ## 4. Architecture
 
-> **Since phase 3c of the plugins** (`specs/plugins-phase-3c-hourly-resources.md`), the hourly code below
+> **Since phase 3c of the plugins** (`specs/plugins/plugins-phase-3c-hourly-resources.md`), the hourly code below
 > lives in the `hourly-resources` plugin: `server/src/plugins/hourly-resources/` and
 > `client/src/plugins/hourly-resources/`. The pricing goes through the core's price-line contributor, the
 > SAS step through its commit contract (`pluginSteps.resourceScheduling` in place of `resourceBlocks`),
@@ -421,7 +423,7 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 | `models/` | `models/propertiesModel.js` | T | Rule 8: `getByIdWithDetails` returns `resources` (applicable catalogue + resolved `price` / `freeMinutes`). |
 | `models/` | `models/reservationsModel.js` | T | Rule 24: `commitArrivalSas` persists the placed blocks into `reservation_resources.sessions` and folds the evening supplement into the arrival complement. |
 | `models/` | `models/bookingLinesModel.js` | T | Rule 7: keep `quantity` (hours sold) alongside `billedUnits` on the scheduled path — today the scheduled branch overwrites `quantity` with the session count. |
-| `controllers/` | `controllers/sasController.js` | T | Rules 17-19, 23, 27: assemble the new page payload (per-resource remaining hours + per-day classified slots + occupancy strip); accept, re-validate and commit the placed blocks. |
+| `controllers/` | `plugins/sas/controller.js` | T | Rules 17-19, 23, 27: assemble the new page payload (per-resource remaining hours + per-day classified slots + occupancy strip); accept, re-validate and commit the placed blocks. |
 | `controllers/` | `controllers/resourcesController.js` | T | Rule 25: availability endpoint for the picker's live refresh. |
 | `routes/` | `routes/resources.js` | T | `GET /api/resources/:id/free-slots`. |
 | `database.js` | `database.js` | T | Rule 11: idempotent `ADD COLUMN` for `resources.heatUpMinutes` + `resources.heatRetentionMinutes` (both `INTEGER NOT NULL DEFAULT 0`). |
@@ -439,8 +441,8 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | `components/sas/SasResourceSchedulingPage.jsx` | C | Rules 17-21, 23, 25: the new SAS page — resource sub-cards, day chips, occupancy strip, slot grid, placed-block list, « Planifier plus tard ». |
-| `components/` | `components/sas/ReservationSasDialog.jsx` | T | Registers the new step + its icon; carries the placed blocks into the commit payload. |
+| `components/` | `plugins/hourly-resources/SasResourceSchedulingPage.jsx` | C | Rules 17-21, 23, 25: the new SAS page — resource sub-cards, day chips, occupancy strip, slot grid, placed-block list, « Planifier plus tard ». |
+| `components/` | `plugins/sas/ReservationSasDialog.jsx` | T | Registers the new step + its icon; carries the placed blocks into the commit payload. |
 | `components/` | `components/SlotPickerGrid.jsx` | C | Generic, reusable: renders a day's server-classified slots as large tappable chips with their state, warmth and supplement badges. |
 | `components/` | `components/reservation/ExtrasSection.jsx` | T | Rules 4-5: restore the « Heures » field for hourly-scheduled resources; keep the session editor below. |
 | `components/` | `components/PricingSummary.jsx` | T | Rule 5: « à planifier » / « 1 h sur 3 planifiées » chip on a resource line. |
@@ -676,7 +678,7 @@ new file, next to the assertions they replace (three of which pinned the old, bu
 
 ### Client tests (vitest)
 
-- [x] `components/sas/__tests__/SasResourceSchedulingPage.test.jsx` — placing a block decrements the
+- [x] `plugins/hourly-resources/__tests__/SasResourceSchedulingPage.test.jsx` — placing a block decrements the
       counter; a `taken` / `heating` / `past` / `closed` slot is not tappable and shows its reason; the
       🔥 warm badge and the « +40 € » supplement badge render; the occupancy strip shows times but no
       name; delete frees the hour; « Planifier plus tard » advances with nothing placed; a failed slot

@@ -1,8 +1,8 @@
 /**
  * EmailTemplatesPage — CRUD UI for the email templates library.
- * See specs/email-automation.md §6.1.
+ * See specs/emails/email-automation.md §6.1.
  *
- * The library reads in the order of the stay (specs/guest-email-texts-made-simple.md rule 44 — UI/UX
+ * The library reads in the order of the stay (specs/emails/guest-email-texts-made-simple.md rule 44 — UI/UX
  * review 2026-10-18, decision 12): one name per email, grouped by moment, its « Quand » under it; the
  * mode shows only when it is « Auto »; a shipped email is switched off, never deleted; a shipped email
  * opens its texts. « Quand ? » is one sentence read by the server (rule 43, decision 11).
@@ -43,7 +43,7 @@ const emptyTemplate = {
   name: '',
   subject: '',
   body: '',
-  // Optional English side (specs/email-language-fr-en.md). Empty → reservation sends in French.
+  // Optional English side (specs/emails/email-language-fr-en.md). Empty → reservation sends in French.
   subjectEn: '',
   bodyEn: '',
   dayOffset: -7,
@@ -51,15 +51,15 @@ const emptyTemplate = {
   enabled: true,
 };
 
-// A template's own mode is the only switch for automatic sending (specs/settings-rationalization.md
+// A template's own mode is the only switch for automatic sending (specs/settings/settings-rationalization.md
 // rule 17b): « Automatique » leaves by itself at 08:00, « Manuel » waits in « Emails à envoyer ».
 
 const WHEN_DELAY_MS = 300;
 const NEW_TEMPLATE_WHEN = { editable: true, anchorLabel: 'l’arrivée', days: 7, direction: 'before', sentence: 'Envoyé 7 jours avant l’arrivée' };
 
 export default function EmailTemplatesPage() {
-  // The chips of the template being edited, labelled by the server (specs/guest-email-texts-made-simple.md
-  // rule 10), live plugins' included (specs/plugins-phase-1-sdk.md rule 13).
+  // The chips of the template being edited, labelled by the server (specs/emails/guest-email-texts-made-simple.md
+  // rule 10), live plugins' included (specs/plugins/plugins-phase-1-sdk.md rule 13).
   const [chips, setChips] = useState({ variables: [], conditions: [] });
   const { confirm, alert } = useAppDialogs();
   const navigate = useNavigate();
@@ -225,7 +225,7 @@ export default function EmailTemplatesPage() {
       setForm({ ...emptyTemplate, when: NEW_TEMPLATE_WHEN });
       setWhen({ days: '7', direction: 'before', error: '', example: '' });
     }
-    // The list carries no body (specs/inte-performance.md rule 11): both are read when the editor opens, and
+    // The list carries no body (specs/tech/inte-performance.md rule 11): both are read when the editor opens, and
     // « Enregistrer » waits for them so an empty body is never saved over a real one.
     if (row) readBodies(row.id);
     api.getEmailTemplateVariables(row ? row.id : null).then(setChips).catch(() => setChips({ variables: [], conditions: [] }));
@@ -290,7 +290,7 @@ export default function EmailTemplatesPage() {
       // its rendered content → refresh both the library and the « Emails à envoyer » list.
       await Promise.all([reload(), reloadPending()]);
     } catch (e) {
-      // specs/guest-email-texts-made-simple.md rules 27, 37 — a broken variable or condition is refused
+      // specs/emails/guest-email-texts-made-simple.md rules 27, 37 — a broken variable or condition is refused
       // by the server and named under its field, with the closest variable as a fix.
       if (e?.field === 'days' || e?.field === 'direction' || e?.field === 'when') {
         setWhen((w) => ({ ...w, error: e.message, example: '' }));
@@ -358,9 +358,9 @@ export default function EmailTemplatesPage() {
             <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{row.displayName}</Typography>
             {!row.shipped && <Chip label="personnalisé" size="small" variant="outlined" />}
             {row.sendMode === 'auto' && <StatusBadge status="success" label="Auto" />}
-            {/* specs/payment-link-lifecycle.md rule 45 — the one email that leaves without validation, by name. */}
+            {/* specs/payments/payment-link-lifecycle.md rule 45 — the one email that leaves without validation, by name. */}
             {row.sendModeLocked && <StatusBadge status="info" label={row.sendModeLabel} />}
-            {/* specs/email-language-fr-en.md rule 9 — never sent to an English-speaking guest. */}
+            {/* specs/emails/email-language-fr-en.md rule 9 — never sent to an English-speaking guest. */}
             {row.hasEnglish === false && <StatusBadge status="warning" label="EN manquant" />}
           </Stack>
           <Typography variant="body2" color="text.secondary">{row.when ? row.when.label : row.whenLabel}</Typography>
@@ -379,7 +379,7 @@ export default function EmailTemplatesPage() {
 
   return (
     <Box>
-      {/* Canonical top bar (specs/ds-sweep-settings.md §3.1) — replaces the hand-rolled h4 header;
+      {/* Canonical top bar (specs/design-system/ds-sweep-settings.md §3.1) — replaces the hand-rolled h4 header;
           « Nouveau modèle » moves up from the templates-card corner. */}
       <PageActionBar
         title="Emails"
@@ -563,7 +563,7 @@ export default function EmailTemplatesPage() {
             </Stack>
           )}
 
-          {/* specs/email-automation.md rule 17 — the same view as « Textes des emails »: each variable
+          {/* specs/emails/email-automation.md rule 17 — the same view as « Textes des emails »: each variable
               by its French label, the chips insert it at the cursor; the English side is optional
               (empty: the email leaves in French). */}
           <ToggleButtonGroup size="small" exclusive value={language} onChange={(e, v) => v && setLanguage(v)} aria-label="Langue du modèle" sx={{ alignSelf: 'flex-start' }}>
@@ -612,7 +612,7 @@ export default function EmailTemplatesPage() {
             </Box>
           </FormControl>
 
-          {/* specs/guest-email-texts-made-simple.md rule 12 — a shipped template is written on « Textes
+          {/* specs/emails/guest-email-texts-made-simple.md rule 12 — a shipped template is written on « Textes
               des emails », in its section; the J-7 hook too. */}
           {form.textsSection ? (
             <Link component={RouterLink} to={`/settings/emails/textes#${form.textsSection}`}>

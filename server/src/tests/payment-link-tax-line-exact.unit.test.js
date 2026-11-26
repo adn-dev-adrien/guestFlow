@@ -1,4 +1,4 @@
-// specs/payment-links-vat.md rule 9 — the « Taxe de séjour » item of a Qonto link is the stay's tax to
+// specs/payments/payment-links-vat.md rule 9 — the « Taxe de séjour » item of a Qonto link is the stay's tax to
 // the cent; the rounding residual rides on its own « Ajustement » item. Final review 2026-10-18, N3: a
 // Gîte link read « Taxe de séjour 21,61 € » for 21,60 € (6 × 3 × 1,20), a devis link 7,21 € for 7,20 €.
 

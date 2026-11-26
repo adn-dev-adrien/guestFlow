@@ -1,5 +1,5 @@
 /**
- * STEP platformPrice — PLATFORM PRICE (specs/pricing-components.md §3 rule 52).
+ * STEP platformPrice — PLATFORM PRICE (specs/pricing/pricing-components.md §3 rule 52).
  *
  * Back-solves the accommodation from the platform brut and picks the accommodation actually charged.
  * `apply(ctx)` returns a new context and never mutates the one it receives.

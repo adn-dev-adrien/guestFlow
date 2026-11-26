@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 72 — the two excess keys of SCHEDULE (`overCollectedTtc`, `complementCollectedExcess`) are computed by SETTLEMENT's
+// specs/pricing/pricing-components.md §3 rule 72 — the two excess keys of SCHEDULE (`overCollectedTtc`, `complementCollectedExcess`) are computed by SETTLEMENT's
 // `scheduleExcess`: the arithmetic SCHEDULE wrote inline, moved unchanged, on a grid of amounts.
 const test = require('node:test');
 const assert = require('node:assert/strict');

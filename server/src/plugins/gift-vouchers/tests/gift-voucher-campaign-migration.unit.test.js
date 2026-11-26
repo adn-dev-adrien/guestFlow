@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md §5, rules 3, 11 — the migration: the lodging settings (bounds, validity, VAT rate, ideas) become the one `lodging` campaign `sejour`, on sale when the
+// specs/gift-vouchers/gift-voucher-campaigns.md §5, rules 3, 11 — the migration: the lodging settings (bounds, validity, VAT rate, ideas) become the one `lodging` campaign `sejour`, on sale when the
 // plugin was set up, else a draft; every order and voucher already there points to it with the contents `{"kind":"lodging"}`; no row is deleted; running it again changes nothing.
 const test = require('node:test');
 const assert = require('node:assert/strict');

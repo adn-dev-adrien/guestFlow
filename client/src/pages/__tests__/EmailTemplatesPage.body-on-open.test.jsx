@@ -1,4 +1,4 @@
-// specs/inte-performance.md rule 11 — the list carries no template body: the editor reads both when it
+// specs/tech/inte-performance.md rule 11 — the list carries no template body: the editor reads both when it
 // opens, shows a loading state, and « Enregistrer » waits for them.
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

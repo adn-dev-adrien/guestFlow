@@ -39,8 +39,8 @@ const isDay = (s) => {
   return !Number.isNaN(date.getTime()) && toDay(date) === s;
 };
 
-// specs/control-plane-plans-and-access.md rule 47 — a licence date the operator enters lies in [today − 5 years,
-// today + 5 years], as GuestFlow's dates do (specs/reservations-backend-mvc.md rule 13).
+// specs/hosting/control-plane-plans-and-access.md rule 47 — a licence date the operator enters lies in [today − 5 years,
+// today + 5 years], as GuestFlow's dates do (specs/tech/reservations-backend-mvc.md rule 13).
 const WINDOW_MONTHS = 60;
 const PAST_WINDOW_MESSAGE = 'Date trop ancienne : 5 ans au plus.';
 const FUTURE_WINDOW_MESSAGE = 'Date trop lointaine : 5 ans au plus.';

@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 51 — the booking calendar stops where the server says the public may no longer book:
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 51 — the booking calendar stops where the server says the public may no longer book:
 // the days past `horizonUntil` are closed, forward navigation stops at the horizon's month, and a row of month chips jumps
 // straight to a month. The limit is the server's: nothing here adds months to today.
 import { screen, waitFor, within } from '@testing-library/react';

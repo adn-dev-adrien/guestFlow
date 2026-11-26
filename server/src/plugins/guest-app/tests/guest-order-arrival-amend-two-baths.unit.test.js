@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 83, 87, 112 (loop t3 A3-1) — an order with two baths, one of them supplemented: at the arrival SAS the evening supplement goes
+// specs/guest-app/guest-app.md rules 83, 87, 112 (loop t3 A3-1) — an order with two baths, one of them supplemented: at the arrival SAS the evening supplement goes
 // with ITS bath only. Removing the other bath, or taking one session off it, leaves the supplement and its money in place. Every case orders a bath:
 // without hourly-resources the suite has nothing to prove (plugin-removal-resilience rules 4, 7).
 const { requirePlugins } = require('../../sdk/testing');

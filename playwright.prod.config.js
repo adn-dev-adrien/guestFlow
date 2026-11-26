@@ -1,5 +1,5 @@
 // @ts-check
-// The production-build E2E suite (specs/plugins-phase-4-registry.md rule 19): the server serves the
+// The production-build E2E suite (specs/plugins/plugins-phase-4-registry.md rule 19): the server serves the
 // built client and loads every plugin from its package, as a release does, beside a test registry.
 // `npm run test:e2e:prod` — the client (client/dist) and the packages (plugins-dist) are built by
 // e2e/prod/serve.js when missing; CI builds them first.

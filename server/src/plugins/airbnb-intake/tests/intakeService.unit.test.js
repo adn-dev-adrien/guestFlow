@@ -1,4 +1,4 @@
-// specs/airbnb-mail-intake.md rules 1–3 and 11–17 — the pass, the matching, the fill and the banner.
+// specs/platforms/airbnb-mail-intake.md rules 1–3 and 11–17 — the pass, the matching, the fill and the banner.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

@@ -1,4 +1,4 @@
-// Payment schedule (specs/payment-schedule-and-cancellation.md §3.1 to §3.3): the acompte is due
+// Payment schedule (specs/payments/payment-schedule-and-cancellation.md §3.1 to §3.3): the acompte is due
 // after the BOOKING and never moves again, the solde 30 days before arrival but never before the
 // booking day, and the cancellation deadline is the solde's + the property's delay.
 
@@ -9,8 +9,8 @@ const {
   resolveDepositDueDate, resolveBalanceDueDate, resolveCancelOn, daysBetween,
 } = require('../utils/paymentSchedule');
 
-// specs/payment-schedule-and-cancellation.md rule 3
-// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+// specs/payments/payment-schedule-and-cancellation.md rule 3
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('acompte: booking date + depositDueDays', () => {
@@ -76,7 +76,7 @@ test('daysBetween counts whole days, negative into the future', () => {
   assert.equal(daysBetween(null, '2026-07-02'), null);
 });
 
-// ── Platform payout (specs/platform-payout-due-date.md §3.1) ──────────────────────────────────
+// ── Platform payout (specs/platforms/platform-payout-due-date.md §3.1) ──────────────────────────────────
 
 test('solde on a platform: due payoutDueDays AFTER the departure, not before the arrival (rule 4)', () => {
   const stay = { startDate: '2026-07-02', endDate: '2026-07-09', bookingDate: '2026-05-01' };
@@ -121,7 +121,7 @@ test('a platform stay with no departure date, or nothing to collect, has no dead
   assert.equal(resolveBalanceDueDate({ endDate: '2026-07-09', platform: 'Airbnb', hasBalance: false }), null);
 });
 
-// specs/payment-schedule-and-cancellation.md rule 8 — contrairement à l'acompte (règle 4, figé à la
+// specs/payments/payment-schedule-and-cancellation.md rule 8 — contrairement à l'acompte (règle 4, figé à la
 // création), la deadline du SOLDE suit le séjour : déplacer les dates la recalcule. C'est la bonne
 // dissymétrie — l'acompte est dû pour réserver, le solde est dû avant d'arriver.
 test('rule 8 — déplacer le séjour déplace la deadline du solde, jamais celle de l’acompte', () => {

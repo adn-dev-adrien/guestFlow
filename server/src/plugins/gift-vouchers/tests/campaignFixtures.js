@@ -1,4 +1,4 @@
-// Shared fixture of the campaign suites (specs/gift-voucher-campaigns.md): the plugin on the real core database, where the pricing engine and the catalogue live —
+// Shared fixture of the campaign suites (specs/gift-vouchers/gift-voucher-campaigns.md): the plugin on the real core database, where the pricing engine and the catalogue live —
 // a bath with its following-hours rates, a few options of each price type, the outside VAT rates — with a fake payment provider and a movable clock. Not a test file.
 // A suite sets `process.env.DB_PATH = ':memory:'` before requiring it: every suite is a process of its own, so each one has a database of its own.
 

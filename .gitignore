@@ -140,9 +140,9 @@ vite.config.ts.timestamp-*
 
 # GuestFlow
 *.db
-# The instance's licence, written by the control plane (specs/control-plane-plans-and-access.md)
+# The instance's licence, written by the control plane (specs/hosting/control-plane-plans-and-access.md)
 licence.jws
-# The control plane's own data: its database, secrets key and customer exports (specs/control-plane-plans-and-access.md)
+# The control plane's own data: its database, secrets key and customer exports (specs/hosting/control-plane-plans-and-access.md)
 control-plane/server/data/
 *.db-shm
 *.db-wal
@@ -150,7 +150,7 @@ control-plane/server/data/
 server/uploads/
 server/private-documents/
 
-# Self-update engine state (specs/self-update-and-releases.md §5). In production these live in
+# Self-update engine state (specs/hosting/self-update-and-releases.md §5). In production these live in
 # ~/guestflow/data/; in a dev tree the data directory IS server/, so they land here.
 server/update-state.json
 server/update-status.json
@@ -173,7 +173,7 @@ server/certs/*.crt
 server/certs/*.key
 server/certs/*.pem
 
-# Playwright E2E suite (specs/e2e-playwright-smoke-suite.md §4.3)
+# Playwright E2E suite (specs/tech/e2e-playwright-smoke-suite.md §4.3)
 e2e/.auth/
 playwright-report/
 playwright-server.log
@@ -185,7 +185,7 @@ test-results/
 # Playwright MCP server scratch dir (snapshots / console logs from in-session
 # Claude Code investigations — not a deliverable, regenerated every session).
 .playwright-mcp/
-# Plugin packages (specs/plugins-phase-4-registry.md): the build output, and in a dev tree — whose data
+# Plugin packages (specs/plugins/plugins-phase-4-registry.md): the build output, and in a dev tree — whose data
 # directory is server/ — the packages installed from a registry and the plugins' own data.
 plugins-dist/
 server/plugins/

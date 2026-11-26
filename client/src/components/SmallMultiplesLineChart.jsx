@@ -1,6 +1,6 @@
 /**
  * SmallMultiplesLineChart — one small line chart per series, this period solid with points, the
- * previous one dashed, in the series' colour (specs/finance-dashboard-redesign.md rule 23; grid, ticks
+ * previous one dashed, in the series' colour (specs/accounting/finance-dashboard-redesign.md rule 23; grid, ticks
  * and tooltip from the chart tokens, rule 45). A null
  * value is a gap, never a 0. The tooltip of a chart speaks of its own series only. Generic: any
  * « one curve per item, this year vs last year » comparison.

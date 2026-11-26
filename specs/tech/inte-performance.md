@@ -7,8 +7,10 @@
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | — (target `inte/plugins`) |
-| **Amends** | [`specs/guest-email-texts-made-simple.md`](guest-email-texts-made-simple.md) rules 50–52 (the email texts page) |
-| **Summary for review** | [`docs/specs/2026-10-28-inte-performance.html`](../docs/specs/2026-10-28-inte-performance.html) |
+| **Amends** | [`specs/emails/guest-email-texts-made-simple.md`](../emails/guest-email-texts-made-simple.md) rules 50–52 (the email texts page) |
+| **Summary for review** | [`docs/specs/2026-10-28-inte-performance.html`](../../docs/specs/2026-10-28-inte-performance.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** Rule 4: the budget is now 314 336 bytes gzip (313 336 + 1 000 deliberate raise of 2026-11-23, `scripts/check-bundle-budget.mjs` `DELIBERATE_RAISES`).
 
 ---
 
@@ -61,19 +63,19 @@ Other facts measured:
   master-prod (64 vs 106 ms; 115 vs 113 ms). Both pages are slow **only in dev mode**.
 - **The email texts page is genuinely slow, in production too** (670 ms idle, 1.15 s ×4). It is new in
   inte (master edits emails in a dialog). Two causes, both in
-  [EmailTextsSettingsPage.jsx](../client/src/pages/settings/EmailTextsSettingsPage.jsx):
+  [EmailTextsSettingsPage.jsx](../../client/src/pages/settings/EmailTextsSettingsPage.jsx):
   1. **The first preview waits for a typing debounce.** The preview effect
-     ([:154–178](../client/src/pages/settings/EmailTextsSettingsPage.jsx#L154)) always waits
-     `PREVIEW_DELAY_MS = 400` ([:51](../client/src/pages/settings/EmailTextsSettingsPage.jsx#L51))
+     ([:154–178](../../client/src/pages/settings/EmailTextsSettingsPage.jsx#L154)) always waits
+     `PREVIEW_DELAY_MS = 400` ([:51](../../client/src/pages/settings/EmailTextsSettingsPage.jsx#L51))
      before `POST /emails/preview`, even when nothing was typed. Measured: the request leaves at
      522 ms, answers at 563 ms. From a click on an email in Emails › Modèles to its rendered preview:
      598 ms, of which 400 ms is waiting.
   2. **Every section's fields are mounted, folded or not.** The seven `<Accordion>`
-     ([:466](../client/src/pages/settings/EmailTextsSettingsPage.jsx#L466)) keep their details
+     ([:466](../../client/src/pages/settings/EmailTextsSettingsPage.jsx#L466)) keep their details
      mounted: 65 `TokenTextField` (136 inputs, 1 590 DOM nodes) render on load and re-render on every
      keystroke, for one section shown. Mount long task: 80 ms prod, 233 ms dev.
   3. Side bug found on the way: each folded section's « Email » `<Select>` takes the **open** section's
-     template id (`value={templateId || ''}`, [:490](../client/src/pages/settings/EmailTextsSettingsPage.jsx#L490)),
+     template id (`value={templateId || ''}`, [:490](../../client/src/pages/settings/EmailTextsSettingsPage.jsx#L490)),
      out of its own options — 6 MUI « out-of-range value » warnings per render, all present in the
      shadow's `vite.log` at 08:17 and 08:19, the moments Adrien opened the page.
 - **Prototype of fixes 1 + 2 measured** (scratch copy of inte, prod build): `/settings/emails/textes`
@@ -81,7 +83,7 @@ Other facts measured:
   inputs mounted 136 → 52, DOM nodes 1 590 → 779; accordion click p50 72 → 48 ms; keystroke p50
   24 → 16 ms.
 - **No route-level code splitting.** Every page is imported eagerly in
-  [App.jsx:63–97](../client/src/App.jsx#L63); the production `App` chunk is 1 468 kB (416 kB gzip) plus
+  [App.jsx:63–97](../../client/src/App.jsx#L63); the production `App` chunk is 1 468 kB (416 kB gzip) plus
   `sdk` 461 kB and `index` 255 kB. master ships one 2 216 kB chunk. Not a regression, but every page's
   code is parsed before the first one shows, on a phone too, and in dev every first load pulls all
   481 modules.
@@ -121,10 +123,10 @@ the same kind fails CI instead of reaching Adrien.
    counted. Above the budget the CI client job (`npm run build` then the script) fails and names the
    heaviest chunks. The budget is the measurement after rule 2 plus 10 % headroom, written in the
    script with the date it was measured: **284 851 bytes gzip measured on 2026-10-28, budget
-   313 336**. Before rule 2: 637 kB gzip (`index` 77 + `sdk` 144 + `App` 416). It needs
+   313 336, raised by 1 000 on 2026-11-23 to 314 336** (`DELIBERATE_RAISES` in the script). Before rule 2: 637 kB gzip (`index` 77 + `sdk` 144 + `App` 416). It needs
    `build.manifest: true` in `client/vite.config.js`.
    _Reading of 2026-11-18 (loops t19 A19-1, t20 UI20-1):_ the SDK's four sale blocks (`components/LazySaleComponents.jsx`) are
-   fetched apart from the first page and started when a dialog that renders them opens (specs/plugins-phase-1-sdk.md rule 54):
+   fetched apart from the first page and started when a dialog that renders them opens (specs/plugins/plugins-phase-1-sdk.md rule 54):
    309.4 kB gzip measured, under the budget.
 5. **The heavy endpoints do not grow with the data.** On a fixture of 2 000 reservations and 1 500
    clients, `GET /api/email-texts`, `POST /api/emails/preview`, `GET /api/dashboard/attention`,

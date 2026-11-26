@@ -1,4 +1,4 @@
-// specs/mobile-dashboard-exercise-cash.md rules 5-6 — each row of « Échéances de paiement » opens its fiche from the identity
+// specs/planning/mobile-dashboard-exercise-cash.md rules 5-6 — each row of « Échéances de paiement » opens its fiche from the identity
 // line; the row's buttons stay apart and never navigate.
 import { vi } from 'vitest';
 import React from 'react';

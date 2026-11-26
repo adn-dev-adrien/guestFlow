@@ -1,4 +1,4 @@
-// specs/tariff-recipes/spec.md §3 rule 58 (audit 2026-10-27) — the per-night extra-guest supplement of
+// specs/pricing/tariff-recipes.md §3 rule 58 (audit 2026-10-27) — the per-night extra-guest supplement of
 // a sold reservation replays the season it was sold under, not the live season price.
 const test = require('node:test');
 const assert = require('node:assert/strict');

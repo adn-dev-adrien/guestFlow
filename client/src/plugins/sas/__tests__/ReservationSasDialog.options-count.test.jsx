@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 29 — the « Prestations réservées » recap prints the figure
+// specs/options/non-card-option-served-persons.md rule 29 — the « Prestations réservées » recap prints the figure
 // the server sends, not `quantity`, which stays 1 on a typed line.
 import { screen } from '@testing-library/react';
 import { vi } from 'vitest';

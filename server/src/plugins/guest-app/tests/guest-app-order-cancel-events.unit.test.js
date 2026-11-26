@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 72 (audit of the J-7 branch, item 7 / M19) — the cancellation of a stay's orders is WIRED to the core's events:
+// specs/guest-app/guest-app.md rule 72 (audit of the J-7 branch, item 7 / M19) — the cancellation of a stay's orders is WIRED to the core's events:
 // the plugin's own handlers of `reservation.cancelled`, `reservation.deleted` and `reservation.updated` (a stay that stopped being a
 // reservation) cancel the orders, a live reservation's update never does, and the created event never does either.
 const fx = require('./guestOrderFixtures');

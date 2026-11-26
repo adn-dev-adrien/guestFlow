@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 40 (R35-EXT-3, R35-M-L4, R35-S1) — the HT lines sent to Qonto
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 40 (R35-EXT-3, R35-M-L4, R35-S1) — the HT lines sent to Qonto
 // always add up, line by line rounded, to the total charged: any line moves, a lone line out of reach gets a cent of
 // « Arrondi de TVA », and a total nothing reaches is refused before Qonto numbers anything.
 const test = require('node:test');

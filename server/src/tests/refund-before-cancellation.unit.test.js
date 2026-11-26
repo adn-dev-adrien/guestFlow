@@ -1,10 +1,10 @@
-// specs/payment-schedule-and-cancellation.md rule 55 (2026-11-02, review of PR #925, finding 3). A book refund made
+// specs/payments/payment-schedule-and-cancellation.md rule 55 (2026-11-02, review of PR #925, finding 3). A book refund made
 // BEFORE the cancellation already took its money out of 706 + VAT (or 4671). The cancellation used to requalify the
 // gross acompte / installments anyway: acompte 274 €, 100 € of accommodation given back, cancel → 274 € kept as an
 // indemnity although 174 € were held; once the 174 € still offered went back, 70600000 +90,91, 44571100 +9,09 and
 // 75880000 −100 stayed in the books. Now the cancellation keeps, bucket by bucket and installment line by
 // installment line, what the book refunds left of it — after a paid solde has absorbed them first.
-// specs/reservation-refunds.md rule 49 — the lines a cancelled stay offers never add up to more than it can still
+// specs/payments/reservation-refunds.md rule 49 — the lines a cancelled stay offers never add up to more than it can still
 // give back, and a refusal names what is really left.
 process.env.DB_PATH = ':memory:';
 
@@ -47,7 +47,7 @@ function depsOf(db, installmentsModel = null) {
   };
 }
 
-// The migrated base is built once per file and each case opens its own copy of it (specs/server-test-isolation.md rule 22):
+// The migrated base is built once per file and each case opens its own copy of it (specs/tech/server-test-isolation.md rule 22):
 // the fuzz below opens 180 databases, and the boot migrations cost ~26 ms each on a fresh schema.
 let baseImage = null;
 function baseDb() {

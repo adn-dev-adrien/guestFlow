@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rule 53 (audit R37-C-L1, its class) — a plugin switched off while its page
+// specs/design-system/ui-review-2026-10-19-operations.md rule 53 (audit R37-C-L1, its class) — a plugin switched off while its page
 // is open answers the loader's bare 404 `PLUGIN_INACTIVE`: the operator reads « Module inactif. », never the code;
 // the code stays in `error` for the callers that branch on it.
 import { vi } from 'vitest';

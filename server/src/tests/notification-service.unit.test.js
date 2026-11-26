@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { buildNotificationService } = require('../utils/notificationService');
 
 /**
- * Booking-notification service (specs/site-booking-notifications.md §3 rules 6–12).
+ * Booking-notification service (specs/site/site-booking-notifications.md §3 rules 6–12).
  * Fully injected (db + settingsModel + email factory + logger) so we assert recipient/from/subject/
  * body/link and the skip + best-effort guarantees without any real SMTP.
  */
@@ -79,7 +79,7 @@ test('notifyNewSiteDevis sends TO the configured recipient with details + devis 
   assert.match(sent[0].text, /https:\/\/app\.example\.com\/reservations\/new\?mode=devis&devisId=99/);
 });
 
-test('notifyNewSiteDevis lists planning-card options « à planifier » (specs/public-planning-options.md)', async () => {
+test('notifyNewSiteDevis lists planning-card options « à planifier » (specs/site/public-planning-options.md)', async () => {
   const db = seedDb();
   db.prepare('UPDATE options SET showsPlanningCard = 1 WHERE id = 6').run(); // Petit déjeuner is a planning option
   const sent = [];
@@ -174,7 +174,7 @@ test('missing row → skipped not_found, no send, no throw', async () => {
   assert.equal(res.skipped, 'not_found');
 });
 
-// ── Web Push trigger (specs/pwa-push-notifications.md §3.3) ──────────────────
+// ── Web Push trigger (specs/guest-app/pwa-push-notifications.md §3.3) ──────────────────
 
 function stubPush() {
   const calls = [];
@@ -210,7 +210,7 @@ test('notifyNewSiteDevis fires a « newReservation » push', async () => {
   assert.match(push.calls[0].payload.body, /Marie Durand · Le Gîte du Domaine/);
 });
 
-// specs/pwa-push-notifications.md rule 16
+// specs/guest-app/pwa-push-notifications.md rule 16
 test('a throwing push service never breaks the email path (isolation)', async () => {
   const db = seedDb();
   const sent = [];

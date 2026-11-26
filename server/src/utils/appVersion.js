@@ -1,5 +1,5 @@
 /**
- * The version GuestFlow is currently running (specs/self-update-and-releases.md §3.B rule 11).
+ * The version GuestFlow is currently running (specs/hosting/self-update-and-releases.md §3.B rule 11).
  *
  * Source of truth: the root `package.json`, which the release archive ships alongside `server/` and
  * `client/`. The same relative path resolves in both layouts:

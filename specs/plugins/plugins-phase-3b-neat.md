@@ -7,10 +7,12 @@
 | **Created** | 2026-10-02 |
 | **Author** | Adrien |
 | **Related PR** | [#652](https://github.com/adn-dev-adrien/guestFlow/pull/652) (target `inte/plugins`) |
-| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §6 extension points, phasing §12 |
-| **Previous phase** | [`specs/plugins-phase-3a-online-payment.md`](plugins-phase-3a-online-payment.md) (PR #651) |
-| **Feature spec** | [`specs/neat-cancellation-insurance-subscription.md`](neat-cancellation-insurance-subscription.md) — its rules hold unchanged |
-| **Summary for review** | [`docs/specs/2026-10-02-plugins-phase-3b-neat.html`](../docs/specs/2026-10-02-plugins-phase-3b-neat.html) |
+| **Parent study** | [`docs/rapports/plugins-inventory.md`](../../docs/rapports/plugins-inventory.md) — §6 extension points, phasing §12 |
+| **Previous phase** | [`specs/plugins/plugins-phase-3a-online-payment.md`](plugins-phase-3a-online-payment.md) (PR #651) |
+| **Feature spec** | [`specs/plugins/neat-cancellation-insurance-subscription.md`](neat-cancellation-insurance-subscription.md) — its rules hold unchanged |
+| **Summary for review** | [`docs/specs/2026-10-02-plugins-phase-3b-neat.html`](../../docs/specs/2026-10-02-plugins-phase-3b-neat.html) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** No rule changed. Still governs: the quote post-processor (`quotePostProcessors`), what a stay shows while Neat is off, the `neat` plugin boundary (`server/src/plugins/neat/`); the subscription behaviour itself is `specs/plugins/neat-cancellation-insurance-subscription.md`.
 
 ---
 
@@ -252,7 +254,7 @@ arrives.
     - Each contribution receives `option`, its plugin's block (`pluginBlocks[pluginId]`), an
       `onBlockChange` to replace it, and the stay's `reservationId` and `guestName`. *Since SDK 2.3.0
       (master sync of 2026-10-26):* also `locked`, true on a locked fiche — Neat's retry and void stay
-      disabled there ([mid-stay-extras-on-locked-fiche.md](mid-stay-extras-on-locked-fiche.md)).
+      disabled there ([mid-stay-extras-on-locked-fiche.md](../sas/mid-stay-extras-on-locked-fiche.md)).
     - Neat contributes `NeatInsuranceStatus`, for `appliesTo: (o) => o.isCancellationInsurance`: the chip,
       the premium line, the « ligne retirée » warning, « Réessayer maintenant » and « Résilier chez
       Neat » (with its confirmation). It calls `/api/neat/...` itself, through the `api` client that
@@ -336,7 +338,7 @@ arrives.
 
 25. **The core names no Neat.** The « Souscriptions Neat » push toggle (rule 13) is declared by the plugin
     with `ctx.pushChannel` (SDK 2.6.0) and served with its label; the insurance refusals (rules 21–22)
-    read « plugin d’assurance actif » (specs/platform-settings-relay-and-review.md rules 8–9).
+    read « plugin d’assurance actif » (specs/platforms/platform-settings-relay-and-review.md rules 8–9).
 
 ## 4. Architecture
 

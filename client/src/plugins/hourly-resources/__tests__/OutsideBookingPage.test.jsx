@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rule 53 — « Passage » : the fiche of an outside booking renders what the server answers (client, session, lines with « Réglé par … », payments,
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 53 — « Passage » : the fiche of an outside booking renders what the server answers (client, session, lines with « Réglé par … », payments,
 // refund lines, terms, arrival) and the history newest first; « Arrivée » opens the mini SAS; the loading and error states use the generic components.
 import React from 'react';
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react';

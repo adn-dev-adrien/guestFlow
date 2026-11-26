@@ -21,7 +21,7 @@ breakfast step**, and `reservations.breakfast*` columns. The Planning card curre
 morning** automatically (`(startDate, endDate]`) at a single `breakfastTime`.
 
 Decision (AskUserQuestion 2026-06-17): keep ALL the breakfast features, but **add the generic
-option-planning-card mechanism** (specs/option-planning-card.md) to it — **« une fois par jour »** — so the
+option-planning-card mechanism** (specs/options/option-planning-card.md) to it — **« une fois par jour »** — so the
 operator picks, **per reservation**, **which days** the breakfast applies and **the hour**, exactly like the
 other card options. The **dedicated breakfast card stays** (with drinks) but is **driven by the selected
 occurrences** instead of the automatic morning window. **No** generic OptionDayCard for breakfast (no double
@@ -45,7 +45,7 @@ while its **planning rendering remains the rich BreakfastDayCard**, now fed by t
    (per-person). With every served morning selected (the default), this equals the previous
    `persons × nights`, so amounts are unchanged by default.
    3.bis **`quantity` now counts MORNINGS, not guests (added 2026-08-03).** The engine stores
-   `quantity = occurrences.length` on a card-option ([pricing.js](../server/src/utils/pricing.js),
+   `quantity = occurrences.length` on a card-option ([pricing.js](../../server/src/utils/pricing.js),
    `showsPlanningCard` branch) — it is **no longer** the sub-occupation factor it is on a plain option.
    Any consumer reading `reservation_options.quantity` for a breakfast head count must therefore NOT
    multiply the party by it: the people served each morning are the party itself. This bit us in

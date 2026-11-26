@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 31 — the settings search's placeholder is short enough not to
+// specs/settings/settings-rationalization.md rule 31 — the settings search's placeholder is short enough not to
 // be clipped on a 390 px phone.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';

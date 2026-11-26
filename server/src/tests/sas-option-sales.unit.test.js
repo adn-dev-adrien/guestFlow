@@ -1,5 +1,5 @@
 // Prestations sold by the arrival SAS — breakfast mornings + « Restauration » catalogue.
-// See specs/sas-breakfast-and-catering-upsell.md.
+// See specs/sas/sas-breakfast-and-catering-upsell.md.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -34,7 +34,7 @@ const BEER = {
   displayToClient: 1, autoEnabled: 0, showsPlanningCard: 0,
 };
 
-// specs/cancellation-insurance.md §3.2 rule 17 — miscategorised on purpose: the guard must not
+// specs/payments/cancellation-insurance.md §3.2 rule 17 — miscategorised on purpose: the guard must not
 // depend on the operator filing it outside « Restauration ».
 const INSURANCE = {
   id: 42, title: 'Assurance annulation', price: 4, priceType: 'percent_of_stay',
@@ -140,7 +140,7 @@ test('price: a moment the guest cannot attend is refused', () => {
   assert.equal(line, null);
 });
 
-test('price: a per-person option bills the people served, quantity stays 1 (specs/non-card-option-served-persons.md rule 12)', () => {
+test('price: a per-person option bills the people served, quantity stays 1 (specs/options/non-card-option-served-persons.md rule 12)', () => {
   const line = priceOptionSale({ ...BOARD, priceType: 'per_person' }, {
     unitPrice: 17, persons: 3, nights: 3, servedPersons: 2,
   });
@@ -357,7 +357,7 @@ test('offers: the cancellation insurance is never sold at check-in — the stay 
   assert.deepEqual(offers.catering.options.map((o) => o.optionId), [27], 'the board sells, the insurance does not');
 });
 
-// ---- served persons (specs/card-option-served-persons.md) ----
+// ---- served persons (specs/options/card-option-served-persons.md) ----
 // A meal or a breakfast is not always taken by the whole table: the children often skip it.
 
 test('offers: a card option announces the party, the capacity and what this SAS sold', () => {

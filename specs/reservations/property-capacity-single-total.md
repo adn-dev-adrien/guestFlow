@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** Verified current (`server/src/utils/capacity.js`, `maxGuests` migration in `server/src/database.js`). The public booking controller now lives at `server/src/plugins/website-booking/controllers/publicBookingRequestController.js` (the `controllers/public/` path in §4 is the pre-plugin one).
+
 ---
 
 ## 1. Context

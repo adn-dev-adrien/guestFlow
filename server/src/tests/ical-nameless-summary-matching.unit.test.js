@@ -1,4 +1,4 @@
-// specs/ical-summary-fallback-cross-uid.md rule 7 and specs/ical-import-hardening.md rule 15 (audit
+// specs/platforms/ical-summary-fallback-cross-uid.md rule 7 and specs/platforms/ical-import-hardening.md rule 15 (audit
 // 2026-10-27) — a summary that names nobody (Airbnb « Reserved », Gîtes de France « BOOKED ») is shared by
 // every stay of a feed, so neither the same-summary re-claim (step 3.5) nor the cross-source de-dup may
 // match on it: the first handed a cancelled stay's fiche to an unrelated new booking, the second merged
@@ -15,7 +15,7 @@ const icalModel = require('../models/icalModel');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-// Every stay hangs on a day 248 days out (specs/server-test-isolation.md rule 6): `day(n)` is n days after it,
+// Every stay hangs on a day 248 days out (specs/tech/server-test-isolation.md rule 6): `day(n)` is n days after it,
 // `compact(n)` the same day as an iCal DATE.
 const FIRST = addDaysToIsoDate(todayIso(), 248);
 const day = (n) => addDaysToIsoDate(FIRST, n);

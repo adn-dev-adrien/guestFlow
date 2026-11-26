@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/manual-laundry-additions.md §4 rules 4-5 — manual linen additions are washed like reservation
+// specs/linen/manual-laundry-additions.md §4 rules 4-5 — manual linen additions are washed like reservation
 // linen (clean → laundry → clean) on a trip's drop, and defer past a skipped trip. Conservation must
 // hold (no phantom linen). June 2026 Tuesdays: 02, 09, 16, 23, 30 (laundryWeekday = 2).
 const { simulateInventory } = require('../linenInventory');
@@ -86,7 +86,7 @@ test('a same-day manual drop does not strand the initial at-laundry batch when `
   assertConservation(r, st);
 });
 
-// ---- withdrawals: « je lave moi-même » (specs/laundry-manual-removals.md §3 rules 4-5) ----
+// ---- withdrawals: « je lave moi-même » (specs/linen/laundry-manual-removals.md §3 rules 4-5) ----
 
 test('a NEGATIVE manual line washes the linen at home: dirty → clean the same day, never at the laundry', () => {
   const st = stock({ double: 10 });

@@ -1,4 +1,4 @@
-// specs/gift-voucher-campaigns.md rules 5, 16, 17, 41, 46, 52 — the one path of the sale: the offer and the price are built by `offerService`, and the site's routes and the
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 5, 16, 17, 41, 46, 52 — the one path of the sale: the offer and the price are built by `offerService`, and the site's routes and the
 // operator's routes only wrap it. The same request gets the same payload and the same price on both sides; a one-shot composition takes the same path; what the
 // giver reads is generic French built on the server — hours read from the resource, nothing computed by a client.
 process.env.DB_PATH = ':memory:';

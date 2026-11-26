@@ -1,4 +1,4 @@
-// specs/settings-input-guards.md rules 9-14 — the four numbers of « Paiement & caution ».
+// specs/settings/settings-input-guards.md rules 9-14 — the four numbers of « Paiement & caution ».
 import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';

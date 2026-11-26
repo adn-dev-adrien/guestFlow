@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md §3.B rules 6–8 — what would render badly is computed, one
+// specs/emails/guest-email-texts-made-simple.md §3.B rules 6–8 — what would render badly is computed, one
 // check at a time, each item with where to fix it; the dashboard counts the items of a stay within
 // 14 days; a sentence built on an empty setting is left out, never printed with a hole.
 

@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rules 7-8, 32-34 and §6 — the second-step screen: a numeric
+// specs/hosting/hosting-h2-account-security.md rules 7-8, 32-34 and §6 — the second-step screen: a numeric
 // one-time-code field sent at its 6th digit, a backup code accepted in the same field, « Se souvenir de
 // cet appareil (30 jours) » sent with the code, the server's refusal (wrong code, lock) shown under the
 // field as it is worded, and « Renvoyer le code » for the email method only.

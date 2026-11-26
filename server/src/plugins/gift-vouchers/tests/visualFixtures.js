@@ -1,4 +1,4 @@
-// Pictures and multipart calls for the visual-library suites (specs/gift-voucher-campaigns.md rule 47). Not a test file.
+// Pictures and multipart calls for the visual-library suites (specs/gift-vouchers/gift-voucher-campaigns.md rule 47). Not a test file.
 const sharp = require('sharp');
 
 /** A flat picture of `width` × `height` px, as a JPEG (or a PNG). */

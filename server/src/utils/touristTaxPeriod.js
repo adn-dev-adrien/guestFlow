@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md rules 2-5 — the window of the tourist-tax report: a month, a quarter, a year or a
+// specs/tourist-tax/tourist-tax-report-v2.md rules 2-5 — the window of the tourist-tax report: a month, a quarter, a year or a
 // custom du / au. Pure: today is passed in, never read here. A month is the existing extraction's month, a quarter
 // or a year the union of its months, a custom window reuses the finance window's validation (D7: ≤ 750 days,
 // impossible day « Deux dates à choisir. », both ends inside the date window).

@@ -1,6 +1,6 @@
 /**
  * Whether a subject (a reservation, a voucher order, an outside booking) must still accept the CURRENT terms of an activity, and the
- * refusal codes that say so (specs/gift-voucher-campaigns.md rules 37-38). Shared by the plugins through `ctx.terms` and by the core.
+ * refusal codes that say so (specs/gift-vouchers/gift-voucher-campaigns.md rules 37-38). Shared by the plugins through `ctx.terms` and by the core.
  */
 
 const termsModel = require('../models/termsModel');

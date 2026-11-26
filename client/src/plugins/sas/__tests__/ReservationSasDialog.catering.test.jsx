@@ -1,4 +1,4 @@
-// Selling the breakfast and the catering catalogue at check-in — specs/sas-breakfast-and-catering-upsell.md, card-option-served-persons.md
+// Selling the breakfast and the catering catalogue at check-in — specs/sas/sas-breakfast-and-catering-upsell.md, card-option-served-persons.md
 //
 // One file per subject (CLAUDE.md §9): two features appending their cases no longer collide on
 // the last line of a shared suite. Fixtures used by more than one subject live in ./sasFixtures.
@@ -9,7 +9,7 @@ import api from '../../../api';
 import { sasPayload, BREAKFAST_OFFER, MEAL_OFFER, BOARD_OFFER, salesPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 
-// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+// Every plugin active — the Solio configuration these tests describe (specs/plugins/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // Mock the API the dialog consumes.
@@ -19,7 +19,7 @@ vi.mock('../../../api', () => ({
     previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
-    // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
+    // Weather alerts (specs/guest-app/checkin-weather-alerts.md) — fired in the background on arrival open.
     // Default to "no alert" so the wizard flow under test is unchanged.
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
@@ -27,11 +27,11 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  // specs/sas/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
 });
 
-// ── Prestations sold at check-in (specs/sas-breakfast-and-catering-upsell.md) ────────────────
+// ── Prestations sold at check-in (specs/sas/sas-breakfast-and-catering-upsell.md) ────────────────
 
 test('arrival SAS: selling the breakfast — mornings pre-selected, count shown, composition seeded', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
@@ -256,7 +256,7 @@ test('arrival SAS re-open: declining a prior sale skips its sub-pages instead of
   expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([]);
 });
 
-// ── Personnes servies (specs/card-option-served-persons.md §3.3) ─────────────────────────────
+// ── Personnes servies (specs/options/card-option-served-persons.md §3.3) ─────────────────────────────
 // Les enfants ne mangent pas toujours : le check-in doit pouvoir baisser le nombre de couverts.
 
 test('arrival SAS: lowering the covers of a meal re-prices the preview and the intent', async () => {
@@ -395,7 +395,7 @@ test('arrival SAS re-open: the covers this SAS sold are pre-filled', async () =>
 // Reported 2026-08-30 from production: on the « Restauration » page the boards each carried a switch
 // while « Le repas des trappeurs » carried nothing but a grid of grey hour chips, which reads as
 // information rather than a control — the operator had no way to tell the meal could be taken at all
-// (specs/sas-breakfast-and-catering-upsell.md §3.2 rule 7).
+// (specs/sas/sas-breakfast-and-catering-upsell.md §3.2 rule 7).
 test('arrival SAS: a card option is taken by its switch, which opens (and clears) its moments', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2 },

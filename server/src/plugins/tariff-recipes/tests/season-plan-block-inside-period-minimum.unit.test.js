@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const { validateRecipe } = require('../store');
 const { buildYearPlan, materializeClosures } = require('../seasonPlan');
 
-// specs/tariff-recipes/spec.md §3 rule 16quater, completed at the 2026-10-27 spec review (L1). A
+// specs/pricing/tariff-recipes.md §3 rules 16c and 16d (16quater and 16ter until their numbers were
+// found used twice, 2026-11-26), completed at the 2026-10-27 spec review (L1). A
 // holiday block whose minimum does not exceed the period's (14 juillet: 3 nights inside a summer core
 // that demands 4; the Saturday 15 August: none) rewrote its nights WITHOUT the period minimum, so
 // the Gîte's 2026 Très haute was stored as 4 ranges with nothing to tell them apart.

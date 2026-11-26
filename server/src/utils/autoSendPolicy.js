@@ -1,8 +1,8 @@
 /**
  * Automatic-send policy — the single place that answers « may GuestFlow mail a guest with nobody in
- * the loop? » (specs/no-automatic-email-without-approval.md §3 rule 1).
+ * the loop? » (specs/emails/no-automatic-email-without-approval.md §3 rule 1).
  *
- * Since specs/settings-rationalization.md rule 17b there is no master switch any more: each template
+ * Since specs/settings/settings-rationalization.md rule 17b there is no master switch any more: each template
  * decides with its own mode. A template sends by itself only when it is enabled AND in « auto »
  * mode; everything else is proposed in « Emails à envoyer » and leaves on the operator's click.
  *
@@ -17,7 +17,7 @@
  * Fails closed on purpose. A missing template, a partially-migrated row, a read that throws — all
  * resolve to `false`. The safe default is « ask me », never « mail the guest ».
  *
- * One exception, granted by Adrien on 2026-10-30 (specs/payment-link-lifecycle.md rule 44): the guest whose
+ * One exception, granted by Adrien on 2026-10-30 (specs/payments/payment-link-lifecycle.md rule 44): the guest whose
  * payment request lost its dates to another stay is told at once, without validation. It is not a mode:
  * the template stays `manual` in the database, this policy still answers `false` for it, and its only sender
  * is `utils/datesTakenNotice.js`, the one module that reads `AUTO_SEND_EXCEPTIONS` (a test pins it).

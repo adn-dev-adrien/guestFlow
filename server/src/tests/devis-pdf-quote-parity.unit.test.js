@@ -1,5 +1,5 @@
 /**
- * specs/devis-pdf-total-parity.md — the devis PDF must print the amounts the operator validated.
+ * specs/devis/devis-pdf-total-parity.md — the devis PDF must print the amounts the operator validated.
  *
  * The PDF draws its table from the PERSISTED devis but resolves its tourist tax + TOTAL from a live
  * re-quote. The re-quote therefore has to replay the state the devis was SOLD under; when it didn't,
@@ -146,7 +146,7 @@ test('offered property-default option: the replay keeps it at 0 € AND re-quote
 test('REGRESSION: an input that drops offeredOptionIds re-bills the option AND inflates the tax', () => {
   // What the PDF controller used to build. Kept as an executable description of the bug: the offered
   // 60 € comes back into the total, and the line — no longer « comprise » — stops leaving the tourist
-  // tax base, so the declared tax inflates too (specs/tourist-tax-included-services-deduction.md
+  // tax base, so the declared tax inflates too (specs/tourist-tax/tourist-tax-included-services-deduction.md
   // rule 2: only a line tagged `includedInRate` is deducted).
   const { model, db } = freshModel();
   const devis = model.create(BASE).data;

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 74, 93 (end-review verification V-2) — an hourly line a sale reads frozen keeps the hours it billed, but an offered
+// specs/pricing/pricing-components.md §3 rules 74, 93 (end-review verification V-2) — an hourly line a sale reads frozen keeps the hours it billed, but an offered
 // line is stored at 0 €: billing it again bills its hours again, never 0 h read from its stored total. A free hour (the lodging's free minutes) stays free
 // when it is offered and billed again.
 process.env.DB_PATH = ':memory:';

@@ -12,14 +12,14 @@
 
 ## 1. Context
 
-The application already ships a working **school holidays** feature for the three French education zones (A, B, C). Periods are seeded on first boot ([`server/src/database.js:827`](../server/src/database.js#L827)) — 15 periods covering Oct 2024 → Aug 2027 — and an admin page ([`client/src/pages/SchoolHolidaysPage.js`](../client/src/pages/SchoolHolidaysPage.js)) lets the user add/edit/delete additional periods. The data is consumed read-only by:
+The application already ships a working **school holidays** feature for the three French education zones (A, B, C). Periods are seeded on first boot ([`server/src/database.js:827`](../../server/src/database.js#L827)) — 15 periods covering Oct 2024 → Aug 2027 — and an admin page ([`client/src/pages/SchoolHolidaysPage.js`](../client/src/pages/SchoolHolidaysPage.js)) lets the user add/edit/delete additional periods. The data is consumed read-only by:
 
 - [`CalendarPage.js`](../client/src/pages/CalendarPage.js) — colored Zone A/B/C indicators on each day cell ([line 1298](../client/src/pages/CalendarPage.js#L1298)).
 - [`PropertyPricingSeasonsPage.js`](../client/src/pages/PropertyPricingSeasonsPage.js) — overlay on the seasons calendar ([line 651](../client/src/pages/PropertyPricingSeasonsPage.js#L651)).
 
 The implementation predates the spec-driven workflow and has three problems:
 
-1. **The data goes stale.** The seed in `database.js` is hardcoded with periods that stop at Aug 2027 (verified [line 827](../server/src/database.js#L827)). After the seed runs once, nothing ever refreshes the data — there is **no auto-sync** with the official French open-data source. The user has to manually re-key new years as they get published. Confirmed: `grep -n "school\|holiday" server/src/scheduledTasks.js` returns no matches.
+1. **The data goes stale.** The seed in `database.js` is hardcoded with periods that stop at Aug 2027 (verified [line 827](../../server/src/database.js#L827)). After the seed runs once, nothing ever refreshes the data — there is **no auto-sync** with the official French open-data source. The user has to manually re-key new years as they get published. Confirmed: `grep -n "school\|holiday" server/src/scheduledTasks.js` returns no matches.
 2. **The page is not visual.** Today's `DataPageScaffold` + `<Table>` layout forces the user to read date columns to mentally reconstruct the school calendar. The presentation does not match what the data is *about* (a calendar).
 3. **Standard debt.** Route file ([`server/src/routes/schoolHolidays.js`](../server/src/routes/schoolHolidays.js), 35 LOC) does DB calls directly with no model, no controller, no validation, no tests. The form accepts empty labels, reversed dates, and empty zone pairs without complaint.
 
@@ -45,14 +45,14 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
    *Reading of 2026-11-02 — the date window.* Each zone date is a real calendar day inside [today − 5 years, today + 5
    years] (« Zone A : date trop ancienne : 5 ans au plus. », « … : date invalide. »), 400 `INVALID_PERIOD`; a
    date the edited period already stores (an imported one) is kept. The education.gouv.fr sync writes its
-   own dates and is not judged (school-holidays 1.0.5, `specs/reservations-backend-mvc.md` rule 13, second reading).
+   own dates and is not judged (school-holidays 1.0.5, `specs/tech/reservations-backend-mvc.md` rule 13, second reading).
 6. At least one zone must be configured. A period with all three zones empty is rejected.
 7. Listing returns periods sorted by `COALESCE(zoneA_start, zoneB_start, zoneC_start) ASC, id ASC`.
 8. Validation errors return `400 INVALID_PERIOD` with a French error message.
 
 ### Auto-sync from data.education.gouv.fr
 
-9. **Source of truth:** the official open dataset [`fr-en-calendrier-scolaire`](https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/) on `data.education.gouv.fr`. Records filtered to `population = "Élèves"` or `population = "-"` (exclude staff, CPGE, etc.): the dataset marks most periods `"-"` (same dates for everyone) and only splits `"Élèves"` from staff when they differ — filtering on `"Élèves"` alone kept the summer only (fixed 2026-09-28, specs/plugins-phase-1-sdk.md). All Zone A/B/C records are kept; other zones (e.g. Corse, DOM-TOM) are ignored — only metropolitan A/B/C are in scope.
+9. **Source of truth:** the official open dataset [`fr-en-calendrier-scolaire`](https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/) on `data.education.gouv.fr`. Records filtered to `population = "Élèves"` or `population = "-"` (exclude staff, CPGE, etc.): the dataset marks most periods `"-"` (same dates for everyone) and only splits `"Élèves"` from staff when they differ — filtering on `"Élèves"` alone kept the summer only (fixed 2026-09-28, specs/plugins/plugins-phase-1-sdk.md). All Zone A/B/C records are kept; other zones (e.g. Corse, DOM-TOM) are ignored — only metropolitan A/B/C are in scope.
 10. **What we fetch:** all records where `start_date` falls between **today** and **today + `syncHorizonMonths` months** (default 24, user-configurable per rule 16), so the local DB always covers the desired horizon.
 11. **Aggregation:** the API returns one record per (zone, period). We group records by `(annee_scolaire, description)` → one local row. For each row, the matching record(s) populate `zoneA_start/end`, `zoneB_start/end`, `zoneC_start/end`. Rows without any zone match for our 3 zones are skipped.
 12. **External identity (`externalRef`):** `${annee_scolaire}|${description_normalized}` (where `description_normalized` = trimmed + lowercased + ASCII-folded). Used as the upsert key for auto-sync. Manually-created rows have `externalRef = NULL` and are **never** touched by the sync.
@@ -94,7 +94,7 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
     - On server `400 INVALID_SYNC_SETTINGS`, surface the message in an `Alert` inside the dialog.
 27. **No sync on an instance started without outbound access** (added 2026-10-30, audit R7 L-1). When the
     server runs with `GUESTFLOW_DISABLE_OUTBOUND=1` **and** `NODE_ENV=test` — both set by every E2E server
-    (specs/e2e-playwright-smoke-suite.md rule 23) — the scheduled sync, the sync of a fresh install and the
+    (specs/tech/e2e-playwright-smoke-suite.md rule 23) — the scheduled sync, the sync of a fresh install and the
     manual trigger all return `{ ok: false, error: 'Synchronisation désactivée sur cette instance.' }` without
     calling `data.education.gouv.fr` and without touching the sync state, so an E2E run never depends on the
     live dataset. Unset (every real install), nothing changes. Outside `NODE_ENV=test` the flag is ignored
@@ -114,7 +114,7 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 
 ## 4. Architecture
 
-> **Moved to plugin `school-holidays` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> **Moved to plugin `school-holidays` (phase 1, `specs/plugins/plugins-phase-1-sdk.md`) — current file map
 > (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
 > `server/src/plugins/school-holidays/`: `controller.js` · `routes.js` · `model.js` · `sync.js` (sync
 > engine) · `educationGouvClient.js` (data.education.gouv.fr client) · `validation.js` · `localDay.js` ·
@@ -199,7 +199,7 @@ ALTER TABLE school_holidays ADD COLUMN lastSyncedAt TEXT;       -- ISO-8601 of l
 CREATE INDEX IF NOT EXISTS idx_school_holidays_externalRef ON school_holidays(externalRef);
 ```
 
-Idempotent block in `server/src/database.js`. Existing rows: `externalRef = NULL`, `isLocked = 0`. They get adopted by the first auto-sync if their `(year, label)` matches an API record (the upsert overwrites the row in place). Otherwise they stay as orphan manual rows. Since 2026-09-28 (specs/plugins-phase-1-sdk.md rule 27) a manual row is also adopted when it names the same season (Toussaint, Noël, Hiver, Printemps, Pâques, Ascension, Été) and its dates overlap in one zone, and only by a period not yet imported. Dates are the Paris days of the dataset's instants: first day off, and the day before classes resume.
+Idempotent block in `server/src/database.js`. Existing rows: `externalRef = NULL`, `isLocked = 0`. They get adopted by the first auto-sync if their `(year, label)` matches an API record (the upsert overwrites the row in place). Otherwise they stay as orphan manual rows. Since 2026-09-28 (specs/plugins/plugins-phase-1-sdk.md rule 27) a manual row is also adopted when it names the same season (Toussaint, Noël, Hiver, Printemps, Pâques, Ascension, Été) and its dates overlap in one zone, and only by a period not yet imported. Dates are the Paris days of the dataset's instants: first day off, and the day before classes resume.
 
 ### New singleton table
 
@@ -221,7 +221,7 @@ INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1);
 
 Idempotent — re-runs are no-ops. The `INSERT OR IGNORE` ensures the singleton row exists; subsequent `ALTER TABLE ADD COLUMN` migrations (if we ever add fields) follow the same pattern used elsewhere in `database.js`.
 
-**Data impact:** none — additive changes. The seeded periods (Oct 2024 → Aug 2027) are preserved and adopted by the first sync. Since 2026-09-28 the table and its seed belong to the school-holidays plugin module (specs/plugins-phase-1-sdk.md): a new database has neither until the plugin is installed, and the seed is gone.
+**Data impact:** none — additive changes. The seeded periods (Oct 2024 → Aug 2027) are preserved and adopted by the first sync. Since 2026-09-28 the table and its seed belong to the school-holidays plugin module (specs/plugins/plugins-phase-1-sdk.md): a new database has neither until the plugin is installed, and the seed is gone.
 
 **Index consideration:** the new `idx_school_holidays_externalRef` index supports the upsert lookup in the sync engine.
 

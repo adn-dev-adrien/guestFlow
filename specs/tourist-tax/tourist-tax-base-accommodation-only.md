@@ -22,7 +22,7 @@ real, and the engine has exactly **two** ways of doing it. Both were reproduced 
 production database (3 nights, 2 adults, accommodation 359,79 €):
 
 **A — the platform brut back-solves the accommodation.**
-[pricing.js:1960](../server/src/utils/pricing.js#L1960) — when `platformGrossAmount` is filled in,
+[pricing.js:1960](../../server/src/utils/pricing.js#L1960) — when `platformGrossAmount` is filled in,
 the accommodation is *deduced* from the brut (`brut − extra-guest surcharge − pre-arrival
 options/resources`) and that deduced amount is what the tax is computed on. Every extra kept out of
 « Complément » therefore eats into the tax base, and flipping the Complément chip on a line moves
@@ -35,8 +35,8 @@ the tax:
 | Ménage 30 € **inside** Complément | 150,00 € | 22,50 € |
 
 **B — the « services included in the rate » deduction.**
-[pricing.js:1967](../server/src/utils/pricing.js#L1967), rule 48 of
-[tariff-recipes/spec.md](tariff-recipes/spec.md) — a property-default option configured « offered »
+[pricing.js:1967](../../server/src/utils/pricing.js#L1967), rule 48 of
+[tariff-recipes/spec.md](../pricing/tariff-recipes.md) — a property-default option configured « offered »
 (`property_option_defaults.offered = 1`) is tagged `includedInRate` and its catalogue value is
 subtracted from the tax base. On the Lodge those defaults are Ménage (30 €/séjour), Linge de lit
 (7 €/pers) and Linge de toilette (8 €/pers):
@@ -125,7 +125,7 @@ to the end-of-stay complement, or nowhere — never changes the tax by a cent.
 | `database.js` | — | — | (none) |
 
 **Notes:**
-- The change is confined to [pricing.js:1955-1985](../server/src/utils/pricing.js#L1955). The block
+- The change is confined to [pricing.js:1955-1985](../../server/src/utils/pricing.js#L1955). The block
   that pre-computed `pinnedAccommodationInclTax` « so the tax stays byte-identical » is deleted; the
   real `pinnedAccommodation` used for `finalPrice` (line ~2038) stays exactly as it is.
 - Quote payload: `touristTaxBaseAccommodation` stays — it is the one honest name for the new base and
@@ -260,11 +260,11 @@ Avant le correctif, la première ligne valait 15,00 €, la deuxième 16,50 € 
       `tests/pricing-tourist-tax-freeze.unit.test.js` et par le dernier test du nouveau fichier.
 
 ### Spec sync (CLAUDE.md §4.1)
-- [x] `specs/tariff-recipes/spec.md` — rule 48 marked repealed, 48bis and 49 rewritten, and the
+- [x] `specs/pricing/tariff-recipes.md` — rule 48 marked repealed, 48bis and 49 rewritten, and the
       2026-08-12 « Resolved » note amended with the 2026-08-20 decision.
-- [x] `specs/tariff-recipes/architecture.md` §2.6 and `specs/tariff-recipes/plan.md` Step 5 — marked
+- [x] `specs/pricing/tariff-recipes.md` (former architecture §2.6 and plan step 5) — marked
       removed/reverted, since both describe code that no longer exists.
-- [x] `specs/devis-pdf-total-parity.md` — the `offeredOptionIds` row no longer claims a tax effect.
+- [x] `specs/devis/devis-pdf-total-parity.md` — the `offeredOptionIds` row no longer claims a tax effect.
 - [x] `changelog.d/fixed--tourist-tax-base-accommodation-only.md`.
 
 ## 8. Out of scope

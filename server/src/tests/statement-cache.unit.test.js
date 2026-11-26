@@ -1,4 +1,4 @@
-// specs/pricing-components.md rule 48 (reading of 2026-11-18, loop t19) — one compiled statement per SQL text and database
+// specs/pricing/pricing-components.md rule 48 (reading of 2026-11-18, loop t19) — one compiled statement per SQL text and database
 // handle: `db.prepare(sql)` hands back the statement it already compiled, the cache empties when the schema changes, a text
 // that fails to compile is never kept, the cache is bounded, the stay-write trail still sees each UPDATE once, and no
 // module of server/src, server/scripts or scripts/ sets a statement mode a cached statement would share with another caller (the guard and

@@ -1,4 +1,4 @@
-// specs/settings-rationalization.md rule 29 — the settings search finds « Textes des emails » by the
+// specs/settings/settings-rationalization.md rule 29 — the settings search finds « Textes des emails » by the
 // names the emails carry everywhere since guest-email-texts-made-simple, never by « J-2 ».
 import { SETTINGS_KEYWORDS } from '../settingsMenu';
 import { EMAIL_DISPLAY_NAMES } from '../emailNames';

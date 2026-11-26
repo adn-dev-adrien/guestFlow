@@ -1,5 +1,5 @@
 /**
- * The capacity the start assistant proposes for a property (specs/plugins-phase-p-productisation.md
+ * The capacity the start assistant proposes for a property (specs/plugins/plugins-phase-p-productisation.md
  * §3.D rule 21): two guests per double bed, one per single bed, kept within 1–MAX_CAPACITY.
  *
  * The inputs arrive while the operator is still typing, so a count that is not a whole number ≥ 0

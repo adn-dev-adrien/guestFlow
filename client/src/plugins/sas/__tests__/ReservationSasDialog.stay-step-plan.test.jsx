@@ -1,4 +1,4 @@
-// The stay step follows the plan — specs/pricing-components.md rule 117, sas-arrival-total-server-side rule 25 (stabilisation loop t9, UI9-1).
+// The stay step follows the plan — specs/pricing/pricing-components.md rule 117, sas-arrival-total-server-side rule 25 (stabilisation loop t9, UI9-1).
 //
 // Once a preview answered, the « Séjour » step exists iff the plan asks a stay amount, and shows exactly that amount: a recap gesture that
 // settles the stored solde removes the page (nothing shown, nothing sent), one that raises a stay the stored row left at 0 brings it in.

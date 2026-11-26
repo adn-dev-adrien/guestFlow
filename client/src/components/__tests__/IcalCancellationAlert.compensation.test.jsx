@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 /**
  * Approving an iCal cancellation now asks whether the platform owes an indemnity for the cancelled
- * stay (specs/cancellation-compensation.md §3.2). Two things must stay true:
+ * stay (specs/payments/cancellation-compensation.md §3.2). Two things must stay true:
  *   - the default answer is « Aucune indemnité », and it approves exactly like before (no payload);
  *   - declaring one sends the block, and the card only disappears once the server confirmed — the
  *     compensation is created in the same transaction as the deletion.
@@ -24,7 +24,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import IcalCancellationAlert from '../IcalCancellationAlert';
 
-// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+// The home's subject this card draws (specs/planning/shell-and-home-day-first.md rule 6 — server-made).
 const ATTENTION = { key: 'ical-cancellation', severity: 'todo', count: 1, title: 'Annulations iCal à valider', detail: '1 réservation annulée sur la plateforme' };
 
 const ALERT = {

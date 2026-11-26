@@ -7,7 +7,7 @@
 | **Created** | 2026-05-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 4 remainder (carried from Bloc 0). See `specs/ROADMAP.md`. |
+| **Bloc** | Bloc 4 remainder (carried from Bloc 0). See `docs/rapports/ROADMAP.md`. |
 
 > ⚠️ **Highest-risk change in the codebase.** It carries a **data migration** and touches occupancy,
 > finance, calendar, and iCal. **No migration runs until this spec's strategy is approved.** Implementation

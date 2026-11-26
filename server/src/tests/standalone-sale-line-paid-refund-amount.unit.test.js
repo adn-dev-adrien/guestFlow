@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 44 (mock M5) and 55 (stabilisation loop t3, B3-3) — the LINE_PAID refusal names what the confirmed lowering would
+// specs/sas/outside-booking-sas.md rules 44 (mock M5) and 55 (stabilisation loop t3, B3-3) — the LINE_PAID refusal names what the confirmed lowering would
 // really open: the line's money first pays the lines still due (rule 52), only the rest is owed back. Nothing to open, no confirmation asked.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';

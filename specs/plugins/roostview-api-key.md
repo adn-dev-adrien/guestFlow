@@ -13,7 +13,7 @@
 ## 1. Context
 
 Roostview (Adrien's price watch, `adn-dev-adrien/roostview`, spec 004) reads GuestFlow's properties,
-blocked nights and nightly prices through the public API (`/public/v1`, [public-api.md](public-api.md)).
+blocked nights and nightly prices through the public API (`/public/v1`, [public-api.md](../site/public-api.md)).
 That API knows a single key, `PUBLIC_API_KEY`, the WordPress proxy's. Giving Roostview the same key
 means one leak or one rotation hits both callers, and Roostview would hold the right to create
 booking requests it never needs.

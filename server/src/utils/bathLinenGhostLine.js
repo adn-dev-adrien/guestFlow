@@ -1,5 +1,5 @@
 /**
- * Ghost bath-linen line in the end-of-stay complement — specs/sas-bath-linen-ghost-line.md.
+ * Ghost bath-linen line in the end-of-stay complement — specs/linen/sas-bath-linen-ghost-line.md.
  *
  * The arrival SAS used to offer « linge de toilette réglé en fin de séjour », which wrote a billing
  * line into `reservations.endOfStayComplementDetail` instead of a line on the fiche. When the option

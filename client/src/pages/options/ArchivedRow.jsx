@@ -1,5 +1,5 @@
 /**
- * ArchivedRow — an archived option in the folded « Archivées » section (specs/options-resources-ux.md
+ * ArchivedRow — an archived option in the folded « Archivées » section (specs/options/options-resources-ux.md
  * rules 26-27): its name and category, a note, and « Restaurer ».
  *
  * Props: item { id, title, category }, onRestore(item), busy

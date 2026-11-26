@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 38 (audit R20, E20-1) — `ctx.core.reservations.updateBody(id)` (SDK 2.21.0)
+// specs/plugins/plugins-phase-1-sdk.md rule 38 (audit R20, E20-1) — `ctx.core.reservations.updateBody(id)` (SDK 2.21.0)
 // hands the very body `ctx.core.reservations.update` spreads a patch over, so a plugin that rewrites a line list
 // starts from the fiche's own lines and can never drop a field the fiche's save carries again.
 const test = require('node:test');

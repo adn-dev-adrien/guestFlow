@@ -1,5 +1,5 @@
 /**
- * Headings of the three complement buckets — specs/complement-buckets-by-moment.md §3 rule 7.
+ * Headings of the three complement buckets — specs/sas/complement-buckets-by-moment.md §3 rule 7.
  *
  * A complement is named after the MOMENT it is collected, not the column that stores it. Shared by
  * the summary panel and the Finance cards so the same amount can never read under two headings on

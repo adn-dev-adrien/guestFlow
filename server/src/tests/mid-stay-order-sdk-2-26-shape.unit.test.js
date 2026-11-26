@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 54 and specs/guest-app.md rule 108 (end review R3-3) — the SDK 2.26.0 call shape of
+// specs/plugins/plugins-phase-1-sdk.md rule 54 and specs/guest-app/guest-app.md rule 108 (end review R3-3) — the SDK 2.26.0 call shape of
 // `coreModule('midStayOrderCommit')` still works in a minor: `priceOrder(id, lines, { pending })` is accepted, its `pending` an explicit no-op
 // (told once in the log), and `commitOrder`'s answer keeps `excessCents` beside `overpaidCents`.
 process.env.DB_PATH = ':memory:';

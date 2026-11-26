@@ -13,7 +13,7 @@ Validation: the design page of the « Finance reporting, inspired by HIPPOCAMP �
 pill and its single notice), D-HC7 (one comparability rule, the booking pace's) and D-HC8 (every
 figure panel states its source).
 
-This spec **adds** to `specs/finance-dashboard-redesign.md` (the dashboard's source of truth). It
+This spec **adds** to `specs/accounting/finance-dashboard-redesign.md` (the dashboard's source of truth). It
 changes none of that spec's rules or fields: rules 17-21 and 33 (comparison with last year), 23-25
 (occupancy, revenue per night, RevPAR) and 51 (the 750-day custom window) are reused as they are.
 
@@ -258,7 +258,7 @@ server.
 ### 4.2 Client side (`client/src/`)
 
 The UI round (2026-11-05, rules 15-18) renders the fields with lot 0's report grammar
-(`specs/report-grammar.md`). No figure, delta or comparability is computed on the client.
+(`specs/design-system/report-grammar.md`). No figure, delta or comparability is computed on the client.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
@@ -364,7 +364,7 @@ per-logement small multiples. The ADR label follows rule 25 of the dashboard: «
 - 2026-11-06 round 2: `comparisonPill.test.js` and `FinancePage.yoy-pills.test.jsx` pin rule 27 (no span in the pills; the notice says it); `FinancePage.review-fixes.test.jsx` cites rule 27 instead of 19.
 - [x] `pages/__tests__/FinancePage.review-fixes.test.jsx` (8, 2026-11-06) — rules 19, 20, 24, 25, 26 and dashboard rules 53-55: complete pill without span, occupied nights, RevPAR to the cent, `yDomain`, chart row alignment, « Déjà payé », the « Logements » tile without RevPAR, the per-night basis in the definition.
 - Fixture: `pages/__tests__/financeComparisonFixtures.jsx`. The existing FinancePage suites (older payload) pass unchanged.
-- 2026-11-05 follow-up: the five server suites pin the clock for the whole file (`mock.timers`, Date = 2026-11-05) and the closed-exercise rows of `financeComparisonFixture.js` carry `date-literal-ok` (`specs/server-test-isolation.md` rule 7, `scripts/check-test-dates.mjs --strict`). The banner became a light card (`finance-dashboard-redesign.md` rule 52), so the pills of rule 16 sit in their light-surface style; the hero is two columns from `lg` only, so each pill stays on one line from `sm` up.
+- 2026-11-05 follow-up: the five server suites pin the clock for the whole file (`mock.timers`, Date = 2026-11-05) and the closed-exercise rows of `financeComparisonFixture.js` carry `date-literal-ok` (`specs/tech/server-test-isolation.md` rule 7, `scripts/check-test-dates.mjs --strict`). The banner became a light card (`finance-dashboard-redesign.md` rule 52), so the pills of rule 16 sit in their light-surface style; the hero is two columns from `lg` only, so each pill stays on one line from `sm` up.
 
 ### Manual UI verification (2026-11-05, isolated instance on ports 47130 / 47131, throwaway DB)
 Seeded: two logements (Granja all year, Estiva closed November-March), 99 stays over 2025-2026, booking

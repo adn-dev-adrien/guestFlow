@@ -1,4 +1,4 @@
-// Fixed at the 2026-10-27 spec review (specs/review-2026-10-18-reservations.md rule 8) — the three
+// Fixed at the 2026-10-27 spec review (specs/design-system/review-2026-10-18-reservations.md rule 8) — the three
 // selects of the « Séjour » card carry an accessible name: each InputLabel has an id the Select
 // points at (`labelId`). Without it a screen reader announced three unnamed comboboxes.
 import React from 'react';

@@ -54,7 +54,7 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
 5. `propertyId IS NULL` = **global closure** (applies to every property). Cannot overlap with any reservation across all properties, nor with any other closure (global or per-property).
 6. `propertyId = X` = **per-property closure** (applies only to property X). Cannot overlap with any reservation on property X, nor with any global closure, nor with any other closure on property X.
 7. Two per-property closures on **different** properties can overlap freely (they don't conflict).
-8. Conflict detection uses the same night-block semantics as the existing code: early check-in (≤ 10h) extends the reservation's effective start to the previous day; late check-out (≥ 17h) extends the effective end to the next day. *Reading of 2026-11-05 (audit R23-3):* ≤ 10h is judged in minutes, so 10:30 does not take the night before (`specs/reservations-backend-mvc.md` rule 22).
+8. Conflict detection uses the same night-block semantics as the existing code: early check-in (≤ 10h) extends the reservation's effective start to the previous day; late check-out (≥ 17h) extends the effective end to the next day. *Reading of 2026-11-05 (audit R23-3):* ≤ 10h is judged in minutes, so 10:30 does not take the night before (`specs/tech/reservations-backend-mvc.md` rule 22).
 
 ### Validation (server-side)
 
@@ -84,7 +84,7 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     message in its error alert. *Why:* a closure ending 9999-12-31 was accepted, and every public calendar
     view of that logement then blocked the server for about 3 s. A tariff-recipe closure is a few weeks
     long; the snapshot of 2026-10-22 holds 4 closures, the longest 168 nights.
-    *Reading of 2026-11-02 (Adrien's decision, `specs/reservations-backend-mvc.md` rule 13) — no date past
+    *Reading of 2026-11-02 (Adrien's decision, `specs/tech/reservations-backend-mvc.md` rule 13) — no date past
     the horizon.* `validateRange` also refuses, after the length cap, a start or a reopening day more than
     5 years after today (`stayDates.dateBeyondHorizon`), with « Date trop lointaine : 5 ans au plus. »,
     `400 INVALID_RANGE`, on create, update and the conflicts preview; the past is not limited. On update
@@ -95,7 +95,7 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     opened with stays allowed. The snapshot of 2026-10-22 ends its last closure on 2028-03-31.
     *Reading of 2026-11-02, second (Adrien's decision) — the past side.* A start or reopening date before
     today − 5 years is refused too, « Date trop ancienne : 5 ans au plus. », on create, update and the conflicts
-    preview; a date the closure already stores is kept (`specs/reservations-backend-mvc.md` rule 13, second reading). The dialog says it under the field and
+    preview; a date the closure already stores is kept (`specs/tech/reservations-backend-mvc.md` rule 13, second reading). The dialog says it under the field and
     neither previews nor saves it.
 19. **A closure is expanded only over the window asked** _(added 2026-11-02, audit R19)_.
     `expandClosuresToDates(closures, { from, to })` keeps the nights inside `[from, to)`;
@@ -108,7 +108,7 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     `GET /api/reservations/occupied-dates/:propertyId` refuses through `planningDateRange.checkPlanningRange`
     a day that is not real or reversed (`400 INVALID_DATE_RANGE`) and a window over 750 days
     (`400 DATE_RANGE_TOO_WIDE`). `to` is exclusive. The fiche asks for the stay's own dates (366 nights
-    at most, `specs/reservations-backend-mvc.md` rule 12), and only for a range it would quote
+    at most, `specs/tech/reservations-backend-mvc.md` rule 12), and only for a range it would quote
     (`isQuotableStay`: not reversed, not too long, not past the horizon), so a range being typed is not
     sent; the calendar asks for one month grid, up to the day after its last cell (amended 2026-11-02,
     review of PR #937: it asked up to the last cell, so a closed night on a grid's last Sunday — the

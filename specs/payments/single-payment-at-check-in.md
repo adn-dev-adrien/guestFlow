@@ -12,13 +12,13 @@
 
 ## 1. Context
 
-Since [collect-stay-payment-at-check-in.md](collect-stay-payment-at-check-in.md) (v2.8.0) the arrival
+Since [collect-stay-payment-at-check-in.md](../sas/collect-stay-payment-at-check-in.md) (v2.8.0) the arrival
 SAS can collect **two different things** at the door:
 
 - the **stay** itself — acompte + solde still unpaid, the last-minute case;
 - the **arrival complement** — what the guest owes on top: linen, cleaning, and the prestations sold
   during the check-in itself (breakfast, restauration —
-  [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md)).
+  [sas-breakfast-and-catering-upsell.md](../sas/sas-breakfast-and-catering-upsell.md)).
 
 Rule 22 of that spec made them **settle separately, on purpose**: they are different accounting
 objects, and one may be deferred to the check-out while the other is collected. The recap therefore
@@ -50,7 +50,7 @@ commission) stays exactly as correct as it is today.
    « Both collectible » is **composed**, not answered by a single server flag (corrected 2026-08-30,
    during implementation):
    - the **« Séjour à régler » step is shown** (`stayPayment.applicable` — the server's call, rule 6
-     of [collect-stay-payment-at-check-in.md](collect-stay-payment-at-check-in.md); since 2026-09-08
+     of [collect-stay-payment-at-check-in.md](../sas/collect-stay-payment-at-check-in.md); since 2026-09-08
      that rule is **direct-channel only**, so a platform booking never composes a unified payment —
      its complements settle through their own block, as before this spec);
    - the **complement is still open** (`arrivalPayment.complementOpen` — the server's call);
@@ -61,13 +61,13 @@ commission) stays exactly as correct as it is today.
    trappeurs » sold *during* the check-in is not in `complementAmount` when the SAS payload is built.
    The recap owns that total already (it renders it), so it composes the condition. No money is
    decided client-side: every line is re-priced by the server at commit, as always.
-2. **Three buttons, same component and grammar as today** ([sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)):
+2. **Three buttons, same component and grammar as today** ([sas-recap-payment-buttons.md](../sas/sas-recap-payment-buttons.md)):
    - **CB / Chèque** → everything is settled, ordinary accounting;
    - **Payé en liquide** → everything is settled in the **caisse interne**, off the books, on both
-     sides at once ([cash-complement-and-endofstay-finance.md](cash-complement-and-endofstay-finance.md));
+     sides at once ([cash-complement-and-endofstay-finance.md](../sas/cash-complement-and-endofstay-finance.md));
    - **Plus tard** → nothing is collected, and **each side keeps its own meaning of « later »**: the
      stay stays due exactly as it is, the complement is recalled at the check-out
-     ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)).
+     ([recall-unpaid-arrival-complement-at-checkout.md](../sas/recall-unpaid-arrival-complement-at-checkout.md)).
      That is precisely what the two independent defers do today; unifying the button does not unify
      what being unpaid means.
 3. **« Plus tard » is pre-selected**, and clicking the active mode again returns to it — the same
@@ -98,7 +98,7 @@ commission) stays exactly as correct as it is today.
 8. **The group is cleared** whenever any bucket it names stops being settled — re-opening the SAS and
    choosing « Plus tard », un-ticking « Solde payé » on the fiche, or a `PATCH /reservations/:id/payment`
    that flips a bucket back. Same ownership discipline as the `*PaidAtArrival` markers
-   ([collect-stay-payment-at-check-in.md](collect-stay-payment-at-check-in.md) rule 15): the app never
+   ([collect-stay-payment-at-check-in.md](../sas/collect-stay-payment-at-check-in.md) rule 15): the app never
    claims a single payment it no longer owns.
 8bis. **La dissolution d'un paiement unique laisse une trace** (ajouté le 2026-08-31, depuis la
     production). La règle 8 fait mourir le groupe avec n'importe laquelle de ses échéances — mais elle
@@ -116,7 +116,7 @@ commission) stays exactly as correct as it is today.
    because it has always been the SAS's business; the group makes the ownership explicit.
 10. **History**: the commit records one line « Encaissé à l'arrivée — paiement unique » with the
     amount, the mean and the buckets covered, instead of the two separate lines
-    ([arrival-departure-sas.md](arrival-departure-sas.md) §3.7).
+    ([arrival-departure-sas.md](../sas/arrival-departure-sas.md) §3.7).
 
 ### 3.3 The Comptabilité
 
@@ -148,7 +148,7 @@ commission) stays exactly as correct as it is today.
 14. **The accountant's export is unchanged** (decision, §9 Q1): it keeps one journal entry per bucket.
 
     > **Révisé le 2026-08-31** par
-    > [arrival-payment-detail-and-adjustment.md](arrival-payment-detail-and-adjustment.md) rule 28 :
+    > [arrival-payment-detail-and-adjustment.md](../sas/arrival-payment-detail-and-adjustment.md) rule 28 :
     > l'export gagne deux TYPES d'écritures — le rabais accordé (`70900000`) et le pourboire
     > (`75880000`). La forme par échéance, elle, ne change toujours pas : c'est ce que cette règle
     > protégeait. À annoncer au comptable avant le premier export qui en porte une.
@@ -163,7 +163,7 @@ commission) stays exactly as correct as it is today.
     when a group exists: « Paiement unique de 530,00 € le 30/08 — CB / Chèque », followed by what it
     covered (« solde 480,00 € · complément 50,00 € »). Caisse interne is spelled out when it applies.
     **Superseded on 2026-08-31** by
-    [arrival-payment-detail-and-adjustment.md](arrival-payment-detail-and-adjustment.md) §3.1: the
+    [arrival-payment-detail-and-adjustment.md](../sas/arrival-payment-detail-and-adjustment.md) §3.1: the
     caption now lists the PRESTATIONS the payment covered rather than its buckets. The bucket caption
     survives as the fallback for a payment whose contribution snapshots were never captured (rule 8
     there), so nothing is lost when the detail cannot be built.
@@ -177,9 +177,9 @@ commission) stays exactly as correct as it is today.
     `complementSettled` / `complementPaidCash` say, and never counts it in the refund guard
     (reservation-refunds rule 52). The recap seeds its mode from the stored flags on the first run
     too, so it sends what is stored rather than « Plus tard ».
-    ([defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) rule 21.)
+    ([defer-arrival-complement-to-checkout.md](../sas/defer-arrival-complement-to-checkout.md) rule 21.)
 19. **The guest app's orders taken before the arrival are part of the complement it collects** (2026-11-10,
-    `specs/guest-app.md` rules 66 and 71). They land on the arrival complement through the engine's ordinary routing,
+    `specs/guest-app/guest-app.md` rules 66 and 71). They land on the arrival complement through the engine's ordinary routing,
     so the single payment collects them with the rest — no new bucket, no second payment, the mixed-method rules
     unchanged. The guest-app plugin's read-only SAS step « Commandes Mon séjour » names them before the recap and the
     recap recalls their total « dans le complément d'arrivée »; « Plus tard » and « Percevoir en fin de séjour » carry
@@ -190,7 +190,7 @@ commission) stays exactly as correct as it is today.
   marqué payé » warning is unchanged, and the commit leaves that complement paid (rule 18).
 - `stayDue = 0` (the ordinary prepaid stay) → no unified block, no group, nothing new. The overwhelming
   majority of check-ins are unaffected.
-- Reception-only user → never sees the stay side at all ([reception-role-checkin-only.md](reception-role-checkin-only.md)),
+- Reception-only user → never sees the stay side at all ([reception-role-checkin-only.md](../sas/reception-role-checkin-only.md)),
   so never the unified block either; the complement settles as today.
 - Everything offered (`total = 0`) → nothing to collect, no block.
 - Re-opening a SAS that made a unified payment → the block reopens on its stored mode, and « Plus
@@ -326,5 +326,5 @@ No data is migrated, no amount is recomputed: an existing reservation reads exac
   receipt is arguably one entry with several credit lines and one debit on 512. Rule 14 keeps the
   current shape on purpose; the answer belongs to the accountant, not to the app.
 - **Q2 — should a group also be offerable as a whole?** « Offrir » works line by line today
-  ([sas-offer-complement-lines.md](sas-offer-complement-lines.md)); nothing here changes it, but a
+  ([sas-offer-complement-lines.md](../sas/sas-offer-complement-lines.md)); nothing here changes it, but a
   fully offered complement inside a group is worth a look during implementation.

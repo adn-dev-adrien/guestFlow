@@ -1,4 +1,4 @@
-// specs/mollie-rolling-reserve-and-incoming-payments.md rules 6, 16 and 17 — the read of Mollie's settlements survives one
+// specs/payments/mollie-rolling-reserve-and-incoming-payments.md rules 6, 16 and 17 — the read of Mollie's settlements survives one
 // bad reference, reads again what it could not name, refreshes refunds, sums costs without rounding drift and never
 // follows a link off Mollie's own origin. No network: fakes only.
 const test = require('node:test');

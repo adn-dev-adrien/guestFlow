@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit E23-3, R23-I2) — Neat: a selection field that is not
+// specs/hosting/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit E23-3, R23-I2) — Neat: a selection field that is not
 // a string is the route's own 400, before any call; a mapping's source names a real source, whatever Object.prototype holds.
 const test = require('node:test');
 const assert = require('node:assert/strict');

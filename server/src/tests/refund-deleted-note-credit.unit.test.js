@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 119 (stabilisation loop t8, S8-3, 2026-11-16) — a refund on the trop-perçu deleted gives its money back to
+// specs/pricing/pricing-components.md §3 rule 119 (stabilisation loop t8, S8-3, 2026-11-16) — a refund on the trop-perçu deleted gives its money back to
 // the stay, and that money is rule 104's credit again: it pays what the stay still asks first, only the rest is owed back. A note line offered,
 // its 30 € refunded, then « refund deleted, new 20 € line sold » or « new line sold, refund deleted »: both orders end on the same stay — the
 // new line paid by the credit, 10 € owed back, Σ received − owed + asked = total. Before, the second order left 30 € owed AND the 20 € asked.

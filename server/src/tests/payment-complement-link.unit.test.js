@@ -1,7 +1,7 @@
-// specs/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app.md rules 35, 36) — the `complement` link type wired end to end for a plugin's basket: minted only
+// specs/plugins/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app/guest-app.md rules 35, 36) — the `complement` link type wired end to end for a plugin's basket: minted only
 // with an explicit basket, at its exact total and VAT lines, for 30 minutes and never lapsed by the arrival; no reader of
 // the stay's own buckets takes it for the stay's complement; its paid effect is the owning plugin's
-// (specs/plugins-phase-1-sdk.md rule 47, `ctx.paymentBasket`), money it cannot honour flagged « à rembourser ».
+// (specs/plugins/plugins-phase-1-sdk.md rule 47, `ctx.paymentBasket`), money it cannot honour flagged « à rembourser ».
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -143,7 +143,7 @@ test('rule 36: money the plugin cannot honour is flagged « à rembourser » on 
     registry.reset();
   }
   assert.equal(JSON.parse(links.findById(link.id).basketJson).refundOwed, true);
-  // specs/pricing-components.md rule 75 — the register holds the same money, once, with its reason.
+  // specs/pricing/pricing-components.md rule 75 — the register holds the same money, once, with its reason.
   const owed = db.prepare("SELECT origin, amountCents, status, paymentLinkId, reason FROM refund_obligations WHERE reservationId = ?").all(id);
   assert.deepEqual(owed, [{ origin: 'basket', amountCents: 4200, status: 'open', paymentLinkId: link.id, reason: 'créneau plus libre' }]);
   const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).flatMap((r) => JSON.parse(r.changedFields));
@@ -151,7 +151,7 @@ test('rule 36: money the plugin cannot honour is flagged « à rembourser » on 
   assert.deepEqual([refundRow().label, refundRow().amount, refundRow().stateLabel], ['Paiement en ligne à rembourser', 42, 'À rembourser'], 'no owner declared: the core’s neutral words');
 });
 
-test('specs/guest-app.md rule 35: an owner that kept part of the money flags only the gap — the ledger row and the history say that part', async () => {
+test('specs/guest-app/guest-app.md rule 35: an owner that kept part of the money flags only the gap — the ledger row and the history say that part', async () => {
   const { db, id, links } = seed();
   const { deps: d } = deps(db, links);
   const link = await ensurePaymentLink(d, id, 'complement', { basket: BASKET });
@@ -171,7 +171,7 @@ test('specs/guest-app.md rule 35: an owner that kept part of the money flags onl
   assert.ok(history.some((c) => c.field === 'refundOwed' && /^6,00.€ sur 42,00.€ payés .*prix baissé/.test(c.to)), JSON.stringify(history));
 });
 
-test('specs/guest-app.md rule 36: a basket paid after its stay was cancelled still reaches its owner — the money flagged « à rembourser », never lost', async () => {
+test('specs/guest-app/guest-app.md rule 36: a basket paid after its stay was cancelled still reaches its owner — the money flagged « à rembourser », never lost', async () => {
   const { db, id, links } = seed();
   const { deps: d } = deps(db, links);
   const link = await ensurePaymentLink(d, id, 'complement', { basket: BASKET });
@@ -190,7 +190,7 @@ test('specs/guest-app.md rule 36: a basket paid after its stay was cancelled sti
   assert.ok(history.some((c) => c.field === 'refundOwed' && c.to.includes('séjour annulé')));
 });
 
-test('specs/plugins-phase-1-sdk.md rule 47: `ctx.paymentBasket` needs a source and a paid function, one plugin per source', () => {
+test('specs/plugins/plugins-phase-1-sdk.md rule 47: `ctx.paymentBasket` needs a source and a paid function, one plugin per source', () => {
   registry.reset();
   try {
     assert.throws(() => createContext('a', {}).paymentBasket({ source: 'shopOrder' }), /needs a paid function/);

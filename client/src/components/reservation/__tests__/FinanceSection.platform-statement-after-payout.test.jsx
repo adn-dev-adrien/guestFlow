@@ -7,7 +7,7 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from './mockReservationForm';
 
-// specs/platform-statement-after-payout.md — the « Relevé plateforme » of a received payout or a locked fiche:
+// specs/platforms/platform-statement-after-payout.md — the « Relevé plateforme » of a received payout or a locked fiche:
 // it opens without unlocking, shows the transfer, reads the server's net, and writes through its own PATCH.
 // The numbers are reservation 202605014 (Abracadaroom): transfer 171,14, brut 215, commission 43,86.
 

@@ -1,4 +1,4 @@
-// specs/guest-app-home-automation.md rule 22 — the tap survives React's development double mount: the switch says
+// specs/guest-app/guest-app-home-automation.md rule 22 — the tap survives React's development double mount: the switch says
 // « Allumage… » and follows the command, instead of staying silent (found in the local loop, 2026-11-15).
 import { StrictMode } from 'react';
 import { MemoryRouter } from 'react-router';

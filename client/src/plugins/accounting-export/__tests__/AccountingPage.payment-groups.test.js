@@ -1,4 +1,4 @@
-// specs/single-payment-at-check-in.md §3.3 rule 13 — folding the entries of ONE collection into one
+// specs/payments/single-payment-at-check-in.md §3.3 rule 13 — folding the entries of ONE collection into one
 // card. Pure function, so this is a plain unit test: what matters is that the ventilation survives
 // (every entry still there, in order) and that a group of one never frames a lone payment.
 import { describe, test, expect } from 'vitest';
@@ -47,7 +47,7 @@ describe('groupEntries', () => {
   });
 
   test('the réduction and the pourboire of a payment join ITS card', () => {
-    // specs/arrival-payment-detail-and-adjustment.md rule 26 — l'ajustement appartient à la collecte
+    // specs/sas/arrival-payment-detail-and-adjustment.md rule 26 — l'ajustement appartient à la collecte
     // qu'il corrige : il se lit sous les seaux, pas dans une carte orpheline à l'autre bout du mois.
     const blocks = groupEntries([
       entry({ kind: 'balance', paymentGroup: GROUP }),

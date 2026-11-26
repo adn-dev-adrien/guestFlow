@@ -9,11 +9,13 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Reviewed 2026-11-26 (spec reorganization).** §1.1 marked as the historical (pre-2026-08-20) shipping model; `deploy.yml`, the `release` branch and the self-hosted runner are gone (rule 9, `.github/workflows/` holds only e2e, plugin-removal, release, unit-tests).
+
 ---
 
 ## 1. Context
 
-### 1.1 How GuestFlow ships today
+### 1.1 How GuestFlow shipped before this spec (historical — replaced, see rule 9)
 
 A push on the `release` branch triggers [.github/workflows/deploy.yml](../.github/workflows/deploy.yml),
 which runs on a **self-hosted GitHub Actions runner installed on the production VM**
@@ -132,7 +134,7 @@ signed-off releases over HTTPS, when the operator asks for it.
      `package.json`), no `node_modules`, no database, no uploads;
    - `SHA256SUMS` — the SHA-256 of every other asset, one per line;
    - `guestflow-booking-<pluginVersion>.zip` — the WordPress plugin
-     (see [wordpress-plugin-self-update.md](wordpress-plugin-self-update.md)).
+     (see [wordpress-plugin-self-update.md](../site/wordpress-plugin-self-update.md)).
 8. The full test suite (server `node --test`, client Vitest, client build, Playwright E2E) runs in
    the release workflow before packaging. A red suite blocks the release — this archive installs
    itself in production, it does not get a lighter gate than a PR.
@@ -350,7 +352,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     ignores `cardPersons` on a non-card line and knows no `cardNights`, so after a rollback below v3.20.0 a typed line
     re-bills the whole party or the whole stay **at its next save**; on a copy of production under v3.19.0, a line of 1
     unit at 8 € became 4 units at 32 €. Nothing moves until that save. Documentation only: storing a base quantity again
-    is what specs/non-card-option-served-persons.md removes (its §5). After such a rollback, restore the pre-update
+    is what specs/options/non-card-option-served-persons.md removes (its §5). After such a rollback, restore the pre-update
     backup, or review the typed lines before saving their fiches. On a roll-forward the migration's flag is already set:
     a line typed during the window keeps its decimal base and reads as what it bills until it is retyped.
     **Reading of 2026-11-05 (audit R22):** `complementPaidSplit`, `removedLineContribs` and their trigger are additive and
@@ -360,7 +362,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     during the window has no split and reads live. Accounting-export 1.0.26 keeps its floors (`guestflow >=3.18.0`,
     `sdk ^2.19.0`): it asks no new core module, and reads the columns behind `hasReservationColumn`.
     **Accepted exception (2026-11-09, audit R34-DB-L1):** `payment_settlements`, `payment_tenders` and the four
-    `reservations.split*` aggregates are additive (specs/mixed-method-payments.md §5), so the floor stays green. A release
+    `reservations.split*` aggregates are additive (specs/payments/mixed-method-payments.md §5), so the floor stays green. A release
     below them knows no settlement: during the rollback window it counts a bucket paid with several methods whole (its
     caisse-interne share and its reste à percevoir on the books), and its « Annuler l'encaissement » writes the paid flag
     alone, leaving the settlement and its aggregates behind. Roll-forward: every boot runs `paymentSettlementsModel.syncAll()`
@@ -546,7 +548,7 @@ signed-off releases over HTTPS, when the operator asks for it.
 
 51. **No release check on an instance started without outbound access** (added 2026-10-30, audit R7
     L-1). With `GUESTFLOW_DISABLE_OUTBOUND=1` **and** `NODE_ENV=test` — both set by every E2E server
-    (specs/e2e-playwright-smoke-suite.md rule 23) — `runVersionCheck` returns `null` before any request,
+    (specs/tech/e2e-playwright-smoke-suite.md rule 23) — `runVersionCheck` returns `null` before any request,
     as a managed instance does: neither the boot check of rule 12, nor the hourly one, nor « Vérifier
     maintenant » reads the GitHub releases API, and `update-state.json` is not written. Before, an E2E
     run wrote ~112 KB of live release data 60 s after boot and depended on GitHub's unauthenticated rate
@@ -564,7 +566,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     Test: « rule 51 — buildVersionInfo asks selfUpdateSupported about the environment it was given »
     (`self-update-controller.unit.test.js`, `{ GUESTFLOW_SELF_UPDATE: 'off' }` → the `=off` reason; red when
     the controller calls `selfUpdateSupported()` bare). Since the same day the `npm test` preload also drops the
-    shell's GuestFlow flags ([server-test-isolation.md](server-test-isolation.md) rule 12).
+    shell's GuestFlow flags ([server-test-isolation.md](../tech/server-test-isolation.md) rule 12).
 
 52. **The release's unit suites run side by side** (added 2026-10-30, audit R8 M-2). `release.yml` runs the server
     suite in its own `server-tests` job (20-minute cap) and the client suite in a 3-shard `client-tests` matrix
@@ -574,15 +576,15 @@ signed-off releases over HTTPS, when the operator asks for it.
     other under a 20-minute cap: at the size of inte/plugins (1 134 server and 625 client test files) the CI
     step times add up to 1 030–1 310 s, and the first release after the integration had a real chance of being
     cancelled at its limit with nothing published. Same split as the PR workflow
-    (specs/server-test-isolation.md rule 8). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
+    (specs/tech/server-test-isolation.md rule 8). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
     *Amended 2026-11-22:* `server-tests` is itself a matrix of two (`fail-fast: false`, 20-minute cap each), running
     `node ../scripts/test-runner/run-test-shard.mjs N/2` like the PR workflow's `server` job
-    (specs/server-test-isolation.md rule 19). The first v4.2.0 run was cancelled at the 20-minute cap: the suite
+    (specs/tech/server-test-isolation.md rule 19). The first v4.2.0 run was cancelled at the 20-minute cap: the suite
     (14 784 tests) takes ≈12 min per half on the runner, ≈24 min whole, so it published nothing.
 
 53. **A rollback never mails « Ce lien est valable jusqu'au . »** (added 2026-10-31, audit R9 database N1; same
     class as rule 43). A content migration stays in the database when the code rolls back (rule 31).
-    specs/payment-link-lifecycle.md rule 36 writes « Ce lien est valable jusqu'au {{paymentLinkValidUntil}}. » into
+    specs/payments/payment-link-lifecycle.md rule 36 writes « Ce lien est valable jusqu'au {{paymentLinkValidUntil}}. » into
     the untouched request templates and the acompte reminder; the release before it renders an unknown token as
     an empty string and stores no end on its links, so every request it sent would have read « jusqu'au . ».
     Two options were weighed: accept it as a known limit (sending is manual, the operator reads the preview), or
@@ -865,7 +867,7 @@ around `~/guestflow/` but never touches `data/`.
 
 ### 6.1 Dashboard — `UpdateAvailableAlert`
 
-Rendered in the existing alert stack of [Dashboard.jsx](../client/src/pages/Dashboard.jsx#L363),
+Rendered in the existing alert stack of [Dashboard.jsx](../../client/src/pages/Dashboard.jsx#L363),
 admin only, only when `updateAvailable && version !== dismissedVersion`.
 
 > ⬆️ **GuestFlow 1.3.0 est disponible** — vous utilisez la 1.2.1.
@@ -951,7 +953,7 @@ Below, a collapsible **Historique des mises à jour** (last 5).
 
 ### 6.5 Barre du haut — `AppVersionBadge` + `HeaderPill`
 
-> 2026-10-19 (`specs/shell-and-home-day-first.md` rule 16, decision 3 of the UI/UX review): the
+> 2026-10-19 (`specs/planning/shell-and-home-day-first.md` rule 16, decision 3 of the UI/UX review): the
 > installed version moved to the foot of the drawer (« GuestFlow vX.Y.Z », `AppVersionFooter`); the
 > top bar keeps only the update pill. The dashboard alert is now the home subject `update-available`.
 
@@ -1146,7 +1148,7 @@ Only possible on the production host, after `bootstrap-vm.sh` (see §10):
 - A push notification when a version is published (the infra exists — `web-push` — but the
   dashboard alert covers the need; can be a follow-up).
 - The WordPress plugin's own update path — separate spec,
-  [wordpress-plugin-self-update.md](wordpress-plugin-self-update.md).
+  [wordpress-plugin-self-update.md](../site/wordpress-plugin-self-update.md).
 
 ---
 

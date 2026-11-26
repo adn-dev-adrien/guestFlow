@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 94 reading (stabilisation loop t16, VS16-2, 2026-11-17) — `storedCustomIdsByKey`: the row ids a save
+// specs/pricing/pricing-components.md §3 rule 94 reading (stabilisation loop t16, VS16-2, 2026-11-17) — `storedCustomIdsByKey`: the row ids a save
 // wrote, answered by the fiche's re-read, keyed by the `customKey` each free line was sent under; any doubt answers null (rule 19 then).
 import { storedCustomIdsByKey, adoptStoredCustomLines } from '../bookingFormHydration';
 

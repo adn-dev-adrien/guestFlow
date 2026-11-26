@@ -4,7 +4,7 @@
 # Example: ./release.sh guestflow-1.2.0
 #
 # Produces `<release-name>.tar.gz` plus its SHA-256. The archive is what the in-app updater
-# downloads, verifies and installs (specs/self-update-and-releases.md §3.A rule 7), so its layout is
+# downloads, verifies and installs (specs/hosting/self-update-and-releases.md §3.A rule 7), so its layout is
 # a contract: a single top-level directory named after the archive, containing `server/`,
 # `client/build/`, `plugins-dist/` and the root `package.json` — no node_modules, no database.
 #
@@ -30,7 +30,7 @@ mkdir -p "$RELEASE_DIR"
 
 # Compile the React client.
 #
-# Vite (post-CRA migration, specs/cra-to-vite-migration.md) writes to `client/dist` and is
+# Vite (post-CRA migration) writes to `client/dist` and is
 # configured with `build.sourcemap = false` directly in `client/vite.config.js` — no env
 # var override required (the security regression H1 spotted in the 2026-06-01 audit is now
 # guarded inside the config itself). The deploy workflow still pre-builds the client in its
@@ -50,7 +50,7 @@ fi
 # Copy server: the files Git tracks, never the working directory. A developer's checkout holds
 # `server/.env.local` (encryption key, session secret, VAPID private key), the SQLite database with its
 # -wal/-shm, `licence.jws`, TLS keys and uploaded photos — none of them tracked, none of them shippable
-# (specs/self-update-and-releases.md rule 42). `check-release-tree.mjs` below refuses the archive if one
+# (specs/hosting/self-update-and-releases.md rule 42). `check-release-tree.mjs` below refuses the archive if one
 # slipped through anyway.
 git ls-files server | rsync -a --files-from=- --exclude='node_modules' --exclude='*.log' \
   --exclude='/server/plugins' --exclude='/server/plugin-data' . "$RELEASE_DIR/"
@@ -80,7 +80,7 @@ rsync -av --mkpath --exclude '.vite' client/dist/ "$RELEASE_DIR/client/build/"
 # Copy root files
 cp package.json "$RELEASE_DIR/"
 
-# The plugin packages (specs/plugins-phase-4-registry.md rule 23, P24): one `<id>-<version>.tgz` per
+# The plugin packages (specs/plugins/plugins-phase-4-registry.md rule 23, P24): one `<id>-<version>.tgz` per
 # plugin, the same package unpacked under `<id>/` (what an installed `bundled` plugin runs from) and
 # their SHA256SUMS, itself covered by the release's own checksum. Built here when absent.
 if [ ! -f plugins-dist/SHA256SUMS ] || [ "$REBUILD_CLIENT" = "true" ]; then

@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 30 — a deployment's private material stays out of the
+// specs/plugins/plugins-phase-p-productisation.md rule 30 — a deployment's private material stays out of the
 // product repository. Domaine Solio's site, its tariff script and its deployment notes left on
 // 2026-10-19; this guards against them, or their likes, coming back by habit.
 

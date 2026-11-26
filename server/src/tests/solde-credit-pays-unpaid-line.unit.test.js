@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 121 (stabilisation loop t9, B9-2, 2026-11-16) — a direct stay's OWN money received beyond what its paid
+// specs/pricing/pricing-components.md §3 rule 121 (stabilisation loop t9, B9-2, 2026-11-16) — a direct stay's OWN money received beyond what its paid
 // buckets now cover (a solde line offered or discounted after the solde was paid) pays a line sold unpaid first, exactly as a note's money
 // does (rule 104), on every path: the sale API, the fiche, the line API, a refund deleted (rule 119). Before, the sale held the new line in
 // full in its bucket while the trop-perçu formula already netted it: the stay asked the line AND owed the money back (beer 30 € in the paid

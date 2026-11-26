@@ -7,7 +7,7 @@
 | **Created** | 2026-08-17 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Extends** | [planning-chronological-day-ordering.md](planning-chronological-day-ordering.md), [resource-hourly-scheduling.md](resource-hourly-scheduling.md) |
+| **Extends** | [planning-chronological-day-ordering.md](planning-chronological-day-ordering.md), [resource-hourly-scheduling.md](../resources/resource-hourly-scheduling.md) |
 
 ---
 
@@ -15,7 +15,7 @@
 
 Each day of the Planning carries a small chip — `0/1` — meant to say « où j'en suis aujourd'hui ». It
 only ever counted **arrivals**: `reservations.filter(checkInReady).length / reservations.length`
-([PlanningPage.jsx](../client/src/pages/PlanningPage.jsx)). A day with two departures and a bain
+([PlanningPage.jsx](../../client/src/pages/PlanningPage.jsx)). A day with two departures and a bain
 nordique to prepare, but no arrival, reads **0/0** — « rien à faire » — while the operator has three
 things to tick. The same expression drives the header's **green** state, so such a day never turns
 green either.

@@ -7,23 +7,25 @@
 | **Created** | 2026-05-27 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Bloc** | Bloc 2 — Pricing engine (see `specs/ROADMAP.md`) |
+| **Bloc** | Bloc 2 — Pricing engine (see `docs/rapports/ROADMAP.md`) |
+
+> **Reviewed 2026-11-26 (spec reorganization).** §4 file map corrected: `components/PricingSummary.jsx` exists and is used by `ReservationPage.jsx`; the `useReservationQuote` hook, `utils/reservationQuote.js` and `FinalPriceField` were never created (extraction deferred, see Out of Scope).
 
 ---
 
 > **See also (2026-08-01):** minimum-nights is now resolved **per date range** — a season's `dateRanges`
 > entry can carry its own `minNights`, and `requiredMinNights` is the max of the effective minimum over
 > the nights the stay touches (range override ⇒ season default ⇒ 1). The `requiredMinNights` /
-> `minNightsBreached` / `minNightsRules` shapes are unchanged. See `specs/pricing-min-nights-per-range.md`.
+> `minNightsBreached` / `minNightsRules` shapes are unchanged. See `specs/pricing/pricing-min-nights-per-range.md`.
 
 ## 1. Context
 
 The server already owns a complete pricing engine. `POST /api/reservations/calculate-price`
-([reservations.js:501](../server/src/routes/reservations.js#L501)) calls
-`calculateReservationQuote` ([pricing.js:755](../server/src/utils/pricing.js#L755)), which returns a
+([reservations.js:501](../../server/src/routes/reservations.js#L501)) calls
+`calculateReservationQuote` ([pricing.js:755](../../server/src/utils/pricing.js#L755)), which returns a
 fully-shaped `quote`: nightly breakdown, options/resources line totals, subtotal, discount, final
 price, deposit/balance (with paid-flag handling), due dates, tourist tax, VAT breakdown
-([pricing.js:1230-1282](../server/src/utils/pricing.js#L1230-L1282)).
+([pricing.js:1230-1282](../../server/src/utils/pricing.js#L1230-L1282)).
 
 Despite this, the client **re-implements pricing**:
 
@@ -42,11 +44,11 @@ audit risk, and the duplicated rules drift. `ReservationPage.js` already does it
 then maps the quote onto the form via `applyQuoteToForm` ([354-408](../client/src/pages/ReservationPage.js#L354-L408)).
 
 **The pricing engine is shared with devis.** `devis.js` imports and calls the same
-`calculateReservationQuote` ([devis.js:6](../server/src/routes/devis.js#L6),
-[394](../server/src/routes/devis.js#L394)) at save time, so the server-side changes here
+`calculateReservationQuote` ([devis.js:6](../../server/src/routes/devis.js#L6),
+[394](../../server/src/routes/devis.js#L394)) at save time, so the server-side changes here
 (`engineFinalPrice`, `priceOverridden`, robust offered handling) benefit devis automatically.
 Two devis specifics matter: (a) `devis.js` carries its **own** fragile offered inference in SQL
-(`CASE WHEN totalPrice=0 AND unitPrice>0 THEN offered`, [devis.js:224,242](../server/src/routes/devis.js#L224)),
+(`CASE WHEN totalPrice=0 AND unitPrice>0 THEN offered`, [devis.js:224,242](../../server/src/routes/devis.js#L224)),
 which must be reconciled or the offered bug persists for devis; (b) `DevisForm.js` shows **no live price
 summary** today (just input fields) — it must be brought onto the same live-quote + summary pattern as
 the other two pages.
@@ -73,11 +75,11 @@ they must be able to replace the engine price with the platform's real price, wh
 the engine would have computed (to gauge the delta).
 
 This already partly exists and is **reused, not rebuilt**:
-- `reservations.customPrice` ([database.js:142](../server/src/database.js#L142)) is the override field.
+- `reservations.customPrice` ([database.js:142](../../server/src/database.js#L142)) is the override field.
 - A "recompute with current pricing" flow exists via `useCurrentPricing` / `forceCurrentPricing`
   ([ReservationPage.js:1263](../client/src/pages/ReservationPage.js#L1263)).
 - iCal reservations are already tagged: `sourceType='ical'`, `sourcePlatformKey`,
-  `sourceIcalEventUid`, `icalSyncLocked` ([database.js:150-154](../server/src/database.js#L150-L154)),
+  `sourceIcalEventUid`, `icalSyncLocked` ([database.js:150-154](../../server/src/database.js#L150-L154)),
   and the import already creates them with a blank price for the user to fill in.
 
 The problem is that the override-preservation logic lives in the **client**
@@ -219,7 +221,7 @@ concept server-side and exposes it cleanly in the finance section of the form.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | `reservations.js` | T | `calculate-price`: validate money/percentage inputs before quoting (delegate to new util). Add effective-quantity fields to the planning/list payload. iCal re-sync path: never overwrite `customPrice` of a locked reservation (verify existing `icalSyncLocked` guard). |
-| `routes/` | `devis.js` | T | **Targeted only** (full MVC split is Bloc 4): remove the `totalPrice=0 → offered` SQL inference ([224,242](../server/src/routes/devis.js#L224)); source offered from the explicit column; rely on the engine for the real line price (rule 18). No other devis refactor. |
+| `routes/` | `devis.js` | T | **Targeted only** (full MVC split is Bloc 4): remove the `totalPrice=0 → offered` SQL inference ([224,242](../../server/src/routes/devis.js#L224)); source offered from the explicit column; rely on the engine for the real line price (rule 18). No other devis refactor. |
 | `utils/` | `pricing.js` | T | `calculateReservationQuote` returns `engineFinalPrice` + `priceOverridden` alongside `finalPrice`. Deposit/balance keep deriving from effective `finalPrice`. **Rework the offered-line handling (rule 14):** always recompute the real line price; `offered` only zeroes the billed `totalPrice` while `originalTotalPrice` holds the real one; remove the fragile `total===0` recovery + `shouldBypassLockedTotal` hacks. Surface per-line effective quantity (no new math). |
 | `utils/` | `financeValidation.js` | C | Pure validators: `validateMoneyAmount(v)`, `validatePercentage(v)`. Returns null or a machine error code. Unit-tested. Reused by Bloc S. |
 | `controllers/` | — | — | Full reservations MVC extraction is **Bloc 3**, not here. Keep the route change minimal/targeted. |
@@ -244,7 +246,7 @@ concept server-side and exposes it cleanly in the finance section of the form.
 | `utils/` | `reservationQuote.js` | C | Pure `applyQuoteToForm(form, quote, opts)` mapping the server quote (incl. `engineFinalPrice`, `priceOverridden`) onto form state. No math — assignment only. |
 | `components/` | `FinalPriceField.js` | C | Generic: editable price field showing the effective price, an inline engine-price reference/delta when overridden, and a "Recalculer le prix" action that clears the override. Used by all 3 pricing pages. |
 | `components/` | `PricingSummary.js` | C | Generic: renders a server `quote` (TTC totals, VAT/HT breakdown, line items with offered strikethrough, struck-engine + green-manual accommodation price). Render-only. Adopted by Reservation (replacing its inline summary ~2880-3290 — **targeted swap**, not the Bloc 3 page split), Calendar, and Devis. |
-| `api.js` | `api.js` | — | `calculatePrice` already exists ([api.js:103](../client/src/api.js#L103)); reused by devis; no change. |
+| `api.js` | `api.js` | — | `calculatePrice` already exists ([api.js:103](../../client/src/api.js#L103)); reused by devis; no change. |
 
 **Component reuse declaration (mandatory):**
 

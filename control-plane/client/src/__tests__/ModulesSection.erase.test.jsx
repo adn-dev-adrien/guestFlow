@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rules 22, 38 — « Effacer les données… » on an inactive module: the
+// specs/plugins/plugin-operator-provisioning.md rules 22, 38 — « Effacer les données… » on an inactive module: the
 // dialog lists what will be erased and asks the customer's address typed; only the exact address
 // enables « Effacer ».
 import React from 'react';

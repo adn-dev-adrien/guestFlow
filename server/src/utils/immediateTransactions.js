@@ -1,5 +1,5 @@
 /**
- * Transactions that take the write lock up front (specs/plugins-phase-3a-online-payment.md rule 29).
+ * Transactions that take the write lock up front (specs/plugins/plugins-phase-3a-online-payment.md rule 29).
  *
  * better-sqlite3 opens a transaction with `BEGIN` (deferred): a handler that reads first and writes after fails at
  * once with SQLITE_BUSY / SQLITE_BUSY_SNAPSHOT when another connection commits in between — the busy timeout does not
