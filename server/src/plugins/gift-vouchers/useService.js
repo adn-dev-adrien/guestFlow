@@ -225,9 +225,12 @@ function createUseService({
     if (!Number.isInteger(extra) || extra < 0) return refuse('EXTRA_TIME_INVALID', 'Temps supplémentaire : un nombre entier de minutes est attendu.');
     const { contents } = found;
     const { resource } = contents;
+    // The list never hides the slot the recap accepts: the voucher's own hold (a recipient back from the bank page) takes no slot from its own voucher, here as in `quote`.
+    const own = uses.heldOf(found.voucher.id)[0];
+    const holdRef = own ? own.holdRef : null;
     // Rule 15 — every slot is offered, in every direction: no band filter, each tagged by what it costs against the voucher's reference.
     const free = hook().freeSlots({
-      resourceId: resource.id, from, to, minutes: resource.minutes + extra, now: now(),
+      resourceId: resource.id, from, to, minutes: resource.minutes + extra, excludeHoldRef: holdRef, now: now(),
     });
     if (!free.ok) return refuse(free.code, free.message, 409);
     if (from > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
@@ -238,7 +241,7 @@ function createUseService({
       const key = `${date}T${start}`;
       if (!priced.has(key)) {
         const answer = hook().quote({
-          resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, memo, now: now(),
+          resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, excludeHoldRef: holdRef, memo, now: now(),
         });
         // A start the engine refuses (a band with no price, a slot past closing) is not offered: it is never tagged « in » at 0 €.
         priced.set(key, answer.ok ? tagOf(answer) : null);

@@ -105,17 +105,17 @@ function validateOptions(list, { catalogue }, field, label) {
   return { errors, value };
 }
 
-// The first refusal of the sentence-per-period check, null when every period passes. When the periods do not all refuse the same way, the refusal names the period it is about
-// (« (week-end) … »): the operator then knows which grid to look at.
+// The first refusal of the sentence-per-period check, null when every period passes. A refusal is a sentence, or `{ message, period }` when the engine says which period it is about. When the periods do
+// not all refuse the same way, the refusal names the period it is about (« (week-end) … »): the operator then knows which grid to look at — unless the engine's own refusal is already about that period
+// (its sentence says « … le week-end »).
 function firstRefusal(periods, refusalOf) {
+  const messageOf = (refusal) => (typeof refusal === 'string' ? refusal : refusal.message);
   const answers = periods.map((period) => ({ period, refusal: refusalOf(period) }));
   const first = answers.find((answer) => answer.refusal);
   if (!first) return null;
-  const same = answers.every((answer) => answer.refusal === first.refusal);
-  if (same) return first.refusal;
-  // A sentence that already says the period (« … pour la journée le week-end. ») is not prefixed with it again.
-  const label = rules.PERIOD_LABELS[first.period];
-  return first.refusal.toLowerCase().includes(label) ? first.refusal : `(${label}) ${first.refusal}`;
+  const message = messageOf(first.refusal);
+  if (answers.every((answer) => answer.refusal && messageOf(answer.refusal) === message)) return message;
+  return typeof first.refusal === 'object' && first.refusal.period === first.period ? message : `(${rules.PERIOD_LABELS[first.period]}) ${message}`;
 }
 
 /** Rule 10 of the week-weekend spec — the periods a resource campaign sells: one or both, both when none is sent. */

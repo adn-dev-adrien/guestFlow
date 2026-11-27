@@ -173,7 +173,8 @@ function createOutsideOffer({
     return { band, period };
   }
 
-  // What the supplement is named by (rule 15): the evening only when the slot is evening and the covered session day and the evening costs more at the slot's period, the weekend only when the   // weekend and the covered session week and the weekend costs more in the slot's band, both for « soirée week-end », neither (an odd grid) for the plain « créneau ».
+  // What the supplement is named by (rule 15): the evening only when the slot is evening and the covered session day and the evening costs more at the slot's period; the weekend only when
+  // the slot is weekend and the covered session week and the weekend costs more in the slot's band; both for « soirée week-end »; neither (an odd grid) for the plain « créneau ».
   const SUPPLEMENT_CAUSES = Object.freeze({
     evening: 'evening', weekend: 'weekend', eveningWeekend: 'eveningWeekend', slot: 'slot',
   });

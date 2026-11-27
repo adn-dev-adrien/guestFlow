@@ -93,7 +93,7 @@ function sessionModesOf(resource, { period = 'week', date = null } = {}) {
   });
 }
 
-const refuse = (code, message) => ({ refusal: { code, message } });
+const refuse = (code, message, extra = {}) => ({ refusal: { code, message, ...extra } });
 
 function quoteSession(config, session) {
   const resource = config.resource || {};
@@ -109,7 +109,7 @@ function quoteSession(config, session) {
   if (!mode) {
     return refuse('SESSION_BAND_UNKNOWN', session.band === 'evening' ? `« ${name} » n’a pas de tranche du soir.` : `« ${name} » : tranche « ${session.band} » inconnue (journée ou soirée).`);
   }
-  if (!placed && !mode.sellable) return refuse('SESSION_BAND_NOT_SOLD', mode.reason);
+  if (!placed && !mode.sellable) return refuse('SESSION_BAND_NOT_SOLD', mode.reason, { period: date ? periodOf(date, toMinutes(mode.from), resource.hourlyEveningStart || null) : period });
   const minutes = Number(session.minutes);
   const offset = session.rankOffsetMinutes === undefined ? 0 : Number(session.rankOffsetMinutes);
   if (!Number.isInteger(minutes) || minutes <= 0) return refuse('SESSION_MINUTES_INVALID', `« ${name} » : durée de ${session.minutes} min invalide.`);
@@ -133,7 +133,7 @@ function quoteSession(config, session) {
   const unsold = placed ? unsoldSliceOf(resource, {
     date, period, fromMin: start, toMin: start + minutes, anyStart: false,
   }) : null;
-  if (unsold) return refuse('SESSION_BAND_NOT_SOLD', notSoldSentence(resource, unsold.band, unsold.period));
+  if (unsold) return refuse('SESSION_BAND_NOT_SOLD', notSoldSentence(resource, unsold.band, unsold.period), { period: unsold.period });
   const priced = priceSessions([{ date: date || PLACEHOLDER_DATE, start: formatTime(start), end: formatTime(start + minutes) }], {
     ...rateConfigOf(resource, { external: true, period: date ? null : period }),
     eveningStart: resource.hourlyEveningStart,
