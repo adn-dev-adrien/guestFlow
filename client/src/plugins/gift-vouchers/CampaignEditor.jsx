@@ -219,6 +219,7 @@ export default function CampaignEditor() {
 
   let previewBody;
   if (draft.kind === 'lodging') previewBody = <Typography variant="body2" color="text.secondary">{T.previewLodging}</Typography>;
+  else if (draft && draft.kind === 'resource' && composition && composition.resourceId && !(periods && periods.length)) previewBody = <Typography variant="body2" color="error">{T.previewNoPeriod}</Typography>;
   else if (!previewable) previewBody = <Typography variant="body2" color="text.secondary">{T.previewIdle}</Typography>;
   else if (preview.error) previewBody = <PreviewFailure error={preview.error} onRetry={preview.retry} fallback={T.previewFailed} />;
   else if (preview.data) {
@@ -252,7 +253,7 @@ export default function CampaignEditor() {
             </Box>
             {text('title', T.publicTitle, { helperText: errorOf('title') || T.publicTitleHelp, slotProps: { htmlInput: { maxLength: 80 } } })}
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 2fr' } }}>
-              <ValidityField label={T.validity} value={draft.validityMonths} onChange={(months) => setDraft((d) => ({ ...d, validityMonths: months }))} error={errorOf('validityMonths')} />
+              <ValidityField label={T.validity} value={draft.validityMonths} onChange={(months) => { setDraft((d) => ({ ...d, validityMonths: months })); setErrors((list) => list.filter((e) => (FIELD_ALIASES[e.field] || e.field) !== 'validityMonths')); }} error={errorOf('validityMonths')} />
               {isNew ? (
                 <TextField select label={T.kind} value={draft.kind} onChange={set('kind')} size="small" error={Boolean(errorOf('kind'))} helperText={errorOf('kind')} fullWidth>
                   {T.kinds.map((k) => <MenuItem key={k.value} value={k.value}>{k.label}</MenuItem>)}
@@ -272,7 +273,7 @@ export default function CampaignEditor() {
                       control={(
                         <Checkbox
                           checked={draft.periods.includes(period)}
-                          onChange={(e) => setDraft((d) => ({ ...d, periods: Object.keys(PERIOD_LABELS).filter((p) => (p === period ? e.target.checked : d.periods.includes(p))) }))}
+                          onChange={(e) => { setDraft((d) => ({ ...d, periods: Object.keys(PERIOD_LABELS).filter((p) => (p === period ? e.target.checked : d.periods.includes(p))) })); setErrors((list) => list.filter((x) => (FIELD_ALIASES[x.field] || x.field) !== 'periods')); }}
                         />
                       )}
                       label={label}

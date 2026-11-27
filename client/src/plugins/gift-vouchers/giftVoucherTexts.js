@@ -109,6 +109,7 @@ export const SETTINGS_TEXTS = Object.freeze({
     title: 'Créneau moins cher que le bon',
     label: 'Boisson offerte sur l’écart',
     none: 'Aucune : l’écart est seulement noté sur le bon',
+    unlisted: (ref) => `Option enregistrée (${ref}), absente du catalogue vendable`,
     help: 'Quand le bénéficiaire choisit un créneau qui coûte moins que son bon, une boisson de cette option lui est offerte, sans autre contrepartie.',
   },
 });
@@ -161,7 +162,7 @@ export const CAMPAIGN_TEXTS = Object.freeze({
     duplicate: 'Dupliquer', duplicated: 'Copie créée en brouillon.',
     exportRecipe: 'Exporter la recette',
     general: 'Général', name: 'Nom (interne)', publicTitle: 'Titre public', publicTitleHelp: 'Sur le site et au dos du bon.', state: 'État', validity: 'Validité', kind: 'Type',
-    periods: 'Périodes proposées', periodsHelp: 'Le donateur choisit la semaine ou le week-end ; chaque période a son prix.', previewPeriod: (label) => `Prix · ${label}`,
+    periods: 'Périodes proposées', periodsHelp: 'Le donateur choisit la semaine ou le week-end ; chaque période a son prix.', previewNoPeriod: 'Aucune période n’est cochée : le bon ne peut pas se vendre.', previewPeriod: (label) => `Prix · ${label}`,
     content: 'Contenu', addOns: 'Options proposées', addOnsLabel: 'Options à proposer', addOnsHelp: 'Proposées à l’offreur et au destinataire en plus du contenu.',
     extraTime: 'Temps en plus', extraTimeOffered: 'Proposer du temps en plus', extraTimeMax: 'Temps en plus au maximum (min)',
     visuals: 'Visuels', voucherFront: 'Recto du bon', merchantFront: 'Recto de la carte commerçant (facultatif)', noVisual: 'Aucun',

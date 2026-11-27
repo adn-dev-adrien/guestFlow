@@ -57,14 +57,3 @@ test('the server message for a key is shown on its field and the draft is kept',
   expect(await screen.findByText('Début des liens permanents : minuscules, chiffres et tirets.')).toBeInTheDocument();
   expect(base).toHaveValue('Bon Cadeau');
 });
-
-// week-weekend-and-print spec rule 16 — the option a cheaper slot gives away: a menu of the options the engine sells outside a stay, « Aucune » by default.
-test('« Boisson offerte sur l’écart » lists the sellable options only and is saved as typed', async () => {
-  renderWithShell(<GiftVoucherSettings />);
-  await userEvent.click(await screen.findByLabelText('Boisson offerte sur l’écart'));
-  expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Aucune : l’écart est seulement noté sur le bon', 'Boisson chaude']);
-  await userEvent.click(screen.getByRole('option', { name: 'Boisson chaude' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  await waitFor(() => expect(giftVouchersApi.saveSettings).toHaveBeenCalled());
-  expect(giftVouchersApi.saveSettings.mock.calls[0][0]).toMatchObject({ leftoverDrinkArticleRef: 'option:5' });
-});

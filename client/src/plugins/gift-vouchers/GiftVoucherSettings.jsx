@@ -69,6 +69,12 @@ export default function GiftVoucherSettings() {
   if (loadError) return <Box>{bar}<Box sx={{ p: 3 }}><ErrorAlert message={T.loadError} onRetry={load} /></Box></Box>;
   if (!draft) return <Box>{bar}<LoadingState /></Box>;
 
+  // The stored option stays in the menu even when the catalogue has not loaded yet or no longer sells it: the select never shows a value it cannot name.
+  const sellable = (catalogue.elements || []).filter((e) => e.kind === 'option' && e.sellable);
+  const stored = draft.leftoverDrinkArticleRef;
+  const known = (catalogue.elements || []).find((e) => e.articleRef === stored);
+  const offeredDrinks = stored && !sellable.some((e) => e.articleRef === stored) ? [...sellable, { articleRef: stored, label: known ? known.label : T.drink.unlisted(stored) }] : sellable;
+
   return (
     <Box>
       {bar}
@@ -83,7 +89,7 @@ export default function GiftVoucherSettings() {
             error={Boolean(errors.leftoverDrinkArticleRef)} helperText={errors.leftoverDrinkArticleRef}
           >
             <MenuItem value="">{T.drink.none}</MenuItem>
-            {(catalogue.elements || []).filter((e) => e.kind === 'option' && e.sellable).map((e) => <MenuItem key={e.articleRef} value={e.articleRef}>{e.label}</MenuItem>)}
+            {offeredDrinks.map((e) => <MenuItem key={e.articleRef} value={e.articleRef}>{e.label}</MenuItem>)}
           </TextField>
         </FormSection>
       </Stack>

@@ -249,7 +249,8 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
                 labelId="resource-price-type"
                 label="Type de prix"
                 value={form.priceType || 'per_stay'}
-                onChange={(e) => setForm({ ...form, priceType: e.target.value })}
+                // A resource that becomes hourly starts with its guests' price empty (required), not the « 0 » of a fresh form: every hourly price is typed.
+                onChange={(e) => setForm({ ...form, priceType: e.target.value, ...(e.target.value === 'per_hour' && form.price === '0' ? { price: '' } : {}) })}
               >
                 {priceTypes.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
               </Select>

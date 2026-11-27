@@ -110,7 +110,10 @@ export default function NewVoucherPage() {
   const pricingField = recap.error ? NEW_VOUCHER_ERROR_FIELDS[recap.error.code] : null;
   const fieldError = (field) => errors[field] || (pricingField === field && recap.error ? recap.error.message : undefined);
   const refusalList = [...refusals, ...(recap.error && Array.isArray(recap.error.errors) ? recap.error.errors : [])];
-  const validityRefusal = (refusalList.find((e) => e.field === 'validityMonths') || {}).message;
+  // The server's sentence about the validity goes as soon as the validity is changed, and comes back only if the new answer refuses again.
+  const [validityDismissed, setValidityDismissed] = useState(false);
+  useEffect(() => { setValidityDismissed(false); }, [recap.error, recap.data]);
+  const validityRefusal = validityDismissed ? undefined : (refusalList.find((e) => e.field === 'validityMonths') || {}).message;
   const clear = (key) => setErrors((e) => ({ ...e, [key]: undefined }));
   const setPerson = (key) => (event) => { setPeople((p) => ({ ...p, [key]: event.target.value })); clear(key === 'message' ? 'message' : key); };
 
@@ -252,7 +255,7 @@ export default function NewVoucherPage() {
                       {Object.entries(PERIOD_LABELS).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
                     </TextField>
                   ) : null}
-                  <ValidityField label={T.validity} value={custom.validityMonths} onChange={(months) => setCustom((c) => ({ ...c, validityMonths: months }))} error={validityRefusal} />
+                  <ValidityField label={T.validity} value={custom.validityMonths} onChange={(months) => { setCustom((c) => ({ ...c, validityMonths: months })); setValidityDismissed(true); setRefusals((list) => list.filter((e) => e.field !== 'validityMonths')); }} error={validityRefusal} />
                 </Box>
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr' }}>
                   <VisualPicker
@@ -265,7 +268,7 @@ export default function NewVoucherPage() {
 
             {campaign ? (
               <Box sx={{ maxWidth: 280 }}>
-                <ValidityField label={T.validity} value={validityMonths || String(campaign.validityMonths)} onChange={setValidityMonths} error={fieldError('validityMonths') || validityRefusal} />
+                <ValidityField label={T.validity} value={validityMonths || String(campaign.validityMonths)} onChange={(months) => { setValidityMonths(months); setValidityDismissed(true); setRefusals((list) => list.filter((e) => e.field !== 'validityMonths')); clear('validityMonths'); }} error={fieldError('validityMonths') || validityRefusal} />
               </Box>
             ) : null}
 
