@@ -1,6 +1,6 @@
 // The hourly pricing of origin/master (before the weekend grid), frozen beside masterBookingPricing.oracle.js: the oracle must not move with the code (L1). Not a test file, never edited.
 /**
- * Time-banded hourly pricing for scheduled resources (specs/resource-hourly-scheduling.md §3.3/§3.5).
+ * Time-banded hourly pricing for scheduled resources (specs/resources/resource-hourly-scheduling.md §3.3/§3.5).
  *
  * A resource booked by the hour is priced from a two-band grid: a day rate before an evening switch
  * time, an evening rate from that switch to the close. Bookings are made in slot steps (30 min) with a
@@ -18,13 +18,13 @@ function toMinutes(time) {
 const sdk = require('../../sdk');
 const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
-// specs/hourly-extra-hour-rates.md rule 1 — a following-hours rate left empty is « same as the first hour »; 0 is a real value (free).
+// specs/resources/hourly-extra-hour-rates.md rule 1 — a following-hours rate left empty is « same as the first hour »; 0 is a real value (free).
 const nextRateOf = (value, fallback) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? fallback : Math.max(0, Number(value)));
 
 /**
  * cfg: { dayRate, eveningRate, dayNextRate, eveningNextRate, eveningStart ('HH:MM' | null), slotMinutes = 30, rankOffsetMinutes = 0 }.
  * The evening rate falls back to the day rate when ≤ 0 or when eveningStart is empty. `dayNextRate` / `eveningNextRate` are the
- * rates of the hours after the first (specs/hourly-extra-hour-rates.md rule 1): empty → the first-hour rate of the band.
+ * rates of the hours after the first (specs/resources/hourly-extra-hour-rates.md rule 1): empty → the first-hour rate of the band.
  * `rankOffsetMinutes` shifts the rank for time added after minutes already covered.
  */
 function normalizeConfig(cfg = {}) {
@@ -109,10 +109,10 @@ function priceRange(start, end, cfg = {}) {
 }
 
 /**
- * What a booking does not charge (specs/pricing-components.md §3 rules 24, 37-diff 4): the lodging's free minutes are worth the DAY
+ * What a booking does not charge (specs/pricing/pricing-components.md §3 rules 24, 37-diff 4): the lodging's free minutes are worth the DAY
  * first-hour rate — the same value a stay's free hour has on its quantity path — and the offered minutes right after them are worth the band
  * they fall in. `start`/`end` are minutes of the day, `freeApplied`/`offeredApplied` already capped to the duration.
- * The free minutes are not a rank (specs/hourly-extra-hour-rates.md rule 3): the offered minutes are the first paid ones, at the first-hour rate.
+ * The free minutes are not a rank (specs/resources/hourly-extra-hour-rates.md rule 3): the offered minutes are the first paid ones, at the first-hour rate.
  * `freeAtDayRate: false` is a booking stored before this rule (rule 74: its price is not re-priced): its free minutes are valued on the band
  * they fall in.
  */
@@ -159,7 +159,7 @@ function isValidSession(session, cfg = {}) {
  *
  * `totalHours` are the hours the guest actually gets (what the SAS has to place);
  * `billedHours` are what is charged, i.e. `totalHours` minus the free allowance
- * (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 7).
+ * (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 7).
  */
 function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const norm = normalizeConfig(cfg);
@@ -177,7 +177,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const totalMinutes = valid.reduce((sum, s) => sum + (toMinutes(s.end) - toMinutes(s.start)), 0);
 
   // Free allowance: applied once, to the earliest session's first `freeMinutes` (capped to its length). It is not a rank
-  // (specs/hourly-extra-hour-rates.md rule 3): the first session's ranks start at its first paid minute.
+  // (specs/resources/hourly-extra-hour-rates.md rule 3): the first session's ranks start at its first paid minute.
   const free = Math.max(0, Number(freeMinutes) || 0);
   const first = valid[0];
   const firstStart = toMinutes(first.start);
@@ -211,7 +211,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
 }
 
 /**
- * Evening supplement of a set of placed blocks (specs/hourly-resource-quantity-and-sas-scheduling.md
+ * Evening supplement of a set of placed blocks (specs/resources/hourly-resource-quantity-and-sas-scheduling.md
  * §3.4 rule 22). The hours were SOLD at the day rate; placing one in the evening band owes the
  * difference, which the arrival SAS adds to the arrival complement instead of re-playing the quote.
  *

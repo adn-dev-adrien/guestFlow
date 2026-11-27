@@ -1,5 +1,5 @@
-// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 13 — the migration moves a campaign's validity to the short list (3, 6, 12, 18, 24 months): the nearest value, a tie going up
-// (a validity is never shortened), one line of the log per campaign changed, a campaign already on the list untouched.
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 13 — the migration moves a campaign's validity to the short list (3, 6, 12, 18, 24 months): the nearest allowed value, a tie going up
+// (9 months becomes 12, never 6; 4 months does become 3), one line of the log per campaign changed, a campaign already on the list untouched.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

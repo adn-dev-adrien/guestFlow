@@ -287,7 +287,7 @@ const weekendPeriods = (db) => {
   addColumn(db, 'gift_voucher_campaigns', 'frontPricePosition', "TEXT NOT NULL DEFAULT 'bottom-right'");
   db.prepare('SELECT id, name, validityMonths FROM gift_voucher_campaigns').all().forEach((row) => {
     if (rules.VALIDITY_CHOICES.includes(row.validityMonths)) return;
-    // The choices run upwards and `<=` lets the later one win a tie: 9 months becomes 12, never 6 (a validity is never shortened by the move).
+    // The nearest allowed value; ties go up: the choices run upwards and `<=` lets the later one win a tie, so 9 months becomes 12, never 6. A value nearer a lower choice does move down (4 becomes 3).
     const nearest = rules.VALIDITY_CHOICES.reduce((best, n) => (Math.abs(n - row.validityMonths) <= Math.abs(best - row.validityMonths) ? n : best), rules.VALIDITY_CHOICES[0]);
     db.prepare('UPDATE gift_voucher_campaigns SET validityMonths = ? WHERE id = ?').run(nearest, row.id);
     console.log(`[gift-vouchers] campaign "${row.name}" (#${row.id}): validity ${row.validityMonths} months is now ${nearest} months (3, 6, 12, 18 or 24 are the only choices).`);

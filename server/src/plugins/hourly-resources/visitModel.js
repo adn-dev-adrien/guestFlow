@@ -1,5 +1,5 @@
 /**
- * The visit of an outside client — the mini SAS of a booking with no stay (specs/outside-booking-sas.md rules 1-34).
+ * The visit of an outside client — the mini SAS of a booking with no stay (specs/sas/outside-booking-sas.md rules 1-34).
  *
  * The plugin owns the screen, the session line and the slot; the money is the core's external sale (`standaloneSale`): one document per visit, named on the
  * booking by `saleRef = standalone:<id>`. This model only builds what the core is asked — the session line priced by the plugin's hourly pricing (a
