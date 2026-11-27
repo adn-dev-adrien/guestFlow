@@ -55,7 +55,7 @@ const {
 const { sequenceContextFor, nextSeasonDate } = require('../utils/sequenceRenderContext');
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { buildDraftPreview } = require('../utils/emailDraftPreview');
-const { guestEmailMessage } = require('../utils/guestEmailHtml');
+const { guestEmailMessage, guestEmailPreviewHtml } = require('../utils/guestEmailHtml');
 const { displayNameOf } = require('../utils/emailTimeline');
 const { validityOf, lapsesAtArrival } = require('../utils/paymentLinkLifecycle');
 const { formatMomentLong } = require('../utils/dateFr');
@@ -265,8 +265,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       body:    overrides.body    != null ? String(overrides.body)    : side.body,
     };
     const { subject, body, missingVariables } = renderTemplate(useTemplate, context);
-    // The HTML part the guest receives beside the text (specs/emails/guest-email-texts-made-simple.md rule 37).
-    const { html } = guestEmailMessage({ subject, text: body, settings, lang: useLang });
+    // The HTML part the guest receives beside the text (specs/emails/guest-email-texts-made-simple.md rule 37), for the
+    // preview, with the logo inline as a `data:` URI. What leaves is built again from `mail`, with `cid:` attachments
+    // (specs/emails/guest-email-branding.md rule 8).
+    const mail = { subject, text: body, settings, lang: useLang };
+    const html = guestEmailPreviewHtml(mail);
 
     return {
       ok: true,
@@ -278,6 +281,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       subject,
       body,
       html,
+      mail,
       missingVariables,
       lang: useLang,
       // specs/emails/email-language-fr-en.md rule 9 — shown, never sent.
@@ -442,7 +446,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
     try {
       const svc = buildEmailService();
-      await svc.send({ to: recipient, subject: result.subject, text: result.body, html: result.html });
+      await svc.send(await guestEmailMessage({ to: recipient, ...result.mail }));
       // The send succeeded with an operator-typed address → save it on the client so the
       // next email finds it on file.
       if (!clientHadEmail) persistClientEmailIfEmpty(result.clientId, recipient);
@@ -741,7 +745,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const to = String(settings.companyEmail || '').trim() || resolveEmailIdentity(settings).fromEmail;
     if (!to) return res.status(409).json({ error: 'NO_COMPANY_EMAIL', message: 'Email de l’entreprise manquant : Paramètres › Établissement' });
     try {
-      const message = { to, subject: `[Test] ${result.payload.subject}`, text: result.payload.body, html: result.payload.html };
+      const message = await guestEmailMessage({ to, ...result.mail, subject: `[Test] ${result.mail.subject}` });
       if (testMailer) await testMailer.send(message);
       else await buildEmailService().send(message);
       return res.json({ ok: true, to });

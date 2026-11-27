@@ -427,6 +427,9 @@ The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email
     or font, no tracking pixel, no script. The colours are Maison's (ink on paper, fir-green links), with
     a dark variant (`prefers-color-scheme: dark`, `color-scheme: light dark`); a client that ignores both
     (Outlook desktop) shows the light version at full width.
+    *Superseded in part on 2026-11-27 by `guest-email-branding.md`: the company logo now travels inline (« no image »
+    is lifted; nothing remote is still loaded), the layout is a white letter on the house's page colour, and the
+    dark variant is its warm night palette (rule 4), not the near-black one described here.*
 40. **Links only where they are meant** (added 2026-10-19, review of PR #720).
     - A number glued to a letter, a slash or a dash is a reference, never a phone (« HA-0123456789 »,
       « 2026-0412345678 »). Ten digits in a row (« 0612345678 ») are a phone only right after a word

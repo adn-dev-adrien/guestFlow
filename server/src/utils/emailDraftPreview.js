@@ -245,6 +245,8 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
         const tagged = split(buildPreview(id, template.id, {}, lang, { settings }).body || '');
         const segments = tagged.plain === preview.body ? tagged.segments : [{ text: preview.body, key: null }];
         outcome = {
+          // What the test send builds its message from (never in the payload: it holds the settings).
+          mail: preview.mail,
           payload: {
             subject: preview.subject,
             body: preview.body,
