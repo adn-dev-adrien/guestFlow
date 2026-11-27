@@ -200,4 +200,15 @@ describe('the demo link on the device (rules 1, 3, 4)', () => {
     expect(device().demoToken).toBeUndefined();
     expect(device().stayToken).toBe('tok-123');
   });
+
+  it('a lookup by name and number drops the demo link, so a real guest is never sent back to the demo', async () => {
+    window.localStorage.setItem('gf-guest', JSON.stringify({ demoToken: 'demo-tok' }));
+    stubApi(baseRoutes({ 'GET /me': demoMe(), 'POST /sessions/lookup': { mode: 'stay', lodging: ME_STAY.lodging } }));
+    renderApp('/retrouver');
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/nom/i), 'Durand');
+    await user.type(screen.getByLabelText(/numéro/i), 'R-1');
+    await user.click(screen.getByRole('button', { name: 'Accéder à mon séjour' }));
+    await waitFor(() => expect(device().demoToken).toBeUndefined());
+  });
 });

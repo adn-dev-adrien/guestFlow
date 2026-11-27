@@ -23,10 +23,10 @@ const DEMO_GATE_CODE = '1234';
 const isMoment = (value) => MOMENTS.includes(value);
 
 /** `[startDate, endDate]` of a moment, in Europe/Paris calendar days around today. */
-function datesOf(moment, now) {
+function datesOf(moment, now, endedDaysAgo = 1) {
   const today = parisDate(now);
   if (moment === 'preArrival') return [addDays(today, 5), addDays(today, 5 + NIGHTS)];
-  if (moment === 'ended') return [addDays(today, -1 - NIGHTS), addDays(today, -1)];
+  if (moment === 'ended') return [addDays(today, -endedDaysAgo - NIGHTS), addDays(today, -endedDaysAgo)];
   return [addDays(today, -1), addDays(today, 2)];
 }
 
@@ -35,9 +35,9 @@ function datesOf(moment, now) {
  * core's defaults, read by `computeWindow`).
  */
 function demoStay({
-  propertyId, moment, now, times = {},
+  propertyId, moment, now, times = {}, endedDaysAgo = 1,
 }) {
-  const [startDate, endDate] = datesOf(isMoment(moment) ? moment : DEFAULT_MOMENT, now);
+  const [startDate, endDate] = datesOf(isMoment(moment) ? moment : DEFAULT_MOMENT, now, endedDaysAgo);
   return {
     id: null,
     demo: true,
@@ -65,8 +65,13 @@ function demoStay({
  * that is over is the lodging's visitor mode, which carries no stay (rule 3 of the app: a visitor learns nothing of a stay).
  */
 function demoSession(args) {
-  const stay = demoStay(args);
-  const resolved = resolveLink(stay, args.now);
+  // « Après le départ » left yesterday; a late check-out (the window closes 2 h after it) still open at that hour leaves the day before.
+  let stay = demoStay(args);
+  let resolved = resolveLink(stay, args.now);
+  if (args.moment === 'ended' && resolved && resolved.mode !== 'visitor') {
+    stay = demoStay({ ...args, endedDaysAgo: 2 });
+    resolved = resolveLink(stay, args.now);
+  }
   if (!resolved) return null;
   if (resolved.mode === 'visitor') return { stay: null, window: resolved.window, mode: 'visitor', ended: Boolean(resolved.ended) };
   return { stay, window: computeWindow(stay), mode: resolved.mode, ended: false };

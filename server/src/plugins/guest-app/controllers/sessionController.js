@@ -172,8 +172,13 @@ function buildSessionController({
     const { token, session } = sessions().create({
       propertyId: first.propertyId, mode: 'visitor', origin: 'demo', demoLinkId: link.id, demoMoment: DEFAULT_MOMENT, expiresAt: visitorExpiry(at), now: at,
     });
-    guestSession.setCookie(res, token, new Date(session.expiresAt));
     const opened = guestSession.load({ headers: { cookie: `${COOKIE}=${token}` } });
+    // A stay the window helpers cannot build (an unreadable check-in time) opens nothing: the session is taken back, never a 500.
+    if (!opened) {
+      sessions().remove(session.id);
+      return fail(res, refusal(404, 'NO_LODGING', 'noLodging'));
+    }
+    guestSession.setCookie(res, token, new Date(session.expiresAt));
     return answer(res, { mode: opened.mode, lodging: opened.lodging, ended: Boolean(opened.ended) });
   }
 

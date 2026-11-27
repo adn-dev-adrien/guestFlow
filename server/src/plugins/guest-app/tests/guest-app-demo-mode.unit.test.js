@@ -4,6 +4,7 @@
 const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
+const { mock } = test;
 const assert = require('node:assert/strict');
 
 const {
@@ -633,4 +634,81 @@ test('rule 1: the demo link keeps its token encrypted and only its hash searchab
   assert.notEqual(replaced.token, link.token);
   assert.equal(links.isLive(link.id), false);
   assert.equal(links.isLive(replaced.id), true);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The invariant demoPricing.js rests on, the edges of the demo session, and what a demo session takes with it
+
+test('rule 10: a demo quote, order and read reach nothing outside SQLite — no domain event, no fulfilment confirmed or released', { skip: skipWithout(['hourly-resources']) }, async () => {
+  const eventBus = require('../../sdk/eventBus');
+  const fulfilment = require('../../../utils/pricing/articleFulfilment');
+  const ctx = await openDemo();
+  const emit = mock.method(eventBus, 'emit');
+  const confirm = mock.method(fulfilment, 'confirm');
+  const release = mock.method(fulfilment, 'release');
+  try {
+    await ctx.switchTo(1, 'preArrival');
+    const slots = (await ctx.call('GET', `${API}/shop/resources/${BATH}/slots`)).body.data;
+    const day = slots.days.find((d) => d.slots && d.slots.length);
+    const sessions = [{ date: day.date, start: day.slots[0].start, end: day.slots[0].end }];
+    assert.equal((await ctx.call('GET', `${API}/shop`)).status, 200);
+    assert.equal((await ctx.call('GET', `${API}/me`)).status, 200);
+    assert.equal((await ctx.call('POST', `${API}/orders/quote`, { lines: [{ kind: 'resource', id: BATH, sessions }] })).status, 200);
+    assert.equal((await ctx.call('POST', `${API}/orders`, { lines: [{ kind: 'resource', id: BATH, sessions }], payment: 'note' })).status, 200);
+    assert.equal((await ctx.call('POST', `${API}/orders`, { lines: [{ kind: 'option', id: CIDER, quantity: 1 }], payment: 'card' })).status, 200);
+    await new Promise((resolve) => { setImmediate(resolve); });
+    assert.deepEqual(emit.mock.calls.map((c) => c.arguments[0]), [], 'no event reaches the plugin bus');
+    assert.equal(confirm.mock.callCount(), 0, 'no hold is confirmed');
+    assert.equal(release.mock.callCount(), 0, 'no hold is released');
+  } finally {
+    mock.restoreAll();
+    await ctx.close();
+  }
+});
+
+test('rule 6: a stay the window helpers cannot build opens no session — the row is taken back and the answer is a clean refusal, never a 500', async () => {
+  const ctx = await openDemo({ landOn: null });
+  try {
+    db.prepare('DELETE FROM guest_sessions').run();
+    db.prepare("UPDATE properties SET defaultCheckIn = 'never o clock'").run();
+    const res = await ctx.call('POST', `${API}/sessions/demo`, { demoToken: ctx.link.token }, { cookie: null });
+    assert.equal(res.status, 404, JSON.stringify(res.body));
+    assert.equal(res.body.error.code, 'NO_LODGING');
+    assert.equal(res.setCookie, null, 'no cookie for a session that did not open');
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM guest_sessions').get().n, 0);
+  } finally {
+    db.prepare('UPDATE properties SET defaultCheckIn = NULL').run();
+    await ctx.close();
+  }
+});
+
+test('rule 5: « après le départ » is over at every hour, even with a late check-out whose window (check-out + 2 h) reaches past midnight', () => {
+  // date-literal-ok: instants handed to a pure function.
+  const hours = ['2026-06-10T22:00:00Z', '2026-06-10T22:30:00Z', '2026-06-10T23:30:00Z', '2026-06-11T00:30:00Z', '2026-06-11T01:30:00Z', '2026-06-11T10:00:00Z'];
+  hours.forEach((iso) => ['10:00', '22:00', '23:59'].forEach((checkOutTime) => {
+    const over = demoSession({
+      propertyId: 1, moment: 'ended', now: new Date(iso), times: { checkInTime: '15:00', checkOutTime },
+    });
+    assert.equal(over.mode, 'visitor', `${iso} out ${checkOutTime}`);
+    assert.equal(over.ended, true, `${iso} out ${checkOutTime}`);
+  }));
+});
+
+test('rule 11: a demo session found expired or revoked drops its simulated orders; a live one keeps them', () => {
+  const dropped = [];
+  const row = { id: 7, origin: 'demo', demoLinkId: 3, propertyId: 1, expiresAt: '2000-01-01T00:00:00.000Z', demoMoment: 'stay' };
+  const build = (live) => require('../middleware/guestSession').buildGuestSession({
+    sessions: () => ({ findByToken: () => row }),
+    stays: () => null,
+    stayLinks: () => null,
+    lodgings: () => null,
+    now: () => new Date(),
+    httpsEnabled: () => false,
+    demoLinks: () => ({ isLive: () => live }),
+    onDemoGone: (id) => dropped.push(id),
+  });
+  const req = { headers: { cookie: 'gf_guest=abc' } };
+  assert.equal(build(true).load(req), null, 'expired');
+  assert.equal(build(false).load(req), null, 'revoked');
+  assert.deepEqual(dropped, [7, 7]);
 });

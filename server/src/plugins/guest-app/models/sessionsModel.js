@@ -47,6 +47,9 @@ function createSessionsModel(db) {
     return db.prepare("DELETE FROM guest_sessions WHERE reservationId = ? AND origin = 'lookup'").run(Number(reservationId)).changes;
   }
 
+  /** Demo mode — a session that could not open is taken back. */
+  const remove = (id) => db.prepare('DELETE FROM guest_sessions WHERE id = ?').run(Number(id)).changes;
+
   /** Demo mode rule 7 — the lodging and the moment a demo session shows. */
   function switchDemo(id, { propertyId, moment }) {
     db.prepare("UPDATE guest_sessions SET propertyId = ?, demoMoment = ? WHERE id = ? AND origin = 'demo'").run(Number(propertyId), moment, Number(id));
@@ -67,7 +70,7 @@ function createSessionsModel(db) {
   }
 
   return {
-    create, endDemoSessions, endLookupSessions, findByToken, hashToken, purgeExpired, switchDemo, touch,
+    create, endDemoSessions, remove, endLookupSessions, findByToken, hashToken, purgeExpired, switchDemo, touch,
   };
 }
 

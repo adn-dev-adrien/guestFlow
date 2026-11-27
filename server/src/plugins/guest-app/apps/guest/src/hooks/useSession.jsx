@@ -182,7 +182,11 @@ export function SessionProvider({ children }) {
   }, [load]);
 
   /** After a successful lookup the server holds the session; the app only reads it. */
-  const afterLookup = useCallback(async () => { await load(); }, [load]);
+  const afterLookup = useCallback(async () => {
+    // Like a stay link or a poster, a lookup replaces the demo link on this device: a real guest is never sent back to the demo.
+    device.set('demoToken', null);
+    await load();
+  }, [load]);
 
   /**
    * Demo mode rule 7 — the demo bar's choice: the server switches the session's lodging and moment, then everything the screens read is read

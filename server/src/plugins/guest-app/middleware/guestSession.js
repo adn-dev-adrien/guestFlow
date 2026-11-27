@@ -30,7 +30,7 @@ const clearSessionCookie = (res, { secure = true } = {}) => res.clearCookie(COOK
 const coreHttps = () => sdk.coreModule('securityConfig').shouldEnforceHttps();
 
 function buildGuestSession({
-  sessions, stays, stayLinks, lodgings, now, httpsEnabled = coreHttps, demoLinks = () => ({ isLive: () => false }),
+  sessions, stays, stayLinks, lodgings, now, httpsEnabled = coreHttps, demoLinks = () => ({ isLive: () => false }), onDemoGone = () => {},
 }) {
   const setCookie = (res, token, expires) => setSessionCookie(res, token, expires, { secure: httpsEnabled() });
   const clearCookie = (res) => clearSessionCookie(res, { secure: httpsEnabled() });
@@ -40,7 +40,11 @@ function buildGuestSession({
    * derived by the real helpers. A lodging switched off meanwhile falls back to the first one the app shows; none left, no session.
    */
   function loadDemo(session, token, at) {
-    if (!demoLinks().isLive(session.demoLinkId) || at >= new Date(session.expiresAt)) return null;
+    // Demo mode rule 11 — a demo session found expired or revoked takes its simulated orders with it.
+    if (!demoLinks().isLive(session.demoLinkId) || at >= new Date(session.expiresAt)) {
+      onDemoGone(session.id);
+      return null;
+    }
     let current = session;
     let lodging = lodgings().findEnabled(session.propertyId);
     if (!lodging) {

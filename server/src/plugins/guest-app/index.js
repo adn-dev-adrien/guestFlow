@@ -159,7 +159,7 @@ function buildGuestApi({
 
   const demoPricing = buildDemoPricing({ db, sale });
   const guestSession = buildGuestSession({
-    sessions, stays, stayLinks, lodgings, now, demoLinks, ...(httpsEnabled ? { httpsEnabled } : {}),
+    sessions, stays, stayLinks, lodgings, now, demoLinks, onDemoGone: (id) => forgetDemoSessions([id]), ...(httpsEnabled ? { httpsEnabled } : {}),
   });
   const shop = buildShopController({
     items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment, orderCollection: collectionOf, demoPricing,

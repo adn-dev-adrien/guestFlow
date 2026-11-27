@@ -82,7 +82,7 @@ lights — and nothing leaves the screen: no fiche, no payment, no planning, no 
     payment link, no stock count, no hold, no push, no e-mail. Both payment choices (« Payer maintenant » /
     « Ajouter à la note ») end on the confirmation; the card choice never reaches Qonto.
 11. **The demo's orders live in memory.** The simulated orders are kept server-side in a bounded in-memory store
-    keyed by the session (at most 20, dropped with the session or a server restart), so « Mes commandes » and the
+    keyed by the session (at most 20 per session, the oldest goes first; dropped when the session is found expired or revoked, when « Régénérer le lien » ends it, or at a server restart; the number of sessions held is bounded too, the least recently used going first), so « Mes commandes » and the
     order detail show them during the demonstration. `abandon` on one removes it. They never appear on the staff
     « Commandes clients » page, the planning or any statistic.
 12. **The gate is fictitious.** On a demo `stay` session the « Portail » tile is active and opens an in-app sheet
@@ -189,7 +189,7 @@ before the chevron. The sheet is the app's standard bottom sheet (full width on 
 
 ## 7. Test plan
 
-Implemented: **40 server tests**, **15 guest app tests**, **4 studio tests** (below).
+Implemented: **44 server tests**, **16 guest app tests**, **4 studio tests** (below).
 
 ### Server unit tests — `server/src/plugins/guest-app/tests/guest-app-demo-mode.unit.test.js`
 
@@ -230,6 +230,10 @@ Implemented: **40 server tests**, **15 guest app tests**, **4 studio tests** (be
 
 - **Rule 14 has nothing to refuse today.** The guest API exposes no push subscription (the only push of the plugin is the staff's `guest-orders` channel, sent through the core). No route was invented to refuse; the census test of rule 15 fails the day one is added without a decision. A demo order pushes nothing (rule 10, tested).
 - **The quote needs a stored stay.** The core sale service plays its quote on a reservation row; the fictitious stay has none. `demoPricing.js` writes it for the length of one call inside a transaction that is rolled back (a client, the reservation, its nights): the guest app's real quote engine prices the demo, nothing stays. The lodging's tariff recipe is therefore consulted for the fictitious dates; a lodging the engine cannot price for them would refuse the demo order like a real stay.
+- **A demo stay the window helpers cannot build** (an unreadable check-in time) opens no session: the row is taken back and the answer is `404 NO_LODGING`.
+- **« Après le départ » always lands after the window closes**: it leaves yesterday, or the day before when a late check-out (window = check-out + 2 h) would still be open at that hour.
+- **A lookup by name and number replaces the demo link on the device**, like a stay link or a poster does.
+- **The invariant `demoPricing.js` rests on** (the quote and `collectionOf` publish no event and confirm or release no fulfilment hold; the rollback only undoes SQLite) is pinned by a test that spies on the event bus and the fulfilment adapters.
 - **The default lodging** a demo link opens is the first the Studio lists (its order is by name), the default moment is « Pendant le séjour ».
 - **A demo session in the « Après le départ » moment is a visitor session** (no stay, no shop, no orders), like a real ended stay; `/me` carries `ended: true` for it.
 - **The Studio card** also shows the QR (`qrDataUri` in the answer); the Studio's `SettingsPage` is unchanged but for the one component it renders.

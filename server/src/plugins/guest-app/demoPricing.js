@@ -3,6 +3,10 @@
  * has no reservation, and the sale service plays its quote on a stored one: so the stay is written inside a transaction that is always
  * rolled back, the quote (or the collection moment) is asked of it there, and nothing is left behind. `sell` is deliberately absent:
  * a demo order is never committed.
+ *
+ * Invariant this rests on: `extraSale.quote` and `collectionOf` have no effect outside SQLite — they publish no event and confirm or release no
+ * fulfilment hold. The rollback only undoes the database; guest-app-demo-mode.unit.test.js spies on the event bus and the fulfilment
+ * adapters during a demo quote, order and read, and fails the day the core's quote starts to reach outside.
  */
 
 const { parisDate } = require('./currentStay');
