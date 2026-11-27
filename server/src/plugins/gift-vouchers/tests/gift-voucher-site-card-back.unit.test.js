@@ -26,7 +26,7 @@ const { durationText } = require('../offerService');
 
 const ORIGIN = 'https://site.example.test';
 const ids = fx.seedCatalogue();
-const company = { name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', website: ORIGIN, logo: null };
+const company = { name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', department: 'Lot', website: ORIGIN, logo: null };
 const shop = fx.openShop({ company: async () => company });
 const { api, clock } = shop;
 const bath = api.campaigns.find(api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids), fx.rulesContext(api)).value));
@@ -72,7 +72,7 @@ test('rule 66 — the offer sends the PDF\'s own dimensions and words, and the c
   assert.deepEqual(back.texts, BACK_TEXTS);
   assert.deepEqual([back.layout.safeMm, back.layout.legalStripMm, back.layout.qrMm, back.layout.logoMm], [5, 5, 23, 12]);
   assert.equal(back.companyName, 'Domaine Solio');
-  assert.equal(back.identity, 'Domaine Solio · Saint-Cirq-Lapopie');
+  assert.equal(back.identity, 'Domaine Solio · Saint-Cirq-Lapopie · Lot');
   assert.equal(back.website, 'site.example.test');
   assert.equal(back.link, 'site.example.test/bon-cadeau/utiliser');
   assert.equal(back.logoUrl, null);

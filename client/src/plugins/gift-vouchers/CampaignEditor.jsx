@@ -11,6 +11,7 @@ import {
   Alert, Box, Button, Checkbox, FormControlLabel, FormHelperText, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import {
   ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, useLatestPreview, useToast,
@@ -22,6 +23,8 @@ import ExtraTimeField from './ExtraTimeField';
 import FormSection from './FormSection';
 import IdeasEditor from './IdeasEditor';
 import PriceRecap from './PriceRecap';
+import FrontPriceField from './FrontPriceField';
+import PrintSheetsDialog from '../../components/PrintSheetsDialog';
 import ValidityField from './ValidityField';
 import VisualPicker from './VisualPicker';
 import useCatalogue from './useCatalogue';
@@ -34,7 +37,7 @@ const T = CAMPAIGN_TEXTS.editor;
 const L = LODGING_TEXTS;
 
 const BLANK = {
-  name: '', title: '', kind: 'resource', state: 'draft', validityMonths: '12', periods: ['week', 'weekend'], slug: '', composition: null, addOns: [], extraTimeMaxMinutes: 0,
+  name: '', title: '', kind: 'resource', state: 'draft', validityMonths: '12', periods: ['week', 'weekend'], frontPricePosition: 'bottom-right', slug: '', composition: null, addOns: [], extraTimeMaxMinutes: 0,
   minAmount: '', maxAmount: '', vatRatePercent: '', ideas: [], voucherVisualId: null, merchantVisualId: null,
 };
 
@@ -46,6 +49,7 @@ function draftOf(campaign) {
     state: campaign.state,
     validityMonths: String(campaign.validityMonths),
     periods: [...(campaign.periods || ['week', 'weekend'])],
+    frontPricePosition: campaign.frontPricePosition || 'bottom-right',
     slug: campaign.slug || '',
     composition: campaign.composition ? { ...campaign.composition, options: campaign.composition.options.map((o) => ({ ...o })) } : null,
     addOns: [...campaign.addOns],
@@ -70,6 +74,7 @@ function payloadOf(draft) {
     slug: draft.slug,
     voucherVisualId: draft.voucherVisualId,
     merchantVisualId: draft.merchantVisualId,
+    frontPricePosition: draft.frontPricePosition,
   };
   if (draft.kind === 'lodging') {
     return {
@@ -105,6 +110,7 @@ export default function CampaignEditor() {
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [downloadError, setDownloadError] = useState(null);
+  const [printing, setPrinting] = useState(false);
 
   const load = useCallback(() => {
     setLoadError(false);
@@ -313,6 +319,15 @@ export default function CampaignEditor() {
               label={T.merchantFront} use="merchant" value={draft.merchantVisualId} onChange={setValue('merchantVisualId')} visuals={visuals}
               onAdded={(v) => setVisuals((list) => [...list, v])} error={errorOf('merchantVisualId')}
             />
+            {draft.kind === 'resource' ? (
+              <FrontPriceField
+                value={draft.frontPricePosition}
+                onChange={setValue('frontPricePosition')}
+                visual={visuals.find((v) => v.id === draft.merchantVisualId) || null}
+                priceCents={campaign && campaign.pricing && campaign.pricing.priceable ? campaign.pricing.totalCents : null}
+                error={errorOf('frontPricePosition')}
+              />
+            ) : null}
           </FormSection>
 
           <FormSection title={T.links}>
@@ -335,10 +350,27 @@ export default function CampaignEditor() {
                 {T.merchantCard}
               </Button>
             </Box>
+            <Box>
+              <Button variant="outlined" startIcon={<PrintOutlinedIcon />} disabled={!campaign || dirty} sx={{ minHeight: 44 }} onClick={() => setPrinting(true)}>
+                {T.print}
+              </Button>
+            </Box>
             <Typography variant="body2" color="text.secondary">{T.merchantCardNote}</Typography>
+            <Typography variant="body2" color="text.secondary">{T.priceOfTheDay}</Typography>
             {downloadError ? <Typography variant="body2" color="error" role="alert">{downloadError}</Typography> : null}
           </FormSection>
         </Stack>
+
+        {campaign ? (
+          <PrintSheetsDialog
+            open={printing}
+            onClose={() => setPrinting(false)}
+            title={T.printTitle}
+            note={T.priceOfTheDay}
+            fetchLayout={(options) => giftVouchersApi.campaignPrintLayout(campaign.id, options)}
+            onPrint={async (options) => { await giftVouchersApi.downloadCampaignPrint(campaign.id, campaign.slug, options); load(); }}
+          />
+        ) : null}
 
         <Box sx={{ position: { md: 'sticky' }, top: { md: 'calc(var(--gf-page-bar-bottom, 120px) + 16px)' } }}>
           <FormSection title={T.preview}>

@@ -39,7 +39,7 @@ export const TEXTS = Object.freeze({
   detail: {
     code: 'Code', reveal: 'Afficher le code', hide: 'Masquer le code', expiry: 'Valable jusqu’au', balance: 'Solde',
     from: 'De la part de', to: 'Pour', email: 'E-mail', vat: 'TVA', message: 'Message', movements: 'Mouvements', close: 'Fermer',
-    resend: 'Renvoyer le mail', pdf: 'Télécharger le bon', extend: 'Prolonger', cancel: 'Annuler le bon', adjust: 'Corriger le solde',
+    resend: 'Renvoyer le mail', pdf: 'Télécharger le bon', print: 'Imprimer…', printTitle: 'Imprimer le bon', extend: 'Prolonger', cancel: 'Annuler le bon', adjust: 'Corriger le solde',
     campaign: 'Campagne', contents: 'Contenu', oneShot: 'Bon sur mesure', unused: 'Part non utilisée', usedOn: 'Utilisé le', booking: 'Fiche du passage',
     notDownloadable: 'Ce bon est utilisé, expiré ou annulé : il ne peut plus être téléchargé ni renvoyé.',
     cancelNotAllowed: 'Ce bon a déjà servi : il ne peut plus être annulé.',
@@ -169,6 +169,9 @@ export const CAMPAIGN_TEXTS = Object.freeze({
     links: 'Liens permanents', slug: 'Identifiant du lien', slugLocked: 'Verrouillé : une carte du commerçant a été imprimée avec ce lien.',
     linkOffer: 'Acheter', linkUse: 'Utiliser', linkNone: 'Le lien d’achat apparaît avec l’identifiant.',
     downloads: 'Téléchargements', merchantCard: 'Carte commerçant (PDF imprimeur)', merchantCardNote: 'A6 recto verso, fonds perdus 3 mm, traits de coupe, image à sa résolution d’origine.',
+    print: 'Imprimer…', printTitle: 'Imprimer des cartes commerçant', priceOfTheDay: 'Le prix est celui du jour de l’impression.',
+    frontPrice: 'Position du prix', frontPriceHelp: 'Sur le recto de la carte commerçant : « à partir de » et le prix le plus bas de la campagne.',
+    frontPriceOptions: Object.freeze([{ value: 'bottom-right', label: 'En bas à droite' }, { value: 'bottom-left', label: 'En bas à gauche' }, { value: 'top-right', label: 'En haut à droite' }, { value: 'top-left', label: 'En haut à gauche' }, { value: 'none', label: 'Aucun' }]),
     merchantCardDone: 'Carte commerçant téléchargée.', downloadFailed: 'Le téléchargement n’a pas abouti.',
     preview: 'Prix calculé', previewLodging: 'Montant libre : le prix est celui que choisit l’offreur.', previewIdle: 'Choisir une ressource pour voir le prix.',
     previewFailed: 'Prix indisponible.', vatIncluded: (rate) => `dont TVA ${rate} %`, total: 'Total',

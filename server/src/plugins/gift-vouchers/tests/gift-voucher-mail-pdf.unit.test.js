@@ -80,11 +80,12 @@ test('rule 21: a bath voucher’s back reads the campaign and the settings — t
   const { result, texts, calls } = await recorded(() => api.documents.voucherPdf(voucher, { qr: (url) => { seen.push(url); return require('qrcode').create(url).modules; } }));
   assert.equal(pages(result), 2);
   assert.match(result.toString('latin1'), /\/MediaBox \[0 0 314\.64\d* 436\.53\d*\]/, '105 × 148 mm plus a 3 mm bleed');
+  // Rule 20 of the week-weekend spec: the campaign's title, who gave it to whom, the QR code and its link, the three steps, the code in its rectangle, the contents, the message, the validity.
   [
-    'BON CADEAU', 'Pour l’utiliser', 'Scannez pour réserver votre cadeau ou suivez ce lien :', 'Votre bon comprend :',
-    '• Bain nordique : 2 h en journée', '• Planche apéro', '• Temps supplémentaire : 1 h', '• 2 × Boisson',
-    'Pour Marie de la part de Paul', 'Joyeux anniversaire', code.format(plainCode(voucher)), 'Valable jusqu’au 15/11/2027',
-    'Domaine Solio · Saint-Cirq-Lapopie', 'site.example.test', 'site.example.test/bon-cadeau/utiliser',
+    'BON CADEAU', 'Un bain nordique · semaine', 'offert par Paul à Marie', 'Scannez le QR code', 'site.example.test/bon-cadeau/utiliser',
+    'Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche', 'Code du bon', code.format(plainCode(voucher)),
+    'Votre bon comprend : Bain nordique : 2 h en journée · Planche apéro · Temps supplémentaire : 1 h · 2 × Boisson', 'Joyeux anniversaire', 'Valable jusqu’au 15/11/2027',
+    'Domaine Solio · Saint-Cirq-Lapopie · Lot',
   ].forEach((line) => assert.ok(says(texts, line), `the back says « ${line} »`));
   assert.equal(texts.some((t) => /€|TVA|\bHT\b|TTC|\d+,\d{2}/.test(t)), false, 'no amount, no VAT on a resource voucher');
   assert.deepEqual(seen, [`https://site.example.test/bon-cadeau/utiliser#bon=${plainCode(voucher)}`]);
@@ -94,7 +95,7 @@ test('rule 21: a bath voucher’s back reads the campaign and the settings — t
 test('rule 21: a lodging voucher’s back says its value, and only there', async () => {
   const voucher = sell({ slug: 'sejour', amountCents: 15000 });
   const { texts, result } = await recorded(() => api.documents.voucherPdf(voucher));
-  assert.ok(texts.includes('• Un séjour dans nos logements, d’une valeur de 150,00 €'));
+  assert.ok(says(texts, 'Votre bon comprend : Un séjour dans nos logements, d’une valeur de 150,00 €'));
   assert.equal(texts.filter((t) => /€/.test(t)).length, 1);
   assert.equal(pages(result), 2);
 });
@@ -121,8 +122,7 @@ test('rule 50: the legal mention runs along the right edge, turned a quarter, in
   const checkBack = ({ texts, calls }, safeRight) => {
     assert.ok(texts.includes(LEGAL_MENTION), 'the mention is drawn');
     assert.ok(calls.rotate.some(([angle, options]) => angle === 90 && options.origin[0] >= safeRight - mm(5) && options.origin[0] <= safeRight), 'rotated 90°, inside the right margin');
-    assert.ok(texts.includes('site.example.test'), 'the website at the bottom');
-    assert.ok(texts.includes('Domaine Solio · Saint-Cirq-Lapopie'), 'beside the company name and the town');
+    assert.ok(texts.includes('Domaine Solio · Saint-Cirq-Lapopie · Lot'), 'the company, its town and its department close the back');
   };
   checkBack(await recorded(() => api.documents.voucherPdf(voucher)), SAFE.right);
   const merchant = await recorded(() => api.documents.merchantCardPdf(api.campaigns.find(bath.id)));
@@ -138,27 +138,25 @@ async function withMerchantVisual() {
   return { visualId };
 }
 
-test('rules 33, 34: the merchant card — the four steps, a code box at least 22 mm high and as wide as the text, four guide cells, the framed recipient inset, the validity — and no number, no amount', async () => {
+test('rules 33, 34 and 19: the merchant card — title and subtitle, the three steps, one empty code rectangle 16 mm high, the validity and where a card received is used — and no number, no amount', async () => {
   await withMerchantVisual();
   const seen = [];
   const { result, texts, calls } = await recorded(() => api.documents.merchantCardPdf(api.campaigns.find(bath.id), { qr: (url) => { seen.push(url); return require('qrcode').create(url).modules; } }));
   assert.equal(pages(result), 2);
   assert.match(result.toString('latin1'), /\/MediaBox \[0 0 342\.99\d* 464\.88\d*\]/, 'the trim and the bleed plus a slug for the crop marks');
   [
-    'Pour offrir ce bon', '1 Scannez pour choisir la formule', '2 Paiement sécurisé en ligne', '3 Recopiez ci-dessous le code reçu par mail', '4 Faites plaisir, offrez la carte',
-    'Code du bon', 'Valable 12 mois à partir du paiement.', 'site.example.test/bon-cadeau/offrir/bain-jour',
+    'Offrez un bon cadeau', 'en quelques minutes, depuis votre téléphone', 'Scannez le QR code avec votre téléphone', 'Choisissez et réglez le bon sur notre site',
+    'Recopiez ci-dessous le code reçu par mail, offrez la carte', 'Code du bon', 'Valable 12 mois à partir du paiement.', 'site.example.test/bon-cadeau/offrir/bain-jour',
+    'Vous avez reçu cette carte ? site.example.test/bon-cadeau/utiliser',
   ].forEach((line) => assert.ok(says(texts, line), `the card says « ${line} »`));
-  assert.ok(says(texts, 'Vous avez reçu cette carte ? Rendez-vous sur site.example.test/bon-cadeau/utiliser et saisissez le code ci-dessus pour réserver.'), 'the recipient inset, with no QR code of its own');
-  assert.equal(texts.some((t) => /€|BC-\d|\d{4}-\d{4}/.test(t)), false, 'no number and no amount');
+  assert.equal(texts.some((t) => /€|BC-\d|\d{4}-\d{4}/.test(t)), false, 'no number and no amount without a price to print');
   assert.deepEqual(seen, ['https://site.example.test/bon-cadeau/offrir/bain-jour'], 'one QR code, the offer’s');
   const boxes = calls.roundedRect.map(([x, y, w, h]) => ({ x, y, w, h }));
-  const box = boxes.find((b) => b.h >= mm(22));
-  assert.ok(box, 'a box of at least 22 mm');
-  assert.ok(CODE_BOX_HEIGHT >= mm(22));
-  assert.ok(box.w >= SAFE.right - SAFE.left - mm(5) - 1, 'as wide as the text block, which leaves the right strip to the legal mention');
-  const cells = boxes.filter((b) => b.y > box.y && b.y < box.y + box.h && b.w < box.w);
-  assert.equal(cells.length, 4, 'four light guide cells for the four groups of the code');
-  assert.ok(cells.every((c) => c.h > mm(12)), 'tall enough to write in');
+  const codeBoxes = boxes.filter((b) => b.h === CODE_BOX_HEIGHT);
+  assert.equal(codeBoxes.length, 1, 'a single rectangle for the code, no guide cells');
+  assert.equal(CODE_BOX_HEIGHT, mm(16));
+  assert.ok(codeBoxes[0].w >= SAFE.right - SAFE.left - mm(5) - 1, 'as wide as the text block, which leaves the right strip to the legal mention');
+  assert.equal(boxes.filter((b) => b.y > codeBoxes[0].y && b.y < codeBoxes[0].y + codeBoxes[0].h).length, 0, 'nothing inside it');
   assertInsideSafeArea(calls, mm(5));
 });
 

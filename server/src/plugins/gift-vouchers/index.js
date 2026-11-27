@@ -31,7 +31,7 @@ const { createUseService } = require('./useService');
 const { createDocuments } = require('./documents');
 const { createRecipe } = require('./recipe');
 const images = require('./visualImages');
-const { townOf, logoOf } = require('./companyProfile');
+const { townOf, departmentOf, logoOf } = require('./companyProfile');
 const { CHANNEL: ONLINE_SALES_CHANNEL, CHANNEL_LABEL: ONLINE_SALES_LABEL } = require('./voucherNotices');
 const { createRedemption, SOURCE: PREPAID_SOURCE, LABEL: PREPAID_LABEL } = require('./redemption');
 const { buildStayController } = require('./controllers/stayController');
@@ -253,6 +253,7 @@ function register(ctx) {
     return {
       name: String(stored.companyName || '').trim() || 'GuestFlow',
       town: townOf(stored.companyAddress),
+      department: departmentOf(stored.companyAddress),
       website: siteOrigin(),
       logo: await logoOf(stored.companyLogoPath, sdk.coreModule('instancePaths').uploadsDir()),
     };

@@ -21,6 +21,8 @@ function buildAdminRouter({
   router.put('/campaigns/:id', campaigns.update);
   router.post('/campaigns/:id/duplicate', campaigns.duplicate);
   router.get('/campaigns/:id/merchant-card.pdf', campaigns.merchantCard);
+  router.get('/campaigns/:id/print-layout', campaigns.printLayout);
+  router.get('/campaigns/:id/print.pdf', campaigns.printPdf);
   router.get('/campaigns/:id/recipe.zip', campaigns.exportRecipe);
   // The visual library (rules 47-48).
   router.get('/visuals', visuals.list);
@@ -35,6 +37,8 @@ function buildAdminRouter({
   router.post('/', admin.create);
   router.get('/:id', admin.read);
   router.get('/:id/pdf', admin.pdf);
+  router.get('/:id/print-layout', admin.printLayout);
+  router.get('/:id/print.pdf', admin.printPdf);
   router.post('/:id/extend', admin.extend);
   router.post('/:id/cancel', admin.cancel);
   router.post('/:id/refunds/:rid/settle', admin.settleRefund);

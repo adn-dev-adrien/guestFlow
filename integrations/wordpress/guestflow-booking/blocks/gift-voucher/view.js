@@ -490,6 +490,7 @@
       if (payBtn && !busy) payBtn.textContent = a.cents != null ? GF.t('gvPay', GF.euro(a.cents / 100)) : GF.t('gvPayBare');
       if (card && back) {
         card.set({
+          title: (campaign.back.titles && campaign.back.titles[period]) || campaign.back.title || campaign.title,
           recipient: recipientInput.value.trim(),
           sender: senderInput.value.trim(),
           message: messageInput.value.trim(),
@@ -669,7 +670,7 @@
       }) : null;
       if (card) {
         card.set({
-          recipient: v.recipientName || '', sender: v.senderName || '', message: v.message || '', lines: voucherBack.lines, validUntil: voucherBack.validUntil, code: code, qrSvg: voucherBack.qrSvg, link: voucherBack.link,
+          title: voucherBack.title || v.title || '', recipient: v.recipientName || '', sender: v.senderName || '', message: v.message || '', lines: voucherBack.lines, validUntil: voucherBack.validUntil, code: code, qrSvg: voucherBack.qrSvg, link: voucherBack.link,
         });
         lead.classList.add('has-card');
         lead.appendChild(GF.el('div', { class: 'gf-card-col' }, card.node));

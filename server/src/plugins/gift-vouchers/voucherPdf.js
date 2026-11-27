@@ -1,9 +1,11 @@
 /**
- * The printed cards of the plugin (specs/gift-voucher-campaigns.md rules 21, 22, 33, 34, 49, 50): the voucher the giver receives and the merchant card a printer produces. Both
- * are A6 portrait, 105 × 148 mm, with a 3 mm bleed, two pages — the front, then the back. The front is the visual picked in the library, embedded as uploaded (never resampled)
- * and scaled to cover the bleed. The back is drawn here, text and QR code as vectors with the fonts embedded: the voucher's back carries the code and what the voucher
- * contains (no amount on a resource voucher), the merchant card's the four steps of an offer and a box to copy the code into (no number, no amount). Every printed back carries
- * the legal mention along its right edge, and the company name, town and website at its foot (rule 50). Every free text is wrapped by hand inside its box.
+ * The printed cards of the plugin (specs/gift-voucher-campaigns.md rules 21, 22, 33, 34, 49, 50; the backs redrawn by specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 18-21):
+ * the voucher the giver receives and the merchant card a printer produces. Both are A6 portrait, 105 × 148 mm, with a 3 mm bleed, two pages — the front, then the back. The front is
+ * the visual picked in the library, embedded as uploaded (never resampled) and scaled to cover the bleed; on the merchant card GuestFlow adds the « à partir de » price in the corner
+ * the campaign chose. The back is drawn here on a white ground, text and QR code as vectors with the fonts embedded: the company's logo or name, « BON CADEAU », a title and a
+ * subtitle, the QR code in a rounded frame, three numbered steps and one rectangle for the code (the voucher's is printed in it, the merchant card's is left empty to copy it into).
+ * Every printed back carries the legal mention along its right edge and the company at its foot (rule 50). Every free text is wrapped by hand inside its box. The same drawing serves
+ * the print sheets (`renderPrintSheets`): a card is drawn in a translated and scaled frame of the page.
  */
 
 const PDFDocument = require('pdfkit');
@@ -14,29 +16,31 @@ const rules = require('./voucherRules');
 const { contentLines } = require('./contentsText');
 
 /**
- * Rule 66 — every dimension of the voucher's back, written once: the PDF draws from it and the website sends it as is, so its HTML copy of the back cannot drift from the
- * PDF without a test failing. Millimetres on the A6 trim (105 × 148), sizes and small gaps in points, `lines` the most lines a text may take.
+ * Rule 66 — every dimension of the back, written once: the PDF draws from it and the website sends it as is, so its HTML copy of the back cannot drift from the PDF without a test
+ * failing. Millimetres on the A6 trim (105 × 148), sizes and small gaps in points, `lines` the most lines a text may take.
  */
 const BACK_LAYOUT = Object.freeze({
   trimMm: Object.freeze({ width: 105, height: 148 }),
   safeMm: 5,
   legalStripMm: 5,
   qrMm: 23,
+  qrFramePadMm: 2.5,
   logoMm: 12,
   footerLineMm: 4,
-  qrGapMm: 3,
+  discMm: 4.6,
+  stepGapMm: 2,
+  codeBoxMm: 16,
   afterQrMm: 3,
-  afterItemsMm: 1.5,
-  afterMessageMm: 2,
+  afterStepsMm: 3,
+  afterCodeMm: 2,
   // pdfkit's line pitch for the faces, in ems: the page sets its lines at the same pitch.
   lineHeight: Object.freeze({ sans: 1.326, serif: 1.371 }),
   pt: Object.freeze({
-    logoGap: 8, logoName: 13, title: 20, titleSpacing: 2, titleGap: 4, ruleHalf: 20, ruleStroke: 0.6, ruleGap: 8, heading: 10, headingGap: 4, scan: 8.5, scanGap: 3, link: 8.5,
-    includes: 9.5, includesGap: 2, item: 8.5, itemGap: 1, parties: 9.5, partiesGap: 1, message: 8.5, messageGap: 1, codeLabel: 7.5, codeLabelGap: 1, code: 15,
-    codeGap: 3, codeSpacing: 0.5, valid: 9, footer: 8, legal: 7,
+    logoGap: 6, logoName: 12, kicker: 8, kickerSpacing: 2.4, kickerGap: 3, title: 17, titleGap: 2, subtitle: 9, subtitleGap: 7, frameStroke: 1.1, scan: 8.5, scanGap: 1, link: 7.5, linkGap: 6,
+    step: 8.5, discNumber: 8, codeLabel: 6.5, code: 15, codeSpacing: 0.8, small: 7.5, smallGap: 2, footer: 8, legal: 7,
   }),
   lines: Object.freeze({
-    logoName: 2, scan: 3, link: 3, items: 7, itemText: 2, parties: 2, message: 4,
+    logoName: 2, title: 2, subtitle: 2, step: 1, link: 1, includes: 3, message: 2,
   }),
 });
 
@@ -48,34 +52,44 @@ const SAFE = mm(BACK_LAYOUT.safeMm);
 const SLUG = mm(5);
 const MARK_LENGTH = mm(4);
 const LEGAL_MENTION = 'Ne pas jeter sur la voie publique.';
-/** Rule 66 — the fixed words of the voucher's back, French as the PDF is: the website writes these and nothing else of its own. `{…}` is filled by the page with what the buyer typed. */
+/**
+ * Rule 66 — the fixed words of the backs, French as the PDF is: the website writes these and nothing else of its own. `{…}` is filled by the page with what the buyer typed.
+ * `voucher` is the voucher's back (rule 20), `merchant` the merchant card's (rule 19).
+ */
 const BACK_TEXTS = Object.freeze({
   title: 'BON CADEAU',
-  howTo: 'Pour l’utiliser',
-  scan: 'Scannez pour réserver votre cadeau ou suivez ce lien :',
-  includes: 'Votre bon comprend :',
+  lodgingTitle: 'Un séjour offert',
+  subtitle: 'offert par {sender} à {recipient}',
+  subtitleSender: 'offert par {sender}',
+  subtitleRecipient: 'offert à {recipient}',
+  scan: 'Scannez le QR code',
+  steps: Object.freeze(['Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche']),
+  codeLabel: 'Code du bon',
+  includes: 'Votre bon comprend : {lines}',
   bullet: '•',
   recipient: 'Pour {name}',
   sender: 'de la part de {name}',
-  codeLabel: 'Votre code',
   codePlaceholder: 'XXXX-XXXX-XXXX-XXXX',
   validUntil: 'Valable jusqu’au {date}',
   legal: LEGAL_MENTION,
+  merchant: Object.freeze({
+    title: 'Offrez un bon cadeau',
+    subtitle: 'en quelques minutes, depuis votre téléphone',
+    steps: Object.freeze(['Scannez le QR code avec votre téléphone', 'Choisissez et réglez le bon sur notre site', 'Recopiez ci-dessous le code reçu par mail, offrez la carte']),
+    validFor: 'Valable {months} mois à partir du paiement.',
+    received: 'Vous avez reçu cette carte ? {link}',
+  }),
+  frontPrice: Object.freeze({ from: 'à partir de' }),
 });
 const INK = '#1f2a24';
 const MUTED = '#5c665f';
 const LINE = '#c9cfc9';
-const GUIDE = '#dfe3df';
+const HONEY = '#b9822f';
+const FIR = '#2f5d50';
 const QR_SIZE = mm(BACK_LAYOUT.qrMm);
 // The strip along the right edge that the vertical legal mention occupies, inside the safe area.
 const LEGAL_STRIP = mm(BACK_LAYOUT.legalStripMm);
-const CODE_BOX_HEIGHT = mm(24);
-const STEPS = Object.freeze([
-  'Scannez pour choisir la formule',
-  'Paiement sécurisé en ligne',
-  'Recopiez ci-dessous le code reçu par mail',
-  'Faites plaisir, offrez la carte',
-]);
+const CODE_BOX_HEIGHT = mm(BACK_LAYOUT.codeBoxMm);
 
 /**
  * `text` cut into at most `maxLines` lines no wider than `width` in the current font: words stay whole while they fit, a
@@ -116,12 +130,8 @@ const shortLink = (url) => url.replace(/^https?:\/\//, '').replace(/#.*$/, '');
 
 const defaultQr = (url) => QRCode.create(url, { errorCorrectionLevel: 'M' }).modules;
 
-/** One drawing surface: the document, its faces, and the safe frame the back is drawn in. */
-function createSheet({
-  title, slug = 0, marks = false,
-}) {
-  const width = TRIM.width + 2 * BLEED + 2 * slug;
-  const height = TRIM.height + 2 * BLEED + 2 * slug;
+/** A document and the promise of its bytes. */
+function newDocument({ title, width, height }) {
   const doc = new PDFDocument({
     size: [width, height], margin: 0, info: { Title: title },
   });
@@ -131,6 +141,13 @@ function createSheet({
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
   });
+  return { doc, done };
+}
+
+/** The geometry of one card on a page of its own size (or translated and scaled into a print sheet): the trim box, the safe frame, the slug of a merchant card's crop marks. */
+function cardSheet(doc, { slug = 0, marks = false } = {}) {
+  const width = TRIM.width + 2 * BLEED + 2 * slug;
+  const height = TRIM.height + 2 * BLEED + 2 * slug;
   const trim = {
     left: slug + BLEED, top: slug + BLEED, right: slug + BLEED + TRIM.width, bottom: slug + BLEED + TRIM.height,
   };
@@ -138,8 +155,17 @@ function createSheet({
     left: trim.left + SAFE, top: trim.top + SAFE, right: trim.right - SAFE, bottom: trim.bottom - SAFE,
   };
   return {
-    doc, done, width, height, trim, slug, marks, safe,
+    doc, width, height, trim, slug, marks, safe,
   };
+}
+
+/** One drawing surface: the document, its faces, and the safe frame the back is drawn in. */
+function createSheet({
+  title, slug = 0, marks = false,
+}) {
+  const probe = cardSheet(null, { slug, marks });
+  const { doc, done } = newDocument({ title, width: probe.width, height: probe.height });
+  return { ...cardSheet(doc, { slug, marks }), done };
 }
 
 /** Crop marks in the slug, at the four corners of the trim, never inside the bleed. */
@@ -153,12 +179,19 @@ function drawCropMarks({ doc, trim }) {
   doc.restore();
 }
 
-/** The front: the picked visual as uploaded, scaled to cover the bleed box and cropped to it; with none picked, a plain card with the company's name. */
-function drawFront(sheet, { image, F, companyName }) {
+/**
+ * The front: the picked visual as uploaded, scaled to cover the bleed box and cropped to it (to the trim in a print sheet, where cards touch: `toTrim`); with none picked, a plain
+ * card with the company's name.
+ */
+function drawFront(sheet, {
+  image, F, companyName, toTrim = false,
+}) {
   const {
     doc, slug, trim,
   } = sheet;
-  const box = { x: slug, y: slug, w: TRIM.width + 2 * BLEED, h: TRIM.height + 2 * BLEED };
+  const box = toTrim
+    ? { x: trim.left, y: trim.top, w: TRIM.width, h: TRIM.height }
+    : { x: slug, y: slug, w: TRIM.width + 2 * BLEED, h: TRIM.height + 2 * BLEED };
   if (image) {
     const picture = doc.openImage(image);
     const scale = Math.max(box.w / picture.width, box.h / picture.height);
@@ -168,12 +201,34 @@ function drawFront(sheet, { image, F, companyName }) {
     doc.image(picture, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, { width: w, height: h });
     doc.restore();
   } else {
+    doc.save().rect(box.x, box.y, box.w, box.h).clip();
     doc.rect(box.x, box.y, box.w, box.h).fill('#f4f1ea');
     doc.font(F.serif).fontSize(22).fillColor(INK).text(companyName, trim.left + SAFE, trim.top + TRIM.height / 2 - 14, {
       width: TRIM.width - 2 * SAFE, align: 'center', lineBreak: false,
     });
+    doc.restore();
   }
-  if (sheet.marks) drawCropMarks(sheet);
+  if (sheet.marks && !toTrim) drawCropMarks(sheet);
+}
+
+/** Rule 21 of the week-weekend spec — the « à partir de » label GuestFlow draws over the merchant card's visual, in the corner the campaign chose, inside the safe area. */
+function drawFrontPrice(sheet, F, { cents, position }) {
+  if (!cents || position === 'none' || !rules.FRONT_PRICE_POSITIONS.includes(position)) return;
+  const { doc, safe } = sheet;
+  const small = BACK_TEXTS.frontPrice.from;
+  const price = `${cents % 100 === 0 ? String(cents / 100) : rules.formatEuros(cents).replace(' €', '')} €`;
+  doc.font(F.regular).fontSize(7);
+  const smallW = doc.widthOfString(small);
+  doc.font(F.serif).fontSize(15);
+  const priceW = doc.widthOfString(price);
+  const pad = mm(2.5);
+  const w = Math.max(smallW, priceW) + 2 * pad;
+  const h = mm(2.6) + 15 * 1.1 + 2 * pad - mm(1);
+  const x = position.endsWith('left') ? safe.left : safe.right - w;
+  const y = position.startsWith('top') ? safe.top : safe.bottom - h;
+  doc.save().roundedRect(x, y, w, h, mm(2)).fill('#ffffff').restore();
+  doc.font(F.regular).fontSize(7).fillColor(FIR).text(small, x, y + pad, { width: w, align: 'center', lineBreak: false });
+  doc.font(F.serif).fontSize(15).fillColor(FIR).text(price, x, y + pad + 9, { width: w, align: 'center', lineBreak: false });
 }
 
 /** A text pen over the back's frame: each call draws at the running `y` and moves it down. */
@@ -251,166 +306,159 @@ function drawLegalMention(sheet, F) {
   doc.restore();
 }
 
-/** Rule 50 — company name and town, then the website, centred at the foot of the back. */
+/** Rule 18 — « <company> · <town> · <department> », italic and honey, centred at the foot of the back. */
 function drawFooter(pen, { company, F }) {
-  const lineHeight = mm(BACK_LAYOUT.footerLineMm);
   const bottom = pen.safe.bottom;
-  const identity = [company.name, company.town].filter(Boolean).join(' · ');
+  const identity = [company.name, company.town, company.department].filter(Boolean).join(' · ');
   const wasY = pen.state.y;
-  pen.state.y = bottom - 2 * lineHeight;
+  pen.state.y = bottom - mm(BACK_LAYOUT.footerLineMm);
   pen.write(identity, {
-    font: F.bold, size: BACK_LAYOUT.pt.footer, align: 'center', color: INK, maxLines: 1, stay: true,
+    font: F.italic, size: BACK_LAYOUT.pt.footer, align: 'center', color: HONEY, maxLines: 1, stay: true,
   });
-  pen.state.y = bottom - lineHeight;
-  if (company.website) {
-    pen.write(shortLink(company.website), {
-      font: F.regular, size: BACK_LAYOUT.pt.footer, align: 'center', color: MUTED, maxLines: 1, stay: true,
-    });
-  }
   pen.state.y = wasY;
 }
 
-function drawRule(pen) {
-  const { doc } = pen;
-  const center = pen.left + pen.width / 2;
-  const { ruleHalf, ruleStroke, ruleGap } = BACK_LAYOUT.pt;
-  doc.save().lineWidth(ruleStroke).strokeColor(LINE).moveTo(center - ruleHalf, pen.state.y).lineTo(center + ruleHalf, pen.state.y).stroke().restore();
-  pen.state.y += ruleGap;
+/** The numbered honey discs and their one line each. */
+function drawSteps(pen, steps) {
+  const { doc, state } = pen;
+  const { pt } = BACK_LAYOUT;
+  const disc = mm(BACK_LAYOUT.discMm);
+  steps.forEach((text, index) => {
+    const top = state.y;
+    doc.save().circle(pen.left + disc / 2, top + disc / 2, disc / 2).fill(HONEY).restore();
+    doc.font(pen.F.bold).fontSize(pt.discNumber).fillColor('#ffffff').text(String(index + 1), pen.left, top + (disc - doc.currentLineHeight()) / 2 + 0.4, { width: disc, align: 'center', lineBreak: false });
+    state.y = top + (disc - doc.font(pen.F.regular).fontSize(pt.step).currentLineHeight()) / 2;
+    pen.write(text, {
+      font: pen.F.regular, size: pt.step, x: pen.left + disc + mm(2.5), w: pen.width - disc - mm(2.5), maxLines: BACK_LAYOUT.lines.step, gap: 0,
+    });
+    state.y = top + disc + mm(BACK_LAYOUT.stepGapMm);
+  });
 }
 
-function drawVoucherBack(sheet, {
-  F, company, voucher, url, link, qrModules,
+/** The one rectangle of the code, « Code du bon » inside at its top left; the voucher's code is printed in it, the merchant card's rectangle stays empty. */
+function drawCodeBox(pen, printed) {
+  const { doc, state } = pen;
+  const { pt } = BACK_LAYOUT;
+  const top = state.y;
+  doc.save().roundedRect(pen.left, top, pen.width, CODE_BOX_HEIGHT, mm(1.5)).lineWidth(0.9).fillAndStroke('#ffffff', HONEY).restore();
+  doc.font(pen.F.regular).fontSize(pt.codeLabel).fillColor(MUTED).text(BACK_TEXTS.codeLabel, pen.left + mm(2.5), top + mm(2), { lineBreak: false });
+  if (printed) {
+    doc.font(pen.F.bold).fontSize(pt.code).fillColor(INK);
+    doc.text(printed, pen.left, top + (CODE_BOX_HEIGHT - doc.currentLineHeight()) / 2 + mm(1), {
+      width: pen.width, align: 'center', lineBreak: false, characterSpacing: pt.codeSpacing,
+    });
+  }
+  state.y = top + CODE_BOX_HEIGHT + mm(BACK_LAYOUT.afterCodeMm);
+}
+
+/**
+ * Rules 18-20 — the one back, for the voucher and for the merchant card: `spec` is `{ title, subtitle, steps, url, link, printedCode, small: [{ text, font, color, lines }] }`.
+ * The small lines under the code stop where the foot of the page begins.
+ */
+function drawBack(sheet, {
+  F, company, spec, qrModules,
 }) {
-  sheet.doc.addPage({ size: [sheet.width, sheet.height], margin: 0 });
   const pen = createPen(sheet, F);
   const { doc, state } = pen;
   const { pt, lines: most } = BACK_LAYOUT;
-  const say = (template, values) => Object.entries(values).reduce((text, [key, value]) => text.replace(`{${key}}`, () => value), template);
   drawHeader(pen, { company, F });
   pen.write(BACK_TEXTS.title, {
-    font: F.serif, size: pt.title, align: 'center', gap: pt.titleGap, spacing: pt.titleSpacing,
+    font: F.bold, size: pt.kicker, align: 'center', color: HONEY, spacing: pt.kickerSpacing, gap: pt.kickerGap,
   });
-  drawRule(pen);
-  pen.write(BACK_TEXTS.howTo, {
-    font: F.bold, size: pt.heading, gap: pt.headingGap,
+  pen.write(spec.title, {
+    font: F.serif, size: pt.title, align: 'center', maxLines: most.title, gap: pt.titleGap,
   });
-  const qrTop = state.y;
-  drawQr(doc, qrModules(url), pen.left, qrTop, QR_SIZE);
-  const sideX = pen.left + QR_SIZE + mm(BACK_LAYOUT.qrGapMm);
-  const sideW = pen.right - sideX;
-  state.y = qrTop;
-  pen.write(BACK_TEXTS.scan, {
-    font: F.regular, size: pt.scan, x: sideX, w: sideW, maxLines: most.scan, gap: pt.scanGap,
-  });
-  pen.write(link, {
-    font: F.bold, size: pt.link, x: sideX, w: sideW, maxLines: most.link,
-  });
-  state.y = Math.max(state.y, qrTop + QR_SIZE) + mm(BACK_LAYOUT.afterQrMm);
-
-  pen.write(BACK_TEXTS.includes, {
-    font: F.bold, size: pt.includes, gap: pt.includesGap,
-  });
-  contentLines(voucher).slice(0, most.items).forEach((line) => {
-    pen.write(`${BACK_TEXTS.bullet} ${line}`, {
-      font: F.regular, size: pt.item, color: INK, maxLines: most.itemText, gap: pt.itemGap,
+  if (spec.subtitle) {
+    pen.write(spec.subtitle, {
+      font: F.italic, size: pt.subtitle, align: 'center', color: MUTED, maxLines: most.subtitle, gap: pt.subtitleGap,
     });
-  });
-  state.y += mm(BACK_LAYOUT.afterItemsMm);
-
-  const parties = [
-    voucher.recipientName && say(BACK_TEXTS.recipient, { name: voucher.recipientName }),
-    voucher.senderName && say(BACK_TEXTS.sender, { name: voucher.senderName }),
-  ].filter(Boolean).join(' ');
-  if (parties) pen.write(parties, { font: F.bold, size: pt.parties, maxLines: most.parties, gap: pt.partiesGap });
-  if (voucher.message) pen.write(voucher.message, { font: F.italic, size: pt.message, maxLines: most.message, gap: pt.messageGap });
-  state.y += mm(BACK_LAYOUT.afterMessageMm);
-
-  pen.write(BACK_TEXTS.codeLabel, {
-    font: F.regular, size: pt.codeLabel, color: MUTED, align: 'center', gap: pt.codeLabelGap,
-  });
-  pen.write(code.format(voucher.code), {
-    font: F.bold, size: pt.code, align: 'center', gap: pt.codeGap, spacing: pt.codeSpacing,
-  });
-  pen.write(say(BACK_TEXTS.validUntil, { date: rules.formatFrDate(voucher.expiresOn) }), {
-    font: F.regular, size: pt.valid, align: 'center',
-  });
-  drawFooter(pen, { company, F });
-  drawLegalMention(sheet, F);
-  return state.y;
-}
-
-function drawCodeBox(pen) {
-  const { doc, state } = pen;
-  const top = state.y;
-  doc.save().roundedRect(pen.left, top, pen.width, CODE_BOX_HEIGHT, 4).lineWidth(0.8).fillAndStroke('#ffffff', LINE).restore();
-  doc.font(pen.F.regular).fontSize(7).fillColor(MUTED).text('Code du bon', pen.left + 6, top + 4, { lineBreak: false });
-  const gap = mm(2.5);
-  const cells = 4;
-  const cellW = (pen.width - 12 - gap * (cells - 1)) / cells;
-  const cellH = CODE_BOX_HEIGHT - 20;
-  for (let i = 0; i < cells; i += 1) {
-    doc.save().roundedRect(pen.left + 6 + i * (cellW + gap), top + 14, cellW, cellH, 3).lineWidth(0.6).strokeColor(GUIDE).stroke().restore();
+  } else {
+    state.y += pt.subtitleGap;
   }
-  state.y = top + CODE_BOX_HEIGHT + mm(2);
-}
-
-function drawMerchantBack(sheet, {
-  F, company, validityMonths, url, link, useLink, qrModules,
-}) {
-  sheet.doc.addPage({ size: [sheet.width, sheet.height], margin: 0 });
-  const pen = createPen(sheet, F);
-  const { doc, state } = pen;
-  drawHeader(pen, { company, F });
-  pen.write('Pour offrir ce bon', {
-    font: F.serif, size: 17, align: 'center', gap: 6,
+  const frame = QR_SIZE + 2 * mm(BACK_LAYOUT.qrFramePadMm);
+  const frameLeft = pen.left + (pen.width - frame) / 2;
+  doc.save().roundedRect(frameLeft, state.y, frame, frame, mm(2.5)).lineWidth(pt.frameStroke).strokeColor(HONEY).stroke().restore();
+  drawQr(doc, qrModules(spec.url), frameLeft + mm(BACK_LAYOUT.qrFramePadMm), state.y + mm(BACK_LAYOUT.qrFramePadMm), QR_SIZE);
+  state.y += frame + mm(BACK_LAYOUT.afterQrMm);
+  pen.write(BACK_TEXTS.scan, {
+    font: F.bold, size: pt.scan, align: 'center', gap: pt.scanGap,
   });
-
-  const qrTop = state.y;
-  drawQr(doc, qrModules(url), pen.left, qrTop, QR_SIZE);
-  const sideX = pen.left + QR_SIZE + mm(3);
-  const sideW = pen.right - sideX;
-  const step = (n, text, x, w) => {
-    pen.write(`${n}  ${text}`, {
-      font: F.bold, size: 9, x, w, maxLines: 2, gap: 3,
+  pen.write(spec.link, {
+    font: F.regular, size: pt.link, align: 'center', color: MUTED, maxLines: most.link, gap: pt.linkGap,
+  });
+  drawSteps(pen, spec.steps);
+  state.y += mm(BACK_LAYOUT.afterStepsMm) - mm(BACK_LAYOUT.stepGapMm);
+  drawCodeBox(pen, spec.printedCode);
+  const floor = pen.safe.bottom - mm(BACK_LAYOUT.footerLineMm) - mm(1.5);
+  spec.small.forEach((line) => {
+    if (!line.text) return;
+    doc.font(line.font).fontSize(pt.small);
+    const room = Math.floor((floor - state.y) / doc.currentLineHeight());
+    if (room < 1) return;
+    pen.write(line.text, {
+      font: line.font, size: pt.small, color: line.color || INK, align: 'center', maxLines: Math.min(line.lines, room), gap: pt.smallGap,
     });
-  };
-  state.y = qrTop + 2;
-  step(1, STEPS[0], sideX, sideW);
-  step(2, STEPS[1], sideX, sideW);
-  pen.write(link, {
-    font: F.regular, size: 8, color: MUTED, x: sideX, w: sideW, maxLines: 2,
-  });
-  state.y = Math.max(state.y, qrTop + QR_SIZE) + mm(2.5);
-
-  step(3, STEPS[2], pen.left, pen.width);
-  drawCodeBox(pen);
-  step(4, STEPS[3], pen.left, pen.width);
-
-  const inset = `Vous avez reçu cette carte ? Rendez-vous sur ${useLink} et saisissez le code ci-dessus pour réserver.`;
-  doc.font(F.regular).fontSize(8.5);
-  const lines = fitLines(doc, inset, pen.width - 16, 4);
-  const boxHeight = lines.length * doc.currentLineHeight() + 12;
-  doc.save().roundedRect(pen.left, state.y, pen.width, boxHeight, 4).lineWidth(0.8).strokeColor(INK).stroke().restore();
-  state.y += 6;
-  pen.write(inset, {
-    font: F.regular, size: 8.5, x: pen.left + 8, w: pen.width - 16, maxLines: 4, gap: 0,
-  });
-  state.y += 6 + mm(2);
-
-  pen.write(`Valable ${validityMonths} mois à partir du paiement.`, {
-    font: F.regular, size: 9, align: 'center',
   });
   drawFooter(pen, { company, F });
   drawLegalMention(sheet, F);
   return state.y;
+}
+
+const say = (template, values) => Object.entries(values).reduce((text, [key, value]) => text.replace(`{${key}}`, () => value), template);
+
+/** Rule 20 — what the voucher's back says: the campaign's public title, who gave it to whom, the three steps, the printed code, the contents, the message and the end of its validity. */
+function voucherBackSpec({
+  F, voucher, url, link,
+}) {
+  const contents = rules.contentsOf(voucher);
+  const title = contents && contents.title ? contents.title : BACK_TEXTS.lodgingTitle;
+  const sender = voucher.senderName;
+  const recipient = voucher.recipientName;
+  let subtitle = '';
+  if (sender && recipient) subtitle = say(BACK_TEXTS.subtitle, { sender, recipient });
+  else if (sender) subtitle = say(BACK_TEXTS.subtitleSender, { sender });
+  else if (recipient) subtitle = say(BACK_TEXTS.subtitleRecipient, { recipient });
+  return {
+    title,
+    subtitle,
+    steps: BACK_TEXTS.steps,
+    url,
+    link,
+    printedCode: code.format(voucher.code),
+    small: [
+      { text: say(BACK_TEXTS.includes, { lines: contentLines(voucher).join(' · ') }), font: F.regular, lines: BACK_LAYOUT.lines.includes },
+      { text: voucher.message, font: F.italic, color: MUTED, lines: BACK_LAYOUT.lines.message },
+      { text: say(BACK_TEXTS.validUntil, { date: rules.formatFrDate(voucher.expiresOn) }), font: F.bold, lines: 1 },
+    ],
+  };
+}
+
+/** Rule 19 — the merchant card's back: the title and the steps of the offer, the rectangle left empty, the validity and where a card received is used. */
+function merchantBackSpec({
+  F, validityMonths, url, link, useLink,
+}) {
+  const t = BACK_TEXTS.merchant;
+  return {
+    title: t.title,
+    subtitle: t.subtitle,
+    steps: t.steps,
+    url,
+    link,
+    printedCode: null,
+    small: [
+      { text: say(t.validFor, { months: String(validityMonths) }), font: F.regular, lines: 1 },
+      { text: say(t.received, { link: useLink }), font: F.regular, color: MUTED, lines: 2 },
+    ],
+  };
 }
 
 const prepare = (sheet) => sdk.coreModule('pdfFonts').registerFaces(sheet.doc);
+const addPageOf = (sheet) => sheet.doc.addPage({ size: [sheet.width, sheet.height], margin: 0 });
 
 /**
  * Rules 21, 22, 49, 50 — the voucher: its front, then its back. `voucher` carries the normalised `code`, its contents, parties, message and expiry; `front` is the bytes of the
- * frozen visual version (null → a plain front); `company` is `{ name, town, website, logo }`. `qr(url)` answers the QR modules and is injectable so a suite reads what the code
- * points at. → a Buffer holding the PDF.
+ * frozen visual version (null → a plain front); `company` is `{ name, town, department, website, logo }`. `qr(url)` answers the QR modules and is injectable so a suite reads what
+ * the code points at. → a Buffer holding the PDF.
  */
 async function renderVoucherPdf({
   voucher, front = null, company, origin, linkBase,
@@ -418,42 +466,144 @@ async function renderVoucherPdf({
   const sheet = createSheet({ title: `Bon cadeau ${voucher.number}` });
   const F = prepare(sheet);
   drawFront(sheet, { image: front, F, companyName: company.name });
-  drawVoucherBack(sheet, {
-    F,
-    company,
-    voucher,
-    url: redeemUrl({ origin, linkBase }, voucher.code),
-    link: shortLink(redeemUrl({ origin, linkBase })),
-    qrModules: qr,
+  addPageOf(sheet);
+  drawBack(sheet, {
+    F, company, qrModules: qr, spec: voucherBackSpec({ F, voucher, url: redeemUrl({ origin, linkBase }, voucher.code), link: shortLink(redeemUrl({ origin, linkBase })) }),
   });
   sheet.doc.end();
   return sheet.done;
 }
 
 /**
- * Rules 33, 34, 49, 50 — the merchant card a printer produces: the same two pages with crop marks outside the trim, no number and no amount. `campaign` is `{ slug, validityMonths }`;
- * `front` the bytes of the campaign's merchant visual.
+ * Rules 33, 34, 49, 50 and rule 21 of the week-weekend spec — the merchant card a printer produces: the same two pages with crop marks outside the trim, no number and no amount, the
+ * price of the campaign in the corner it chose. `campaign` is `{ slug, validityMonths, frontPricePosition }`; `front` the bytes of the campaign's merchant visual; `fromCents` the
+ * lowest price the campaign offers today (none for a lodging campaign).
  */
 async function renderMerchantCardPdf({
-  campaign, front = null, company, origin, linkBase,
+  campaign, front = null, company, origin, linkBase, fromCents = null,
 }, { qr = defaultQr } = {}) {
   const sheet = createSheet({ title: `Carte commerçant ${company.name}`, slug: SLUG, marks: true });
   const F = prepare(sheet);
   drawFront(sheet, { image: front, F, companyName: company.name });
-  drawMerchantBack(sheet, {
+  drawFrontPrice(sheet, F, { cents: fromCents, position: campaign.frontPricePosition || 'bottom-right' });
+  addPageOf(sheet);
+  drawBack(sheet, { F, company, qrModules: qr, spec: merchantBackSpec({
     F,
-    company,
     validityMonths: campaign.validityMonths,
     url: offerUrl({ origin, linkBase }, campaign.slug),
     link: shortLink(offerUrl({ origin, linkBase }, campaign.slug)),
     useLink: shortLink(redeemUrl({ origin, linkBase })),
-    qrModules: qr,
-  });
+  }) });
   drawCropMarks(sheet);
   sheet.doc.end();
   return sheet.done;
 }
 
+const MM_TO_PT = mm(1);
+
+/** The dotted fold line and the crop marks around a pair (side by side), in the sheet's own points. */
+function drawPairMarks(doc, cell, folds) {
+  doc.save().lineWidth(0.4).strokeColor('#000000').dash(2, { space: 2 });
+  folds.forEach((fold) => doc.moveTo(fold.x1 * MM_TO_PT, fold.y1 * MM_TO_PT).lineTo(fold.x2 * MM_TO_PT, fold.y2 * MM_TO_PT).stroke());
+  doc.undash().restore();
+  const mark = mm(3);
+  doc.save().lineWidth(0.25).strokeColor('#000000');
+  const x1 = cell.xMm * MM_TO_PT;
+  const y1 = cell.yMm * MM_TO_PT;
+  const x2 = x1 + cell.widthMm * MM_TO_PT;
+  const y2 = y1 + cell.heightMm * MM_TO_PT;
+  [[x1, y1, -1, -1], [x2, y1, 1, -1], [x1, y2, -1, 1], [x2, y2, 1, 1]].forEach(([x, y, dx, dy]) => {
+    doc.moveTo(x + dx * mm(1), y).lineTo(x + dx * (mm(1) + mark), y).stroke();
+    doc.moveTo(x, y + dy * mm(1)).lineTo(x, y + dy * (mm(1) + mark)).stroke();
+  });
+  doc.restore();
+}
+
+/**
+ * Rules 24-26 — print sheets: `layout` is `printLayout.plan(...).layout`. Each cell of each page is the card's front or back drawn in a frame of the page (translated to the cell, scaled to
+ * the layout's scale); the fronts are cropped to the trim, the backs are white. `draw` is `{ front(sheet, F), back(sheet, F) }`, the card's own two drawings on a card geometry.
+ * → a Buffer holding the PDF, one page per page of the layout.
+ */
+async function renderPrintSheets({ layout, title, draw }) {
+  const first = layout.pages[0].sheet;
+  const { doc, done } = newDocument({ title, width: first.widthMm * MM_TO_PT, height: first.heightMm * MM_TO_PT });
+  const F = sdk.coreModule('pdfFonts').registerFaces(doc);
+  layout.pages.forEach((page, index) => {
+    if (index > 0) doc.addPage({ size: [page.sheet.widthMm * MM_TO_PT, page.sheet.heightMm * MM_TO_PT], margin: 0 });
+    page.cells.forEach((cell) => {
+      const card = cardSheet(doc);
+      const scale = (cell.widthMm * MM_TO_PT) / TRIM.width;
+      doc.save();
+      doc.translate(cell.xMm * MM_TO_PT - card.trim.left * scale, cell.yMm * MM_TO_PT - card.trim.top * scale);
+      doc.scale(scale);
+      doc.rect(card.trim.left, card.trim.top, TRIM.width, TRIM.height).clip();
+      if (cell.face === 'front') draw.front(card, F);
+      else draw.back(card, F);
+      doc.restore();
+    });
+    if (page.marks) {
+      const pairs = new Map();
+      page.cells.forEach((cell) => {
+        const at = pairs.get(cell.card) || { xMm: cell.xMm, yMm: cell.yMm, widthMm: 0, heightMm: cell.heightMm };
+        at.xMm = Math.min(at.xMm, cell.xMm);
+        at.widthMm += cell.widthMm;
+        pairs.set(cell.card, at);
+      });
+      pairs.forEach((cell) => drawPairMarks(doc, cell, page.folds.filter((f) => f.x1 >= cell.xMm && f.x1 <= cell.xMm + cell.widthMm && f.y1 === cell.yMm)));
+    }
+  });
+  doc.end();
+  return done;
+}
+
+/** The drawings of a voucher and of a merchant card on a card geometry, for `renderPrintSheets`. */
+function voucherDrawing({
+  voucher, front = null, company, origin, linkBase,
+}, { qr = defaultQr } = {}) {
+  return {
+    front: (card, F) => drawFront(card, {
+      image: front, F, companyName: company.name, toTrim: true,
+    }),
+    back: (card, F) => drawBack(card, {
+      F, company, qrModules: qr, spec: voucherBackSpec({ F, voucher, url: redeemUrl({ origin, linkBase }, voucher.code), link: shortLink(redeemUrl({ origin, linkBase })) }),
+    }),
+  };
+}
+
+function merchantDrawing({
+  campaign, front = null, company, origin, linkBase, fromCents = null,
+}, { qr = defaultQr } = {}) {
+  return {
+    front: (card, F) => {
+      drawFront(card, {
+        image: front, F, companyName: company.name, toTrim: true,
+      });
+      drawFrontPrice(card, F, { cents: fromCents, position: campaign.frontPricePosition || 'bottom-right' });
+    },
+    back: (card, F) => drawBack(card, {
+      F, company, qrModules: qr, spec: merchantBackSpec({
+        F,
+        validityMonths: campaign.validityMonths,
+        url: offerUrl({ origin, linkBase }, campaign.slug),
+        link: shortLink(offerUrl({ origin, linkBase }, campaign.slug)),
+        useLink: shortLink(redeemUrl({ origin, linkBase })),
+      }),
+    }),
+  };
+}
+
 module.exports = {
-  renderVoucherPdf, renderMerchantCardPdf, redeemUrl, offerUrl, shortLink, fitLines, CODE_BOX_HEIGHT, LEGAL_MENTION, STEPS, BACK_LAYOUT, BACK_TEXTS,
+  renderVoucherPdf,
+  renderMerchantCardPdf,
+  renderPrintSheets,
+  voucherDrawing,
+  merchantDrawing,
+  redeemUrl,
+  offerUrl,
+  shortLink,
+  fitLines,
+  CODE_BOX_HEIGHT,
+  LEGAL_MENTION,
+  BACK_LAYOUT,
+  BACK_TEXTS,
 };

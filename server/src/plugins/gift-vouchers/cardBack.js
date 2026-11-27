@@ -63,7 +63,7 @@ function createCardBack({
       texts: BACK_TEXTS,
       logoUrl: mark ? `${LOGO_PATH}?v=${mark}` : null,
       companyName: who.name,
-      identity: [who.name, who.town].filter(Boolean).join(' · '),
+      identity: [who.name, who.town, who.department].filter(Boolean).join(' · '),
       website: shortLink(origin),
       link: shortLink(redeemUrl({ origin, linkBase: linkBase() })),
       previewQrSvg: await qrSvg(origin),
@@ -73,12 +73,14 @@ function createCardBack({
   /** `view` is the campaign as the offer describes it (its title, kind and validity), `campaign` the stored row. */
   function campaign(view, stored) {
     const validUntil = rules.formatFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
-    if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil };
+    if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil, title: BACK_TEXTS.lodgingTitle };
     const base = baseContents(stored);
     const addOns = Object.fromEntries((view.addOns || []).map((a) => [a.articleRef, Object.fromEntries((a.prices || []).map((p) => [p.qty, countOf(p.qty, a.label)]))]));
     const extraTime = Object.fromEntries(((view.extraTime && view.extraTime.prices) || []).map((p) => [p.minutes, extraTimeLine(p.minutes)]));
+    // Rule 20 of the week-weekend spec — the back's title is the campaign's, with the period the giver picks: one title per period the campaign sells.
+    const titles = Object.fromEntries((view.periods || []).map((p) => [p.period, `${view.title} · ${rules.PERIOD_LABELS[p.period]}`]));
     return {
-      lines: base.ok ? contentLines({ contents: JSON.stringify(base.contents) }) : [], extraTime, addOns, validUntil,
+      lines: base.ok ? contentLines({ contents: JSON.stringify(base.contents) }) : [], extraTime, addOns, validUntil, titles,
     };
   }
 
@@ -87,7 +89,9 @@ function createCardBack({
     if (!site) return null;
     const { origin } = site;
     const base = { origin, linkBase: linkBase() };
+    const contents = rules.contentsOf(issued);
     return {
+      title: contents && contents.title ? contents.title : BACK_TEXTS.lodgingTitle,
       lines: contentLines(issued),
       validUntil: rules.formatFrDate(issued.expiresOn),
       link: shortLink(redeemUrl(base)),

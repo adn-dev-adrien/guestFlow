@@ -15,7 +15,7 @@
  *     startOnBack,           true to open on the back (the page after payment)
  *   }) → null (nothing to draw) | {
  *     node,                  the card, its « Recto / Verso » control and « Agrandir »
- *     set({ recipient, sender, message, lines, validUntil, code, qrSvg, link }),   what the back says now
+ *     set({ title, recipient, sender, message, lines, validUntil, code, qrSvg, link }),   what the back says now
  *     turn(toBack),          isBack(),          reveal(),          print()
  *   }
  */
@@ -73,7 +73,6 @@
     });
     ['pt', 'lines'].forEach(function (group) {
       Object.keys(layout[group] || {}).forEach(function (key) {
-        if (group === 'lines' && key === 'items') return; // the number of lines listed is cut in the script, not by the stylesheet
         root.style.setProperty('--' + (group === 'pt' ? 'p' : 'l') + '-' + kebab(key), String(layout[group][key]));
       });
     });
@@ -83,14 +82,15 @@
     var pill = preview ? span('gf-v-pill', GF.t('gvPreviewPill')) : null;
     var logo = div('gf-v-logo');
     var qr = div('gf-v-qr');
-    var scan = div('gf-v-t gf-v-scan gf-v-clamp', texts.scan);
+    var title = div('gf-v-t gf-v-title gf-v-clamp');
+    var subtitle = div('gf-v-t gf-v-subtitle gf-v-clamp');
+    var scan = div('gf-v-t gf-v-scan', texts.scan);
     var link = div('gf-v-t gf-v-link gf-v-clamp');
-    var items = div('gf-v-items');
-    var parties = div('gf-v-t gf-v-parties gf-v-clamp');
-    var message = div('gf-v-t gf-v-message gf-v-clamp');
+    var steps = div('gf-v-steps');
     var codeLabel = div('gf-v-t gf-v-code-label', texts.codeLabel);
     var code = div('gf-v-t gf-v-code');
-    var codeSub = div('gf-v-t gf-v-code-sub', GF.t('gvCodeAfterPay'));
+    var includes = div('gf-v-t gf-v-includes gf-v-clamp');
+    var message = div('gf-v-t gf-v-message gf-v-clamp');
     var valid = div('gf-v-t gf-v-valid');
     var safe = div('gf-v-safe');
 
@@ -111,30 +111,34 @@
     }
     drawLogo();
 
+    (texts.steps || []).forEach(function (text, i) {
+      var row = div('gf-v-step');
+      row.appendChild(span('gf-v-disc', String(i + 1)));
+      row.appendChild(div('gf-v-t gf-v-step-text', text));
+      steps.appendChild(row);
+    });
+
+    // Rules 18-20 of the week-weekend spec: the logo, the kicker, the title and the subtitle, the QR code in its frame, the three steps, the one rectangle of the code, the small lines.
     safe.appendChild(logo);
-    safe.appendChild(div('gf-v-t gf-v-title', texts.title));
-    safe.appendChild(div('gf-v-rule'));
-    safe.appendChild(div('gf-v-t gf-v-how', texts.howTo));
-    safe.appendChild(div('gf-v-qrrow', null));
-    safe.lastChild.appendChild(qr);
-    var side = div('gf-v-side');
-    side.appendChild(scan);
-    side.appendChild(link);
-    safe.lastChild.appendChild(side);
-    safe.appendChild(div('gf-v-t gf-v-includes', texts.includes));
-    safe.appendChild(items);
-    safe.appendChild(parties);
+    safe.appendChild(div('gf-v-t gf-v-kicker', texts.title));
+    safe.appendChild(title);
+    safe.appendChild(subtitle);
+    var frame = div('gf-v-qrframe');
+    frame.appendChild(qr);
+    safe.appendChild(frame);
+    safe.appendChild(scan);
+    safe.appendChild(link);
+    safe.appendChild(steps);
+    var box = div('gf-v-codebox');
+    box.appendChild(codeLabel);
+    box.appendChild(code);
+    safe.appendChild(box);
+    safe.appendChild(includes);
     safe.appendChild(message);
-    var zone = div('gf-v-zone');
-    zone.appendChild(codeLabel);
-    zone.appendChild(code);
-    zone.appendChild(codeSub);
-    zone.appendChild(valid);
-    safe.appendChild(zone);
+    safe.appendChild(valid);
 
     var foot = div('gf-v-foot');
     foot.appendChild(div('gf-v-t gf-v-identity', back.identity || back.companyName || ''));
-    if (back.website) foot.appendChild(div('gf-v-t gf-v-site', back.website));
     var legal = div('gf-v-legal');
     legal.appendChild(span('gf-v-t', texts.legal));
 
@@ -145,24 +149,22 @@
 
     var drawnQr = null;
     function update(s) {
-      var most = layout.lines || {};
       if (s.qrSvg !== drawnQr) {
         drawnQr = s.qrSvg;
         qr.innerHTML = plainSvg(s.qrSvg) ? s.qrSvg : '';
       }
+      title.textContent = s.title || back.title || '';
+      var who = s.sender && s.recipient ? fill(fill(texts.subtitle, 'sender', s.sender), 'recipient', s.recipient)
+        : (s.sender ? fill(texts.subtitleSender, 'sender', s.sender) : (s.recipient ? fill(texts.subtitleRecipient, 'recipient', s.recipient) : ''));
+      subtitle.textContent = who;
+      subtitle.hidden = !who;
       link.textContent = s.link || back.link || '';
-      items.innerHTML = '';
-      (s.lines || []).slice(0, most.items || 7).forEach(function (line) {
-        items.appendChild(div('gf-v-t gf-v-item gf-v-clamp', texts.bullet + ' ' + line));
-      });
-      var who = [s.recipient && fill(texts.recipient, 'name', s.recipient), s.sender && fill(texts.sender, 'name', s.sender)].filter(Boolean).join(' ');
-      parties.textContent = who;
-      parties.hidden = !who;
+      includes.textContent = (s.lines || []).length ? fill(texts.includes, 'lines', (s.lines || []).join(' · ')) : '';
+      includes.hidden = !includes.textContent;
       message.textContent = s.message || '';
       message.hidden = !s.message;
       code.textContent = s.code || texts.codePlaceholder;
       code.classList.toggle('is-wait', !s.code);
-      codeSub.hidden = !!s.code;
       valid.textContent = s.validUntil ? fill(texts.validUntil, 'date', s.validUntil) : '';
     }
     return { node: root, update: update };

@@ -395,8 +395,37 @@ function buildAdminController({
     return res.send(buffer);
   });
 
+  const printOptionsOf = (req) => ({
+    mode: req.query.mode, perSheet: req.query.perSheet, count: req.query.count, flip: req.query.flip,
+  });
+  const printInvalid = (res, error) => res.status(400).json({ error: error.message, code: error.code, field: error.field });
+
+  /** Rule 27 — the layout of the print sheets of a voucher: the dialog's preview and the PDF's own layout. */
+  const printLayout = guarded(async (req, res) => {
+    downloadable(find(req));
+    try {
+      return res.json(documents.layoutOf(printOptionsOf(req)));
+    } catch (error) {
+      if (error && error.code === 'PRINT_INVALID') return printInvalid(res, error);
+      throw error;
+    }
+  });
+
+  /** Rules 22-27 — copies of a voucher on A4 sheets, two-sided or folded. */
+  const printPdf = guarded(async (req, res) => {
+    const v = downloadable(find(req));
+    try {
+      const buffer = await documents.voucherPrintPdf(v, printOptionsOf(req));
+      res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${v.number}-impression.pdf"`, 'Cache-Control': 'no-store' });
+      return res.send(buffer);
+    } catch (error) {
+      if (error && error.code === 'PRINT_INVALID') return printInvalid(res, error);
+      throw error;
+    }
+  });
+
   return {
-    list, read, create, extend, cancel, settleRefund, adjust, reveal, resend, pdf,
+    list, read, create, extend, cancel, settleRefund, adjust, reveal, resend, pdf, printLayout, printPdf,
   };
 }
 

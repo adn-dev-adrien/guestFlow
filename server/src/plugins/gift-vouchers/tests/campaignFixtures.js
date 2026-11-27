@@ -83,7 +83,7 @@ function openShop(over = {}) {
     companyName: () => 'Domaine Solio',
     pageUrl: () => 'https://site.example.test/bon-cadeau',
     company: async () => ({
-      name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', website: 'https://site.example.test', logo: null,
+      name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', department: 'Lot', website: 'https://site.example.test', logo: null,
     }),
     filesDir,
     terms,

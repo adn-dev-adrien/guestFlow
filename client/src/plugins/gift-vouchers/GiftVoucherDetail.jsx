@@ -15,6 +15,7 @@ import {
 import {
   ConfirmDialog, StatusBadge, SummaryItem, useToast,
 } from '../sdk';
+import PrintSheetsDialog from '../../components/PrintSheetsDialog';
 import giftVouchersApi from './giftVouchersApi';
 import {
   AdjustDialog, ExtendDialog, ForcedCancelDialog, ResendDialog,
@@ -71,6 +72,7 @@ export default function GiftVoucherDetail({ voucher, onChange, onClose }) {
   const actions = [
     { key: 'resend', label: T.resend, onClick: () => setDialog('resend'), disabled: !voucher.canDownload, hint: !voucher.canDownload ? T.notDownloadable : null },
     { key: 'pdf', label: T.pdf, onClick: pdf, disabled: !voucher.canDownload },
+    { key: 'print', label: T.print, onClick: () => setDialog('print'), disabled: !voucher.canDownload },
     { key: 'extend', label: T.extend, onClick: () => setDialog('extend'), disabled: cancelled },
     { key: 'adjust', label: T.adjust, onClick: () => setDialog('adjust'), disabled: cancelled },
     {
@@ -177,6 +179,13 @@ export default function GiftVoucherDetail({ voucher, onChange, onClose }) {
 
       <ExtendDialog open={dialog === 'extend'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
       <AdjustDialog open={dialog === 'adjust'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
+      <PrintSheetsDialog
+        open={dialog === 'print'}
+        onClose={() => setDialog(null)}
+        title={T.printTitle}
+        fetchLayout={(options) => giftVouchersApi.voucherPrintLayout(voucher.id, options)}
+        onPrint={(options) => giftVouchersApi.downloadVoucherPrint(voucher.id, voucher.number, options)}
+      />
       <ResendDialog open={dialog === 'resend'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
       <ForcedCancelDialog open={dialog === 'forced'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
       <ConfirmDialog
