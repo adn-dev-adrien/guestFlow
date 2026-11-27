@@ -109,7 +109,9 @@ export const SETTINGS_TEXTS = Object.freeze({
     title: 'Créneau moins cher que le bon',
     label: 'Boisson offerte sur l’écart',
     none: 'Aucune : l’écart est seulement noté sur le bon',
-    unlisted: (ref) => `Option enregistrée (${ref}), absente du catalogue vendable`,
+    pending: 'Option enregistrée',
+    deleted: 'Option supprimée du catalogue',
+    notGivable: 'Cette option n’est plus vendable hors séjour : aucune boisson ne sera offerte tant qu’elle n’est pas remplacée.',
     help: 'Quand le bénéficiaire choisit un créneau qui coûte moins que son bon, une boisson de cette option lui est offerte, sans autre contrepartie.',
   },
 });

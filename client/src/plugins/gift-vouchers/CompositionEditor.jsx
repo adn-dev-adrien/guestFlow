@@ -45,7 +45,7 @@ function ElementPicker({
   const groups = useMemo(() => groupsOf(elements, query), [elements, query]);
 
   return (
-    <Dialog open={open} onClose={onClose} fullScreen={fullScreen} fullWidth maxWidth="sm" TransitionProps={{ onExited: () => setQuery('') }}>
+    <Dialog open={open} onClose={onClose} fullScreen={fullScreen} fullWidth maxWidth="sm" slotProps={{ transition: { onExited: () => setQuery('') } }}>
       <DialogTitle>{T.pickerTitle}</DialogTitle>
       <DialogContent>
         <TextField
@@ -84,15 +84,19 @@ function ModeChoice({ mode, selected, onSelect, periods }) {
   const figures = (period) => (mode.byPeriod && mode.byPeriod[period]) || mode;
   const single = periods.length === 1 ? figures(periods[0]) : null;
   const shown = single || mode;
+  // A band is chosen only when every period the voucher is sold for sells it (the server says it per period); the refusal is the one of the period that does not.
+  const unsold = periods.map(figures).find((f) => f.sellable === false);
+  const sellable = mode.sellable && !unsold;
+  const reason = (unsold && unsold.reason) || mode.reason;
   return (
     <Box
       component="label"
       sx={{
-        display: 'flex', alignItems: 'flex-start', gap: 1, p: 1, minHeight: 44, border: '1px solid', borderRadius: 1, cursor: mode.sellable ? 'pointer' : 'default',
-        borderColor: selected ? 'primary.main' : 'divider', opacity: mode.sellable ? 1 : 0.55,
+        display: 'flex', alignItems: 'flex-start', gap: 1, p: 1, minHeight: 44, border: '1px solid', borderRadius: 1, cursor: sellable ? 'pointer' : 'default',
+        borderColor: selected ? 'primary.main' : 'divider', opacity: sellable ? 1 : 0.55,
       }}
     >
-      <Radio checked={selected} disabled={!mode.sellable} onChange={onSelect} size="small" sx={{ p: 0.5 }} slotProps={{ input: { 'aria-label': mode.label } }} />
+      <Radio checked={selected} disabled={!sellable} onChange={onSelect} size="small" sx={{ p: 0.5 }} slotProps={{ input: { 'aria-label': mode.label } }} />
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="body2" fontWeight={600}>{single ? `${mode.label} · ${formatCents(shown.rateCents)} ${T.perHour}` : mode.label}</Typography>
         <Typography variant="caption" color="text.secondary" component="div">{T.hours(mode.from, mode.to)}</Typography>
@@ -105,7 +109,7 @@ function ModeChoice({ mode, selected, onSelect, periods }) {
             </Typography>
           );
         }) : null}
-        {!mode.sellable && mode.reason ? <Typography variant="caption" color="error" component="div">{mode.reason}</Typography> : null}
+        {!sellable && reason ? <Typography variant="caption" color="error" component="div">{reason}</Typography> : null}
       </Box>
     </Box>
   );

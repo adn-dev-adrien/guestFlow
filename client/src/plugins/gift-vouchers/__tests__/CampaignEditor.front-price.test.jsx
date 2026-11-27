@@ -79,3 +79,10 @@ test('rule 21 — « Le prix est celui du jour de l’impression. » is said onl
   await userEvent.click(screen.getByRole('option', { name: 'Aucun' }));
   expect(screen.queryByText('Le prix est celui du jour de l’impression.')).not.toBeInTheDocument();
 });
+
+test('G22 — « Le prix est celui du jour de l’impression. » is not said when the server cannot price the campaign', async () => {
+  giftVouchersApi.getCampaign.mockResolvedValue(campaign({ merchantVisualId: 4, frontPricePosition: 'bottom-right', pricing: { priceable: false, reason: 'Aucune tranche horaire.' } }));
+  open();
+  await screen.findByLabelText('Position du prix');
+  expect(screen.queryByText('Le prix est celui du jour de l’impression.')).not.toBeInTheDocument();
+});

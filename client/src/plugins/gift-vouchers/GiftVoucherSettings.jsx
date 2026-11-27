@@ -47,7 +47,10 @@ export default function GiftVoucherSettings() {
   async function save() {
     setBusy(true);
     try {
-      const view = await giftVouchersApi.saveSettings({ pageUrl: draft.pageUrl, linkBase: draft.linkBase, leftoverDrinkArticleRef: draft.leftoverDrinkArticleRef });
+      // The drink travels only when it changed: the server judges it against the live catalogue, and a drink the catalogue stopped selling must not block saving the page address.
+      const view = await giftVouchersApi.saveSettings({
+        pageUrl: draft.pageUrl, linkBase: draft.linkBase, ...(draft.leftoverDrinkArticleRef !== saved.leftoverDrinkArticleRef ? { leftoverDrinkArticleRef: draft.leftoverDrinkArticleRef } : {}),
+      });
       const next = draftOf(view);
       setSaved(next);
       setDraft(next);
@@ -69,11 +72,16 @@ export default function GiftVoucherSettings() {
   if (loadError) return <Box>{bar}<Box sx={{ p: 3 }}><ErrorAlert message={T.loadError} onRetry={load} /></Box></Box>;
   if (!draft) return <Box>{bar}<LoadingState /></Box>;
 
-  // The stored option stays in the menu even when the catalogue has not loaded yet or no longer sells it: the select never shows a value it cannot name.
+  // The stored option stays in the menu — by its name, never by its reference: while the catalogue loads it is simply « Option enregistrée »; once loaded, one the catalogue no longer
+  // sells (or no longer has) is still listed, with a plain sentence under the field saying it will not be given.
+  const loaded = Boolean(catalogue.elements);
   const sellable = (catalogue.elements || []).filter((e) => e.kind === 'option' && e.sellable);
   const stored = draft.leftoverDrinkArticleRef;
   const known = (catalogue.elements || []).find((e) => e.articleRef === stored);
-  const offeredDrinks = stored && !sellable.some((e) => e.articleRef === stored) ? [...sellable, { articleRef: stored, label: known ? known.label : T.drink.unlisted(stored) }] : sellable;
+  const storedGone = Boolean(stored) && !sellable.some((e) => e.articleRef === stored);
+  const storedLabel = known ? known.label : (loaded ? T.drink.deleted : T.drink.pending);
+  const offeredDrinks = storedGone ? [...sellable, { articleRef: stored, label: storedLabel }] : sellable;
+  const drinkNote = loaded && storedGone ? T.drink.notGivable : undefined;
 
   return (
     <Box>
@@ -86,7 +94,7 @@ export default function GiftVoucherSettings() {
         <FormSection title={T.drink.title} help={T.drink.help}>
           <TextField
             select label={T.drink.label} value={draft.leftoverDrinkArticleRef} onChange={(e) => setValue('leftoverDrinkArticleRef')(e.target.value)} size="small" fullWidth
-            error={Boolean(errors.leftoverDrinkArticleRef)} helperText={errors.leftoverDrinkArticleRef}
+            error={Boolean(errors.leftoverDrinkArticleRef)} helperText={errors.leftoverDrinkArticleRef || drinkNote}
           >
             <MenuItem value="">{T.drink.none}</MenuItem>
             {offeredDrinks.map((e) => <MenuItem key={e.articleRef} value={e.articleRef}>{e.label}</MenuItem>)}

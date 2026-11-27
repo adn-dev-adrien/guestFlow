@@ -45,3 +45,18 @@ test('every price field carries its own column caption (shown on a phone, where 
   expect(screen.getAllByText('1re heure')).toHaveLength(2);
   expect(screen.getAllByText('Heures suivantes')).toHaveLength(2);
 });
+
+test('G23 — no « Journée et soirée » caption under « Clients logés »; the group keeps its accessible name', () => {
+  show();
+  expect(screen.queryByText('Journée et soirée')).not.toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Clients logés' })).toBeInTheDocument();
+});
+
+test('G25 — on a phone a price field takes the whole width of its row', () => {
+  show();
+  const field = screen.getByLabelText('Extérieurs · Semaine · Journée · 1re heure').closest('.MuiTextField-root');
+  const classes = [...field.classList].filter((name) => name.startsWith('css-'));
+  const rules = [...document.querySelectorAll('style')].flatMap((node) => (node.sheet ? [...node.sheet.cssRules] : [])).map((rule) => rule.cssText).join('\n');
+  // jsdom evaluates no media query: the rule that sets the phone width is read from the sheet, under « min-width: 0px » (xs).
+  expect(classes.some((name) => new RegExp(`@media \\(min-width: 0px\\)[^@]*\\.${name}[^}]*width: 100%`).test(rules))).toBe(true);
+});

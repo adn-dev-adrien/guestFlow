@@ -37,3 +37,25 @@ test('the stored option is listed with its name even when the catalogue no longe
   expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Aucune : l’écart est seulement noté sur le bon', 'Boisson chaude', 'Bougie']);
   expect(screen.getByRole('option', { name: 'Bougie' })).toHaveAttribute('aria-selected', 'true');
 });
+
+test('G24 — while the catalogue loads the stored option is « Option enregistrée », never its reference, and nothing alarming is said', async () => {
+  giftVouchersApi.getSettings.mockResolvedValue({ ...stored, leftoverDrinkArticleRef: 'option:6' });
+  giftVouchersApi.catalogue.mockReturnValue(new Promise(() => {}));
+  renderWithShell(<GiftVoucherSettings />);
+  const field = await screen.findByLabelText('Boisson offerte sur l’écart');
+  expect(field).toHaveTextContent('Option enregistrée');
+  expect(document.body.textContent).not.toMatch(/option:\d+/);
+  expect(screen.queryByText(/n’est plus vendable/)).not.toBeInTheDocument();
+});
+
+test('G24 — once loaded, an option no longer sold is named and a plain sentence says it will not be given; a deleted one is « supprimée du catalogue »', async () => {
+  giftVouchersApi.getSettings.mockResolvedValue({ ...stored, leftoverDrinkArticleRef: 'option:6' });
+  const { unmount } = renderWithShell(<GiftVoucherSettings />);
+  expect(await screen.findByText(/Cette option n’est plus vendable hors séjour/)).toBeInTheDocument();
+  expect(screen.getByLabelText('Boisson offerte sur l’écart')).toHaveTextContent('Bougie');
+  unmount();
+  giftVouchersApi.getSettings.mockResolvedValue({ ...stored, leftoverDrinkArticleRef: 'option:99' });
+  renderWithShell(<GiftVoucherSettings />);
+  expect(await screen.findByLabelText('Boisson offerte sur l’écart')).toHaveTextContent('Option supprimée du catalogue');
+  expect(document.body.textContent).not.toMatch(/option:\d+/);
+});

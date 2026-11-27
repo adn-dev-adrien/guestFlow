@@ -77,7 +77,7 @@ function SheetPreview({ page }) {
           <Box
             key={index}
             sx={{
-              position: 'absolute', left: percent(fold.x1, widthMm), top: percent(fold.y1, heightMm), height: percent(fold.y2 - fold.y1, heightMm), borderLeft: 1, borderStyle: 'dashed', borderColor: 'text.primary',
+              position: 'absolute', left: percent(fold.x1, widthMm), top: percent(fold.y1, heightMm), height: percent(fold.y2 - fold.y1, heightMm), borderLeft: '1px dashed', borderColor: 'text.primary',
             }}
           />
         ))}
@@ -161,7 +161,7 @@ export default function PrintSheetsDialog({
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
           <TextField
             select size="small" label={T.perSheet} value={perSheet} onChange={(e) => choosePerSheet(Number(e.target.value))}
-            error={Boolean(errors.perSheet)} helperText={errors.perSheet || T.perSheetHelp}
+            error={Boolean(errors.perSheet)} helperText={errors.perSheet || undefined}
           >
             {PER_SHEET[mode].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
           </TextField>

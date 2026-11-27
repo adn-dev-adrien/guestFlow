@@ -19,7 +19,6 @@ export const PRINT_TEXTS = Object.freeze({
   submit: 'Télécharger le PDF',
   mode: 'Mode',
   perSheet: 'Cartes par feuille',
-  perSheetHelp: 'Feuille A4.',
   count: 'Nombre de cartes',
   countHelp: 'De 1 à 200.',
   flip: 'Retournement de la feuille',

@@ -36,3 +36,21 @@ test('a voucher sold for both periods shows one line per period under the band',
   expect(screen.getAllByText(/^Semaine : 50,00.€.\/ h puis 30 €\/h$/).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/^Week-end : 70,00.€.\/ h puis 40 €\/h$/).length).toBeGreaterThan(0);
 });
+
+test('G21 — a band unsold for a period the voucher is sold for cannot be chosen, with that period\'s own sentence', () => {
+  const unsoldWeekend = withPeriods.map((element) => (element.kind === 'resource' ? {
+    ...element,
+    modes: element.modes.map((mode) => ({
+      ...mode,
+      sellable: true,
+      byPeriod: { ...mode.byPeriod, weekend: { ...mode.byPeriod.weekend, sellable: false, reason: 'Pas de tarif extérieur le week-end.' } },
+    })),
+  } : element));
+  const { unmount } = render(<CompositionEditor value={value} elements={unsoldWeekend} onChange={() => {}} periods={['weekend']} />);
+  expect(screen.getAllByText('Pas de tarif extérieur le week-end.').length).toBeGreaterThan(0);
+  expect(screen.getAllByRole('radio', { name: /Extérieur · journée/ })[0]).toBeDisabled();
+  unmount();
+  render(<CompositionEditor value={value} elements={unsoldWeekend} onChange={() => {}} periods={['week']} />);
+  expect(screen.queryByText('Pas de tarif extérieur le week-end.')).toBeNull();
+  expect(screen.getAllByRole('radio', { name: /Extérieur · journée/ })[0]).toBeEnabled();
+});

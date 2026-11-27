@@ -20,6 +20,7 @@ function PriceField({ field, label, draft, onChange, errors }) {
   return (
     <TextField
       size="small"
+      sx={{ width: { xs: '100%', sm: 'auto' } }}
       value={draft[field] ?? ''}
       onChange={(e) => onChange({ [field]: e.target.value })}
       error={Boolean(error)}
@@ -37,10 +38,10 @@ function PriceField({ field, label, draft, onChange, errors }) {
  * One audience-and-period block: rows of the bands, the two columns. `rows`: [{ name, label, first, next }] with the form field of each cell. From `sm` the fields sit in two columns
  * under « 1re heure » / « Heures suivantes »; on a phone each field has its own row with its own caption, so a refusal sentence has the whole width.
  */
-function Block({ title, ariaTitle = title, rows, draft, onChange, errors }) {
+function Block({ title = null, ariaTitle = title, rows, draft, onChange, errors }) {
   return (
     <Box role="group" aria-label={ariaTitle} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{title}</Typography>
+      {title ? <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{title}</Typography> : null}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '140px 1fr 1fr' }, columnGap: 1.5, rowGap: { xs: 1, sm: 1.5 }, alignItems: 'start' }}>
         <Box component="span" sx={{ display: { xs: 'none', sm: 'block' } }} />
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>1re heure</Typography>
@@ -78,7 +79,6 @@ export default function HourlyPriceGrids({
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography variant="subtitle2" component="h3">Clients logés</Typography>
         <Block
-          title="Journée et soirée"
           ariaTitle="Clients logés"
           draft={draft}
           onChange={onChange}

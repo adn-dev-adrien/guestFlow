@@ -74,3 +74,16 @@ test('a parent that re-renders with a new fetchLayout neither fetches again nor 
   expect(calls).toHaveLength(1);
   expect(screen.getByText('Nombre de cartes : de 1 à 200.')).toBeInTheDocument();
 });
+
+test('G26, G20 — no « Feuille A4. » helper under « Cartes par feuille » (the server sentence says it), and the fold line draws one dashed left border only', async () => {
+  const withFold = (options) => {
+    const layout = layoutFor({ ...options, mode: 'side-by-side' });
+    return { ...layout, pages: [{ ...layout.pages[0], folds: [{ x1: 20, y1: 10, x2: 20, y2: 40 }] }] };
+  };
+  render(wrap({ fetchLayout: async (options) => withFold(options) }));
+  await screen.findByText(/Feuille A4 paysage/);
+  expect(screen.queryByText('Feuille A4.')).toBeNull();
+  const fold = [...document.querySelectorAll('div')].find((node) => window.getComputedStyle(node).borderLeftStyle === 'dashed');
+  expect(fold).toBeTruthy();
+  expect(window.getComputedStyle(fold).borderTopStyle).not.toBe('dashed');
+});

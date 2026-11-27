@@ -37,14 +37,14 @@ test('the link base falls back to « bon-cadeau » when the server holds none', 
   expect(await screen.findByLabelText('Base des liens permanents')).toHaveValue('bon-cadeau');
 });
 
-test('saving sends only the declared keys', async () => {
+test('saving sends only the declared keys, the drink only when it changed (the server judges it against the live catalogue)', async () => {
   renderWithShell(<GiftVoucherSettings />);
   const base = await screen.findByLabelText('Base des liens permanents');
   await userEvent.clear(base);
   await userEvent.type(base, 'cadeau');
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(giftVouchersApi.saveSettings).toHaveBeenCalled());
-  expect(giftVouchersApi.saveSettings.mock.calls[0][0]).toEqual({ pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'cadeau', leftoverDrinkArticleRef: '' });
+  expect(giftVouchersApi.saveSettings.mock.calls[0][0]).toEqual({ pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'cadeau' });
 });
 
 test('the server message for a key is shown on its field and the draft is kept', async () => {
