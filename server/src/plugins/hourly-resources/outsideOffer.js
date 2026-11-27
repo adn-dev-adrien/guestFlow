@@ -3,10 +3,10 @@
  * `ctx.resourceBookingOffer` and handed out as `ctx.core.resourceBookingOffer()`. It names no instrument of payment: a session is paid, in whole or in
  * part, by a prepaid tender some plugin holds, and what remains by a link.
  *
- *   freeSlots({ resourceId, from, to, minutes, band?, includeTaken?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end, taken? }] }] }
+ *   freeSlots({ resourceId, from, to, minutes, band?, includeTaken?, excludeHoldRef?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end, taken? }] }] }
  *       the starts of a session of `minutes` the resource can take, inside its opening days and hours, on its grid, with its capacity, turnover, thermal readiness,
  *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch;
- *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site/site-outside-resource-booking.md rule 6)
+ *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site/site-outside-resource-booking.md rule 6); `excludeHoldRef` is the asker's own hold, which does not take its own slot
  *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, excludeHoldRef?, memo?, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
  *       the engine's price of a session placed at `start`: `coveredMinutes` first (already paid for in `coveredBand`, at the rank they take), then `extraMinutes` after
  *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45); `excludeHoldRef` is the buyer's own hold, which does not count against the doubled block (rule 17); `offeredHour` freezes the rule-17 decision of a choice already confirmed (`true`: the doubled block must still be free, else `OFFERED_HOUR_UNAVAILABLE`; `false`: not doubled, whatever has been freed since; `null`: decided now); `memo` is a Map a caller pricing a long list of starts hands in so the same figure is asked of the engine once
@@ -77,7 +77,7 @@ function createOutsideOffer({
   const eveningStartOf = (resource) => (resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null);
 
   function freeSlots({
-    resourceId, from, to, minutes, band = null, includeTaken = false, now: at,
+    resourceId, from, to, minutes, band = null, includeTaken = false, excludeHoldRef = null, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
@@ -88,7 +88,9 @@ function createOutsideOffer({
     const result = { ok: true, horizonUntil: horizon, days: [] };
     if (!ISO_DATE.test(String(from)) || !ISO_DATE.test(String(to)) || !Number.isInteger(minutes) || minutes <= 0 || lo > hi) return result;
     const dates = eachDate(lo, hi);
-    const taken = occupancy.listForStay({ resourceId: resource.id, startDate: lo, endDate: dates[dates.length - 1] });
+    const taken = occupancy.listForStay({
+      resourceId: resource.id, startDate: lo, endDate: dates[dates.length - 1], excludeHoldRef,
+    });
     const bounds = boundsOf(resource, clock);
     const evening = eveningStartOf(resource);
     const days = buildDays({

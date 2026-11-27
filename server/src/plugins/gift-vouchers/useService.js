@@ -158,16 +158,16 @@ function createUseService({
    * of the fold equals the line of the recap for the same minutes. Steps run until the slot no longer holds the longer session (the close time, the next booking) or the engine
    * cannot price one.
    */
-  function extraTimePricesAt(contents, date, time, stepMinutes) {
+  function extraTimePricesAt(contents, date, time, stepMinutes, holdRef = null) {
     const { resource } = contents;
     const prices = [];
     for (let minutes = stepMinutes; ; minutes += stepMinutes) {
       const free = hook().freeSlots({
-        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + minutes, now: now(),
+        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + minutes, excludeHoldRef: holdRef, now: now(),
       });
       if (!free.days.some((day) => day.date === date && day.slots.some((slot) => slot.start === time))) break;
       const priced = hook().quote({
-        resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: minutes, now: now(),
+        resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: minutes, excludeHoldRef: holdRef, now: now(),
       });
       if (!priced.ok || !priced.extra) break;
       const answer = engine.quote({ lines: [], fulfilments: [{ ...priced.extra.line, fulfilmentRef: 'use:extra' }] });
@@ -326,7 +326,7 @@ function createUseService({
     if (!priced.ok) return refuse(priced.code, priced.message, 409);
     if (checkSlot) {
       const free = hook().freeSlots({
-        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + extra, now: now(),
+        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + extra, excludeHoldRef: holdRef, now: now(),
       });
       if (date > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
       if (!free.days.some((day) => day.date === date && day.slots.some((slot) => slot.start === time))) return refuse('SLOT_TAKEN', 'Ce créneau n’est plus libre.', 409);
@@ -408,10 +408,13 @@ function createUseService({
   function quote(request) {
     const found = voucherOf(request, request.visitor);
     if (!found.ok) return found;
-    const composed = compose(found.voucher, found.contents, request);
+    // The recipient back from the bank page: the voucher's own hold on the slot never takes the slot from its own recap.
+    const own = uses.heldOf(found.voucher.id)[0];
+    const holdRef = own ? own.holdRef : null;
+    const composed = compose(found.voucher, found.contents, request, { holdRef });
     if (!composed.ok) return composed;
     const mode = modeOf(found.contents);
-    const extraTimePrices = mode ? extraTimePricesAt(found.contents, composed.date, composed.time, mode.slotMinutes) : [];
+    const extraTimePrices = mode ? extraTimePricesAt(found.contents, composed.date, composed.time, mode.slotMinutes, holdRef) : [];
     return { ok: true, data: { ...composed.view, extraTimePrices } };
   }
 
