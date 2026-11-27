@@ -60,13 +60,15 @@ test('rule 2 — a refusal sentence is drawn under its own field only', () => {
 
 const formOf = (over = {}) => ({ ...emptyResourceFor(FORMS), name: 'Bain', quantity: '1', ...FILLED, ...over });
 
-test('rule 2 — the form checks the same sentence before saving: a blank field, a letter, a negative, three decimals and 10 000,01 are refused; 0 is fine', () => {
+test('rule 2 — the form checks the same sentence before saving: a blank field, a letter, a negative, three decimals and 10 000,01 are refused; 0 is fine for the guests, refused for the outside grid (K2)', () => {
   expect(validateResourceForm(formOf(), FORMS)).toEqual({});
   const sentence = 'Le tarif extérieurs (week-end, soirée, heures suivantes) doit être un montant positif.';
   ['', 'abc', '-1', '1,234', '10000,01'].forEach((bad) => {
     expect(validateResourceForm(formOf({ hourlyExternalWeekendNextEveningRate: bad }), FORMS).hourlyExternalWeekendNextEveningRate).toBe(sentence);
   });
-  ['0', '40', '37,5', '10000'].forEach((fine) => expect(validateResourceForm(formOf({ hourlyExternalWeekendNextEveningRate: fine }), FORMS)).toEqual({}));
+  ['40', '37,5', '10000'].forEach((fine) => expect(validateResourceForm(formOf({ hourlyExternalWeekendNextEveningRate: fine }), FORMS)).toEqual({}));
+  expect(validateResourceForm(formOf({ hourlyExternalWeekendNextEveningRate: '0' }), FORMS).hourlyExternalWeekendNextEveningRate).toBe(sentence);
+  expect(validateResourceForm(formOf({ hourlyNextEveningRate: '0' }), FORMS)).toEqual({});
 });
 
 test('rule 2 — the outside grid is checked only when the resource is sold outside a stay, the evening only with an evening switch', () => {

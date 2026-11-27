@@ -42,7 +42,7 @@ const toText = (value) => (value === null || value === undefined ? '' : String(v
 const gridApplies = (form) => form.priceType === 'per_hour' && Boolean(form.showsPlanningCard);
 
 const sentence = (audience, where) => `Le tarif ${audience} (${where}) doit être un montant positif.`;
-const refused = (text) => Boolean(amountProblem(text)) || parseAmount(text) > 10000;
+const refused = (text, positive) => Boolean(amountProblem(text)) || parseAmount(text) > 10000 || (positive && !(parseAmount(text) > 0));
 
 export const hourlyPriceForm = {
   fields: PRICE_FIELDS,
@@ -56,10 +56,14 @@ export const hourlyPriceForm = {
     if (!gridApplies(form)) return {};
     const evening = Boolean(form.hourlyEveningStart);
     const errors = {};
-    const rows = form.sellableExternally ? [...GUEST, ...OUTSIDE] : GUEST;
-    rows.forEach(([field, audience, where, band]) => {
+    // The outside grid is a set of prices above 0 (to stop selling outside, « Vendable hors séjour » is switched off); the guests' may be 0.
+    const rowOf = (positive) => ([field, audience, where, band]) => ({
+      field, audience, where, band, positive,
+    });
+    const rows = [...GUEST.map(rowOf(false)), ...(form.sellableExternally ? OUTSIDE.map(rowOf(true)) : [])];
+    rows.forEach(({ field, audience, where, band, positive }) => {
       if (band === 'evening' && !evening) return;
-      if (isBlank(form[field]) || refused(form[field])) errors[field] = sentence(audience, where);
+      if (isBlank(form[field]) || refused(form[field], positive)) errors[field] = sentence(audience, where);
     });
     return errors;
   },

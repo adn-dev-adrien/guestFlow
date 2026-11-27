@@ -256,7 +256,12 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
             </FormControl>
             {priceGrids.map(({ key, pluginId, Component }) => (
               <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
-                <Component draft={form} onChange={(patch) => setForm({ ...form, ...patch })} errors={errors} />
+                <Component
+                  draft={form}
+                  onChange={(patch) => setForm({ ...form, ...patch })}
+                  errors={errors}
+                  lodgingLines={form.priceType !== 'free' ? <PropertyPriceLines form={form} setForm={setForm} properties={properties} errors={errors} /> : null}
+                />
               </Contribution>
             ))}
             {form.priceType !== 'free' && priceGrids.length === 0 && (
@@ -274,7 +279,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
               />
             )}
           </Box>
-          {form.priceType !== 'free' && <PropertyPriceLines form={form} setForm={setForm} properties={properties} errors={errors} />}
+          {form.priceType !== 'free' && priceGrids.length === 0 && <PropertyPriceLines form={form} setForm={setForm} properties={properties} errors={errors} />}
         </SidePanelSection>
 
         <SidePanelSection id="external" title="Vente hors séjour">

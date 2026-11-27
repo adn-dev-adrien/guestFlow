@@ -3,11 +3,17 @@
  * specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 1). Two grids, rows « Journée » / « Soirée (dès hh:mm) », columns « 1re heure » / « Heures suivantes »:
  *   - « Clients logés » — the day first hour is the resource's `price`;
  *   - « Prix pour les extérieurs » — shown when the resource is sold outside a stay, a « Semaine » and a « Week-end » group of the same columns.
- * Props: `draft` (the resource form), `onChange(patch)`, `errors` ({ field: sentence }). Every field is required, none falls back to another; the server's sentence is drawn under its field.
- * On a phone each block is its own stack of fields.
+ * Props: `draft` (the resource form), `onChange(patch)`, `errors` ({ field: sentence }), `lodgingLines` (node drawn under the guests' grid). Every field is required, none falls back to
+ * another; the server's sentence is drawn under its field. On a phone (xs) every price field has its own row, its refusal sentence the full width.
  */
 import React from 'react';
 import { Box, FormHelperText, TextField, Typography } from '@mui/material';
+
+// What the week-end is (rule 6): from Friday's evening switch when the resource has one, else Saturday and Sunday; public holidays either way.
+const WEEKEND_RULE = Object.freeze({
+  evening: 'Week-end : du vendredi {from} au dimanche soir, et les jours fériés.',
+  day: 'Week-end : le samedi, le dimanche et les jours fériés.',
+});
 
 function PriceField({ field, label, draft, onChange, errors }) {
   const error = errors[field];
@@ -27,20 +33,27 @@ function PriceField({ field, label, draft, onChange, errors }) {
   );
 }
 
-/** One audience-and-period block: rows of the bands, the two columns. `rows`: [{ name, label, first, next }] with the form field of each cell. */
-function Block({ title, rows, draft, onChange, errors }) {
+/**
+ * One audience-and-period block: rows of the bands, the two columns. `rows`: [{ name, label, first, next }] with the form field of each cell. From `sm` the fields sit in two columns
+ * under « 1re heure » / « Heures suivantes »; on a phone each field has its own row with its own caption, so a refusal sentence has the whole width.
+ */
+function Block({ title, ariaTitle = title, rows, draft, onChange, errors }) {
   return (
-    <Box role="group" aria-label={title} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <Box role="group" aria-label={ariaTitle} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{title}</Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '72px 1fr 1fr', sm: '140px 1fr 1fr' }, columnGap: 1.5, rowGap: 1.5, alignItems: 'start' }}>
-        <span />
-        <Typography variant="caption" color="text.secondary">1re heure</Typography>
-        <Typography variant="caption" color="text.secondary">Heures suivantes</Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '140px 1fr 1fr' }, columnGap: 1.5, rowGap: { xs: 1, sm: 1.5 }, alignItems: 'start' }}>
+        <Box component="span" sx={{ display: { xs: 'none', sm: 'block' } }} />
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>1re heure</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>Heures suivantes</Typography>
         {rows.map((row) => (
           <React.Fragment key={row.name}>
-            <Typography variant="body2" sx={{ pt: 1 }}>{row.label}</Typography>
-            <PriceField field={row.first} label={`${title} · ${row.name} · 1re heure`} draft={draft} onChange={onChange} errors={errors} />
-            <PriceField field={row.next} label={`${title} · ${row.name} · heures suivantes`} draft={draft} onChange={onChange} errors={errors} />
+            <Typography variant="body2" sx={{ pt: { sm: 1 }, fontWeight: { xs: 600, sm: 400 } }}>{row.label}</Typography>
+            {[['first', '1re heure'], ['next', 'Heures suivantes']].map(([which, caption]) => (
+              <Box key={which}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, mb: 0.5 }}>{caption}</Typography>
+                <PriceField field={row[which]} label={`${ariaTitle} · ${row.name} · ${caption.toLowerCase()}`} draft={draft} onChange={onChange} errors={errors} />
+              </Box>
+            ))}
           </React.Fragment>
         ))}
       </Box>
@@ -48,7 +61,12 @@ function Block({ title, rows, draft, onChange, errors }) {
   );
 }
 
-export default function HourlyPriceGrids({ draft, onChange, errors = {} }) {
+/**
+ * `lodgingLines` is the core's « Heure offerte par logement » list, drawn right under the guests' grid (the validated mock); `WEEKEND_RULE` the sentence that says what the week-end is, worded by whether the resource has an evening switch.
+ */
+export default function HourlyPriceGrids({
+  draft, onChange, errors = {}, lodgingLines = null,
+}) {
   const evening = Boolean(draft.hourlyEveningStart);
   const eveningLabel = evening ? `Soirée (dès ${draft.hourlyEveningStart})` : 'Soirée';
   const rowsOf = (day, evenings) => [
@@ -57,25 +75,32 @@ export default function HourlyPriceGrids({ draft, onChange, errors = {} }) {
   ];
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      <Block
-        title="Clients logés"
-        draft={draft}
-        onChange={onChange}
-        errors={errors}
-        rows={rowsOf({ first: 'price', next: 'hourlyNextDayRate' }, { first: 'hourlyEveningRate', next: 'hourlyNextEveningRate' })}
-      />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Typography variant="subtitle2" component="h3">Clients logés</Typography>
+        <Block
+          title="Journée et soirée"
+          ariaTitle="Clients logés"
+          draft={draft}
+          onChange={onChange}
+          errors={errors}
+          rows={rowsOf({ first: 'price', next: 'hourlyNextDayRate' }, { first: 'hourlyEveningRate', next: 'hourlyNextEveningRate' })}
+        />
+        {lodgingLines}
+      </Box>
       {draft.sellableExternally && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="body2" fontWeight={600}>Prix pour les extérieurs</Typography>
+          <Typography variant="subtitle2" component="h3">Prix pour les extérieurs</Typography>
           <Block
-            title="Extérieurs · Semaine"
+            title="Semaine"
+            ariaTitle="Extérieurs · Semaine"
             draft={draft}
             onChange={onChange}
             errors={errors}
             rows={rowsOf({ first: 'hourlyExternalDayRate', next: 'hourlyExternalNextDayRate' }, { first: 'hourlyExternalEveningRate', next: 'hourlyExternalNextEveningRate' })}
           />
           <Block
-            title="Extérieurs · Week-end"
+            title="Week-end"
+            ariaTitle="Extérieurs · Week-end"
             draft={draft}
             onChange={onChange}
             errors={errors}
@@ -84,9 +109,7 @@ export default function HourlyPriceGrids({ draft, onChange, errors = {} }) {
               { first: 'hourlyExternalWeekendEveningRate', next: 'hourlyExternalWeekendNextEveningRate' },
             )}
           />
-          <FormHelperText sx={{ mt: -1 }}>
-            {`Week-end : du vendredi ${draft.hourlyEveningStart || 'soir'} au dimanche soir, et les jours fériés.`}
-          </FormHelperText>
+          <FormHelperText sx={{ mt: -1 }}>{evening ? WEEKEND_RULE.evening.replace('{from}', draft.hourlyEveningStart) : WEEKEND_RULE.day}</FormHelperText>
         </Box>
       )}
     </Box>
