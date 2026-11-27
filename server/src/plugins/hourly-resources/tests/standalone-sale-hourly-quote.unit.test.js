@@ -110,6 +110,6 @@ test('an outside rate at 0 is not sold, it no longer falls back to the guest rat
 test('with the hourly plugin withdrawn a session cannot be quoted', () => {
   const id = resource();
   withdrawHourlyResources();
-  assert.deepEqual(refusalOf(quote(id, { band: 'day', minutes: 60 })), [['NEEDS_FULFILMENT', 'Une séance se réserve au planning.']]);
+  assert.deepEqual(refusalOf(quote(id, { band: 'day', minutes: 60 })), [['NEEDS_FULFILMENT', 'Les ressources à l’heure ne sont pas disponibles pour le moment.']]);
   liveHourlyResources();
 });
