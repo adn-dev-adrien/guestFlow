@@ -267,8 +267,8 @@ function nextHourRates(db) {
 }
 
 // specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 4 — every price of an hourly resource explicit, so nothing changes on the day of the update: each empty
-// following-hours rate takes its first-hour rate, each outside first-hour rate at 0 takes the guests' rate it used to fall back to (a resource sold outside only: one that is not keeps its outside columns, the guests' live rate
-// serving a lodging with no stay as before), the weekend grid copies the week grid where it is empty, and a per-lodging price (withdrawn for an hourly resource of the planning — one with no planning card keeps its prices) is dropped — the log names the lodging and the price.
+// following-hours rate takes its first-hour rate, each outside first-hour rate at 0 takes the guests' rate it used to fall back to (a resource sold outside only: one that is not keeps its week columns, the guests' live rate
+// serving a lodging with no stay as before), the weekend grid copies the week grid wherever the week grid is set and the weekend value is empty (every hourly resource of the planning, a captured weekend value never overwritten), and a per-lodging price (withdrawn for an hourly resource of the planning — one with no planning card keeps its prices) is dropped — the log names the lodging and the price.
 const WEEKEND_COLUMNS = ['hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate'];
 
 function explicitHourlyRates(db) {
@@ -290,23 +290,27 @@ function explicitHourlyRates(db) {
       nd: present(row.hourlyNextDayRate) ? Number(row.hourlyNextDayRate) : day,
       ne: present(row.hourlyNextEveningRate) ? Number(row.hourlyNextEveningRate) : guestEvening,
     });
-    // A resource not sold outside keeps its outside columns as they are: the lodging with no stay it may still serve is priced at the guests' live rate (K9), which a copy would freeze.
-    if (Number(row.sellableExternally) !== 1) return;
-    const xd = Number(row.hourlyExternalDayRate) > 0 ? Number(row.hourlyExternalDayRate) : day;
-    const xe = Number(row.hourlyExternalEveningRate) > 0 ? Number(row.hourlyExternalEveningRate) : (evening > 0 ? evening : xd);
-    const xnd = present(row.hourlyExternalNextDayRate) ? Number(row.hourlyExternalNextDayRate) : xd;
-    const xne = present(row.hourlyExternalNextEveningRate) ? Number(row.hourlyExternalNextEveningRate) : xe;
-    const kept = (value, week) => (present(value) ? Number(value) : week);
+    // Only a resource sold outside has its empty or 0 outside first hours filled from the guests' rate (K9): one that is not keeps its week columns as they are, the guests' live rate serving
+    // a lodging with no stay as before. The weekend columns copy the week ones wherever those are set, for every hourly resource of the planning, and a captured weekend value is never overwritten.
+    const soldOutside = Number(row.sellableExternally) === 1;
+    const storedDay = Number(row.hourlyExternalDayRate) || 0;
+    const storedEvening = Number(row.hourlyExternalEveningRate) || 0;
+    const xd = soldOutside && !(storedDay > 0) ? day : storedDay;
+    const xe = soldOutside && !(storedEvening > 0) ? (evening > 0 ? evening : xd) : storedEvening;
+    const following = (value, firstHour) => (present(value) ? Number(value) : (soldOutside ? firstHour : null));
+    const xnd = following(row.hourlyExternalNextDayRate, xd);
+    const xne = following(row.hourlyExternalNextEveningRate, xe);
+    const weekendFrom = (value, weekValue) => (present(value) ? Number(value) : weekValue);
     writeOutside.run({
       id: row.id,
       xd,
       xe,
       xnd,
       xne,
-      wd: kept(row.hourlyExternalWeekendDayRate, xd),
-      we: kept(row.hourlyExternalWeekendEveningRate, xe),
-      wnd: kept(row.hourlyExternalWeekendNextDayRate, xnd),
-      wne: kept(row.hourlyExternalWeekendNextEveningRate, xne),
+      wd: weekendFrom(row.hourlyExternalWeekendDayRate, xd > 0 ? xd : null),
+      we: weekendFrom(row.hourlyExternalWeekendEveningRate, xe > 0 ? xe : null),
+      wnd: weekendFrom(row.hourlyExternalWeekendNextDayRate, xnd),
+      wne: weekendFrom(row.hourlyExternalWeekendNextEveningRate, xne),
     });
   });
   if (!hasTable(db, 'property_resource_prices') || !hasTable(db, 'properties')) return;

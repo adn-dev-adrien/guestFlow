@@ -136,3 +136,10 @@ test('rule 68: a resource booking copies its price columns and its payment tende
   assert.equal(copied.resource_bookings[0].paymentTenders, '[{"method":"card","amountCents":5000,"internal":false}]');
   for (const column of ['clientId', 'clientName', 'clientPhone', 'notes', 'billingStreet', 'billingCity', 'invoiceNumber']) assert.ok(!(column in copied.resource_bookings[0]), column);
 });
+
+test('rule 68 (L3): a resource keeps every price field the pricing reads — following hours, weekend grid and whether it is sold outside', () => {
+  const columns = ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate', 'sellableExternally'];
+  const row = Object.fromEntries([['id', 1], ...columns.map((column, index) => [column, index + 1])]);
+  const [copied] = anonymise({ resources: [row] }).resources;
+  columns.forEach((column) => assert.equal(copied[column], row[column], column));
+});

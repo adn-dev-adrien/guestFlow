@@ -20,7 +20,13 @@ const propertyId = Number(db.prepare("INSERT INTO properties (name) VALUES ('Gî
 const dayOf = (offset) => new Date(Date.parse(`${FAR_YEAR}-03-01T12:00:00Z`) + offset * 86400000).toISOString().slice(0, 10);
 const weekday = (date) => new Date(`${date}T12:00:00Z`).getUTCDay();
 const find = (wanted) => { for (let i = 0; i < 14; i += 1) if (weekday(dayOf(i)) === wanted) return dayOf(i); return null; };
-const DAYS = { week: find(3), saturday: find(6), sunday: find(0), friday: find(5), holidayEve: `${FAR_YEAR}-07-13` }; // 14 July is a public holiday: its eve is weekend from the evening
+// The eves of a public holiday are computed from the calendar of the year, never a literal: one that falls on a weekday (weekend from the evening) and one that falls on a weekend day.
+const holidays = require('../../sdk').calendar.frenchPublicHolidays(FAR_YEAR).map((holiday) => holiday.date);
+const eveOf = (holiday) => new Date(Date.parse(`${holiday}T12:00:00Z`) - 86400000).toISOString().slice(0, 10);
+const eves = holidays.map(eveOf).filter((day) => !holidays.includes(day));
+const DAYS = {
+  week: find(3), saturday: find(6), sunday: find(0), friday: find(5), eveOnAWeekday: eves.find((day) => weekday(day) >= 1 && weekday(day) <= 4), eveOnAWeekend: eves.find((day) => weekday(day) === 6 || weekday(day) === 0),
+};
 const SESSIONS = [['13:00', '14:00'], ['13:00', '15:00'], ['13:00', '14:30'], ['20:30', '21:30'], ['19:30', '21:00']];
 const cents = (euros) => Math.round(Number(euros) * 100);
 
@@ -34,8 +40,9 @@ function figuresOf(id, { visit }) {
   const figures = { stored: cents(stored.totalPrice), preview: cents(preview.total), invoice: cents(basis.breakdown.total) };
   if (visit) {
     const saleId = visits.ensureDocument(row(id), { actor: 'user:1', stop: (refusal) => { throw new Error(JSON.stringify(refusal)); } });
-    const line = require('../../../utils/standaloneSale').documentOf(saleId).lines.find((l) => String(l.fulfilmentRef || '').startsWith('hourly-slot:'));
-    figures.visit = line.totalCents;
+    // the lines still on the document: a session moved after its sale retires its line and sells a new one
+    figures.visit = require('../../../utils/standaloneSale').documentOf(saleId).lines
+      .filter((l) => String(l.fulfilmentRef || '').startsWith('hourly-slot:') && l.status !== 'cancelled').reduce((sum, l) => sum + l.totalCents, 0);
   }
   return figures;
 }
@@ -73,11 +80,13 @@ for (const kind of KINDS) {
         assert.ok(saved.ok, JSON.stringify(saved));
         assert.equal(cents(row(id).totalPrice), before.stored, 'a save that moves nothing keeps the figure');
         assert.equal(row(id).engineRated === 1, kind !== 'outside of before', 'the fact is kept by a save that moves nothing');
-        // moved: one slot later (still inside the opening hours) — now on the engine path whatever it was.
-        const moved = bookings.update(id, { startTime: '15:00', endTime: '16:00' });
-        assert.ok(moved.ok, JSON.stringify(moved));
-        if (kind !== 'lodging no stay') assert.equal(row(id).engineRated, 1);
-        agree(figuresOf(id, { visit: false }), 'moved');
+        // moved by time, off the grid, and by date: the engine path whatever it was, the visit line following the move.
+        for (const [label, move] of [['one slot later', { startTime: '15:00', endTime: '16:00' }], ['off the grid', { startTime: '15:15', endTime: '16:45' }], ['to the other day', { date: DAYS.saturday === date ? DAYS.week : DAYS.saturday }]]) {
+          const moved = bookings.update(id, move);
+          assert.ok(moved.ok, JSON.stringify(moved));
+          if (kind !== 'lodging no stay') assert.equal(row(id).engineRated, 1);
+          agree(figuresOf(id, { visit: kind !== 'lodging no stay' }), `moved ${label}`);
+        }
       });
     }
   }

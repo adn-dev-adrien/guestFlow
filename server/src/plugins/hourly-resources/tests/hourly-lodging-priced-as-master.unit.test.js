@@ -97,8 +97,12 @@ test('a migrated resource not sold outside keeps following the guests\' rates fo
   }
 });
 
-test('the migration fills an outside first hour only for a resource sold outside, and copies the week grid to the weekend grid only where it is empty', () => {
+test('the migration fills an outside first hour only for a resource sold outside, and copies the week grid to the weekend grid wherever the week grid is set and the weekend value is empty, for every hourly resource (K9)', () => {
   assert.equal(MIGRATED[8].hourlyExternalDayRate, 0);
+  assert.equal(MIGRATED[8].hourlyExternalWeekendDayRate, null, 'a week first hour that is not set is not copied');
+  assert.equal(MIGRATED[9].hourlyExternalWeekendDayRate, 50, 'a resource not sold outside copies its set week grid too');
+  assert.equal(MIGRATED[9].hourlyExternalWeekendEveningRate, 70);
+  assert.equal(MIGRATED[9].hourlyExternalDayRate, 50, 'and keeps its week columns as they are');
   assert.equal(MIGRATED[4].hourlyExternalDayRate, 30);
   assert.equal(MIGRATED[1].hourlyExternalWeekendDayRate, 50);
   const again = new Database(':memory:');
@@ -107,4 +111,7 @@ test('the migration fills an outside first hour only for a resource sold outside
     .run(Object.fromEntries(COLUMNS.map((c) => [c, { ...ROWS[0], hourlyExternalWeekendDayRate: 99 }[c] ?? null])));
   explicitHourlyRates(again);
   assert.equal(again.prepare('SELECT hourlyExternalWeekendDayRate AS d FROM resources').get().d, 99, 'a captured weekend value is never overwritten');
+  const once = again.prepare('SELECT * FROM resources').all();
+  explicitHourlyRates(again);
+  assert.deepEqual(again.prepare('SELECT * FROM resources').all(), once, 'a second run changes nothing');
 });
