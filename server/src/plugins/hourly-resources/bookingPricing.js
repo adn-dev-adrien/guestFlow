@@ -61,21 +61,41 @@ function vatOf(total, vat) {
 const nextRateField = (value) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
 
 /**
- * The four rates a banded resource is sold at (specs/hourly-extra-hour-rates.md rules 1, 4): the day and evening first-hour rates, and the
- * rates of the following hours of each band. The external set is for a customer with no stay (each first-hour rate falls back to the guest
- * rate); the guest set otherwise. A `null` following-hours rate is « same as the first hour » of that band and audience.
+ * The four rates a banded resource is sold at for one audience and one period (specs/resources/hourly-extra-hour-rates.md rules 1, 4;
+ * specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 2, 6): the day and evening first-hour rates, and the rates of the following hours of each
+ * band. The external set is for a customer with no stay and has a `week` and a `weekend` grid; the guest set is one price every day. An external first-hour rate
+ * left at 0 is not sold (no fallback to the guests' rate); a `null` following-hours rate is a row stored before the grids were required, read as the first hour.
  */
-function rateGridOf(resource, { external, guestDayRate = Number(resource.price ?? 0) }) {
-  const guestEveningRate = Number(resource.hourlyEveningRate) || 0;
-  const dayRate = external && Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : guestDayRate;
-  const eveningRate = external
-    ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
-    : guestEveningRate;
+function rateGridOf(resource, { external, period = 'week', guestDayRate = Number(resource.price ?? 0) }) {
+  if (external) {
+    const fields = period === 'weekend'
+      ? ['hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate']
+      : ['hourlyExternalDayRate', 'hourlyExternalEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'];
+    return {
+      dayRate: Number(resource[fields[0]]) || 0,
+      eveningRate: Number(resource[fields[1]]) || 0,
+      dayNextRate: nextRateField(resource[fields[2]]),
+      eveningNextRate: nextRateField(resource[fields[3]]),
+    };
+  }
   return {
-    dayRate,
-    eveningRate,
-    dayNextRate: nextRateField(external ? resource.hourlyExternalNextDayRate : resource.hourlyNextDayRate),
-    eveningNextRate: nextRateField(external ? resource.hourlyExternalNextEveningRate : resource.hourlyNextEveningRate),
+    dayRate: guestDayRate,
+    eveningRate: Number(resource.hourlyEveningRate) || 0,
+    dayNextRate: nextRateField(resource.hourlyNextDayRate),
+    eveningNextRate: nextRateField(resource.hourlyNextEveningRate),
+  };
+}
+
+/**
+ * What `priceSessions` is configured with for a resource: the guests' grid, or the outside customer's week grid with its weekend grid attached (the engine picks
+ * each slice's period from its date). A quote with no date passes `period` and never reads a calendar (rule 8).
+ */
+function rateConfigOf(resource, { external, period = null, guestDayRate }) {
+  if (!external) return rateGridOf(resource, { external: false, guestDayRate });
+  return {
+    ...rateGridOf(resource, { external: true, period: 'week' }),
+    weekend: rateGridOf(resource, { external: true, period: 'weekend' }),
+    ...(period ? { period } : {}),
   };
 }
 
@@ -88,9 +108,12 @@ function rateGridOf(resource, { external, guestDayRate = Number(resource.price ?
  * @param {boolean} p.external       no lodging reservation → the external rate pair (rule 6)
  * @param {number} [p.offeredMinutes] already validated by `offeredRefusal`
  * @param {{ rate: number|null }|null} [p.vat] the rate that applies, `rate: null` when the instance has no VAT
+ * @param {string|null} [p.date]    the booking's day: an outside booking is priced on its real date (week or weekend); none → the week grid
  * @param {boolean} [p.freeHourAtDayRate] false for a booking stored before the one hourly grid: its free hour keeps the band it fell in
  */
-function priceBookingLines({ resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true }) {
+function priceBookingLines({
+  resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true, date = null,
+}) {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
   const durationMinutes = Math.max(0, end - start);
@@ -126,11 +149,16 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
 
   // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5).
   if (Number(resource.showsPlanningCard || 0) === 1) {
-    const cfg = { ...rateGridOf(resource, { external, guestDayRate }), eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
+    const cfg = {
+      ...rateConfigOf(resource, { external, guestDayRate, period: date ? null : 'week' }), eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration,
+    };
+    const sessionDate = date || '2000-01-01';
     // The free minutes are not a rank (specs/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
-    const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, freeApplied);
+    const priced = priceSessions([{ date: sessionDate, start: startTime, end: endTime }], cfg, freeApplied);
     if (priced.validSessions.length) {
-      const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate }, cfg);
+      const { freeValue, offeredValue } = bookingDeductions({
+        start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate, date: sessionDate,
+      }, cfg);
       return finish({
         pricing: 'banded',
         rateGrid: external ? 'external' : 'guest',
@@ -162,5 +190,5 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
 }
 
 module.exports = {
-  priceBookingLines, offeredRefusal, vatOf, rateGridOf, bandLineOf, duration, OFFER_STEP_MINUTES,
+  priceBookingLines, offeredRefusal, vatOf, rateGridOf, rateConfigOf, bandLineOf, duration, OFFER_STEP_MINUTES,
 };

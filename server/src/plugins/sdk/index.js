@@ -174,6 +174,8 @@ const CORE_MODULES = Object.freeze({
   synthesisExporter: '../../utils/accounting/exporters/synthesis', // the synthesis exporter: VAT return, checks, collections (rule 63)
   // the price table of an add-on sold outside a stay, one function for every plugin that offers one (site-outside-resource-booking rule 37, SDK 2.36.0)
   addOnPricing: '../../utils/addOnPricing',
+  // the French public holidays, for a price that depends on the day (week-weekend-and-print spec rule 6, SDK 2.38.0)
+  publicHolidays: '../../utils/publicHolidays',
 });
 
 function coreModule(name) {

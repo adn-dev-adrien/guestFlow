@@ -194,11 +194,10 @@ test('rule 21: name and quantity — required, whole, not negative', () => {
   assert.deepEqual(detailFields(refused({ name: 'V', quantity: '' })), ['quantity']);
 });
 
-test('rule 21: prices are numbers ≥ 0 with 2 decimals max, base, per property and hourly rates', () => {
+test('rule 21: prices are numbers ≥ 0 with 2 decimals max, base and per property (the hourly rates are the plugin\'s own checks)', () => {
   assert.deepEqual(detailFields(refused({ name: 'V', quantity: 1, price: -1 })), ['price']);
   assert.deepEqual(detailFields(refused({ name: 'V', quantity: 1, price: 1.234 })), ['price']);
   assert.deepEqual(detailFields(refused({ name: 'V', quantity: 1, propertyPricing: { 2: { price: -4, freeMinutes: 0 } } })), ['propertyPricing.2']);
-  assert.deepEqual(detailFields(refused({ name: 'V', quantity: 1, hourlyEveningRate: 'x' })), ['hourlyEveningRate']);
   assert.equal(refused({ name: 'V', quantity: 1, propertyPricing: { 2: { price: 0, freeMinutes: 60 } } }).statusCode, 200);
 });
 

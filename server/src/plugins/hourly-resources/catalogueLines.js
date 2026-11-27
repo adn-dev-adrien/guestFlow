@@ -41,17 +41,26 @@ function nextHoursLine(resource) {
   return parts.length ? { label: 'Heures suivantes', value: parts.join(' · ') } : null;
 }
 
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 2, 9 — the outside grid as stored: no fallback to the guests' rates, a week and a weekend set.
+function externalPeriodText(resource, fields) {
+  const [dayField, eveningField, dayNextField, eveningNextField] = fields;
+  const dayFirst = Number(resource[dayField]) || 0;
+  const eveningFirst = Number(resource[eveningField]) || 0;
+  const dayNext = nextRate(resource[dayNextField]);
+  const eveningNext = nextRate(resource[eveningNextField]);
+  const day = dayFirst > 0 ? `${hourly(dayFirst)}${thenText(dayNext, dayFirst)}` : '';
+  const evening = eveningFirst > 0 ? `soir ${hourly(eveningFirst)}${thenText(eveningNext, eveningFirst)}` : '';
+  return [day, evening].filter(Boolean).join(' · ');
+}
+
 function externalLine(resource) {
-  const dayFirst = Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : Number(resource.price || 0);
-  const guestEvening = Number(resource.hourlyEveningRate) || 0;
-  const eveningFirst = Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEvening > 0 ? guestEvening : dayFirst);
-  const dayNext = nextRate(resource.hourlyExternalNextDayRate);
-  const eveningNext = nextRate(resource.hourlyExternalNextEveningRate);
-  const day = Number(resource.hourlyExternalDayRate) > 0 || differs(dayNext, dayFirst) ? `${hourly(dayFirst)}${thenText(dayNext, dayFirst)}` : '';
-  const evening = Number(resource.hourlyExternalEveningRate) > 0 || differs(eveningNext, eveningFirst)
-    ? `soir ${hourly(eveningFirst)}${thenText(eveningNext, eveningFirst)}` : '';
-  const value = [day, evening].filter(Boolean).join(' · ');
-  return value ? { label: 'Extérieurs', value } : null;
+  const week = externalPeriodText(resource, ['hourlyExternalDayRate', 'hourlyExternalEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate']);
+  const weekend = externalPeriodText(resource, [
+    'hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate',
+  ]);
+  if (!week && !weekend) return null;
+  const value = weekend && weekend !== week ? [week && `semaine ${week}`, `week-end ${weekend}`].filter(Boolean).join(' · ') : week;
+  return { label: 'Extérieurs', value };
 }
 
 function freeHourLine(resource, properties) {

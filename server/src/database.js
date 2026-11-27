@@ -644,7 +644,10 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!rcols.includes('hourlyDegressiveTiers')) db.exec("ALTER TABLE resources ADD COLUMN hourlyDegressiveTiers TEXT NOT NULL DEFAULT '[]'");
   if (!rcols.includes('bookingHorizonMonths')) db.exec('ALTER TABLE resources ADD COLUMN bookingHorizonMonths INTEGER NOT NULL DEFAULT 3');
   if (!rcols.includes('sessionMaxPeople')) db.exec('ALTER TABLE resources ADD COLUMN sessionMaxPeople INTEGER');
-  ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'].forEach((column) => {
+  ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate',
+    // The outside customer's weekend grid (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 1); filled by the hourly-resources migration.
+    'hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate',
+  ].forEach((column) => {
     if (!rcols.includes(column)) db.exec(`ALTER TABLE resources ADD COLUMN ${column} REAL`);
   });
   const rrcols = db.prepare('PRAGMA table_info(reservation_resources)').all().map((c) => c.name);

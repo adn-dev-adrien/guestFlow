@@ -17,6 +17,25 @@ function toMinutes(time) {
 const sdk = require('../sdk');
 const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
+const holidays = () => sdk.coreModule('publicHolidays');
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * The period of a slice (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 6): `weekend` on Friday from the evening switch, all Saturday, all Sunday,
+ * all of a public holiday, and the evening of the day before a public holiday; `week` otherwise. `start` and `eveningStart` are clock times (`HH:MM`) or minutes;
+ * a resource with no evening switch has no Friday or eve-of-holiday weekend. An unreadable date is `week`.
+ */
+function periodOf(date, start, eveningStart) {
+  const match = ISO_DATE.exec(String(date || ''));
+  if (!match) return 'week';
+  const asMinutes = (value) => (typeof value === 'number' ? value : toMinutes(value));
+  const weekday = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))).getUTCDay();
+  if (weekday === 0 || weekday === 6 || holidays().isPublicHoliday(date)) return 'weekend';
+  const hasEvening = eveningStart !== null && eveningStart !== undefined && eveningStart !== '' && Number.isFinite(asMinutes(eveningStart));
+  const evening = hasEvening && asMinutes(start) >= asMinutes(eveningStart);
+  return evening && (weekday === 5 || holidays().isEveOfPublicHoliday(date)) ? 'weekend' : 'week';
+}
+
 // specs/hourly-extra-hour-rates.md rule 1 — a following-hours rate left empty is « same as the first hour »; 0 is a real value (free).
 const nextRateOf = (value, fallback) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? fallback : Math.max(0, Number(value)));
 
@@ -32,7 +51,7 @@ function normalizeConfig(cfg = {}) {
   const hasEvening = Boolean(cfg.eveningStart) && eveningRateRaw > 0;
   const dayNextRate = nextRateOf(cfg.dayNextRate, dayRate);
   const eveningRate = hasEvening ? eveningRateRaw : dayRate;
-  return {
+  const base = {
     dayRate,
     dayNextRate,
     eveningRate,
@@ -41,45 +60,64 @@ function normalizeConfig(cfg = {}) {
     slotMinutes: Math.max(1, Number(cfg.slotMinutes) || 30),
     rankOffsetMinutes: Math.max(0, Number(cfg.rankOffsetMinutes) || 0),
   };
+  if (!cfg.weekend) return base;
+  // The weekend grid (an outside customer only): same clock, its own four rates; `forcePeriod` is a dateless quote's explicit period (rule 8).
+  return {
+    ...base,
+    eveningClock: cfg.eveningStart ? toMinutes(cfg.eveningStart) : null,
+    forcePeriod: cfg.period === 'weekend' || cfg.period === 'week' ? cfg.period : null,
+    weekend: normalizeConfig({
+      ...cfg.weekend, eveningStart: cfg.eveningStart, slotMinutes: cfg.slotMinutes, rankOffsetMinutes: cfg.rankOffsetMinutes,
+    }),
+  };
+}
+
+// The grid the slice starting at `t` of `date` is priced on: the weekend one for an outside customer on a weekend slice, the week one otherwise.
+function gridAt(t, normCfg, date) {
+  if (!normCfg.weekend) return { grid: normCfg, period: 'week' };
+  const period = normCfg.forcePeriod || periodOf(date, t, normCfg.eveningClock);
+  return { grid: period === 'weekend' ? normCfg.weekend : normCfg, period };
 }
 
 // The rate of the slice starting at `t`: the band comes from its start time, the rate from its rank (rule 2). The rank counts from
 // `paidFrom` — the session's start, moved forward by the free minutes (rule 3) — and a slice before it is priced at rank 1.
-function rateAt(t, normCfg, paidFrom) {
+function rateAt(t, normCfg, paidFrom, date) {
+  const { grid } = gridAt(t, normCfg, date);
   const rank = t < paidFrom ? 1 : Math.floor((t - paidFrom + normCfg.rankOffsetMinutes) / 60) + 1;
-  if (t < normCfg.eveningStart) return rank === 1 ? normCfg.dayRate : normCfg.dayNextRate;
-  return rank === 1 ? normCfg.eveningRate : normCfg.eveningNextRate;
+  if (t < grid.eveningStart) return rank === 1 ? grid.dayRate : grid.dayNextRate;
+  return rank === 1 ? grid.eveningRate : grid.eveningNextRate;
 }
 
 // Price the minutes [fromMin, toMin) over the banded grid, walking in slot steps so a slice that crosses the evening switch is
 // billed at each side's band. Ranks count from `paidFrom` (default: `fromMin`).
-function priceMinutes(fromMin, toMin, normCfg, paidFrom = fromMin) {
+function priceMinutes(fromMin, toMin, normCfg, paidFrom = fromMin, date = null) {
   if (toMin <= fromMin) return 0;
   const { slotMinutes } = normCfg;
   let total = 0;
   for (let t = fromMin; t < toMin; t += slotMinutes) {
-    total += (rateAt(t, normCfg, paidFrom) * Math.min(slotMinutes, toMin - t)) / 60;
+    total += (rateAt(t, normCfg, paidFrom, date) * Math.min(slotMinutes, toMin - t)) / 60;
   }
   return total;
 }
 
 // The same slot walk as `priceMinutes`, kept per band and per rate: consecutive slices of one band at one rate merge into one entry,
 // so a screen can show « jour 30 € · soir 40 € » and the first hour apart from the following ones. `rate` is the effective hourly rate.
-function bandsOf(fromMin, toMin, normCfg, paidFrom = fromMin) {
+function bandsOf(fromMin, toMin, normCfg, paidFrom = fromMin, date = null) {
   const out = [];
   if (toMin <= fromMin) return out;
   const { eveningStart, slotMinutes } = normCfg;
   for (let t = fromMin; t < toMin; t += slotMinutes) {
     const end = Math.min(t + slotMinutes, toMin);
     const band = t < eveningStart ? 'day' : 'evening';
-    const rate = rateAt(t, normCfg, paidFrom);
+    const rate = rateAt(t, normCfg, paidFrom, date);
+    const { period } = gridAt(t, normCfg, date);
     const last = out[out.length - 1];
-    if (last && last.band === band && last.rate === rate && last.toMin === t) {
+    if (last && last.band === band && last.period === period && last.rate === rate && last.toMin === t) {
       last.toMin = end;
       last.raw += (rate * (end - t)) / 60;
     } else {
       out.push({
-        band, fromMin: t, toMin: end, rate, raw: (rate * (end - t)) / 60,
+        band, period, fromMin: t, toMin: end, rate, raw: (rate * (end - t)) / 60,
       });
     }
   }
@@ -94,7 +132,7 @@ function roundedBands(raw, grossTotal) {
     const amount = i === raw.length - 1 ? round2(grossTotal - spent) : round2(b.raw);
     spent = round2(spent + amount);
     return {
-      band: b.band, from: formatTime(b.fromMin), to: formatTime(b.toMin),
+      band: b.band, ...(b.period === 'weekend' ? { period: 'weekend' } : {}), from: formatTime(b.fromMin), to: formatTime(b.toMin),
       minutes: b.toMin - b.fromMin, rate: round2(b.rate), amount,
     };
   });
@@ -115,12 +153,12 @@ function priceRange(start, end, cfg = {}) {
  * `freeAtDayRate: false` is a booking stored before this rule (rule 74: its price is not re-priced): its free minutes are valued on the band
  * they fall in.
  */
-function bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate = true }, cfg = {}) {
+function bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate = true, date = null }, cfg = {}) {
   const norm = normalizeConfig(cfg);
   const offeredFrom = start + freeApplied;
   let freeValue = 0;
-  if (freeApplied > 0) freeValue = freeAtDayRate ? (norm.dayRate * freeApplied) / 60 : priceMinutes(start, offeredFrom, norm, offeredFrom);
-  const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm, offeredFrom) : 0;
+  if (freeApplied > 0) freeValue = freeAtDayRate ? (norm.dayRate * freeApplied) / 60 : priceMinutes(start, offeredFrom, norm, offeredFrom, date);
+  const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm, offeredFrom, date) : 0;
   return { freeValue: round2(freeValue), offeredValue: round2(offeredValue) };
 }
 
@@ -182,11 +220,11 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const firstStart = toMinutes(first.start);
   const freeApplied = Math.min(free, toMinutes(first.end) - firstStart);
   const paidFromOf = (s) => (s === first ? firstStart + freeApplied : toMinutes(s.start));
-  const gross = valid.reduce((sum, s) => sum + priceMinutes(toMinutes(s.start), toMinutes(s.end), norm, paidFromOf(s)), 0);
+  const gross = valid.reduce((sum, s) => sum + priceMinutes(toMinutes(s.start), toMinutes(s.end), norm, paidFromOf(s), s.date), 0);
   // Rule 37 — the free minutes are worth the DAY first-hour rate wherever they fall: an offered hour placed in the evening owes the evening supplement, as the arrival
   // SAS bills it. `freeSupplement` is what the offered minutes would cost above the day rate (the evening supplement of the free window).
   const freeValue = (norm.dayRate * freeApplied) / 60;
-  const freeSupplement = freeApplied > 0 ? Math.max(0, priceMinutes(firstStart, firstStart + freeApplied, norm, firstStart + freeApplied) - freeValue) : 0;
+  const freeSupplement = freeApplied > 0 ? Math.max(0, priceMinutes(firstStart, firstStart + freeApplied, norm, firstStart + freeApplied, first.date) - freeValue) : 0;
 
   const billedMinutes = Math.max(0, totalMinutes - freeApplied);
   const billedHours = round2(billedMinutes / 60);
@@ -205,7 +243,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
     billedMinutes,
     freeValue: round2(freeValue),
     freeSupplement: round2(freeSupplement),
-    bands: roundedBands(valid.flatMap((s) => bandsOf(toMinutes(s.start), toMinutes(s.end), norm, paidFromOf(s))), round2(gross)),
+    bands: roundedBands(valid.flatMap((s) => bandsOf(toMinutes(s.start), toMinutes(s.end), norm, paidFromOf(s), s.date)), round2(gross)),
   };
 }
 
@@ -233,5 +271,5 @@ function eveningSupplement(blocks, cfg = {}) {
 }
 
 module.exports = {
-  toMinutes, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
+  toMinutes, periodOf, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
 };

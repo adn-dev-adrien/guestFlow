@@ -21,12 +21,11 @@ test('the slots appear once the resource is slotted, and every change is a patch
   expect(onChange).toHaveBeenLastCalledWith({ heatUpMinutes: 0 });
 });
 
-test('the evening and external rates come with the planning card', () => {
+// The prices left this block for « Prix » (HourlyPriceGrids, gift-voucher-week-weekend-and-print rule 1): the planning card keeps its evening switch only.
+test('the evening switch comes with the planning card, and no price is asked here', () => {
   const onChange = vi.fn();
   render(<HourlyResourceFields draft={{ ...DRAFT, isComplex: true, showsPlanningCard: true }} onChange={onChange} />);
-  expect(screen.getByLabelText('Clients hébergés · Journée · 1re heure')).toHaveValue(30);
-  fireEvent.change(screen.getByLabelText('Clients hébergés · Soirée · 1re heure'), { target: { value: '50' } });
-  expect(onChange).toHaveBeenLastCalledWith({ hourlyEveningRate: 50 });
-  fireEvent.change(screen.getByLabelText('Clients extérieurs · Journée · 1re heure'), { target: { value: '60' } });
-  expect(onChange).toHaveBeenLastCalledWith({ hourlyExternalDayRate: 60 });
+  expect(screen.queryByLabelText(/1re heure/)).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Heure de bascule soir'), { target: { value: '20:00' } });
+  expect(onChange).toHaveBeenLastCalledWith({ hourlyEveningStart: '20:00' });
 });

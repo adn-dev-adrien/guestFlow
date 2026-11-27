@@ -101,10 +101,10 @@ test('an unknown band, a resource with no evening, a band with no external rate 
   assert.equal(nonsense.refusals[0].code, 'SESSION_BAND_UNKNOWN');
 });
 
-test('the external rate falls back to the guest rate the way a booking does', () => {
-  const id = resource({ name: 'Bain repli', hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, price: 40, hourlyEveningRate: 60 });
-  assert.equal(quote(id, { band: 'day', minutes: 60 }).document.totals.totalCents, 4000);
-  assert.equal(quote(id, { band: 'evening', minutes: 60 }).document.totals.totalCents, 6000);
+// Amended 2026-11-27 (gift-voucher-week-weekend-and-print rule 2): no fallback to the guests' rate — an outside rate at 0 is a band that is not sold.
+test('an outside rate at 0 is not sold, it no longer falls back to the guest rate', () => {
+  const id = resource({ name: 'Bain non vendu', hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, price: 40, hourlyEveningRate: 60 });
+  assert.deepEqual(refusalOf(quote(id, { band: 'day', minutes: 60 })).map(([code]) => code), ['SESSION_BAND_NOT_SOLD']);
 });
 
 test('with the hourly plugin withdrawn a session cannot be quoted', () => {

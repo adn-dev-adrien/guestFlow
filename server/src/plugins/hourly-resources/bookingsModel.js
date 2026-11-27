@@ -244,7 +244,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const override = pid > 0 ? sdk.coreModule('catalogue').resourcePriceOverride(database, resource.id, pid) || null : null;
     return priceBookingLines({
       resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat: frozenVat || vatFor({ reservationId, date }),
-      freeHourAtDayRate: stored ? Number(stored.freeHourAtDayRate) === 1 : true,
+      freeHourAtDayRate: stored ? Number(stored.freeHourAtDayRate) === 1 : true, date: reservationId ? null : date,
     });
   }
 

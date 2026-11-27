@@ -7,6 +7,7 @@ import {
   initialValue, payloadOf, recapNotes,
 } from './sasStep';
 import { countResourceTasks } from './planningTasks';
+import { hourlyPriceForm } from './hourlyPriceForm';
 
 const isPerHour = (resource) => resource && resource.priceType === 'per_hour';
 
@@ -26,6 +27,14 @@ export default {
     'settings.integrations': [{ key: 'hourly-vat', order: 60, tabLabel: 'Ressources à l’heure', keywords: ['TVA', 'Bain nordique', 'Hors séjour'], Component: lazy(() => import('./SettingsSection')) }],
     'resources.fields': [{
       key: 'hourly', appliesTo: isPerHour, Component: lazy(() => import('./HourlyResourceFields')),
+    }],
+    // Every price of an hourly resource, in the « Prix » section of its editor (gift-voucher-week-weekend-and-print spec rules 1, 28): the grids, and the form model the core's
+    // resource form asks (defaults, stored ⇄ typed, payload, checks).
+    'resources.priceFields': [{
+      key: 'hourly-prices',
+      appliesTo: (resource) => isPerHour(resource) && Boolean(resource.showsPlanningCard),
+      Component: lazy(() => import('./HourlyPriceGrids')),
+      form: hourlyPriceForm,
     }],
     'reservation.resourceLine': [{
       key: 'sessions',

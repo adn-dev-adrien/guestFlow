@@ -14,7 +14,7 @@
  */
 
 const sdk = require('../sdk');
-const { sessionModesOf, quoteSession, isOfferedOnline } = require('./sessionQuote');
+const { sessionModesOf, isOfferedOnline } = require('./sessionQuote');
 const { toMinutes } = require('./hourlyPricing');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
@@ -52,7 +52,6 @@ function createPublicSessionService({
   const addOnPricing = sdk.coreModule('addOnPricing').createAddOnPricing({ engine });
   const resourceOf = (id) => db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(id)) || null;
   const maxPeopleOf = (resource) => (Number(resource.sessionMaxPeople) > 0 ? Number(resource.sessionMaxPeople) : DEFAULT_MAX_PEOPLE);
-  const configOf = (resource) => ({ id: resource.id, label: resource.name, resource });
   const bandAt = (resource, clock) => (sessionModesOf(resource).some((m) => m.band === 'evening') && toMinutes(clock) >= toMinutes(resource.hourlyEveningStart) ? 'evening' : 'day');
 
   // ── what the page reads first ────────────────────────────────────────────────────────────────────────────────────────
@@ -89,8 +88,14 @@ function createPublicSessionService({
     if (!isOfferedOnline(resource)) return refuse('RESOURCE_UNAVAILABLE', UNAVAILABLE, 409);
     const length = asInt(minutes);
     if (!Number.isInteger(length) || length <= 0) return refuse('SESSION_MINUTES_INVALID', 'Durée invalide.');
-    const checked = quoteSession(configOf(resource), { band: bandAt(resource, resource.openTime || '00:00'), start: resource.openTime || '00:00', minutes: length });
-    if (checked.refusal && checked.refusal.code !== 'SESSION_AFTER_CLOSE') return refuse(checked.refusal.code, checked.refusal.message);
+    // The same engine path as every price of a session (gift-voucher-week-weekend-and-print rule 30): its refusal says whether the length suits the resource.
+    const checked = engine.quote({
+      lines: [{
+        articleRef: `resource:${resource.id}`, session: { band: bandAt(resource, resource.openTime || '00:00'), start: resource.openTime || '00:00', minutes: length },
+      }],
+    });
+    const refusal = checked.refusals && checked.refusals[0];
+    if (refusal && refusal.code !== 'SESSION_AFTER_CLOSE') return refuse(refusal.code, refusal.message);
     return { ok: true, resource, minutes: length };
   }
 

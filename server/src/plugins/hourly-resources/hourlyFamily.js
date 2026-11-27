@@ -61,7 +61,7 @@ function createHourlyFamily(contributor) {
       components: [{ kind: 'base', hours: answer.billedUnits, unitPrice: answer.unitPrice }],
       allowanceUsed: Math.max(0, Math.round((answer.quantity - answer.billedUnits) * 60)),
       amounts: [{
-        amountCents: toCents(answer.totalPrice), vatClass: config.vatClass, customerContext: 'hosted', source: { kind: 'line', ref: request.ref }, docKey: request.ref,
+        amountCents: toCents(answer.totalPrice), vatClass: config.vatClass, customerContext: request.customerContext === 'external' ? 'external' : 'hosted', source: { kind: 'line', ref: request.ref }, docKey: request.ref,
       }],
       extra: answer.extra || {},
     };

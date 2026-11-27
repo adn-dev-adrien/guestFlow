@@ -273,6 +273,13 @@ function createContext(id, {
       if (record.resourceCatalogueLines) throw new Error(`${prefix} resourceCatalogueLines is already declared`);
       record.resourceCatalogueLines = build;
     },
+    // (body, stored) → [{ field, message }] — the checks of the resource fields the plugin owns, run by the core's resource save while the plugin is live
+    // (week-weekend-and-print spec rule 28, SDK 2.38.0). Synchronous; a plugin declares one.
+    resourceValidator(validate) {
+      if (typeof validate !== 'function') throw new Error(`${prefix} resourceValidator needs a function`);
+      if (record.resourceValidator) throw new Error(`${prefix} resourceValidator is already declared`);
+      record.resourceValidator = validate;
+    },
     // The invoice issuer (specs/resources/resource-booking-pricing-and-invoicing.md rule 14): numbers and keeps the invoices a
     // plugin asks for, and joins their PDF to a bank transaction. One per instance, like the payment provider.
     invoiceIssuer(issuer) {

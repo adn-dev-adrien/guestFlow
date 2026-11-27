@@ -28,8 +28,8 @@ const { eachDate } = require('./schedulingModel');
 const {
   buildDays, validateBlock, toAbsMinutes, MINUTES_PER_DAY,
 } = require('./availability');
-const { toMinutes } = require('./hourlyPricing');
-const { quoteSession, sessionModesOf, isBanded } = require('./sessionQuote');
+const { toMinutes, periodOf } = require('./hourlyPricing');
+const { sessionModesOf, isBanded } = require('./sessionQuote');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
 const { bookedNotice } = require('./sessionNotices');
@@ -42,6 +42,7 @@ const CHANNELS = Object.freeze({ 'mon-bain': 'Mon bain', site: 'site', 'guest-ap
 const ANNOUNCED_CHANNELS = Object.freeze(['site', 'mon-bain']);
 const DEFAULT_MAX_PEOPLE = 20;
 const SLOT_TAKEN = 'Ce créneau n’est plus libre.';
+const LINE_FIELDS = Object.freeze(['label', 'detail', 'quantity', 'unitCents', 'totalCents', 'catalogueCents', 'offered', 'vatClass', 'components', 'fulfilmentRef']);
 
 const refuse = (code, message) => ({ ok: false, code, message });
 const timeOf = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
@@ -123,34 +124,85 @@ function createOutsideOffer({
     };
   }
 
+  // The engine's price of one session of the resource, for the outside customer (week-weekend-and-print spec rule 30): the standalone sale's
+  // quote asks the hourly family, with the date (or the period of a dateless session). The answer is the fulfilled line the sale takes.
+  function priceSession(resource, session) {
+    const answer = standaloneSale().quote({ lines: [{ articleRef: `resource:${resource.id}`, session }] });
+    if (answer.status !== 200) return refuse('PRICE_UNAVAILABLE', answer.body && answer.body.error ? answer.body.error : 'Prix indisponible.');
+    if (answer.refusals.length) return refuse(answer.refusals[0].code, answer.refusals[0].message);
+    const line = answer.document.lines[0];
+    if (!line) return refuse('PRICE_UNAVAILABLE', 'Prix indisponible.');
+    return {
+      ok: true,
+      line: { articleRef: line.articleKey, family: 'hourly', ...Object.fromEntries(LINE_FIELDS.filter((field) => line[field] !== undefined).map((field) => [field, line[field]])) },
+    };
+  }
+
+  // Which parts of its price a placed session owes above its reference (rule 15): the evening band, the weekend period, or both.
+  function placedOf(resource, date, line) {
+    const evening = eveningStartOf(resource);
+    const parts = (line.components || []).map((part) => String(part.key || '').split(':')).filter((bits) => bits[0] === 'band');
+    const band = parts.some((bits) => bits[1] === 'evening') ? 'evening' : 'day';
+    const period = parts.some((bits) => periodOf(date, `${bits[2]}:${bits[3]}`, evening === null ? null : timeOf(evening)) === 'weekend') ? 'weekend' : 'week';
+    return { band, period };
+  }
+
+  const SUPPLEMENT_CAUSES = Object.freeze({ evening: 'evening', weekend: 'weekend', eveningWeekend: 'eveningWeekend' });
+
   function quote({
-    resourceId, date, start, coveredBand, coveredMinutes, extraMinutes = 0,
+    resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod = 'week', extraMinutes = 0, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
     if (!ISO_DATE.test(String(date)) || !CLOCK.test(String(start))) return refuse('SLOT_INVALID', 'Créneau invalide.');
-    const config = sdk.coreModule('articles').makeArticle(resource, { kind: 'resource' }).config;
     const covered = Number(coveredMinutes);
     const extra = Number(extraMinutes) || 0;
-    const placed = quoteSession(config, { band: coveredBand, start, minutes: covered });
-    if (placed.refusal) return refuse(placed.refusal.code, placed.refusal.message);
-    const reference = quoteSession(config, { band: coveredBand, minutes: covered });
-    if (reference.refusal) return refuse(reference.refusal.code, reference.refusal.message);
-    const coveredCents = Math.min(reference.line.totalCents, placed.line.totalCents);
+    const period = coveredPeriod === 'weekend' ? 'weekend' : 'week';
+    const placed = priceSession(resource, { band: coveredBand, start, minutes: covered, date });
+    if (placed.code) return placed;
+    const reference = priceSession(resource, { band: coveredBand, minutes: covered, period });
+    if (reference.code) return reference;
+    const referenceCents = reference.line.totalCents;
+    const coveredCents = Math.min(referenceCents, placed.line.totalCents);
+    const supplementCents = placed.line.totalCents - coveredCents;
+    const slot = placedOf(resource, date, placed.line);
+    const bandMoved = slot.band !== coveredBand;
+    const periodMoved = slot.period === 'weekend' && period === 'week';
     const result = {
       ok: true,
       endTime: timeOf(toMinutes(start) + covered + extra),
       session: {
-        line: placed.line, totalCents: placed.line.totalCents, coveredCents, supplementCents: placed.line.totalCents - coveredCents,
+        line: placed.line,
+        totalCents: placed.line.totalCents,
+        coveredCents,
+        supplementCents,
+        leftoverCents: Math.max(0, referenceCents - placed.line.totalCents),
+        supplementCause: supplementCents > 0 ? (bandMoved && periodMoved ? SUPPLEMENT_CAUSES.eveningWeekend : (periodMoved ? SUPPLEMENT_CAUSES.weekend : SUPPLEMENT_CAUSES.evening)) : null,
+        slot,
       },
+      twoHours: null,
       extra: null,
     };
+    // Rule 17 — a covered evening-weekend session on a day-week slot: the session is doubled when the doubled block is free and ends by closing time.
+    if (coveredBand === 'evening' && period === 'weekend' && slot.band === 'day' && slot.period === 'week') {
+      const endsAt = toMinutes(start) + 2 * covered;
+      const clock = clockOf(at);
+      const taken = occupancy.listForStay({ resourceId: resource.id, startDate: date, endDate: date });
+      const verdict = endsAt <= toMinutes(resource.closeTime || '23:59')
+        ? validateBlock({
+          resource, block: { date, start, end: timeOf(endsAt) }, occupancy: taken, ...boundsOf(resource, clock),
+        })
+        : { ok: false };
+      result.twoHours = { free: Boolean(verdict.ok), minutes: covered, endTime: timeOf(endsAt) };
+    }
     if (extra > 0) {
-      const added = quoteSession(config, {
-        band: coveredBand, start, minutes: extra, rankOffsetMinutes: covered,
+      const offered = result.twoHours && result.twoHours.free ? covered : 0;
+      const added = priceSession(resource, {
+        band: coveredBand, start, minutes: extra, rankOffsetMinutes: covered + offered, date,
       });
-      if (added.refusal) return refuse(added.refusal.code, added.refusal.message);
+      if (added.code) return added;
       result.extra = { line: added.line, totalCents: added.line.totalCents };
+      result.endTime = timeOf(toMinutes(start) + covered + offered + extra);
     }
     return result;
   }

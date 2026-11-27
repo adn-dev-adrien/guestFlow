@@ -47,6 +47,8 @@ function emptyRecord(id) {
     sasCommits: [],
     // specs/options-resources-ux.md rule 19 (SDK 2.8.0) — (resource, { properties }) → { lines?, footer? } | null.
     resourceCatalogueLines: null,
+    // week-weekend-and-print spec rule 28 (SDK 2.38.0) — (body, stored) → [{ field, message }], the checks of the plugin's own resource fields.
+    resourceValidator: null,
     // specs/shell-and-home-day-first.md rule 9 — subjects of the home's « À traiter ».
     attention: [],
     // specs/plugins-phase-0-foundation.md rule 25 — () → null | what the plugin still lacks.

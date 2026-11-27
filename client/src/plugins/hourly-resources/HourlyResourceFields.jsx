@@ -1,7 +1,7 @@
 // The hourly block of the resource form (specs/plugins-phase-3c-hourly-resources.md rule 21), drawn
 // under the base fields through the `resources.fields` slot, for a resource sold by the hour: the
-// slots, the opening, the heat-up, the planning card and its first-hour and following-hours rates
-// (specs/hourly-extra-hour-rates.md rule 1), per audience and band.
+// slots, the opening, the heat-up and the planning card with its evening switch. The prices left it for the « Prix » section
+// (`HourlyPriceGrids`, specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 1).
 import React from 'react';
 import {
   Box, Typography, FormControlLabel, Switch, FormControl, InputLabel, Select, MenuItem,
@@ -27,60 +27,12 @@ const DAY_OPTIONS = [
   { value: 0, label: 'Dim' },
 ];
 
-const euros = (value) => `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`;
-
-/**
- * One audience's rates (specs/hourly-extra-hour-rates.md §6): rows « Journée » / « Soirée », columns « 1re heure » / « Heures suivantes ».
- * `rows`: [{ key, name (the accessible name of the row), label, first: { value, onChange, readOnly?, helper? }, next: { field, helper? } }]; an empty following-hours field shows the
- * first-hour value as its placeholder. The server's refusal sentence is drawn under the field.
- */
-function RatesBlock({ title, rows, draft, onChange, errors }) {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{title}</Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '64px 1fr 1fr', sm: '150px 1fr 1fr' }, columnGap: 1.5, rowGap: 1.5, alignItems: 'start' }}>
-        <span />
-        <Typography variant="caption" color="text.secondary">1re heure</Typography>
-        <Typography variant="caption" color="text.secondary">Heures suivantes</Typography>
-        {rows.map((row) => {
-          const firstValue = Number(row.first.value) || 0;
-          const error = errors[row.next.field];
-          return (
-            <React.Fragment key={row.key}>
-              <Typography variant="body2" sx={{ pt: 1 }}>{row.label}</Typography>
-              <TextField
-                type="number"
-                size="small"
-                value={row.first.value ?? 0}
-                onChange={row.first.onChange}
-                disabled={row.first.readOnly}
-                helperText={row.first.helper}
-                slotProps={{ htmlInput: { min: 0, step: '0.5', 'aria-label': `${title} · ${row.name} · 1re heure` } }}
-              />
-              <TextField
-                size="small"
-                value={draft[row.next.field] ?? ''}
-                onChange={(e) => onChange({ [row.next.field]: e.target.value })}
-                placeholder={firstValue > 0 ? `= ${euros(firstValue)}` : '= 1re heure'}
-                error={Boolean(error)}
-                helperText={error || undefined}
-                slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `${title} · ${row.name} · heures suivantes` } }}
-              />
-            </React.Fragment>
-          );
-        })}
-      </Box>
-    </Box>
-  );
-}
-
 export default function HourlyResourceFields({ draft, onChange, errors = {} }) {
   const openDays = Array.isArray(draft.openDays) ? draft.openDays : [0, 1, 2, 3, 4, 5, 6];
   const toggleDay = (dayNum) => onChange({
     openDays: openDays.includes(dayNum) ? openDays.filter((d) => d !== dayNum) : [...openDays, dayNum],
   });
   const minutes = (value) => Math.max(0, Number(value) || 0);
-  const rate = (value) => Math.max(0, Number(value) || 0);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
@@ -190,7 +142,7 @@ export default function HourlyResourceFields({ draft, onChange, errors = {} }) {
           </Box>
 
           {/* Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1): the
-              planning card + the day/evening + external grid. */}
+              planning card + the evening switch the price grids are banded by. */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px dashed', borderColor: 'divider', pt: 1.5 }}>
             <FormControlLabel
               control={<Switch checked={Boolean(draft.showsPlanningCard)} onChange={(e) => onChange({ showsPlanningCard: e.target.checked })} />}
@@ -206,50 +158,6 @@ export default function HourlyResourceFields({ draft, onChange, errors = {} }) {
                   onChange={(e) => onChange({ hourlyEveningStart: e.target.value })}
                   sx={{ maxWidth: { sm: 240 } }}
                   slotProps={{ inputLabel: { shrink: true } }}
-                />
-                <RatesBlock
-                  title="Clients hébergés"
-                  draft={draft}
-                  onChange={onChange}
-                  errors={errors}
-                  rows={[
-                    {
-                      key: 'day',
-                      name: 'Journée',
-                      label: 'Journée',
-                      first: { value: draft.price || 0, readOnly: true, helper: 'Prix général' },
-                      next: { field: 'hourlyNextDayRate' },
-                    },
-                    {
-                      key: 'evening',
-                      name: 'Soirée',
-                      label: draft.hourlyEveningStart ? `Soirée (dès ${draft.hourlyEveningStart})` : 'Soirée',
-                      first: { value: draft.hourlyEveningRate ?? 0, onChange: (e) => onChange({ hourlyEveningRate: rate(e.target.value) }) },
-                      next: { field: 'hourlyNextEveningRate' },
-                    },
-                  ]}
-                />
-                <RatesBlock
-                  title="Clients extérieurs"
-                  draft={draft}
-                  onChange={onChange}
-                  errors={errors}
-                  rows={[
-                    {
-                      key: 'day',
-                      name: 'Journée',
-                      label: 'Journée',
-                      first: { value: draft.hourlyExternalDayRate ?? 0, onChange: (e) => onChange({ hourlyExternalDayRate: rate(e.target.value) }), helper: 'Vide / 0 = tarif hébergés' },
-                      next: { field: 'hourlyExternalNextDayRate' },
-                    },
-                    {
-                      key: 'evening',
-                      name: 'Soirée',
-                      label: draft.hourlyEveningStart ? `Soirée (dès ${draft.hourlyEveningStart})` : 'Soirée',
-                      first: { value: draft.hourlyExternalEveningRate ?? 0, onChange: (e) => onChange({ hourlyExternalEveningRate: rate(e.target.value) }), helper: 'Vide / 0 = tarif hébergés' },
-                      next: { field: 'hourlyExternalNextEveningRate' },
-                    },
-                  ]}
                 />
               </Box>
             )}

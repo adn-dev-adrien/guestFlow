@@ -79,6 +79,7 @@ const HOURLY_COLUMN_RESETS = [
   ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
   ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['hourlyDegressiveTiers', "'[]'"],
   ['hourlyNextDayRate', 'NULL'], ['hourlyNextEveningRate', 'NULL'], ['hourlyExternalNextDayRate', 'NULL'], ['hourlyExternalNextEveningRate', 'NULL'], ['heatUpMinutes', '0'],
+  ['hourlyExternalWeekendDayRate', 'NULL'], ['hourlyExternalWeekendEveningRate', 'NULL'], ['hourlyExternalWeekendNextDayRate', 'NULL'], ['hourlyExternalWeekendNextEveningRate', 'NULL'],
   ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'], ['bookingHorizonMonths', '3'],
 ];
 
@@ -263,6 +264,46 @@ function nextHourRates(db) {
   }
 }
 
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 4 — every price of an hourly resource explicit, so nothing changes on the day of the update: each empty
+// following-hours rate takes its first-hour rate, each outside first-hour rate at 0 takes the guests' rate it used to fall back to, the weekend grid copies the week
+// grid, and a per-lodging price (withdrawn for an hourly resource) is dropped — the log names the lodging and the price.
+const WEEKEND_COLUMNS = ['hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate'];
+
+function explicitHourlyRates(db) {
+  if (!hasTable(db, 'resources') || !hasColumn(db, 'resources', 'priceType') || !hasColumn(db, 'resources', 'showsPlanningCard')) return;
+  [...NEXT_RATE_COLUMNS, ...WEEKEND_COLUMNS].forEach((column) => {
+    if (!hasColumn(db, 'resources', column)) db.exec(`ALTER TABLE resources ADD COLUMN ${column} REAL`);
+  });
+  const rows = db.prepare("SELECT * FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1").all();
+  const write = db.prepare(`UPDATE resources SET hourlyExternalDayRate = @xd, hourlyExternalEveningRate = @xe, hourlyNextDayRate = @nd, hourlyNextEveningRate = @ne,
+    hourlyExternalNextDayRate = @xnd, hourlyExternalNextEveningRate = @xne, hourlyExternalWeekendDayRate = @xd, hourlyExternalWeekendEveningRate = @xe,
+    hourlyExternalWeekendNextDayRate = @xnd, hourlyExternalWeekendNextEveningRate = @xne WHERE id = @id`);
+  const present = (value) => value !== null && value !== undefined && value !== '';
+  rows.forEach((row) => {
+    const day = Number(row.price) || 0;
+    const evening = Number(row.hourlyEveningRate) || 0;
+    const guestEvening = evening > 0 ? evening : day;
+    const xd = Number(row.hourlyExternalDayRate) > 0 ? Number(row.hourlyExternalDayRate) : day;
+    const xe = Number(row.hourlyExternalEveningRate) > 0 ? Number(row.hourlyExternalEveningRate) : (evening > 0 ? evening : xd);
+    write.run({
+      id: row.id,
+      xd,
+      xe,
+      nd: present(row.hourlyNextDayRate) ? Number(row.hourlyNextDayRate) : day,
+      ne: present(row.hourlyNextEveningRate) ? Number(row.hourlyNextEveningRate) : guestEvening,
+      xnd: present(row.hourlyExternalNextDayRate) ? Number(row.hourlyExternalNextDayRate) : xd,
+      xne: present(row.hourlyExternalNextEveningRate) ? Number(row.hourlyExternalNextEveningRate) : xe,
+    });
+  });
+  if (!hasTable(db, 'property_resource_prices') || !hasTable(db, 'properties')) return;
+  const dropped = db.prepare(`SELECT prp.propertyId, prp.resourceId, prp.price, p.name AS propertyName, r.name AS resourceName FROM property_resource_prices prp
+    JOIN resources r ON r.id = prp.resourceId JOIN properties p ON p.id = prp.propertyId WHERE r.priceType = 'per_hour' AND prp.price IS NOT NULL`).all();
+  dropped.forEach((line) => {
+    console.log(`[hourly-resources] lodging "${line.propertyName}" (#${line.propertyId}): its price ${line.price} € on "${line.resourceName}" (#${line.resourceId}) is dropped — the resource's own grid applies.`);
+  });
+  db.exec("UPDATE property_resource_prices SET price = NULL WHERE price IS NOT NULL AND resourceId IN (SELECT id FROM resources WHERE priceType = 'per_hour')");
+}
+
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
 // specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
 function keepBookingIdsCited(db) {
@@ -285,9 +326,10 @@ function migrationsFor(rateOf) {
     { name: 'next_hour_rates_v10', up: nextHourRates },
     { name: 'resource_bookings_people_v11', up: bookingsV7 },
     { name: 'resource_session_orders_v12', up: createSessionOrdersTable },
+    { name: 'explicit_hourly_rates_v13', up: explicitHourlyRates },
   ];
 }
 
 module.exports = {
-  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, bookingsV7, createTables, hasColumn, nextHourRates, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, bookingsV7, createTables, hasColumn, nextHourRates, explicitHourlyRates, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

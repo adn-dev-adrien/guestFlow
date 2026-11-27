@@ -10,7 +10,7 @@
  *
  * Props: open, resourceId (null = new), properties, onClose, onSaved({ id, isNew })
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box, Checkbox, FormControl, FormControlLabel, FormHelperText, InputLabel, MenuItem, Select, TextField, Typography,
 } from '@mui/material';
@@ -28,16 +28,18 @@ import { usePlugin } from '../../hooks/usePlugins';
 import { HOURLY_RESOURCES } from '../../constants/plugins';
 import { RESOURCE_PRICE_TYPES, TEXTS, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
 import { Contribution } from '../../plugins/sdk/Slot';
+import { useSlot } from '../../plugins/sdk';
 import usePluginFields from './usePluginFields';
 import {
-  emptyResource, formFromResource, NEXT_RATE_FIELDS, toResourcePayload, validateResourceForm, withScope,
+  emptyResourceFor, formFromResource, toResourcePayload, validateResourceForm, withScope,
 } from './resourceForm';
 import { isBlank } from './optionForm';
 import { EXTERNAL_FIELDS } from './externalSaleForm';
 
-const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate', ...NEXT_RATE_FIELDS.map(([field]) => field), 'bookingHorizonMonths'];
+const HOURLY_FIELDS = ['closeTime', 'bookingHorizonMonths'];
 const SECTION_OF = { name: 'general', quantity: 'general', price: 'prices' };
-const sectionOf = (field) => SECTION_OF[field] || (EXTERNAL_FIELDS.includes(field) || field === 'sessionMaxPeople' ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices'));
+// The fields a plugin's price grids own are pinned to « Prix » (`ownedFields`); the rest by the core's own map.
+const sectionOf = (field, ownedFields = []) => SECTION_OF[field] || (ownedFields.includes(field) ? 'prices' : (EXTERNAL_FIELDS.includes(field) || field === 'sessionMaxPeople' ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices')));
 
 function PropertyPriceLines({ form, setForm, properties, errors }) {
   const hourly = form.priceType === 'per_hour';
@@ -46,14 +48,14 @@ function PropertyPriceLines({ form, setForm, properties, errors }) {
   const update = (pid, patch) => {
     const next = { ...(form.propertyPricing || {}), [String(pid)]: { ...lineOf(pid), ...patch } };
     const line = next[String(pid)];
-    if (isBlank(line.price) && !Number(line.freeMinutes)) delete next[String(pid)];
+    if ((hourly || isBlank(line.price)) && !Number(line.freeMinutes)) delete next[String(pid)];
     setForm({ ...form, propertyPricing: next });
   };
   if (scope.length === 0) return null;
   return (
     <Box sx={{ mt: 2 }}>
-      <Typography variant="body2" fontWeight={600}>Prix par logement</Typography>
-      <FormHelperText sx={{ mt: 0, mb: 1 }}>Vide : prix de base.</FormHelperText>
+      <Typography variant="body2" fontWeight={600}>{hourly ? 'Heure offerte par logement' : 'Prix par logement'}</Typography>
+      {!hourly && <FormHelperText sx={{ mt: 0, mb: 1 }}>Vide : prix de base.</FormHelperText>}
       {scope.map((p) => {
         const line = lineOf(p.id);
         const error = errors[`propertyPricing.${p.id}`];
@@ -65,16 +67,18 @@ function PropertyPriceLines({ form, setForm, properties, errors }) {
             sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, py: 1, borderTop: '1px solid', borderColor: 'divider' }}
           >
             <Typography variant="body2" fontWeight={600} sx={{ flex: '1 1 120px', minWidth: 0, overflowWrap: 'anywhere' }}>{p.name}</Typography>
-            <TextField
-              size="small"
-              value={line.price}
-              placeholder={isBlank(form.price) ? '' : String(form.price)}
-              onChange={(e) => update(p.id, { price: e.target.value })}
-              error={Boolean(error)}
-              helperText={error || undefined}
-              sx={{ width: 130, '& input': { fontSize: 16, textAlign: 'right' } }}
-              slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `Prix · ${p.name}` } }}
-            />
+            {!hourly && (
+              <TextField
+                size="small"
+                value={line.price}
+                placeholder={isBlank(form.price) ? '' : String(form.price)}
+                onChange={(e) => update(p.id, { price: e.target.value })}
+                error={Boolean(error)}
+                helperText={error || undefined}
+                sx={{ width: 130, '& input': { fontSize: 16, textAlign: 'right' } }}
+                slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `Prix · ${p.name}` } }}
+              />
+            )}
             {hourly && (
               <FormControlLabel
                 sx={{ m: 0, minHeight: 44 }}
@@ -97,6 +101,12 @@ function PropertyPriceLines({ form, setForm, properties, errors }) {
 
 export default function ResourceEditorPanel({ open, resourceId, properties, onClose, onSaved }) {
   const hourlyOn = usePlugin(HOURLY_RESOURCES);
+  const priceContributions = useSlot('resources.priceFields');
+  const priceForms = useMemo(() => priceContributions.filter((c) => c.form).map((c) => c.form), [priceContributions]);
+  const ownedFields = useMemo(() => priceForms.flatMap((f) => f.fields || []), [priceForms]);
+  // Read when the resource loads: the contributions do not change while the panel is open, and the load must not restart for them.
+  const priceFormsRef = useRef(priceForms);
+  priceFormsRef.current = priceForms;
   const { showError } = useToast();
   const [form, setFormState] = useState(null);
   const [saved, setSaved] = useState('');
@@ -111,15 +121,16 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     setServerErrors({});
     setLoadError(false);
     if (resourceId == null) {
-      setFormState(emptyResource);
-      setSaved(JSON.stringify(emptyResource));
+      const blank = emptyResourceFor(priceFormsRef.current);
+      setFormState(blank);
+      setSaved(JSON.stringify(blank));
       return undefined;
     }
     setFormState(null);
     api.getResource(resourceId)
       .then((item) => {
         if (cancelled) return;
-        const loaded = formFromResource(item);
+        const loaded = formFromResource(item, priceFormsRef.current);
         setFormState(loaded);
         setSaved(JSON.stringify(loaded));
       })
@@ -131,7 +142,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     setServerErrors({});
     setFormState(typeof next === 'function' ? next(form) : next);
   };
-  const clientErrors = useMemo(() => (form ? validateResourceForm(form) : {}), [form]);
+  const clientErrors = useMemo(() => (form ? validateResourceForm(form, priceForms) : {}), [form, priceForms]);
   const vatClasses = useExternalVatRates(open);
   const sellability = useOutsideSellability(open && Boolean(form), 'resource', { ...(form || {}), id: resourceId });
   const plugins = usePluginFields('resources.fields', form);
@@ -144,7 +155,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     if (!form || errorFields.length > 0) return false;
     setSaving(true);
     try {
-      const payload = toResourcePayload(form);
+      const payload = toResourcePayload(form, priceForms);
       if (resourceId == null) {
         const created = await api.createResource(payload);
         onSaved({ id: created.id, isNew: true });
@@ -172,8 +183,9 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
   const hourly = Boolean(form) && form.priceType === 'per_hour';
   const contributions = plugins.inline;
   const priceTypes = hourlyOn ? RESOURCE_PRICE_TYPES : RESOURCE_PRICE_TYPES.filter((t) => t.value !== 'per_hour');
-  const hasError = (section) => errorFields.some((field) => sectionOf(field) === section);
-  const hourErrors = HOURLY_FIELDS.filter((field) => errors[field] && !NEXT_RATE_FIELDS.some(([next]) => next === field));
+  const hasError = (section) => errorFields.some((field) => sectionOf(field, ownedFields) === section);
+  const hourErrors = HOURLY_FIELDS.filter((field) => errors[field]);
+  const priceGrids = form ? priceContributions.filter((c) => !c.appliesTo || c.appliesTo(form)) : [];
 
   const sections = form ? [
     { id: 'general', label: 'Général', hasError: hasError('general') },
@@ -242,7 +254,12 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
                 {priceTypes.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
               </Select>
             </FormControl>
-            {form.priceType !== 'free' && (
+            {priceGrids.map(({ key, pluginId, Component }) => (
+              <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
+                <Component draft={form} onChange={(patch) => setForm({ ...form, ...patch })} errors={errors} />
+              </Contribution>
+            ))}
+            {form.priceType !== 'free' && priceGrids.length === 0 && (
               <TextField
                 label="Prix de base"
                 value={form.price}

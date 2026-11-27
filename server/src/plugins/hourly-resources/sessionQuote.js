@@ -5,15 +5,17 @@
  * `priceBookingLines`: the external rate of the band, the rate of the following hours after the first one (specs/resources/hourly-extra-hour-rates.md), whole slots. `rankOffsetMinutes` is the
  * time already covered before this slice: the ranks continue from it.
  *
- *   sessionModesOf(resource)           → [{ key, band, label, rateCents, from, to, lengthMinutes, followingRateCents, followingText, slotMinutes, minimumMinutes, sellable, reason? }]
+ *   sessionModesOf(resource, { period?, date? }) → [{ key, band, label, rateCents, from, to, lengthMinutes, followingRateCents, followingText, slotMinutes, minimumMinutes, sellable, reason? }]
  *   quoteSession(config, session)      → { line } (the shape of a fulfilled line of the core's sale document) | { refusal: { code, message } }
  *
  * Pure: no DB, no clock. A refusal is a French sentence that names the resource and the value.
  */
 
 const sdk = require('../sdk');
-const { priceSessions, toMinutes, normalizeConfig } = require('./hourlyPricing');
-const { rateGridOf, bandLineOf, duration } = require('./bookingPricing');
+const {
+  priceSessions, toMinutes, normalizeConfig, periodOf,
+} = require('./hourlyPricing');
+const { rateGridOf, rateConfigOf, bandLineOf, duration } = require('./bookingPricing');
 
 const { toCentsOrZero: toCents } = sdk.coreModule('money');
 
@@ -22,6 +24,7 @@ const BANDS = Object.freeze({
   evening: { label: 'Extérieur · soirée', word: 'la soirée' },
 });
 const PLACEHOLDER_DATE = '2000-01-01';
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** « 40 € », « 37,50 € ». */
@@ -32,19 +35,28 @@ const formatTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, 
 /** Whether the resource is the banded kind a session can be quoted on: an hourly resource shown on the planning. */
 const isBanded = (resource) => resource && resource.priceType === 'per_hour' && Number(resource.showsPlanningCard || 0) === 1;
 
-function sessionModesOf(resource) {
+/**
+ * The bands an outside customer may buy, at the rates of one period (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 6, 8): `period` for a quote with no
+ * date, or `date` — each band then takes the period its own start falls in (a Friday day band is week, its evening band weekend).
+ */
+function sessionModesOf(resource, { period = 'week', date = null } = {}) {
   if (!isBanded(resource)) return [];
-  const grid = rateGridOf(resource, { external: true });
   const open = toMinutes(resource.openTime || '00:00');
   const close = toMinutes(resource.closeTime || '23:59');
   const eveningStart = resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null;
   const hasEvening = eveningStart !== null && eveningStart > open && eveningStart < close;
-  const norm = normalizeConfig({ ...grid, eveningStart: hasEvening ? resource.hourlyEveningStart : null, slotMinutes: resource.slotDuration });
-  const slotMinutes = norm.slotMinutes;
+  const periodAt = (minutes) => (date ? periodOf(date, minutes, resource.hourlyEveningStart || null) : period);
+  const gridOf = (minutes) => rateGridOf(resource, { external: true, period: periodAt(minutes) });
+  const normOf = (minutes) => normalizeConfig({
+    ...gridOf(minutes), eveningStart: hasEvening ? resource.hourlyEveningStart : null, slotMinutes: resource.slotDuration,
+  });
+  const slotMinutes = normOf(open).slotMinutes;
   const minimumMinutes = Math.max(slotMinutes, Number(resource.minimumUsageMinutes) || 0);
   const windows = [
-    { band: 'day', from: open, to: hasEvening ? eveningStart : close, rate: grid.dayRate, next: norm.dayNextRate },
-    ...(hasEvening ? [{ band: 'evening', from: eveningStart, to: close, rate: grid.eveningRate, next: norm.eveningNextRate }] : []),
+    { band: 'day', from: open, to: hasEvening ? eveningStart : close, rate: normOf(open).dayRate, next: normOf(open).dayNextRate },
+    ...(hasEvening ? [{
+      band: 'evening', from: eveningStart, to: close, rate: normOf(eveningStart).eveningRate, next: normOf(eveningStart).eveningNextRate,
+    }] : []),
   ];
   return windows.map(({ band, from, to, rate, next }) => {
     const rateCents = toCents(rate);
@@ -73,7 +85,9 @@ function quoteSession(config, session) {
   const resource = config.resource || {};
   const name = config.label || resource.name || 'Ressource';
   if (!session || typeof session !== 'object') return refuse('SESSION_INVALID', `« ${name} » : séance à préciser (tranche et durée).`);
-  const modes = sessionModesOf(resource);
+  const date = ISO_DATE.test(String(session.date || '')) ? session.date : null;
+  const period = session.period === 'weekend' ? 'weekend' : 'week';
+  const modes = sessionModesOf(resource, { period, date });
   if (!modes.length) return refuse('SESSION_UNAVAILABLE', `« ${name} » ne se réserve pas par tranche horaire.`);
   const placed = session.start !== undefined && session.start !== null;
   if (placed && !CLOCK_TIME.test(String(session.start))) return refuse('SESSION_START_INVALID', `« ${name} » : heure de début invalide.`);
@@ -102,8 +116,8 @@ function quoteSession(config, session) {
     return refuse('SESSION_OUT_OF_BAND', `« ${name} » : ${duration(offset + minutes)} ne tiennent pas dans ${BANDS[session.band].word} (${mode.from}–${mode.to}).`);
   }
   const start = (placed ? toMinutes(session.start) : toMinutes(mode.from)) + offset;
-  const priced = priceSessions([{ date: PLACEHOLDER_DATE, start: formatTime(start), end: formatTime(start + minutes) }], {
-    ...rateGridOf(resource, { external: true }),
+  const priced = priceSessions([{ date: date || PLACEHOLDER_DATE, start: formatTime(start), end: formatTime(start + minutes) }], {
+    ...rateConfigOf(resource, { external: true, period: date ? null : period }),
     eveningStart: resource.hourlyEveningStart,
     slotMinutes: mode.slotMinutes,
     rankOffsetMinutes: offset,
@@ -124,6 +138,8 @@ function quoteSession(config, session) {
       totalCents,
       catalogueCents: totalCents,
       offered: false,
+      customerContext: 'external',
+      period: date ? periodOf(date, start, resource.hourlyEveningStart || null) : period,
       vatClass: config.vatClass,
       components: parts,
       fulfilmentRef: `session:resource:${Number(config.id)}:${session.band}:${offset}`,
