@@ -76,6 +76,7 @@ export default function SettingsCompanySection({
               disabled={disabled}
               accept="image/png,image/jpeg"
               placeholder="Aucun logo sombre"
+              previewBg="grey.900"
               helperText="Facultatif. Utilisé en mode sombre, avec le logo principal ; sans lui, le logo principal s’affiche sur une pastille blanche. PNG ou JPEG, 2 Mo maximum."
             />
           </Box>

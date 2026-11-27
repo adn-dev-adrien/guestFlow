@@ -113,7 +113,7 @@ layout (card, light only) until the operator sets colours. No data loss.
 
 ## 6. UI / UX
 See the interactive summary. Phone: the card fills the width minus 12 px, padding 20 px, logo 56 px high.
-Settings fields stack on xs.
+Settings fields stack on xs. In Établissement, the night logo preview sits on a dark tile (`LogoUpload` `previewBg`, `grey.900`) so a light logo stays visible (2026-11-27, UI check).
 
 ## 7. Test plan
 - Server unit (`tests/guest-email-branding.unit.test.js`, 23 tests): letter layout; logo present → `cid:` + attachment; absent or
