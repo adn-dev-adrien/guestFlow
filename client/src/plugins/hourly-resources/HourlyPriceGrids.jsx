@@ -42,7 +42,7 @@ function Block({ title = null, ariaTitle = title, rows, draft, onChange, errors 
   return (
     <Box role="group" aria-label={ariaTitle} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       {title ? <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{title}</Typography> : null}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '140px 1fr 1fr' }, columnGap: 1.5, rowGap: { xs: 1, sm: 1.5 }, alignItems: 'start' }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'max-content 1fr 1fr' }, columnGap: 1.5, rowGap: { xs: 1, sm: 1.5 }, alignItems: 'start' }}>
         <Box component="span" sx={{ display: { xs: 'none', sm: 'block' } }} />
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>1re heure</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>Heures suivantes</Typography>
@@ -75,7 +75,7 @@ export default function HourlyPriceGrids({
     ...(evening ? [{ name: 'Soirée', label: eveningLabel, ...evenings }] : []),
   ];
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography variant="subtitle2" component="h3">Clients logés</Typography>
         <Block

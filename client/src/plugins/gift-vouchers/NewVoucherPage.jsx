@@ -166,7 +166,7 @@ export default function NewVoucherPage() {
       {bar}
       {/* A stepper at its bound, an answer swapping the recap, « Réessayer » gone: the focus stays in the page (specs/plugins/plugins-phase-1-sdk.md rule 58, I4). */}
       <FocusKeeper>
-        <Stack spacing={2.5} sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 760 }}>
+        <Stack spacing={2} sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 760 }}>
           <FormSection title={T.steps.offer}>
             <Stack spacing={1} role="group" aria-label={T.steps.offer}>
               {offer.campaigns.map((c) => (
@@ -191,14 +191,14 @@ export default function NewVoucherPage() {
 
             {campaign && campaign.kind === 'resource' ? (
               <Stack spacing={2}>
-                <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                <Box component="ul" sx={{ m: 0, pl: 3 }}>
                   {contentsShown.map((line, i) => (
                     <li key={i}><Typography variant="body2">{[line.qty > 1 ? `${line.qty} × ${line.label}` : line.label, line.detail].filter(Boolean).join(' — ')}</Typography></li>
                   ))}
                 </Box>
                 {campaignPeriods.length > 1 ? (
                   <TextField
-                    select label={T.period} value={period} onChange={(e) => { setPeriod(e.target.value); clear('period'); }} size="small" required sx={{ maxWidth: 320 }}
+                    select label={T.period} value={period} onChange={(e) => { setPeriod(e.target.value); clear('period'); }} size="small" required
                     error={Boolean(fieldError('period'))} helperText={fieldError('period')}
                   >
                     {campaignPeriods.map((p) => <MenuItem key={p.period} value={p.period}>{`${p.label.charAt(0).toUpperCase()}${p.label.slice(1)} · ${formatCents(p.priceCents)}`}</MenuItem>)}
@@ -224,7 +224,7 @@ export default function NewVoucherPage() {
                 <TextField
                   label={T.amount} value={amount} onChange={(e) => { setAmount(e.target.value); clear('amount'); }} size="small" fullWidth required
                   error={Boolean(fieldError('amount'))} helperText={fieldError('amount') || T.amountRange(formatCents(campaign.minAmountCents), formatCents(campaign.maxAmountCents))}
-                  slotProps={{ htmlInput: { inputMode: 'decimal' } }} sx={{ maxWidth: 280 }}
+                  slotProps={{ htmlInput: { inputMode: 'decimal' } }}
                 />
                 {(campaign.ideas || []).length ? (
                   <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: 'wrap' }} aria-label={T.ideas}>
@@ -273,9 +273,9 @@ export default function NewVoucherPage() {
             ) : null}
 
             {campaign ? (
-              <Box sx={{ maxWidth: 280 }}>
+              <>
                 <ValidityField label={T.validity} value={validityMonths || String(campaign.validityMonths)} onChange={(months) => { setValidityMonths(months); setValidityDismissed(true); setRefusals((list) => list.filter((e) => e.field !== 'validityMonths')); clear('validityMonths'); }} error={fieldError('validityMonths') || validityRefusal} />
-              </Box>
+              </>
             ) : null}
 
             <FocusKeeper aria-live="polite" data-testid="recap">

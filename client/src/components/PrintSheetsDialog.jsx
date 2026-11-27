@@ -30,7 +30,7 @@ function SheetPreview({ page }) {
         data-testid="sheet-preview"
         aria-label={page.caption || T.sheet(page.number)}
         role="img"
-        sx={{ position: 'relative', width: '100%', aspectRatio: `${widthMm} / ${heightMm}`, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 0.5, boxShadow: 1 }}
+        sx={{ position: 'relative', width: '100%', aspectRatio: `${widthMm} / ${heightMm}`, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1, boxShadow: 1 }}
       >
         {page.cells.map((cell) => (
           <Box
@@ -150,7 +150,7 @@ export default function PrintSheetsDialog({
 
   return (
     <FormDialog open={open} onClose={onClose} title={title} submitLabel={T.submit} onSubmit={print} submitBusy={busy} submitDisabled={Boolean(errors.count || errors.perSheet || errors.flip || errors.mode)} maxWidth="md" sheet>
-      <Stack spacing={2.5} sx={{ pt: 1 }}>
+      <Stack spacing={2} sx={{ pt: 1 }}>
         <FormControl error={Boolean(errors.mode)}>
           <FormLabel id="print-mode">{T.mode}</FormLabel>
           <RadioGroup aria-labelledby="print-mode" value={mode} onChange={(e) => chooseMode(e.target.value)} sx={{ flexDirection: { xs: 'column', sm: 'row' } }}>
