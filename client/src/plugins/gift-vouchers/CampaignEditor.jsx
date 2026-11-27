@@ -355,7 +355,7 @@ export default function CampaignEditor() {
               </Button>
             </Box>
             <Typography variant="body2" color="text.secondary">{T.merchantCardNote}</Typography>
-            <Typography variant="body2" color="text.secondary">{T.priceOfTheDay}</Typography>
+            {draft.frontPricePosition !== 'none' ? <Typography variant="body2" color="text.secondary">{T.priceOfTheDay}</Typography> : null}
             {downloadError ? <Typography variant="body2" color="error" role="alert">{downloadError}</Typography> : null}
           </FormSection>
         </Stack>
@@ -365,7 +365,7 @@ export default function CampaignEditor() {
             open={printing}
             onClose={() => setPrinting(false)}
             title={T.printTitle}
-            note={T.priceOfTheDay}
+            note={draft.frontPricePosition !== 'none' ? T.priceOfTheDay : null}
             fetchLayout={(options) => giftVouchersApi.campaignPrintLayout(campaign.id, options)}
             onPrint={async (options) => { await giftVouchersApi.downloadCampaignPrint(campaign.id, campaign.slug, options); load(); }}
           />

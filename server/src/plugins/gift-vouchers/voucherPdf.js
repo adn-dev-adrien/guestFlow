@@ -462,7 +462,7 @@ function voucherBackSpec({
     small: [
       { text: say(BACK_TEXTS.includes, { lines: contentLines(voucher).join(' · ') }), font: F.regular, lines: BACK_LAYOUT.lines.includes, priority: 2 },
       { text: voucher.message, font: F.italic, color: MUTED, lines: BACK_LAYOUT.lines.message, priority: 1 },
-      { text: say(BACK_TEXTS.validUntil, { date: rules.formatFrDate(voucher.expiresOn) }), font: F.bold, lines: 1, priority: 0 },
+      { text: say(BACK_TEXTS.validUntil, { date: rules.formatLongFrDate(voucher.expiresOn) }), font: F.bold, lines: 1, priority: 0 },
     ],
   };
 }

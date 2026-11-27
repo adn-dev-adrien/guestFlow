@@ -74,7 +74,7 @@ test('rule 2 — the form checks the same sentence before saving: a blank field,
 test('rule 2 — the outside grid is checked only when the resource is sold outside a stay, the evening only with an evening switch', () => {
   expect(validateResourceForm(formOf({ sellableExternally: false, hourlyExternalWeekendDayRate: '' }), FORMS)).toEqual({});
   expect(validateResourceForm(formOf({ hourlyEveningStart: '', hourlyEveningRate: '', hourlyNextEveningRate: '' }), FORMS).hourlyEveningRate).toBeUndefined();
-  expect(validateResourceForm(formOf({ price: '' }), FORMS).price).toBe('Le tarif hébergés (journée, 1re heure) doit être un montant positif.');
+  expect(validateResourceForm(formOf({ price: '' }), FORMS).price).toBe('Le tarif logés (journée, 1re heure) doit être un montant positif.');
 });
 
 test('rule 28 — the payload carries a number per field and null for a blank one; nothing priced without the planning card; the core form alone knows none of these fields', () => {

@@ -51,6 +51,13 @@ function formatEuros(cents) {
 
 const formatFrDate = (iso) => String(iso).split('-').reverse().join('/');
 
+const MONTHS_FR = Object.freeze(['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']);
+/** `2028-05-27` → `27 mai 2028` (the first of the month is `1er`): the date as the back of a card writes it. */
+const formatLongFrDate = (iso) => {
+  const [year, month, day] = String(iso).split('-').map(Number);
+  return `${day === 1 ? '1er' : day} ${MONTHS_FR[month - 1]} ${year}`;
+};
+
 const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value)) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
   && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 
@@ -186,6 +193,7 @@ module.exports = {
   parisDate,
   formatEuros,
   formatFrDate,
+  formatLongFrDate,
   checkAmountCents,
   checkVatRate,
   vatSplit,

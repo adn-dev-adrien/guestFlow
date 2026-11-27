@@ -84,7 +84,7 @@ test('rule 21: a bath voucher’s back reads the campaign and the settings — t
   [
     'BON CADEAU', 'Un bain nordique · semaine', 'offert par Paul à Marie', 'Scannez le QR code', 'site.example.test/bon-cadeau/utiliser',
     'Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche', 'Code du bon', code.format(plainCode(voucher)),
-    'Votre bon comprend — Bain nordique : 2 h en journée · semaine · Planche apéro · Temps supplémentaire : 1 h · 2 × Boisson', 'Joyeux anniversaire', 'Valable jusqu’au 15/11/2027',
+    'Votre bon comprend — Bain nordique : 2 h en journée · semaine · Planche apéro · Temps supplémentaire : 1 h · 2 × Boisson', 'Joyeux anniversaire', 'Valable jusqu’au 15 novembre 2027',
     'Domaine Solio · Saint-Cirq-Lapopie · Lot',
   ].forEach((line) => assert.ok(says(texts, line), `the back says « ${line} »`));
   assert.equal(texts.some((t) => /€|TVA|\bHT\b|TTC|\d+,\d{2}/.test(t)), false, 'no amount, no VAT on a resource voucher');

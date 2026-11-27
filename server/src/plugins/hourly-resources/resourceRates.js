@@ -11,10 +11,10 @@ const isBlank = (value) => value === undefined || value === null || (typeof valu
 const isOn = (value) => value === 1 || value === true || value === '1';
 
 const GUEST = [
-  ['price', 'hébergés', 'journée, 1re heure'],
-  ['hourlyNextDayRate', 'hébergés', 'journée, heures suivantes'],
-  ['hourlyEveningRate', 'hébergés', 'soirée, 1re heure', 'evening'],
-  ['hourlyNextEveningRate', 'hébergés', 'soirée, heures suivantes', 'evening'],
+  ['price', 'logés', 'journée, 1re heure'],
+  ['hourlyNextDayRate', 'logés', 'journée, heures suivantes'],
+  ['hourlyEveningRate', 'logés', 'soirée, 1re heure', 'evening'],
+  ['hourlyNextEveningRate', 'logés', 'soirée, heures suivantes', 'evening'],
 ];
 const OUTSIDE = [
   ['hourlyExternalDayRate', 'semaine, journée, 1re heure'],

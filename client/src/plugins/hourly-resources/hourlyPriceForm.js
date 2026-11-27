@@ -18,10 +18,10 @@ const amountProblem = (text) => {
 
 // [field, audience, « where » of the refusal sentence, band] — `price` (the guests' day first hour) stays the core column.
 const GUEST = [
-  ['price', 'hébergés', 'journée, 1re heure'],
-  ['hourlyNextDayRate', 'hébergés', 'journée, heures suivantes'],
-  ['hourlyEveningRate', 'hébergés', 'soirée, 1re heure', 'evening'],
-  ['hourlyNextEveningRate', 'hébergés', 'soirée, heures suivantes', 'evening'],
+  ['price', 'logés', 'journée, 1re heure'],
+  ['hourlyNextDayRate', 'logés', 'journée, heures suivantes'],
+  ['hourlyEveningRate', 'logés', 'soirée, 1re heure', 'evening'],
+  ['hourlyNextEveningRate', 'logés', 'soirée, heures suivantes', 'evening'],
 ];
 const OUTSIDE = [
   ['hourlyExternalDayRate', 'extérieurs', 'semaine, journée, 1re heure'],

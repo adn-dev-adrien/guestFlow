@@ -70,3 +70,12 @@ test('rule 22 — « Imprimer… » opens the print dialog on the campaign, prev
   await userEvent.click(within(dialog).getByRole('button', { name: 'Télécharger le PDF' }));
   await waitFor(() => expect(giftVouchersApi.downloadCampaignPrint).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ count: 4 })));
 });
+
+test('rule 21 — « Le prix est celui du jour de l’impression. » is said only where a price prints: not once the position is « Aucun »', async () => {
+  open();
+  const field = await screen.findByLabelText('Position du prix');
+  expect(screen.getAllByText('Le prix est celui du jour de l’impression.').length).toBeGreaterThan(0);
+  await userEvent.click(field);
+  await userEvent.click(screen.getByRole('option', { name: 'Aucun' }));
+  expect(screen.queryByText('Le prix est celui du jour de l’impression.')).not.toBeInTheDocument();
+});

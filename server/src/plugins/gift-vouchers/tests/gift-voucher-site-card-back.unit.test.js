@@ -103,9 +103,9 @@ test('rule 66 — « Valable jusqu\'au » is the issuance\'s expiry for a purcha
   const offer = await offerOf(site);
   const today = rules.parisDate(clock.at);
   offer.campaigns.forEach((c) => {
-    assert.equal(c.back.validUntil, rules.formatFrDate(rules.expiryFor(today, c.validityMonths)), c.slug);
+    assert.equal(c.back.validUntil, rules.formatLongFrDate(rules.expiryFor(today, c.validityMonths)), c.slug);
   });
-  assert.equal(offer.campaigns.find((c) => c.slug === bath.slug).back.validUntil, '15/11/2027');
+  assert.equal(offer.campaigns.find((c) => c.slug === bath.slug).back.validUntil, '15 novembre 2027');
 }));
 
 test('rule 66 — the order status carries the real redemption QR code, the code only in its fragment', () => withServer(async (site) => {
@@ -115,7 +115,7 @@ test('rule 66 — the order status carries the real redemption QR code, the code
   assert.equal(voucher.back.link, 'site.example.test/bon-cadeau/utiliser');
   assert.ok(!voucher.back.link.includes(voucher.code));
   assert.deepEqual(voucher.back.lines, voucher.contentLines);
-  assert.equal(voucher.back.validUntil, rules.formatFrDate(voucher.expiresOn));
+  assert.equal(voucher.back.validUntil, rules.formatLongFrDate(voucher.expiresOn));
   assert.notEqual(voucher.back.qrSvg, (await offerOf(site)).back.previewQrSvg);
 }));
 
@@ -179,7 +179,7 @@ test('rule 66 — the extra time and each quantity of an option come with their 
 test('rule 66 — « Valable jusqu\'au » is the PDF\'s own string: its template filled with the same date format', () => withServer(async (site) => {
   const view = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
   const { back } = await offerOf(site);
-  assert.equal(back.texts.validUntil.replace('{date}', view.back.validUntil), `Valable jusqu’au ${rules.formatFrDate(rules.expiryFor(rules.parisDate(clock.at), 12))}`);
+  assert.equal(back.texts.validUntil.replace('{date}', view.back.validUntil), `Valable jusqu’au ${rules.formatLongFrDate(rules.expiryFor(rules.parisDate(clock.at), 12))}`);
 }));
 
 test('rule 66 — the status says whether the voucher has a frozen front; the front is served by order id and token, as the 720 px web picture, never kept', () => withServer(async (site, raw) => {

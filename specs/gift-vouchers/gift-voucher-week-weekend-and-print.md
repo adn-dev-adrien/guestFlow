@@ -31,7 +31,7 @@ What exists today (2026-11-27, master):
     price and a « 1re heure offerte » per lodging, `property_resource_prices`);
   - « Horaires »: a « Clients hébergés » grid whose day first hour repeats `price` read-only
     (« Prix général »), and a « Clients extérieurs » grid whose first hours fall back to the guests'
-    when empty or 0 (« Vide / 0 = tarif hébergés »);
+    when empty or 0 (« Vide / 0 = tarif logés »);
   - empty following-hours fields mean « same as the first hour ».
   The same price is thus shown in two places, and an outside price can silently be a guest price.
 - **No price depends on the weekday**; `sessionQuote.quoteSession` prices on a placeholder date.
@@ -67,7 +67,7 @@ to eight per sheet, two-sided or folded.
    - The rates leave the « Horaires » section, which keeps only hours and planning settings.
    - Mobile: one block per audience and band, fields stacked.
 2. **Every price field is required and explicit.** No field falls back to another:
-   - the « Vide / 0 = tarif hébergés » fallback of the outside first hours is withdrawn;
+   - the « Vide / 0 = tarif logés » fallback of the outside first hours is withdrawn;
    - an empty following-hours field no longer means « same as the first hour »
      (amends hourly-extra-hour-rates rule 1).
    - The outside grid is required only when the resource is sold outside a stay.

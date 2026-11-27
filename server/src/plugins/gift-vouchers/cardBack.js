@@ -72,7 +72,7 @@ function createCardBack({
 
   /** `view` is the campaign as the offer describes it (its title, kind and validity), `campaign` the stored row. */
   function campaign(view, stored) {
-    const validUntil = rules.formatFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
+    const validUntil = rules.formatLongFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
     if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil, title: BACK_TEXTS.lodgingTitle, steps: BACK_TEXTS.lodgingSteps };
     // Rule 20 — a campaign that sells two periods has the lines of each (« · semaine » / « · week-end »); `lines` are the cheapest period's, for a page that predates them.
     const linesOf = (period) => {
@@ -99,7 +99,7 @@ function createCardBack({
       title: contents && contents.title ? contents.title : BACK_TEXTS.lodgingTitle,
       steps: contents && contents.kind === 'lodging' ? BACK_TEXTS.lodgingSteps : BACK_TEXTS.steps,
       lines: contentLines(issued),
-      validUntil: rules.formatFrDate(issued.expiresOn),
+      validUntil: rules.formatLongFrDate(issued.expiresOn),
       link: shortLink(redeemUrl(base)),
       qrSvg: await qrSvg(redeemUrl(base, plainCode)),
     };
