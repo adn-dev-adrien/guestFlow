@@ -239,7 +239,6 @@ function buildGiftVouchersApi({
 function register(ctx) {
   assertPepperKept({ hasVouchers: () => tableHasRows(ctx.db) });
   ctx.migrations([...MIGRATIONS]);
-  ctx.settings.declare(settings.DECLARED);
   ctx.pushChannel({ key: PUSH_CHANNEL, label: 'Bons cadeaux : vérifications suspendues' });
   ctx.pushChannel({ key: ONLINE_SALES_CHANNEL, label: ONLINE_SALES_LABEL, shared: true });
 
@@ -325,6 +324,7 @@ function register(ctx) {
     return built;
   };
 
+  ctx.settings.declare(settings.declared(() => api().catalogue));
   ctx.setupStatus(() => (pageUrl() ? null : 'adresse de la page du bon à renseigner'));
   ctx.mount('/public/v1/gift-vouchers', (req, res, next) => api().publicRouter(req, res, next), { public: true });
   ctx.mount('/api/gift-vouchers', (req, res, next) => api().adminRouter(req, res, next));
