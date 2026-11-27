@@ -676,6 +676,8 @@ const api = {
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),
+  uploadCompanyLogoDark: (formData) => request('/settings/logo-dark', { method: 'POST', body: formData }),
+  deleteCompanyLogoDark: () => request('/settings/logo-dark', { method: 'DELETE' }),
 
   // Devis (quotes)
   getDevis: (params) => {

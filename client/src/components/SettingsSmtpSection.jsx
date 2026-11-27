@@ -17,12 +17,17 @@
  * the password, and the server writes it at save. The server field, the login and the security fold
  * behind « Réglages avancés », opened when no provider was found. The test button says what it lacks.
  *
+ * « Couleurs des e-mails » (specs/emails/guest-email-branding.md rules 5–6): the page, the accent rule and the
+ * links of the guest emails, each typed as `#RRGGBB` or picked with a swatch; empty = Maison's colour. The server
+ * judges them (a link under 4.5:1 on white is refused) and its message is shown under the field.
+ *
  * Props:
  *   values:      { host, secure, username, passwordSet, fromEmail, fromName,
+ *                  emailColorPage, emailColorAccent, emailColorLink,
  *                  derived: { fromEmail, username, fromName }, passwordDraft?: string | undefined,
  *                  platform?: { available, active, replyTo } }
  *                passwordDraft: undefined → preserve, '' → clear, 'value' → store
- *   errors:      { smtpHost?, smtpFromEmail?, smtpFromName? } (server-side validation)
+ *   errors:      { smtpHost?, smtpFromEmail?, smtpFromName?, emailColorPage?, emailColorAccent?, emailColorLink? } (server-side validation)
  *   onChange:    (key, value) => void
  *   onChangePassword: (value: string | undefined) => void
  *   onSendTest:  () => Promise          — triggers POST /api/settings/smtp-test
@@ -34,7 +39,7 @@
  */
 import React from 'react';
 import {
-  Card, CardContent, Stack, Typography, TextField, Box, Button, MenuItem, Alert, CircularProgress,
+  Card, CardContent, Stack, Typography, TextField, Box, Button, MenuItem, Alert, CircularProgress, Divider, InputAdornment,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import MaskedTextField from './MaskedTextField';
@@ -42,6 +47,48 @@ import DerivedValueField from './DerivedValueField';
 import StatusBadge from './StatusBadge';
 import CollapsibleSection from './CollapsibleSection';
 import AdvancedDetails from './AdvancedDetails';
+
+// Maison's colours, shown as the placeholder of an empty field; the server holds the real defaults.
+const EMAIL_COLORS = [
+  { key: 'emailColorPage', label: 'Fond de page', placeholder: '#F8F5EF', help: 'Autour de la lettre.' },
+  { key: 'emailColorAccent', label: 'Filet', placeholder: '#C99038', help: 'Le trait sous le nom, en tête de l’e-mail.' },
+  { key: 'emailColorLink', label: 'Liens', placeholder: '#2F5D46', help: 'Assez foncé pour se lire sur fond blanc.' },
+];
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+function EmailColorField({ label, placeholder, help, value, error, onChange, disabled }) {
+  const valid = HEX_COLOR.test(value);
+  return (
+    <TextField
+      label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value.trim())}
+      placeholder={placeholder}
+      disabled={disabled}
+      error={Boolean(error)}
+      helperText={error || help}
+      fullWidth
+      size="small"
+      slotProps={{
+        htmlInput: { maxLength: 7, spellCheck: false, autoCapitalize: 'off', autoCorrect: 'off' },
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <input
+                type="color"
+                aria-label={`Choisir la couleur : ${label}`}
+                value={valid ? value.toLowerCase() : placeholder.toLowerCase()}
+                onChange={(e) => onChange(e.target.value.toUpperCase())}
+                disabled={disabled}
+                style={{ width: 28, height: 28, padding: 0, border: 0, background: 'none', cursor: 'pointer' }}
+              />
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  );
+}
 
 export default function SettingsSmtpSection({
   values,
@@ -221,6 +268,26 @@ export default function SettingsSmtpSection({
               {smtpFields}
             </>
           )}
+
+          <Divider />
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Couleurs des e-mails</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              La lettre reste blanche ; ces trois couleurs donnent l’identité de la maison. Vide : couleur par défaut.
+            </Typography>
+          </Box>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+            {EMAIL_COLORS.map(({ key, ...field }) => (
+              <EmailColorField
+                key={key}
+                {...field}
+                value={v[key] || ''}
+                error={errors[key]}
+                onChange={(val) => onChange(key, val)}
+                disabled={disabled}
+              />
+            ))}
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
