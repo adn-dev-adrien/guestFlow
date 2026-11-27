@@ -1,5 +1,5 @@
 /**
- * `/s/:token` (the stay link, rule 1) and `/l/:code` (the lodging poster, rule 3): open the session, keep
+ * `/s/:token` (the stay link, rule 1), `/l/:code` (the lodging poster, rule 3) and `/d/:token` (the demo link, demo mode rule 1): open the session, keep
  * what opened it on the device, and go home — the address bar forgets the token at once. Without network the
  * page stays, says so and offers « Réessayer »: the link is kept, nothing is lost.
  */
@@ -20,7 +20,7 @@ export default function EntryPage({ kind }) {
 
   const open = useCallback(() => {
     setOffline(null);
-    const how = kind === 'stay' ? { stayToken: params.token } : { lodgingCode: params.code };
+    const how = kind === 'stay' ? { stayToken: params.token } : kind === 'demo' ? { demoToken: params.token } : { lodgingCode: params.code };
     enter(how).then(({ error }) => {
       if (error && error.code === 'NETWORK') setOffline(error);
       else navigate('/', { replace: true });

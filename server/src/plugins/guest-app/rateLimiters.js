@@ -1,5 +1,5 @@
 /**
- * The guest app's own rate limits (specs/guest-app.md §4.3, rules 6, 37). A phone calls these routes directly — no
+ * The guest app's own rate limits (specs/guest-app/guest-app.md §4.3, rules 6, 37). A phone calls these routes directly — no
  * site proxy relays them — so the key is the caller's address. Windows and maxima follow `GUEST_*_RATELIMIT_*`.
  * - session: opening a stay link or a lodging poster creates a session row (default 30 / hour / IP);
  * - lookup: the name + reservation number fallback, a guessable pair (rule 6, default 5 / 15 min / IP);
@@ -16,6 +16,8 @@ const ONE_HOUR = 60 * 60 * 1000;
 const FIFTEEN_MIN = 15 * 60 * 1000;
 
 const callerKey = (req) => ipKeyGenerator(req.ip);
+// A demo session has no stay (`stay.id` is null): it is counted on its own, so two phones on the demo link never share a budget.
+const stayKey = (req) => (req.guest.demo ? `guest-demo:${req.guest.session.id}` : `guest-stay:${req.guest.stay.id}`);
 // Rule 56 — in the guest's language, like every other refusal of the guest API.
 const tooMany = (key) => (req) => ({ error: { code: 'TOO_MANY_REQUESTS', message: textOf(key, languageOf(req, req.guest && req.guest.stay)) } });
 
@@ -46,9 +48,9 @@ function createGuestLimiters() {
       skipFailedRequests: true,
       message: tooMany('tooManyOrders'),
     }),
-    // specs/guest-app-home-automation.md rule 10 — the light taps of a stay: 6 in 10 minutes, a refused one is free.
+    // specs/guest-app/guest-app-home-automation.md rule 10 — the light taps of a stay: 6 in 10 minutes, a refused one is free.
     homeCommand: rateLimit({
-      keyGenerator: (req) => `guest-stay:${req.guest.stay.id}`,
+      keyGenerator: stayKey,
       windowMs: Number(process.env.GUEST_HOME_COMMAND_RATELIMIT_WINDOW_MS) || 10 * 60 * 1000,
       max: Number(process.env.GUEST_HOME_COMMAND_RATELIMIT_MAX) || 6,
       standardHeaders: true,
@@ -60,7 +62,7 @@ function createGuestLimiters() {
     }),
     // Following a tap's answer, per stay: phones sharing the lodging's wifi do not share one address's budget.
     homeStatus: rateLimit({
-      keyGenerator: (req) => `guest-stay:${req.guest.stay.id}`,
+      keyGenerator: stayKey,
       windowMs: Number(process.env.GUEST_HOME_STATUS_RATELIMIT_WINDOW_MS) || 10 * 60 * 1000,
       max: Number(process.env.GUEST_HOME_STATUS_RATELIMIT_MAX) || 300,
       standardHeaders: true,
@@ -68,7 +70,7 @@ function createGuestLimiters() {
       message: tooMany('tooManyRequests'),
     }),
     cardOrder: rateLimit({
-      keyGenerator: (req) => `guest-stay:${req.guest.stay.id}`,
+      keyGenerator: stayKey,
       skip: (req) => !(req.body && req.body.payment === 'card'),
       windowMs: Number(process.env.GUEST_CARD_ORDER_RATELIMIT_WINDOW_MS) || ONE_HOUR,
       max: Number(process.env.GUEST_CARD_ORDER_RATELIMIT_MAX) || 6,

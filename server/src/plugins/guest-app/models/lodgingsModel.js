@@ -1,5 +1,5 @@
 /**
- * `guest_app_lodgings` — what each lodging shows its guests (specs/guest-app.md rules 1, 11bis-11quater).
+ * `guest_app_lodgings` — what each lodging shows its guests (specs/guest-app/guest-app.md rules 1, 11bis-11quater).
  * A property without a row is off: a property created later needs no event to start off.
  *
  * The lodging code is the capability a printed QR code carries: never logged, never returned over the admin
@@ -93,6 +93,15 @@ function createLodgingsModel(db) {
     return lodging && lodging.enabled ? lodging : null;
   }
 
+  /** Demo mode rules 7, 8 — the lodgings the app shows, in the Studio's order. */
+  const listEnabled = () => listAll().filter((lodging) => lodging.enabled);
+
+  /** Demo mode rule 5 — the lodging's own check-in and check-out times (the fictitious stay takes them). */
+  function checkTimes(propertyId) {
+    const row = db.prepare('SELECT defaultCheckIn, defaultCheckOut FROM properties WHERE id = ?').get(Number(propertyId)) || {};
+    return { checkInTime: row.defaultCheckIn || null, checkOutTime: row.defaultCheckOut || null };
+  }
+
   /**
    * Writes what the patch names and keeps the rest: the studio saves its screens one at a time. A wifi
    * patch without `password` keeps the stored one. The code is issued the first time a lodging is enabled,
@@ -173,7 +182,7 @@ function createLodgingsModel(db) {
   }
 
   return {
-    codeOf, findEnabled, findEnabledByCode, get, listAll, mediaPath, regenerateCode, save, soldCounts,
+    checkTimes, codeOf, findEnabled, findEnabledByCode, get, listAll, listEnabled, mediaPath, regenerateCode, save, soldCounts,
   };
 }
 

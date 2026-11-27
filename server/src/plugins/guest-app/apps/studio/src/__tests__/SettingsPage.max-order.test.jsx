@@ -9,7 +9,7 @@ import { LA_GRANJA, SETTINGS, renderStudio } from './studioFixtures';
 
 vi.mock('../services/api', () => ({
   api: {
-    settings: vi.fn(), saveSettings: vi.fn(), syncSoliomap: vi.fn(), regenerateQr: vi.fn(), qrPosterUrl: (id) => `/api/guest-app/lodgings/${id}/qr-poster.pdf`,
+    settings: vi.fn(), saveSettings: vi.fn(), syncSoliomap: vi.fn(), regenerateQr: vi.fn(), demoLink: vi.fn(() => new Promise(() => {})), qrPosterUrl: (id) => `/api/guest-app/lodgings/${id}/qr-poster.pdf`,
   },
 }));
 

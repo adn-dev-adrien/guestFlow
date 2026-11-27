@@ -9,7 +9,8 @@ import { NavLink, useLocation, useNavigate } from 'react-router';
 import Icon from './Icon';
 import CartBar from './CartBar';
 import OfflineBanner from './OfflineBanner';
-import { useModules } from '../hooks/useSession';
+import DemoBar from './DemoBar';
+import { useModules, useSession } from '../hooks/useSession';
 import { useCart } from '../hooks/useCart';
 import { useOnline } from '../hooks/useOnline';
 import { useT } from '../i18n';
@@ -35,6 +36,7 @@ export function tabsOf(has) {
 export default function AppShell({ children, layout, appName }) {
   const t = useT();
   const { has } = useModules();
+  const { me } = useSession();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const online = useOnline();
@@ -51,6 +53,7 @@ export default function AppShell({ children, layout, appName }) {
   const mono = ((appName || 'S').trim().split(/\s+/).pop() || 'S')[0];
   return (
     <>
+      {me && me.demo ? <DemoBar demo={me.demo} lodging={me.lodging} /> : null}
       <div className="shell">
         {layout.wide ? <nav className="rail" aria-label={t('nav.label')}><span className="mono" aria-hidden="true">{mono}</span>{items}</nav> : null}
         <main className="main">{children}</main>

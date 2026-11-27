@@ -261,5 +261,17 @@
  "places.gps.waze": "Waze",
  "places.verified": "Checked on {date}",
  "places.accepts": "What can be dropped here",
- "places.energies": "Energies available"
+ "places.energies": "Energies available",
+ "demo.label": "Demo",
+ "demo.title": "Demonstration",
+ "demo.lodging": "Lodging",
+ "demo.momentTitle": "Moment",
+ "demo.moment.preArrival": "Before arrival",
+ "demo.moment.stay": "During the stay",
+ "demo.moment.ended": "After departure",
+ "demo.confirmed": "Demo: nothing was ordered or paid.",
+ "demo.chip": "Demo",
+ "demo.gateIntro": "Here, the guest opens the gate.",
+ "demo.gateCode": "Keypad code",
+ "demo.gateNote": "Demo: no gate is opened."
 }

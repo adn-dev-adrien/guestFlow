@@ -29,17 +29,18 @@ Never mix: a French commit or English chat reply is a bug.
 
 ## 3. Collaboration workflow
 
-The default loop is **spec-driven, plan-validated, autonomously implemented**.
+The default loop is **spec-driven, user-validated, implemented and reviewed by agents, merged by Claude on a green CI**
+(delivery cycle set by the user on 2026-11-25, merge authorised on 2026-11-27).
 
 ### 3.1 Standard loop
 
-1. **Discuss the need** in chat (French).
-2. **Write the spec** in `/specs/<domain>/<feature-name>.md` using `/specs/TEMPLATE.md`, and add its line to `/specs/<domain>/INDEX.md`.
-3. **User validates the spec.**
-4. **Produce an implementation plan** (via `ExitPlanMode`) covering files to touch, DB impact, test plan, UI changes.
-5. **User validates the plan.**
-6. **Implement** (in the working tree, on whatever branch the user has checked out): code, server tests, visual UI verification, CHANGELOG update, spec status → `Implemented`.
-7. **Hand off to the user** with a concise summary. **The user handles all git operations** (branching, staging, committing, pushing, PR creation).
+1. **Discuss the need** in chat (French). Every question goes through `AskUserQuestion` (§3.4).
+2. **Write the spec** (main Opus session) in `/specs/<domain>/<feature-name>.md` using `/specs/TEMPLATE.md`, and add its line to `/specs/<domain>/INDEX.md`. Present it for decision as a **summary**: an interactive, self-contained HTML page in `docs/specs/` when the UI/UX moves (its open decisions as multiple-choice questions, with a « Copier » button producing the summary of the choices), otherwise a summary in the chat.
+3. **User validates the spec** (Status → `Approved`). No line of code before that. The spec's Architecture section is the implementation plan; no separate `ExitPlanMode` step.
+4. **Implement — with Sonnet.** Delegate to an agent `model: "sonnet"` in an isolated worktree, briefed with the approved spec, the files to read, the decisions taken, what is excluded, the repo rules (tests, changelog fragment, plugin version) and the validation to replay (§5.1).
+5. **Review — with a fresh Opus agent**, given the diff and the spec, not our conclusions (or `/code-review`). Real problems are fixed before going further; when the UI moves, `DESIGN.md` « Before the PR » applies here.
+6. **Pull request, CI, merge** (§5.1): Claude opens the PR, watches the CI, and squash-merges it once green; red → fix, push, repeat.
+7. **Clean up** everything the session created (worktrees, servers, browsers, scratch files, merged local branch), then a one- or two-line recap to the user.
 
 ### 3.2 When to skip the spec
 
@@ -55,7 +56,7 @@ Everything else (new feature, change in business logic, UI rework, schema change
 
 ### 3.3 Autonomy boundaries
 
-After plan validation, drive the implementation end-to-end without checking in for each step. Report concisely at the end. Pause and ask only if:
+After spec validation, drive the implementation end-to-end without checking in for each step. Report concisely at the end. Pause and ask only if:
 
 - A non-trivial decision wasn't covered by the spec.
 - A discovery contradicts the plan (existing code conflict, missed dependency).
@@ -109,41 +110,42 @@ If a feedback proves the spec was *wrong* (vs. *incomplete*), the spec fix is ev
 
 ## 5. Git & branches
 
-**Current policy: Claude owns the full git pipeline — branch, commit, push, AND pull request creation (via `gh`).** The user only reviews and **squash-merges** the PR in the GitHub web UI. Claude never merges.
+**Current policy (2026-11-27): Claude owns the full git pipeline — branch, commit, push, pull request (via `gh`) AND the squash-merge once the CI is green.** The user is told the outcome; they may still review any PR before it is merged by saying so.
 
 ### 5.1 What Claude does
 
 For every spec retro-implementation:
-1. **As soon as a spec is approved**, before entering plan mode for implementation, create the working branch from up-to-date `master`:
+1. **As soon as a spec is approved**, create the working branch from up-to-date `master` — in a separate worktree when the main tree is busy (another session, uncommitted work):
    ```bash
-   git checkout master && git pull
-   git checkout -b feature/<short-kebab-name>
+   git fetch origin
+   git worktree add -b feature/<short-kebab-name> ../worktrees/<short-kebab-name> origin/master
    ```
-2. **Implement** the spec on that branch (after the plan is approved).
+2. **Implement** the spec on that branch (§3.1 step 4), then replay locally every job the PR's CI runs (`.github/workflows/*.yml`) before the first push.
 3. **Stage explicit files only** — never `git add -A` or `git add .`. List each file by path so secrets and accidental binaries can't slip in.
-4. **Commit** with a Conventional Commit message in English (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`), scoped (`feat(settings):`, `feat(db):`) and bodied with bullet points describing what + why. Always include the Co-Authored-By trailer.
+4. **Commit** with a Conventional Commit message in English (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`), scoped (`feat(settings):`, `feat(db):`) and bodied with bullet points describing what + why. Commits carry the user's identity only: no `Co-Authored-By` trailer and no « Generated with » line, in commits or PR bodies.
 5. **Push** to `origin`: `git push -u origin feature/<short-kebab-name>`.
-6. **Create the pull request** with `gh pr create --base master` — English title (Conventional-Commit style) + a body summarizing what/why, the spec link, and the test/verification status. **Hand off the PR URL** to the user, who reviews and **squash-merges** in the GitHub web UI. Claude never merges.
-7. After the user confirms the merge, **return to master and pull**:
+6. **Create the pull request** with `gh pr create --base master` — English title (Conventional-Commit style) + a body summarizing what/why, the spec link, the review outcome and the test/verification status. One PR per repository per turn: branches of the same turn are merged into one before opening it.
+7. **Watch the CI and merge in one background command** — never "wait for the notification, then merge":
    ```bash
-   git checkout master && git pull
+   gh pr checks <PR> --watch --fail-fast && gh pr merge <PR> --squash --delete-branch
    ```
-   Then the next spec can start from a clean tree.
+   Green → merged. Red → read `gh run view --log-failed`, fix, push, rerun the command. A failure that is not the code's (infrastructure, missing secret, persistent flake) → stop and tell the user rather than work around it. Never `--admin`.
+8. **After the merge**, return to an up-to-date `master` (`git checkout master && git pull`, or `git worktree remove` + `git worktree prune` for a worktree) and delete the merged local branch. A merge is **not** a release (§5.6).
 
 ### 5.2 What Claude does NOT do
 
 - Push to `master` directly.
 - Force-push anywhere.
-- **Merge** PRs — with **one exception, the release PR** (see §5.6). Everywhere else Claude may create PRs with `gh pr create` and read PR status, but never `gh pr merge`.
+- Merge a PR whose checks are not all `pass` (re-read just before merging), or with `--admin`.
 - Cut a release, tag, or install one in production without being asked (see §5.6).
 - Skip hooks (`--no-verify`), bypass signing, or amend pushed commits.
-- Run destructive commands (`reset --hard`, `clean -f`, branch deletion) without explicit user instruction.
+- Run destructive commands (`reset --hard`, `clean -f`, deleting a branch that is not merged) without explicit user instruction. Deleting the local branch of a PR Claude merged is part of §5.1 step 8.
 
 ### 5.3 Conventions
 
 - **Branches:** `feature/<short-kebab-name>` for features, `fix/<short-kebab-name>` for bug fixes.
 - **Target branch:** `master`.
-- **Merge strategy:** **squash merge** (user-enforced in the GitHub UI). Keeps `master` history one-commit-per-feature.
+- **Merge strategy:** **squash merge** (`gh pr merge --squash`). Keeps `master` history one-commit-per-feature.
 - **Release trigger:** the tag `vX.Y.Z` on `master` (see §5.6). There is no deployment branch any more.
 
 ### 5.4 Conflict / safety rules
@@ -161,7 +163,7 @@ Full detail: [docs/agent/git-squash-merge-check.md](docs/agent/git-squash-merge-
 ### 5.6 Releases and production updates
 
 - Production runs **published releases** (tag `vX.Y.Z` on `master`), cut with the **`/guestflow-release` skill** only; X is always the user's call.
-- Claude squash-merges **only** the release PR opened by the skill in the same run, **only** once every check is `pass` (re-read just before merging); never `--admin`.
+- The release PR is squash-merged like any other (§5.1 step 7), **only** once every check is `pass`; but cutting a release stays the user's decision unless explicitly asked.
 - Release notes are mandatory; the French `### Summary` digest (≤ 6 lines × 160 chars) is the one exception to §2.
 - **Publishing is not deploying**: never trigger an install, never SSH into production to finish a release.
 - **Never add `runs-on: self-hosted`** (security regression). The only allowed force-push is re-pointing a release **tag**.

@@ -1,6 +1,6 @@
 /**
  * `GET /public/v1/guest/shop` — the sellable catalogue of the stay's lodging, ready to render
- * (specs/guest-app.md rules 23-27). Prices and labels are GuestFlow's, per lodging, through the core
+ * (specs/guest-app/guest-app.md rules 23-27). Prices and labels are GuestFlow's, per lodging, through the core
  * projections the website shows; the free / included state is `sellable.js`'s; the shop is open exactly
  * when the fiche takes mid-stay extras; the service hours of §3.G come from `serviceHours.js`.
  *
@@ -164,10 +164,19 @@ function deliveryLinesError(body) {
 
 function buildShopController({
   items, stayLines, orders, serviceHours, stock, scheduler, translator, now, orderCollection,
-  fulfilment = () => ({ mode: 'delivery', place: null }),
+  fulfilment = () => ({ mode: 'delivery', place: null }), demoPricing = null,
 }) {
-  /** Rule 67 — where the core collects an order of this stay: the shop's and the orders' one reading. */
-  const collectionOf = (stay) => orderCollection(stay.id, now());
+  /** Rule 67 — where the core collects an order of this stay: the shop's and the orders' one reading. A demo stay is read on its transient copy. */
+  const collectionOf = (stay) => (stay.demo ? demoPricing.collectionOf(stay, now()) : orderCollection(stay.id, now()));
+
+  /** Demo mode rule 9 — the fictitious stay holds nothing yet: no line, no free unit granted, no order. */
+  const demoExtras = (stay) => ({
+    window: { kind: stay.kind, startDate: stay.startDate },
+    platform: stay.platform,
+    grantedFreeUnitsByOption: null,
+    optionLines: [],
+    resourceLines: [],
+  });
 
   /**
    * Rules 25, 42 — why an item cannot be ordered: staff-prepared with no delivery time left before the check-out.
@@ -240,12 +249,12 @@ function buildShopController({
 
   /** Rules 23, 25 — the items the stay's lodging sells, with what the stay already received. */
   function soldFor({ stay, lodging }) {
-    const extras = stayLines().ofStay(stay.id);
+    const extras = stay.demo ? demoExtras(stay) : stayLines().ofStay(stay.id);
     const catalogue = items().catalogueFor(lodging.propertyId);
     const consumed = stayConsumption({
       optionLines: extras.optionLines,
       resourceLines: extras.resourceLines,
-      orderedLines: orders().orderedLines(stay.id),
+      orderedLines: stay.demo ? [] : orders().orderedLines(stay.id),
     });
     const sold = shopItems({
       ...catalogue,
@@ -373,7 +382,7 @@ function buildShopController({
     const opening = found.opening || { from: '00:00', to: '24:00' };
     return publicHttp.ok(res, {
       open: true,
-      // The last day the resource is offered (specs/gift-voucher-campaigns.md rule 51): the picker greys out the days after it.
+      // The last day the resource is offered (specs/gift-vouchers/gift-voucher-campaigns.md rule 51): the picker greys out the days after it.
       horizonUntil: found.horizonUntil,
       freeMinutesLeft: sold.freeMinutes ? sold.freeMinutes.left : 0,
       ...(freeLabel ? { freeLabel } : {}),
@@ -462,7 +471,7 @@ function buildShopController({
   };
 
   /**
-   * specs/guest-app-bath-home-scheduling.md rules 1-5 — the home's bath cards, one per hourly resource the stay's shop sells while
+   * specs/guest-app/guest-app-bath-home-scheduling.md rules 1-5 — the home's bath cards, one per hourly resource the stay's shop sells while
    * it takes orders: what the stay owns and has not placed (the hours it holds, then the offered minutes), its sessions to come, or
    * the offer when a slot is still bookable.
    */

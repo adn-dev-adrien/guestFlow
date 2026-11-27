@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appli séjour — mode démo · résumé</title>
+<style>
+:root{--paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--soft:#5C6153;--sapin:#2E3B2A;--lichen:#5A6B48;--ocre:#B87B2A;--action:#9A6318;--line:#DCD4C2;--chip:#EDE5D4;--ok:#2F6A43;--okSoft:#E6EFE7;--bad:#A8433A;--badSoft:#F7E8E5;--warnSoft:#F6EDD7;
+--disp:Georgia,'Times New Roman',serif;--body:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:#ECE7DC;color:var(--ink);font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:32px 20px 80px}
+h1{font:400 34px/1.15 var(--disp);margin:0 0 6px;color:var(--sapin)}
+h2{font:400 22px/1.2 var(--disp);margin:0 0 12px;color:var(--sapin)}
+.lead{color:var(--soft);max-width:70ch;margin:0 0 28px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:34px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.box h3{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--lichen)}
+.box p,.box ul{margin:0;font-size:14px}.box ul{padding-left:18px}
+.stage{display:grid;grid-template-columns:400px 1fr;gap:32px;align-items:start;margin-bottom:40px}
+@media (max-width:900px){.grid4{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr}}
+@media (max-width:560px){.grid4{grid-template-columns:1fr}}
+/* phone */
+.phone{width:380px;max-width:100%;height:760px;margin:0 auto;border-radius:44px;background:#111;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.screen{position:relative;height:100%;border-radius:34px;overflow:hidden;background:var(--paper);display:flex;flex-direction:column}
+.appbar{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;background:rgba(253,250,243,.96);border-bottom:1px solid var(--line)}
+.appbar b{font:400 19px var(--disp);color:var(--sapin);flex:1}
+.back{border:0;background:none;font-size:22px;color:var(--sapin);width:44px;height:44px;margin-left:-12px;cursor:pointer;display:none}
+.demobar{flex:none;min-height:44px;display:flex;align-items:center;gap:8px;padding:0 16px;background:var(--chip);color:var(--soft);font-size:13.5px;border:0;border-bottom:1px solid var(--line);width:100%;text-align:left;cursor:pointer}
+.demobar .dot{width:8px;height:8px;border-radius:50%;background:var(--ocre);flex:none}
+.demobar .txt{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.demobar strong{color:var(--ink);font-weight:600}
+.body{flex:1;overflow:auto;padding-bottom:20px}
+.hero{height:170px;background:linear-gradient(to top,rgba(10,14,10,.78),rgba(10,14,10,.15)),linear-gradient(135deg,#5A6B48,#2E3B2A 60%,#B87B2A);color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:16px}
+.hero.estiva{background:linear-gradient(to top,rgba(10,14,10,.78),rgba(10,14,10,.15)),linear-gradient(135deg,#B87B2A,#8A5816 50%,#2E3B2A)}
+.hero small{opacity:.85;font-size:12px;letter-spacing:.06em;text-transform:uppercase}.hero h3{margin:2px 0 0;font:400 26px var(--disp)}
+.stay{margin:-14px 14px 0;position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:13.5px}
+.stay .top{display:flex;justify-content:space-between}.stay .top b{font-weight:600}
+.nights{display:flex;gap:4px;margin-top:8px}.nights i{flex:1;height:5px;border-radius:3px;background:var(--line)}.nights i.full{background:var(--ocre)}
+.note{margin:12px 14px 0;padding:10px 12px;border-radius:12px;background:var(--warnSoft);font-size:13.5px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px}
+.tile{min-height:78px;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:12px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;justify-content:space-between}
+.tile:active{transform:scale(.98)}.tile .ic{font-size:20px}.tile b{font-weight:600;font-size:14.5px}.tile span{font-size:12px;color:var(--soft)}
+.tile[disabled]{opacity:.5;cursor:default}
+.list{padding:8px 14px}
+.prod{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.prod .meta{flex:1}.prod b{display:block;font-weight:600}.prod span{font-size:13px;color:var(--soft)}
+.btn{min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 14.5px var(--body);padding:0 16px;cursor:pointer}
+.btn.fill{background:var(--action);border-color:var(--action);color:#fff}.btn.small{min-height:36px;padding:0 12px;font-size:13.5px}
+.btn[disabled]{opacity:.45;cursor:default}
+.btn.wide{width:100%}
+.cartbar{position:absolute;left:12px;right:12px;bottom:14px;display:none}
+.cartbar .btn{width:100%;box-shadow:0 12px 32px rgba(22,28,22,.22)}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:4px 14px 14px}
+.slot{min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);font:600 14px var(--body);cursor:pointer;color:var(--ink)}
+.slot.sel{background:var(--sapin);color:#fff;border-color:var(--sapin)}.slot.taken{text-decoration:line-through;color:var(--soft);background:transparent}
+.sect{padding:14px 14px 4px;font:400 18px var(--disp);color:var(--sapin)}
+.refus{margin:0 14px 12px;padding:10px 12px;border-radius:12px;background:var(--badSoft);color:var(--bad);font-size:13.5px;display:none}
+.choice{display:flex;gap:10px;align-items:center;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer}
+.choice input{accent-color:var(--action);width:18px;height:18px}
+.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--soft)}
+.chip.demo{background:var(--warnSoft);color:#6F5112}.chip.ok{background:var(--okSoft);color:var(--ok)}
+.confirm{padding:30px 20px;text-align:center}.confirm .big{font-size:44px}.confirm h3{font:400 24px var(--disp);margin:8px 0 4px;color:var(--sapin)}
+.demoline{display:inline-block;margin-top:8px;padding:6px 10px;border-radius:10px;background:var(--warnSoft);color:#6F5112;font-size:13px}
+.light{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.sw{width:52px;height:32px;border-radius:16px;background:var(--line);position:relative;border:0;cursor:pointer;transition:background .2s}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:transform .25s cubic-bezier(.2,.8,.2,1);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw.on{background:var(--ok)}.sw.on::after{transform:translateX(20px)}.sw.pending{opacity:.6}
+.reading{display:flex;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+.unknown{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--soft)}
+.unknown h3{font:400 22px var(--disp);color:var(--sapin);margin:0 0 6px}
+/* sheet */
+.scrim{position:absolute;inset:0;background:rgba(10,14,10,.4);opacity:0;pointer-events:none;transition:opacity .2s}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:20px 20px 0 0;padding:10px 16px 22px;transform:translateY(105%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.open .scrim{opacity:1;pointer-events:auto}.open .sheet{transform:none}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.sheet h4{margin:12px 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--lichen)}
+.opt{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:46px;border:0;border-bottom:1px solid var(--line);background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;padding:0 4px}
+.opt.on::after{content:'✓';color:var(--action);font-weight:700}
+.sheet .keypad{font:400 40px var(--disp);letter-spacing:.2em;text-align:center;margin:10px 0;color:var(--sapin)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* side */
+.side .box{margin-bottom:14px}
+.counters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.counter{background:var(--paper);border-radius:10px;padding:8px 10px;font-size:12.5px;color:var(--soft)}
+.counter b{display:block;font:600 22px var(--body);color:var(--ink);font-variant-numeric:tabular-nums}
+.counter.sim b{color:#6F5112}
+.studio{font-family:var(--body)}
+.studio .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.qr{width:110px;height:110px;display:grid;grid-template-columns:repeat(21,1fr);background:#fff;padding:6px;border-radius:8px;border:1px solid var(--line)}
+.qr i{background:#fff}.qr i.k{background:#111}
+.url{font:13px ui-monospace,Menlo,monospace;background:var(--paper);padding:6px 8px;border-radius:8px;word-break:break-all}
+.studio .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--sapin);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;font-size:14px}
+.toast.show{opacity:1;transform:translateX(-50%)}
+/* questions */
+.q{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
+.q p{margin:0 0 10px;font-weight:600}
+.q label{display:flex;gap:10px;align-items:flex-start;padding:8px 6px;border-radius:10px;cursor:pointer}
+.q label:hover{background:var(--paper)}.q input{margin-top:4px;accent-color:var(--action)}
+.q label small{display:block;color:var(--soft);font-weight:400}
+textarea{width:100%;min-height:130px;border:1px solid var(--line);border-radius:12px;padding:12px;font:13px ui-monospace,Menlo,monospace;background:var(--card)}
+</style>
+</head>
+<body>
+<main>
+<h1>Appli séjour — mode démo</h1>
+<p class="lead">Un lien de démo, à garder sur ton téléphone, qui ouvre l'appli comme un voyageur la voit, sur un séjour fictif. Tu changes de logement et de moment du séjour en un tap, tu peux tout essayer, et rien ne sort de l'écran. Les décisions déjà prises sont intégrées ; il reste 4 points à trancher en bas de page.</p>
+
+<div class="grid4">
+  <div class="box"><h3>Constat</h3><p>Pour montrer l'appli, il faut aujourd'hui emprunter le lien d'un vrai séjour : une commande s'écrit sur sa fiche, le portail et les lumières sont les vrais.</p></div>
+  <div class="box"><h3>On propose</h3><ul><li>Un lien de démo dans le Studio (QR, copier, régénérer)</li><li>Un séjour fictif « Camille », jamais enregistré</li><li>Un bandeau Démo : logement + moment</li></ul></div>
+  <div class="box"><h3>On ne fait pas</h3><ul><li>Démo du back-office GuestFlow</li><li>Choisir nom/dates à la main</li><li>Envoyer le lien à des voyageurs</li></ul></div>
+  <div class="box"><h3>Risque</h3><p>Une écriture oubliée dans un chemin démo. Parade : le blocage est côté serveur, et un test compte fiches, paiements, créneaux, stock et notifications avant/après.</p></div>
+</div>
+
+<h2>Essaie-la</h2>
+<div class="stage">
+  <div class="phone"><div class="screen" id="screen">
+    <div class="appbar"><button class="back" id="back" aria-label="Retour">‹</button><b id="title">Mon séjour</b></div>
+    <button class="demobar" id="demobar" aria-haspopup="dialog"><span class="dot"></span><span class="txt">Démo · <strong id="dbL">La Granja</strong> · <span id="dbM">Pendant le séjour</span></span><span>⌄</span></button>
+    <div class="body" id="body"></div>
+    <div class="cartbar" id="cartbar"><button class="btn fill" id="cartbtn">Voir le panier</button></div>
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+  </div></div>
+
+  <div class="side">
+    <div class="box">
+      <h3>Ce qui bouge dans GuestFlow pendant ta démo</h3>
+      <p style="font-size:13.5px;color:var(--soft)">Les compteurs réels restent à zéro quoi que tu fasses dans le téléphone. Seul le compteur « simulé » avance.</p>
+      <div class="counters">
+        <div class="counter"><b>0</b>lignes de fiche</div>
+        <div class="counter"><b>0</b>liens de paiement</div>
+        <div class="counter"><b>0</b>créneaux au planning</div>
+        <div class="counter"><b>0</b>portail ouvert</div>
+        <div class="counter"><b>0</b>lumière réelle</div>
+        <div class="counter"><b>0</b>notification</div>
+        <div class="counter sim"><b id="simCount">0</b>commandes simulées</div>
+        <div class="counter sim"><b id="simLights">0</b>lumières simulées</div>
+      </div>
+    </div>
+    <div class="box studio">
+      <h3>Studio → Réglages → Lien de démo</h3>
+      <div class="row">
+        <div class="qr" id="qr"></div>
+        <div style="flex:1;min-width:200px">
+          <div class="url" id="url"></div>
+          <p style="font-size:13px;color:var(--soft);margin:8px 0 0">Un séjour fictif, sans paiement ni effet réel. À montrer, pas à envoyer à un voyageur.</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn small" id="copy">Copier le lien</button>
+        <button class="btn small" id="openD">Ouvrir</button>
+        <button class="btn small" id="regen">Régénérer le lien</button>
+      </div>
+      <p style="font-size:12.5px;color:var(--soft);margin:10px 0 0">Essaie « Régénérer » : le téléphone, resté sur l'ancien lien, affiche le refus.</p>
+    </div>
+    <div class="box">
+      <h3>À tester dans le téléphone</h3>
+      <ul style="font-size:13.5px">
+        <li>Bandeau Démo → changer de logement et de moment</li>
+        <li>Boutique → panier → les deux moyens de paiement</li>
+        <li>Bain → le créneau barré est pris : la commande est refusée comme en vrai</li>
+        <li>Plus de 150 € → refus « montant maximal »</li>
+        <li>Portail, Domotique, Mes commandes</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h2>Arbitrages restants</h2>
+<form id="qs"></form>
+<h2 style="margin-top:22px">Résumé des choix</h2>
+<textarea id="out" readonly></textarea>
+<p><button class="btn fill" id="copyOut">Copier</button></p>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const LODGINGS=[{id:1,name:'La Granja',hero:''},{id:2,name:"L'Estiva",hero:'estiva'}];
+const MOMENTS={preArrival:'Avant l’arrivée',stay:'Pendant le séjour',ended:'Après le départ'};
+const PRODUCTS=[{id:'pdj',name:'Petit-déjeuner',price:14,unit:'par personne',q:2},{id:'bois',name:'Panier de bois',price:12,unit:'le panier',q:1},{id:'plancha',name:'Plateau plancha',price:38,unit:'pour 2',q:1},{id:'vin',name:'Coffret vins de Corse',price:65,unit:'3 bouteilles',q:1}];
+const SLOTS=['10:00','12:00','14:00','16:00','18:00','20:00'];const TAKEN=new Set(['16:00']);
+const MAX=150;
+let st={lod:0,moment:'stay',view:'home',cart:{},bath:null,pay:'note',orders:[],lights:{salon:false,terrasse:true},linkGen:1,openedGen:1,sim:0,simL:0};
+const $=s=>document.querySelector(s);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),1800)}
+function token(){return ['q7Xv2mLc9RtA','Hn4pWz8bKs1E','eT6yUd3oJf5M','Lr0aGi7cVx2N'][(st.linkGen-1)%4]}
+function drawStudio(){$('#url').textContent='https://sejour.domaine-solio.fr/d/'+token();const q=$('#qr');q.innerHTML='';let s=st.linkGen*7919;for(let i=0;i<441;i++){const r=Math.floor(i/21),c=i%21;const fin=(r<7&&c<7)||(r<7&&c>13)||(r>13&&c<7);let k;if(fin){const rr=r%14>6?r-14:r,cc=c>13?c-14:c;const R=r>13?r-14:r,C=c>13?c-14:c;k=(R===0||R===6||C===0||C===6||(R>=2&&R<=4&&C>=2&&C<=4))}else{s=(s*1103515245+12345)&0x7fffffff;k=s%3===0}const d=document.createElement('i');if(k)d.className='k';q.appendChild(d)}}
+function lodging(){return LODGINGS[st.lod]}
+function total(){let t=0;for(const p of PRODUCTS)t+=(st.cart[p.id]||0)*p.price*p.q;if(st.bath)t+=25;return t}
+function count(){return Object.values(st.cart).reduce((a,b)=>a+b,0)+(st.bath?1:0)}
+function eur(n){return n.toLocaleString('fr-FR',{minimumFractionDigits:2})+' €'}
+function go(v){st.view=v;render()}
+function datesLabel(){const d=new Date();const f=x=>x.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});const add=n=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+ if(st.moment==='preArrival')return f(add(5))+' → '+f(add(8));if(st.moment==='stay')return f(add(-1))+' → '+f(add(2));return f(add(-4))+' → '+f(add(-1))}
+function render(){
+ $('#dbL').textContent=lodging().name;$('#dbM').textContent=MOMENTS[st.moment];
+ const b=$('#body');const back=$('#back');back.style.display=st.view==='home'?'none':'block';
+ const cb=$('#cartbar');cb.style.display=(st.view==='shop'||st.view==='bath')&&count()?'block':'none';$('#cartbtn').textContent='Voir le panier · '+count()+' · '+eur(total());
+ if(st.openedGen!==st.linkGen){$('#title').textContent='Mon séjour';$('#demobar').style.display='none';cb.style.display='none';back.style.display='none';
+  b.innerHTML='<div class="unknown" style="height:100%"><h3>Ce code n’est pas reconnu.</h3><p>Le lien de démo a été régénéré. Scanne le nouveau QR du Studio.</p><button class="btn fill" id="rescan">Ouvrir le nouveau lien</button></div>';
+  $('#rescan').onclick=()=>{st.openedGen=st.linkGen;st.view='home';$('#demobar').style.display='flex';render()};return}
+ const L=lodging();
+ if(st.view==='home'){ $('#title').textContent='Mon séjour';
+  const ended=st.moment==='ended',pre=st.moment==='preArrival';
+  let h='<div class="hero '+L.hero+'"><small>'+(ended?'Bienvenue':'Bonjour Camille')+'</small><h3>'+L.name+'</h3></div>';
+  if(!ended)h+='<div class="stay"><div class="top"><b>'+datesLabel()+'</b><span>2 adultes</span></div><span>'+(pre?'Arrivée dans 5 jours, à partir de 16 h':'Départ dans 2 jours, avant 10 h')+'</span><div class="nights">'+[0,1,2].map(i=>'<i class="'+(!pre&&i<1?'full':'')+'"></i>').join('')+'</div></div>';
+  else h+='<div class="note">Votre séjour est terminé. Le livret reste disponible.</div>';
+  h+='<div class="tiles">';
+  if(st.moment==='stay')h+='<button class="tile" data-go="gate"><span class="ic">⛩</span><b>Portail</b><span>Ouvrir le portail</span></button>';
+  h+='<button class="tile" data-go="booklet"><span class="ic">📖</span><b>Livret</b><span>17 pages</span></button>';
+  if(!ended)h+='<button class="tile" data-go="shop"><span class="ic">🧺</span><b>Boutique</b><span>'+(pre?'À commander sur place':'Options du séjour')+'</span></button>';
+  if(!ended)h+='<button class="tile" data-go="bath"><span class="ic">♨︎</span><b>Bain nordique</b><span>Réserver un créneau</span></button>';
+  if(st.moment==='stay')h+='<button class="tile" data-go="home2"><span class="ic">💡</span><b>Domotique</b><span>Températures, lumières</span></button>';
+  if(st.moment==='stay')h+='<button class="tile" data-go="orders"><span class="ic">🧾</span><b>Mes commandes</b><span>'+(st.orders.length?st.orders.length+' commande'+(st.orders.length>1?'s':''):'Aucune')+'</span></button>';
+  h+='<button class="tile" data-go="wifi"><span class="ic">📶</span><b>Wifi</b><span>Solio-'+(st.lod?'Estiva':'Granja')+'</span></button></div>';
+  b.innerHTML=h;
+ } else if(st.view==='shop'){ $('#title').textContent='Boutique';const pre=st.moment==='preArrival';
+  let h=pre?'<div class="note">Les commandes s’ouvrent à votre arrivée. Vous pouvez déjà regarder.</div>':'';
+  h+='<div class="list">'+PRODUCTS.map(p=>'<div class="prod"><div class="meta"><b>'+p.name+'</b><span>'+eur(p.price)+' '+p.unit+'</span></div>'+(pre?'':(st.cart[p.id]?'<button class="btn small" data-dec="'+p.id+'">−</button><b style="min-width:18px;text-align:center">'+st.cart[p.id]+'</b>':'')+'<button class="btn small" data-inc="'+p.id+'">+</button>')+'</div>').join('')+'</div>';
+  b.innerHTML=h;
+ } else if(st.view==='bath'){ $('#title').textContent='Bain nordique';const pre=st.moment==='preArrival';
+  let h='<div class="sect">Demain · 2 h · 25 €</div>'+(pre?'<div class="note">La réservation s’ouvre à votre arrivée.</div>':'');
+  h+='<div class="slots">'+SLOTS.map(s=>'<button class="slot '+(st.bath===s?'sel ':'')+(TAKEN.has(s)?'taken':'')+'" data-slot="'+s+'" '+(pre?'disabled':'')+'>'+s+'</button>').join('')+'</div>';
+  h+='<p style="padding:0 14px;font-size:13px;color:var(--soft)">Le créneau barré a été pris par un vrai voyageur : la démo te laisse le choisir pour montrer le refus.</p>';
+  b.innerHTML=h;
+ } else if(st.view==='cart'){ $('#title').textContent='Panier';
+  let h='<div class="list">';for(const p of PRODUCTS)if(st.cart[p.id])h+='<div class="prod"><div class="meta"><b>'+p.name+' × '+st.cart[p.id]+'</b><span>'+eur(st.cart[p.id]*p.price*p.q)+'</span></div></div>';
+  if(st.bath)h+='<div class="prod"><div class="meta"><b>Bain nordique · demain '+st.bath+'</b><span>'+eur(25)+'</span></div></div>';
+  h+='<div class="sect">Paiement</div><label class="choice"><input type="radio" name="pay" value="note" '+(st.pay==='note'?'checked':'')+'>Ajouter à la note du séjour</label><label class="choice"><input type="radio" name="pay" value="card" '+(st.pay==='card'?'checked':'')+'>Payer maintenant par carte</label></div>';
+  h+='<div class="refus" id="refus"></div><div style="padding:0 14px"><button class="btn fill wide" id="order">Commander · '+eur(total())+'</button></div>';
+  b.innerHTML=h;
+ } else if(st.view==='confirm'){ $('#title').textContent='Commande';const o=st.orders[st.orders.length-1];
+  b.innerHTML='<div class="confirm"><div class="big">✓</div><h3>Commande confirmée</h3><p style="margin:0;color:var(--soft)">'+eur(o.total)+' · '+(o.pay==='card'?'payée par carte':'ajoutée à la note')+'</p><div class="demoline">Démo : rien n’a été commandé ni payé.</div><p><button class="btn" data-go="orders">Mes commandes</button> <button class="btn" data-go="home">Accueil</button></p></div>';
+ } else if(st.view==='orders'){ $('#title').textContent='Mes commandes';
+  b.innerHTML='<div class="list">'+(st.orders.length?st.orders.slice().reverse().map(o=>'<div class="prod"><div class="meta"><b>'+o.label+'</b><span>'+eur(o.total)+' · '+(o.pay==='card'?'carte':'note')+'</span></div><span class="chip demo">Démo</span></div>').join(''):'<p style="color:var(--soft)">Aucune commande pour l’instant.</p>')+'</div><p style="padding:0 14px;font-size:13px;color:var(--soft)">Ces commandes simulées disparaissent quand la session de démo se termine. Elles ne sont jamais sur la page « Commandes clients ».</p>';
+ } else if(st.view==='home2'){ $('#title').textContent='Domotique';
+  b.innerHTML='<div class="sect">Relevés</div><div style="margin:0 14px;background:var(--card);border:1px solid var(--line);border-radius:14px"><div class="reading"><span>Extérieur</span><b>11,4 °C</b></div><div class="reading"><span>Séjour</span><b>20,1 °C</b></div><div class="reading" style="border:0"><span>Bain nordique</span><b>38,0 °C</b></div></div><div class="sect">Lumières</div><div class="list">'+[['salon','Salon'],['terrasse','Terrasse']].map(([k,n])=>'<div class="light"><b>'+n+'</b><button class="sw '+(st.lights[k]?'on':'')+'" data-light="'+k+'" aria-label="'+n+'" aria-pressed="'+st.lights[k]+'"></button></div>').join('')+'</div>';
+ } else if(st.view==='booklet'){ $('#title').textContent='Livret';
+  b.innerHTML='<div class="list">'+['Bienvenue','Arrivée et départ','Le bain nordique','Autour du domaine','Tri des déchets'].map(t=>'<div class="prod"><div class="meta"><b>'+t+'</b><span>'+L.name+'</span></div><span>›</span></div>').join('')+'</div><p style="padding:0 14px;font-size:13px;color:var(--soft)">Le vrai livret publié du logement choisi.</p>';
+ }
+}
+function openSheet(html){const s=$('#sheet');s.innerHTML='<div class="grab"></div>'+html;$('#screen').classList.add('open')}
+function closeSheet(){$('#screen').classList.remove('open')}
+function demoSheet(){openSheet('<h4>Logement</h4>'+LODGINGS.map((l,i)=>'<button class="opt '+(i===st.lod?'on':'')+'" data-lod="'+i+'">'+l.name+'</button>').join('')+'<h4>Moment</h4>'+Object.entries(MOMENTS).map(([k,v])=>'<button class="opt '+(k===st.moment?'on':'')+'" data-mom="'+k+'">'+v+'</button>').join(''))}
+$('#demobar').onclick=demoSheet;$('#scrim').onclick=closeSheet;$('#back').onclick=()=>go(st.view==='cart'?'shop':'home');$('#cartbtn').onclick=()=>go('cart');
+document.addEventListener('click',e=>{const t=e.target.closest('[data-go],[data-inc],[data-dec],[data-slot],[data-lod],[data-mom],[data-light],#order');if(!t)return;
+ if(t.dataset.go){const g=t.dataset.go;if(g==='gate')return openSheet('<h4>Portail</h4><p>Ici, le voyageur ouvre le portail.</p><p style="margin:0;color:var(--soft)">Code du clavier</p><div class="keypad">1234</div><div class="demoline">Démo : aucun portail n’est ouvert.</div>');
+  if(g==='wifi')return openSheet('<h4>Wifi</h4><p><b>Solio-'+(st.lod?'Estiva':'Granja')+'</b></p><p style="color:var(--soft)">Le vrai mot de passe du logement, comme pour un voyageur.</p>');closeSheet();return go(g)}
+ if(t.dataset.inc){st.cart[t.dataset.inc]=(st.cart[t.dataset.inc]||0)+1;return render()}
+ if(t.dataset.dec){st.cart[t.dataset.dec]--;if(!st.cart[t.dataset.dec])delete st.cart[t.dataset.dec];return render()}
+ if(t.dataset.slot){st.bath=st.bath===t.dataset.slot?null:t.dataset.slot;return render()}
+ if(t.dataset.lod!==undefined){st.lod=+t.dataset.lod;st.cart={};st.bath=null;st.view='home';closeSheet();render();return toast('Logement : '+lodging().name)}
+ if(t.dataset.mom){st.moment=t.dataset.mom;st.cart={};st.bath=null;st.view='home';closeSheet();render();return toast(MOMENTS[st.moment])}
+ if(t.dataset.light){const k=t.dataset.light;t.classList.add('pending');setTimeout(()=>{st.lights[k]=!st.lights[k];st.simL++;$('#simLights').textContent=st.simL;render()},900);return}
+ if(t.id==='order'){const r=$('#refus');r.style.display='none';
+  if(st.bath&&TAKEN.has(st.bath)){r.textContent='Ce créneau vient d’être réservé. Choisissez-en un autre.';r.style.display='block';return}
+  if(total()>MAX){r.textContent='Le montant dépasse '+MAX+' € par commande. Retirez un article.';r.style.display='block';return}
+  const parts=PRODUCTS.filter(p=>st.cart[p.id]).map(p=>p.name);if(st.bath)parts.push('Bain '+st.bath);
+  st.orders.push({total:total(),pay:st.pay,label:parts.join(', ')});st.cart={};st.bath=null;st.sim++;$('#simCount').textContent=st.sim;go('confirm')}
+});
+document.addEventListener('change',e=>{if(e.target.name==='pay')st.pay=e.target.value});
+$('#copy').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText($('#url').textContent);toast('Lien copié')};
+$('#openD').onclick=()=>{st.openedGen=st.linkGen;st.view='home';$('#demobar').style.display='flex';render();toast('Démo ouverte dans le téléphone')};
+$('#regen').onclick=()=>{st.linkGen++;drawStudio();render();toast('Nouveau lien : l’ancien ne s’ouvre plus')};
+
+const QS=[
+ {id:'name',q:'Prénom du voyageur fictif affiché dans la démo',o:[['Camille (prénom neutre)','Recommandé : devant un client, l’appli dit « Bonjour Camille », sans ambiguïté sur à qui appartient le séjour.'],['Ton prénom','« Bonjour Adrien » : plus personnel pour tes propres tests, moins clair en démonstration.'],['Aucun prénom','« Bonjour », comme quand le voyageur n’a pas de prénom saisi.']]},
+ {id:'home',q:'Page Domotique en démo',o:[['Relevés réels, lumières simulées','Recommandé : les vraies températures du logement choisi, l’interrupteur bouge mais la maison n’est jamais appelée.'],['Page masquée en démo','Aucun risque de confusion, mais on ne peut pas la montrer.'],['Relevés fictifs, lumières simulées','Valeurs inventées : aucun relevé du logement occupé n’est montré.']]},
+ {id:'orders',q:'Les commandes simulées dans « Mes commandes »',o:[['Listées pendant la démo','Recommandé : on montre aussi le suivi d’une commande ; elles disparaissent avec la session (24 h).'],['Jamais listées','Plus simple : la confirmation seule, « Mes commandes » reste vide.']]},
+ {id:'where',q:'Où trouver le lien de démo',o:[['Studio → Réglages seulement','Recommandé : là où se règle déjà tout ce que voit le voyageur.'],['Studio + Réglages de GuestFlow','Aussi accessible depuis le back-office, sans ouvrir le Studio.']]}
+];
+const form=$('#qs');form.innerHTML=QS.map(x=>'<div class="q"><p>'+x.q+'</p>'+x.o.map((o,i)=>'<label><input type="radio" name="'+x.id+'" value="'+i+'" '+(i===0?'checked':'')+'><span>'+o[0]+(i===0?' (recommandé)':'')+'<small>'+o[1]+'</small></span></label>').join('')+'</div>').join('');
+function out(){$('#out').value='Mode démo de l’appli séjour — mes choix :\n'+QS.map(x=>{const v=form.querySelector('input[name="'+x.id+'"]:checked').value;return '- '+x.q+' : '+x.o[v][0]}).join('\n')}
+form.addEventListener('change',out);out();
+$('#copyOut').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText($('#out').value);toast('Résumé copié')};
+drawStudio();render();
+</script>
+</body>
+</html>

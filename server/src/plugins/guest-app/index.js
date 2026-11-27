@@ -14,6 +14,7 @@ const createOrdersModel = require('./models/ordersModel');
 const createItemsModel = require('./models/itemsModel');
 const createStayLinesModel = require('./models/stayLinesModel');
 const createStayLinksModel = require('./models/stayLinksModel');
+const createDemoLinkModel = require('./models/demoLinkModel');
 const createServiceHoursModel = require('./models/serviceHoursModel');
 const createBookletModel = require('./models/bookletModel');
 const createMediaModel = require('./models/mediaModel');
@@ -44,6 +45,9 @@ const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 const { createGuestLimiters } = require('./rateLimiters');
 const gate = require('./gate');
+const { createDemoOrders } = require('./demoOrders');
+const { createDemoCommands } = require('./demoCommands');
+const { buildDemoPricing } = require('./demoPricing');
 const stayAppEmail = require('./emailContext');
 
 const id = 'guest-app';
@@ -103,6 +107,11 @@ function buildGuestApi({
   const items = once(() => createItemsModel(db()));
   const stayLines = once(() => createStayLinesModel(db()));
   const stayLinks = once(() => createStayLinksModel(db()));
+  const demoLinks = once(() => createDemoLinkModel(db()));
+  // Demo mode rules 10, 11, 13 — what a demo session « does » lives in memory only, and is dropped with its session.
+  const demoOrders = once(() => createDemoOrders());
+  const demoCommands = once(() => createDemoCommands({ now }));
+  const forgetDemoSessions = (ids) => { demoOrders().dropMany(ids); demoCommands().dropMany(ids); };
   const serviceHours = once(() => createServiceHoursModel(db()));
   const booklet = once(() => createBookletModel(db()));
   const media = once(() => createMediaModel(db()));
@@ -148,11 +157,12 @@ function buildGuestApi({
 
   const collectionOf = (reservationId, at) => sale().collectionOf(reservationId, at);
 
+  const demoPricing = buildDemoPricing({ db, sale });
   const guestSession = buildGuestSession({
-    sessions, stays, stayLinks, lodgings, now, ...(httpsEnabled ? { httpsEnabled } : {}),
+    sessions, stays, stayLinks, lodgings, now, demoLinks, onDemoGone: (id) => forgetDemoSessions([id]), ...(httpsEnabled ? { httpsEnabled } : {}),
   });
   const shop = buildShopController({
-    items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment, orderCollection: collectionOf,
+    items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment, orderCollection: collectionOf, demoPricing,
   });
 
   /**
@@ -173,11 +183,11 @@ function buildGuestApi({
   }
 
   const home = buildHomeController({
-    homeBlocks, lodgings, homeData, now,
+    homeBlocks, lodgings, homeData, now, demoCommands,
   });
   const places = buildPlacesController({ placesModel, settingsStore, now });
   const controller = buildSessionController({
-    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
+    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed, demoLinks,
     bathCards: shop.bathCards,
     homeReady: home.ready,
     publishedPlaces: places.publishedCount,
@@ -191,6 +201,7 @@ function buildGuestApi({
   });
   const orderBook = buildOrdersController({
     db, orders, stays, lodgings, shop, scheduler, serviceHours, sale, payments, push, maxOrderTotal, guestHost, now, stock, alertStock, fulfilment, translator,
+    demoPricing, demoOrders,
   });
   const resolver = buildBookletResolver({
     booklet, media, soldKeysOf: shop.soldKeysOf, shownKeys: controller.shownKeys,
@@ -208,7 +219,7 @@ function buildGuestApi({
         items, stock, alertStock, now, translator,
       }),
       studioSettings: buildStudioSettingsController({
-        lodgings, settingsStore, soliomapFeed, now, publicUrl,
+        lodgings, settingsStore, soliomapFeed, now, publicUrl, demoLinks, sessions, guestHost, forgetDemoSessions,
       }),
       serviceHours: buildServiceHoursController({ serviceHours }),
       studio: buildStudioController({

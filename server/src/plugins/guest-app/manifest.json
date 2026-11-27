@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -13,7 +13,8 @@
     "L’étape « Commandes Mon séjour » du sas d’arrivée",
     "La variable d’e-mail « Lien Mon séjour »",
     "Le Studio du livret (/studio)",
-    "La page « Pratique » de l’application clients et de son Studio"
+    "La page « Pratique » de l’application clients et de son Studio",
+    "Le lien de démo de l’application clients (Studio › Réglages)"
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
@@ -134,6 +135,12 @@
       "Studio : page « Pratique » pour saisir les lieux (position collée en coordonnées ou en lien Google Maps, temps en voiture, horaires, ce qu’on peut déposer, énergies), les publier ou les masquer, et revérifier ceux qui ne l’ont pas été depuis un an ; position du domaine réglable.",
       "Livret : un bouton peut ouvrir la page « Pratique », sur une catégorie choisie.",
       "Hors connexion, la liste des lieux reste lisible ; seules les tuiles de la carte (OpenStreetMap) demandent le réseau.",
+      "Compatible avec GuestFlow 4 (SDK 2.34.0)."
+    ],
+    "1.7.0": [
+      "Lien de démo (Studio › Réglages) : un séjour fictif, « Camille », qui ouvre l’application comme un voyageur la voit, sans réservation, sans paiement et sans effet réel. Un bandeau « Démo » change de logement et de moment du séjour (avant l’arrivée, pendant, après le départ) en un toucher.",
+      "Dans la démo, le panier, le bain, la commande et le choix du paiement vont jusqu’à la confirmation sans rien écrire : ni fiche, ni planning, ni lien de paiement, ni stock, ni notification. Les commandes simulées se listent dans « Mes commandes » le temps de la démo ; le portail affiche un code de clavier fictif ; les lumières sont simulées, les mesures restent réelles.",
+      "« Régénérer le lien » remplace le lien de démo et ferme les démos en cours. Migration additive : une table pour le lien, deux colonnes sur les sessions (la table des sessions est reconstruite en gardant ses lignes).",
       "Compatible avec GuestFlow 4 (SDK 2.34.0)."
     ]
   }

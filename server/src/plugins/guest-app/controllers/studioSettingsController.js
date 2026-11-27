@@ -5,15 +5,19 @@
  *   GET  /api/guest-app/studio/settings        the app settings, with the Soliomap sync state
  *   PUT  /api/guest-app/studio/settings        the keys sent, judged together (« À retirer » needs its place)
  *   POST /api/guest-app/studio/soliomap/sync   rule 48 — « Synchroniser »: the Soliomap feed read again now
+ *   GET  /api/guest-app/studio/demo-link       demo mode rules 1, 2 — the demo link, created the first time it is shown
+ *   POST /api/guest-app/studio/demo-link/regenerate   « Régénérer le lien »: the old link and its sessions die at once
  *
  * Nothing of GuestFlow is cached here: the properties, their names, the articles are read on every load. Only the
  * Soliomap feed, which lives outside GuestFlow, is (rule 15bis).
  */
 
+const QRCode = require('qrcode');
 const {
   DECLARED, MAX_PICKUP_PLACE, OWN_HOST_REFUSAL, ownHostsOf,
 } = require('../settings');
 const { estateOf, positionText } = require('../places');
+const { demoLinkUrl } = require('../qrPoster');
 
 const KEYS = Object.freeze(['appName', 'guestHost', 'soliomapUrl', 'soliomapEmbed', 'maxOrderTotal', 'fulfilment', 'pickupPlace', 'estatePosition']);
 const OUT_OF_APP = 'Hors application';
@@ -40,7 +44,8 @@ function syncView(last, now) {
 }
 
 function buildStudioSettingsController({
-  lodgings, settingsStore, soliomapFeed, now, publicUrl = () => '',
+  lodgings, settingsStore, soliomapFeed, now, publicUrl = () => '', demoLinks = () => null, sessions = () => null,
+  guestHost = () => null, forgetDemoSessions = () => {},
 }) {
   // A feed handed by a suite may know only `activities()`: it has never synchronised, and refreshes by reading.
   const lastSync = () => (typeof soliomapFeed.lastSync === 'function' ? soliomapFeed.lastSync() : null);
@@ -114,8 +119,37 @@ function buildStudioSettingsController({
     return res.json(view().soliomap);
   }
 
+  /** The demo link as the Studio shows it: its URL and the QR that opens it; 409 while the app has no address. */
+  async function demoView(res, link) {
+    const url = demoLinkUrl(guestHost(), link.token);
+    res.set('Cache-Control', 'no-store');
+    return res.json({ url, qrDataUri: await QRCode.toDataURL(url, { margin: 1, width: 440, errorCorrectionLevel: 'M' }), createdAt: link.createdAt });
+  }
+
+  const noHost = (res) => res.status(409).json({ error: 'Il manque l’adresse de l’application (Paramètres › Intégrations).' });
+
+  async function demoLinkRead(req, res, next) {
+    try {
+      if (!guestHost()) return noHost(res);
+      return await demoView(res, demoLinks().ensure(now()));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async function demoLinkRegenerate(req, res, next) {
+    try {
+      if (!guestHost()) return noHost(res);
+      const { link, revokedId } = demoLinks().regenerate(now());
+      if (revokedId !== null) forgetDemoSessions(sessions().endDemoSessions(revokedId));
+      return await demoView(res, link);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   return {
-    lodgingsList, read, sync, write,
+    demoLinkRead, demoLinkRegenerate, lodgingsList, read, sync, write,
   };
 }
 
