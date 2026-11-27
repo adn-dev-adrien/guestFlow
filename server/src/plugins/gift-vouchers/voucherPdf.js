@@ -60,6 +60,8 @@ const VOUCHER_BACK_LAYOUT = Object.freeze({
 
 // The « à partir de » label of the merchant card's front: the front is not drawn by the website, so its sizes are not part of the back's layout.
 const FRONT_PRICE_PT = Object.freeze({ small: 8.5, price: 19 });
+// The name on a plain front (no visual picked): at most three lines, from 22 pt down to 12 pt.
+const PLAIN_FRONT_PT = Object.freeze({ max: 22, min: 12, lines: 3 });
 
 const MM = 72 / 25.4;
 const mm = (n) => n * MM;
@@ -236,8 +238,19 @@ function drawFront(sheet, { image, F, companyName }) {
   } else {
     doc.save().rect(box.x, box.y, box.w, box.h).clip();
     doc.rect(box.x, box.y, box.w, box.h).fill('#f4f1ea');
-    doc.font(F.serif).fontSize(22).fillColor(INK);
-    plainText(doc, companyName, trim.left + SAFE, trim.top + TRIM.height / 2 - 14, { width: TRIM.width - 2 * SAFE, align: 'center' });
+    // The name on up to three centred lines inside the safe area, the type shrinking (22 pt down to 12) until all of it fits.
+    const width = TRIM.width - 2 * SAFE;
+    let size = PLAIN_FRONT_PT.max;
+    let lines;
+    for (;;) {
+      doc.font(F.serif).fontSize(size);
+      lines = fitLines(doc, companyName, width, PLAIN_FRONT_PT.lines);
+      if (!lines[lines.length - 1].endsWith('…') || size <= PLAIN_FRONT_PT.min) break;
+      size -= 1;
+    }
+    doc.fillColor(INK);
+    const pitch = doc.currentLineHeight();
+    lines.forEach((line, index) => plainText(doc, line, trim.left + SAFE, trim.top + TRIM.height / 2 - (pitch * lines.length) / 2 + index * pitch, { width, align: 'center' }));
     doc.restore();
   }
   if (sheet.marks) drawCropMarks(sheet);
