@@ -109,7 +109,8 @@ test('K4 — an off-grid outside range is priced on the outside grid (external 3
   const out = model.priceBooking(draft(resourceId, '18:05', '19:35'));
   assert.equal(out.pricing, 'banded');
   assert.equal(out.rateGrid, 'external');
-  assert.equal(out.total, 50);
+  // 18:05-19:00 at the day rate, then the evening first hour until 19:05 and the following hour (rank 2, from the first paid minute) after: 27.5 + 3.33 + 20.
+  assert.equal(out.total, 50.83);
 });
 
 test('finding 2 — a fixed-price resource booked 2 h costs its flat price', () => {

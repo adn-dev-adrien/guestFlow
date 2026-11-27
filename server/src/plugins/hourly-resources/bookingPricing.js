@@ -88,6 +88,26 @@ function rateGridOf(resource, { external, period = 'week', guestDayRate = Number
   };
 }
 
+/**
+ * The rates of a booking that is not an outside session of the one engine path — what origin/master priced every booking with (K9, D6): the guests' set for a stay, and for a
+ * lodging with no stay, or an outside booking priced before the engine path, the outside set where its band has a first-hour price and the guests' live rate where it has none
+ * (the evening falls back to the guests' evening, then to the day rate). This is the only fallback to the guests' rate left, and only for these bookings: a placed outside
+ * session is never priced from it (rules 2, 29).
+ */
+function legacyGridOf(resource, { external, guestDayRate = Number(resource.price ?? 0) }) {
+  const guestEveningRate = Number(resource.hourlyEveningRate) || 0;
+  const dayRate = external && Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : guestDayRate;
+  const eveningRate = external
+    ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
+    : guestEveningRate;
+  return {
+    dayRate,
+    eveningRate,
+    dayNextRate: nextRateField(external ? resource.hourlyExternalNextDayRate : resource.hourlyNextDayRate),
+    eveningNextRate: nextRateField(external ? resource.hourlyExternalNextEveningRate : resource.hourlyNextEveningRate),
+  };
+}
+
 const BAND_WORDS = Object.freeze({ day: 'la journée', evening: 'la soirée' });
 
 /** The sentence that says an outside band has no price: « Bain nordique » n’a pas de tarif extérieur pour la soirée le week-end. */
@@ -135,12 +155,14 @@ function rateConfigOf(resource, { external, period = null, guestDayRate }) {
  * @param {number} [p.offeredMinutes] already validated by `offeredRefusal`
  * @param {{ rate: number|null }|null} [p.vat] the rate that applies, `rate: null` when the instance has no VAT
  * @param {string|null} [p.date]    the booking's day: an outside booking is priced on its real date (week or weekend); none → the week grid
- * @param {boolean} [p.lodging] the booking carries a lodging (with or without a reservation): it is priced on the week grid, as before the weekend grid existed (K3)
+ * @param {boolean} [p.lodging] the booking carries a lodging (with or without a reservation): it is priced as origin/master priced it, on the week grid (K3, K9)
+ * @param {boolean} [p.engineRated] the fact stored on the booking (`resource_bookings.engineRated`): an outside session with no lodging that was made or moved on the engine path is priced by it, whatever
+ *   reads it; a row of before keeps the figure of its time. A draft, a new or a moved booking is engine rated.
  * @param {boolean} [p.judgeBands] false for a booking already stored (an invoice copies its figures): an outside band with no price is refused only when a booking is made or moved
  * @param {boolean} [p.freeHourAtDayRate] false for a booking stored before the one hourly grid: its free hour keeps the band it fell in
  */
 function priceBookingLines({
-  resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true, date = null, lodging = false, judgeBands = true,
+  resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true, date = null, lodging = false, engineRated = true, judgeBands = true,
 }) {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
@@ -177,20 +199,21 @@ function priceBookingLines({
 
   // Hourly-scheduled resource: time-banded grid (specs/resources/resource-hourly-scheduling.md §3.5).
   if (Number(resource.showsPlanningCard || 0) === 1) {
-    // An outside band with no price is refused, never priced 0 € nor at another rate (the caller turns `refusal` into the answer of the save or the preview).
-    const unsold = external && judgeBands ? unsoldSliceOf(resource, {
+    // A placed outside session (no lodging) made or moved now is priced by the engine core on its real date and period, any start and duration the planning allows, off the slot grid
+    // included; an outside band with no price is refused, never priced 0 € nor at another rate (the caller turns `refusal` into the answer of the save or the preview). Every other
+    // booking — a stay's, a lodging's with no stay, an outside one stored before the engine path — is priced as it always was.
+    const engine = external && !lodging && engineRated;
+    const unsold = engine && judgeBands ? unsoldSliceOf(resource, {
       date, period: 'week', fromMin: start, toMin: end,
     }) : null;
     if (unsold) return { ...base, refusal: notSoldSentence(resource, unsold.band, unsold.period) };
-    // A placed outside session (no lodging) made or moved now is priced on any start and duration the planning allows, off the slot grid included: no flat guests' rate stands in. A booking already stored keeps its stored figure.
-    const outsideSession = external && !lodging && judgeBands;
     const cfg = {
-      ...rateConfigOf(resource, { external, guestDayRate, period: date ? null : 'week' }),
+      ...(engine ? rateConfigOf(resource, { external, guestDayRate, period: date ? null : 'week' }) : legacyGridOf(resource, { external, guestDayRate })),
       eveningStart: resource.hourlyEveningStart,
       slotMinutes: resource.slotDuration,
-      ...(outsideSession ? { anyStart: true } : {}),
+      ...(engine ? { anyStart: true } : {}),
     };
-    const sessionDate = date || '2000-01-01';
+    const sessionDate = engine && date ? date : '2000-01-01';
     // The free minutes are not a rank (specs/resources/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
     const priced = priceSessions([{ date: sessionDate, start: startTime, end: endTime }], cfg, freeApplied);
     if (priced.validSessions.length) {
@@ -209,8 +232,7 @@ function priceBookingLines({
         offeredValue,
       });
     }
-    if (outsideSession) return finish({ pricing: 'banded', rateGrid: 'external' });
-    // off-grid range of a guest or a lodging → the flat computation below.
+    // an end that does not follow its start (a stored row, rule 23) or an off-grid range of a booking priced on the grid → the flat computation below.
   }
 
   const grossTotal = round2((guestDayRate * durationMinutes) / 60);
@@ -229,5 +251,5 @@ function priceBookingLines({
 }
 
 module.exports = {
-  priceBookingLines, offeredRefusal, vatOf, rateGridOf, rateConfigOf, bandLineOf, duration, unsoldSliceOf, notSoldSentence, OFFER_STEP_MINUTES,
+  priceBookingLines, offeredRefusal, vatOf, rateGridOf, legacyGridOf, rateConfigOf, bandLineOf, duration, unsoldSliceOf, notSoldSentence, OFFER_STEP_MINUTES,
 };

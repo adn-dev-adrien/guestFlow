@@ -110,11 +110,11 @@ test('rule 2 — a stored value sent back unchanged is not judged again', NEEDS_
 const legacyDb = () => {
   const db = new Database(':memory:');
   db.exec(`CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
-    CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, price REAL, priceType TEXT, showsPlanningCard INTEGER, hourlyEveningRate REAL, hourlyExternalDayRate REAL, hourlyExternalEveningRate REAL,
+    CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, price REAL, priceType TEXT, showsPlanningCard INTEGER, sellableExternally INTEGER, hourlyEveningRate REAL, hourlyExternalDayRate REAL, hourlyExternalEveningRate REAL,
       hourlyNextDayRate REAL, hourlyNextEveningRate REAL, hourlyExternalNextDayRate REAL, hourlyExternalNextEveningRate REAL);
     CREATE TABLE property_resource_prices (propertyId INTEGER, resourceId INTEGER, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId));`);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Estiva'), (2, 'Granja')").run();
-  db.prepare("INSERT INTO resources (id, name, price, priceType, showsPlanningCard, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate, hourlyNextDayRate) VALUES (1, 'Bain', 40, 'per_hour', 1, 55, 0, 0, 35)").run();
+  db.prepare("INSERT INTO resources (id, name, price, priceType, showsPlanningCard, sellableExternally, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate, hourlyNextDayRate) VALUES (1, 'Bain', 40, 'per_hour', 1, 1, 55, 0, 0, 35)").run();
   db.prepare("INSERT INTO resources (id, name, price, priceType, showsPlanningCard) VALUES (2, 'Plancha', 12, 'per_stay', 0)").run();
   db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (1, 1, 30, 60), (2, 1, NULL, 60), (1, 2, 9, 0)').run();
   return db;

@@ -74,6 +74,7 @@ function normalizeConfig(cfg = {}) {
     eveningStart: hasEvening ? toMinutes(cfg.eveningStart) : Infinity,
     slotMinutes: Math.max(1, Number(cfg.slotMinutes) || 30),
     rankOffsetMinutes: Math.max(0, Number(cfg.rankOffsetMinutes) || 0),
+    anyStart: Boolean(cfg.anyStart),
   };
   if (!cfg.weekend) return base;
   // The weekend grid (an outside customer only): same clock, its own four rates; `forcePeriod` is a dateless quote's explicit period (rule 8).
@@ -103,26 +104,40 @@ function rateAt(t, normCfg, paidFrom, date) {
   return rank === 1 ? grid.eveningRate : grid.eveningNextRate;
 }
 
-// Price the minutes [fromMin, toMin) over the banded grid, walking in slot steps so a slice that crosses the evening switch is
+// The slices a range is priced in. On the grid a slice is one slot step from the start of the range; a session that starts off the grid (`anyStart`, a planning booking of an outside customer)
+// is cut where its price can change instead: at the evening switch (the band, and the period of a Friday or an eve of holiday), and at every whole hour from the first paid minute (the rank).
+function slicesOf(fromMin, toMin, normCfg, paidFrom) {
+  const out = [];
+  if (!normCfg.anyStart) {
+    for (let t = fromMin; t < toMin; t += normCfg.slotMinutes) out.push([t, Math.min(t + normCfg.slotMinutes, toMin)]);
+    return out;
+  }
+  const edges = new Set([fromMin, toMin]);
+  [normCfg.eveningStart, normCfg.eveningClock, paidFrom].forEach((edge) => {
+    if (Number.isFinite(edge) && edge > fromMin && edge < toMin) edges.add(edge);
+  });
+  for (let t = paidFrom - normCfg.rankOffsetMinutes + 60; t < toMin; t += 60) {
+    if (t > fromMin && t > paidFrom - normCfg.rankOffsetMinutes) edges.add(t);
+  }
+  const sorted = [...edges].sort((a, b) => a - b);
+  for (let i = 0; i + 1 < sorted.length; i += 1) out.push([sorted[i], sorted[i + 1]]);
+  return out;
+}
+
+// Price the minutes [fromMin, toMin) over the banded grid, walking in slices so a slice that crosses the evening switch is
 // billed at each side's band. Ranks count from `paidFrom` (default: `fromMin`).
 function priceMinutes(fromMin, toMin, normCfg, paidFrom = fromMin, date = null) {
   if (toMin <= fromMin) return 0;
-  const { slotMinutes } = normCfg;
-  let total = 0;
-  for (let t = fromMin; t < toMin; t += slotMinutes) {
-    total += (rateAt(t, normCfg, paidFrom, date) * Math.min(slotMinutes, toMin - t)) / 60;
-  }
-  return total;
+  return slicesOf(fromMin, toMin, normCfg, paidFrom).reduce((total, [t, end]) => total + (rateAt(t, normCfg, paidFrom, date) * (end - t)) / 60, 0);
 }
 
-// The same slot walk as `priceMinutes`, kept per band and per rate: consecutive slices of one band at one rate merge into one entry,
+// The same slice walk as `priceMinutes`, kept per band and per rate: consecutive slices of one band at one rate merge into one entry,
 // so a screen can show « jour 30 € · soir 40 € » and the first hour apart from the following ones. `rate` is the effective hourly rate.
 function bandsOf(fromMin, toMin, normCfg, paidFrom = fromMin, date = null) {
   const out = [];
   if (toMin <= fromMin) return out;
-  const { eveningStart, slotMinutes } = normCfg;
-  for (let t = fromMin; t < toMin; t += slotMinutes) {
-    const end = Math.min(t + slotMinutes, toMin);
+  const { eveningStart } = normCfg;
+  for (const [t, end] of slicesOf(fromMin, toMin, normCfg, paidFrom)) {
     const band = t < eveningStart ? 'day' : 'evening';
     const rate = rateAt(t, normCfg, paidFrom, date);
     const { period } = gridAt(t, normCfg, date);

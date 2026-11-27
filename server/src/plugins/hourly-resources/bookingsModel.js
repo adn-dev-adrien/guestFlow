@@ -249,6 +249,8 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       // A booking that carries a lodging (with or without a stay) is priced on the week grid, its free minutes valued there — as before the weekend grid existed.
       date: lodging ? null : date,
       lodging,
+      // The price path is a fact of the booking (`engineRated`), written when it is made or moved: a row of before keeps its way of pricing through every save that does not move it.
+      engineRated: stored ? Number(stored.engineRated) === 1 : true,
       judgeBands: !(stored && stored.id),
     });
   }
@@ -530,7 +532,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const totalPrice = priced.total;
     const billing = billingOf(payload.billing);
     const result = database.prepare(
-      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity, freeHourAtDayRate) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,1)'
+      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity, freeHourAtDayRate, engineRated) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,1,1)'
     ).run(resource.id, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, offeredMinutes, billing.street, billing.postcode, billing.city);
     return { ok: true, id: result.lastInsertRowid, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
@@ -565,6 +567,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const pricedMoved = pricedMovedFrom(existing, next);
     let totalPrice;
     let freeHourAtDayRate = existing.freeHourAtDayRate ?? null;
+    let engineRated = existing.engineRated ?? null;
     if (isPaid(existing) && !pricedMoved) {
       // Rule 36 — a paid booking whose slot does not move keeps the total its payment covers, whatever the tariff now.
       totalPrice = Number(existing.totalPrice);
@@ -574,10 +577,13 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       if (refusal) return refusal;
       // specs/pricing/pricing-components.md §3 rule 74 — only the operator moving the slot or the party puts a booking on the one hourly grid; any other
       // save of an unpaid booking re-prices it as before (rule 36 reading), its free hour still valued as it was sold.
-      if (pricedMoved) freeHourAtDayRate = 1;
+      if (pricedMoved) {
+        freeHourAtDayRate = 1;
+        engineRated = 1;
+      }
       const priced = breakdownOf({
         resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate,
-        stored: { freeHourAtDayRate },
+        stored: pricedMoved ? { freeHourAtDayRate, engineRated } : { id, freeHourAtDayRate, engineRated },
       });
       if (priced.refusal) return notSold(priced);
       totalPrice = priced.total;
@@ -600,7 +606,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     };
     const write = () => { writeRow(); followClient(); };
     const writeRow = () => database.prepare(
-      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,freeHourAtDayRate=?,updatedAt=datetime('now') WHERE id=?"
+      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,freeHourAtDayRate=?,engineRated=?,updatedAt=datetime('now') WHERE id=?"
     ).run(
       reservationId !== undefined ? (reservationId || null) : existing.reservationId,
       clientId !== undefined ? (clientId || null) : existing.clientId,
@@ -613,6 +619,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       Number(nextOffered) || 0,
       billing.street || null, billing.postcode || null, billing.city || null,
       freeHourAtDayRate,
+      engineRated,
       id,
     );
 
