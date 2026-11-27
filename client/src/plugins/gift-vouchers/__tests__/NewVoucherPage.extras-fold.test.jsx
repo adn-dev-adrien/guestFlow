@@ -93,7 +93,9 @@ test('rule 64: changing the campaign forgets the extras chosen on the other, and
   await waitFor(() => expect(giftVouchersApi.offerPrice.mock.calls.at(-1)[0].addOns).toEqual([{ articleRef: 'option:11', qty: 1 }]));
   await userEvent.click(screen.getByRole('button', { name: /Un séjour offert/ }));
   await userEvent.click(screen.getByRole('button', { name: /Un bain nordique/ }));
-  await waitFor(() => expect(giftVouchersApi.offerPrice.mock.calls.at(-1)[0]).toEqual({ slug: 'bain-jour', extraMinutes: 0, addOns: [] }));
+  await waitFor(() => expect(giftVouchersApi.offerPrice.mock.calls.at(-1)[0]).toEqual({
+    slug: 'bain-jour', period: 'week', validityMonths: '12', extraMinutes: 0, addOns: [],
+  }));
   expect(head()).toHaveAttribute('aria-expanded', 'false');
   giftVouchersApi.offerPrice.mockRejectedValue(Object.assign(new Error('Temps supplémentaire : 2 h au plus.'), { code: 'EXTRA_TIME_NOT_OFFERED' }));
   await userEvent.click(head());

@@ -75,7 +75,7 @@ test('a price is read each time: a rate changed on the resource moves the price 
   db.prepare('UPDATE resources SET hourlyExternalDayRate = 50, hourlyExternalNextDayRate = 45 WHERE id = ?').run(ids.bath);
   assert.equal(price({}).totalCents, before);
   assert.equal(api.campaigns.find(bath.id).updatedAt, updatedAt);
-  assert.equal(Object.keys(db.prepare('SELECT * FROM gift_voucher_campaigns WHERE id = ?').get(bath.id)).some((c) => /price|cents$/i.test(c) && !/amount|extra/i.test(c)), false, 'no price column on a campaign');
+  assert.equal(Object.keys(db.prepare('SELECT * FROM gift_voucher_campaigns WHERE id = ?').get(bath.id)).some((c) => /price|cents$/i.test(c) && !/amount|extra|position/i.test(c)), false, 'no price column on a campaign');
 });
 
 test('extra time is refused beyond what the campaign offers, off the slot step and where none is offered — each with its sentence', () => {

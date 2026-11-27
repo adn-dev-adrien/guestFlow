@@ -80,14 +80,16 @@ function createCatalogueView({ db, articles }) {
   }
 
   function sessionRefusal({
-    resourceId, band, minutes, rankOffsetMinutes,
+    resourceId, band, minutes, rankOffsetMinutes, period,
   }) {
     const row = db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(resourceId));
     if (!row) return 'Ressource inconnue.';
     const article = articles.makeArticle(row, { kind: 'resource' });
     const family = articles.liveFamilies().hourly;
     if (!family || typeof family.quoteSession !== 'function') return 'Les ressources à l’heure ne sont pas disponibles pour le moment.';
-    const answer = family.quoteSession(article.config, { band, minutes, ...(rankOffsetMinutes === undefined ? {} : { rankOffsetMinutes }) });
+    const answer = family.quoteSession(article.config, {
+      band, minutes, ...(rankOffsetMinutes === undefined ? {} : { rankOffsetMinutes }), ...(period ? { period } : {}),
+    });
     return answer.refusal ? answer.refusal.message : null;
   }
 

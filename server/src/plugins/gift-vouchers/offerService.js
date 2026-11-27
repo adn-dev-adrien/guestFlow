@@ -93,10 +93,15 @@ function createOfferService({
   /** What a composed voucher holds, as the pricing engine is asked for it: the included session, the extra time after it (its ranks continue), the options and the add-ons. */
   function engineRequestOf(contents) {
     const { resource } = contents;
-    const lines = [{ articleRef: `resource:${resource.id}`, session: { band: resource.band, minutes: resource.includedMinutes } }];
+    const period = resource.period || 'week';
+    const lines = [{ articleRef: `resource:${resource.id}`, session: { band: resource.band, minutes: resource.includedMinutes, period } }];
     const descriptors = [{ kind: 'session', label: null }];
     if (resource.extraMinutes > 0) {
-      lines.push({ articleRef: `resource:${resource.id}`, session: { band: resource.band, minutes: resource.extraMinutes, rankOffsetMinutes: resource.includedMinutes } });
+      lines.push({
+        articleRef: `resource:${resource.id}`, session: {
+          band: resource.band, minutes: resource.extraMinutes, rankOffsetMinutes: resource.includedMinutes, period,
+        },
+      });
       descriptors.push({ kind: 'extra', label: `Temps supplémentaire · ${durationText(resource.extraMinutes)}` });
     }
     contents.options.forEach((o) => { lines.push({ articleRef: o.articleRef, quantity: o.qty }); descriptors.push({ kind: 'option' }); });
@@ -177,6 +182,16 @@ function createOfferService({
     return { value };
   }
 
+  /** Rules 10-12 — the period asked: the one a campaign offers alone, the one chosen among two (required then), never one it does not offer. */
+  function periodOf(campaign, asked) {
+    const offered = campaign.periods && campaign.periods.length ? campaign.periods : ['week'];
+    if (asked === undefined || asked === null || asked === '') {
+      return offered.length === 1 ? { value: offered[0] } : { problem: refuse('PERIOD_REQUIRED', 'Période : semaine ou week-end est à choisir.') };
+    }
+    if (!rules.PERIODS.includes(asked) || !offered.includes(asked)) return { problem: refuse('PERIOD_NOT_OFFERED', 'Période : ce bon ne se vend pas pour cette période.') };
+    return { value: asked };
+  }
+
   /** The frozen contents a campaign sells for a request: the composition, the extra time asked (within what is offered) and the add-ons chosen. */
   function contentsFor(campaign, request) {
     if (campaign.kind === 'lodging') return { ok: true, contents: { kind: 'lodging' } };
@@ -190,12 +205,15 @@ function createOfferService({
     }
     const addOns = addOnsProblem(campaign, request.addOns);
     if (addOns.problem) return addOns.problem;
+    const period = periodOf(campaign, request.period);
+    if (period.problem) return period.problem;
     return {
       ok: true,
       contents: {
         kind: 'resource',
-        title: campaign.title,
+        title: `${campaign.title} · ${rules.PERIOD_LABELS[period.value]}`,
         resource: {
+          period: period.value,
           id: comp.resourceId,
           name: labelOf(`resource:${comp.resourceId}`),
           band: comp.band,
@@ -213,7 +231,7 @@ function createOfferService({
   function campaignOf(request, { admin }) {
     if (request.composition !== undefined && request.composition !== null) {
       if (!admin) return refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
-      const composition = campaignRules.validateComposition(request.composition, { catalogue });
+      const composition = campaignRules.validateComposition(request.composition, { catalogue, periods: rules.PERIODS.includes(request.period) ? [request.period] : ['week'] });
       if (!composition.ok) return refuse('COMPOSITION_INVALID', composition.errors[0].message, { errors: composition.errors });
       // What the operator picks for one voucher is offered with it: the add-ons bought and the extra time asked are inside what the one-shot offers.
       const askedAddOns = (Array.isArray(request.addOns) ? request.addOns : []).map((entry) => entry && entry.articleRef).filter(Boolean);
@@ -225,6 +243,7 @@ function createOfferService({
         oneShot: true,
         slug: null,
         validityMonths: request.validityMonths === undefined ? rules.DEFAULT_VALIDITY_MONTHS : asInt(request.validityMonths),
+        periods: rules.PERIODS.includes(request.period) ? [request.period] : ['week'],
         composition: composition.value,
         addOns: [...new Set([...(Array.isArray(request.offeredAddOns) ? request.offeredAddOns : []), ...askedAddOns])],
         extraTimeMaxMinutes: Math.max(Number(asInt(request.extraTimeMaxMinutes)) || 0, Number(asInt(request.extraMinutes)) || 0),
@@ -242,23 +261,34 @@ function createOfferService({
     }
     if (request.slug === undefined || request.slug === null || request.slug === '') {
       const lodging = admin ? campaigns.firstLodging() : campaigns.onSale().find((c) => c.kind === 'lodging');
-      return lodging ? { ok: true, campaign: lodging } : refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
+      return lodging ? withValidity(lodging, request, { admin }) : refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
     }
     const campaign = campaigns.findBySlug(request.slug);
     if (!campaign || campaign.oneShot) return refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
     if (campaign.state !== 'on_sale') return refuse('CAMPAIGN_CLOSED', 'Cette offre n’est plus en vente.');
-    return { ok: true, campaign };
+    return withValidity(campaign, request, { admin });
   }
+
+  /** Rule 13 — « Nouveau bon » prefills the campaign's validity and may change it, from the short list; the site's giver never chooses. */
+  function withValidity(campaign, request, { admin }) {
+    if (!admin || request.validityMonths === undefined || request.validityMonths === null || request.validityMonths === '') return { ok: true, campaign };
+    const months = asInt(request.validityMonths);
+    if (!rules.VALIDITY_CHOICES.includes(months)) return refuse('VALIDITY_INVALID', rules.VALIDITY_REFUSAL);
+    return { ok: true, campaign: { ...campaign, validityMonths: months, validityAsked: true } };
+  }
+
+  // The validity an operator picked for this voucher is frozen with its contents; otherwise the voucher follows its campaign's.
+  const validityOf = (campaign) => (campaign.validityAsked ? { validityMonths: campaign.validityMonths } : {});
 
   function priceRequest(campaign, request) {
     if (campaign.kind === 'lodging') {
       const priced = priceLodging(campaign, request.amountCents);
-      return priced.ok ? { ...priced, contents: { kind: 'lodging' } } : priced;
+      return priced.ok ? { ...priced, contents: { kind: 'lodging', ...validityOf(campaign) } } : priced;
     }
     const contents = contentsFor(campaign, request);
     if (!contents.ok) return contents;
     const priced = priceContents(contents.contents);
-    return priced.ok ? { ...priced, contents: { ...contents.contents, lines: frozenLines(priced.lines) } } : priced;
+    return priced.ok ? { ...priced, contents: { ...contents.contents, ...validityOf(campaign), lines: frozenLines(priced.lines) } } : priced;
   }
 
   /** Rules 5, 17, 26 — the price of a request, for the site and the back-office alike. */
@@ -267,7 +297,9 @@ function createOfferService({
     const found = campaignOf(body, { admin });
     if (!found.ok) return found;
     const priced = priceRequest(found.campaign, body);
-    return priced.ok ? { ...priced, kind: found.campaign.kind, title: found.campaign.title } : priced;
+    // Rule 13 — the end of the voucher is the server's to compute: the recap says « Valable jusqu'au … » from it.
+    const validUntil = rules.expiryFor(rules.parisDate(now()), found.campaign.validityMonths);
+    return priced.ok ? { ...priced, kind: found.campaign.kind, title: found.campaign.title, validUntil } : priced;
   }
 
   /** Rule 66 — what a campaign sells before the buyer adds time or options: the frozen contents the back of its voucher is read from. → `{ ok, contents }` | refusal. */
@@ -287,14 +319,34 @@ function createOfferService({
     ];
   }
 
+  /** Rules 10-11 — the price of the base contents for each period the campaign sells, the cheapest first as « à partir de ». → `{ ok, periods: [{ period, priceCents, label }] }` | refusal. */
+  function periodPrices(campaign) {
+    const prices = [];
+    for (const period of (campaign.periods && campaign.periods.length ? campaign.periods : ['week'])) {
+      const base = contentsFor(campaign, { period });
+      if (!base.ok) return base;
+      const priced = priceContents(base.contents);
+      if (!priced.ok) return priced;
+      prices.push({ period, priceCents: priced.totalCents, label: rules.PERIOD_LABELS[period], base: base.contents });
+    }
+    return { ok: true, prices };
+  }
+
   function describeResource(campaign) {
-    const base = contentsFor(campaign, {});
-    if (!base.ok) return base;
-    const priced = priceContents(base.contents);
+    const priced = periodPrices(campaign);
     if (!priced.ok) return priced;
+    const cheapest = priced.prices.reduce((best, p) => (p.priceCents < best.priceCents ? p : best), priced.prices[0]);
     const element = catalogue.element(`resource:${campaign.composition.resourceId}`);
     const mode = element && element.modes.find((m) => m.band === campaign.composition.band);
     const step = mode ? mode.slotMinutes : null;
+    const extraTimeFor = (period) => extrasPricing.extraTime({
+      resourceId: campaign.composition.resourceId,
+      band: campaign.composition.band,
+      rankOffsetMinutes: campaign.composition.minutes,
+      stepMinutes: step,
+      maxMinutes: campaign.extraTimeMaxMinutes,
+      period,
+    });
     return {
       ok: true,
       view: {
@@ -303,20 +355,16 @@ function createOfferService({
         title: campaign.title,
         validityMonths: campaign.validityMonths,
         band: mode ? { key: mode.band, label: BAND_WORDS[mode.band], from: mode.from, to: mode.to } : null,
-        contents: contentLines(base.contents),
+        contents: contentLines(cheapest.base),
         addOns: extrasPricing.priced(campaign.addOns.map((articleRef) => ({ articleRef, label: labelOf(articleRef), maxQty: campaignRules.MAX_QTY }))),
+        periods: priced.prices.map(({ period, priceCents, label }) => ({ period, priceCents, label })),
         extraTime: campaign.extraTimeMaxMinutes > 0 && step ? {
           maxMinutes: campaign.extraTimeMaxMinutes,
           stepMinutes: step,
-          prices: extrasPricing.extraTime({
-            resourceId: campaign.composition.resourceId,
-            band: campaign.composition.band,
-            rankOffsetMinutes: campaign.composition.minutes,
-            stepMinutes: step,
-            maxMinutes: campaign.extraTimeMaxMinutes,
-          }),
+          prices: extraTimeFor(cheapest.period),
+          pricesByPeriod: Object.fromEntries(priced.prices.map((p) => [p.period, extraTimeFor(p.period)])),
         } : null,
-        totalCents: priced.totalCents,
+        totalCents: cheapest.priceCents,
       },
     };
   }

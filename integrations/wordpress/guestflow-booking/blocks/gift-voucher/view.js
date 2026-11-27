@@ -101,6 +101,11 @@
     });
   }
 
+  // The price an offer is announced at: the lowest of its periods, « dès » when it sells two (week-weekend-and-print spec rule 11).
+  function fromPrice(c) {
+    return (c.periods && c.periods.length > 1 ? GF.t('gvExtrasFrom', money(c.totalCents)) : money(c.totalCents));
+  }
+
   // ── Campaigns: the chooser, and the one `open()` every entry goes through ─────────────────────
   function mount(container, offer) {
     if (!Array.isArray(offer.campaigns)) { buildForm(container, offer, null, null); return; }
@@ -118,7 +123,7 @@
       var row = GF.el('div', { class: 'gf-gv-switch-row' });
       ['lodging', 'resource'].forEach(function (kind) {
         campaigns.filter(function (c) { return c.kind === kind; }).forEach(function (c) {
-          var price = c.kind === 'resource' ? (c.totalCents != null ? money(c.totalCents) : '') : GF.t('gvFreeAmount');
+          var price = c.kind === 'resource' ? (c.totalCents != null ? fromPrice(c) : '') : GF.t('gvFreeAmount');
           var opt = GF.el('button', { type: 'button', class: 'gf-gv-switch-opt', 'data-slug': c.slug });
           var thumb = front(c, 'gf-gv-switch-thumb', true, null);
           if (thumb) opt.appendChild(thumb);
@@ -149,7 +154,7 @@
           card.appendChild(GF.el('span', { class: 'gf-gv-offer-text' },
             GF.el('b', {}, c.title),
             detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, detail) : null,
-            c.kind === 'resource' && c.totalCents != null ? GF.el('span', { class: 'gf-gv-offer-price' }, money(c.totalCents)) : null));
+            c.kind === 'resource' && c.totalCents != null ? GF.el('span', { class: 'gf-gv-offer-price' }, fromPrice(c)) : null));
           card.addEventListener('click', function () { open(c.slug, true); });
           list.appendChild(card);
         });
@@ -312,6 +317,9 @@
     var extrasFold = null;
     var recap = null;
     var extraMinutes = 0;
+    var periods = isResource && Array.isArray(campaign.periods) ? campaign.periods : [];
+    var period = periods.length ? periods[0].period : '';
+    var periodControl = null;
     var addOnQty = {};
     var priced = null;
     var pricedError = '';
@@ -328,14 +336,35 @@
         onAddOn: function (ref, n) { addOnQty[ref] = n; turnToBack(); changed(); },
       });
       recap = GF.el('div', { class: 'gf-gv-recap', 'aria-live': 'polite' });
+      // Rule 11 — the giver picks the week or the weekend inside the campaign, each with the server's price; a single period is just sent.
+      if (periods.length > 1) {
+        var periodWord = { week: 'gvPeriodWeek', weekend: 'gvPeriodWeekend' };
+        periodControl = GF.el('div', { class: 'gf-gv-period', role: 'radiogroup', 'aria-label': GF.t('gvPeriod') },
+          periods.map(function (p) {
+            var btn = GF.el('button', {
+              type: 'button', class: 'gf-gv-period-opt', role: 'radio', 'data-period': p.period, 'aria-checked': p.period === period ? 'true' : 'false',
+            }, GF.el('b', {}, GF.t(periodWord[p.period] || p.label)), GF.el('span', {}, money(p.priceCents)));
+            btn.addEventListener('click', function () {
+              period = p.period;
+              Array.prototype.forEach.call(periodControl.children, function (n) { n.setAttribute('aria-checked', n.getAttribute('data-period') === period ? 'true' : 'false'); });
+              priced = null;
+              turnToBack();
+              drawRecap();
+              askPrice();
+            });
+            return btn;
+          }));
+      }
       composeBlock = GF.el('div', { class: 'gf-gv-compose' },
         GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvIncludes')), includes,
+        periodControl ? GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvPeriod')) : null, periodControl,
         campaign.band ? GF.el('p', { class: 'gf-gv-hint' }, GF.t('gvBand', campaign.band.label, campaign.band.from, campaign.band.to)) : null,
         extrasFold, recap);
     }
 
     function composeRequest() {
       var req = { slug: campaign.slug, extraMinutes: extraMinutes, addOns: [] };
+      if (period) req.period = period;
       Object.keys(addOnQty).forEach(function (ref) { if (addOnQty[ref] > 0) req.addOns.push({ articleRef: ref, qty: addOnQty[ref] }); });
       return req;
     }

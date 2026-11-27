@@ -132,6 +132,10 @@ export const CAMPAIGN_STATES = Object.freeze({
 
 export const CAMPAIGN_KINDS = Object.freeze({ lodging: 'Montant libre', resource: 'Composé' });
 
+// The validity menu (week-weekend-and-print spec rule 13) and the periods of a bath voucher (rule 10): the words only, the server judges.
+export const VALIDITY_CHOICES = Object.freeze([3, 6, 12, 18, 24]);
+export const PERIOD_LABELS = Object.freeze({ week: 'Semaine', weekend: 'Week-end' });
+
 export const CAMPAIGN_TEXTS = Object.freeze({
   title: 'Campagnes',
   newCampaign: 'Nouvelle campagne',
@@ -150,7 +154,8 @@ export const CAMPAIGN_TEXTS = Object.freeze({
     saved: 'Campagne enregistrée.',
     duplicate: 'Dupliquer', duplicated: 'Copie créée en brouillon.',
     exportRecipe: 'Exporter la recette',
-    general: 'Général', name: 'Nom (interne)', publicTitle: 'Titre public', publicTitleHelp: 'Sur le site et au dos du bon.', state: 'État', validity: 'Validité (mois)', kind: 'Type',
+    general: 'Général', name: 'Nom (interne)', publicTitle: 'Titre public', publicTitleHelp: 'Sur le site et au dos du bon.', state: 'État', validity: 'Validité', kind: 'Type',
+    periods: 'Périodes proposées', periodsHelp: 'Le donateur choisit la semaine ou le week-end ; chaque période a son prix.', previewPeriod: (label) => `Prix · ${label}`,
     content: 'Contenu', addOns: 'Options proposées', addOnsLabel: 'Options à proposer', addOnsHelp: 'Proposées à l’offreur et au destinataire en plus du contenu.',
     extraTime: 'Temps en plus', extraTimeOffered: 'Proposer du temps en plus', extraTimeMax: 'Temps en plus au maximum (min)',
     visuals: 'Visuels', voucherFront: 'Recto du bon', merchantFront: 'Recto de la carte commerçant (facultatif)', noVisual: 'Aucun',
@@ -208,7 +213,7 @@ export const NEW_VOUCHER_TEXTS = Object.freeze({
   custom: 'Sur mesure', customHelp: 'Un bon composé pour ce client seul, hors des campagnes.',
   amount: 'Montant (€)', amountRange: (min, max) => `de ${min} à ${max}`,
   ideas: 'Idées',
-  validity: 'Validité (mois)', visual: 'Visuel', noVisual: 'Aucun', addVisual: 'Ajouter un visuel',
+  validity: 'Validité', period: 'Période', periodFact: (label) => `Période : ${label}`, validUntil: (date) => `Valable jusqu’au ${date}`, visual: 'Visuel', noVisual: 'Aucun', addVisual: 'Ajouter un visuel',
   extraTime: 'Temps en plus', addOns: 'Options', quantity: 'Quantité',
   extras: {
     title: 'Ajouter au bon',
@@ -256,4 +261,7 @@ export const NEW_VOUCHER_ERROR_FIELDS = Object.freeze({
   ADDON_NOT_OFFERED: 'addOns',
   ADDON_QTY_INVALID: 'addOns',
   ADDON_DUPLICATE: 'addOns',
+  PERIOD_REQUIRED: 'period',
+  PERIOD_NOT_OFFERED: 'period',
+  VALIDITY_INVALID: 'validityMonths',
 });

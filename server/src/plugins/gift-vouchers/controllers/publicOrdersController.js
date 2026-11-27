@@ -15,7 +15,7 @@ const MAX_RETURN_PATH = 200;
 const ORDERS_PER_HOUR = 5;
 const HOUR_MS = 60 * 60 * 1000;
 const DEAD_LINK = new Set(['expired', 'cancelled']);
-const REQUEST_KEYS = Object.freeze(['slug', 'amountCents', 'extraMinutes', 'addOns']);
+const REQUEST_KEYS = Object.freeze(['slug', 'amountCents', 'extraMinutes', 'addOns', 'period']);
 
 const STATUS = Object.freeze({
   CHALLENGE_INVALID: 403,

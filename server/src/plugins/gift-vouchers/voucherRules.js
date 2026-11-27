@@ -7,6 +7,13 @@ const DEFAULT_MIN_CENTS = 2000;
 const DEFAULT_MAX_CENTS = 200000;
 const DEFAULT_VALIDITY_MONTHS = 18;
 const MAX_VALIDITY_MONTHS = 120;
+// Week-weekend-and-print spec rule 13 — the validity is picked from a short list, in a campaign, on « Nouveau bon » and for a hand-made voucher.
+const VALIDITY_CHOICES = Object.freeze([3, 6, 12, 18, 24]);
+const VALIDITY_REFUSAL = 'La validité doit être de 3, 6, 12, 18 ou 24 mois.';
+// Rule 10 — a bath voucher is sold for the week or for the weekend of the outside grid.
+const PERIODS = Object.freeze(['week', 'weekend']);
+const PERIOD_LABELS = Object.freeze({ week: 'semaine', weekend: 'week-end' });
+const FRONT_PRICE_POSITIONS = Object.freeze(['bottom-right', 'bottom-left', 'top-right', 'top-left', 'none']);
 const DEFAULT_VAT_PERCENT = 10;
 
 function parseJson(value, fallback) {
@@ -161,6 +168,11 @@ module.exports = {
   DEFAULT_MAX_CENTS,
   DEFAULT_VALIDITY_MONTHS,
   MAX_VALIDITY_MONTHS,
+  VALIDITY_CHOICES,
+  VALIDITY_REFUSAL,
+  PERIODS,
+  PERIOD_LABELS,
+  FRONT_PRICE_POSITIONS,
   DEFAULT_VAT_PERCENT,
   MONEY_KINDS,
   KINDS,

@@ -223,10 +223,10 @@ test('rules 20, 57: the mail — greeting, title, parties, the code in large typ
   const [mail] = sent;
   const formatted = code.format(plainCode(voucher));
   assert.equal(mail.to, 'paul@example.test');
-  assert.equal(mail.subject, 'Votre bon cadeau : Un bain nordique');
+  assert.equal(mail.subject, 'Votre bon cadeau : Un bain nordique · semaine');
   const printNote = 'Le PDF joint s\'imprime tel quel. Si vous avez la carte du commerçant, vous pouvez aussi recopier le code dans l\'encart blanc.';
   [
-    'Bonjour,', 'Un bain nordique', 'Pour Marie de la part de Paul', formatted, printNote, 'Le bon comprend :',
+    'Bonjour,', 'Un bain nordique · semaine', 'Pour Marie de la part de Paul', formatted, printNote, 'Le bon comprend :',
     '- Bain nordique : 2 h en journée', '- Planche apéro', '- Temps supplémentaire : 1 h', '- Boisson', 'Valable jusqu’au 15/11/2027.',
   ].forEach((line) => assert.ok(mail.text.includes(line), `the text says « ${line} »`));
   assert.ok(mail.html.includes(formatted) && mail.html.includes('font-size:26px'), 'the code in large type');

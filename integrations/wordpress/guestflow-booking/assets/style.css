@@ -628,6 +628,12 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
   .gf-fold-count.pop { animation: none; }
   .gf-fold.is-open .gf-fold-pad { transition: opacity .15s ease-out; }
 }
+.gf-gv-period { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.gf-gv-period-opt { min-height: 44px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: .1rem; padding: .5rem .8rem; text-align: left; border: 1px solid var(--gfb-border); border-radius: 6px; background: #fff; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: border-color .2s ease, box-shadow .2s ease; }
+.gf-gv-period-opt span { font-variant-numeric: tabular-nums; color: var(--gfb-fill); font-weight: 600; }
+.gf-gv-period-opt[aria-checked="true"] { border-color: var(--gfb-fill); box-shadow: 0 0 0 1px var(--gfb-fill); }
+.gf-gv-period-opt:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
+@media (max-width: 480px) { .gf-gv-period { grid-template-columns: 1fr; } }
 .gf-gv-recap { display: grid; gap: .3rem; padding: .8rem 1rem; border-radius: 8px; background: var(--gfb-surface); font-variant-numeric: tabular-nums; }
 .gf-gv-recap:empty { display: none; }
 .gf-gv-recap-line { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }

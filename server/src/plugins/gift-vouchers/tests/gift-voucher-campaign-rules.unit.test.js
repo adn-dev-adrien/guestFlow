@@ -67,6 +67,8 @@ test('rule 4: a valid composition — one hourly resource with its band and incl
     vatRatePercent: null,
     voucherVisualId: null,
     merchantVisualId: null,
+    periods: ['week', 'weekend'],
+    frontPricePosition: 'bottom-right',
   });
 });
 
@@ -114,19 +116,20 @@ test('rule 4: add-ons are sellable options, none repeated, none already included
   ]]);
   assert.deepEqual(errorsOf(bath({ extraTimeMaxMinutes: 480 }))[0][0], 'extraTimeMaxMinutes', '2 h included + 8 h does not fit the day');
   assert.deepEqual(sessionCalls.at(-1), {
-    resourceId: 1, band: 'day', minutes: 480, rankOffsetMinutes: 120,
-  }, 'the extra time is judged after the included minutes');
+    resourceId: 1, band: 'day', minutes: 480, rankOffsetMinutes: 120, period: 'week',
+  }, 'the extra time is judged after the included minutes, in each period the campaign sells (the first that refuses ends the check)');
   assert.equal(errorsOf(bath({ extraTimeMaxMinutes: 0 })).length, 0);
   assert.equal(errorsOf(bath({ extraTimeMaxMinutes: -60 }))[0][0], 'extraTimeMaxMinutes');
 });
 
-test('rule 2: the name and the public title are texts, the validity whole months from 1 to 120, the state one of three, the kind one of two', () => {
+test('rule 2: the name and the public title are texts, the validity one of 3, 6, 12, 18 or 24 months, the state one of three, the kind one of two', () => {
   assert.deepEqual(errorsOf(bath({ name: '' }))[0][0], 'name');
   assert.deepEqual(errorsOf(bath({ title: ' ' }))[0][0], 'title');
   assert.deepEqual(errorsOf(bath({ name: 'x'.repeat(81) }))[0][0], 'name');
   assert.deepEqual(errorsOf(bath({ name: 42 }))[0][0], 'name');
-  ['1', '18', 120, '120'].forEach((v) => assert.deepEqual(errorsOf(bath({ validityMonths: v })), [], String(v)));
-  ['0', '121', '-1', '1.5', 'abc', '', [], {}, null].forEach((v) => assert.equal(errorsOf(bath({ validityMonths: v }))[0][0], 'validityMonths', JSON.stringify(v)));
+  // Amended 2026-11-27 (gift-voucher-week-weekend-and-print rule 13): a short list, nothing else.
+  ['3', '6', 12, '18', 24].forEach((v) => assert.deepEqual(errorsOf(bath({ validityMonths: v })), [], String(v)));
+  ['1', '4', '120', '121', '0', '-1', '1.5', 'abc', '', [], {}, null].forEach((v) => assert.deepEqual(errorsOf(bath({ validityMonths: v }))[0], ['validityMonths', 'La validité doit être de 3, 6, 12, 18 ou 24 mois.'], JSON.stringify(v)));
   assert.deepEqual(errorsOf(bath({ state: 'sold' }))[0][0], 'state');
   assert.deepEqual(errorsOf(bath({ kind: 'bath' }))[0][0], 'kind');
   assert.deepEqual(errorsOf(null), [['body', 'Corps de requête invalide.']]);

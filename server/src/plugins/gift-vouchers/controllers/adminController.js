@@ -15,7 +15,7 @@ const { DOCUMENT_REFUSALS } = require('../documentRefusals');
 const { contentLines } = require('../contentsText');
 
 const OUTCOMES = Object.freeze(['paid', 'offered', 'link']);
-const REQUEST_KEYS = Object.freeze(['slug', 'composition', 'title', 'validityMonths', 'offeredAddOns', 'extraTimeMaxMinutes', 'extraMinutes', 'addOns', 'amountCents']);
+const REQUEST_KEYS = Object.freeze(['slug', 'composition', 'title', 'validityMonths', 'offeredAddOns', 'extraTimeMaxMinutes', 'extraMinutes', 'addOns', 'amountCents', 'period']);
 const MAX_REASON = 200;
 const MAX_EMAIL = 254;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

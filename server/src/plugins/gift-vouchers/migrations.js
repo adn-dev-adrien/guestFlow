@@ -280,6 +280,18 @@ const recipientNames = (db) => {
   db.exec("UPDATE gift_voucher_orders SET recipientFirstName = recipientName WHERE recipientFirstName = '' AND recipientName != ''");
 };
 
+// week-weekend-and-print spec rules 10, 13, 21 — the periods a campaign sells (both at first, so what is on sale keeps selling), the corner of the merchant card's price, and the
+// validity moved to the short list: 3, 6, 12, 18 or 24 months, the nearest one (no voucher was sold with another value).
+const weekendPeriods = (db) => {
+  addColumn(db, 'gift_voucher_campaigns', 'periods', `TEXT NOT NULL DEFAULT '["week","weekend"]'`);
+  addColumn(db, 'gift_voucher_campaigns', 'frontPricePosition', "TEXT NOT NULL DEFAULT 'bottom-right'");
+  db.prepare('SELECT id, validityMonths FROM gift_voucher_campaigns').all().forEach((row) => {
+    if (rules.VALIDITY_CHOICES.includes(row.validityMonths)) return;
+    const nearest = rules.VALIDITY_CHOICES.reduce((best, n) => (Math.abs(n - row.validityMonths) < Math.abs(best - row.validityMonths) ? n : best), rules.VALIDITY_CHOICES[0]);
+    db.prepare('UPDATE gift_voucher_campaigns SET validityMonths = ? WHERE id = ?').run(nearest, row.id);
+  });
+};
+
 const MIGRATIONS = Object.freeze([
   { name: 'gift_vouchers_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'gift_vouchers_vat_v1', up: (db) => db.exec(VAT_SQL) },
@@ -289,6 +301,7 @@ const MIGRATIONS = Object.freeze([
   { name: 'gift_voucher_uses_people_v2', up: usesPeople },
   { name: 'gift_voucher_uses_ref_v3', up: usesRef },
   { name: 'gift_voucher_recipient_names_v4', up: recipientNames },
+  { name: 'gift_voucher_week_weekend_v5', up: weekendPeriods },
 ]);
 
 module.exports = { MIGRATIONS, TABLES: Object.freeze([...TABLES, 'gift_voucher_campaigns', 'gift_voucher_visuals', 'gift_voucher_visual_versions', 'gift_voucher_refunds', 'gift_voucher_uses', 'gift_voucher_unused']) };

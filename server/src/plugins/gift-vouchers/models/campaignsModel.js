@@ -29,12 +29,14 @@ function present(row) {
     vatRatePercent: row.vatRatePercent,
     voucherVisualId: row.voucherVisualId,
     merchantVisualId: row.merchantVisualId,
+    periods: rules.parseJson(row.periods, [...rules.PERIODS]),
+    frontPricePosition: row.frontPricePosition || 'bottom-right',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-const COLUMNS = ['name', 'title', 'kind', 'state', 'oneShot', 'slug', 'validityMonths', 'composition', 'addOns', 'extraTimeMaxMinutes', 'minAmountCents', 'maxAmountCents', 'ideas', 'vatRatePercent', 'voucherVisualId', 'merchantVisualId'];
+const COLUMNS = ['name', 'title', 'kind', 'state', 'oneShot', 'slug', 'validityMonths', 'composition', 'addOns', 'extraTimeMaxMinutes', 'minAmountCents', 'maxAmountCents', 'ideas', 'vatRatePercent', 'voucherVisualId', 'merchantVisualId', 'periods', 'frontPricePosition'];
 
 const stored = (value) => ({
   ...value,
@@ -42,6 +44,8 @@ const stored = (value) => ({
   composition: value.composition ? JSON.stringify(value.composition) : null,
   addOns: JSON.stringify(value.addOns || []),
   ideas: JSON.stringify(value.ideas || []),
+  periods: JSON.stringify(value.periods || rules.PERIODS),
+  frontPricePosition: value.frontPricePosition || 'bottom-right',
 });
 
 function createCampaignsModel(db, { now = () => new Date() } = {}) {

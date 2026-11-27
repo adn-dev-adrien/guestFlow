@@ -40,7 +40,9 @@ test('the first campaign on sale is chosen, its contents and the server recap wi
   expect(screen.getByText('Bain nordique — 2 h en journée · de 10:00 à 19:00')).toBeInTheDocument();
   expect(screen.getAllByText('Planche apéro').length).toBeGreaterThan(0);
   expect(await screen.findByTestId('price-recap')).toBeInTheDocument();
-  expect(giftVouchersApi.offerPrice).toHaveBeenCalledWith({ slug: 'bain-jour', extraMinutes: 0, addOns: [] }, expect.anything());
+  expect(giftVouchersApi.offerPrice).toHaveBeenCalledWith({
+    slug: 'bain-jour', period: 'week', validityMonths: '12', extraMinutes: 0, addOns: [],
+  }, expect.anything());
   expect(screen.getByText('dont TVA 20 %')).toBeInTheDocument();
   expect(screen.getByText('dont TVA 10 %')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Sur mesure' })).toBeInTheDocument();
@@ -119,7 +121,7 @@ describe('a lodging campaign — the free amount', () => {
     await chooseLodging();
     expect(screen.getByText('de 20,00 € à 2 000,00 €')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/Montant/), '5,50');
-    await waitFor(() => expect(lastPrice()).toEqual({ slug: 'sejour', amountCents: 550 }));
+    await waitFor(() => expect(lastPrice()).toEqual({ slug: 'sejour', amountCents: 550, validityMonths: '18' }));
   });
 
   test('the server refusal of an out-of-bounds amount is shown on the amount, from the recap and from the creation alike', async () => {
@@ -162,7 +164,9 @@ describe('« Sur mesure »', () => {
   test('opens the composition editor inline; the recap is asked for the composition only, and the voucher is created as a one-shot', async () => {
     await composeCustom();
     // The price draft is the composition: the validity, the visual and the recipient's add-ons never ask the server again.
-    await waitFor(() => expect(giftVouchersApi.previewPrice).toHaveBeenLastCalledWith({ composition: { resourceId: 1, band: 'day', minutes: 60, options: [] } }, expect.anything()));
+    await waitFor(() => expect(giftVouchersApi.previewPrice).toHaveBeenLastCalledWith({
+      composition: { resourceId: 1, band: 'day', minutes: 60, options: [] }, period: 'week', validityMonths: '12',
+    }, expect.anything()));
     await userEvent.click(screen.getByRole('button', { name: 'Créer le bon' }));
     await waitFor(() => expect(giftVouchersApi.create).toHaveBeenCalledWith(expect.objectContaining({
       composition: { resourceId: 1, band: 'day', minutes: 60, options: [] }, validityMonths: '12', outcome: 'paid', paymentMethod: 'card',

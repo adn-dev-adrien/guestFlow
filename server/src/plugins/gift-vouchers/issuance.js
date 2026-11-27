@@ -53,7 +53,7 @@ function createIssuance({
       codeEncrypted: encrypt(normalised),
       amountCents: order.amountCents,
       issuedAt: issuedAt.toISOString(),
-      expiresOn: rules.expiryFor(today, campaign ? campaign.validityMonths : rules.DEFAULT_VALIDITY_MONTHS),
+      expiresOn: rules.expiryFor(today, contents.validityMonths || (campaign ? campaign.validityMonths : rules.DEFAULT_VALIDITY_MONTHS)),
       vatRatePercent: vatRateOf(order, campaign, contents),
       campaignId: order.campaignId,
       contents,
