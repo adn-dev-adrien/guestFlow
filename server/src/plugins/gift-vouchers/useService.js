@@ -296,7 +296,7 @@ function createUseService({
    * continuing, the options the voucher holds and the add-ons added. `checkSlot: false` is the confirmation of a payment, where the slot is judged by the booking itself.
    * → `{ ok: true, …, covers, fulfilments, lines, dueCents }` | a refusal.
    */
-  function compose(voucher, contents, request, { checkSlot = true } = {}) {
+  function compose(voucher, contents, request, { checkSlot = true, holdRef = null } = {}) {
     const asked = String(request.start || '');
     const parts = START.exec(asked);
     if (!parts) return refuse('SLOT_INVALID', 'Créneau invalide.');
@@ -309,7 +309,7 @@ function createUseService({
     if (!hook()) return refuse('BOOKING_UNAVAILABLE', 'Les réservations en ligne ne sont pas disponibles pour le moment.', 409);
     const { resource } = contents;
     const priced = hook().quote({
-      resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, now: now(),
+      resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, excludeHoldRef: holdRef, now: now(),
     });
     if (!priced.ok) return refuse(priced.code, priced.message, 409);
     if (checkSlot) {
@@ -602,7 +602,7 @@ function createUseService({
     if (!voucher || voucher.cancelledAt || contents.kind !== 'resource') return unhonoured(use, 'bon cadeau annulé');
     const composed = compose(voucher, contents, {
       start: `${use.date}T${use.startTime}`, extraMinutes: use.extraMinutes, addOns: JSON.parse(use.addOns || '[]'),
-    }, { checkSlot: false });
+    }, { checkSlot: false, holdRef: use.state === 'held' ? use.holdRef : null });
     if (!composed.ok) return unhonoured(use, composed.message);
     if (Number(amountCents) !== composed.dueCents) return unhonoured(use, 'montant payé différent du reste à payer');
     const stillHeld = use.state === 'held';
