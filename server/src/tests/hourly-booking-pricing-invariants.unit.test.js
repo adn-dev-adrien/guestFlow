@@ -373,7 +373,9 @@ test('I-f negative control — the offered minutes valued as a range walked on i
     const total = Math.max(0, out.grossTotal - out.freeValue - alone.grossTotal);
     return { ...out, total };
   };
-  assert.ok(checkDeductions(walkedAlone, generator(2026), ROUNDS).violations.length > 0);
+  const { violations } = checkDeductions(walkedAlone, generator(2026), ROUNDS);
+  assert.ok(violations.some((line) => line.startsWith('I-f outside ')), 'no violation among the outside cases');
+  assert.ok(violations.some((line) => line.startsWith('I-f master ')), 'no violation among the master cases');
 });
 
 // ---------------------------------------------------------------------------------------------------------------- the stored half: every reader of one booking
@@ -531,7 +533,7 @@ function exercise(m, rnd, resource, id, label, { visit, soldFigure = null }, vio
       propertyId: body.propertyId !== undefined ? body.propertyId : was.propertyId, offeredMinutes: body.offeredMinutes ?? was.offeredMinutes,
     });
     const moved = m.update(id, body);
-    if (Boolean(preview.error) !== Boolean(moved.error) && !['BOOKING_PAID', 'BOOKING_INVOICED'].includes(moved.code)) violations.push(`I-b ${label(stage)}: the preview says ${preview.error || 'ok'} and the save ${moved.error || 'ok'}`);
+    if (Boolean(preview.error) !== Boolean(moved.error) && moved.code !== 'BOOKING_INVOICED') violations.push(`I-b ${label(stage)}: the preview says ${preview.error || 'ok'} and the save ${moved.error || 'ok'}`);
     else if (!preview.error && !moved.error && cents(preview.total) !== cents(rowOf(id).totalPrice)) violations.push(`I-b ${label(stage)}: the preview of the move says ${cents(preview.total)}, the save stored ${cents(rowOf(id).totalPrice)}`);
     if (moved.error) {
       STATS.refusedMove += 1;

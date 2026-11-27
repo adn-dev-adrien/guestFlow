@@ -21,6 +21,7 @@
  *   moneyOf(row)                         `{ totalCents, paidCents, remainingCents, payments }` of a booking whose money is on a document, else null
  *   draftMoneyOf(row, draft)             the same for the visit as a commit of `draft` would find it, nothing written (loop t2 B2-7)
  *   repriceSession(row)                  the session lines of an unpaid visit follow its booking's new slot (retired lines and a new one, journaled)
+ *   movedSessionRefusal(row)             the save's BOOKING_PAID refusal when the session line is already paid (what the preview of a move answers), else null
  *   offeredSessionFigure(row)            0 € when the booking's session was offered at the visit (what a move keeps), else null
  *   sessionFigureOf(row)                 what the document charges for the booking's session `{ totalCents, lines }`, the one figure every reader of the booking gives; null while it is on no document
  *   notTaken(row, lineId, { actor })     an element a prepaid instrument paid that the client did not take (rules 15, 36 of the campaigns spec): marked, journaled,
@@ -142,8 +143,8 @@ function createVisitModel({
   // The figure of a session the operator offered at the visit: 0 € (a move re-prices its line as offered, so it stays at 0 €); null when it is not offered or not on a document.
   function offeredSessionFigure(row) {
     if (!row || paidOnBooking(row)) return null;
-    const lines = sessionLinesOf(documentOf(row), row);
-    return lines.length && lines.some((line) => line.offered)
+    const own = sessionLinesOf(documentOf(row), row).filter((line) => line.fulfilmentRef === sessionRefOf(row.id));
+    return own.length && own.some((line) => line.offered)
       ? { totalCents: 0, lines: [{ key: sessionRefOf(row.id), label: resourceName(row), detail: '', amount: 0 }] }
       : null;
   }
@@ -545,11 +546,20 @@ function createVisitModel({
    * Edge case of §3 — a booking moved after its session was sold is re-priced only while the session line is unpaid: the line is retired and the new
    * price appended, both journaled on the document (rule 23: explicit actions, never a rewrite). A paid session answers 409 `BOOKING_PAID`.
    */
+  const settledRefusal = (lines) => (lines.some((line) => line.settledCents > 0) ? refuse(409, 'BOOKING_PAID', 'Le prix change : la séance est déjà payée.') : null);
+
+  /** What the preview of a move answers when the save would refuse it: a session line already paid (the save's sentence), else null. */
+  function movedSessionRefusal(row) {
+    if (!row || paidOnBooking(row)) return null;
+    return settledRefusal(sessionLinesOf(documentOf(row), row));
+  }
+
   function repriceSession(row, { actor = null } = {}) {
     const saleId = saleIdOf(row);
     const lines = sessionLinesOf(documentOf(row), row);
     if (!lines.length) return { ok: true };
-    if (lines.some((line) => line.settledCents > 0)) return refuse(409, 'BOOKING_PAID', 'Le prix change : la séance est déjà payée.');
+    const settled = settledRefusal(lines);
+    if (settled) return settled;
     const fresh = sessionDraft(row, { offered: lines.some((line) => line.offered) });
     if (fresh.refusal) return fresh.refusal;
     if (fresh.line.totalCents === lines.reduce((sum, line) => sum + line.catalogueCents, 0)) return { ok: true };
@@ -574,7 +584,7 @@ function createVisitModel({
   }
 
   return {
-    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, sessionFigureOf, offeredSessionFigure, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
+    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, sessionFigureOf, offeredSessionFigure, movedSessionRefusal, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
   };
 }
 

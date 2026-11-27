@@ -354,7 +354,10 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     });
     if (priced.refusal) return notSold(priced);
     // A session offered at the visit stays offered when the booking moves (the document re-prices its line as offered): the preview of the move says what the save will store.
-    const offeredAtVisit = existing && !stored && !fresh && !isPaid(existing) ? visitsOf(existing)?.offeredSessionFigure(existing) : null;
+    const moveVisit = existing && !stored && !fresh && !isPaid(existing) ? visitsOf(existing) : null;
+    const settledMove = moveVisit?.movedSessionRefusal(existing);
+    if (settledMove) return settledMove;
+    const offeredAtVisit = moveVisit ? moveVisit.offeredSessionFigure(existing) : null;
     return offeredAtVisit ? withDocumentFigure(priced, offeredAtVisit, priced.vat) : priced;
   }
 
