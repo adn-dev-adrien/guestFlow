@@ -33,3 +33,9 @@ test('a price per lodging on an hourly resource of the planning is refused; its 
   assert.deepEqual(validateHourlyRates({ propertyPricing: { 3: { price: null, freeMinutes: 60 } } }, STORED), []);
   assert.deepEqual(validateHourlyRates({ propertyPricing: { 3: { price: 12 } } }, { ...STORED, showsPlanningCard: 0 }), []);
 });
+
+test('the older shape of a price per lodging (propertyPrices) is refused alike, on a resource of the planning only', () => {
+  assert.deepEqual(fields(validateHourlyRates({ propertyPrices: { 3: 12 } }, STORED)), ['propertyPrices.3']);
+  assert.deepEqual(validateHourlyRates({ propertyPrices: { 3: null } }, STORED), []);
+  assert.deepEqual(validateHourlyRates({ propertyPrices: { 3: 12 } }, { ...STORED, showsPlanningCard: 0 }), []);
+});
