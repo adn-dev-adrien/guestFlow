@@ -100,3 +100,64 @@ test('K10 — connector 1.27.0 facing a GuestFlow that sends no `design` still d
   expect(verso.querySelectorAll('.gf-v-step').length).toBe(3);
   expect([...verso.style].filter((n) => n.startsWith('--m-') || n.startsWith('--p-'))).toEqual([]);
 });
+
+// Order A — GuestFlow updated first: the back is drawn from `design` alone (the legacy keys are dropped from a payload that no longer carries them); order B — the connector updated first: a stay
+// voucher never says « Choisissez votre créneau en ligne », on the purchase page and on the page shown after payment, whatever steps an older GuestFlow does not send.
+const LODGING = {
+  slug: 'sejour', kind: 'lodging', title: 'Un séjour offert', validityMonths: 12, contents: [], addOns: [], extraTime: null, totalCents: null, termsVersionId: 9, visual: null,
+  back: { lineTemplate: 'Séjour d’une valeur de {amount}', validUntil: '15 novembre 2027' }, periods: [],
+};
+const offerRoutes = (campaign, back, order) => (method, p) => {
+  if (p === '/gift-vouchers/offer') {
+    return {
+      status: 200,
+      body: { data: { available: true, brand: 'Domaine Solio', termsVersionId: 4, minAmountCents: 2000, maxAmountCents: 200000, validityMonths: 18, ideas: [], campaigns: [campaign], back } },
+    };
+  }
+  if (p === '/gift-vouchers/offer/price') return { status: 200, body: { data: { lines: [], totalCents: 5000, extrasCents: 0, vat: [] } } };
+  if (order && p === '/gift-vouchers/orders/12') return { status: 200, body: { data: order } };
+  return { status: 404, body: { error: { code: 'NOT_FOUND', message: 'x' } } };
+};
+const { layout: _layout, texts: _texts, ...DESIGN_ONLY_BACK } = { ...OLD_GUESTFLOW_BACK, design: { layout: {}, voucherLayout: LEGACY_BACK_LAYOUT, texts: {} } };
+
+test('order A — a back that carries `design` alone (no legacy `layout` / `texts`) is drawn', async () => {
+  window.location.hash = '#campagne=bain-jour';
+  document.body.innerHTML = '<div data-gf-gift-voucher></div>';
+  loadBlock(VIEW, { routes: offerRoutes(BATH, DESIGN_ONLY_BACK), assets: ASSETS });
+  await screen.findByText('Le bon comprend');
+  expect(document.querySelector('.gf-card-flip .gf-verso')).toBeTruthy();
+});
+
+test('order B — a stay voucher on the purchase page of an older GuestFlow (no steps sent) says to book the stay, never to choose a slot', async () => {
+  window.location.hash = '#campagne=sejour';
+  document.body.innerHTML = '<div data-gf-gift-voucher></div>';
+  loadBlock(VIEW, { routes: offerRoutes(LODGING, OLD_GUESTFLOW_BACK), assets: ASSETS });
+  await screen.findByRole('heading', { name: /séjour/i }).catch(() => null);
+  await vi.waitFor(() => expect(document.querySelector('.gf-card-flip .gf-verso')).toBeTruthy());
+  const text = document.querySelector('.gf-card-flip .gf-verso').textContent;
+  expect(text).toMatch(/Réservez votre séjour en ligne : le code se remplit tout seul/);
+  expect(text).not.toMatch(/Choisissez votre créneau en ligne/);
+});
+
+test('order B — the voucher shown after payment: a stay voucher of an older GuestFlow keeps the stay steps, a session voucher the slot step', async () => {
+  const order = (kind) => ({
+    state: 'active',
+    voucher: {
+      number: 'BC-1', kind, title: 'Un bon', contentLines: [], brand: 'Domaine Solio', amountCents: 10900, balanceCents: 10900, expiresOn: '2027-11-15', // date-literal-ok: a server field printed as given
+      recipientName: 'Marie', senderName: 'Paul', message: '', code: '7KQ4M9TX2WHBR6PE',
+      back: { lines: [], validUntil: '15/11/2027', link: 'site.example/bon-cadeau/utiliser', qrSvg: '<svg viewBox="0 0 5 5"><path d="M0 0h2v2H0z"/></svg>', front: false },
+    },
+  });
+  for (const [kind, expected, unexpected] of [['lodging', /Réservez votre séjour en ligne/, /Choisissez votre créneau/], ['resource', /Choisissez votre créneau en ligne/, /Réservez votre séjour/]]) {
+    window.location.hash = '';
+    window.history.pushState({}, '', '/?gf_voucher=12&gf_token=tok');
+    document.body.innerHTML = '<div data-gf-gift-voucher></div>';
+    loadBlock(VIEW, { routes: offerRoutes(BATH, OLD_GUESTFLOW_BACK, order(kind)), assets: ASSETS });
+    await screen.findByText('Le bon est prêt');
+    await vi.waitFor(() => expect(document.querySelector('.gf-card-flip .gf-verso')).toBeTruthy());
+    const text = document.querySelector('.gf-card-flip .gf-verso').textContent;
+    expect(text).toMatch(expected);
+    expect(text).not.toMatch(unexpected);
+    document.body.innerHTML = '';
+  }
+});

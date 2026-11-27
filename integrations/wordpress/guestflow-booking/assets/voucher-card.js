@@ -16,7 +16,7 @@
  *     startOnBack,           true to open on the back (the page after payment)
  *   }) → null (nothing to draw) | {
  *     node,                  the card, its « Recto / Verso » control and « Agrandir »
- *     set({ title, recipient, sender, message, lines, validUntil, code, qrSvg, link, steps }),   what the back says now
+ *     set({ title, recipient, sender, message, lines, validUntil, code, qrSvg, link, steps, kind }),   what the back says now (`kind` 'lodging' picks a stay voucher's steps when GuestFlow sent none)
  *     turn(toBack),          isBack(),          reveal(),          print()
  *   }
  */
@@ -37,6 +37,7 @@
     subtitleRecipient: 'offert à {recipient}',
     scan: 'Scannez le QR code',
     steps: ['Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche'],
+    lodgingSteps: ['Scannez le QR code avec votre téléphone', 'Réservez votre séjour en ligne : le code se remplit tout seul', 'Savourez votre parenthèse en Ardèche'],
     codeLabel: 'Code du bon',
     includes: 'Votre bon comprend — {lines}',
     codePlaceholder: 'XXXX-XXXX-XXXX-XXXX',
@@ -157,6 +158,8 @@
         steps.appendChild(row);
       });
     }
+    // The steps are the server's (rule 20); a GuestFlow that sends none leaves them to the kind of voucher — a stay voucher never says « Choisissez votre créneau en ligne ».
+    function stepsOf(s) { return s.steps || (s.kind === 'lodging' ? texts.lodgingSteps : texts.steps); }
     drawSteps(texts.steps);
 
     // Rules 18-20 of the week-weekend spec: the logo, the kicker, the title and the subtitle, the QR code in its frame, the three steps, the one rectangle of the code, the small lines.
@@ -194,7 +197,8 @@
         drawnQr = s.qrSvg;
         qr.innerHTML = plainSvg(s.qrSvg) ? s.qrSvg : '';
       }
-      if ((s.steps || texts.steps) !== drawnSteps) drawSteps(s.steps || texts.steps);
+      var wanted = stepsOf(s);
+      if (wanted !== drawnSteps) drawSteps(wanted);
       title.textContent = s.title || back.title || '';
       var who = s.sender && s.recipient ? fill(fill(texts.subtitle, 'sender', s.sender), 'recipient', s.recipient)
         : (s.sender ? fill(texts.subtitleSender, 'sender', s.sender) : (s.recipient ? fill(texts.subtitleRecipient, 'recipient', s.recipient) : ''));
@@ -213,7 +217,8 @@
   }
 
   GF.voucherCard = function (o) {
-    var back = o.back && o.back.layout && o.back.texts ? o.back : null;
+    // A back is drawn from `design` alone; a GuestFlow before 1.27.0's `design` sends only the legacy `layout` and `texts`, which are enough to know there is a back and are never read.
+    var back = o.back && (o.back.design || (o.back.layout && o.back.texts)) ? o.back : null;
     var probe = o.front ? o.front() : null;
     if (!back && !probe) return null;
     var state = {

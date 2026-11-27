@@ -519,6 +519,7 @@
           lines: cardLines(a.cents),
           validUntil: campaign.back.validUntil,
           steps: campaign.back.steps,
+          kind: campaign.kind,
         });
       }
     }
@@ -693,7 +694,7 @@
       }) : null;
       if (card) {
         card.set({
-          title: voucherBack.title || v.title || '', recipient: v.recipientName || '', sender: v.senderName || '', message: v.message || '', lines: voucherBack.lines, validUntil: voucherBack.validUntil, code: code, qrSvg: voucherBack.qrSvg, link: voucherBack.link, steps: voucherBack.steps,
+          title: voucherBack.title || v.title || '', recipient: v.recipientName || '', sender: v.senderName || '', message: v.message || '', lines: voucherBack.lines, validUntil: voucherBack.validUntil, code: code, qrSvg: voucherBack.qrSvg, link: voucherBack.link, steps: voucherBack.steps, kind: v.kind,
         });
         lead.classList.add('has-card');
         lead.appendChild(GF.el('div', { class: 'gf-card-col' }, card.node));
