@@ -74,6 +74,12 @@ export default function NewVoucherPage() {
   const isCustom = choice === CUSTOM;
   const campaignPeriods = (campaign && campaign.kind === 'resource' && campaign.periods) || [];
   const chosenPeriod = campaignPeriods.length === 1 ? campaignPeriods[0].period : period;
+  // What the campaign shows for the period chosen — the server's own lines and extra-time prices of that period (the cheapest's while none is chosen), nothing derived here.
+  const contentsShown = (campaign && campaign.contentsByPeriod && campaign.contentsByPeriod[chosenPeriod]) || (campaign && campaign.contents) || [];
+  const campaignShown = useMemo(() => {
+    const byPeriod = campaign && campaign.extraTime && campaign.extraTime.pricesByPeriod ? campaign.extraTime.pricesByPeriod[chosenPeriod] : null;
+    return byPeriod ? { ...campaign, extraTime: { ...campaign.extraTime, prices: byPeriod } } : campaign;
+  }, [campaign, chosenPeriod]);
   const paymentMethods = offer ? offer.paymentMethods : [];
   const chosenMethod = method || (paymentMethods[0] ? paymentMethods[0].value : '');
 
@@ -186,7 +192,7 @@ export default function NewVoucherPage() {
             {campaign && campaign.kind === 'resource' ? (
               <Stack spacing={2}>
                 <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                  {campaign.contents.map((line, i) => (
+                  {contentsShown.map((line, i) => (
                     <li key={i}><Typography variant="body2">{[line.qty > 1 ? `${line.qty} × ${line.label}` : line.label, line.detail].filter(Boolean).join(' — ')}</Typography></li>
                   ))}
                 </Box>
@@ -201,7 +207,7 @@ export default function NewVoucherPage() {
                 {campaignPeriods.length === 1 ? <Typography variant="body2">{T.periodFact(PERIOD_LABELS[campaignPeriods[0].period])}</Typography> : null}
                 <ExtrasFold
                   key={campaign.slug}
-                  campaign={campaign}
+                  campaign={campaignShown}
                   extraMinutes={extraMinutes}
                   quantities={addOns}
                   onExtraMinutes={(v) => { setExtraMinutes(v); clear('extraMinutes'); }}
