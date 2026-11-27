@@ -257,7 +257,10 @@ Rules are identities: a rule is never renumbered, new rules are appended
     - **The PDF attached.**
 21. **The PDF is two-sided A6**, 105 × 148 mm with 3 mm bleed, and shows **no amount** for a
     `resource` voucher.
-    - **Front**: the voucher front picked for the campaign, as uploaded, with nothing added.
+    - **Front**: the voucher front picked for the campaign, as uploaded, with nothing added. It covers the
+      trim (105 × 148 mm) at its own proportions, exactly as the website shows it — never enlarged to
+      cover the bleed, which cut about 4 mm off its top and bottom until 2026-11-27. The 3 mm of bleed
+      mirror the visual's edges, so a cut slightly off the trim still shows the picture going on.
     - **Back**, drawn by GuestFlow in the look of the cards (logo from the company settings):
       - « Pour l'utiliser »;
       - the QR code, beside « Scannez pour réserver votre cadeau ou suivez ce lien : » and the short
@@ -533,7 +536,8 @@ Rules are identities: a rule is never renumbered, new rules are appended
 
 49. **Downloads.**
     - The campaign page offers « Carte commerçant (PDF imprimeur) »: A6 two-sided, 3 mm bleed, crop
-      marks, the front embedded at its uploaded resolution (no resampling), text and QR as vectors,
+      marks, the front embedded at its uploaded resolution (no resampling) and placed as in rule 21
+      (on the trim at its proportions, bleed mirrored), text and QR as vectors,
       fonts embedded. Downloading it locks the slug (rule 9).
     - The voucher fiche offers « Télécharger le bon » (the same PDF as the mail) and « Renvoyer le
       mail » (to the giver's e-mail or another typed one), for a voucher valid and not used

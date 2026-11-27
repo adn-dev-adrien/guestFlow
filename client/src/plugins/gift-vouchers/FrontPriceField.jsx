@@ -1,6 +1,6 @@
 /**
  * FrontPriceField — « Position du prix » of the merchant card's front (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 21): the corner GuestFlow draws « à partir de » and the
- * lowest price in, or « Aucun », with a miniature of the visual showing the label where it will print. The price is the server's (`priceCents`, the campaign's lowest), never computed here.
+ * lowest price in, or « Aucun », with a miniature of the visual showing the label where it will print (the translucent fir medallion of the PDF). The price is the server's (`priceCents`, the campaign's lowest), never computed here.
  *
  * Props: value ('bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'none'), onChange(value), visual ({ id, versionId } | null), priceCents (number | null), error?
  */
@@ -30,7 +30,8 @@ export default function FrontPriceField({
           <Box
             data-corner={corner}
             sx={{
-              position: 'absolute', bgcolor: 'background.paper', color: 'success.dark', borderRadius: 0.5, px: 0.5, textAlign: 'center', lineHeight: 1.1, typography: 'caption', fontSize: '0.6em',
+              position: 'absolute', aspectRatio: '1 / 1', p: '3px', boxSizing: 'border-box', borderRadius: '50%', bgcolor: 'rgba(47, 93, 80, 0.6)', color: '#fff',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1, typography: 'caption', fontSize: '0.4em', whiteSpace: 'nowrap',
               ...(corner.startsWith('top') ? { top: 4 } : { bottom: 4 }),
               ...(corner.endsWith('left') ? { left: 4 } : { right: 4 }),
             }}

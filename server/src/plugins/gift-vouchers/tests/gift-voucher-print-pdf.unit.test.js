@@ -20,7 +20,9 @@ const campaign = { slug: 'bain-nordique', validityMonths: 18, frontPricePosition
 const base = { origin: 'https://site.example.test', linkBase: 'bon-cadeau' };
 
 async function recorded(run) {
-  const calls = { text: [], image: [], roundedRect: [] };
+  const calls = {
+    text: [], image: [], roundedRect: [], circle: [],
+  };
   const original = {};
   Object.keys(calls).forEach((name) => {
     original[name] = PDFDocument.prototype[name];
@@ -50,7 +52,7 @@ test('F8 — an 8-card print embeds the front picture once, and a logo once more
   assert.equal(countImages(buffer), 2, 'one front, one logo, however many cards');
 });
 
-test('F16 — a card of a print sheet crops its front like the single PDF: the picture covers the bleed box, not only the trim', async () => {
+test('F16 — a card of a print sheet draws its front like the single PDF: the picture covers the trim at its own proportions, never enlarged to the bleed', async () => {
   const front = await picture(1300, 1832, { format: 'jpeg', background: '#aa5500' });
   const widthOf = (calls) => calls.image.map(([, , , options]) => options.width);
   const single = await recorded(() => pdf.renderMerchantCardPdf({
@@ -59,7 +61,7 @@ test('F16 — a card of a print sheet crops its front like the single PDF: the p
   const layout = printLayout.plan({ mode: 'recto-verso', perSheet: 1, count: 1, flip: 'left-right' }).layout;
   const sheet = await recorded(() => pdf.renderPrintSheets({ layout, title: 'm', draw: pdf.merchantDrawing({ campaign, front, company, ...base }) }));
   assert.ok(Math.abs(widthOf(single.calls)[0] - widthOf(sheet.calls)[0]) < 0.01, 'the same picture size on the single card and on the sheet card');
-  assert.ok(widthOf(sheet.calls)[0] >= (105 + 6) * MM - 0.01, 'it covers the bleed box (105 mm + 2 × 3 mm), the sheet clips it to the trim');
+  assert.ok(Math.abs(widthOf(sheet.calls)[0] - 105 * MM) < 0.5, 'an A6 visual is drawn 105 mm wide: the trim, not the bleed box');
 });
 
 test('F24 — no text is drawn with a width: pdfkit would wrap a long hyphenated link under the next line', async () => {
@@ -72,15 +74,15 @@ test('F24 — no text is drawn with a width: pdfkit would wrap a long hyphenated
   assert.ok(link, 'the link is printed');
 });
 
-test('F25 — the front price label is tall enough for « à partir de » and the price, with its padding', async () => {
+test('F25 — the front price medallion is round and holds « à partir de » and the price, with its padding', async () => {
   const front = await picture(1300, 1832, { format: 'jpeg', background: '#aa5500' });
   const { calls } = await recorded(() => pdf.renderMerchantCardPdf({
     campaign, front, company, ...base, fromCents: 5000,
   }));
-  const label = calls.roundedRect.find(([, , w, h, radius]) => radius > 5 && h < 60 && w < 120);
-  assert.ok(label, 'the label is drawn');
+  const [disc] = calls.circle;
+  assert.ok(disc, 'the medallion is drawn');
   const lines = pdf.FRONT_PRICE_PT.small + pdf.FRONT_PRICE_PT.price;
-  assert.ok(label[3] >= lines * 1.1 + 2 * 2 * MM, `height ${label[3]} holds both lines and the padding`);
+  assert.ok(2 * disc[2] >= lines * 1.1 + 2 * pdf.FRONT_PRICE_DISC.padMm * MM, `diameter ${2 * disc[2]} holds both lines and the padding`);
 });
 
 test('K6 — flipped like a calendar page every back is drawn rotated half a turn about its cell; flipped like a book page none is', async () => {

@@ -196,7 +196,7 @@ test('rules 9, 49: downloading the merchant card locks the slug — the link is 
   }
 });
 
-test('rule 48: the front is the visual version frozen on the voucher, embedded as uploaded and scaled to cover the bleed; a visual replaced later changes nothing', async () => {
+test('rule 48: the front is the visual version frozen on the voucher, embedded as uploaded, on the trim at its own proportions; a visual replaced later changes nothing', async () => {
   const first = await picture(1300, 1832, { background: '#2f5d50' });
   const visualId = api.visuals.insert({ name: 'Façade', use: 'voucher', file: { path: images.store(first, filesDir(), 'jpeg'), width: 1300, height: 1832 } });
   const campaign = api.campaigns.find(bath.id);
@@ -209,7 +209,7 @@ test('rule 48: the front is the visual version frozen on the voucher, embedded a
   assert.equal(result.includes(second), false, 'the replacement is not');
   assert.match(result.toString('latin1'), /DCTDecode/, 'a JPEG is embedded as a JPEG, never resampled');
   const [, x, y, size] = calls.image.find(([picture_]) => picture_ && picture_.width === 1300);
-  assert.ok(x <= 0 && y <= 0 && x + size.width >= mm(111) - 0.01 && y + size.height >= mm(154) - 0.01, 'it covers the 111 × 154 mm bleed box');
+  assert.ok(Math.abs(x - mm(3)) < 0.5 && Math.abs(size.width - mm(105)) < 0.5, 'it covers the 105 mm trim, not the 111 mm bleed box');
   const newer = sell();
   assert.ok((await api.documents.voucherPdf(newer)).includes(second), 'a voucher issued after takes the new version');
 });
