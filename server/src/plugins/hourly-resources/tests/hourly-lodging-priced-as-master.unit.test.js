@@ -36,6 +36,7 @@ ROWS.forEach((row) => insert.run(Object.fromEntries(COLUMNS.map((c) => [c, row[c
 explicitHourlyRates(db);
 const MIGRATED = Object.fromEntries(db.prepare('SELECT * FROM resources').all().map((row) => [row.id, row]));
 
+// date-literal-ok: calendar days of 2026 compared with a frozen oracle, never with today
 const DATES = ['2026-11-25', '2026-11-27', '2026-11-28', '2026-11-29', '2026-12-24', '2026-12-25', '2026-05-13', '2026-05-14'];
 const RANGES = [['11:00', '12:00'], ['11:00', '13:00'], ['19:00', '20:00'], ['19:00', '21:00'], ['20:00', '21:00'], ['21:00', '22:00'], ['11:15', '12:15'], ['19:30', '21:00'], ['13:00', '14:30'], ['17:30', '19:30']];
 const PARTIES = [

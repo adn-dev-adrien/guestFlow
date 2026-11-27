@@ -1,6 +1,6 @@
 // The booking pricer of origin/master (before the weekend grid), frozen as the oracle of the suites that prove a lodging's price did not move (D6, K9). Not a test file, never edited.
 /**
- * The price of a resource booking, line by line (specs/resource-booking-pricing-and-invoicing.md rules 3-10).
+ * The price of a resource booking, line by line (specs/resources/resource-booking-pricing-and-invoicing.md rules 3-10).
  *
  * Pure: the caller resolves the resource, the property's price override and the VAT in force; this module returns the
  * whole breakdown the preview shows, the commit stores and the invoice copies. No DB, no clock.
@@ -31,7 +31,7 @@ const BAND_LABELS = { day: 'Jour', evening: 'Soir' };
 /**
  * One band of a priced session as the lines of a price breakdown print it: « Jour · 18:00–19:00 », « 1 h × 50,00 € ».
  * `clock: false` is a session with no time yet (a gift voucher's dateless quote): its label names the band only, never the
- * placeholder hours it was priced on (specs/gift-voucher-campaigns.md rule 17).
+ * placeholder hours it was priced on (specs/gift-vouchers/gift-voucher-campaigns.md rule 17).
  */
 const bandLineOf = (b, { clock = true } = {}) => ({
   key: `band:${b.band}:${b.from}`,
@@ -62,7 +62,7 @@ function vatOf(total, vat) {
 const nextRateField = (value) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
 
 /**
- * The four rates a banded resource is sold at (specs/hourly-extra-hour-rates.md rules 1, 4): the day and evening first-hour rates, and the
+ * The four rates a banded resource is sold at (specs/resources/hourly-extra-hour-rates.md rules 1, 4): the day and evening first-hour rates, and the
  * rates of the following hours of each band. The external set is for a customer with no stay (each first-hour rate falls back to the guest
  * rate); the guest set otherwise. A `null` following-hours rate is « same as the first hour » of that band and audience.
  */
@@ -125,10 +125,10 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
   const freeApplied = Math.min(durationMinutes, freeMinutes);
   const offeredApplied = Math.min(offered, Math.max(0, durationMinutes - freeApplied));
 
-  // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5).
+  // Hourly-scheduled resource: time-banded grid (specs/resources/resource-hourly-scheduling.md §3.5).
   if (Number(resource.showsPlanningCard || 0) === 1) {
     const cfg = { ...rateGridOf(resource, { external, guestDayRate }), eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
-    // The free minutes are not a rank (specs/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
+    // The free minutes are not a rank (specs/resources/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
     const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, freeApplied);
     if (priced.validSessions.length) {
       const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate }, cfg);
