@@ -1,0 +1,1 @@
+- Gift vouchers: the « à partir de » price on the merchant card's front is a round fir medallion at 60 % opacity with white text, instead of a white rounded label that echoed the logo's frame; the campaign editor's miniature shows the same medallion.

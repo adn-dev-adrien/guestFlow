@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -19,6 +19,11 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.38.0",
   "changelog": {
+    "1.10.1": [
+      "Le recto des cartes et des bons garde les proportions du visuel : il n’est plus agrandi pour couvrir le fond perdu, qui reprend ses bords en miroir. Plus rien n’est rogné à la coupe.",
+      "Le prix du recto de la carte commerçant est un médaillon rond, sapin à 60 %, texte blanc : l’image passe à travers, le prix reste lisible.",
+      "Demande le SDK 2.38 de GuestFlow."
+    ],
     "1.10.0": [
       "Un bon de bain se vend pour la semaine, pour le week-end ou pour les deux : le donateur choisit dans la campagne, chaque période a son prix, et la période est inscrite sur le bon (« · semaine », « · week-end »).",
       "La validité se choisit dans un menu : 3, 6, 12, 18 ou 24 mois, dans la campagne, sur « Nouveau bon » et pour un bon sur mesure.",

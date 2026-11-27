@@ -1,7 +1,7 @@
 /**
  * The printed cards of the plugin (specs/gift-vouchers/gift-voucher-campaigns.md rules 21, 22, 33, 34, 49, 50; the backs redrawn by specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 18-21):
  * the voucher the giver receives and the merchant card a printer produces. Both are A6 portrait, 105 × 148 mm, with a 3 mm bleed, two pages — the front, then the back. The front is
- * the visual picked in the library, embedded as uploaded (never resampled) and scaled to cover the bleed; on the merchant card GuestFlow adds the « à partir de » price in the corner
+ * the visual picked in the library, embedded as uploaded (never resampled), on the trim at its own proportions, the bleed mirroring its edges; on the merchant card GuestFlow adds the « à partir de » price in the corner
  * the campaign chose. The back is drawn here on a white ground, text and QR code as vectors with the fonts embedded: the company's logo or name, « BON CADEAU », a title and a
  * subtitle, the QR code in a rounded frame, three numbered steps and one rectangle for the code (the voucher's is printed in it, the merchant card's is left empty to copy it into).
  * Every printed back carries the legal mention along its right edge and the company at its foot (rule 50). Every free text is wrapped by hand inside its box. The same drawing serves
@@ -60,6 +60,8 @@ const VOUCHER_BACK_LAYOUT = Object.freeze({
 
 // The « à partir de » label of the merchant card's front: the front is not drawn by the website, so its sizes are not part of the back's layout.
 const FRONT_PRICE_PT = Object.freeze({ small: 8.5, price: 19 });
+/** The medallion of the front price (owner, 2026-11-27): its fill opacity and the room around the words, in mm. 60 % keeps the white price above 4.5 : 1 on the visuals in use. */
+const FRONT_PRICE_DISC = Object.freeze({ opacity: 0.6, padMm: 4 });
 // The name on a plain front (no visual picked): at most three lines, from 22 pt down to 12 pt.
 const PLAIN_FRONT_PT = Object.freeze({ max: 22, min: 12, lines: 3 });
 
@@ -186,7 +188,7 @@ function newDocument({ title, width, height }) {
 }
 
 /** The geometry of one card on a page of its own size (or translated and scaled into a print sheet): the trim box, the safe frame, the slug of a merchant card's crop marks. */
-function cardSheet(doc, { slug = 0, marks = false } = {}) {
+function cardSheet(doc, { slug = 0, marks = false, bleed = true } = {}) {
   const width = TRIM.width + 2 * BLEED + 2 * slug;
   const height = TRIM.height + 2 * BLEED + 2 * slug;
   const trim = {
@@ -196,7 +198,7 @@ function cardSheet(doc, { slug = 0, marks = false } = {}) {
     left: trim.left + SAFE, top: trim.top + SAFE, right: trim.right - SAFE, bottom: trim.bottom - SAFE,
   };
   return {
-    doc, width, height, trim, slug, marks, safe,
+    doc, width, height, trim, slug, marks, safe, bleed,
   };
 }
 
@@ -220,20 +222,40 @@ function drawCropMarks({ doc, trim }) {
   doc.restore();
 }
 
+/** How far each mirrored strip of the bleed reaches under the visual, so no viewer shows a hairline where the two clips meet at the trim. */
+const MIRROR_OVERLAP = 1;
+
 /**
- * The front: the picked visual as uploaded, scaled to cover the bleed box and cropped to it (a print sheet clips each card to its trim, so a card of a sheet is the same crop as the
- * single PDF's); with none picked, a plain card with the company's name.
+ * The front: the picked visual as uploaded, at its own proportions, covering the trim (an A6 visual fills it exactly; one of the 2 % the library admits loses at most 1 % of its longer side
+ * at each end) — never enlarged to cover the bleed, which would crop its edges at the cut. The 3 mm of bleed repeat the visual's edges in a mirror, so a cut slightly off the trim
+ * still shows the picture going on. A card of a print sheet is clipped to its trim (`sheet.bleed` false): the same picture, no mirror. With none picked, a plain card with the
+ * company's name.
  */
 function drawFront(sheet, { image, F, companyName }) {
   const { doc, slug, trim } = sheet;
   const box = { x: slug, y: slug, w: TRIM.width + 2 * BLEED, h: TRIM.height + 2 * BLEED };
   if (image) {
     const picture = imageOf(doc, image);
-    const scale = Math.max(box.w / picture.width, box.h / picture.height);
+    const scale = Math.max(TRIM.width / picture.width, TRIM.height / picture.height);
     const w = picture.width * scale;
     const h = picture.height * scale;
-    doc.save().rect(box.x, box.y, box.w, box.h).clip();
-    doc.image(picture, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, { width: w, height: h });
+    const at = { x: trim.left + (TRIM.width - w) / 2, y: trim.top + (TRIM.height - h) / 2 };
+    if (sheet.bleed !== false) {
+      const spans = (start, end, before, after) => [[-1, before, start + MIRROR_OVERLAP], [0, start, end], [1, end - MIRROR_OVERLAP, after]];
+      spans(trim.left, trim.right, box.x, box.x + box.w).forEach(([dx, x1, x2]) => {
+        spans(trim.top, trim.bottom, box.y, box.y + box.h).forEach(([dy, y1, y2]) => {
+          if (!dx && !dy) return;
+          const mirrorX = dx < 0 ? trim.left : trim.right;
+          const mirrorY = dy < 0 ? trim.top : trim.bottom;
+          doc.save().rect(x1, y1, x2 - x1, y2 - y1).clip();
+          doc.transform(dx ? -1 : 1, 0, 0, dy ? -1 : 1, dx ? 2 * mirrorX : 0, dy ? 2 * mirrorY : 0);
+          doc.image(picture, at.x, at.y, { width: w, height: h });
+          doc.restore();
+        });
+      });
+    }
+    doc.save().rect(trim.left, trim.top, TRIM.width, TRIM.height).clip();
+    doc.image(picture, at.x, at.y, { width: w, height: h });
     doc.restore();
   } else {
     doc.save().rect(box.x, box.y, box.w, box.h).clip();
@@ -259,7 +281,10 @@ function drawFront(sheet, { image, F, companyName }) {
   if (sheet.marks) drawCropMarks(sheet);
 }
 
-/** Rule 21 of the week-weekend spec — the « à partir de » label GuestFlow draws over the merchant card's visual, in the corner the campaign chose, inside the safe area. */
+/**
+ * Rule 21 of the week-weekend spec — the « à partir de » label GuestFlow draws over the merchant card's visual, in the corner the campaign chose, inside the safe area: a round medallion of fir
+ * green at 60 % (the picture shows through; a print cannot blur under a shape), the words in white. Round, so it never echoes the rectangle of a logo on the visual nor has to line up with it.
+ */
 function drawFrontPrice(sheet, F, { cents, position }) {
   if (!cents || position === 'none' || !rules.FRONT_PRICE_POSITIONS.includes(position)) return;
   const { doc, safe } = sheet;
@@ -271,17 +296,15 @@ function drawFrontPrice(sheet, F, { cents, position }) {
   doc.font(F.serif).fontSize(FRONT_PRICE_PT.price);
   const priceW = doc.widthOfString(price);
   const priceH = doc.currentLineHeight();
-  const padX = mm(4);
-  const padY = mm(2);
-  const w = Math.max(smallW, priceW) + 2 * padX;
-  const h = smallH + priceH + 2 * padY;
-  const x = position.endsWith('left') ? safe.left : safe.right - w;
-  const y = position.startsWith('top') ? safe.top : safe.bottom - h;
-  doc.save().roundedRect(x, y, w, h, mm(3)).fill('#ffffff').restore();
-  doc.font(F.regular).fontSize(FRONT_PRICE_PT.small).fillColor(FIR);
-  plainText(doc, small, x, y + padY, { width: w, align: 'center' });
-  doc.font(F.serif).fontSize(FRONT_PRICE_PT.price).fillColor(FIR);
-  plainText(doc, price, x, y + padY + smallH, { width: w, align: 'center' });
+  const d = Math.max(Math.max(smallW, priceW) + 2 * mm(FRONT_PRICE_DISC.padMm), smallH + priceH + 2 * mm(FRONT_PRICE_DISC.padMm));
+  const x = position.endsWith('left') ? safe.left : safe.right - d;
+  const y = position.startsWith('top') ? safe.top : safe.bottom - d;
+  doc.save().fillColor(FIR).fillOpacity(FRONT_PRICE_DISC.opacity).circle(x + d / 2, y + d / 2, d / 2).fill().restore();
+  const top = y + (d - smallH - priceH) / 2;
+  doc.font(F.regular).fontSize(FRONT_PRICE_PT.small).fillColor('#ffffff');
+  plainText(doc, small, x, top, { width: d, align: 'center' });
+  doc.font(F.serif).fontSize(FRONT_PRICE_PT.price).fillColor('#ffffff');
+  plainText(doc, price, x, top + smallH, { width: d, align: 'center' });
 }
 
 /** A text pen over the back's frame: each call draws at the running `y` and moves it down. */
@@ -635,7 +658,7 @@ async function renderPrintSheets({ layout, title, draw }) {
   layout.pages.forEach((page, index) => {
     if (index > 0) doc.addPage({ size: [page.sheet.widthMm * MM_TO_PT, page.sheet.heightMm * MM_TO_PT], margin: 0 });
     page.cells.forEach((cell) => {
-      const card = cardSheet(doc);
+      const card = cardSheet(doc, { bleed: false });
       const scale = (cell.widthMm * MM_TO_PT) / TRIM.width;
       doc.save();
       // A back to be read upright once the sheet is turned like a calendar page (rule 24) is drawn half a turn round the centre of its cell.
@@ -697,6 +720,7 @@ module.exports = {
   shortLink,
   fitLines,
   FRONT_PRICE_PT,
+  FRONT_PRICE_DISC,
   CODE_BOX_HEIGHT,
   LEGAL_MENTION,
   BACK_LAYOUT,

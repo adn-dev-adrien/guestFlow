@@ -1,0 +1,1 @@
+- Gift vouchers: the front of the merchant card, of the voucher PDF and of the print sheets keeps the visual's proportions — it covers the 105 × 148 mm trim instead of being enlarged by 5.7 % to cover the bleed (which cut about 4 mm off its top and bottom); the 3 mm bleed mirrors the visual's edges.
