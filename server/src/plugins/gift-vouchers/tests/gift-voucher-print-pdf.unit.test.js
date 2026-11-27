@@ -1,4 +1,4 @@
-// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 21, 24, 47 — print sheets: the picture and the logo are embedded once per document, a card of a sheet is the same crop
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 21, 24 (and specs/gift-vouchers/gift-voucher-campaigns.md rule 47 for the front's crop) — print sheets: the picture and the logo are embedded once per document, a card of a sheet is the same crop
 // of its front as the single PDF's, no text is wrapped by pdfkit under another, and the front price label holds both its lines.
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');

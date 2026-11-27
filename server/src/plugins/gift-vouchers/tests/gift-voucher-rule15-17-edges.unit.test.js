@@ -87,7 +87,7 @@ test('rule 17 — a confirmation made after the offered hour became impossible i
   assert.equal(sansEnd.ok, true, 'an older client that sends no end keeps its behaviour');
 });
 
-test('rule 64 — the extra-time steps are priced on the slot chosen, whatever its band: a day voucher on an evening slot has its steps', () => {
+test('the extra-time steps (specs/gift-vouchers/gift-voucher-campaigns.md rule 64) are priced on the slot chosen, whatever its band: a day voucher on an evening slot has its steps', () => {
   const day = s.sell('jour', 'week');
   const recap = s.quoteOf(day, '2026-11-17', '19:00'); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(recap.ok, true, JSON.stringify(recap));
