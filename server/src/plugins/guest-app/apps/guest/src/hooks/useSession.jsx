@@ -31,6 +31,19 @@ const prefersDark = () => typeof window !== 'undefined' && window.matchMedia && 
  */
 async function reopenFromDevice() {
   let offline = null;
+  // Demo mode rule 3 — the demo link kept on the device is exchanged again like a stay link, so the phone keeps working without a new scan.
+  const demoToken = device.get('demoToken');
+  if (demoToken) {
+    try {
+      const opened = await api.openDemo(demoToken);
+      device.set('ended', Boolean(opened && opened.ended));
+      return true;
+    } catch (err) {
+      if (err.code === 'CODE_NOT_FOUND') device.set('demoToken', null);
+      else if (err.code === 'NETWORK') offline = err;
+      else if (err.code !== 'NO_LODGING') throw err;
+    }
+  }
   const stayToken = device.get('stayToken');
   if (stayToken) {
     try {
@@ -66,6 +79,7 @@ function purgeOfflineData() {
 
 export function SessionProvider({ children }) {
   const [state, setState] = useState({ status: 'loading', me: null, lodging: null, error: null });
+  const [epoch, setEpoch] = useState(0);
   const [langChoice, setLangChoice] = useState(() => device.get('lang') || null);
   const [nightChoice, setNightChoice] = useState(() => device.get('register') || null);
   const [darkScheme, setDarkScheme] = useState(prefersDark);
@@ -129,10 +143,21 @@ export function SessionProvider({ children }) {
    */
   const enter = useCallback(async (how) => {
     setState((s) => ({ ...s, status: 'loading', error: null }));
+    // A device holds a demo link or a stay, never both: the one opened last is the one the session exchanges again.
+    if (how.demoToken) {
+      device.set('demoToken', how.demoToken);
+      device.set('stayToken', null);
+      device.set('lodgingCode', null);
+    } else {
+      device.set('demoToken', null);
+    }
     if (how.stayToken) device.set('stayToken', how.stayToken);
     if (how.lodgingCode) device.set('lodgingCode', how.lodgingCode);
     try {
-      if (how.stayToken) {
+      if (how.demoToken) {
+        const opened = await api.openDemo(how.demoToken);
+        device.set('ended', Boolean(opened && opened.ended));
+      } else if (how.stayToken) {
         const opened = await api.openStay(how.stayToken);
         device.set('ended', Boolean(opened && opened.ended));
       } else if (how.lodgingCode) {
@@ -140,9 +165,10 @@ export function SessionProvider({ children }) {
         device.set('ended', false);
       }
     } catch (err) {
-      if (err.code === 'PLUGIN_INACTIVE') {
+      if (err.code === 'PLUGIN_INACTIVE' || err.code === 'NO_LODGING') {
         setState({ status: 'inactive', me: null, lodging: null, error: err });
       } else if (err.code === 'CODE_NOT_FOUND') {
+        if (how.demoToken && device.get('demoToken') === how.demoToken) device.set('demoToken', null);
         if (how.stayToken && device.get('stayToken') === how.stayToken) device.set('stayToken', null);
         if (how.lodgingCode && device.get('lodgingCode') === how.lodgingCode) device.set('lodgingCode', null);
         setState({ status: 'unknown', me: null, lodging: null, error: err });
@@ -158,8 +184,19 @@ export function SessionProvider({ children }) {
   /** After a successful lookup the server holds the session; the app only reads it. */
   const afterLookup = useCallback(async () => { await load(); }, [load]);
 
+  /**
+   * Demo mode rule 7 — the demo bar's choice: the server switches the session's lodging and moment, then everything the screens read is read
+   * again for it (the screens remount on `epoch`); `onSwitched` lets the cart empty itself.
+   */
+  const switchDemo = useCallback(async (propertyId, moment) => {
+    await api.switchDemo(propertyId, moment);
+    await load();
+    setEpoch((n) => n + 1);
+  }, [load]);
+
   useEffect(() => {
-    if (window.location.pathname.startsWith('/s/') || window.location.pathname.startsWith('/l/')) return;
+    const { pathname } = window.location;
+    if (pathname.startsWith('/s/') || pathname.startsWith('/l/') || pathname.startsWith('/d/')) return;
     load();
   }, [load]);
 
@@ -194,8 +231,8 @@ export function SessionProvider({ children }) {
   }, [night]);
 
   const value = useMemo(() => ({
-    ...state, lang, night, chooseLang, toggleNight, reload: () => load(), enter, afterLookup,
-  }), [state, lang, night, chooseLang, toggleNight, load, enter, afterLookup]);
+    ...state, lang, night, epoch, chooseLang, toggleNight, reload: () => load(), enter, afterLookup, switchDemo,
+  }), [state, lang, night, epoch, chooseLang, toggleNight, load, enter, afterLookup, switchDemo]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

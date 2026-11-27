@@ -1,7 +1,8 @@
 /**
  * Application — the settings every lodging shares (rules 15, 15bis, 37, 48, 52): the app's name, its address,
  * Soliomap (address, « Intégrer dans l'app »), the order ceiling; « Synchroniser » for the only data read from
- * outside GuestFlow (Soliomap's events); and each lodging's QR code — the A4 poster, « Régénérer ».
+ * outside GuestFlow (Soliomap's events); the demo link (specs/guest-app/guest-app-demo-mode.md rule 2); and each lodging's
+ * QR code — the A4 poster, « Régénérer ».
  */
 import { useEffect, useState } from 'react';
 import {
@@ -17,6 +18,7 @@ import ConfirmDialog from '@guestflow/components/ConfirmDialog';
 import StatusBadge from '@guestflow/components/StatusBadge';
 import StudioPage from '../components/StudioPage';
 import Section from '../components/Section';
+import DemoLinkSection from '../components/DemoLinkSection';
 import { useLoad } from '../hooks/useLoad';
 import { useDirtyGuard } from '../hooks/useDirtyGuard';
 import { api } from '../services/api';
@@ -132,6 +134,8 @@ export default function SettingsPage({ lodgings, onLodgingChange }) {
           </Typography>
         </Box>
       </Section>
+
+      <DemoLinkSection />
 
       {lodgings.map((l) => (
         <Section

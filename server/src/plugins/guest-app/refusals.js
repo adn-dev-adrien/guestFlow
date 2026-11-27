@@ -75,6 +75,10 @@ const TEXTS = Object.freeze({
     termsNotAccepted: 'Acceptez les conditions générales pour commander.',
     termsOutdated: 'Les conditions générales ont changé : relisez-les et acceptez-les pour commander.',
     termsNotFound: 'Ces conditions n’existent pas.',
+    // specs/guest-app/guest-app-demo-mode.md rules 4, 7, 14.
+    noLodging: 'Aucun logement n’est ouvert dans l’application.',
+    notADemo: 'Cette session n’est pas une démonstration.',
+    invalidDemoChoice: 'Choisissez un logement et un moment du séjour.',
   }),
   en: Object.freeze({
     unknownCode: 'This code is not recognised.',
@@ -138,6 +142,9 @@ const TEXTS = Object.freeze({
     termsNotAccepted: 'Accept the general terms to order.',
     termsOutdated: 'The general terms have changed: read them again and accept them to order.',
     termsNotFound: 'These terms do not exist.',
+    noLodging: 'No lodging is open in the app.',
+    notADemo: 'This session is not a demonstration.',
+    invalidDemoChoice: 'Choose a lodging and a moment of the stay.',
   }),
 });
 

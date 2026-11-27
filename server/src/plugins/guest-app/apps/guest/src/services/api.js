@@ -89,6 +89,9 @@ export async function request(method, path, options = {}) {
 export const api = {
   openStay: (stayToken) => once('POST', '/sessions', { body: { stayToken } }),
   openLodging: (lodgingCode) => once('POST', '/sessions', { body: { lodgingCode } }),
+  // specs/guest-app/guest-app-demo-mode.md rules 1, 7 — the demo link opens a demo session; the demo bar switches its lodging and moment.
+  openDemo: (demoToken) => once('POST', '/sessions/demo', { body: { demoToken } }),
+  switchDemo: (propertyId, moment) => request('POST', '/sessions/demo/switch', { body: { propertyId, moment } }),
   lookup: (lastName, reservationNumber) => once('POST', '/sessions/lookup', { body: { lastName, reservationNumber } }),
   me: (options) => request('GET', '/me', options),
   lodging: (options) => request('GET', '/lodging', options),

@@ -164,10 +164,19 @@ function deliveryLinesError(body) {
 
 function buildShopController({
   items, stayLines, orders, serviceHours, stock, scheduler, translator, now, orderCollection,
-  fulfilment = () => ({ mode: 'delivery', place: null }),
+  fulfilment = () => ({ mode: 'delivery', place: null }), demoPricing = null,
 }) {
-  /** Rule 67 — where the core collects an order of this stay: the shop's and the orders' one reading. */
-  const collectionOf = (stay) => orderCollection(stay.id, now());
+  /** Rule 67 — where the core collects an order of this stay: the shop's and the orders' one reading. A demo stay is read on its transient copy. */
+  const collectionOf = (stay) => (stay.demo ? demoPricing.collectionOf(stay, now()) : orderCollection(stay.id, now()));
+
+  /** Demo mode rule 9 — the fictitious stay holds nothing yet: no line, no free unit granted, no order. */
+  const demoExtras = (stay) => ({
+    window: { kind: stay.kind, startDate: stay.startDate },
+    platform: stay.platform,
+    grantedFreeUnitsByOption: null,
+    optionLines: [],
+    resourceLines: [],
+  });
 
   /**
    * Rules 25, 42 — why an item cannot be ordered: staff-prepared with no delivery time left before the check-out.
@@ -240,12 +249,12 @@ function buildShopController({
 
   /** Rules 23, 25 — the items the stay's lodging sells, with what the stay already received. */
   function soldFor({ stay, lodging }) {
-    const extras = stayLines().ofStay(stay.id);
+    const extras = stay.demo ? demoExtras(stay) : stayLines().ofStay(stay.id);
     const catalogue = items().catalogueFor(lodging.propertyId);
     const consumed = stayConsumption({
       optionLines: extras.optionLines,
       resourceLines: extras.resourceLines,
-      orderedLines: orders().orderedLines(stay.id),
+      orderedLines: stay.demo ? [] : orders().orderedLines(stay.id),
     });
     const sold = shopItems({
       ...catalogue,

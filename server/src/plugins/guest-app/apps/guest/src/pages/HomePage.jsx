@@ -62,6 +62,8 @@ export default function HomePage() {
   const gateState = gateInfo ? gateInfo.state : null;
   const openGate = () => {
     if (gateInfo && gateInfo.state === 'active' && gateInfo.url) window.open(gateInfo.url, '_blank', 'noopener');
+    // Demo mode rule 12 — the fictitious gate opens an in-app sheet, never the gate app.
+    if (gateInfo && gateInfo.state === 'demo') setSheet('gate');
   };
 
   const tileAction = {
@@ -88,7 +90,7 @@ export default function HomePage() {
   const live = ((orders.data && orders.data.orders) || []).filter((o) => LIVE_ORDER.has(o.status));
   const latest = live[0];
   const pages = ((booklet.data && booklet.data.pages) || []).slice(0, 6);
-  const ended = me.mode === 'visitor' && device.get('ended');
+  const ended = me.mode === 'visitor' && (me.demo ? Boolean(me.ended) : device.get('ended'));
 
   const card = stay ? (
     <StayCard
@@ -110,7 +112,7 @@ export default function HomePage() {
       key={tile.key}
       icon={TILE_ICON[tile.key] || 'info'}
       label={tile.label}
-      external={tile.key === 'gate' || (tile.key === 'soliomap' && !soliomapEmbedded)}
+      external={(tile.key === 'gate' && gateState !== 'demo') || (tile.key === 'soliomap' && !soliomapEmbedded)}
       disabled={tile.key === 'gate' && (!gateState || gateState === 'offline')}
       disabledReason={tile.key !== 'gate' ? null
         : gateState === 'offline' ? t('net.needed')
@@ -135,7 +137,7 @@ export default function HomePage() {
       eyebrow={hl.eyebrow || t(`hl.${hl.key}`)}
       title={hl.text}
       text={hlText}
-      external={hl.module === 'gate'}
+      external={hl.module === 'gate' && gateState !== 'demo'}
       onClick={hlAction}
     />
   ) : null;
@@ -202,6 +204,13 @@ export default function HomePage() {
       <BottomSheet open={sheet === 'wifi'} onClose={() => setSheet(null)} label={t('wifi.title')}>
         <h3>{t('wifi.title')}</h3>
         {lodging.wifi ? <WifiBlock block={{ available: true, ...lodging.wifi }} onCopy={async (text) => { if (await copyText(text)) toast(t('common.copied')); }} /> : null}
+      </BottomSheet>
+      <BottomSheet open={sheet === 'gate'} onClose={() => setSheet(null)} label={gateTile ? gateTile.label : ''}>
+        <h3>{gateTile ? gateTile.label : ''}</h3>
+        <p>{t('demo.gateIntro')}</p>
+        <p>{t('demo.gateCode')}</p>
+        <div className="keypad" aria-label={t('demo.gateCode')}>{gateInfo && gateInfo.code}</div>
+        <p className="demoline">{t('demo.gateNote')}</p>
       </BottomSheet>
       <BottomSheet open={sheet === 'contacts'} onClose={() => setSheet(null)} label={t('contacts.title')}>
         <h3>{t('contacts.title')}</h3>

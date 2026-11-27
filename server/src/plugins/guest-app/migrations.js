@@ -220,7 +220,7 @@ const PLACES_SQL = `
 const TABLES = Object.freeze([
   'guest_app_lodgings', 'guest_app_items', 'guest_app_stock_counts', 'guest_app_service_hours', 'guest_app_service_exceptions',
   'guest_sessions', 'guest_stay_links', 'guest_booklet_pages', 'guest_booklet_placements', 'guest_booklet_blocks',
-  'guest_booklet_versions', 'guest_media', 'guest_orders', 'guest_home_blocks', 'guest_app_places',
+  'guest_booklet_versions', 'guest_media', 'guest_orders', 'guest_home_blocks', 'guest_app_places', 'guest_demo_links',
 ]);
 
 // Rule 66 — where an order is collected: the arrival complement (taken before the arrival is marked) or the departure
@@ -292,6 +292,43 @@ const keepOrderIdsCited = (db) => {
   raiseCounter(db, 'guest_orders', Math.max(highestCitedId(db, 'order:', ORDER_REF_SOURCES), highestBasketRef(db, 'guestOrder')));
 };
 
+// specs/guest-app/guest-app-demo-mode.md §5 — the one demo link, and the demo session's two columns. The origin CHECK cannot be altered in place,
+// so `guest_sessions` is rebuilt in the migration's transaction with its rows copied; a table that already allows `demo` is left alone.
+const addDemoMode = (db) => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guest_demo_links (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      tokenEncrypted TEXT NOT NULL,
+      tokenHash      TEXT NOT NULL UNIQUE,
+      createdAt      TEXT NOT NULL,
+      revokedAt      TEXT
+    );
+  `);
+  const stored = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'guest_sessions'").get();
+  if (!stored || String(stored.sql).includes("'demo'")) return;
+  const copied = db.prepare('PRAGMA table_info(guest_sessions)').all().map((c) => c.name).join(', ');
+  db.exec(`
+    CREATE TABLE guest_sessions_v7 (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      tokenHash       TEXT NOT NULL UNIQUE,
+      propertyId      INTEGER NOT NULL,
+      reservationId   INTEGER,
+      mode            TEXT NOT NULL CHECK (mode IN ('stay', 'preArrival', 'visitor')),
+      origin          TEXT NOT NULL CHECK (origin IN ('link', 'poster', 'lookup', 'demo')),
+      stayLinkId      INTEGER,
+      createdAt       TEXT NOT NULL,
+      lastSeenAt      TEXT NOT NULL,
+      expiresAt       TEXT NOT NULL,
+      demoLinkId      INTEGER,
+      demoMoment      TEXT CHECK (demoMoment IN ('preArrival', 'stay', 'ended'))
+    );
+    INSERT INTO guest_sessions_v7 (${copied}) SELECT ${copied} FROM guest_sessions;
+    DROP TABLE guest_sessions;
+    ALTER TABLE guest_sessions_v7 RENAME TO guest_sessions;
+    CREATE INDEX IF NOT EXISTS idx_guest_sessions_expiry ON guest_sessions(expiresAt);
+  `);
+};
+
 const MIGRATIONS = Object.freeze([
   { name: 'guest_app_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'guest_home_blocks_v1', up: (db) => db.exec(HOME_BLOCKS_SQL) },
@@ -301,6 +338,7 @@ const MIGRATIONS = Object.freeze([
   { name: 'guest_app_items_offered_in_place_v4', up: addOfferedInPlace },
   { name: 'guest_orders_counter_floor_v5', up: keepOrderIdsCited },
   { name: 'guest_app_places_v6', up: (db) => db.exec(PLACES_SQL) },
+  { name: 'guest_app_demo_mode_v7', up: addDemoMode },
 ]);
 
 module.exports = { MIGRATIONS, TABLES };

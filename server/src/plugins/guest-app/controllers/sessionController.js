@@ -15,9 +15,11 @@ const { shownModules, tilesOf } = require('../modules');
 const { chooseHighlight, openingLine, statusLine, welcomeLine } = require('../homeHighlight');
 const { pickSuggestion } = require('../soliomapFeed');
 const gate = require('../gate');
+const { DEFAULT_MOMENT, isMoment } = require('../demoStay');
 const { isNight } = require('../sun');
 
 const { languageOf } = require('../language');
+const { COOKIE } = require('../middleware/guestSession');
 const { fail, refusal } = require('../refusals');
 
 const publicHttp = sdk.coreModule('publicHttp');
@@ -51,6 +53,7 @@ const DEFAULT_APP_NAME = 'Domaine Solio';
 
 function buildSessionController({
   lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, readGateUrl = gate.keyUrlOf,
+  demoLinks = () => ({ findLiveByToken: () => null }),
   appName = () => null, soliomapEmbed = () => false, bathCards = () => [], homeReady = () => false, publishedPlaces = () => 0,
 }) {
   function factsOf(lodging) {
@@ -81,7 +84,7 @@ function buildSessionController({
   /** Rule 4 — the same device, the same stay, the same phase: its session goes on. */
   function reusable(req, { propertyId, reservationId, mode }) {
     const current = guestSession.load(req);
-    if (!current || current.session.propertyId !== propertyId) return null;
+    if (!current || current.demo || current.session.propertyId !== propertyId) return null;
     return current.session.reservationId === reservationId && current.mode === mode ? current : null;
   }
 
@@ -150,6 +153,30 @@ function buildSessionController({
     return openFromPoster(req, res, body.lodgingCode);
   }
 
+  /**
+   * Demo mode rules 1, 3, 4, 6 — the demo link opens a demo session on the first lodging the app shows, at the stay moment. The same device on
+   * the same link keeps its session (its lodging, its moment, its simulated orders). An unknown or revoked link reads like an unknown code.
+   */
+  function createDemoSession(req, res) {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const link = isText(body.demoToken) ? demoLinks().findLiveByToken(body.demoToken) : null;
+    if (!link) return unknownCode(res);
+    const [first] = lodgings().listEnabled();
+    if (!first) return fail(res, refusal(404, 'NO_LODGING', 'noLodging'));
+    const current = guestSession.load(req);
+    if (current && current.demo && Number(current.session.demoLinkId) === Number(link.id)) {
+      guestSession.setCookie(res, current.token, new Date(current.session.expiresAt));
+      return answer(res, { mode: current.mode, lodging: current.lodging, ended: Boolean(current.ended) });
+    }
+    const at = now();
+    const { token, session } = sessions().create({
+      propertyId: first.propertyId, mode: 'visitor', origin: 'demo', demoLinkId: link.id, demoMoment: DEFAULT_MOMENT, expiresAt: visitorExpiry(at), now: at,
+    });
+    guestSession.setCookie(res, token, new Date(session.expiresAt));
+    const opened = guestSession.load({ headers: { cookie: `${COOKIE}=${token}` } });
+    return answer(res, { mode: opened.mode, lodging: opened.lodging, ended: Boolean(opened.ended) });
+  }
+
   // POST /sessions/lookup — rules 6, 7, 11quater, 54. Every failure is the one generic 404, and the name is
   // compared even when no stay carries that number. Two stays sharing a number are each tried against the name. A
   // number the core made opens nothing (D28): it answers like an unknown stay.
@@ -181,13 +208,14 @@ function buildSessionController({
   /** Rule 13 — the gate tile says whether the key is ready; its URL only reaches a stay session. */
   function withGate(tiles, guest, lang) {
     if (!tiles.some((t) => t.key === 'gate')) return { tiles, gateState: null };
-    const state = gate.gateState({ mode: guest.mode, reservationId: guest.stay && guest.stay.id }, readGateUrl);
+    const state = gate.gateState({ mode: guest.mode, reservationId: guest.stay && guest.stay.id, demo: Boolean(guest.demo) }, readGateUrl);
     return {
       gateState: state.state,
       tiles: tiles.map((t) => (t.key !== 'gate' ? t : {
         ...t,
         state: state.state,
         ...(state.url ? { url: state.url } : {}),
+        ...(state.code ? { code: state.code } : {}),
         ...(gate.stateLabel(state.state, lang) ? { stateLabel: gate.stateLabel(state.state, lang) } : {}),
       })),
     };
@@ -204,8 +232,16 @@ function buildSessionController({
     const base = {
       mode, appName: String(appName() || '').trim() || DEFAULT_APP_NAME, lodging: lodgingView(lodging), language: lang, isNight: isNight(at), tiles,
     };
+    // Demo mode rule 8 — only a demo session says so, and which lodgings and moments it can switch to.
+    const demo = req.guest.demo ? {
+      demo: {
+        moment: req.guest.session.demoMoment,
+        lodgings: lodgings().listEnabled().map((l) => ({ propertyId: l.propertyId, name: l.name })),
+      },
+      ...(req.guest.ended ? { ended: true } : {}),
+    } : {};
     // Rule 3 — a visitor learns nothing of any stay, not even that one starts today.
-    if (!stay) return publicHttp.ok(res, { ...base, welcome: welcomeLine(lodging.name, lang) });
+    if (!stay) return publicHttp.ok(res, { ...base, ...demo, welcome: welcomeLine(lodging.name, lang) });
     const opening = mode === 'preArrival' ? openingToday(stay, window, at) : null;
     // specs/guest-app/guest-app-bath-home-scheduling.md rules 4-6 — the bath cards, where the shop that books the bath is shown: the home's one
     // word on the bath.
@@ -214,13 +250,14 @@ function buildSessionController({
       stay,
       now: at,
       shown: shown.map((m) => m.key),
-      orderReady: orders().deliveredRecently(stay.id, at),
+      orderReady: req.guest.demo ? false : orders().deliveredRecently(stay.id, at),
       gatePreparing: gateState === 'preparing',
       lang,
     }) : null;
     const suggestion = await suggestionFor({ mode, stay, shown, at, lang });
     return publicHttp.ok(res, {
       ...base,
+      ...demo,
       guest: { firstName: stay.clientFirstName || '' },
       stay: {
         arrival: toParisIso(window.checkIn),
@@ -264,7 +301,21 @@ function buildSessionController({
     if (!gate.gateLive()) return res.status(404).json({ error: 'PLUGIN_INACTIVE', plugin: gate.GATE_PLUGIN });
     const { lodging, mode, stay } = req.guest;
     if (!shownFor(lodging, 'stay').some((m) => m.key === 'gate')) return fail(res, refusal(404, 'MODULE_OFF', 'moduleOff'));
-    return publicHttp.ok(res, gate.gateState({ mode, reservationId: stay && stay.id }, readGateUrl));
+    return publicHttp.ok(res, gate.gateState({ mode, reservationId: stay && stay.id, demo: Boolean(req.guest.demo) }, readGateUrl));
+  }
+
+  /**
+   * Demo mode rule 7 — `POST /sessions/demo/switch { propertyId, moment }`: the lodging and the moment a demo session shows, answered like `/me`.
+   * Any other session is refused: it has nothing to switch.
+   */
+  async function switchDemo(req, res) {
+    if (!req.guest.demo) return fail(res, refusal(403, 'NOT_A_DEMO', 'notADemo'));
+    const { propertyId, moment } = req.body && typeof req.body === 'object' ? req.body : {};
+    const lodging = Number.isInteger(propertyId) ? lodgings().findEnabled(propertyId) : null;
+    if (!lodging || !isMoment(moment)) return fail(res, refusal(400, 'INVALID_INPUT', 'invalidDemoChoice'));
+    sessions().switchDemo(req.guest.session.id, { propertyId: lodging.propertyId, moment });
+    req.guest = guestSession.load(req);
+    return me(req, res);
   }
 
   /** The keys a lodging shows a session of this mode. */
@@ -274,7 +325,7 @@ function buildSessionController({
   const shownKeysOf = (req) => shownKeys(req.guest.lodging, req.guest.mode);
 
   return {
-    createSession, gateRead, lodging, lookup, me, shownKeys, shownKeysOf,
+    createDemoSession, createSession, gateRead, lodging, lookup, me, shownKeys, shownKeysOf, switchDemo,
   };
 }
 

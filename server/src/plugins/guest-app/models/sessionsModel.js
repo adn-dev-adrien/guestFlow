@@ -17,14 +17,16 @@ function createSessionsModel(db) {
 
   /**
    * → { token, session }. The token leaves here once, for the cookie. `origin`: 'link' (a stay link,
-   * `stayLinkId` set), 'poster' (a lodging code) or 'lookup' (rule 6).
+   * `stayLinkId` set), 'poster' (a lodging code), 'lookup' (rule 6) or 'demo' (`demoLinkId`, `demoMoment`, no reservation).
    */
-  function create({ propertyId, reservationId = null, mode, origin, stayLinkId = null, expiresAt, now }) {
+  function create({
+    propertyId, reservationId = null, mode, origin, stayLinkId = null, demoLinkId = null, demoMoment = null, expiresAt, now,
+  }) {
     const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
     const { lastInsertRowid } = db.prepare(`
-      INSERT INTO guest_sessions (tokenHash, propertyId, reservationId, mode, origin, stayLinkId, createdAt, lastSeenAt, expiresAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(hashToken(token), Number(propertyId), reservationId, mode, origin, stayLinkId, iso(now), iso(now), iso(expiresAt));
+      INSERT INTO guest_sessions (tokenHash, propertyId, reservationId, mode, origin, stayLinkId, demoLinkId, demoMoment, createdAt, lastSeenAt, expiresAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(hashToken(token), Number(propertyId), reservationId, mode, origin, stayLinkId, demoLinkId, demoMoment, iso(now), iso(now), iso(expiresAt));
     return { token, session: byId(lastInsertRowid) };
   }
 
@@ -45,6 +47,19 @@ function createSessionsModel(db) {
     return db.prepare("DELETE FROM guest_sessions WHERE reservationId = ? AND origin = 'lookup'").run(Number(reservationId)).changes;
   }
 
+  /** Demo mode rule 7 — the lodging and the moment a demo session shows. */
+  function switchDemo(id, { propertyId, moment }) {
+    db.prepare("UPDATE guest_sessions SET propertyId = ?, demoMoment = ? WHERE id = ? AND origin = 'demo'").run(Number(propertyId), moment, Number(id));
+    return byId(id);
+  }
+
+  /** Demo mode rule 1 — « Régénérer le lien » ends every session opened from the old demo link. → the ids ended. */
+  function endDemoSessions(demoLinkId) {
+    const ids = db.prepare("SELECT id FROM guest_sessions WHERE origin = 'demo' AND demoLinkId = ?").all(Number(demoLinkId)).map((row) => row.id);
+    db.prepare("DELETE FROM guest_sessions WHERE origin = 'demo' AND demoLinkId = ?").run(Number(demoLinkId));
+    return ids;
+  }
+
   /** Rule 4 data model — a session row goes 30 days after its expiry. */
   function purgeExpired(now) {
     const before = new Date(now.getTime() - PURGE_AFTER_DAYS * DAY_MS).toISOString();
@@ -52,7 +67,7 @@ function createSessionsModel(db) {
   }
 
   return {
-    create, endLookupSessions, findByToken, hashToken, purgeExpired, touch,
+    create, endDemoSessions, endLookupSessions, findByToken, hashToken, purgeExpired, switchDemo, touch,
   };
 }
 

@@ -5,10 +5,13 @@
  *
  *   outside    — not a stay session (the tile is absent): no URL, ever;
  *   preparing  — a stay session, Sowel has not read the key yet: « Accès en préparation », not clickable;
- *   active     — the key exists: the tile opens its URL.
+ *   active     — the key exists: the tile opens its URL;
+ *   demo       — a demo stay session (specs/guest-app/guest-app-demo-mode.md rule 12): the tile opens an in-app sheet with a fictitious
+ *                keypad code; the key link is never read.
  */
 
 const registry = require('../sdk/registry');
+const { DEMO_GATE_CODE } = require('./demoStay');
 
 const GATE_PLUGIN = 'gate-access';
 
@@ -34,7 +37,8 @@ function keyUrlOf(reservationId) {
 const STATE_LABELS = Object.freeze({ fr: { preparing: 'Accès en préparation' }, en: { preparing: 'Access being prepared' } });
 
 /** Rule 13 — `{ state, url? }` for a session; the URL only for a stay session. */
-function gateState({ mode, reservationId }, readUrl = keyUrlOf) {
+function gateState({ mode, reservationId, demo = false }, readUrl = keyUrlOf) {
+  if (demo) return mode === 'stay' ? { state: 'demo', code: DEMO_GATE_CODE } : { state: 'outside' };
   if (mode !== 'stay' || !reservationId) return { state: 'outside' };
   const url = readUrl(reservationId);
   return url ? { state: 'active', url } : { state: 'preparing' };

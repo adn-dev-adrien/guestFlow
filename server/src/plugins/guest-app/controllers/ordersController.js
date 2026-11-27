@@ -130,6 +130,7 @@ const sessionsHours = (sessions) => sessions.reduce((sum, s) => sum + Math.max(0
 function buildOrdersController({
   db, orders, stays, lodgings, shop, scheduler, serviceHours, sale, payments, push, maxOrderTotal, guestHost, now,
   stock, alertStock = () => {}, fulfilment = () => ({ mode: 'delivery', place: null }), translator = null,
+  demoPricing = null, demoOrders = () => null,
 }) {
   /**
    * Rule 61 — the article's title in the request's language, as the shop shows it: the quote's labels and the
@@ -301,6 +302,11 @@ function buildOrdersController({
     return refusal(409, 'STAY_NOT_WRITABLE', 'stayNotWritable');
   }
 
+  /** Demo mode rules 9, 10 — a demo stay is priced by the same sale service, on a stay written and rolled back for the quote. */
+  const quoteSale = (stay, requests, options) => (stay.demo
+    ? demoPricing.quote(stay, requests, options)
+    : sale().quote(stay.id, requests, options));
+
   /**
    * Rules 24, 25 — the judged lines priced by the core's sale service, nothing written, on the stay as it is: an unpaid card order
    * reserves nothing (rule 35). → `{ lines, byKey, total }` or a refusal; `byKey` is what the sale adds per article (`opt:<id>`, `res:<id>`), in euros.
@@ -308,7 +314,7 @@ function buildOrdersController({
   function price(stay, judged, at) {
     const lines = commitLines(judged.lines, stay.propertyId);
     if (!lines.length) return { lines: [], byKey: {}, total: 0 };
-    let priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
+    let priced = quoteSale(stay, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
     if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
     const taken = (priced.refusals || []).find((r) => r.code === 'SLOT_TAKEN');
     if (taken) return { refusal: refusal(409, 'SLOT_TAKEN', 'slotJustTaken') };
@@ -334,7 +340,7 @@ function buildOrdersController({
       judged.lines.find((j) => j.kind === 'resource' && j.id === line.id).supplement = line.supplement;
     });
     if (supplemented.some((line) => line.supplement > 0)) {
-      priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
+      priced = quoteSale(stay, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
       if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
       byKey = keyed(priced);
     }
@@ -431,7 +437,7 @@ function buildOrdersController({
     const current = activity ? termsModel.getCurrent(HOURLY_ACTIVITY) : null;
     if (!current) return out;
     out.currents.set(HOURLY_ACTIVITY, current);
-    const previous = termsModel.findAcceptanceByReservation(stay.id, HOURLY_ACTIVITY);
+    const previous = stay.demo ? null : termsModel.findAcceptanceByReservation(stay.id, HOURLY_ACTIVITY);
     if (previous && previous.termsVersionId === current.id) {
       const format = lang === 'en' ? termsDateEn : termsDate;
       out.accepted.push({
@@ -458,6 +464,8 @@ function buildOrdersController({
       });
       if (code === 'TERMS_NOT_ACCEPTED') return refusal(422, code, 'termsNotAccepted');
       if (code) return refusal(409, code, 'termsOutdated');
+      // Demo mode rule 10 — the acceptance is judged like a real one and written nowhere.
+      if (stay.demo) continue;
       termsModel.insertAcceptance({
         activity: owed.activity,
         subjectType: 'reservation',
@@ -606,9 +614,13 @@ function buildOrdersController({
     if (rawKey !== undefined && !CLIENT_KEY.test(rawKey)) return fail(res, invalid('invalidRequest'));
     const clientKey = rawKey || null;
     const sessionId = req.guest.session.id;
-    const earlier = clientKey ? orders().findByClientKey(sessionId, clientKey) : null;
-    if (earlier) return replay(res, earlier);
     const { stay } = req.guest;
+    if (stay.demo && clientKey) {
+      const simulated = demoOrders().findByClientKey(sessionId, clientKey);
+      if (simulated) return publicHttp.ok(res, { orderId: simulated.id, status: 'confirmed', demo: true });
+    }
+    const earlier = clientKey && !stay.demo ? orders().findByClientKey(sessionId, clientKey) : null;
+    if (earlier) return replay(res, earlier);
     const lang = languageOf(req, stay);
     const at = now();
     if (!shopOpen(req.guest)) return fail(res, SHOP_CLOSED);
@@ -637,6 +649,26 @@ function buildOrdersController({
     if (termsRefusal) return fail(res, termsRefusal, { quote: answer });
     const mode = fulfilment();
     const delivery = { fulfilment: mode.mode, pickupPlace: mode.place };
+
+    // Demo mode rule 10 — validated and priced like a real order, then answered as a confirmed one that was written nowhere: no order row, no line on a
+    // fiche, no slot, no payment link, no stock count, no push. The guard sits before the first side effect below.
+    if (stay.demo) {
+      const simulated = demoOrders().add(sessionId, {
+        reservationId: null,
+        payment: free ? 'none' : req.body.payment,
+        status: 'confirmed',
+        lines,
+        total: priced.total,
+        deliverAt: judged.deliverAt,
+        ...delivery,
+        clientKey,
+        collectAt: shop.collectionOf(stay),
+        createdAt: at.toISOString(),
+        deliverMoved: 0,
+        amendmentsJson: null,
+      });
+      return publicHttp.ok(res, { orderId: simulated.id, status: 'confirmed', demo: true });
+    }
 
     // Rules 25, 34 — a note or 0 € order: confirmed and sold on the fiche in one transaction, its lines appended (rules 8, 9, 13).
     if (free || req.body.payment === 'note') {
@@ -702,18 +734,18 @@ function buildOrdersController({
   const basketLines = (lines) => lines.filter((l) => l.total > 0).map((l) => ({ title: l.title, amountCents: Math.round(l.total * 100) }));
 
   /** Rules 38, 41ter — what a guest reads of an order. */
-  function orderView(order, { lang, resourceLines = null }) {
+  function orderView(order, { lang, resourceLines = null, demoStay = null }) {
     const T = labels.textOf(lang);
     const chip = labels.deliveryChip(order, lang);
-    const stay = stays().byId(order.reservationId) || {};
+    const stay = demoStay || stays().byId(order.reservationId) || {};
     const promised = labels.promiseOf(order, { lodging: lodgingName(stay.propertyId), now: now(), lang });
-    const arrival = order.collectAt === 'arrival' ? stays().arrivalComplementState(order.reservationId) : null;
+    const arrival = order.collectAt === 'arrival' && !demoStay ? stays().arrivalComplementState(order.reservationId) : null;
     const notices = [];
     if (order.status === 'awaiting_payment') notices.push(T.awaitingCard);
     if (order.status === 'paid_conflict') notices.push(T.conflict);
     if (order.deliverMoved && ['paid', 'confirmed'].includes(order.status)) notices.push(order.deliverAt ? T.moved(labels.momentLabel(order.deliverAt, lang)) : T.movedNone);
     // Rule 73 — a stay moved under its order: the time is no longer inside the dates, the team replans it.
-    if (['paid', 'confirmed'].includes(order.status) && outsideStay(order, stay)) notices.push(T.reviewTime);
+    if (!demoStay && ['paid', 'confirmed'].includes(order.status) && outsideStay(order, stay)) notices.push(T.reviewTime);
     // Edge case — the planning is the truth: a session of the order the operator moved or removed.
     if (resourceLines && ['confirmed', 'paid', 'delivered'].includes(order.status)) {
       const placed = new Set(resourceLines.flatMap((l) => (l.sessions || []).map((s) => `${l.resourceId}|${s.date}|${s.start}|${s.end}`)));
@@ -722,6 +754,7 @@ function buildOrdersController({
     }
     return {
       id: order.id,
+      ...(demoStay ? { demo: true } : {}),
       createdAt: order.createdAt,
       deliverAt: order.deliverAt,
       lines: order.lines.map(({ needsStaff, ...l }) => ({ ...l, label: labels.lineLabel(l, lang), totalLabel: labels.priceLabel(l.total, lang) })),
@@ -761,11 +794,14 @@ function buildOrdersController({
   function list(req, res) {
     const { stay } = req.guest;
     const lang = languageOf(req, stay);
+    // Demo mode rule 11 — the session's simulated orders, from memory.
+    if (stay.demo) return publicHttp.ok(res, { orders: demoOrders().list(req.guest.session.id).map((o) => orderView(o, { lang, demoStay: stay })) });
     const resourceLines = placedLines(stay);
     return publicHttp.ok(res, { orders: orders().listForStay(stay.id).map((o) => orderView(o, { lang, resourceLines })) });
   }
 
   const ownOrder = (req) => {
+    if (req.guest.stay.demo) return demoOrders().find(req.guest.session.id, req.params.id);
     const id = /^\d+$/.test(String(req.params.id)) ? Number(req.params.id) : NaN;
     const order = Number.isInteger(id) ? orders().findById(id) : null;
     return order && Number(order.reservationId) === Number(req.guest.stay.id) ? order : null;
@@ -779,6 +815,7 @@ function buildOrdersController({
   async function read(req, res) {
     let order = ownOrder(req);
     if (!order) return notFound(res);
+    if (req.guest.stay.demo) return publicHttp.ok(res, orderView(order, { lang: languageOf(req, req.guest.stay), demoStay: req.guest.stay }));
     const at = now().getTime();
     if (order.status !== 'awaiting_payment' && order.paymentLinkId) refreshedAt.delete(order.paymentLinkId);
     if (order.status === 'awaiting_payment' && order.paymentLinkId && !(at - (refreshedAt.get(order.paymentLinkId) || -Infinity) < REFRESH_MS)) {
@@ -793,6 +830,11 @@ function buildOrdersController({
   async function abandon(req, res) {
     const order = ownOrder(req);
     if (!order) return notFound(res);
+    // Demo mode rule 11 — giving a simulated order up removes it; its lines go back in the cart like an abandoned one.
+    if (req.guest.stay.demo) {
+      demoOrders().remove(req.guest.session.id, order.id);
+      return publicHttp.ok(res, orderView({ ...order, status: 'abandoned' }, { lang: languageOf(req, req.guest.stay), demoStay: req.guest.stay }));
+    }
     if (order.status !== 'awaiting_payment') return fail(res, refusal(409, 'ORDER_NOT_PENDING', 'orderNotPending'));
     const moved = orders().markAbandoned(order.id, now());
     if (moved && order.paymentLinkId) {

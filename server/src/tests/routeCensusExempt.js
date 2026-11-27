@@ -121,7 +121,7 @@ const EXEMPT = {
     'POST /api/reservations/:id/sas/departure/preview',
     'PUT /api/plugins/:id/settings',
   ],
-  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin, guest-app-arrival-orders (the amend input shape), guest-app-studio-lodgings and guest-app-fulfilment (the studio settings, judged together; « Synchroniser », which reads no body), guest-app-local-amenities (the places of « Pratique »: one French message per refused field).': [
+  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin, guest-app-arrival-orders (the amend input shape), guest-app-studio-lodgings and guest-app-fulfilment (the studio settings, judged together; « Synchroniser », which reads no body), guest-app-local-amenities (the places of « Pratique »: one French message per refused field), guest-app-demo-mode (the demo link, the switch of a demo session: a lodging and a moment, refused with a code).': [
     'POST /api/guest-app/orders/:id/amend',
     'POST /api/guest-app/orders/:id/delivered',
     'DELETE /api/guest-app/places/:id',
@@ -131,6 +131,7 @@ const EXEMPT = {
     'POST /api/guest-app/lodgings/:propertyId/regenerate-qr',
     'POST /api/guest-app/places',
     'POST /api/guest-app/reservations/:id/stay-link/regenerate',
+    'POST /api/guest-app/studio/demo-link/regenerate',
     'POST /api/guest-app/studio/lodgings/:propertyId/pages',
     'POST /api/guest-app/studio/lodgings/:propertyId/publish',
     'POST /api/guest-app/studio/media',
@@ -142,6 +143,8 @@ const EXEMPT = {
     'POST /public/v1/guest/orders/:id/abandon',
     'POST /public/v1/guest/orders/quote',
     'POST /public/v1/guest/sessions',
+    'POST /public/v1/guest/sessions/demo',
+    'POST /public/v1/guest/sessions/demo/switch',
     'POST /public/v1/guest/sessions/lookup',
     'POST /public/v1/guest/shop/delivery-slots',
     'PUT /api/guest-app/items/:kind/:id',

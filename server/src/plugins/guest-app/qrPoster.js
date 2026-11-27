@@ -18,6 +18,9 @@ const lodgingUrl = (guestHost, lodgingCode) => `https://${guestHost}/l/${lodging
 /** The URL of a stay's own link (rule 1). */
 const stayLinkUrl = (guestHost, stayToken) => `https://${guestHost}/s/${stayToken}`;
 
+/** Demo mode rule 1 — the one demo link: `https://<guest host>/d/<demoToken>`. */
+const demoLinkUrl = (guestHost, demoToken) => `https://${guestHost}/d/${demoToken}`;
+
 /** → a Buffer holding the PDF. */
 async function renderQrPoster({ appName, lodgingName, url }) {
   const qr = await QRCode.toBuffer(url, { type: 'png', width: 1200, margin: 1, errorCorrectionLevel: 'M' });
@@ -40,4 +43,6 @@ async function renderQrPoster({ appName, lodgingName, url }) {
   return done;
 }
 
-module.exports = { lodgingUrl, renderQrPoster, stayLinkUrl };
+module.exports = {
+  demoLinkUrl, lodgingUrl, renderQrPoster, stayLinkUrl,
+};

@@ -23,6 +23,9 @@ function buildPublicRouter({
   });
   router.post('/sessions', limiters.session, controller.createSession);
   router.post('/sessions/lookup', limiters.lookup, controller.lookup);
+  // specs/guest-app/guest-app-demo-mode.md rules 1, 7 — the demo link opens a demo session; a demo session switches its lodging and moment.
+  router.post('/sessions/demo', limiters.session, controller.createDemoSession);
+  router.post('/sessions/demo/switch', limiters.read, guestSession.requireSession, controller.switchDemo);
   router.get('/me', limiters.read, guestSession.requireSession, controller.me);
   router.get('/lodging', limiters.read, controller.lodging);
   // Rules 12-14 — the gate tile's door: the stay's key link, for a stay session only.
