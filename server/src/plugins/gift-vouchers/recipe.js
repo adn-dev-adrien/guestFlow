@@ -53,6 +53,8 @@ function createRecipe({
         kind: campaign.kind,
         slug: campaign.slug,
         validityMonths: campaign.validityMonths,
+        periods: campaign.periods,
+        frontPricePosition: campaign.frontPricePosition,
         composition: {
           resource: nameOf(`resource:${composition.resourceId}`),
           band: composition.band,
@@ -102,6 +104,9 @@ function createRecipe({
         state: 'draft',
         slug: c.slug === null ? undefined : c.slug,
         validityMonths: c.validityMonths,
+        // A recipe written before the weekend grid names neither: both periods and the default corner then apply (the rules' own defaults).
+        periods: c.periods,
+        frontPricePosition: c.frontPricePosition,
         composition: { resourceId: resource.element ? resource.element.id : undefined, band: comp.band, minutes: comp.minutes, options: options.filter(Boolean) },
         addOns: addOns.filter(Boolean),
         extraTimeMaxMinutes: c.extraTimeMaxMinutes,
