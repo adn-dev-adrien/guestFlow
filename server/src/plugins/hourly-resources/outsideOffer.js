@@ -171,8 +171,8 @@ function createOutsideOffer({
     return { band, period };
   }
 
-  // What the supplement is named by (rule 15): the evening when the slot's band costs more than the covered session's at that period, the weekend when its period costs more than the
-  // covered session's in that band, both for « soirée week-end », neither (an odd grid) for the plain « créneau ».
+  // What the supplement is named by (rule 15): the evening only when the slot is evening and the voucher day and the evening costs more at the slot's period, the weekend only when the slot is
+  // weekend and the voucher week and the weekend costs more in the slot's band, both for « soirée week-end », neither (an odd grid) for the plain « créneau ».
   const SUPPLEMENT_CAUSES = Object.freeze({
     evening: 'evening', weekend: 'weekend', eveningWeekend: 'eveningWeekend', slot: 'slot',
   });
@@ -181,8 +181,8 @@ function createOutsideOffer({
     return band === 'evening' ? grid.eveningRate : grid.dayRate;
   };
   function causeOf(resource, { coveredBand, period, slot }) {
-    const bandUp = slot.band !== coveredBand && firstHourOf(resource, slot.band, slot.period) > firstHourOf(resource, coveredBand, slot.period);
-    const periodUp = slot.period !== period && firstHourOf(resource, slot.band, slot.period) > firstHourOf(resource, slot.band, period);
+    const bandUp = slot.band === 'evening' && coveredBand === 'day' && firstHourOf(resource, 'evening', slot.period) > firstHourOf(resource, 'day', slot.period);
+    const periodUp = slot.period === 'weekend' && period === 'week' && firstHourOf(resource, slot.band, 'weekend') > firstHourOf(resource, slot.band, 'week');
     if (bandUp && periodUp) return SUPPLEMENT_CAUSES.eveningWeekend;
     if (bandUp) return SUPPLEMENT_CAUSES.evening;
     return periodUp ? SUPPLEMENT_CAUSES.weekend : SUPPLEMENT_CAUSES.slot;
