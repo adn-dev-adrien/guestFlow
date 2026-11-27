@@ -171,8 +171,7 @@ function createOutsideOffer({
     return { band, period };
   }
 
-  // What the supplement is named by (rule 15): the evening only when the slot is evening and the voucher day and the evening costs more at the slot's period, the weekend only when the slot is
-  // weekend and the voucher week and the weekend costs more in the slot's band, both for « soirée week-end », neither (an odd grid) for the plain « créneau ».
+  // What the supplement is named by (rule 15): the evening only when the slot is evening and the covered session day and the evening costs more at the slot's period, the weekend only when the   // weekend and the covered session week and the weekend costs more in the slot's band, both for « soirée week-end », neither (an odd grid) for the plain « créneau ».
   const SUPPLEMENT_CAUSES = Object.freeze({
     evening: 'evening', weekend: 'weekend', eveningWeekend: 'eveningWeekend', slot: 'slot',
   });
@@ -368,7 +367,8 @@ function createOutsideOffer({
         const created = bookings().createBooking({
           resourceId: resource.id, date, startTime: start, endTime: end, clientName: customer.name || null, clientPhone: customer.phone || null, notes: '',
         }, { excludeHoldRef: holdRef });
-        if (created.error) stop(created.status === 409 ? refuse('SLOT_TAKEN', SLOT_TAKEN) : refuse('BOOKING_REFUSED', created.error));
+        // A booking refused for a reason of its own (an outside band with no price) says so; only a capacity refusal is « slot taken ».
+        if (created.error) stop(created.code ? refuse(created.code, created.error) : (created.status === 409 ? refuse('SLOT_TAKEN', SLOT_TAKEN) : refuse('BOOKING_REFUSED', created.error)));
         const bookingId = Number(created.id);
         if (people) db.prepare('UPDATE resource_bookings SET people = ? WHERE id = ?').run(Number(people), bookingId);
         const core = standaloneSale();

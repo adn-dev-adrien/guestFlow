@@ -57,8 +57,13 @@ function validateHourlyRates(body, stored = null) {
     }
   };
   // Rule 5 — a resource sold by the hour on the planning has one grid: a price per lodging is no longer a thing (its free minutes are).
+  const NO_LODGING_PRICE = 'Une ressource à l’heure n’a pas de prix par logement : sa grille de tarifs s’applique.';
   Object.entries((body && body.propertyPricing) || {}).forEach(([pid, line]) => {
-    if (line && !isBlank(line.price)) details.push({ field: `propertyPricing.${pid}`, message: 'Une ressource à l’heure n’a pas de prix par logement : sa grille de tarifs s’applique.' });
+    if (line && !isBlank(line.price)) details.push({ field: `propertyPricing.${pid}`, message: NO_LODGING_PRICE });
+  });
+  // The older shape of the same thing (`propertyPrices: { <propertyId>: price }`) is refused alike.
+  Object.entries((body && body.propertyPrices) || {}).forEach(([pid, price]) => {
+    if (!isBlank(price)) details.push({ field: `propertyPrices.${pid}`, message: NO_LODGING_PRICE });
   });
   GUEST.forEach(([field, audience, where, band]) => check(field, audience, where, band, false));
   // K2 — every field of the outside grid is a price above 0 when the resource is sold outside; to stop selling outside, switch « Vendable hors séjour » off.
