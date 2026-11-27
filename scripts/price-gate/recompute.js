@@ -84,17 +84,10 @@ function loadInputs(db, inputs) {
   const figures = app('utils/pricingStoredFiguresMigration.js');
   figures.runPricingStoredFiguresMigration(db);
   figures.backfillSaleFiguresOnce(db, { force: true });
-  // The hourly plugin's own migration that makes every price of its resources explicit (the weekend grid copies the week grid): a copy of the production database was captured
-  // before it and a real boot runs it. A crafted synthetic set (no `meta`) is written for the code as it stands: it gets the grids, and keeps the per-lodging prices the
-  // migration drops, which its guest bookings are priced with.
-  if (shipped.has('hourly-resources')) {
-    const lodgingPrices = db.prepare('SELECT propertyId, resourceId, price FROM property_resource_prices WHERE price IS NOT NULL').all();
-    app('plugins/hourly-resources/migrations.js').explicitHourlyRates(db);
-    if (!inputs.meta) {
-      const restore = db.prepare('UPDATE property_resource_prices SET price = ? WHERE propertyId = ? AND resourceId = ?');
-      lodgingPrices.forEach((row) => restore.run(row.price, row.propertyId, row.resourceId));
-    }
-  }
+  // The hourly plugin's own migration that makes every price of its resources explicit (the weekend grid copies the week grid where it is empty, a per-lodging price on a planning bath is
+  // dropped): a copy of the production database was captured before it and a real boot runs it, so the gate runs it with its real semantics. A figure it moves legitimately (D20) is recorded
+  // in the allowlist, never hidden here.
+  if (shipped.has('hourly-resources')) app('plugins/hourly-resources/migrations.js').explicitHourlyRates(db);
 }
 
 function ficheOf(id) {

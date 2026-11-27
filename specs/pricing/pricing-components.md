@@ -1291,6 +1291,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       snapshot has no example of), the resource bookings and the property grids; it was recaptured once on the tag with
       the strengthened gate (`price-gate-baseline`, `88e0aad7`).
     - **Any difference fails.** No tolerance, no wildcard, no rounding slack.
+    - **The loader never branches on the kind of set.** A production capture and the synthetic stays go through the same
+      `loadInputs`, which runs the migrations a real boot runs; a figure they move is recorded in the allowlist, never
+      hidden by patching the loaded rows. Pinned by `server/src/tests/price-gate-loader.unit.test.js` (each set loaded in
+      a fresh database, as it is and dressed as a capture: same tables), added 2026-11-27 after the D20 figures of
+      synthetic booking #4 were hidden that way.
     - **The only exception: a versioned allowlist** `server/src/tests/fixtures/price-gate/allowlist.json`.
       Each entry: `{ reservationId, field, old, corrected, reason, rule, defect, approvedBy, approvedAt }`, for a
       stay known to be wrong today (e.g. review e M5: arrival detail not net of a card order). An entry matches
