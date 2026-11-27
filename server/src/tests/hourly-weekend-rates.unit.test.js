@@ -25,20 +25,20 @@ const outside = (resource, date, start, end, extra = {}) => priceSessions([{ dat
 
 test('rule 6 — Friday from the evening switch, Saturday, Sunday and public holidays are weekend; the eve of a holiday is weekend from the evening switch', NEEDS_PLUGIN, () => {
   const at = (date, start) => periodOf(date, start, '20:00');
-  assert.equal(at('2026-11-25', '21:00'), 'week', 'Wednesday evening');
-  assert.equal(at('2026-11-27', '14:00'), 'week', 'Friday day');
-  assert.equal(at('2026-11-27', '20:00'), 'weekend', 'Friday evening');
-  assert.equal(at('2026-11-28', '09:00'), 'weekend');
-  assert.equal(at('2026-11-29', '09:00'), 'weekend');
-  assert.equal(at('2026-04-06', '10:00'), 'weekend', 'Easter Monday, all day');
-  assert.equal(at('2026-05-13', '19:30'), 'week', 'the eve of Ascension before the switch');
-  assert.equal(at('2026-05-13', '20:00'), 'weekend', 'the eve of Ascension in the evening');
-  assert.equal(periodOf('2026-11-27', '23:00', null), 'week', 'no evening switch, no Friday weekend');
+  assert.equal(at('2026-11-25', '21:00'), 'week', 'Wednesday evening'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(at('2026-11-27', '14:00'), 'week', 'Friday day'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(at('2026-11-27', '20:00'), 'weekend', 'Friday evening'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(at('2026-11-28', '09:00'), 'weekend'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(at('2026-11-29', '09:00'), 'weekend'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(at('2026-04-06', '10:00'), 'weekend', 'Easter Monday, all day'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(at('2026-05-13', '19:30'), 'week', 'the eve of Ascension before the switch'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(at('2026-05-13', '20:00'), 'weekend', 'the eve of Ascension in the evening'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(periodOf('2026-11-27', '23:00', null), 'week', 'no evening switch, no Friday weekend'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
   assert.equal(periodOf('pas une date', '12:00', '20:00'), 'week');
 });
 
 test('rule 6 — a session 19:30-21:00 on a Friday is priced week day then weekend evening, the ranks running on', NEEDS_PLUGIN, () => {
-  const priced = outside(BATH, '2026-11-27', '19:30', '21:00');
+  const priced = outside(BATH, '2026-11-27', '19:30', '21:00'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
   assert.deepEqual(priced.bands.map((b) => [b.band, b.from, b.to, b.rate]), [
     ['day', '19:30', '20:00', 50],
     ['evening', '20:00', '20:30', 90],
@@ -48,16 +48,16 @@ test('rule 6 — a session 19:30-21:00 on a Friday is priced week day then weeke
 });
 
 test('rule 6 — the weekend first hour is the weekend grid\'s, the following hours too; a Wednesday is the week grid', NEEDS_PLUGIN, () => {
-  assert.equal(outside(BATH, '2026-11-28', '10:00', '11:00').grossPrice, 70);
-  assert.equal(outside(BATH, '2026-11-28', '10:00', '12:00').grossPrice, 70 + 60);
-  assert.equal(outside(BATH, '2026-11-25', '10:00', '12:00').grossPrice, 50 + 45);
-  assert.equal(outside(BATH, '2026-11-28', '20:00', '21:00').grossPrice, 90);
+  assert.equal(outside(BATH, '2026-11-28', '10:00', '11:00').grossPrice, 70); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(outside(BATH, '2026-11-28', '10:00', '12:00').grossPrice, 70 + 60); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(outside(BATH, '2026-11-25', '10:00', '12:00').grossPrice, 50 + 45); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(outside(BATH, '2026-11-28', '20:00', '21:00').grossPrice, 90); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
 });
 
 test('rule 7 — guests pay the same price every day', NEEDS_PLUGIN, () => {
   const guest = (date) => priceSessions([{ date, start: '10:00', end: '12:00' }], { ...rateConfigOf(BATH, { external: false }), eveningStart: '20:00', slotMinutes: 30 }).grossPrice;
-  assert.equal(guest('2026-11-28'), guest('2026-11-25'));
-  assert.equal(guest('2026-11-28'), 40 + 35);
+  assert.equal(guest('2026-11-28'), guest('2026-11-25')); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
+  assert.equal(guest('2026-11-28'), 40 + 35); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
 });
 
 test('rule 8 — a dateless quote takes an explicit period, week without one', NEEDS_PLUGIN, () => {
@@ -68,7 +68,7 @@ test('rule 8 — a dateless quote takes an explicit period, week without one', N
   assert.equal(dateless('weekend'), 70);
   const booking = (date) => priceBookingLines({ resource: BATH, startTime: '10:00', endTime: '11:00', external: true, date }).total;
   assert.equal(booking(null), 50, 'no date: the week grid, never the placeholder day');
-  assert.equal(booking('2026-11-28'), 70);
+  assert.equal(booking('2026-11-28'), 70); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
 });
 
 test('rule 2 — an outside first-hour rate at 0 is not sold: no fallback to the guests\' rate', NEEDS_PLUGIN, () => {

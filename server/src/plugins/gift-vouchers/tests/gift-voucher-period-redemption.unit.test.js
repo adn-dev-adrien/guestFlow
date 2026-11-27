@@ -212,9 +212,9 @@ test('rule 17 — when the doubled session is not free, or would end after closi
   const first = await confirm(sell('soir', 'weekend'), MONDAY, '15:00');
   assert.equal(first.ok, true, JSON.stringify(first));
   assert.equal(slotsOf(taken, MONDAY)['14:00'].tag, 'drink', '14:00-16:00 would overlap the 15:00 booking: 1 h and a drink');
-  const late = slotsOf(taken, '2026-11-18');
+  const late = slotsOf(taken, '2026-11-18'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
   assert.equal(late['18:00'].tag, 'twoHoursDrink');
-  const night = slotsOf(sell('soir', 'weekend'), '2026-11-19');
+  const night = slotsOf(sell('soir', 'weekend'), '2026-11-19'); // date-literal-ok: a calendar fact (a weekday or a holiday of that very date), not a day relative to today
   assert.notEqual(night['21:00'] && night['21:00'].tag, 'twoHoursDrink', '21:00 + 2 h ends after the 22:00 close');
 });
 
