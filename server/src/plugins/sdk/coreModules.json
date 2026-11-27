@@ -1148,10 +1148,5 @@
   ],
   "addOnPricing": [
     "createAddOnPricing"
-  ],
-  "publicHolidays": [
-    "isEveOfPublicHoliday",
-    "isPublicHoliday",
-    "publicHolidaysOf"
   ]
 }

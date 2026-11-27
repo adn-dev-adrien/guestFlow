@@ -17,8 +17,21 @@ function toMinutes(time) {
 const sdk = require('../sdk');
 const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
-const holidays = () => sdk.coreModule('publicHolidays');
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+// The French public holidays of a year, from the SDK's own calendar (`sdk.calendar.frenchPublicHolidays`), kept per year; the eve of one is the day before it, across the year's end.
+const holidayYears = new Map();
+function holidaysOf(year) {
+  if (!holidayYears.has(year)) holidayYears.set(year, new Set(sdk.calendar.frenchPublicHolidays(year).map((holiday) => holiday.date)));
+  return holidayYears.get(year);
+}
+const isPublicHoliday = (date) => ISO_DATE.test(String(date || '')) && holidaysOf(Number(String(date).slice(0, 4))).has(date);
+function isEveOfPublicHoliday(date) {
+  const match = ISO_DATE.exec(String(date || ''));
+  if (!match) return false;
+  const next = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + 1)).toISOString().slice(0, 10);
+  return isPublicHoliday(next);
+}
 
 /**
  * The period of a slice (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 6): `weekend` on Friday from the evening switch, all Saturday, all Sunday,
@@ -30,10 +43,10 @@ function periodOf(date, start, eveningStart) {
   if (!match) return 'week';
   const asMinutes = (value) => (typeof value === 'number' ? value : toMinutes(value));
   const weekday = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))).getUTCDay();
-  if (weekday === 0 || weekday === 6 || holidays().isPublicHoliday(date)) return 'weekend';
+  if (weekday === 0 || weekday === 6 || isPublicHoliday(date)) return 'weekend';
   const hasEvening = eveningStart !== null && eveningStart !== undefined && eveningStart !== '' && Number.isFinite(asMinutes(eveningStart));
   const evening = hasEvening && asMinutes(start) >= asMinutes(eveningStart);
-  return evening && (weekday === 5 || holidays().isEveOfPublicHoliday(date)) ? 'weekend' : 'week';
+  return evening && (weekday === 5 || isEveOfPublicHoliday(date)) ? 'weekend' : 'week';
 }
 
 // specs/hourly-extra-hour-rates.md rule 1 — a following-hours rate left empty is « same as the first hour »; 0 is a real value (free).
@@ -273,5 +286,5 @@ function eveningSupplement(blocks, cfg = {}) {
 }
 
 module.exports = {
-  toMinutes, periodOf, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
+  toMinutes, periodOf, isPublicHoliday, isEveOfPublicHoliday, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
 };
