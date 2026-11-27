@@ -1,1 +1,0 @@
-- plugin:guest-app Plugin tables only, no core table: new `guest_demo_links` (the demo link, token encrypted + hash) and two nullable columns on `guest_sessions` (`demoLinkId`, `demoMoment`). The origin CHECK of `guest_sessions` must allow `demo`, so the table is rebuilt inside the migration with every row copied; existing sessions are untouched.
