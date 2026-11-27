@@ -40,7 +40,7 @@ const ALLOW_LIST = Object.freeze({
     'seedKey', 'alwaysVisible', 'isCancellationInsurance'],
   resources: ['id', 'name', 'quantity', 'price', 'priceType', 'propertyId', 'createdAt', 'updatedAt', 'isComplex', 'slotDuration', 'openTime', 'closeTime',
     'closedDays', 'openDays', 'turnoverMinutes', 'minimumUsageMinutes', 'showsPlanningCard', 'hourlyEveningStart', 'hourlyEveningRate',
-    'hourlyExternalDayRate', 'hourlyExternalEveningRate', 'heatUpMinutes', 'heatRetentionMinutes'],
+    'hourlyExternalDayRate', 'hourlyExternalEveningRate', 'hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'heatUpMinutes', 'heatRetentionMinutes'],
   property_options: ['propertyId', 'optionId'],
   property_option_prices: ['propertyId', 'optionId', 'price', 'freeUnits'],
   property_option_defaults: ['propertyId', 'optionId', 'offered'],
