@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved (2026-11-27) |
+| **Status** | Implemented (2026-11-27) |
 | **Branch** | `feature/guest-email-branding` |
 | **Created** | 2026-11-27 |
 | **Author** | Adrien |
@@ -77,14 +77,14 @@ A guest opening any GuestFlow email sees a letter from the house: its logo, its 
 ### Server
 | Layer | File | Responsibility |
 |---|---|---|
-| utils | `guestEmailHtml.js` (edit) | Letter layout, palette from settings, day/night logo slots (`cid:` or `data:`), night media block |
-| utils | `emailLogo.js` (new) | Stored company logo (day and night) → 144 px-high PNG bytes, cached by path + mtime; null when unreadable |
+| utils | `guestEmailHtml.js` (edit) | Letter layout, palette from settings, day/night logo slots (`cid:` or `data:`), night media block. `guestEmailMessage` (async, `cid:` + attachments) and `guestEmailPreviewHtml` (sync, `data:`) |
+| utils | `emailLogo.js` (new) | Stored company logo (day and night) → 144 px-high PNG bytes, cached by path + mtime; null when unreadable. `emailLogoDataUri`: the stored file as a `data:` URI, read synchronously, for the preview |
 | utils | `emailService.js` (edit) | Pass `attachments` (inline, `cid`) through to the transport |
 | utils | `emailColors.js` (new) | Hex validation + WCAG contrast ratio on white; the refusal message |
 | models | `settingsModel.js` (edit) | Three colour columns + `companyLogoDarkPath` |
 | controllers | `settingsController.js` (edit) | Night logo upload / delete (`POST/DELETE /api/settings/logo-dark`), same checks as the logo |
-| controllers | settings controller (edit) | Validate the three colours on save (rule 6) |
-| controllers | `emailsController.js` (edit) | Preview HTML with the `data:` logo |
+| controllers | `settingsController.js` (edit) | Validate the three colours on save (rule 6); the contrast comes from the existing `utils/colorContrast.js` |
+| controllers | `emailsController.js` (edit) | Preview HTML with the `data:` logo (sync); the manual send and « M'envoyer un test » rebuild the message with `guestEmailMessage` (`cid:`) |
 | database | `database.js` (edit) | `ALTER TABLE app_settings ADD COLUMN emailColorPage/Accent/Link TEXT`, `companyLogoDarkPath TEXT` (NULL = default / none) |
 
 Send paths (`guestEmailSequenceRunner`, `emailAutoSendRunner`, `reservationEmailSender`, `standaloneSaleLinks`)
@@ -100,8 +100,12 @@ keep calling `guestEmailMessage`, which becomes async to read the logo.
 No new generic component: a colour field is a `TextField` with a swatch adornment, used once.
 
 ### API
-`PUT /api/settings` accepts `emailColorPage`, `emailColorAccent`, `emailColorLink` (`#RRGGBB` or empty = default);
-400 `INVALID_EMAIL_COLOR` with the field and the French message. `GET` returns them.
+`PUT /api/settings` accepts `emailColorPage`, `emailColorAccent`, `emailColorLink` in the `smtp` group (`#RRGGBB` or
+empty = default); 400 `{ code: 'INVALID_EMAIL_COLOR', field, message, errors }` with the French message (a malformed
+value answers « Couleur au format #RRGGBB. » on its field). `GET` returns them in `smtp`, and the night logo as
+`company.logoDarkPath`. `POST/DELETE /api/settings/logo-dark` answer `{ company: { logoDarkPath } }`. The ratio in the
+message is cut to one decimal, never rounded up, so a displayed « 4,5 » never belongs to a refused colour. The
+defaults are not judged: Maison's honey `#C99038` is 2.8:1, below the 3:1 asked of a typed accent.
 
 ## 5. Data model
 `app_settings`: four nullable TEXT columns. Existing rows: NULL → Maison defaults, so the email changes only in
@@ -112,11 +116,11 @@ See the interactive summary. Phone: the card fills the width minus 12 px, paddin
 Settings fields stack on xs.
 
 ## 7. Test plan
-- Server unit (`tests/guest-email-branding.unit.test.js`): letter layout; logo present → `cid:` + attachment; absent or
+- Server unit (`tests/guest-email-branding.unit.test.js`, 21 tests): letter layout; logo present → `cid:` + attachment; absent or
   unreadable → heading only, email still built; night block present with the fixed palette; night logo stored → second
   `cid:` shown only in the dark block; no night logo → day logo on the white tile in the dark block; colours applied;
   invalid hex and low contrast refused with the ratio; text part byte-identical; night logo upload/delete.
-- Client (`SettingsSmtpSection.email-colors.test.jsx`): fields render, server refusal shown under the field.
+- Client (`SettingsSmtpSection.email-colors.test.jsx`, 4 tests; `SettingsCompanySection.logo-dark.test.jsx`, 3 tests): fields render, server refusal shown under the field, night logo upload.
 - Manual: « M'envoyer un test » to an iPhone (Mail, dark mode on and off) and to Gmail web; preview in Réglages.
 
 ## 8. Out of scope

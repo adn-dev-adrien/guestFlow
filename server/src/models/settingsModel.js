@@ -8,6 +8,7 @@
  *   read()                      → full row (defaults applied; SMTP password NEVER returned in clear)
  *   upsert(payload)             → writes only the keys present in payload (per-field 3-way)
  *   updateLogoPath(path)        → single-column update of companyLogoPath
+ *   updateLogoDarkPath(path)    → same for the night logo, companyLogoDarkPath
  *   smtpConfigured()            → true when smtpHost AND the resolved sending address are filled, or
  *                                  when a hosted instance has no host and the platform sends for it
  *   publicUrl()                 → the configured public URL, else GUESTFLOW_PUBLIC_URL (string, never null)
@@ -58,6 +59,12 @@ const COLUMNS = [
   'quoteFooterTextEn',
   'quoteValidityDays',
   'companyLogoPath',
+  // Optional logo for the guest emails' night variant, and the three email colours; NULL / empty = none / Maison
+  // defaults (specs/emails/guest-email-branding.md rules 4bis–5).
+  'companyLogoDarkPath',
+  'emailColorPage',
+  'emailColorAccent',
+  'emailColorLink',
   'vatRate',
   // The four account and VAT settings of the accounting export (commission account and rate,
   // cancellation-compensation account and rate) live in plugin_settings since
@@ -155,6 +162,10 @@ function createSettingsModel(databaseInstance) {
     `UPDATE app_settings SET companyLogoPath = ?, updatedAt = datetime('now') WHERE id = 1`
   );
 
+  const updateLogoDarkStmt = actualCols.has('companyLogoDarkPath') ? databaseInstance.prepare(
+    `UPDATE app_settings SET companyLogoDarkPath = ?, updatedAt = datetime('now') WHERE id = 1`
+  ) : null;
+
   function readRaw() {
     const row = readStmt.get();
     if (!row) return { ...DEFAULTS };
@@ -223,6 +234,10 @@ function createSettingsModel(databaseInstance) {
 
     updateLogoPath(path) {
       updateLogoStmt.run(String(path || ''));
+    },
+
+    updateLogoDarkPath(path) {
+      if (updateLogoDarkStmt) updateLogoDarkStmt.run(String(path || ''));
     },
 
     // ----- SMTP / account-management helpers -----

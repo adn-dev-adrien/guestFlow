@@ -38,14 +38,19 @@ function logoUploadRefusal(err) {
   return 'Fichier non enregistré.';
 }
 
-router.post('/logo', (req, res, next) => {
+const logoRoute = (upload) => (req, res, next) => {
   logoUpload.single('logo')(req, res, (err) => {
     if (err) return res.status(400).json({ error: logoUploadRefusal(err) });
-    return Promise.resolve(settingsController.uploadLogo(req, res)).catch(next);
+    return Promise.resolve(upload(req, res)).catch(next);
   });
-});
+};
 
+router.post('/logo', logoRoute(settingsController.uploadLogo));
 router.delete('/logo', settingsController.deleteLogo);
+
+// specs/emails/guest-email-branding.md rule 4bis — the logo of the guest emails' night variant.
+router.post('/logo-dark', logoRoute(settingsController.uploadLogoDark));
+router.delete('/logo-dark', settingsController.deleteLogoDark);
 
 router.post('/smtp-test', settingsController.sendSmtpTest);
 router.post('/smtp-detect', handle(settingsController.detectSmtp));
