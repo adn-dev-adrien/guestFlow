@@ -96,7 +96,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   let accepted = false;
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());
-    await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
+    await svc.send(await guestEmailMessage({ to, subject, text: body, settings, lang }));
     accepted = true;
     const record = () => {
       const logged = logModel.insert({

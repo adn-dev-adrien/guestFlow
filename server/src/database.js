@@ -851,6 +851,10 @@ if (icalTokenCols.length > 0 && !icalTokenCols.includes('updatedAt')) {
   if (!asCols.includes('companyLogoPath')) {
     db.exec("ALTER TABLE app_settings ADD COLUMN companyLogoPath TEXT DEFAULT ''");
   }
+  // specs/emails/guest-email-branding.md §5 — NULL = no night logo / Maison's colour.
+  for (const col of ['companyLogoDarkPath', 'emailColorPage', 'emailColorAccent', 'emailColorLink']) {
+    if (!asCols.includes(col)) db.exec(`ALTER TABLE app_settings ADD COLUMN ${col} TEXT`);
+  }
 })();
 
 function generateDevisNumber() {

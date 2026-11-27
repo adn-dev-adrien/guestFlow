@@ -11,20 +11,25 @@
  *   two-column recap;
  * - a web address, an email address or a French phone number is a plain link (its own text, no button,
  *   no tracking, no rewriting);
- * - the sender's name heads the email in the Maison serif.
- * Everything else is escaped. No image, no remote stylesheet or font, nothing loaded from anywhere:
- * the colours carry a dark-mode variant and the column stays under 600 px.
+ * - the sender's name heads the email, under the company logo when one is stored.
+ * Everything else is escaped. The email is a white letter on the house's page colour
+ * (specs/emails/guest-email-branding.md): the logo travels inside the message (`cid:`), nothing is loaded from
+ * anywhere, a night variant answers the reader's dark mode and the column stays under 600 px.
  */
 
 const { resolveEmailIdentity, DEFAULT_SENDER_NAME } = require('./emailIdentity');
+const { resolveEmailColors, EMAIL_COLOR_DEFAULTS } = require('./emailColors');
+const { emailLogoPng, cachedEmailLogo } = require('./emailLogo');
 
 const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-const FONT_SERIF = "'Iowan Old Style', 'Source Serif 4', Charter, Georgia, 'Times New Roman', serif";
-const INK = '#27251F';
-const MUTED = '#6E6A5E';
-const PAPER = '#F8F5EF';
+const FONT_SERIF = "Georgia, 'Times New Roman', serif";
+const INK = '#22271F';
+const MUTED = '#5C6153';
+const CARD_LINE = '#DCD4C2';
 const RULE = '#E4DFD3';
-const FIR = '#2F5D46';
+const DEFAULT_LINK = EMAIL_COLOR_DEFAULTS.link;
+const CID_DAY = 'gf-logo-day@guestflow';
+const CID_NIGHT = 'gf-logo-night@guestflow';
 
 // One pass over a line finds every link: a web address, an email address (an apostrophe may sit in
 // its local part, « jean.o'brien@… »), a French phone number. A number glued to a letter, a slash or a
@@ -53,9 +58,9 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function link(href, label, { keepTogether = false } = {}) {
+function link(href, label, color, { keepTogether = false } = {}) {
   const wrap = keepTogether ? 'white-space:nowrap' : 'overflow-wrap:anywhere;word-break:break-word';
-  return `<a href="${escapeHtml(href)}" style="color:${FIR};text-decoration:underline;${wrap}">${escapeHtml(label)}</a>`;
+  return `<a href="${escapeHtml(href)}" style="color:${color};text-decoration:underline;${wrap}">${escapeHtml(label)}</a>`;
 }
 
 // Escaped prose, where an amount never leaves its « € » alone on the next line.
@@ -64,7 +69,7 @@ function prose(value) {
 }
 
 /** One line of text → escaped HTML with its links. */
-function inline(line) {
+function inline(line, color) {
   let out = '';
   let last = 0;
   for (const m of String(line).matchAll(LINK_RE)) {
@@ -92,9 +97,9 @@ function inline(line) {
     }
     if (m[3] && /^0\d{9}$/.test(match) && !CALL_CONTEXT_RE.test(line.slice(0, m.index))) continue;
     out += prose(line.slice(last, m.index));
-    if (m[1]) out += link(match, match);
-    else if (m[2]) out += link(`mailto:${match}`, match);
-    else out += link(`tel:${match.replace(/[\s.]/g, '')}`, match, { keepTogether: true });
+    if (m[1]) out += link(match, match, color);
+    else if (m[2]) out += link(`mailto:${match}`, match, color);
+    else out += link(`tel:${match.replace(/[\s.]/g, '')}`, match, color, { keepTogether: true });
     out += prose(tail);
     last = m.index + m[0].length;
   }
@@ -102,31 +107,31 @@ function inline(line) {
 }
 
 // A paragraph that introduces the list under it (« Récapitulatif de votre séjour : ») sits close to it.
-function paragraph(lines, leadsList = false) {
-  return `<p style="margin:0 0 ${leadsList ? 8 : 16}px">${lines.map((l) => inline(l.trim())).join('<br>')}</p>`;
+function paragraph(lines, color, leadsList = false) {
+  return `<p style="margin:0 0 ${leadsList ? 8 : 16}px">${lines.map((l) => inline(l.trim(), color)).join('<br>')}</p>`;
 }
 
-function list(items) {
+function list(items, color) {
   const recap = items.map((item) => RECAP_RE.exec(item));
   if (recap.every((m) => m && !/https?:/.test(m[1]))) {
     const cell = 'padding:8px 0;vertical-align:top;border-top:1px solid ' + RULE;
     const rows = recap.map(([, label, value]) => '<tr>'
-      + `<td class="gf-muted gf-rule" style="${cell};padding-right:12px;width:40%;color:${MUTED}">${inline(label.trim())}</td>`
-      + `<td class="gf-rule" style="${cell}">${inline(value.trim())}</td>`
+      + `<td class="gf-muted gf-rule" style="${cell};padding-right:12px;width:40%;color:${MUTED}">${inline(label.trim(), color)}</td>`
+      + `<td class="gf-rule" style="${cell}">${inline(value.trim(), color)}</td>`
       + '</tr>').join('');
     return `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin:0 0 16px;font-size:15px">${rows}</table>`;
   }
-  return `<ul style="margin:0 0 16px;padding-left:20px">${items.map((i) => `<li style="margin:0 0 4px">${inline(i)}</li>`).join('')}</ul>`;
+  return `<ul style="margin:0 0 16px;padding-left:20px">${items.map((i) => `<li style="margin:0 0 4px">${inline(i, color)}</li>`).join('')}</ul>`;
 }
 
 /** A block between blank lines → its paragraphs and lists, in order. */
-function block(lines) {
+function block(lines, color) {
   const out = [];
   let run = [];
   let bullets = null;
   const flush = (next = false) => {
     if (!run.length) return;
-    out.push(bullets ? list(run) : paragraph(run, next));
+    out.push(bullets ? list(run, color) : paragraph(run, color, next));
     run = [];
   };
   for (const line of lines) {
@@ -142,57 +147,117 @@ function block(lines) {
 }
 
 /** The rendered text of an email → its HTML body (no document around it). */
-function textToHtmlBody(text) {
+function textToHtmlBody(text, color = DEFAULT_LINK) {
   const blocks = String(text || '')
     .replace(/\r\n?/g, '\n')
     .split(/\n[ \t]*\n/)
     .map((b) => b.split('\n').filter((l) => l.trim() !== ''))
     .filter((b) => b.length);
-  return blocks.map(block).join('\n');
+  return blocks.map((b) => block(b, color)).join('\n');
+}
+
+
+const NIGHT_LOGO_HIDDEN = 'display:none;max-height:0;overflow:hidden;mso-hide:all';
+
+// `image` is `{ src, width, height }` of the 2× bytes: drawn at half size, never wider than the column.
+function logoImg({ image, alt, className, hidden = false }) {
+  const w = Math.round(image.width / 2);
+  const h = Math.round(image.height / 2);
+  const style = `${hidden ? `${NIGHT_LOGO_HIDDEN};` : 'display:block;box-sizing:content-box;'}width:${w}px;max-width:100%;height:auto;margin:0 auto 10px`;
+  const tag = `<img class="${className}" src="${image.src}" alt="${escapeHtml(alt)}" width="${w}" height="${h}" style="${style}">`;
+  return hidden ? `<!--[if !mso]><!-->${tag}<!--<![endif]-->` : tag;
 }
 
 /**
- * The full HTML document of a guest email.
- * @param {{ text: string, subject?: string, heading?: string, lang?: string }} input
+ * The full HTML document of a guest email: the letter (specs/emails/guest-email-branding.md rules 1–5).
+ * @param {{ text: string, subject?: string, heading?: string, lang?: string,
+ *           colors?: { page: string, accent: string, link: string },
+ *           logo?: { day: { src, width, height }, night?: { src, width, height } } | null }} input
+ *   `logo` carries each image's `src` — `cid:…` in a sent email, a `data:` URI in the preview — and its size.
  */
-function renderGuestEmailHtml({ text, subject = '', heading = '', lang = 'fr' }) {
+function renderGuestEmailHtml({ text, subject = '', heading = '', lang = 'fr', colors = EMAIL_COLOR_DEFAULTS, logo = null }) {
   const language = lang === 'en' ? 'en' : 'fr';
   const title = String(heading || '').trim();
+  const dayLogo = logo && logo.day ? logo.day : null;
+  const nightLogo = dayLogo && logo.night ? logo.night : null;
+  const head = dayLogo || title
+    ? '<div style="text-align:center;margin:0 0 22px">'
+      + (dayLogo ? logoImg({ image: dayLogo, alt: title, className: nightLogo ? 'gf-logo gf-logo-day' : 'gf-logo gf-logo-tile' }) : '')
+      + (nightLogo ? logoImg({ image: nightLogo, alt: title, className: 'gf-logo gf-logo-night', hidden: true }) : '')
+      + (title ? `<h1 style="margin:0;font-family:${FONT_SERIF};font-size:21px;line-height:1.25;font-weight:400;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(title)}</h1>` : '')
+      + `<div style="width:56px;height:2px;line-height:2px;font-size:2px;margin:14px auto 0;background:${colors.accent}">&nbsp;</div>`
+      + '</div>\n'
+    : '';
   return '<!doctype html>\n'
     + `<html lang="${language}"><head><meta charset="utf-8">`
     + '<meta name="viewport" content="width=device-width, initial-scale=1">'
     + '<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">'
     + `<title>${escapeHtml(subject)}</title>`
     + '<style>'
+    + ':root{color-scheme:light dark;supported-color-schemes:light dark}'
     + 'body{margin:0;padding:0;-webkit-text-size-adjust:100%}'
+    + '@media (max-width:600px){'
+    + '.gf-page{padding:12px 6px 24px !important}'
+    + '.gf-card{padding:20px !important}'
+    + '.gf-logo{width:auto !important;height:auto !important;max-height:56px !important}'
+    + '}'
     + '@media (prefers-color-scheme: dark){'
-    + '.gf-body{background:#1E1D1A !important;color:#ECE8DF !important}'
+    + '.gf-body,.gf-page{background:#161C16 !important}'
+    + '.gf-card{background:#1F261E !important;border-color:#2E3B2A !important;color:#ECE8DF !important}'
     + '.gf-muted{color:#B9B3A6 !important}'
-    + '.gf-rule{border-color:#3B3934 !important}'
-    + '.gf-body a{color:#9CC7AE !important}'
+    + '.gf-rule{border-color:#2E3B2A !important}'
+    + '.gf-card a{color:#E2B46A !important}'
+    + '.gf-logo-day{display:none !important;max-height:0 !important}'
+    + '.gf-logo-night{display:block !important;max-height:72px !important;overflow:visible !important}'
+    + '.gf-logo-tile{background:#FFFFFF !important;border-radius:8px !important;padding:10px !important}'
     + '}'
     + '</style></head>'
-    + `<body class="gf-body" style="margin:0;padding:0;background:${PAPER};color:${INK}">`
-    + `<div class="gf-body" role="article" aria-roledescription="email" lang="${language}" style="max-width:600px;margin:0 auto;padding:28px 20px 32px;background:${PAPER};color:${INK};font-family:${FONT_SANS};font-size:16px;line-height:1.55">`
-    + (title ? `<h1 class="gf-rule" style="margin:0 0 24px;padding:0 0 14px;border-bottom:1px solid ${RULE};font-family:${FONT_SERIF};font-size:22px;line-height:1.25;font-weight:600;letter-spacing:-0.01em">${escapeHtml(title)}</h1>\n` : '')
-    + textToHtmlBody(text)
-    + '</div></body></html>\n';
+    + `<body class="gf-body" style="margin:0;padding:0;background:${colors.page};color:${INK}">`
+    + `<div class="gf-page" style="padding:28px 16px 36px;background:${colors.page}">`
+    + `<div class="gf-card" role="article" aria-roledescription="email" lang="${language}" style="box-sizing:border-box;max-width:600px;margin:0 auto;padding:32px;background:#FFFFFF;border:1px solid ${CARD_LINE};border-radius:4px;color:${INK};font-family:${FONT_SANS};font-size:16px;line-height:1.55">`
+    + head
+    + textToHtmlBody(text, colors.link)
+    + '</div></div></body></html>\n';
 }
 
-/**
- * The message a guest email sends: the rendered text untouched, plus its HTML alternative.
- * @param {{ to?: string, subject: string, text: string, settings?: object, lang?: string }} input
- */
-function guestEmailMessage({ to, subject, text, settings = {}, lang = 'fr' }) {
+function renderForSettings({ text, subject, settings, lang, logo }) {
   const { fromName } = resolveEmailIdentity(settings || {});
   // No name of its own (the « GuestFlow » fallback): no heading rather than the software's name.
   const heading = fromName === DEFAULT_SENDER_NAME ? '' : fromName;
+  return renderGuestEmailHtml({ text, subject, heading, lang, colors: resolveEmailColors(settings), logo });
+}
+
+/**
+ * The message a guest email sends: the rendered text untouched, plus its HTML alternative with the company
+ * logos as inline attachments (`cid:`). The logos are read here, so the call is async.
+ * @param {{ to?: string, subject: string, text: string, settings?: object, lang?: string }} input
+ */
+async function guestEmailMessage({ to, subject, text, settings = {}, lang = 'fr' }) {
+  const day = await emailLogoPng(settings && settings.companyLogoPath);
+  const night = day ? await emailLogoPng(settings && settings.companyLogoDarkPath) : null;
+  const logo = day ? {
+    day: { ...day, src: `cid:${CID_DAY}` },
+    ...(night ? { night: { ...night, src: `cid:${CID_NIGHT}` } } : {}),
+  } : null;
+  const attachments = [day && [CID_DAY, day], night && [CID_NIGHT, night]].filter(Boolean).map(([cid, { bytes }]) => ({
+    filename: `${cid.split('@')[0]}.png`, content: bytes, contentType: 'image/png', cid, contentDisposition: 'inline',
+  }));
   return {
     ...(to !== undefined ? { to } : {}),
     subject,
     text,
-    html: renderGuestEmailHtml({ text, subject, heading, lang }),
+    html: renderForSettings({ text, subject, settings, lang, logo }),
+    ...(attachments.length ? { attachments } : {}),
   };
 }
 
-module.exports = { guestEmailMessage, renderGuestEmailHtml, textToHtmlBody, escapeHtml };
+/** The same HTML for the preview: the same resized logos as `data:` URIs, read from the cache (see `warmEmailLogos`). */
+function guestEmailPreviewHtml({ subject, text, settings = {}, lang = 'fr' }) {
+  const uri = (logo) => ({ ...logo, src: `data:image/png;base64,${logo.bytes.toString('base64')}` });
+  const day = cachedEmailLogo(settings && settings.companyLogoPath);
+  const night = day ? cachedEmailLogo(settings && settings.companyLogoDarkPath) : null;
+  const logo = day ? { day: uri(day), ...(night ? { night: uri(night) } : {}) } : null;
+  return renderForSettings({ text, subject, settings, lang, logo });
+}
+
+module.exports = { guestEmailMessage, guestEmailPreviewHtml, renderGuestEmailHtml, textToHtmlBody, escapeHtml };

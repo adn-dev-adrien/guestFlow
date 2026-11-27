@@ -49,6 +49,7 @@ function shapeResponse(row, env = process.env, vat = null) {
       bic: safeStr(row.companyBic).trim(),
       bankName: safeStr(row.companyBankName).trim(),
       logoPath: safeStr(row.companyLogoPath),
+      logoDarkPath: safeStr(row.companyLogoDarkPath),
       // Domain gate/access code shown on the arrival SAS (specs/sas/arrival-departure-sas.md §3.5).
       // Must round-trip through GET /settings so the field is populated on page load, not just
       // writable — otherwise the client always shows it empty.
@@ -93,6 +94,10 @@ function shapeResponse(row, env = process.env, vat = null) {
       fromEmail: safeStr(row.smtpFromEmail).trim(),
       fromName: safeStr(row.smtpFromName).trim(),
       publicUrl: safeStr(row.publicUrl).trim(),
+      // specs/emails/guest-email-branding.md rule 5 — '' = Maison's colour.
+      emailColorPage: safeStr(row.emailColorPage).trim(),
+      emailColorAccent: safeStr(row.emailColorAccent).trim(),
+      emailColorLink: safeStr(row.emailColorLink).trim(),
       derived: {
         fromEmail: safeStr(row.companyEmail).trim(),
         username: identity.fromEmail,

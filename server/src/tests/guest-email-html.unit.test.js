@@ -58,26 +58,26 @@ test('rule 38: paragraphs, line breaks, lists and the « Libellé : valeur » re
   assert.match(body, /<p style="margin:0 0 16px">À très bientôt,<br>Adrien et Sophie<\/p>$/);
 });
 
-test('rule 39: the document loads nothing, tracks nothing, holds 600 px and has its dark-mode colours', () => {
+test('rule 39: the document loads nothing, tracks nothing, holds 600 px and has its night variant (guest-email-branding rules 1, 4)', () => {
   const html = renderGuestEmailHtml({ text: 'Bonjour,\n\nTout est sur https://map.example.com', subject: 'Séjour', heading: 'Domaine Solio', lang: 'en' });
   assert.match(html, /^<!doctype html>\n<html lang="en">/);
   assert.match(html, /<meta name="color-scheme" content="light dark">/);
   assert.match(html, /@media \(prefers-color-scheme: dark\)\{/);
   assert.match(html, /max-width:600px/);
-  assert.match(html, /<h1 [^>]*font-family:'Iowan Old Style'[^>]*>Domaine Solio<\/h1>/);
+  assert.match(html, /<h1 [^>]*font-family:Georgia[^>]*>Domaine Solio<\/h1>/);
   assert.doesNotMatch(html, /<img|<link|<script|<iframe|<form|src=|url\(|@import/i);
   const urls = html.match(/https?:\/\/[^"<\s]+/g) || [];
   assert.deepEqual([...new Set(urls)], ['https://map.example.com']);
   assert.doesNotMatch(renderGuestEmailHtml({ text: 'x', heading: '' }), /<h1/);
 });
 
-test('rule 37 (golden): on Solio’s six sequence emails, FR and EN, the text part is the rendered text byte for byte and the HTML part prints no variable', () => {
+test('rule 37 (golden): on Solio’s six sequence emails, FR and EN, the text part is the rendered text byte for byte and the HTML part prints no variable', async () => {
   const keys = Object.keys(GOLDEN);
   assert.ok(keys.length >= 72);
   for (const key of keys) {
     const text = goldenBody(key);
     const lang = key.endsWith('/en') ? 'en' : 'fr';
-    const msg = guestEmailMessage({ to: 'g@example.com', subject: goldenSubject(key), text, settings: { companyName: 'Domaine Solio' }, lang });
+    const msg = await guestEmailMessage({ to: 'g@example.com', subject: goldenSubject(key), text, settings: { companyName: 'Domaine Solio' }, lang });
     assert.equal(msg.text, text, key);
     assert.equal(msg.subject, goldenSubject(key), key);
     assert.doesNotMatch(msg.html.split('</style>')[1], /\{\{|\}\}|⟦|⟧/, key);
@@ -88,9 +88,9 @@ test('rule 37 (golden): on Solio’s six sequence emails, FR and EN, the text pa
   }
 });
 
-test('rule 37: the heading is the sender’s name, as the email signs (override, else the company)', () => {
-  assert.match(guestEmailMessage({ subject: 's', text: 't', settings: { companyName: 'SARL Solio', smtpFromName: 'Domaine Solio' } }).html, />Domaine Solio<\/h1>/);
-  assert.match(guestEmailMessage({ subject: 's', text: 't', settings: { companyName: 'SARL Solio' } }).html, />SARL Solio<\/h1>/);
+test('rule 37: the heading is the sender’s name, as the email signs (override, else the company)', async () => {
+  assert.match((await guestEmailMessage({ subject: 's', text: 't', settings: { companyName: 'SARL Solio', smtpFromName: 'Domaine Solio' } })).html, />Domaine Solio<\/h1>/);
+  assert.match((await guestEmailMessage({ subject: 's', text: 't', settings: { companyName: 'SARL Solio' } })).html, />SARL Solio<\/h1>/);
 });
 
 test('rule 37: the sequence sends both parts, and the text is the one the history records', async () => {
@@ -137,7 +137,7 @@ test('rule 37: the dev mail catcher keeps the HTML part and the raw multipart/al
     { host: 'smtp.example', port: 587, fromEmail: 'contact@solio.example', fromName: 'Solio' },
     { env: { GUESTFLOW_MAIL_OUTBOX: dir }, transportFactory: () => { throw new Error('never'); } },
   );
-  const msg = guestEmailMessage({ to: 'g@example.com', subject: 'Votre séjour', text: 'Bonjour,\n\nÀ bientôt', settings: { companyName: 'Solio' } });
+  const msg = await guestEmailMessage({ to: 'g@example.com', subject: 'Votre séjour', text: 'Bonjour,\n\nÀ bientôt', settings: { companyName: 'Solio' } });
   await svc.send(msg);
   const [file] = fs.readdirSync(dir);
   const saved = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
@@ -188,6 +188,6 @@ test('rule 40: a closing parenthesis stays in an address that opened one; an apo
   assert.match(plain("Écrire à jean.o'brien@ex.com."), /<a href="mailto:jean\.o&#39;brien@ex\.com">jean\.o&#39;brien@ex\.com<\/a>\./);
 });
 
-test('rule 40: no heading when the instance has no name of its own (the « GuestFlow » fallback)', () => {
-  assert.doesNotMatch(guestEmailMessage({ subject: 's', text: 't', settings: {} }).html, /<h1/);
+test('rule 40: no heading when the instance has no name of its own (the « GuestFlow » fallback)', async () => {
+  assert.doesNotMatch((await guestEmailMessage({ subject: 's', text: 't', settings: {} })).html, /<h1/);
 });

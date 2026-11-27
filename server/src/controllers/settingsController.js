@@ -29,6 +29,7 @@ const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoa
 const { uploadsDir, LOGO_FORMAT_REFUSAL } = require('../middleware/multerLogoUpload');
 const { ALLOWED } = require('../utils/uploadSafety');
 const { printableLogo } = require('../utils/logoImage');
+const { EMAIL_COLUMNS, validateEmailColor } = require('../utils/emailColors');
 const { createEmailService } = require('../utils/emailService');
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { createSmtpDetector, detectionMessage } = require('../utils/smtpPresets');
@@ -110,6 +111,8 @@ const SMTP_FIELDS = [
   { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
   { input: 'fromName', column: 'smtpFromName', validator: validation.validateDisplayName },
   { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
+  // specs/emails/guest-email-branding.md rules 5–6 — `#RRGGBB` or empty (Maison's colour); contrast judged here.
+  ...EMAIL_COLUMNS.map((column) => ({ input: column, column, validator: (value) => validateEmailColor(column, value) })),
 ];
 
 // Booking-notifications group (specs/site/site-booking-notifications.md §4.3). `enabled` is a Switch
@@ -153,6 +156,7 @@ const NOT_TEXT_COLUMNS = new Set([...BOOLEAN_INT_COLUMNS, 'quoteValidityDays', '
 // deliberately tolerates, so a value pasted with a trailing newline can never reach the header.
 const TRIMMED_TEXT_COLUMNS = new Set([
   'smtpFromName', 'smtpFromEmail', 'notificationRecipientEmail',
+  ...EMAIL_COLUMNS,
   'googleReviewUrl',
 ]);
 
@@ -294,7 +298,10 @@ async function updateSettings(req, res) {
   }
 
   if (Object.keys(errors).length > 0) {
-    return res.status(400).json({ code: 'SETTINGS_INVALID', errors });
+    const colorField = EMAIL_COLUMNS.find((column) => errors[column]);
+    return res.status(400).json(colorField
+      ? { code: 'INVALID_EMAIL_COLOR', field: colorField, message: errors[colorField], errors }
+      : { code: 'SETTINGS_INVALID', errors });
   }
 
   const inForce = vatRegimeModel.inForce(db);
@@ -359,13 +366,13 @@ const LOGO_EXTENSIONS = [...ALLOWED.image.ext, '.webp', '.gif'];
 // specs/settings/settings.md rule 8 — judged on its first bytes and a whole decode before anything is written; what is stored is
 // what the image library wrote again, named after the format its bytes hold (a JPEG named .png is a JPEG); once stored,
 // the company-logo files of the other extensions go, so no former logo stays public.
-async function uploadLogo(req, res) {
+async function storeLogo(req, res, { base, save, responseKey }) {
   if (!req.file) {
     return res.status(400).json({ error: 'Aucun fichier fourni.' });
   }
   const printable = await printableLogo(req.file.buffer);
   if (!printable) return res.status(400).json({ error: LOGO_FORMAT_REFUSAL });
-  const filename = `company-logo${printable.ext}`;
+  const filename = `${base}${printable.ext}`;
   try {
     fs.writeFileSync(path.join(uploadsDir, filename), printable.bytes);
   } catch (err) {
@@ -373,26 +380,34 @@ async function uploadLogo(req, res) {
     return res.status(500).json({ error: 'Fichier non enregistré.' });
   }
   for (const ext of LOGO_EXTENSIONS) {
-    const other = `company-logo${ext}`;
+    const other = `${base}${ext}`;
     if (other === filename) continue;
     try { fs.rmSync(path.join(uploadsDir, other), { force: true }); } catch (_) { /* best-effort */ }
   }
   const logoPath = `/uploads/${filename}`;
-  settingsModel.updateLogoPath(logoPath);
-  return res.json({ company: { logoPath } });
+  save(logoPath);
+  return res.json({ company: { [responseKey]: logoPath } });
 }
 
-function deleteLogo(req, res) {
+function removeLogo(res, { column, save, responseKey }) {
   const row = settingsModel.read();
-  if (row.companyLogoPath) {
-    const absPath = path.join(uploadsDir, path.basename(row.companyLogoPath));
+  if (row[column]) {
+    const absPath = path.join(uploadsDir, path.basename(row[column]));
     if (fs.existsSync(absPath)) {
       try { fs.unlinkSync(absPath); } catch (_) { /* best-effort */ }
     }
   }
-  settingsModel.updateLogoPath('');
-  return res.json({ company: { logoPath: '' } });
+  save('');
+  return res.json({ company: { [responseKey]: '' } });
 }
+
+const uploadLogo = (req, res) => storeLogo(req, res, { base: 'company-logo', save: settingsModel.updateLogoPath, responseKey: 'logoPath' });
+const deleteLogo = (req, res) => removeLogo(res, { column: 'companyLogoPath', save: settingsModel.updateLogoPath, responseKey: 'logoPath' });
+
+// specs/emails/guest-email-branding.md rule 4bis — the optional logo for the guest emails' night variant: same checks, same
+// storage as the company logo, under its own name.
+const uploadLogoDark = (req, res) => storeLogo(req, res, { base: 'company-logo-dark', save: settingsModel.updateLogoDarkPath, responseKey: 'logoDarkPath' });
+const deleteLogoDark = (req, res) => removeLogo(res, { column: 'companyLogoDarkPath', save: settingsModel.updateLogoDarkPath, responseKey: 'logoDarkPath' });
 
 // POST /api/settings/smtp-test — sends "Email de test GuestFlow" to the current admin's email.
 // Returns 200 { ok: true } on transport success, 400 with a code on configuration / transport
@@ -445,6 +460,8 @@ module.exports = {
   updateSettings,
   uploadLogo,
   deleteLogo,
+  uploadLogoDark,
+  deleteLogoDark,
   sendSmtpTest,
   // exported for tests
   __test: {

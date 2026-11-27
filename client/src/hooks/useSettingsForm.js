@@ -16,7 +16,7 @@
  *   save({ afterSettings })      — PUT the changed fields; `afterSettings` runs extra writes (cards
  *                                   with their own endpoint) and can make the page dirty-free
  *   cancel()                     — back to the saved values
- *   replaceSaved(group, key, value) — records a value written by another endpoint (the logo)
+ *   replaceSaved(group, key, value) — records a value written by another endpoint (the logos)
  *
  * Secret fields use a draft key whose `undefined` means « keep the stored secret »:
  *   smtp.passwordDraft → smtp.password.
@@ -28,7 +28,7 @@ import useDirtyFormGuard from './useDirtyFormGuard';
 
 // Fields the server computes or writes through another endpoint: never sent back.
 const READ_ONLY = {
-  company: ['logoPath'],
+  company: ['logoPath', 'logoDarkPath'],
   smtp: ['passwordSet', 'derived', 'passwordDraft', 'platform'],
   notifications: ['derivedRecipient'],
   emails: ['sequenceStartDate', 'instagramUrl', 'socialNetworks'],
@@ -50,7 +50,10 @@ const ERROR_KEYS = {
   booking: { horizonMonths: 'bookingHorizonMonths' },
   vat: { rate: 'vatRate', legalMention: 'legalMention', franchiseThreshold: 'vatFranchiseThreshold' },
   accounting: { fiscalYearEndMonth: 'fiscalYearEndMonth', revenueGoals: 'revenueGoals' },
-  smtp: { host: 'smtpHost', fromEmail: 'smtpFromEmail', fromName: 'smtpFromName', publicUrl: 'publicUrl' },
+  smtp: {
+    host: 'smtpHost', fromEmail: 'smtpFromEmail', fromName: 'smtpFromName', publicUrl: 'publicUrl',
+    emailColorPage: 'emailColorPage', emailColorAccent: 'emailColorAccent', emailColorLink: 'emailColorLink',
+  },
   notifications: { recipientEmail: 'notificationRecipientEmail' },
   emails: {
     googleReviewUrl: 'googleReviewUrl', socialLinks: 'socialLinks',

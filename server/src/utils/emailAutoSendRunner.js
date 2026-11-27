@@ -225,7 +225,7 @@ async function performAutoEmailPass(deps) {
 
       try {
         const svc = getService();
-        await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
+        await svc.send(await guestEmailMessage({ to, subject, text: body, settings, lang }));
         const row = logModel.insert({
           templateId:      template.id,
           reservationId:   reservation.id,
