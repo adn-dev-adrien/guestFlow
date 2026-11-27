@@ -73,3 +73,19 @@ test('a composition refusal that concerns one period names it; one that concerns
     s.db.prepare('UPDATE resources SET hourlyExternalWeekendDayRate = 70 WHERE id = ?').run(s.ids.bath);
   }
 });
+
+// Round 4 C — a week-only refusal names its period too, with the engine's real sentence (the structured period skips the prefix, so the sentence itself must carry it).
+test('a refusal about the week names the week once, in the engine’s own sentence', () => {
+  const rulesOf = require('../campaignRules');
+  const ctx = require('./campaignFixtures').rulesContext(s.api);
+  s.db.prepare('UPDATE resources SET hourlyExternalDayRate = 0 WHERE id = ?').run(s.ids.bath);
+  try {
+    const both = rulesOf.validateCampaign(require('./campaignFixtures').bathCampaign(s.ids, { slug: 'refus-sem', periods: ['week', 'weekend'] }), ctx);
+    assert.equal(both.ok, false);
+    const sentence = both.errors.find((e) => e.field === 'composition.minutes').message;
+    assert.equal(sentence, 'Durée incluse : « Bain nordique » n’a pas de tarif extérieur pour la journée en semaine.');
+    assert.ok(!/\(semaine\)/.test(sentence), 'no second prefix');
+  } finally {
+    s.db.prepare('UPDATE resources SET hourlyExternalDayRate = 50 WHERE id = ?').run(s.ids.bath);
+  }
+});

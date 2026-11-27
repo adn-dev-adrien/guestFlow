@@ -21,6 +21,7 @@
  *   moneyOf(row)                         `{ totalCents, paidCents, remainingCents, payments }` of a booking whose money is on a document, else null
  *   draftMoneyOf(row, draft)             the same for the visit as a commit of `draft` would find it, nothing written (loop t2 B2-7)
  *   repriceSession(row)                  the session lines of an unpaid visit follow its booking's new slot (retired lines and a new one, journaled)
+ *   offeredSessionFigure(row)            0 € when the booking's session was offered at the visit (what a move keeps), else null
  *   sessionFigureOf(row)                 what the document charges for the booking's session `{ totalCents, lines }`, the one figure every reader of the booking gives; null while it is on no document
  *   notTaken(row, lineId, { actor })     an element a prepaid instrument paid that the client did not take (rules 15, 36 of the campaigns spec): marked, journaled,
  *                                        and the instrument told through its generic `unused` call
@@ -136,6 +137,15 @@ function createVisitModel({
           : [{ key: line.fulfilmentRef, label: line.label, detail: line.detail || '', amount: line.totalCents / 100 }];
       }),
     };
+  }
+
+  // The figure of a session the operator offered at the visit: 0 € (a move re-prices its line as offered, so it stays at 0 €); null when it is not offered or not on a document.
+  function offeredSessionFigure(row) {
+    if (!row || paidOnBooking(row)) return null;
+    const lines = sessionLinesOf(documentOf(row), row);
+    return lines.length && lines.some((line) => line.offered)
+      ? { totalCents: 0, lines: [{ key: sessionRefOf(row.id), label: resourceName(row), detail: '', amount: 0 }] }
+      : null;
   }
 
   // The session the visit still has to sell: none when it is paid on the booking, already on the document (even retired: a no-show, a re-priced slot), or
@@ -423,7 +433,15 @@ function createVisitModel({
     const result = body.remove === true
       ? core().removeLine(saleId, lineId, options)
       : core().offerLine(saleId, lineId, { ...options, offered: body.offered !== false });
-    return result.status === 200 ? { ok: true } : fromCore(result);
+    if (result.status !== 200) return fromCore(result);
+    keepStoredFigure(row);
+    return { ok: true };
+  }
+
+  // The booking's stored total is the document's session figure while the session is on a document: offering the session (or taking the offer back) moves both together.
+  function keepStoredFigure(row) {
+    const figure = sessionFigureOf(db.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(row.id));
+    if (figure) db.prepare('UPDATE resource_bookings SET totalPrice = ? WHERE id = ?').run(figure.totalCents / 100, row.id);
   }
 
   /** Is the line paid, even in part? The reception may not touch it (rule 7). */
@@ -556,7 +574,7 @@ function createVisitModel({
   }
 
   return {
-    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, sessionFigureOf, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
+    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, sessionFigureOf, offeredSessionFigure, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
   };
 }
 

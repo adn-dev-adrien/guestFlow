@@ -109,9 +109,10 @@ function legacyGridOf(resource, { external, guestDayRate = Number(resource.price
 }
 
 const BAND_WORDS = Object.freeze({ day: 'la journée', evening: 'la soirée' });
+const PERIOD_WORDS = Object.freeze({ week: ' en semaine', weekend: ' le week-end' });
 
-/** The sentence that says an outside band has no price: « Bain nordique » n’a pas de tarif extérieur pour la soirée le week-end. */
-const notSoldSentence = (resource, band, period) => `« ${resource.name} » n’a pas de tarif extérieur pour ${BAND_WORDS[band]}${period === 'weekend' ? ' le week-end' : ''}.`;
+/** The sentence that says an outside band has no price, naming the period it is about: « Bain nordique » n’a pas de tarif extérieur pour la soirée le week-end. (no period → none named). */
+const notSoldSentence = (resource, band, period) => `« ${resource.name} » n’a pas de tarif extérieur pour ${BAND_WORDS[band]}${PERIOD_WORDS[period] || ''}.`;
 
 /**
  * The first slice of [fromMin, toMin) that falls in an outside band with no first-hour price (a first hour that is 0 or empty is not sold: no fallback to another band, period
@@ -219,7 +220,7 @@ function priceBookingLines({
     const priced = priceSessions([{ date: sessionDate, start: startTime, end: endTime }], cfg, freeApplied);
     if (priced.validSessions.length) {
       const { freeValue, offeredValue } = bookingDeductions({
-        start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate, date: sessionDate,
+        start, end, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate, date: sessionDate,
       }, cfg);
       return finish({
         pricing: 'banded',

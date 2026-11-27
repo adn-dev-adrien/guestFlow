@@ -94,7 +94,7 @@ test('an unknown band, a resource with no evening, a band with no external rate 
   assert.deepEqual(refusalOf(quote(noEvening, { band: 'evening', minutes: 60 })), [['SESSION_BAND_UNKNOWN', '« Bain sans soir » n’a pas de tranche du soir.']]);
   assert.equal(quote(noEvening, { band: 'day', minutes: 60 }).document.totals.totalCents, 5000);
   const noRate = resource({ name: 'Bain gratuit', price: 0, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0 });
-  assert.deepEqual(refusalOf(quote(noRate, { band: 'day', minutes: 60 })), [['SESSION_BAND_NOT_SOLD', '« Bain gratuit » n’a pas de tarif extérieur pour la journée.']]);
+  assert.deepEqual(refusalOf(quote(noRate, { band: 'day', minutes: 60 })), [['SESSION_BAND_NOT_SOLD', '« Bain gratuit » n’a pas de tarif extérieur pour la journée en semaine.']]);
   const hidden = resource({ name: 'Bain caché', sellableExternally: 0 });
   assert.deepEqual(refusalOf(quote(hidden, { band: 'day', minutes: 60 })), [['NOT_SELLABLE', 'Article non vendable hors séjour.']]);
   const nonsense = quote(resource(), { band: 'night', minutes: 60 });

@@ -59,11 +59,11 @@ test('a resource with no evening has the day band only, to its closing time; a b
   const half = fx.resource({ name: 'Bain sans tarif', price: 0, hourlyExternalDayRate: 0, hourlyExternalWeekendDayRate: 0, hourlyExternalEveningRate: 80, hourlyEveningRate: 0 });
   const element = byRef(`resource:${half}`);
   assert.deepEqual(element.modes.map((m) => [m.band, m.sellable, m.reason || null]), [
-    ['day', false, '« Bain sans tarif » n’a pas de tarif extérieur pour la journée.'], ['evening', true, null],
+    ['day', false, '« Bain sans tarif » n’a pas de tarif extérieur pour la journée en semaine.'], ['evening', true, null],
   ]);
   assert.equal(element.sellable, true, 'one band is enough');
   const none = byRef(`resource:${noRate}`);
-  assert.deepEqual([none.sellable, none.reason], [false, '« Bain gratuit » n’a pas de tarif extérieur pour la journée.']);
+  assert.deepEqual([none.sellable, none.reason], [false, '« Bain gratuit » n’a pas de tarif extérieur pour la journée en semaine.']);
 });
 
 test('the reasons an element is greyed, one by one: not sellable outside a stay, archived, a price that needs a stay, an insurance, no planning card, a resource that is not hourly', () => {

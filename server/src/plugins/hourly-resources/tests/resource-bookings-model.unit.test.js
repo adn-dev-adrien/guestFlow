@@ -97,7 +97,7 @@ test('priceBooking: an unset external grid is not sold, it no longer takes the g
   const answer = model.priceBooking({ resourceId, date: `${FAR_YEAR}-02-12`, startTime: '19:00', endTime: '21:00' });
   assert.equal(answer.status, 409);
   assert.equal(answer.code, 'BAND_NOT_SOLD');
-  assert.match(answer.error, /n’a pas de tarif extérieur pour la journée/);
+  assert.match(answer.error, /n’a pas de tarif extérieur pour la journée en semaine\./);
   const created = model.createBooking({ resourceId, date: `${FAR_YEAR}-02-12`, startTime: '19:00', endTime: '21:00' });
   assert.equal(created.code, 'BAND_NOT_SOLD');
 });

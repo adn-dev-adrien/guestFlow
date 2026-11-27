@@ -195,12 +195,22 @@ function priceRange(start, end, cfg = {}) {
  * `freeAtDayRate: false` is a booking stored before this rule (rule 74: its price is not re-priced): its free minutes are valued on the band
  * they fall in.
  */
-function bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate = true, date = null }, cfg = {}) {
+function bookingDeductions({ start, end = null, freeApplied, offeredApplied, freeAtDayRate = true, date = null }, cfg = {}) {
   const norm = normalizeConfig(cfg);
   const offeredFrom = start + freeApplied;
+  // A session cut where its price can change (`anyStart`, an outside session of the one engine path) has its free and offered minutes valued on the slices the gross is priced in — the
+  // same walk as `priceSessions`, from the session's own ends: a sub-range walked on its own would be judged on-grid or off-grid from its own ends and could cut where the gross does not.
+  // Any other booking (a stay's, a lodging's) is valued as origin/master valued it, the range walked in slot steps from where it starts (D6: nothing changes for a lodging guest).
+  const slices = norm.anyStart ? slicesOf(start, Math.max(end ?? 0, offeredFrom + offeredApplied), norm, offeredFrom) : null;
+  const valueOf = (from, to) => (slices
+    ? slices.reduce((total, [t, until]) => {
+      const overlap = Math.min(to, until) - Math.max(from, t);
+      return overlap > 0 ? total + (rateAt(t, norm, offeredFrom, date) * overlap) / 60 : total;
+    }, 0)
+    : priceMinutes(from, to, norm, offeredFrom, date));
   let freeValue = 0;
-  if (freeApplied > 0) freeValue = freeAtDayRate ? (norm.dayRate * freeApplied) / 60 : priceMinutes(start, offeredFrom, norm, offeredFrom, date);
-  const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm, offeredFrom, date) : 0;
+  if (freeApplied > 0) freeValue = freeAtDayRate ? (norm.dayRate * freeApplied) / 60 : valueOf(start, offeredFrom);
+  const offeredValue = offeredApplied > 0 ? valueOf(offeredFrom, offeredFrom + offeredApplied) : 0;
   return { freeValue: round2(freeValue), offeredValue: round2(offeredValue) };
 }
 

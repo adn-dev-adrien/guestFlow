@@ -4,8 +4,10 @@
 //   I-a  an outside on-grid session costs on the planning exactly what the engine charges, and both refuse the same sessions;
 //   I-b  one figure per booking: preview == stored total == visit session line == invoiceBasis total, before and after any save that does not move it;
 //   I-c  a session touching an unsold band or period is refused on the preview AND the save, never priced 0 € for any slice it prices;
-//   I-d  stay guests and lodging bookings equal origin/master's figures (the frozen oracle);
-//   I-e  a booking sold on a document keeps the document's session total: the offered hour is never charged, a notes-only save never rewrites it.
+//   I-d  stay guests (a booking's price AND a stay's own sessions through the price-line contributor) and lodging bookings equal origin/master's figures (the frozen oracles);
+//   I-e  a booking sold on a document keeps the document's session total: the offered hour is never charged, a notes-only save never rewrites it;
+//   I-f  the free and the offered minutes are valued on the gross's own slices: total = gross - (free + offered minutes at the rate of the slice they fall in), and an on-grid week-day session
+//        costs what origin/master charged for it, whatever the slot and wherever the evening switch falls (round 4, A).
 // Each invariant has a negative control: the same check run against a copy that breaks the property must find a violation.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -20,6 +22,8 @@ const head = require('../plugins/hourly-resources/bookingPricing');
 const { periodOf } = require('../plugins/hourly-resources/hourlyPricing');
 const { quoteSession } = require('../plugins/hourly-resources/sessionQuote');
 const masterPricing = require('../plugins/hourly-resources/tests/masterBookingPricing.oracle');
+const masterHourly = require('../plugins/hourly-resources/tests/masterHourlyPricing.oracle');
+const { createHourlyContributor } = require('../plugins/hourly-resources/pricing');
 const { FAR_YEAR } = require('./farYearFixture');
 
 // ---------------------------------------------------------------------------------------------------------------- seeded randomness
@@ -215,6 +219,86 @@ function checkAsMaster(pricer, rnd, rounds) {
   return { violations };
 }
 
+/**
+ * I-f: the deductions are valued on the gross's slices. `bands` of the gross (same call without offered time) say which rate each minute is priced at; the offered minutes — the first paid ones,
+ * right after the lodging's free minutes — are worth that rate, and the free minutes the guests' day rate. An on-grid week-day outside session is also what origin/master charged.
+ */
+function checkDeductions(pricer, rnd, rounds) {
+  const violations = [];
+  let compared = 0;
+  let againstMaster = 0;
+  const minutesOf = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
+  for (let i = 0; i < rounds; i += 1) {
+    const resource = randomResource(rnd);
+    const onGrid = rnd.chance(0.6);
+    const session = randomSession(rnd, resource, { onGrid });
+    if (rnd.chance(0.4)) session.date = CALENDAR.week;
+    // A lodging's deductions are origin/master's (D6, I-d): its free minutes are a slot multiple here, where master's walk from where the offered minutes start is the gross's own.
+    const kind = onGrid ? rnd.pick(['outside', 'outside', 'lodging']) : 'outside';
+    const free = kind === 'lodging' ? rnd.pick([0, 30, 60].filter((m) => m % resource.slotDuration === 0)) : 0;
+    const asked = rnd.pick([15, 30, 45, 60, 90]);
+    const common = kind === 'lodging'
+      ? { override: { price: null, freeMinutes: free }, external: false, lodging: true, date: null }
+      : {};
+    const gross = pricer(resource, session, { ...common, offeredMinutes: 0 });
+    const got = pricer(resource, session, { ...common, offeredMinutes: asked });
+    if (gross.refusal || got.refusal || got.offeredMinutesApplied === 0) continue;
+    compared += 1;
+    const duration = session.end - session.start;
+    const freeApplied = Math.min(duration, free);
+    const offeredFrom = session.start + freeApplied;
+    const offered = got.offeredMinutesApplied;
+    const worth = (from, to) => gross.bands.reduce((sum, band) => sum + (band.rate * Math.max(0, Math.min(to, minutesOf(band.to)) - Math.max(from, minutesOf(band.from)))) / 60, 0);
+    const freeValue = (resource.price * freeApplied) / 60;
+    const expected = Math.max(0, Math.round(gross.grossTotal * 100) - Math.round(freeValue * 100) - Math.round(worth(offeredFrom, offeredFrom + offered) * 100));
+    if (Math.abs(cents(got.total) - expected) > 1) {
+      violations.push(`I-f ${kind} ${session.date} ${clock(session.start)}-${clock(session.end)} slot ${resource.slotDuration} evening ${resource.hourlyEveningStart} free ${free} offered ${offered}: ${cents(got.total)} vs the gross's own rates ${expected}`);
+    }
+    if (kind === 'outside' && session.date === CALENDAR.week && onGrid) {
+      const sold = Number(resource.hourlyExternalDayRate) > 0 && (!resource.hourlyEveningStart || Number(resource.hourlyExternalEveningRate) > 0);
+      if (sold) {
+        againstMaster += 1;
+        const wanted = masterPricing.priceBookingLines({
+          resource, startTime: clock(session.start), endTime: clock(session.end), override: null, external: true, offeredMinutes: offered, freeHourAtDayRate: true,
+        });
+        if (cents(wanted.total) !== cents(got.total)) violations.push(`I-f master ${session.date} ${clock(session.start)}-${clock(session.end)} slot ${resource.slotDuration} evening ${resource.hourlyEveningStart} offered ${offered}: master ${wanted.total}, now ${got.total}`);
+      }
+    }
+  }
+  return { violations, compared, againstMaster };
+}
+
+/**
+ * I-d on a stay's own sessions: the price-line contributor the stay's quote runs through prices a guest's sessions (one to three, any day, the weekend included: a stay guest has no period) exactly as
+ * origin/master's pricing did. `pricer(resource, sessions, free)` → `{ totalPrice, billedUnits }`.
+ */
+function checkStaySessions(pricer, rnd, rounds) {
+  const violations = [];
+  for (let i = 0; i < rounds; i += 1) {
+    const resource = randomResource(rnd);
+    const sessions = [];
+    for (let n = rnd.int(1, 3); n > 0; n -= 1) {
+      const one = randomSession(rnd, resource, { onGrid: true });
+      if (!sessions.some((s) => s.date === one.date)) sessions.push({ date: one.date, start: clock(one.start), end: clock(one.end) });
+    }
+    const free = rnd.pick([0, 0, 30, 60]);
+    const wantedCfg = {
+      dayRate: resource.price, eveningRate: resource.hourlyEveningRate, dayNextRate: resource.hourlyNextDayRate, eveningNextRate: resource.hourlyNextEveningRate, eveningStart: resource.hourlyEveningStart,
+      slotMinutes: resource.slotDuration, openTime: resource.openTime, closeTime: resource.closeTime, minMinutes: resource.minimumUsageMinutes,
+    };
+    const priced = masterHourly.priceSessions(sessions, wantedCfg, free);
+    const wanted = { totalPrice: Math.max(0, Math.round((priced.totalPrice - priced.freeSupplement) * 100) / 100), billedUnits: priced.billedHours };
+    const got = pricer(resource, sessions, free);
+    if (cents(got.totalPrice) !== cents(wanted.totalPrice) || Number(got.billedUnits) !== Number(wanted.billedUnits)) {
+      violations.push(`I-d stay ${JSON.stringify(sessions)} free ${free} slot ${resource.slotDuration} evening ${resource.hourlyEveningStart}: master ${wanted.totalPrice} (${wanted.billedUnits} h), now ${got.totalPrice} (${got.billedUnits} h)`);
+    }
+  }
+  return { violations };
+}
+
+const contributor = createHourlyContributor();
+const realStay = (resource, sessions, free) => contributor.priceLine({ resource: { ...resource, freeMinutes: free }, selected: { sessions }, sold: false });
+
 const real = (resource, session, over) => planningPrice(resource, session, over);
 const ROUNDS = 1500;
 
@@ -256,9 +340,40 @@ test('I-d — lodging bookings and stay guests are priced as origin/master price
   assert.deepEqual(violations.slice(0, 5), []);
 });
 
+test('I-d — a stay\'s own sessions, priced through the price-line contributor, cost what origin/master charged', () => {
+  const { violations } = checkStaySessions(realStay, generator(43), ROUNDS);
+  assert.deepEqual(violations.slice(0, 5), []);
+});
+
+test('I-d negative control — stay sessions walked on another slot grid, or priced on an outside weekend rate, are caught', () => {
+  const otherSlot = (resource, sessions, free) => realStay({ ...resource, slotDuration: resource.slotDuration === 60 ? 30 : 60 }, sessions, free);
+  assert.ok(checkStaySessions(otherSlot, generator(43), ROUNDS).violations.length > 0);
+  const weekendGrid = (resource, sessions, free) => realStay({ ...resource, price: resource.hourlyExternalWeekendDayRate || resource.price + 10 }, sessions, free);
+  assert.ok(checkStaySessions(weekendGrid, generator(43), ROUNDS).violations.length > 0);
+});
+
 test('I-d negative control — a lodging priced as an outside session on its date (the F4 regression) is caught', () => {
   const asAnOutsideSession = (resource, session, over) => real(resource, session, { ...over, lodging: false, date: session.date });
   assert.ok(checkAsMaster(asAnOutsideSession, generator(42), ROUNDS).violations.length > 0);
+});
+
+test('I-f — the free and the offered minutes are valued on the gross\'s own slices, and an on-grid week-day session costs what origin/master charged', () => {
+  const { violations, compared, againstMaster } = checkDeductions(real, generator(2026), ROUNDS);
+  assert.ok(compared > 400 && againstMaster > 100, `compared ${compared} against master ${againstMaster}`);
+  assert.deepEqual(violations.slice(0, 5), []);
+});
+
+test('I-f negative control — the offered minutes valued as a range walked on its own (the round-3 behaviour) are caught', () => {
+  const walkedAlone = (resource, session, over = {}) => {
+    const out = real(resource, session, over);
+    if (!over.offeredMinutes || out.refusal || !out.offeredMinutesApplied) return out;
+    const offeredFrom = session.start + out.freeMinutesApplied;
+    const alone = real(resource, { ...session, start: offeredFrom, end: offeredFrom + out.offeredMinutesApplied }, { ...over, offeredMinutes: 0, override: null, lodging: false, external: true });
+    if (alone.refusal) return out;
+    const total = Math.max(0, out.grossTotal - out.freeValue - alone.grossTotal);
+    return { ...out, total };
+  };
+  assert.ok(checkDeductions(walkedAlone, generator(2026), ROUNDS).violations.length > 0);
 });
 
 // ---------------------------------------------------------------------------------------------------------------- the stored half: every reader of one booking
@@ -343,7 +458,8 @@ function moveBody(rnd, resource, row, move) {
 /**
  * One random booking of `kind` ('outside' | 'lodging') through every operation, with I-b after each step and the refusals (I-c) judged on the way in.
  */
-const STATS = { created: 0, refusedOnCreate: 0, moved: 0, refusedMove: 0 };
+const STATS = { created: 0, refusedOnCreate: 0, moved: 0, refusedMove: 0, offered: 0 };
+const HOOKS = { afterOffer: null };
 function runBooking(m, rnd, resource, kind, violations) {
   const session = randomSession(rnd, resource, { onGrid: rnd.chance(0.5) });
   const label = (step) => `${kind} ${session.date} ${clock(session.start)}-${clock(session.end)} slot ${resource.slotDuration} evening ${resource.hourlyEveningStart} after ${step}`;
@@ -366,7 +482,9 @@ function runBooking(m, rnd, resource, kind, violations) {
     const before = head.priceBookingLines({ resource, startTime: body.startTime, endTime: body.endTime, external: true, engineRated: false, lodging: false, judgeBands: false });
     db.prepare('UPDATE resource_bookings SET engineRated = NULL, totalPrice = ? WHERE id = ?').run(before.total, id);
   } else if (cents(created.totalPrice) !== cents(draft.total)) violations.push(`I-b ${label('create')}: draft preview ${cents(draft.total)} vs created ${cents(created.totalPrice)}`);
-  exercise(m, rnd, resource, id, label, { visit: kind !== 'lodging' }, violations);
+  // First with no document (an outside booking that stays one, a lodging's), then with its visit document: both are real states of a booking.
+  exercise(m, rnd, resource, id, label, { visit: false }, violations);
+  exercise(m, rnd, resource, id, (step) => label(`${step} (with a document)`), { visit: true }, violations);
 }
 
 /**
@@ -391,12 +509,30 @@ function exercise(m, rnd, resource, id, label, { visit, soldFigure = null }, vio
   });
   if (!saved.ok) violations.push(`${label('full resend')}: refused ${saved.error}`);
   holds('full resend', soldFigure === null ? before : soldFigure);
+  // The operator offers the session at the visit (« Offrir »): the booking, the preview, the invoice and the document move together, and stay together through the moves below.
+  if (visit && soldFigure === null && rnd.chance(0.4)) {
+    const sessionLine = documentOf(Number(String(rowOf(id).saleRef).split(':')[1])).lines.find((line) => String(line.fulfilmentRef || '').startsWith(`hourly-slot:${id}`) && line.status !== 'cancelled');
+    const wasStored = rowOf(id).totalPrice;
+    if (sessionLine && visits.patchLine(rowOf(id), sessionLine.id, { offered: true }).ok) {
+      STATS.offered += 1;
+      if (HOOKS.afterOffer) HOOKS.afterOffer(id, wasStored);
+      holds('offered at the visit', null);
+    }
+  }
   for (let step = 0; step < 2; step += 1) {
     const move = rnd.pick(MOVES);
     const was = rowOf(id);
     const wasFigures = figuresOf(m, id, { visit });
-    const moved = m.update(id, moveBody(rnd, resource, was, move));
+    const body = moveBody(rnd, resource, was, move);
     const stage = `move ${move}`;
+    // What the screen shows for the move (the preview of the booking at its new place) is what the save then stores.
+    const preview = m.priceBooking({
+      resourceId: bathId, bookingId: id, date: body.date ?? was.date, startTime: body.startTime ?? was.startTime, endTime: body.endTime ?? was.endTime,
+      propertyId: body.propertyId !== undefined ? body.propertyId : was.propertyId, offeredMinutes: body.offeredMinutes ?? was.offeredMinutes,
+    });
+    const moved = m.update(id, body);
+    if (Boolean(preview.error) !== Boolean(moved.error) && !['BOOKING_PAID', 'BOOKING_INVOICED'].includes(moved.code)) violations.push(`I-b ${label(stage)}: the preview says ${preview.error || 'ok'} and the save ${moved.error || 'ok'}`);
+    else if (!preview.error && !moved.error && cents(preview.total) !== cents(rowOf(id).totalPrice)) violations.push(`I-b ${label(stage)}: the preview of the move says ${cents(preview.total)}, the save stored ${cents(rowOf(id).totalPrice)}`);
     if (moved.error) {
       STATS.refusedMove += 1;
       const now = figuresOf(m, id, { visit });
@@ -430,14 +566,17 @@ for (const [slug, band] of [['jour', 'day'], ['soir', 'evening']]) {
   });
 }
 shop.settingsStore.set('leftoverDrinkArticleRef', `option:${shop.ids.drink}`);
-const standardBath = (slot) => ({
-  ...db.prepare('SELECT * FROM resources WHERE id = ?').get(bathId), slotDuration: slot, openTime: '10:00', closeTime: '22:00', minimumUsageMinutes: 60, hourlyEveningStart: '19:00', price: 25, hourlyEveningRate: 35,
+const standardBath = (slot, evening = '19:00') => ({
+  ...db.prepare('SELECT * FROM resources WHERE id = ?').get(bathId), slotDuration: slot, openTime: '10:00', closeTime: '22:00', minimumUsageMinutes: 60, hourlyEveningStart: evening, price: 25, hourlyEveningRate: 35,
   hourlyNextDayRate: null, hourlyNextEveningRate: null, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyExternalNextDayRate: 45, hourlyExternalNextEveningRate: 63,
   hourlyExternalWeekendDayRate: 70, hourlyExternalWeekendEveningRate: 90, hourlyExternalWeekendNextDayRate: 60, hourlyExternalWeekendNextEveningRate: 80,
 });
 const holidays2026 = sdk.calendar.frenchPublicHolidays(Number(f.TUESDAY.slice(0, 4))).map((h) => h.date).filter((d) => d > f.TUESDAY);
 const VOUCHER_DATES = [f.TUESDAY, f.FRIDAY, f.SATURDAY, holidays2026[0], addDay(holidays2026[0], -1)];
-const VOUCHER_STARTS = ['10:00', '11:00', '12:00', '13:00', '15:00', '18:00', '19:00', '20:00'];
+const VOUCHER_STARTS = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '18:00', '19:00', '20:00'];
+// Sold on every slot and wherever the evening switch falls — on the slot grid or off it — as far as the engine can sell it (what it cannot sell is counted as skipped).
+const SOLD_SLOTS = [30, 60, 120];
+const SOLD_EVENINGS = ['19:00', '19:30', '19:15', '18:00'];
 const sessionTotalOf = (id) => {
   const saleId = Number(String(rowOf(id).saleRef).split(':')[1]);
   return documentOf(saleId).lines.filter((line) => String(line.fulfilmentRef || '').startsWith(`hourly-slot:${id}`) && line.status !== 'cancelled').reduce((sum, line) => sum + line.totalCents, 0);
@@ -446,13 +585,20 @@ const SOLD = { voucher: 0, site: 0, skipped: 0, doubled: 0, extra: 0 };
 
 /** A booking sold on a document by a voucher use (rule 17's doubled hour, a cheaper slot, extra time paid by card) — then every operation of the planning. */
 async function runVoucher(m, rnd, violations) {
-  const resource = configure(standardBath(rnd.pick([30, 60])));
+  const resource = configure(standardBath(rnd.pick(SOLD_SLOTS), rnd.pick(SOLD_EVENINGS)));
   const [slug, period] = rnd.pick([['jour', 'week'], ['jour', 'weekend'], ['soir', 'week'], ['soir', 'weekend']]);
   const date = rnd.pick(VOUCHER_DATES);
   const start = rnd.pick(VOUCHER_STARTS);
   const request = rnd.pick([{}, {}, { extraMinutes: 30 }, { extraMinutes: 60 }]);
   wipe();
-  const voucher = shop.sell(slug, period);
+  let voucher;
+  try { voucher = shop.sell(slug, period); } catch (err) {
+    // A campaign the engine cannot price on this resource (a one-hour voucher on a 120-minute slot, a band that does not fall on the slot grid) is not sold: nothing to judge.
+    if (!/PRICE_UNAVAILABLE/.test(err.message)) throw err;
+    SOLD.skipped += 1;
+    SOLD.unsellable = (SOLD.unsellable || 0) + 1;
+    return;
+  }
   const recap = shop.quoteOf(voucher, date, start, request);
   if (!recap.ok) { SOLD.skipped += 1; SOLD[`vq:${recap.code}`] = (SOLD[`vq:${recap.code}`] || 0) + 1; return; }
   const confirmed = await shop.confirm(voucher, date, start, request);
@@ -465,6 +611,8 @@ async function runVoucher(m, rnd, violations) {
   const made = db.prepare('SELECT id FROM resource_bookings ORDER BY id DESC LIMIT 1').get();
   if (!made) { SOLD.skipped += 1; return; }
   SOLD.voucher += 1;
+  SOLD[`slot${resource.slotDuration}`] = (SOLD[`slot${resource.slotDuration}`] || 0) + 1;
+  if (!resource.hourlyEveningStart || Number(resource.hourlyEveningStart.slice(3)) % resource.slotDuration) SOLD.offGridEvening = (SOLD.offGridEvening || 0) + 1;
   const id = Number(made.id);
   const span = (row) => (Number(row.endTime.slice(0, 2)) * 60 + Number(row.endTime.slice(3))) - (Number(row.startTime.slice(0, 2)) * 60 + Number(row.startTime.slice(3)));
   if (span(rowOf(id)) >= 120 + (request.extraMinutes || 0)) SOLD.doubled += 1;
@@ -475,7 +623,7 @@ async function runVoucher(m, rnd, violations) {
 
 /** A session of the website (« Mon bain », sold by `bookOutside`): the engine's line, the sale, the booking. */
 function runSite(m, rnd, violations) {
-  const resource = configure(standardBath(rnd.pick([30, 60])));
+  const resource = configure(standardBath(rnd.pick(SOLD_SLOTS), rnd.pick(SOLD_EVENINGS)));
   const date = rnd.pick(DATES);
   const minutes = rnd.pick([60, 120]);
   const startMinutes = rnd.pick([600, 660, 720, 840, 1080, 1140]);
@@ -483,7 +631,7 @@ function runSite(m, rnd, violations) {
   wipe();
   const offer = shop.offerOfBath.offer;
   const quoted = offer.quote({
-    resourceId: bathId, date, start, coveredBand: startMinutes >= 1140 ? 'evening' : 'day', coveredMinutes: minutes, coveredPeriod: 'week',
+    resourceId: bathId, date, start, coveredBand: startMinutes >= Number(resource.hourlyEveningStart.slice(0, 2)) * 60 + Number(resource.hourlyEveningStart.slice(3)) ? 'evening' : 'day', coveredMinutes: minutes, coveredPeriod: 'week',
   });
   if (!quoted.ok) { SOLD.skipped += 1; SOLD[`q:${quoted.code}`] = (SOLD[`q:${quoted.code}`] || 0) + 1; return; }
   const booked = offer.bookOutside({
@@ -492,6 +640,8 @@ function runSite(m, rnd, violations) {
   });
   if (!booked.ok) { SOLD.skipped += 1; SOLD[`b:${booked.code}`] = (SOLD[`b:${booked.code}`] || 0) + 1; return; }
   SOLD.site += 1;
+  SOLD[`slot${resource.slotDuration}`] = (SOLD[`slot${resource.slotDuration}`] || 0) + 1;
+  if (Number(resource.hourlyEveningStart.slice(3)) % resource.slotDuration) SOLD.offGridEvening = (SOLD.offGridEvening || 0) + 1;
   const id = Number(booked.bookingId);
   const label = (step) => `site ${date} ${start}+${minutes} slot ${resource.slotDuration} after ${step}`;
   exercise(m, rnd, resource, id, label, { visit: true, soldFigure: sessionTotalOf(id) }, violations);
@@ -509,8 +659,8 @@ async function checkSold(m, rnd, scenarios) {
 }
 
 test('I-e — a booking sold on a document (a voucher use with its offered hour and paid extra time, a website session) keeps the document\'s session figure on every reader and every save that does not move it', async () => {
-  const violations = await checkSold(model, generator(11), 60);
-  assert.ok(SOLD.voucher > 10 && SOLD.site > 10 && SOLD.doubled > 0 && SOLD.extra > 0, JSON.stringify(SOLD));
+  const violations = await checkSold(model, generator(11), 120);
+  assert.ok(SOLD.voucher > 20 && SOLD.site > 20 && SOLD.doubled > 0 && SOLD.extra > 0 && SOLD.slot30 > 0 && SOLD.slot60 > 0 && SOLD.slot120 > 0 && SOLD.offGridEvening > 0, JSON.stringify(SOLD));
   assert.deepEqual(violations.slice(0, 8), []);
 });
 
@@ -532,7 +682,7 @@ test('I-e negative control — a save that re-prices the sold session at full pr
 
 test('I-b — preview, stored total, visit session line and invoice basis are one figure through create, notes-only save, full resend and every kind of move', () => {
   const violations = checkStored(model, generator(7), 120);
-  assert.ok(STATS.created > 100 && STATS.moved > 100, JSON.stringify(STATS));
+  assert.ok(STATS.created > 100 && STATS.moved > 100 && STATS.offered > 10, JSON.stringify(STATS));
   assert.deepEqual(violations.slice(0, 8), []);
 });
 
@@ -546,4 +696,13 @@ test('I-b negative control — a reader that drifts by a cent (or a save that re
   assert.ok(checkStored(drifting, generator(7), 10).length > 0);
   const rewriting = { ...model, update: (id, body) => { const out = model.update(id, body); if (out.ok && Object.keys(body).length === 1 && body.notes) db.prepare('UPDATE resource_bookings SET totalPrice = totalPrice + 5 WHERE id = ?').run(id); return out; } };
   assert.ok(checkStored(rewriting, generator(7), 10).length > 0);
+});
+
+test('I-b negative control — a booking offered at the visit whose stored total is left behind, and a preview of a move that is not what the save stores, are caught', () => {
+  HOOKS.afterOffer = (id, wasStored) => db.prepare('UPDATE resource_bookings SET totalPrice = ? WHERE id = ?').run(wasStored, id);
+  try {
+    assert.ok(checkStored(model, generator(7), 40).some((v) => /offered at the visit/.test(v)), 'a stale stored total after « Offrir » is noticed');
+  } finally { HOOKS.afterOffer = null; }
+  const previewDrifts = { ...model, priceBooking: (draft, options) => { const out = model.priceBooking(draft, options); return draft.bookingId && !out.error ? { ...out, total: out.total + 0.01 } : out; } };
+  assert.ok(checkStored(previewDrifts, generator(7), 20).some((v) => /preview of the move/.test(v)), 'a preview of a move that differs from the save is noticed');
 });

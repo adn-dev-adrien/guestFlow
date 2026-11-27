@@ -53,8 +53,8 @@ test('F3 — an outside band with no first-hour price is refused with a sentence
   assert.equal(refused.refusal, '« Bain nordique » n’a pas de tarif extérieur pour la journée le week-end.');
   assert.equal(priceBookingLines({ resource: noWeekendDay, startTime: '14:00', endTime: '15:00', external: true, date: WEDNESDAY }).refusal, undefined, 'the week day stays sold');
   const nullEvening = { ...BATH, hourlyExternalEveningRate: null };
-  assert.match(priceBookingLines({ resource: nullEvening, startTime: '20:00', endTime: '21:00', external: true, date: WEDNESDAY }).refusal, /pour la soirée\.$/);
-  assert.match(priceBookingLines({ resource: nullEvening, startTime: '19:00', endTime: '21:00', external: true, date: WEDNESDAY }).refusal, /pour la soirée\.$/, 'a day session run into the unsold evening');
+  assert.match(priceBookingLines({ resource: nullEvening, startTime: '20:00', endTime: '21:00', external: true, date: WEDNESDAY }).refusal, /pour la soirée en semaine\.$/);
+  assert.match(priceBookingLines({ resource: nullEvening, startTime: '19:00', endTime: '21:00', external: true, date: WEDNESDAY }).refusal, /pour la soirée en semaine\.$/, 'a day session run into the unsold evening');
   assert.equal(priceBookingLines({ resource: nullEvening, startTime: '20:00', endTime: '21:00', external: true, date: WEDNESDAY, judgeBands: false }).refusal, undefined, 'a booking already stored is not judged again');
 });
 

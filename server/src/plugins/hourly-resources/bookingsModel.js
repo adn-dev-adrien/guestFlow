@@ -334,8 +334,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     let storedTimes;
     let frozenVat = null;
     let stored = null;
+    let existing = null;
     if (!notSent(bookingId)) {
-      const existing = database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(bookingId);
+      existing = database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(bookingId);
       if (!existing) return { error: 'Réservation non trouvée', status: 404 };
       if (Number(existing.resourceId) !== Number(resourceId)) return { error: 'Réservation d’une autre ressource', status: 400 };
       reservationId = existing.reservationId;
@@ -351,7 +352,10 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const priced = breakdownOf({
       resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat, stored, fresh,
     });
-    return priced.refusal ? notSold(priced) : priced;
+    if (priced.refusal) return notSold(priced);
+    // A session offered at the visit stays offered when the booking moves (the document re-prices its line as offered): the preview of the move says what the save will store.
+    const offeredAtVisit = existing && !stored && !fresh && !isPaid(existing) ? visitsOf(existing)?.offeredSessionFigure(existing) : null;
+    return offeredAtVisit ? withDocumentFigure(priced, offeredAtVisit, priced.vat) : priced;
   }
 
   // Rule 15 — what the screen showed is compared with what is stored, never enforced.
@@ -660,6 +664,12 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
           writeMoved();
           const repriced = visit.repriceSession(rawById(id));
           if (repriced.error) throw refusalError(repriced);
+          // The document keeps its own session figure (a session offered at the visit stays at 0 € though it moved): it is the booking's one figure.
+          const figure = documentFigureOf(id);
+          if (figure) {
+            totalPrice = figure.totalCents / 100;
+            database.prepare('UPDATE resource_bookings SET totalPrice = ? WHERE id = ?').run(totalPrice, id);
+          }
         })();
       } catch (err) {
         if (err && err.refusal) return err.refusal;

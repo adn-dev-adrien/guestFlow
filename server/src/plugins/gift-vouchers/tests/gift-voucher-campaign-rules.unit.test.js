@@ -191,10 +191,11 @@ test('rule 7: a campaign goes on sale with a voucher front — without one it st
 });
 
 test('a refusal that says which period it is about is never prefixed with that period, found from the data and not from a word in the sentence (L8)', () => {
-  const sentenceNamingNothing = 'Pas de tarif pour cette journée.';
-  const aboutWeekend = { catalogue: { ...catalogue, sessionRefusal: (s) => (s.period === 'weekend' ? { message: sentenceNamingNothing, period: 'weekend' } : null) } };
+  // The engine's own sentence for a weekend band with no price (`notSoldSentence`; the real engine produces it in gift-voucher-contents-period.unit.test.js).
+  const realSentence = '« Bain nordique » n’a pas de tarif extérieur pour la journée le week-end.';
+  const aboutWeekend = { catalogue: { ...catalogue, sessionRefusal: (s) => (s.period === 'weekend' ? { message: realSentence, period: 'weekend' } : null) } };
   const asked = errorsOf(bath({ periods: ['week', 'weekend'] }), aboutWeekend);
-  assert.deepEqual(asked, [['composition.minutes', `Durée incluse : ${sentenceNamingNothing}`]], 'the structured period says the sentence is about the weekend: no prefix, though the sentence never says it');
+  assert.deepEqual(asked, [['composition.minutes', `Durée incluse : ${realSentence}`]], 'the structured period says the sentence is about the weekend: no prefix added to the engine’s own sentence');
   const aboutAnother = { catalogue: { ...catalogue, sessionRefusal: (s) => (s.period === 'weekend' ? 'Un week-end sans tarif.' : null) } };
   assert.deepEqual(errorsOf(bath({ periods: ['week', 'weekend'] }), aboutAnother), [['composition.minutes', 'Durée incluse : (week-end) Un week-end sans tarif.']], 'a plain sentence that happens to hold the word is still prefixed');
 });

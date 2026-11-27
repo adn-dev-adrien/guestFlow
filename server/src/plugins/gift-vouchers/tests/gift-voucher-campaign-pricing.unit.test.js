@@ -120,6 +120,6 @@ test('a campaign the engine cannot price is left out of the offer, and the opera
 
 test('a band with no external rate prices nothing: the engine refuses, no free voucher is ever sold', () => {
   db.prepare('UPDATE resources SET hourlyExternalDayRate = 0, price = 0 WHERE id = ?').run(ids.bath);
-  assert.deepEqual([price({}).code, price({}).message], ['PRICE_UNAVAILABLE', '« Bain nordique » n’a pas de tarif extérieur pour la journée.']);
+  assert.deepEqual([price({}).code, price({}).message], ['PRICE_UNAVAILABLE', '« Bain nordique » n’a pas de tarif extérieur pour la journée en semaine.']);
   db.prepare('UPDATE resources SET hourlyExternalDayRate = 50, price = 25 WHERE id = ?').run(ids.bath);
 });
