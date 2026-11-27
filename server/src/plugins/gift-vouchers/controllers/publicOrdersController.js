@@ -1,5 +1,5 @@
 /**
- * The public side of the online sale (specs/gift-vouchers.md rules 14-21, specs/gift-voucher-campaigns.md rules 16-19, 52, §4.3): the offer, its price, the order, its payment
+ * The public side of the online sale (specs/gift-vouchers/gift-vouchers.md rules 14-21, specs/gift-vouchers/gift-voucher-campaigns.md rules 16-19, 52, §4.3): the offer, its price, the order, its payment
  * and the voucher page. `available` is true only while a payment can be taken online (rule 2). It adds what only the site needs — the key guard of the router, the proof of work,
  * the per-visitor limits, the terms version — and leaves every rule of the sale to `offerService`, the path the back-office takes too. The voucher is issued by the core's
  * paid-link path (`orderPaid.js`), never by anything this controller reads from the browser. An order is reached by its id and its token only — a wrong token and an unknown
@@ -15,7 +15,7 @@ const MAX_RETURN_PATH = 200;
 const ORDERS_PER_HOUR = 5;
 const HOUR_MS = 60 * 60 * 1000;
 const DEAD_LINK = new Set(['expired', 'cancelled']);
-const REQUEST_KEYS = Object.freeze(['slug', 'amountCents', 'extraMinutes', 'addOns']);
+const REQUEST_KEYS = Object.freeze(['slug', 'amountCents', 'extraMinutes', 'addOns', 'period']);
 
 const STATUS = Object.freeze({
   CHALLENGE_INVALID: 403,
@@ -271,7 +271,7 @@ function buildPublicOrdersController({
     if (!voucher) return respond.ok(res, { state: DEAD_LINK.has(linkStatus) ? 'link-expired' : 'pending' });
     const state = rules.stateOf({ voucher, balanceCents: voucher.balanceCents, today: rules.parisDate(now()) });
     const plain = state === 'cancelled' ? null : readCode(voucher);
-    // specs/gift-voucher-campaigns.md rule 21 — a composed voucher is drawn by what it holds, never by its amount.
+    // specs/gift-vouchers/gift-voucher-campaigns.md rule 21 — a composed voucher is drawn by what it holds, never by its amount.
     const campaign = voucher.campaignId && campaigns ? campaigns.find(voucher.campaignId) : null;
     return respond.ok(res, {
       state,

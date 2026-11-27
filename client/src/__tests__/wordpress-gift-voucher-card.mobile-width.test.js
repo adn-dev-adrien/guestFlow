@@ -36,7 +36,12 @@ test('rule 66 — the card root rendered by voucher-card.js carries gf-vcard', a
     ideas: [],
     back: {
       layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
-      texts: { title: 'BON CADEAU', recipient: 'Pour {name}', sender: 'de la part de {name}', codePlaceholder: 'XXXX', validUntil: '{date}', bullet: '•' },
+      texts: { title: 'BON CADEAU' },
+      design: {
+        layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
+        voucherLayout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
+        texts: { title: 'BON CADEAU', recipient: 'Pour {name}', sender: 'de la part de {name}', codePlaceholder: 'XXXX', validUntil: '{date}', bullet: '•' },
+      },
       companyName: 'Domaine Solio',
     },
     campaigns: [{

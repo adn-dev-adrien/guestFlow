@@ -45,7 +45,7 @@ final class GF_Rest_Proxy
      * A REST call carries no page, so Polylang has nothing to read and `GF_Language` would resolve
      * the site's own locale — French. Every upstream call, every cache key and every label would
      * follow it, which is how an English page listed its options and price units in French while the
-     * rest of the drawer was translated (specs/site-english-version.md rule 56).
+     * rest of the drawer was translated (specs/site/site-english-version.md rule 56).
      *
      * Only our own namespace, and never a rejection: an absent or unknown `lang` reads as French,
      * exactly as the public API treats it (rule 1).
@@ -96,7 +96,7 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'get_availability'],
         ]);
-        // CGV (specs/terms-acceptance-record.md §3.2): the current version the booking block offers,
+        // CGV (specs/reservations/terms-acceptance-record.md §3.2): the current version the booking block offers,
         // and a published version by number (immutable).
         register_rest_route(self::NS, '/terms', [
             'methods'             => 'GET',
@@ -114,7 +114,7 @@ final class GF_Rest_Proxy
             'callback'            => [$this, 'post_quote'],
         ]);
         // The proof-of-work challenge the drawer solves before sending (GuestFlow
-        // specs/public-request-abuse-and-grouping.md rule 2). A fixed upstream path: nothing the browser
+        // specs/site/public-request-abuse-and-grouping.md rule 2). A fixed upstream path: nothing the browser
         // sends reaches the URL. Never cached — each challenge is single-use and bound to the visitor.
         register_rest_route(self::NS, '/booking-requests/challenge', [
             'methods'             => 'GET',
@@ -126,7 +126,7 @@ final class GF_Rest_Proxy
             'permission_callback' => [$this, 'verify_nonce'],
             'callback'            => [$this, 'post_booking_request'],
         ]);
-        // Online full-payment (specs/public-online-payment.md): create/reuse the Qonto link for a
+        // Online full-payment (specs/site/public-online-payment.md): create/reuse the Qonto link for a
         // booking-request devis (nonce-protected write), then poll its status from the success page.
         register_rest_route(self::NS, '/booking-requests/(?P<id>\d+)/pay', [
             'methods'             => 'POST',
@@ -139,7 +139,7 @@ final class GF_Rest_Proxy
             'callback'            => [$this, 'get_payment_status'],
         ]);
 
-        // Gift vouchers (specs/gift-vouchers.md §4.3): a fixed list of upstream paths. An id is an integer,
+        // Gift vouchers (specs/gift-vouchers/gift-vouchers.md §4.3): a fixed list of upstream paths. An id is an integer,
         // a token base64url; nothing else the browser sends reaches an upstream URL. Reads of an order are
         // never cached — they carry a capability token.
         register_rest_route(self::NS, '/gift-vouchers/offer', [
@@ -153,7 +153,7 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'post_voucher_price'],
         ]);
-        // « Utiliser un bon cadeau » (specs/gift-voucher-campaigns.md rules 23-32): the code is always in the body.
+        // « Utiliser un bon cadeau » (specs/gift-vouchers/gift-voucher-campaigns.md rules 23-32): the code is always in the body.
         foreach (['use' => 'post_voucher_use', 'use/slots' => 'post_voucher_use_slots', 'use/quote' => 'post_voucher_use_quote', 'use/confirm' => 'post_voucher_use_confirm'] as $path => $callback) {
             register_rest_route(self::NS, '/gift-vouchers/' . $path, [
                 'methods'             => 'POST',
@@ -161,7 +161,7 @@ final class GF_Rest_Proxy
                 'callback'            => [$this, $callback],
             ]);
         }
-        // « Réserver une séance » (specs/site-outside-resource-booking.md §4.4): a fixed list of upstream paths; the reference of a payment is a 32-character hex token.
+        // « Réserver une séance » (specs/site/site-outside-resource-booking.md §4.4): a fixed list of upstream paths; the reference of a payment is a 32-character hex token.
         register_rest_route(self::NS, '/sessions/resources', [
             'methods'             => 'GET',
             'permission_callback' => $public,
@@ -200,7 +200,7 @@ final class GF_Rest_Proxy
             'permission_callback' => [$this, 'verify_nonce'],
             'callback'            => [$this, 'post_voucher_pay'],
         ]);
-        // specs/gift-voucher-campaigns.md rule 62 — the front a campaign sells, read from GuestFlow at its versioned address.
+        // specs/gift-vouchers/gift-voucher-campaigns.md rule 62 — the front a campaign sells, read from GuestFlow at its versioned address.
         register_rest_route(self::NS, '/gift-vouchers/campaigns/(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)/visual', [
             'methods'             => 'GET',
             'permission_callback' => $public,
@@ -365,6 +365,7 @@ final class GF_Rest_Proxy
         $body = (array) $request->get_json_params();
         $forward = $this->voucher_fields($body, [
             'slug'            => 'string',
+            'period'          => 'string',
             'extraMinutes'    => 'int',
             'addOns'          => 'addons',
             'amountCents'     => 'int',
@@ -382,7 +383,7 @@ final class GF_Rest_Proxy
     public function post_voucher_price(WP_REST_Request $request): WP_REST_Response
     {
         $body = (array) $request->get_json_params();
-        $forward = $this->voucher_fields($body, ['slug' => 'string', 'amountCents' => 'int', 'extraMinutes' => 'int', 'addOns' => 'addons']);
+        $forward = $this->voucher_fields($body, ['slug' => 'string', 'period' => 'string', 'amountCents' => 'int', 'extraMinutes' => 'int', 'addOns' => 'addons']);
         return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/offer/price', $forward));
     }
 
@@ -412,12 +413,12 @@ final class GF_Rest_Proxy
     {
         $body = (array) $request->get_json_params();
         return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/use/confirm', $this->voucher_fields($body, [
-            'code' => 'string', 'start' => 'string', 'extraMinutes' => 'int', 'addOns' => 'addons', 'email' => 'string', 'phone' => 'string',
+            'code' => 'string', 'start' => 'string', 'end' => 'string', 'extraMinutes' => 'int', 'addOns' => 'addons', 'email' => 'string', 'phone' => 'string',
             'name' => 'string', 'firstName' => 'string', 'lastName' => 'string', 'people' => 'int', 'termsVersionId' => 'int', 'returnPath' => 'path',
         ])));
     }
 
-    // ----- sessions (specs/site-outside-resource-booking.md §4.4) -----
+    // ----- sessions (specs/site/site-outside-resource-booking.md §4.4) -----
 
     public function get_session_resources(WP_REST_Request $request): WP_REST_Response
     {

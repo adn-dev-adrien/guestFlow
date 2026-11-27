@@ -94,22 +94,22 @@ test('an unknown band, a resource with no evening, a band with no external rate 
   assert.deepEqual(refusalOf(quote(noEvening, { band: 'evening', minutes: 60 })), [['SESSION_BAND_UNKNOWN', '« Bain sans soir » n’a pas de tranche du soir.']]);
   assert.equal(quote(noEvening, { band: 'day', minutes: 60 }).document.totals.totalCents, 5000);
   const noRate = resource({ name: 'Bain gratuit', price: 0, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0 });
-  assert.deepEqual(refusalOf(quote(noRate, { band: 'day', minutes: 60 })), [['SESSION_BAND_NOT_SOLD', '« Bain gratuit » n’a pas de tarif extérieur pour la journée.']]);
+  assert.deepEqual(refusalOf(quote(noRate, { band: 'day', minutes: 60 })), [['SESSION_BAND_NOT_SOLD', '« Bain gratuit » n’a pas de tarif extérieur pour la journée en semaine.']]);
   const hidden = resource({ name: 'Bain caché', sellableExternally: 0 });
   assert.deepEqual(refusalOf(quote(hidden, { band: 'day', minutes: 60 })), [['NOT_SELLABLE', 'Article non vendable hors séjour.']]);
   const nonsense = quote(resource(), { band: 'night', minutes: 60 });
   assert.equal(nonsense.refusals[0].code, 'SESSION_BAND_UNKNOWN');
 });
 
-test('the external rate falls back to the guest rate the way a booking does', () => {
-  const id = resource({ name: 'Bain repli', hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, price: 40, hourlyEveningRate: 60 });
-  assert.equal(quote(id, { band: 'day', minutes: 60 }).document.totals.totalCents, 4000);
-  assert.equal(quote(id, { band: 'evening', minutes: 60 }).document.totals.totalCents, 6000);
+// Amended 2026-11-27 (gift-voucher-week-weekend-and-print rule 2): no fallback to the guests' rate — an outside rate at 0 is a band that is not sold.
+test('an outside rate at 0 is not sold, it no longer falls back to the guest rate', () => {
+  const id = resource({ name: 'Bain non vendu', hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, price: 40, hourlyEveningRate: 60 });
+  assert.deepEqual(refusalOf(quote(id, { band: 'day', minutes: 60 })).map(([code]) => code), ['SESSION_BAND_NOT_SOLD']);
 });
 
 test('with the hourly plugin withdrawn a session cannot be quoted', () => {
   const id = resource();
   withdrawHourlyResources();
-  assert.deepEqual(refusalOf(quote(id, { band: 'day', minutes: 60 })), [['NEEDS_FULFILMENT', 'Une séance se réserve au planning.']]);
+  assert.deepEqual(refusalOf(quote(id, { band: 'day', minutes: 60 })), [['NEEDS_FULFILMENT', 'Les ressources à l’heure ne sont pas disponibles pour le moment.']]);
   liveHourlyResources();
 });

@@ -1,4 +1,4 @@
-// Ressources à l'heure — client module (specs/plugins-phase-3c-hourly-resources.md §3.E): the
+// Ressources à l'heure — client module (specs/plugins/plugins-phase-3c-hourly-resources.md §3.E): the
 // Calendrier › Ressources page, the hourly block of the resource form, the sessions under a fiche
 // line, the « Planifier » step of the arrival SAS and the timed cards of the planning.
 import { lazy } from 'react';
@@ -7,6 +7,7 @@ import {
   initialValue, payloadOf, recapNotes,
 } from './sasStep';
 import { countResourceTasks } from './planningTasks';
+import { hourlyPriceForm } from './hourlyPriceForm';
 
 const isPerHour = (resource) => resource && resource.priceType === 'per_hour';
 
@@ -15,24 +16,32 @@ export default {
   contributes: {
     routes: [
       { path: '/resource-planning', Component: lazy(() => import('./ResourcePlanningPage')), roles: ['admin'] },
-      // « Passage » — the fiche of a booking outside a stay (specs/gift-voucher-campaigns.md rule 53); no nav item, it is reached from a card, the SAS or a list.
+      // « Passage » — the fiche of a booking outside a stay (specs/gift-vouchers/gift-voucher-campaigns.md rule 53); no nav item, it is reached from a card, the SAS or a list.
       { path: '/passages/:bookingId', Component: lazy(() => import('./OutsideBookingPage')), roles: ['admin'] },
     ],
     'calendar.menu': [{ path: '/resource-planning', label: 'Ressources' }],
     // What the settings search finds Options & ressources by while hours are sold
-    // (specs/platform-settings-relay-and-review.md rule 10).
+    // (specs/platforms/platform-settings-relay-and-review.md rule 10).
     'settings.keywords': [{ key: 'hourly', path: '/parametres/options-ressources', keywords: ['Ressources à l’heure', 'Créneaux', 'Sauna', 'Spa'] }],
-    // specs/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
+    // specs/resources/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
     'settings.integrations': [{ key: 'hourly-vat', order: 60, tabLabel: 'Ressources à l’heure', keywords: ['TVA', 'Bain nordique', 'Hors séjour'], Component: lazy(() => import('./SettingsSection')) }],
     'resources.fields': [{
       key: 'hourly', appliesTo: isPerHour, Component: lazy(() => import('./HourlyResourceFields')),
+    }],
+    // Every price of an hourly resource, in the « Prix » section of its editor (gift-voucher-week-weekend-and-print spec rules 1, 28): the grids, and the form model the core's
+    // resource form asks (defaults, stored ⇄ typed, payload, checks).
+    'resources.priceFields': [{
+      key: 'hourly-prices',
+      appliesTo: (resource) => isPerHour(resource) && Boolean(resource.showsPlanningCard),
+      Component: lazy(() => import('./HourlyPriceGrids')),
+      form: hourlyPriceForm,
     }],
     'reservation.resourceLine': [{
       key: 'sessions',
       appliesTo: (resource) => isPerHour(resource) && Boolean(resource.showsPlanningCard),
       Component: lazy(() => import('./ResourceSessionsPicker')),
     }],
-    // Right after the read-only prestations list (specs/hourly-resource-quantity-and-sas-scheduling.md
+    // Right after the read-only prestations list (specs/resources/hourly-resource-quantity-and-sas-scheduling.md
     // §3.4 rule 17), while hours are left to place.
     'sas.arrival.steps': [{
       key: 'resourceScheduling',

@@ -8,7 +8,7 @@ import GiftVoucherSettings from '../GiftVoucherSettings';
 import { renderWithShell } from './giftVoucherFixtures';
 
 vi.mock('../giftVouchersApi', () => ({
-  default: { getSettings: vi.fn(), saveSettings: vi.fn() },
+  default: { getSettings: vi.fn(), saveSettings: vi.fn(), catalogue: vi.fn() },
 }));
 
 const stored = { pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'bon-cadeau' };
@@ -17,6 +17,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   giftVouchersApi.getSettings.mockResolvedValue(stored);
   giftVouchersApi.saveSettings.mockResolvedValue(stored);
+  giftVouchersApi.catalogue.mockResolvedValue({ elements: [{ articleRef: 'option:5', kind: 'option', label: 'Boisson chaude', sellable: true }, { articleRef: 'option:6', kind: 'option', label: 'Bougie', sellable: false }] });
 });
 
 test('shows the two declared settings and nothing that moved to the campaign', async () => {
@@ -36,7 +37,7 @@ test('the link base falls back to « bon-cadeau » when the server holds none', 
   expect(await screen.findByLabelText('Base des liens permanents')).toHaveValue('bon-cadeau');
 });
 
-test('saving sends only the declared keys', async () => {
+test('saving sends only the declared keys, the drink only when it changed (the server judges it against the live catalogue)', async () => {
   renderWithShell(<GiftVoucherSettings />);
   const base = await screen.findByLabelText('Base des liens permanents');
   await userEvent.clear(base);

@@ -30,6 +30,7 @@ const { createHoldsModel } = require('./holdsModel');
 const { createSessionOrdersModel } = require('./sessionOrdersModel');
 const { createPublicSessionService } = require('./publicSessionService');
 const { isOfferedOnline } = require('./sessionQuote');
+const { validateHourlyRates } = require('./resourceRates');
 const { buildPublicSessionController } = require('./publicSessionController');
 const { buildPublicSessionRouter } = require('./publicSessionRoutes');
 const { CHANNEL: ONLINE_SALES_CHANNEL, CHANNEL_LABEL: ONLINE_SALES_LABEL } = require('./sessionNotices');
@@ -104,6 +105,8 @@ function register(ctx) {
   ctx.articleFamily('hourly', createHourlyFamily(hourlyContributor));
   // specs/options/options-resources-ux.md rule 19 — the evening / external rates and the schedule on the card.
   ctx.resourceCatalogueLines(buildCatalogueLines);
+  // gift-voucher-week-weekend-and-print rules 2, 28 — the price grids of an hourly resource are checked here, not by the core.
+  ctx.resourceValidator(validateHourlyRates);
 
   // Rule 10 — the external bookings, the SAS picker's free slots and the planning cards, at their
   // current URLs.

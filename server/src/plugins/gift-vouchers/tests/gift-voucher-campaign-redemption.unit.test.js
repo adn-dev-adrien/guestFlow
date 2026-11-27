@@ -152,7 +152,7 @@ test('« Mon bain » opens a voucher: its contents, the names, the validity, the
   const { ok, data } = ask.open(voucher);
   assert.equal(ok, true);
   assert.deepEqual(data.contents.map((c) => [c.kind, c.label, c.detail, c.qty]), [
-    ['session', 'Bain nordique', '2 h en journée · de 10:00 à 19:00', 1],
+    ['session', 'Bain nordique', '2 h en journée · semaine · de 10:00 à 19:00', 1],
     ['option', 'Planche apéro', null, 1],
   ]);
   assert.deepEqual([data.kind, data.recipientName, data.senderName, data.message, data.expiresOn], ['resource', 'Léa', 'Paul', 'Joyeux anniversaire', '2027-11-15']); // date-literal-ok: the suite runs on its own clock, never the real today
@@ -202,17 +202,19 @@ test('five wrong attempts of a visitor close the door on that visitor, as the pu
   assert.deepEqual(new Set(typo), new Set(['VOUCHER_CODE_MISTYPED']), 'a mistyped code is told, not counted');
 });
 
-test('the slots of a day voucher: all the day starts of the window, the evening ones tagged with the engine\'s supplement; an evening voucher is offered evening slots only', () => {
+test('the slots of a day voucher: all the day starts of the window, the evening ones tagged with the engine\'s supplement; an evening voucher is offered every slot (rule 14 amended by the week-weekend spec rule 15)', () => {
   const voucher = dayVoucher();
   const { data } = ask.slots(voucher, { from: day(1), to: day(1) });
   const byStart = Object.fromEntries(data.days[0].slots.map((s) => [s.start, s]));
-  assert.deepEqual(Object.keys(byStart), ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00']);
+  assert.deepEqual(Object.keys(byStart), ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'], 'the whole opening, evening starts included (rule 14 amended)');
   assert.deepEqual([byStart['17:00'].tag, byStart['17:00'].supplementCents, byStart['17:00'].end], ['in', 0, '19:00']);
   assert.deepEqual([byStart['18:00'].tag, byStart['18:00'].supplementCents, byStart['18:00'].end], ['supplement', 1800, '20:00']);
   assert.equal(data.horizonUntil, '2027-02-15'); // date-literal-ok: the suite runs on its own clock, never the real today
   const evening = eveningVoucher();
   const eve = ask.slots(evening, { from: day(1), to: day(1) }).data.days[0].slots;
-  assert.deepEqual(eve.map((s) => [s.start, s.end, s.tag, s.supplementCents]), [['19:00', '21:00', 'in', 0], ['20:00', '22:00', 'in', 0]]);
+  assert.deepEqual(eve.map((s) => s.start), ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00']);
+  assert.deepEqual(eve.filter((s) => s.supplementCents > 0), [], 'a slot that costs less than the evening voucher never owes a supplement');
+  assert.deepEqual([eve[0].tag, eve.at(-1).tag], ['in', 'in'], 'no drink option is set: the gap is only traced');
 });
 
 test('the slots leave out the closed hours, the past and what is beyond the horizon, and name the horizon', () => {
@@ -476,7 +478,8 @@ test('specs/gift-vouchers/gift-voucher-campaigns.md rules 14, 45 — an evening 
   const voucher = eveningVoucher();
   const quote = ask.quote(voucher, { start: `${day(16)}T19:00` });
   assert.deepEqual([quote.data.supplement, quote.data.dueCents], [null, 0]);
-  assert.equal(ask.quote(voucher, { start: `${day(16)}T17:00` }).code, 'SLOT_TAKEN', 'a day start is not offered to an evening voucher');
+  const cheaper = ask.quote(voucher, { start: `${day(16)}T17:00` });
+  assert.deepEqual([cheaper.ok, cheaper.data.dueCents], [true, 0], 'a day start is offered to an evening voucher too (rule 14 amended): it costs less, nothing is due');
   const booked = await ask.confirm(voucher, { start: `${day(16)}T19:00` });
   assert.equal(booked.ok, true, JSON.stringify(booked));
   const document = standaloneSale.documentOf(Number(db.prepare('SELECT saleRef FROM resource_bookings WHERE id = ?').get(booked.data.bookingId).saleRef.split(':')[1]));

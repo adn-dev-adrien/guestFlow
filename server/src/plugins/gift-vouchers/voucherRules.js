@@ -1,5 +1,5 @@
 /**
- * What a voucher is, as pure rules (specs/gift-vouchers.md rules 5-11, 28, 31). No database, no clock: the caller
+ * What a voucher is, as pure rules (specs/gift-vouchers/gift-vouchers.md rules 5-11, 28, 31). No database, no clock: the caller
  * hands the dates in, a suite moves them.
  */
 
@@ -7,6 +7,16 @@ const DEFAULT_MIN_CENTS = 2000;
 const DEFAULT_MAX_CENTS = 200000;
 const DEFAULT_VALIDITY_MONTHS = 18;
 const MAX_VALIDITY_MONTHS = 120;
+// Week-weekend-and-print spec rule 13 — the validity is picked from a short list, in a campaign, on « Nouveau bon » and for a hand-made voucher.
+const VALIDITY_CHOICES = Object.freeze([3, 6, 12, 18, 24]);
+const VALIDITY_REFUSAL = 'La validité doit être de 3, 6, 12, 18 ou 24 mois.';
+// Rule 10 — a bath voucher is sold for the week or for the weekend of the outside grid.
+const PERIODS = Object.freeze(['week', 'weekend']);
+const PERIOD_LABELS = Object.freeze({ week: 'semaine', weekend: 'week-end' });
+
+/** « · week-end » — the period a bath voucher was sold for (rule 12 of the week-weekend spec), nothing for a voucher sold before periods existed. */
+const periodSuffix = (resource) => (resource && resource.period && PERIOD_LABELS[resource.period] ? ` · ${PERIOD_LABELS[resource.period]}` : '');
+const FRONT_PRICE_POSITIONS = Object.freeze(['bottom-right', 'bottom-left', 'top-right', 'top-left', 'none']);
 const DEFAULT_VAT_PERCENT = 10;
 
 function parseJson(value, fallback) {
@@ -40,6 +50,13 @@ function formatEuros(cents) {
 }
 
 const formatFrDate = (iso) => String(iso).split('-').reverse().join('/');
+
+const MONTHS_FR = Object.freeze(['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']);
+/** `2028-05-27` → `27 mai 2028` (the first of the month is `1er`): the date as the back of a card writes it. */
+const formatLongFrDate = (iso) => {
+  const [year, month, day] = String(iso).split('-').map(Number);
+  return `${day === 1 ? '1er' : day} ${MONTHS_FR[month - 1]} ${year}`;
+};
 
 const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value)) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
   && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
@@ -161,6 +178,12 @@ module.exports = {
   DEFAULT_MAX_CENTS,
   DEFAULT_VALIDITY_MONTHS,
   MAX_VALIDITY_MONTHS,
+  VALIDITY_CHOICES,
+  VALIDITY_REFUSAL,
+  PERIODS,
+  PERIOD_LABELS,
+  periodSuffix,
+  FRONT_PRICE_POSITIONS,
   DEFAULT_VAT_PERCENT,
   MONEY_KINDS,
   KINDS,
@@ -170,6 +193,7 @@ module.exports = {
   parisDate,
   formatEuros,
   formatFrDate,
+  formatLongFrDate,
   checkAmountCents,
   checkVatRate,
   vatSplit,

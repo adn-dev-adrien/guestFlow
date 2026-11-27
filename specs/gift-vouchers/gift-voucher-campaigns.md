@@ -82,6 +82,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 1. Campaigns live in the `gift-vouchers` plugin. Off or absent, nothing of them is visible: no menu,
    no public route, no field in the booking engine, no WordPress block content (rule 40).
 2. A campaign has:
+   > *Amended 2026-11-27 (week-weekend spec rules 10, 13, 21): a resource campaign also has **periods** (`week`, `weekend`, one or both — the giver picks inside it), its validity is one of 3, 6, 12, 18 or 24 months, and it carries the corner where its merchant card prints « à partir de ».*
    - a **name** for the operator;
    - a **public title** printed on the voucher's back and shown on the site;
    - a **kind**;
@@ -195,6 +196,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       and the remainder is the difference with the day price the voucher covers.
     - An **evening** voucher is offered evening slots only: a session starting at or after
       `hourlyEveningStart`. The evening-to-day direction does not exist and is not modelled.
+    > *Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rules 15-17: **every slot is offered, in every direction** — an evening voucher on a day slot, a week voucher on a weekend slot. A slot that costs more than the voucher's value owes the difference, named by what costs more (« Supplément soirée », « Supplément week-end », « Supplément soirée week-end », « Supplément créneau »); one that costs less gives one drink, whatever the gap; an evening-weekend voucher on a free day-week slot gives 2 h and a drink. The sentence above about evening vouchers offered evening slots only is withdrawn.*
 15. **Unused value is traced.** When part of a voucher is not used — an option the operator marks
     « non pris » in the arrival SAS — nothing is kept as a balance. The settle movement records the
     unused part and its value at the day's prices. The admin detail shows « Écart non utilisé : … »
@@ -203,6 +205,8 @@ Rules are identities: a rule is never renumbered, new rules are appended
       by the core's `prepaidSources.unusedFor` when the operator marks a line « non pris » on the outside visit; the
       plugin writes `gift_voucher_unused` (the ledger's `kind` constraint cannot take a new kind on an existing
       database), the admin detail reads `unusedCents` / `unused`. Nothing is kept as a balance.
+
+*Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rules 15-16: a slot that costs less than the voucher's value leaves its difference traced under the label « Écart de créneau » (the unused value of that booking, recorded in the same transaction as the booking and shown on the voucher's detail as « Écart non utilisé »); the voucher is settled whole and the difference is never kept as a balance.*
 
 ### 3.C The giver's tunnel
 
@@ -292,6 +296,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
     so it never sits in a log).
     - They are built from the resource's opening days, opening hours, slot step, capacity, turnover,
       existing bookings and holds, and bounded by the resource's booking horizon (rule 51).
+    > *Amended 2026-11-27 (week-weekend spec rules 15-17, §4.4 of this spec): the tags are `in`, `supplement`, `drink`, `twoHoursDrink` and `twoHours`; a slot answer also carries `supplementLabel`, `dueCents`, `evening` and, for a doubled slot, its doubled `end`; `/use/confirm` takes the `end` the recap showed and refuses with `RECAP_CHANGED` when it no longer holds.*
     - Each slot is tagged by the server: « Inclus » when it fits the voucher's band, or
       « + x € soirée » with the engine's supplement.
 26. Choosing a slot asks the server for the recap: the included lines, the supplement, the added
@@ -344,6 +349,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 ### 3.F The merchant card
 
 33. When a campaign has a merchant card front, its page offers the printable PDF (rule 49).
+    > *Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rules 19, 21: the back is redrawn on white with one rectangle for the code (no guide cells), and the front carries « à partir de » and the campaign's lowest price in the corner it chose (or none); « Imprimer… » lays 1 to 8 cards per A4 sheet (rules 22-27).*
     - The PDF is A6 two-sided, with 3 mm bleed and crop marks.
     - **Front**: the picked front.
     - **Back**, drawn by GuestFlow:
@@ -776,6 +782,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 ### 3.V The whole card on the website, front and back (added 2026-11-26)
 
 66. **The site shows the card the buyer will receive: its front and its back, as the PDF draws them**
+    > *Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rules 18, 20: the back (PDF, mail, website) follows the new design on white — logo, « BON CADEAU », the campaign's title with its period, the QR code, three numbered steps (a stay voucher has its own), one rectangle for the code, then contents, message and « Valable jusqu'au <date> » (the validity is never the line that gives way); the website's `back` carries `titles`, `linesByPeriod`, `steps` and the validity in long French form.*
     (owner request of 2026-11-26; mock-up and the owner's six choices: `docs/specs/2026-11-26-gift-voucher-site-card-back.html`;
     amends rule 62).
     - **Before:** the front stood beside the form, and an « Aperçu du bon » — a grey ticket with no logo, no
@@ -937,16 +944,16 @@ Public (existing key guard, proof of work on writes):
 
 | Method | Path | Body / query | Answer |
 |---|---|---|---|
-| GET | `/public/v1/gift-vouchers/offer` | — | `{ campaigns: [{ slug, kind, title, contents, addOns:[{ articleRef, label, maxQty, unitLabel, linear, prices:[{ qty, cents }] }], extraTime:{ maxMinutes, stepMinutes, prices:[{ minutes, cents }] }, band:{ from, to } }] }` (prices: rule 64) |
-| — | (rule 66, added to the two answers above and below) | — | `/offer` gains `back: { layout, texts, logoUrl, companyName, identity, website, link, previewQrSvg }` and, on each campaign, `back: { lines \| lineTemplate, validUntil }`; `GET /orders/:id` gains `voucher.back: { lines, validUntil, link, qrSvg, front }` with the real redemption QR (`front`: the voucher has a frozen front, to read at `/orders/:id/front`); each campaign's `back` also carries `extraTime` and `addOns` (the line of each step); `layout` also carries the PDF's `lineHeight` (pdfkit's line pitch, ems). No `back` anywhere when the company has no website |
+| GET | `/public/v1/gift-vouchers/offer` | — | `{ campaigns: [{ slug, kind, title, contents, contentsByPeriod, periods:[{ period, priceCents, label, hint }] (cheapest first), addOns:[{ articleRef, label, maxQty, unitLabel, linear, prices:[{ qty, cents }] }], extraTime:{ maxMinutes, stepMinutes, prices:[{ minutes, cents }], pricesByPeriod }, band:{ from, to } }] }` (prices: rule 64; `contents`, `extraTime.prices` and `totalCents` are those of the first, cheapest period; `hint` says what the period means) |
+| — | (rule 66, added to the two answers above and below) | — | `/offer` gains `back: { layout, texts, design: { layout, voucherLayout, texts }, logoUrl, companyName, identity, website, link, previewQrSvg }` (`layout` and `texts` are the drawing 4.7.0 sent, kept key for key for a connector before 1.27.0; the redrawn back is `design`, week-weekend spec K10) and, on each campaign, `back: { lines \| lineTemplate, linesByPeriod, titles, title, steps, validUntil }` (`linesByPeriod` and `titles` per offered period for a campaign that sells two, `title` and `steps` of a lodging campaign, which a GuestFlow before 1.27.0 does not send: the connector then draws its own stay steps); `GET /orders/:id` gains `voucher.back: { lines, validUntil, link, qrSvg, front }` with the real redemption QR (`front`: the voucher has a frozen front, to read at `/orders/:id/front`); each campaign's `back` also carries `extraTime` and `addOns` (the line of each step); `layout` also carries the PDF's `lineHeight` (pdfkit's line pitch, ems). No `back` anywhere when the company has no website |
 | GET | `/public/v1/gift-vouchers/orders/:id/front?token=` | — | The voucher's frozen front as the 720 px web JPEG (`private, no-store`), 404 when none (rule 66) |
 | GET | `/public/v1/gift-vouchers/logo?v=<hash>` | — | The company logo as PNG (immutable), 404 when none (rule 66) |
-| POST | `/public/v1/gift-vouchers/offer/price` | `{ slug, extraMinutes, addOns:[{ articleRef, qty }] }` | `{ lines, totalCents, extrasCents, vat:[{ rate, cents }] }` (`extrasCents`: rule 64) |
+| POST | `/public/v1/gift-vouchers/offer/price` | `{ slug, period?, extraMinutes, addOns:[{ articleRef, qty }] }` (`period`: the cheapest offered one when a public caller sends none, K1 of the week-weekend spec) | `{ lines, totalCents, extrasCents, vat:[{ rate, cents }] }` (`extrasCents`: rule 64) or `PRICE_UNAVAILABLE` whose `refusals[]` carry `SESSION_BAND_NOT_SOLD` (`{ code, message, period? }`) when a band or a period of the outside grid has no first-hour price |
 | POST | `/public/v1/gift-vouchers/orders` | as today + `slug`, `extraMinutes`, `addOns`, `termsVersionId`; `recipientFirstName`, `recipientLastName` replace `recipientName` (required; refusals `RECIPIENT_FIRST_NAME_REQUIRED`, `RECIPIENT_LAST_NAME_REQUIRED` with their `field`) | as today |
 | POST | `/public/v1/gift-vouchers/use` | `{ code }` | `{ kind, contents, names, expiresOn, addOns, extraTime, horizonUntil }` or a refusal — `addOns`/`extraTime` priced as in `/offer` (rule 64) |
-| POST | `/public/v1/gift-vouchers/use/slots` | `{ code, from, to }` | `{ days:[{ date, slots:[{ start, end, tag, supplementCents }] }] }` |
-| POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ included, extras, extrasCents, extraTimePrices:[{ minutes, cents }], dueCents, vat }` (`extrasCents`, `extraTimePrices`: rule 64) |
-| POST | `/public/v1/gift-vouchers/use/confirm` | quote + `{ email, phone, termsVersionId }` | `{ booked }` or `{ payUrl, heldUntil }` |
+| POST | `/public/v1/gift-vouchers/use/slots` | `{ code, from, to, extraMinutes? }` | `{ days:[{ date, slots:[{ start, end, tag, supplementCents, supplementLabel, dueCents, evening }] }] }` — `tag`: `in` \| `supplement` \| `drink` \| `twoHoursDrink` \| `twoHours`; `end` is the doubled end of a `twoHours*` slot (week-weekend spec rule 17) |
+| POST | `/public/v1/gift-vouchers/use/quote` | `{ code, start: 'YYYY-MM-DDTHH:MM', extraMinutes, addOns }` | `{ date, start, end, included, supplement, gifts, extras, extrasCents, extraTimePrices:[{ minutes, cents }], dueCents, totalCents, vat }` (`extrasCents`, `extraTimePrices`: rule 64; `end` is the doubled end when the offered hour applies; `supplement` and `gifts` the week-weekend spec's rules 15-17; refusals include `EXTRA_TIME_UNAVAILABLE`, `SLOT_TAKEN`, `BAND_NOT_SOLD`, and `PRICE_UNAVAILABLE` with a `SESSION_BAND_NOT_SOLD` refusal when the slot falls in a band or a period with no outside price) |
+| POST | `/public/v1/gift-vouchers/use/confirm` | quote + `{ end?, email, phone, termsVersionId }` | `{ booked }` or `{ payUrl, heldUntil }` |
 | GET | `/public/v1/gift-vouchers/links/:slug` | — | `{ target }` |
 | GET | `/public/v1/gift-vouchers/campaigns/:slug/visual` | `?v=<versionId>` | The campaign's voucher front, web JPEG, immutable (rule 62); each `/offer` campaign carries `visual: { versionId, width, height } \| null` |
 | GET | `/public/v1/terms` | `?activity=resource` | current version of the activity |

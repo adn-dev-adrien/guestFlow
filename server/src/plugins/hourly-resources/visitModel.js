@@ -1,5 +1,5 @@
 /**
- * The visit of an outside client — the mini SAS of a booking with no stay (specs/outside-booking-sas.md rules 1-34).
+ * The visit of an outside client — the mini SAS of a booking with no stay (specs/sas/outside-booking-sas.md rules 1-34).
  *
  * The plugin owns the screen, the session line and the slot; the money is the core's external sale (`standaloneSale`): one document per visit, named on the
  * booking by `saleRef = standalone:<id>`. This model only builds what the core is asked — the session line priced by the plugin's hourly pricing (a
@@ -20,7 +20,10 @@
  *   documentOf(row)                      the document payload with the legacy session, or null
  *   moneyOf(row)                         `{ totalCents, paidCents, remainingCents, payments }` of a booking whose money is on a document, else null
  *   draftMoneyOf(row, draft)             the same for the visit as a commit of `draft` would find it, nothing written (loop t2 B2-7)
- *   repriceSession(row)                  the session line of an unpaid visit follows its booking's new slot (a retired line and a new one, journaled)
+ *   repriceSession(row)                  the session lines of an unpaid visit follow its booking's new slot (retired lines and a new one, journaled)
+ *   movedSessionRefusal(row)             the save's BOOKING_PAID refusal when the session line is already paid (what the preview of a move answers), else null
+ *   offeredSessionFigure(row)            0 € when the booking's session was offered at the visit (what a move keeps), else null
+ *   sessionFigureOf(row)                 what the document charges for the booking's session `{ totalCents, lines }`, the one figure every reader of the booking gives; null while it is on no document
  *   notTaken(row, lineId, { actor })     an element a prepaid instrument paid that the client did not take (rules 15, 36 of the campaigns spec): marked, journaled,
  *                                        and the instrument told through its generic `unused` call
  *   history(row, text, actor)            one line of the visit's journal (rule 53), when the booking has a document
@@ -60,7 +63,7 @@ function createVisitModel({
     const minutes = offeredMinutes === undefined || offeredMinutes === null ? Number(row.offeredMinutes) || 0 : offeredMinutes;
     const priced = bookings().priceBooking({
       resourceId: row.resourceId, bookingId: row.id, date: row.date, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, offeredMinutes: minutes,
-    });
+    }, { fresh: true });
     if (priced.error) return { refusal: refuse(priced.status || 400, 'SESSION_REFUSED', priced.error, { field: 'offeredMinutes' }) };
     const totalCents = toCents(priced.total);
     const parts = partsOf(priced);
@@ -111,6 +114,40 @@ function createVisitModel({
   const storedSession = (document, row) => (document
     ? document.lines.find((line) => line.fulfilmentRef === sessionRefOf(row.id) && line.status !== 'cancelled' && line.id != null) || null
     : null);
+
+  // Every line of the document that sells the booking's session: the session itself and, when a voucher use made the booking, its added time and its offered hour.
+  const isSessionLine = (line, row) => line.id != null && line.status !== 'cancelled'
+    && [sessionRefOf(row.id), `${sessionRefOf(row.id)}:extra`, `${sessionRefOf(row.id)}:offered`].includes(line.fulfilmentRef);
+  const sessionLinesOf = (document, row) => (document ? document.lines.filter((line) => isSessionLine(line, row)) : []);
+
+  /**
+   * What the document charges for the booking's session, as the figure every reader of the booking gives (`totalCents`) and the lines that make it up — null while the session is not on a
+   * document. A session paid on the booking before its document is the booking's own figure (rule 37), so it has none here.
+   */
+  function sessionFigureOf(row) {
+    if (!row || paidOnBooking(row)) return null;
+    const lines = sessionLinesOf(documentOf(row), row);
+    if (!lines.length) return null;
+    return {
+      totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
+      lines: lines.flatMap((line) => {
+        const parts = Array.isArray(line.components) ? line.components : [];
+        const whole = parts.length > 0 && parts.reduce((sum, part) => sum + Number(part.amountCents || 0), 0) === line.totalCents;
+        return whole
+          ? parts.map((part) => ({ key: part.key, label: part.label, detail: part.detail || '', amount: Number(part.amountCents) / 100 }))
+          : [{ key: line.fulfilmentRef, label: line.label, detail: line.detail || '', amount: line.totalCents / 100 }];
+      }),
+    };
+  }
+
+  // The figure of a session the operator offered at the visit: 0 € (a move re-prices its line as offered, so it stays at 0 €); null when it is not offered or not on a document.
+  function offeredSessionFigure(row) {
+    if (!row || paidOnBooking(row)) return null;
+    const own = sessionLinesOf(documentOf(row), row).filter((line) => line.fulfilmentRef === sessionRefOf(row.id));
+    return own.length && own.some((line) => line.offered)
+      ? { totalCents: 0, lines: [{ key: sessionRefOf(row.id), label: resourceName(row), detail: '', amount: 0 }] }
+      : null;
+  }
 
   // The session the visit still has to sell: none when it is paid on the booking, already on the document (even retired: a no-show, a re-priced slot), or
   // the client did not come.
@@ -397,7 +434,15 @@ function createVisitModel({
     const result = body.remove === true
       ? core().removeLine(saleId, lineId, options)
       : core().offerLine(saleId, lineId, { ...options, offered: body.offered !== false });
-    return result.status === 200 ? { ok: true } : fromCore(result);
+    if (result.status !== 200) return fromCore(result);
+    keepStoredFigure(row);
+    return { ok: true };
+  }
+
+  // The booking's stored total is the document's session figure while the session is on a document: offering the session (or taking the offer back) moves both together.
+  function keepStoredFigure(row) {
+    const figure = sessionFigureOf(db.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(row.id));
+    if (figure) db.prepare('UPDATE resource_bookings SET totalPrice = ? WHERE id = ?').run(figure.totalCents / 100, row.id);
   }
 
   /** Is the line paid, even in part? The reception may not touch it (rule 7). */
@@ -501,17 +546,27 @@ function createVisitModel({
    * Edge case of §3 — a booking moved after its session was sold is re-priced only while the session line is unpaid: the line is retired and the new
    * price appended, both journaled on the document (rule 23: explicit actions, never a rewrite). A paid session answers 409 `BOOKING_PAID`.
    */
+  const settledRefusal = (lines) => (lines.some((line) => line.settledCents > 0) ? refuse(409, 'BOOKING_PAID', 'Le prix change : la séance est déjà payée.') : null);
+
+  /** What the preview of a move answers when the save would refuse it: a session line already paid (the save's sentence), else null. */
+  function movedSessionRefusal(row) {
+    if (!row || paidOnBooking(row)) return null;
+    return settledRefusal(sessionLinesOf(documentOf(row), row));
+  }
+
   function repriceSession(row, { actor = null } = {}) {
     const saleId = saleIdOf(row);
-    const document = documentOf(row);
-    const line = storedSession(document, row);
-    if (!line) return { ok: true };
-    if (line.settledCents > 0) return refuse(409, 'BOOKING_PAID', 'Le prix change : la séance est déjà payée.');
-    const fresh = sessionDraft(row, { offered: line.offered });
+    const lines = sessionLinesOf(documentOf(row), row);
+    if (!lines.length) return { ok: true };
+    const settled = settledRefusal(lines);
+    if (settled) return settled;
+    const fresh = sessionDraft(row, { offered: lines.some((line) => line.offered) });
     if (fresh.refusal) return fresh.refusal;
-    if (fresh.line.totalCents === line.catalogueCents) return { ok: true };
-    const removed = core().removeLine(saleId, line.id, {});
-    if (removed.status !== 200) return fromCore(removed);
+    if (fresh.line.totalCents === lines.reduce((sum, line) => sum + line.catalogueCents, 0)) return { ok: true };
+    for (const line of lines) {
+      const removed = core().removeLine(saleId, line.id, {});
+      if (removed.status !== 200) return fromCore(removed);
+    }
     const sold = core().sell({ saleId, lines: [], fulfilments: [fresh.line], originRef: originRefOf(row.id), source: 'visit' }, { actor, now: now() });
     return sold.status === 200 ? { ok: true } : fromCore(sold);
   }
@@ -529,7 +584,7 @@ function createVisitModel({
   }
 
   return {
-    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
+    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, sessionFigureOf, offeredSessionFigure, movedSessionRefusal, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
   };
 }
 

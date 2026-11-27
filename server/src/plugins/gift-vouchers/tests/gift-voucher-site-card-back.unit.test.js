@@ -15,7 +15,10 @@ const fx = require('./campaignFixtures');
 const sale = require('./giftVoucherFixtures');
 const campaignRules = require('../campaignRules');
 const rules = require('../voucherRules');
-const { BACK_LAYOUT, BACK_TEXTS, redeemUrl } = require('../voucherPdf');
+const {
+  BACK_LAYOUT, VOUCHER_BACK_LAYOUT, BACK_TEXTS, redeemUrl,
+} = require('../voucherPdf');
+const { LEGACY_BACK_LAYOUT, LEGACY_BACK_TEXTS } = require('../legacyBack');
 const { contentLines } = require('../contentsText');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -26,7 +29,7 @@ const { durationText } = require('../offerService');
 
 const ORIGIN = 'https://site.example.test';
 const ids = fx.seedCatalogue();
-const company = { name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', website: ORIGIN, logo: null };
+const company = { name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', department: 'Lot', website: ORIGIN, logo: null };
 const shop = fx.openShop({ company: async () => company });
 const { api, clock } = shop;
 const bath = api.campaigns.find(api.campaigns.insert(campaignRules.validateCampaign(fx.bathCampaign(ids), fx.rulesContext(api)).value));
@@ -68,11 +71,12 @@ async function buy(site, slug, extra = {}) {
 
 test('rule 66 — the offer sends the PDF\'s own dimensions and words, and the company the back prints', () => withServer(async (site) => {
   const { back } = await offerOf(site);
-  assert.deepEqual(back.layout, BACK_LAYOUT);
-  assert.deepEqual(back.texts, BACK_TEXTS);
+  assert.deepEqual(back.design, { layout: BACK_LAYOUT, voucherLayout: VOUCHER_BACK_LAYOUT, texts: BACK_TEXTS });
+  assert.deepEqual(back.layout, LEGACY_BACK_LAYOUT, 'K10 — the keys of 4.7.0 stay as they were');
+  assert.deepEqual(back.texts, LEGACY_BACK_TEXTS);
   assert.deepEqual([back.layout.safeMm, back.layout.legalStripMm, back.layout.qrMm, back.layout.logoMm], [5, 5, 23, 12]);
   assert.equal(back.companyName, 'Domaine Solio');
-  assert.equal(back.identity, 'Domaine Solio · Saint-Cirq-Lapopie');
+  assert.equal(back.identity, 'Domaine Solio · Saint-Cirq-Lapopie · Lot');
   assert.equal(back.website, 'site.example.test');
   assert.equal(back.link, 'site.example.test/bon-cadeau/utiliser');
   assert.equal(back.logoUrl, null);
@@ -88,7 +92,7 @@ test('rule 66 — a campaign\'s lines are the PDF\'s own contentLines of a vouch
   const offered = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
   const voucher = (await buy(site, bath.slug)).voucher;
   assert.deepEqual(offered.back.lines, voucher.contentLines);
-  assert.deepEqual(offered.back.lines, ['Bain nordique : 2 h en journée', 'Planche apéro']);
+  assert.deepEqual(offered.back.lines, ['Bain nordique\u00a0: 2 h en journée · semaine', 'Planche apéro']);
 }));
 
 test('rule 66 — a lodging campaign sends a template; filled with the amount it is the PDF\'s line', () => withServer(async (site) => {
@@ -103,9 +107,9 @@ test('rule 66 — « Valable jusqu\'au » is the issuance\'s expiry for a purcha
   const offer = await offerOf(site);
   const today = rules.parisDate(clock.at);
   offer.campaigns.forEach((c) => {
-    assert.equal(c.back.validUntil, rules.formatFrDate(rules.expiryFor(today, c.validityMonths)), c.slug);
+    assert.equal(c.back.validUntil, rules.formatLongFrDate(rules.expiryFor(today, c.validityMonths)), c.slug);
   });
-  assert.equal(offer.campaigns.find((c) => c.slug === bath.slug).back.validUntil, '15/11/2027');
+  assert.equal(offer.campaigns.find((c) => c.slug === bath.slug).back.validUntil, '15 novembre 2027');
 }));
 
 test('rule 66 — the order status carries the real redemption QR code, the code only in its fragment', () => withServer(async (site) => {
@@ -115,7 +119,7 @@ test('rule 66 — the order status carries the real redemption QR code, the code
   assert.equal(voucher.back.link, 'site.example.test/bon-cadeau/utiliser');
   assert.ok(!voucher.back.link.includes(voucher.code));
   assert.deepEqual(voucher.back.lines, voucher.contentLines);
-  assert.equal(voucher.back.validUntil, rules.formatFrDate(voucher.expiresOn));
+  assert.equal(voucher.back.validUntil, rules.formatLongFrDate(voucher.expiresOn));
   assert.notEqual(voucher.back.qrSvg, (await offerOf(site)).back.previewQrSvg);
 }));
 
@@ -168,7 +172,7 @@ test('rule 66 — the line pitch the page uses is the one pdfkit sets for the PD
 
 test('rule 66 — the extra time and each quantity of an option come with their line, written by GuestFlow in the PDF\'s words', () => withServer(async (site) => {
   const view = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
-  view.extraTime.prices.forEach((p) => assert.equal(view.back.extraTime[p.minutes], `Temps supplémentaire : ${durationText(p.minutes)}`));
+  view.extraTime.prices.forEach((p) => assert.equal(view.back.extraTime[p.minutes], `Temps supplémentaire\u00a0: ${durationText(p.minutes)}`));
   const drink = view.addOns[0];
   drink.prices.forEach((p) => assert.equal(view.back.addOns[drink.articleRef][p.qty], p.qty > 1 ? `${p.qty} × ${drink.label}` : drink.label));
   // The same lines a voucher bought with them prints.
@@ -179,7 +183,7 @@ test('rule 66 — the extra time and each quantity of an option come with their 
 test('rule 66 — « Valable jusqu\'au » is the PDF\'s own string: its template filled with the same date format', () => withServer(async (site) => {
   const view = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
   const { back } = await offerOf(site);
-  assert.equal(back.texts.validUntil.replace('{date}', view.back.validUntil), `Valable jusqu’au ${rules.formatFrDate(rules.expiryFor(rules.parisDate(clock.at), 12))}`);
+  assert.equal(back.texts.validUntil.replace('{date}', view.back.validUntil), `Valable jusqu’au ${rules.formatLongFrDate(rules.expiryFor(rules.parisDate(clock.at), 12))}`);
 }));
 
 test('rule 66 — the status says whether the voucher has a frozen front; the front is served by order id and token, as the 720 px web picture, never kept', () => withServer(async (site, raw) => {

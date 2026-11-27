@@ -55,8 +55,8 @@ function seed({ resource = {}, sessions = [], kind = 'reservation' } = {}) {
     slotDuration: 60, ...resource,
   };
   const info = db.prepare(`
-    INSERT INTO resources (name, quantity, price, turnoverMinutes, minimumUsageMinutes, slotDuration)
-    VALUES (@name, @quantity, @price, @turnoverMinutes, @minimumUsageMinutes, @slotDuration)
+    INSERT INTO resources (name, quantity, price, turnoverMinutes, minimumUsageMinutes, slotDuration, hourlyExternalDayRate, hourlyExternalEveningRate)
+    VALUES (@name, @quantity, @price, @turnoverMinutes, @minimumUsageMinutes, @slotDuration, 30, 30)
   `).run(r);
   const resourceId = Number(info.lastInsertRowid);
 

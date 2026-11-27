@@ -1,5 +1,5 @@
 /**
- * CampaignEditor — one campaign (specs/gift-voucher-campaigns.md rules 2-10, 46-47, 49, 59, §4.2): general, content (a composition for a `resource` campaign, the free
+ * CampaignEditor — one campaign (specs/gift-vouchers/gift-voucher-campaigns.md rules 2-10, 46-47, 49, 59, §4.2): general, content (a composition for a `resource` campaign, the free
  * amount, VAT and ideas for a `lodging` one), add-ons, extra time, visuals, permanent links, downloads. On `md+` the right column shows the price the server computes for the
  * content being edited; on `xs` everything is one column. The server judges the form: each refusal is shown on the field it names, and nothing here prices or validates.
  *
@@ -8,12 +8,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
-  Alert, Box, Button, MenuItem, Stack, TextField, Typography,
+  Alert, Box, Button, Checkbox, FormControlLabel, FormHelperText, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import {
-  ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, useLatestPreview, useToast,
+  ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, PrintSheetsDialog, useLatestPreview, useToast,
 } from '../sdk';
 import giftVouchersApi from './giftVouchersApi';
 import AddOnsPicker from './AddOnsPicker';
@@ -22,16 +23,20 @@ import ExtraTimeField from './ExtraTimeField';
 import FormSection from './FormSection';
 import IdeasEditor from './IdeasEditor';
 import PriceRecap from './PriceRecap';
+import FrontPriceField from './FrontPriceField';
+import ValidityField from './ValidityField';
 import VisualPicker from './VisualPicker';
 import useCatalogue from './useCatalogue';
 import { centsToEuros, eurosToCents, vatRateHint } from './giftVoucherFormat';
-import { CAMPAIGN_TEXTS, COMPOSITION_TEXTS, LODGING_TEXTS } from './giftVoucherTexts';
+import {
+  CAMPAIGN_TEXTS, COMPOSITION_TEXTS, LODGING_TEXTS, PERIOD_LABELS,
+} from './giftVoucherTexts';
 
 const T = CAMPAIGN_TEXTS.editor;
 const L = LODGING_TEXTS;
 
 const BLANK = {
-  name: '', title: '', kind: 'resource', state: 'draft', validityMonths: '12', slug: '', composition: null, addOns: [], extraTimeMaxMinutes: 0,
+  name: '', title: '', kind: 'resource', state: 'draft', validityMonths: '12', periods: ['week', 'weekend'], frontPricePosition: 'bottom-right', slug: '', composition: null, addOns: [], extraTimeMaxMinutes: 0,
   minAmount: '', maxAmount: '', vatRatePercent: '', ideas: [], voucherVisualId: null, merchantVisualId: null,
 };
 
@@ -42,6 +47,8 @@ function draftOf(campaign) {
     kind: campaign.kind,
     state: campaign.state,
     validityMonths: String(campaign.validityMonths),
+    periods: [...(campaign.periods || ['week', 'weekend'])],
+    frontPricePosition: campaign.frontPricePosition || 'bottom-right',
     slug: campaign.slug || '',
     composition: campaign.composition ? { ...campaign.composition, options: campaign.composition.options.map((o) => ({ ...o })) } : null,
     addOns: [...campaign.addOns],
@@ -66,6 +73,7 @@ function payloadOf(draft) {
     slug: draft.slug,
     voucherVisualId: draft.voucherVisualId,
     merchantVisualId: draft.merchantVisualId,
+    frontPricePosition: draft.frontPricePosition,
   };
   if (draft.kind === 'lodging') {
     return {
@@ -79,7 +87,7 @@ function payloadOf(draft) {
     };
   }
   return {
-    ...common, composition: draft.composition, addOns: draft.addOns, extraTimeMaxMinutes: draft.extraTimeMaxMinutes,
+    ...common, composition: draft.composition, addOns: draft.addOns, extraTimeMaxMinutes: draft.extraTimeMaxMinutes, periods: draft.periods,
   };
 }
 
@@ -101,6 +109,7 @@ export default function CampaignEditor() {
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [downloadError, setDownloadError] = useState(null);
+  const [printing, setPrinting] = useState(false);
 
   const load = useCallback(() => {
     setLoadError(false);
@@ -129,10 +138,16 @@ export default function CampaignEditor() {
   const setValue = (key) => (value) => { setDraft((d) => ({ ...d, [key]: value })); setErrors((list) => list.filter((e) => !(FIELD_ALIASES[e.field] || e.field).startsWith(key))); };
 
   const composition = draft ? draft.composition : null;
-  const previewDraft = useMemo(() => ({ composition }), [composition]);
-  const previewable = Boolean(draft) && draft.kind === 'resource' && Boolean(composition && composition.resourceId);
+  const periods = draft ? draft.periods : null;
+  const previewDraft = useMemo(() => ({ composition, periods }), [composition, periods]);
+  const previewable = Boolean(draft) && draft.kind === 'resource' && Boolean(composition && composition.resourceId) && Boolean(periods && periods.length);
+  // One price per period the campaign sells (rule 10): the server prices each one, nothing is added up here.
   const preview = useLatestPreview({
-    fetcher: (body, { signal }) => giftVouchersApi.previewPrice({ composition: body.composition }, { signal }),
+    fetcher: async (body, { signal }) => ({
+      prices: await Promise.all(body.periods.map(async (period) => ({
+        period, price: await giftVouchersApi.previewPrice({ composition: body.composition, period }, { signal }),
+      }))),
+    }),
     draft: previewDraft, enabled: previewable, resetKey: id,
   });
 
@@ -204,11 +219,25 @@ export default function CampaignEditor() {
 
   let previewBody;
   if (draft.kind === 'lodging') previewBody = <Typography variant="body2" color="text.secondary">{T.previewLodging}</Typography>;
+  else if (draft && draft.kind === 'resource' && composition && composition.resourceId && !(periods && periods.length)) previewBody = <Typography variant="body2" color="error">{T.previewNoPeriod}</Typography>;
   else if (!previewable) previewBody = <Typography variant="body2" color="text.secondary">{T.previewIdle}</Typography>;
   else if (preview.error) previewBody = <PreviewFailure error={preview.error} onRetry={preview.retry} fallback={T.previewFailed} />;
-  else if (preview.data) previewBody = <PriceRecap price={preview.data} texts={T} />;
+  else if (preview.data) {
+    previewBody = (
+      <Stack spacing={2}>
+        {preview.data.prices.map(({ period, price }) => (
+          <Box key={period}>
+            {preview.data.prices.length > 1 ? <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{PERIOD_LABELS[period]}</Typography> : null}
+            <PriceRecap price={price} texts={T} />
+          </Box>
+        ))}
+      </Stack>
+    );
+  }
   else previewBody = <LoadingState />;
 
+  // « Le prix est celui du jour de l'impression » only where a price prints: a resource campaign the server prices, with a corner chosen.
+  const pricePrints = Boolean(campaign && campaign.pricing && campaign.pricing.priceable && campaign.pricing.totalCents != null && draft.frontPricePosition !== 'none');
   return (
     <Box>
       {bar}
@@ -226,7 +255,7 @@ export default function CampaignEditor() {
             </Box>
             {text('title', T.publicTitle, { helperText: errorOf('title') || T.publicTitleHelp, slotProps: { htmlInput: { maxLength: 80 } } })}
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 2fr' } }}>
-              {text('validityMonths', T.validity, { slotProps: { htmlInput: { inputMode: 'numeric' } } })}
+              <ValidityField label={T.validity} value={draft.validityMonths} onChange={(months) => { setDraft((d) => ({ ...d, validityMonths: months })); setErrors((list) => list.filter((e) => (FIELD_ALIASES[e.field] || e.field) !== 'validityMonths')); }} error={errorOf('validityMonths')} />
               {isNew ? (
                 <TextField select label={T.kind} value={draft.kind} onChange={set('kind')} size="small" error={Boolean(errorOf('kind'))} helperText={errorOf('kind')} fullWidth>
                   {T.kinds.map((k) => <MenuItem key={k.value} value={k.value}>{k.label}</MenuItem>)}
@@ -237,8 +266,26 @@ export default function CampaignEditor() {
 
           {draft.kind === 'resource' ? (
             <>
+              <FormSection title={T.periods} help={T.periodsHelp}>
+                <Box role="group" aria-label={T.periods} sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: { sm: 3 } }}>
+                  {Object.entries(PERIOD_LABELS).map(([period, label]) => (
+                    <FormControlLabel
+                      key={period}
+                      sx={{ minHeight: 44 }}
+                      control={(
+                        <Checkbox
+                          checked={draft.periods.includes(period)}
+                          onChange={(e) => { setDraft((d) => ({ ...d, periods: Object.keys(PERIOD_LABELS).filter((p) => (p === period ? e.target.checked : d.periods.includes(p))) })); setErrors((list) => list.filter((x) => (FIELD_ALIASES[x.field] || x.field) !== 'periods')); }}
+                        />
+                      )}
+                      label={label}
+                    />
+                  ))}
+                </Box>
+                {errorOf('periods') ? <FormHelperText error>{errorOf('periods')}</FormHelperText> : null}
+              </FormSection>
               <FormSection title={T.content}>
-                <CompositionEditor value={composition} onChange={setValue('composition')} elements={elements} errors={errors} />
+                <CompositionEditor value={composition} onChange={setValue('composition')} elements={elements} errors={errors} periods={draft.periods.length ? draft.periods : ['week']} />
               </FormSection>
               <FormSection title={T.addOns} help={T.addOnsHelp}>
                 <AddOnsPicker value={draft.addOns} onChange={setValue('addOns')} elements={elements} errors={errors} label={T.addOnsLabel} />
@@ -274,6 +321,15 @@ export default function CampaignEditor() {
               label={T.merchantFront} use="merchant" value={draft.merchantVisualId} onChange={setValue('merchantVisualId')} visuals={visuals}
               onAdded={(v) => setVisuals((list) => [...list, v])} error={errorOf('merchantVisualId')}
             />
+            {draft.kind === 'resource' ? (
+              <FrontPriceField
+                value={draft.frontPricePosition}
+                onChange={setValue('frontPricePosition')}
+                visual={visuals.find((v) => v.id === draft.merchantVisualId) || null}
+                priceCents={campaign && campaign.pricing && campaign.pricing.priceable ? campaign.pricing.totalCents : null}
+                error={errorOf('frontPricePosition')}
+              />
+            ) : null}
           </FormSection>
 
           <FormSection title={T.links}>
@@ -296,10 +352,27 @@ export default function CampaignEditor() {
                 {T.merchantCard}
               </Button>
             </Box>
+            <Box>
+              <Button variant="outlined" startIcon={<PrintOutlinedIcon />} disabled={!campaign || dirty} sx={{ minHeight: 44 }} onClick={() => setPrinting(true)}>
+                {T.print}
+              </Button>
+            </Box>
             <Typography variant="body2" color="text.secondary">{T.merchantCardNote}</Typography>
+            {pricePrints ? <Typography variant="body2" color="text.secondary">{T.priceOfTheDay}</Typography> : null}
             {downloadError ? <Typography variant="body2" color="error" role="alert">{downloadError}</Typography> : null}
           </FormSection>
         </Stack>
+
+        {campaign ? (
+          <PrintSheetsDialog
+            open={printing}
+            onClose={() => setPrinting(false)}
+            title={T.printTitle}
+            note={pricePrints ? T.priceOfTheDay : null}
+            fetchLayout={(options) => giftVouchersApi.campaignPrintLayout(campaign.id, options)}
+            onPrint={async (options) => { await giftVouchersApi.downloadCampaignPrint(campaign.id, campaign.slug, options); load(); }}
+          />
+        ) : null}
 
         <Box sx={{ position: { md: 'sticky' }, top: { md: 'calc(var(--gf-page-bar-bottom, 120px) + 16px)' } }}>
           <FormSection title={T.preview}>

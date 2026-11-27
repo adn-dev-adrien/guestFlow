@@ -15,7 +15,8 @@ const DDL = `
     slotDuration INTEGER DEFAULT 60, isComplex INTEGER DEFAULT 0, openTime TEXT DEFAULT '08:00',
     closeTime TEXT DEFAULT '22:00', openDays TEXT DEFAULT '[0,1,2,3,4,5,6]',
     showsPlanningCard INTEGER DEFAULT 0, hourlyEveningStart TEXT, hourlyEveningRate REAL DEFAULT 0,
-    hourlyExternalDayRate REAL DEFAULT 0, hourlyExternalEveningRate REAL DEFAULT 0
+    hourlyExternalDayRate REAL DEFAULT 0, hourlyExternalEveningRate REAL DEFAULT 0,
+    hourlyExternalWeekendDayRate REAL, hourlyExternalWeekendEveningRate REAL
   );
   CREATE TABLE property_resource_prices (
     propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL DEFAULT 0, freeMinutes INTEGER DEFAULT 0,
@@ -49,11 +50,11 @@ function freshModel(resourceOverrides = {}) {
     name: 'Spa', quantity: 1, price: 60, priceType: 'per_hour', turnoverMinutes: 0,
     minimumUsageMinutes: 0, slotDuration: 60, isComplex: 0,
     showsPlanningCard: 0, hourlyEveningStart: null, hourlyEveningRate: 0,
-    hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...resourceOverrides,
+    hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyExternalWeekendDayRate: null, hourlyExternalWeekendEveningRate: null, ...resourceOverrides,
   };
   const info = db.prepare(`
-    INSERT INTO resources (name, quantity, price, priceType, turnoverMinutes, minimumUsageMinutes, slotDuration, isComplex, showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate)
-    VALUES (@name, @quantity, @price, @priceType, @turnoverMinutes, @minimumUsageMinutes, @slotDuration, @isComplex, @showsPlanningCard, @hourlyEveningStart, @hourlyEveningRate, @hourlyExternalDayRate, @hourlyExternalEveningRate)
+    INSERT INTO resources (name, quantity, price, priceType, turnoverMinutes, minimumUsageMinutes, slotDuration, isComplex, showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate, hourlyExternalWeekendDayRate, hourlyExternalWeekendEveningRate)
+    VALUES (@name, @quantity, @price, @priceType, @turnoverMinutes, @minimumUsageMinutes, @slotDuration, @isComplex, @showsPlanningCard, @hourlyEveningStart, @hourlyEveningRate, @hourlyExternalDayRate, @hourlyExternalEveningRate, @hourlyExternalWeekendDayRate, @hourlyExternalWeekendEveningRate)
   `).run(r);
   return { model: resourceBookingsModel.create(db), db, resourceId: Number(info.lastInsertRowid) };
 }
@@ -79,7 +80,7 @@ test('priceBooking total: hourly-scheduled uses the banded grid; external vs gue
   const { model, db, resourceId } = freshModel({
     priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,
     price: 30, hourlyEveningStart: '20:00', hourlyEveningRate: 50,
-    hourlyExternalDayRate: 40, hourlyExternalEveningRate: 60,
+    hourlyExternalDayRate: 40, hourlyExternalEveningRate: 60, hourlyExternalWeekendDayRate: 40, hourlyExternalWeekendEveningRate: 60,
   });
   // Guest (tied to a reservation), 19:00–21:00 = 2×15 + 2×25 = 80.
   assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00', bookingId: tiedBooking(db, resourceId) }), 80);
@@ -87,13 +88,18 @@ test('priceBooking total: hourly-scheduled uses the banded grid; external vs gue
   assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00' }), 100);
 });
 
-test('priceBooking total: external rate falls back to the guest grid when unset', () => {
+// Amended 2026-11-27 (gift-voucher-week-weekend-and-print rules 2, 28): no fallback — an outside grid left unset sells nothing, and says so (never a 0 € price).
+test('priceBooking: an unset external grid is not sold, it no longer takes the guest grid — the booking is refused with a sentence', () => {
   const { model, resourceId } = freshModel({
     priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,
     price: 30, hourlyEveningStart: '20:00', hourlyEveningRate: 50,
-    // no external rates → fall back to guest
   });
-  assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00' }), 80);
+  const answer = model.priceBooking({ resourceId, date: `${FAR_YEAR}-02-12`, startTime: '19:00', endTime: '21:00' });
+  assert.equal(answer.status, 409);
+  assert.equal(answer.code, 'BAND_NOT_SOLD');
+  assert.match(answer.error, /n’a pas de tarif extérieur pour la journée en semaine\./);
+  const created = model.createBooking({ resourceId, date: `${FAR_YEAR}-02-12`, startTime: '19:00', endTime: '21:00' });
+  assert.equal(created.code, 'BAND_NOT_SOLD');
 });
 
 test('priceBooking total: non-scheduled hourly resource keeps the flat price (regression)', () => {

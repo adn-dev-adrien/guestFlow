@@ -99,7 +99,11 @@ async function createIcalSource({
 /**
  * An hourly-SCHEDULED resource (`showsPlanningCard` + `per_hour`) — the « Bain nordique » shape.
  * Sold by the hour on the fiche, placed on real slots during the arrival SAS
- * (specs/resources/hourly-resource-quantity-and-sas-scheduling.md).
+ * (specs/resources/hourly-resource-quantity-and-sas-scheduling.md). Every guests' rate is explicit
+ * (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 2): the following hours default to the
+ * first hour, as the migration fills them. `soldOutside` makes it « Vendable hors séjour » with an outside grid
+ * equal to the guests' rates, week and weekend: an outside client (a walk-in) can only be booked on a band that
+ * has an outside price (same spec, rule 2 and decision K9).
  */
 async function createHourlyResource({
   name = 'Bain nordique E2E',
@@ -113,16 +117,27 @@ async function createHourlyResource({
   turnoverMinutes = 15,
   hourlyEveningStart = '20:00',
   hourlyEveningRate = 50,
+  hourlyNextDayRate = price,
+  hourlyNextEveningRate = hourlyEveningRate,
   heatUpMinutes = 0,
   heatRetentionMinutes = 0,
+  soldOutside = false,
 } = {}) {
+  const outside = soldOutside ? {
+    sellableExternally: true,
+    hourlyExternalDayRate: price, hourlyExternalNextDayRate: hourlyNextDayRate,
+    hourlyExternalEveningRate: hourlyEveningRate, hourlyExternalNextEveningRate: hourlyNextEveningRate,
+    hourlyExternalWeekendDayRate: price, hourlyExternalWeekendNextDayRate: hourlyNextDayRate,
+    hourlyExternalWeekendEveningRate: hourlyEveningRate, hourlyExternalWeekendNextEveningRate: hourlyNextEveningRate,
+  } : {};
   return withRequest(async (ctx) => {
     const res = await ctx.post('/api/resources', {
       data: {
         name, propertyIds, price, quantity, priceType: 'per_hour', isComplex: true,
         showsPlanningCard: true, slotDuration, minimumUsageMinutes, openTime, closeTime,
         openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes,
-        hourlyEveningStart, hourlyEveningRate, heatUpMinutes, heatRetentionMinutes,
+        hourlyEveningStart, hourlyEveningRate, hourlyNextDayRate, hourlyNextEveningRate,
+        heatUpMinutes, heatRetentionMinutes, ...outside,
       },
     });
     if (!res.ok()) throw new Error(`createHourlyResource failed: ${res.status()} ${await res.text()}`);

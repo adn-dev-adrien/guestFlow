@@ -162,7 +162,12 @@ function sessionQuotesOf(lines) {
     const article = articles.makeArticle(found.row, { kind: found.kind });
     if (!article.config.sellableExternally) { refusals.push({ articleRef, code: 'NOT_SELLABLE', message: 'Article non vendable hors séjour.' }); continue; }
     const family = article.family === 'hourly' ? families.hourly : null;
-    if (!family || typeof family.quoteSession !== 'function') { refusals.push({ articleRef, code: 'NEEDS_FULFILMENT', message: 'Une séance se réserve au planning.' }); continue; }
+    if (!family || typeof family.quoteSession !== 'function') {
+      // An hourly resource whose plugin is switched off is unavailable, not « to be booked at the planning ».
+      const off = article.family === 'hourly' && !families.hourly;
+      refusals.push({ articleRef, code: 'NEEDS_FULFILMENT', message: off ? 'Les ressources à l’heure ne sont pas disponibles pour le moment.' : 'Une séance se réserve au planning.' });
+      continue;
+    }
     const answer = family.quoteSession(article.config, raw.session);
     if (answer.refusal) refusals.push({ articleRef, ...answer.refusal });
     else fulfilments.push(answer.line);

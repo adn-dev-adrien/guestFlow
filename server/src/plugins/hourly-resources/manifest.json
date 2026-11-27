@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -16,8 +16,15 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.36.0",
+  "sdk": "^2.38.0",
   "changelog": {
+    "1.13.0": [
+      "Tous les tarifs du bain se règlent dans la section « Prix » : deux grilles, « Clients logés » et « Prix pour les extérieurs » avec une colonne « Semaine » et une colonne « Week-end ». Plus aucun tarif ne se replie sur un autre : chaque montant est obligatoire.",
+      "Le week-end commence le vendredi à l’heure du soir, couvre le samedi, le dimanche et les jours fériés, et inclut le soir de la veille d’un jour férié. Il ne concerne que les clients extérieurs.",
+      "Toute séance se chiffre par le moteur de prix, avec sa vraie date : le site, « Mon bain », la fiche d’un passage et les bons cadeaux donnent le même montant.",
+      "À la mise à jour, chaque tarif manquant reprend la valeur qu’il remplaçait, le week-end reprend la semaine, et le prix propre à un logement est retiré (le journal le nomme). L’heure offerte par logement reste.",
+      "Demande le SDK 2.38 de GuestFlow."
+    ],
     "1.12.0": [
       "La page « Bain nordique » du site propose les options de la liste « Options proposées » de la ressource, dans son ordre, avec le prix de chaque quantité et son unité, calculés par la même fonction que les options d’un bon cadeau.",
       "Les réglages disent si la liste d’une ressource est montrée sur le site (ressource vendue en ligne) ou seulement à l’arrivée.",

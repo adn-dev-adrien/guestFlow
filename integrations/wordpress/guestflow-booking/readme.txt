@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.26.1
+Stable tag: 1.27.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,10 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.27.0 =
+* Bons cadeaux : le donateur choisit « Semaine » ou « Week-end » dans la campagne, chacun avec son prix ; l'offre annonce « dès » le prix le plus bas. Le verso du bon est redessiné (fond blanc, titre de la campagne avec sa période, QR code encadré, trois étapes, un seul rectangle pour le code) et le site le dessine comme le PDF.
+* Réserver une séance avec un bon : tous les créneaux sont proposés, avec « Inclus », « + x € », « Inclus · boisson offerte » ou « Inclus · 2 h + boisson offerte » ; le récapitulatif liste l'heure et la boisson offertes.
 
 = 1.26.1 =
 * Réserver une séance : le curseur ne se pose plus tout seul dans le champ « Code bon cadeau » à l’ouverture de la page (Safari).

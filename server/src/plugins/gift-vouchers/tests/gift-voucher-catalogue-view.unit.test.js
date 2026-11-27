@@ -18,7 +18,7 @@ const insurance = fx.option({ title: 'Assurance annulation', isCancellationInsur
 const percent = fx.option({ title: 'Majoration', priceType: 'percent_of_stay' });
 const card = fx.option({ title: 'Massage', showsPlanningCard: 1, price: 40 });
 const progressive = fx.option({ title: 'Atelier', priceType: 'per_participant_progressive', optionProgressiveTiers: JSON.stringify([{ from: 1, price: 20 }]) });
-const noRate = fx.resource({ name: 'Bain gratuit', price: 0, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0 });
+const noRate = fx.resource({ name: 'Bain gratuit', price: 0, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyExternalWeekendDayRate: 0, hourlyExternalWeekendEveningRate: 0 });
 const { api } = fx.openShop();
 const view = api.catalogue;
 const byRef = (ref) => view.element(ref);
@@ -38,7 +38,7 @@ test('the catalogue lists every resource and every option of the database, resou
 test('an hourly resource with a planning card offers two outside modes — rate, band hours, following-hours rate, slot, minimum — read from the engine’s family', () => {
   const bath = byRef(`resource:${ids.bath}`);
   assert.deepEqual([bath.hourly, bath.sellable, bath.reason, bath.priceType, bath.priceTypeLabel], [true, true, null, 'per_hour', 'Par heure']);
-  assert.deepEqual(bath.modes, [
+  assert.deepEqual(bath.modes.map(({ byPeriod, ...mode }) => mode), [
     {
       key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, followingRateCents: 4500, followingText: 'puis 45 €/h', slotMinutes: 60, minimumMinutes: 60, sellable: true,
     },
@@ -46,19 +46,24 @@ test('an hourly resource with a planning card offers two outside modes — rate,
       key: 'outside-evening', band: 'evening', label: 'Extérieur · soirée', rateCents: 7000, from: '19:00', to: '22:00', lengthMinutes: 180, followingRateCents: 6300, followingText: 'puis 63 €/h', slotMinutes: 60, minimumMinutes: 60, sellable: true,
     },
   ]);
+  // Each band's own figures per period (a screen that sells the weekend shows the weekend's): the fixture's weekend grid copies the week's.
+  assert.deepEqual(bath.modes[0].byPeriod, {
+    week: { rateCents: 5000, followingRateCents: 4500, followingText: 'puis 45 €/h', sellable: true },
+    weekend: { rateCents: 5000, followingRateCents: 4500, followingText: 'puis 45 €/h', sellable: true },
+  });
 });
 
 test('a resource with no evening has the day band only, to its closing time; a band with no external rate is a greyed mode with its reason', () => {
   const day = fx.resource({ name: 'Bain de jour', hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalEveningRate: 0 });
   assert.deepEqual(byRef(`resource:${day}`).modes.map((m) => [m.band, m.from, m.to, m.rateCents]), [['day', '10:00', '22:00', 5000]]);
-  const half = fx.resource({ name: 'Bain sans tarif', price: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 80, hourlyEveningRate: 0 });
+  const half = fx.resource({ name: 'Bain sans tarif', price: 0, hourlyExternalDayRate: 0, hourlyExternalWeekendDayRate: 0, hourlyExternalEveningRate: 80, hourlyEveningRate: 0 });
   const element = byRef(`resource:${half}`);
   assert.deepEqual(element.modes.map((m) => [m.band, m.sellable, m.reason || null]), [
-    ['day', false, '« Bain sans tarif » n’a pas de tarif extérieur pour la journée.'], ['evening', true, null],
+    ['day', false, '« Bain sans tarif » n’a pas de tarif extérieur pour la journée, en semaine et le week-end.'], ['evening', true, null],
   ]);
   assert.equal(element.sellable, true, 'one band is enough');
   const none = byRef(`resource:${noRate}`);
-  assert.deepEqual([none.sellable, none.reason], [false, '« Bain gratuit » n’a pas de tarif extérieur pour la journée.']);
+  assert.deepEqual([none.sellable, none.reason], [false, '« Bain gratuit » n’a pas de tarif extérieur pour la journée, en semaine et le week-end.']);
 });
 
 test('the reasons an element is greyed, one by one: not sellable outside a stay, archived, a price that needs a stay, an insurance, no planning card, a resource that is not hourly', () => {

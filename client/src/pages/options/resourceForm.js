@@ -10,31 +10,23 @@ import { emptyExternalSale, externalSaleFromItem, externalSalePayload } from './
 const toText = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-// specs/resources/hourly-extra-hour-rates.md rules 1, 5 — the price of the following hours, per audience and band: [field, « band, audience » of the refusal sentence].
-// Typed as text, empty meaning « same as the first hour ».
-export const NEXT_RATE_FIELDS = [
-  ['hourlyNextDayRate', 'journée, hébergés'], ['hourlyNextEveningRate', 'soir, hébergés'],
-  ['hourlyExternalNextDayRate', 'journée, extérieurs'], ['hourlyExternalNextEveningRate', 'soir, extérieurs'],
-];
-const NEXT_RATE_NAMES = NEXT_RATE_FIELDS.map(([field]) => field);
-const nextRatesEmpty = Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, '']));
-const nextRatesNull = Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, null]));
-const nextRateRefused = (text) => Boolean(amountProblem(text)) || parseAmount(text) > 10000;
-
 export const emptyResource = {
   name: '', quantity: '1', price: '0', priceType: 'per_stay', propertyIds: [], description: '',
   propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: ALL_DAYS, turnoverMinutes: 0,
-  showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...nextRatesEmpty,
+  showsPlanningCard: false, hourlyEveningStart: '',
   heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3, sessionMaxPeople: '',
   emailBookedText: '', emailBookedTextEn: '',
   ...emptyExternalSale,
 };
 
+/** The blank form of a new resource, with the defaults of the contributed price forms. */
+export const emptyResourceFor = (forms = []) => ({ ...emptyResource, ...Object.assign({}, ...forms.map((f) => f.defaults)) });
+
 const DEFAULT_HOURLY_SETTINGS = {
   isComplex: 0, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00',
   openDays: JSON.stringify(ALL_DAYS), turnoverMinutes: 0, showsPlanningCard: 0,
-  hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...nextRatesNull,
+  hourlyEveningStart: null,
   heatUpMinutes: 0, heatRetentionMinutes: 0, bookingHorizonMonths: 3, sessionMaxPeople: null,
 };
 
@@ -52,10 +44,6 @@ function hourlySettings(form) {
     turnoverMinutes: slotted ? (Number(form.turnoverMinutes) || 0) : 0,
     showsPlanningCard: card ? 1 : 0,
     hourlyEveningStart: card && form.hourlyEveningStart ? form.hourlyEveningStart : null,
-    hourlyEveningRate: card ? (Number(form.hourlyEveningRate) || 0) : 0,
-    hourlyExternalDayRate: card ? (Number(form.hourlyExternalDayRate) || 0) : 0,
-    hourlyExternalEveningRate: card ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
-    ...Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, card && !isBlank(form[field]) ? parseAmount(form[field]) : null])),
     heatUpMinutes: Math.max(0, Number(form.heatUpMinutes) || 0),
     heatRetentionMinutes: Math.max(0, Number(form.heatRetentionMinutes) || 0),
     bookingHorizonMonths: slotted ? (Number(form.bookingHorizonMonths) || 3) : 3,
@@ -77,12 +65,15 @@ export function withScope(form, ids) {
 const inScope = (form, pid) => form.propertyIds.length === 0 || form.propertyIds.map(String).includes(String(pid));
 
 /**
+ * `forms` are the price-form models the live plugins contribute (`resources.priceFields`: `defaults`, `fromItem`, `payload`, `validate` — the hourly price grids are the
+ * hourly plugin's, specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 28); the core form knows none of their fields.
+ *
  * The API payload. Hours, slots and the planning card are for a resource sold by the hour only
  * (specs/plugins/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise. A property line with no typed
  * price is sent with `price: null` — it inherits the base price on the server (rule 28); lines of
  * properties outside the scope are not sent.
  */
-export function toResourcePayload(form) {
+export function toResourcePayload(form, forms = []) {
   const base = form.priceType === 'free' ? 0 : amountOf(form.price);
   return {
     name: form.name,
@@ -92,7 +83,9 @@ export function toResourcePayload(form) {
     propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
     propertyPricing: Object.entries(form.propertyPricing || {}).reduce((acc, [propertyId, line]) => {
       if (!inScope(form, propertyId)) return acc;
-      const typed = line && !isBlank(line.price);
+      // A resource sold by the hour on the planning has no price per lodging: only its offered hour (rule 3). One with no planning card keeps its prices (rule 4).
+      const planned = form.priceType === 'per_hour' && Boolean(form.showsPlanningCard);
+      const typed = !planned && line && !isBlank(line.price);
       const freeMinutes = form.priceType === 'per_hour' ? Math.max(0, Math.round(Number(line && line.freeMinutes) || 0)) : 0;
       if (typed || freeMinutes > 0) acc[String(propertyId)] = { price: typed ? parseAmount(line.price) : null, freeMinutes };
       return acc;
@@ -102,6 +95,7 @@ export function toResourcePayload(form) {
     emailBookedTextEn: form.emailBookedTextEn || '',
     ...externalSalePayload(form),
     ...hourlySettings(form),
+    ...Object.assign({}, ...forms.map((f) => f.payload(form))),
   };
 }
 
@@ -115,7 +109,7 @@ function openDaysOf(item) {
   }
 }
 
-export function formFromResource(item) {
+export function formFromResource(item, forms = []) {
   const pricing = item.propertyPricing && typeof item.propertyPricing === 'object'
     ? item.propertyPricing
     : Object.entries(item.propertyPrices || {}).reduce((acc, [pid, price]) => {
@@ -124,6 +118,7 @@ export function formFromResource(item) {
     }, {});
   return {
     ...emptyResource,
+    ...Object.assign({}, ...forms.map((f) => f.defaults)),
     ...item,
     quantity: String(item.quantity ?? 0),
     price: toText(item.basePrice ?? item.price ?? 0),
@@ -135,10 +130,7 @@ export function formFromResource(item) {
     isComplex: Boolean(item.isComplex),
     showsPlanningCard: Boolean(item.showsPlanningCard),
     hourlyEveningStart: item.hourlyEveningStart || '',
-    hourlyEveningRate: Number(item.hourlyEveningRate || 0),
-    hourlyExternalDayRate: Number(item.hourlyExternalDayRate || 0),
-    hourlyExternalEveningRate: Number(item.hourlyExternalEveningRate || 0),
-    ...Object.fromEntries(NEXT_RATE_NAMES.map((field) => [field, toText(item[field])])),
+    ...Object.assign({}, ...forms.map((f) => f.fromItem(item))),
     slotDuration: item.slotDuration || 5,
     minimumUsageMinutes: Number(item.minimumUsageMinutes || 0),
     openTime: item.openTime || '08:00',
@@ -156,7 +148,7 @@ export function formFromResource(item) {
 }
 
 /** Inline checks, keyed like the server's `details[].field`. */
-export function validateResourceForm(form) {
+export function validateResourceForm(form, forms = []) {
   const errors = {};
   if (!String(form.name || '').trim()) errors.name = FIELD.titleRequired;
   const quantity = String(form.quantity ?? '').trim();
@@ -173,11 +165,6 @@ export function validateResourceForm(form) {
   if (form.priceType === 'per_hour' && form.isComplex && form.openTime && form.closeTime && form.closeTime <= form.openTime) {
     errors.closeTime = FIELD.afterOpening;
   }
-  if (form.priceType === 'per_hour' && form.showsPlanningCard) {
-    NEXT_RATE_FIELDS.forEach(([field, where]) => {
-      if (!isBlank(form[field]) && nextRateRefused(form[field])) errors[field] = `Le tarif des heures suivantes (${where}) doit être un montant positif.`;
-    });
-  }
   if (form.priceType === 'per_hour' && form.isComplex && form.bookingHorizonMonths !== undefined) {
     const months = Number(form.bookingHorizonMonths);
     if (!Number.isInteger(months) || months < 1 || months > 24) errors.bookingHorizonMonths = FIELD.horizonMonths;
@@ -186,5 +173,6 @@ export function validateResourceForm(form) {
     const people = Number(form.sessionMaxPeople);
     if (!Number.isInteger(people) || people < 1 || people > 100) errors.sessionMaxPeople = FIELD.peopleRange;
   }
+  Object.assign(errors, ...forms.map((f) => f.validate(form)));
   return errors;
 }

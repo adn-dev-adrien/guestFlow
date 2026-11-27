@@ -1,5 +1,5 @@
 /**
- * What a campaign may be (specs/gift-voucher-campaigns.md rules 2-6, 9, 46): one judgement shared by the campaign form, « Sur mesure » and, later, the recipe
+ * What a campaign may be (specs/gift-vouchers/gift-voucher-campaigns.md rules 2-6, 9, 46): one judgement shared by the campaign form, « Sur mesure » and, later, the recipe
  * import. Every refusal names its field and says why in French; nothing is written when one field fails.
  *
  *   validateCampaign(input, { catalogue, campaigns, existing, oneShot }) → { ok: true, value } | { ok: false, errors: [{ field, message }] }
@@ -43,7 +43,7 @@ function parseIdeas(value) {
   }
 }
 
-/** Rule 3 (specs/gift-vouchers.md rule 14) — an idea is always a stay to price, never a bare amount (Adrien, 2026-11-15). */
+/** Rule 3 (specs/gift-vouchers/gift-vouchers.md rule 14) — an idea is always a stay to price, never a bare amount (Adrien, 2026-11-15). */
 function ideasError(value) {
   const list = parseIdeas(value);
   if (!list) return 'Les idées doivent être une liste de séjours.';
@@ -105,8 +105,29 @@ function validateOptions(list, { catalogue }, field, label) {
   return { errors, value };
 }
 
+// The first refusal of the sentence-per-period check, null when every period passes. A refusal is a sentence, or `{ message, period }` when the engine says which period it is about. When the periods do
+// not all refuse the same way, the refusal names the period it is about (« (week-end) … »): the operator then knows which grid to look at — unless the engine's own refusal is already about that period
+// (its sentence says « … le week-end »).
+function firstRefusal(periods, refusalOf) {
+  const messageOf = (refusal) => (typeof refusal === 'string' ? refusal : refusal.message);
+  const answers = periods.map((period) => ({ period, refusal: refusalOf(period) }));
+  const first = answers.find((answer) => answer.refusal);
+  if (!first) return null;
+  const message = messageOf(first.refusal);
+  if (answers.every((answer) => answer.refusal && messageOf(answer.refusal) === message)) return message;
+  return typeof first.refusal === 'object' && first.refusal.period === first.period ? message : `(${rules.PERIOD_LABELS[first.period]}) ${message}`;
+}
+
+/** Rule 10 of the week-weekend spec — the periods a resource campaign sells: one or both, both when none is sent. */
+function periodsProblem(raw) {
+  if (raw === undefined || raw === null) return { value: [...rules.PERIODS] };
+  if (!Array.isArray(raw) || raw.some((p) => !rules.PERIODS.includes(p))) return { value: [...rules.PERIODS], message: 'Périodes proposées : « semaine » et / ou « week-end » est attendu.' };
+  const value = rules.PERIODS.filter((p) => raw.includes(p));
+  return value.length ? { value } : { value: [...rules.PERIODS], message: 'Périodes proposées : au moins une période est à choisir.' };
+}
+
 /** Rule 4 — exactly one hourly resource (its band and its included minutes) and any options. */
-function validateComposition(composition, { catalogue }, field = 'composition') {
+function validateComposition(composition, { catalogue, periods = ['week'] }, field = 'composition') {
   if (!isObject(composition)) return { ok: false, errors: [{ field, message: 'Composition : une ressource à l’heure est à choisir.' }] };
   const errors = [];
   const resourceRef = `resource:${composition.resourceId}`;
@@ -123,7 +144,7 @@ function validateComposition(composition, { catalogue }, field = 'composition') 
   if (!BANDS.includes(band)) errors.push({ field: `${field}.band`, message: 'Tranche : « journée » ou « soirée » est attendu.' });
   const minutes = asInt(composition.minutes);
   if (resource && BANDS.includes(band)) {
-    const refusal = catalogue.sessionRefusal({ resourceId: resource.id, band, minutes });
+    const refusal = firstRefusal(periods, (period) => catalogue.sessionRefusal({ resourceId: resource.id, band, minutes, period }));
     if (refusal) errors.push({ field: `${field}.minutes`, message: `Durée incluse : ${refusal}` });
   } else if (!Number.isInteger(minutes) || minutes <= 0) {
     errors.push({ field: `${field}.minutes`, message: 'Durée incluse : un nombre entier de minutes est attendu.' });
@@ -155,13 +176,13 @@ function validateAddOns(list, composition, { catalogue }) {
   return { errors, value };
 }
 
-function validateExtraTime(extra, composition, { catalogue }) {
+function validateExtraTime(extra, composition, { catalogue, periods = ['week'] }) {
   const n = extra === undefined || extra === null ? 0 : asInt(extra);
   if (!Number.isInteger(n) || n < 0) return { error: { field: 'extraTimeMaxMinutes', message: 'Temps supplémentaire : un nombre entier de minutes (0 pour ne pas en proposer).' } };
   if (n === 0 || !composition) return { value: n };
-  const refusal = catalogue.sessionRefusal({
-    resourceId: composition.resourceId, band: composition.band, minutes: n, rankOffsetMinutes: composition.minutes,
-  });
+  const refusal = firstRefusal(periods, (period) => catalogue.sessionRefusal({
+    resourceId: composition.resourceId, band: composition.band, minutes: n, rankOffsetMinutes: composition.minutes, period,
+  }));
   return refusal ? { error: { field: 'extraTimeMaxMinutes', message: `Temps supplémentaire : ${refusal}` } } : { value: n };
 }
 
@@ -197,7 +218,11 @@ function validateCampaign(input, {
   const state = oneShot ? 'closed' : (input.state === undefined ? 'draft' : input.state);
   if (!STATES.includes(state)) push('state', 'État : brouillon, en vente ou clos.');
   const months = asInt(input.validityMonths);
-  if (!Number.isInteger(months) || months < 1 || months > rules.MAX_VALIDITY_MONTHS) push('validityMonths', `Validité : un nombre entier de mois, de 1 à ${rules.MAX_VALIDITY_MONTHS}.`);
+  if (!rules.VALIDITY_CHOICES.includes(months)) push('validityMonths', rules.VALIDITY_REFUSAL);
+  const periods = periodsProblem(input.periods);
+  push('periods', periods.message);
+  const position = input.frontPricePosition === undefined ? 'bottom-right' : input.frontPricePosition;
+  if (!rules.FRONT_PRICE_POSITIONS.includes(position)) push('frontPricePosition', 'Position du prix : un coin de la carte ou « Aucun » est attendu.');
   if (oneShot) {
     if (input.slug) push('slug', 'Lien permanent : un bon sur mesure n’a pas de lien.');
   } else {
@@ -231,6 +256,8 @@ function validateCampaign(input, {
     vatRatePercent: null,
     voucherVisualId: voucherFront.value === undefined ? null : voucherFront.value,
     merchantVisualId: merchantFront.value === undefined ? null : merchantFront.value,
+    periods: periods.value,
+    frontPricePosition: rules.FRONT_PRICE_POSITIONS.includes(position) ? position : 'bottom-right',
   };
 
   if (input.kind === 'lodging') {
@@ -252,11 +279,11 @@ function validateCampaign(input, {
   }
 
   if (input.kind === 'resource') {
-    const composition = validateComposition(input.composition, { catalogue });
+    const composition = validateComposition(input.composition, { catalogue, periods: periods.value });
     errors.push(...(composition.ok ? [] : composition.errors));
     const addOns = validateAddOns(input.addOns, composition.ok ? composition.value : null, { catalogue });
     errors.push(...addOns.errors);
-    const extra = validateExtraTime(input.extraTimeMaxMinutes, composition.ok ? composition.value : null, { catalogue });
+    const extra = validateExtraTime(input.extraTimeMaxMinutes, composition.ok ? composition.value : null, { catalogue, periods: periods.value });
     if (extra.error) errors.push(extra.error);
     if (composition.ok) value.composition = composition.value;
     value.addOns = addOns.value;

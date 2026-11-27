@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bons cadeaux — semaine / week-end, écart en boisson, verso commerçant, impression</title>
+<style>
+:root{--paper:#F8F5EF;--ink:#27251F;--soft:#6E6A5E;--line:rgba(60,54,36,.14);--fir:#2F5D46;--fir-d:#214131;--fir-tint:rgba(47,93,70,.08);--honey:#C99038;--warn:#8F6A1D;--warn-soft:#F6EBD3;--err:#A8433A;--ok:#3E7D54;--ok-soft:#E5EFE7}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 80px}
+h1{font-family:Georgia,serif;font-weight:600;font-size:1.7rem;margin:0 0 6px}
+h2{font-family:Georgia,serif;font-weight:600;font-size:1.3rem;margin:40px 0 8px}
+h3{font-family:Georgia,serif;font-weight:600;font-size:1.05rem;margin:0 0 8px}
+.lead{color:var(--soft);max-width:75ch;margin:0 0 18px}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.brief div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:.92rem}
+.brief b{display:block;font-size:.74rem;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);margin-bottom:4px}
+.brief ul{margin:0;padding-left:18px}
+.hint{font-size:.85rem;color:var(--soft);margin:4px 0 12px;max-width:80ch}
+.card{background:#fff;border-radius:14px;box-shadow:0 3px 16px rgba(60,54,36,.09);padding:16px;margin-bottom:14px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.two{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;font-size:.85rem;color:var(--soft)}
+.field input,.field select{font:inherit;font-size:16px;color:var(--ink);border:1px solid rgba(60,54,36,.3);border-radius:10px;padding:9px 10px;min-height:44px;background:#fff}
+.field input:focus,.field select:focus{outline:2px solid var(--fir);outline-offset:-1px}
+.field.err input{border-color:var(--err)}
+.field .msg{color:var(--err);font-size:.8rem}
+.grid-rates{width:100%;border-collapse:collapse;font-size:.9rem}
+.grid-rates th{font-weight:600;color:var(--soft);font-size:.78rem;text-align:left;padding:6px 4px}
+.grid-rates td{padding:4px}
+.grid-rates input{width:100%;font:inherit;font-size:16px;border:1px solid rgba(60,54,36,.3);border-radius:10px;padding:8px;min-height:44px;font-variant-numeric:tabular-nums}
+.grid-rates input.bad{border-color:var(--err)}
+.grid-rates .wk{background:rgba(201,144,56,.07)}
+.errline{color:var(--err);font-size:.82rem;min-height:1.2em}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+.seg button{font:inherit;border:0;background:none;padding:8px 14px;min-height:44px;cursor:pointer;color:var(--soft)}
+.seg button[aria-pressed=true]{background:var(--fir-tint);color:var(--fir);font-weight:600}
+.recap{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:.92rem}
+.recap div{display:flex;justify-content:space-between;padding:3px 0}
+.num{font-variant-numeric:tabular-nums}
+.tot{font-weight:700}
+.chip{display:inline-block;border-radius:999px;font-size:.75rem;font-weight:600;padding:2px 10px}
+.chip.ok{background:var(--ok-soft);color:#2B5A3B}.chip.warn{background:var(--warn-soft);color:var(--warn)}.chip.n{background:rgba(60,54,36,.07);color:var(--soft)}.chip.drink{background:#EAF0F5;color:#31556E}
+/* site */
+.site{background:#F4EFE3;border-radius:14px;padding:18px;border:1px solid #E3DCCB}
+.site h3{font-family:Georgia,serif}
+.site .price{font-family:Georgia,serif;font-size:1.6rem;color:#2F3A26}
+.site .btn{display:inline-block;background:#A8670F;color:#fff;border-radius:999px;padding:10px 18px;font-weight:600;margin-top:10px}
+/* week */
+.weekgrid{display:grid;grid-template-columns:70px repeat(7,1fr);gap:4px;font-size:.78rem;overflow-x:auto;min-width:640px}
+.weekwrap{overflow-x:auto}
+.weekgrid .h{font-weight:600;color:var(--soft);text-align:center;padding:4px 0}
+.weekgrid .t{color:var(--soft);display:flex;align-items:center}
+.slot{border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;background:#fff;cursor:pointer;min-height:44px;font:inherit;font-size:.74rem;line-height:1.25}
+.slot.in{border-color:var(--ok);background:var(--ok-soft);color:#2B5A3B}
+.slot.sup{border-color:var(--honey);background:var(--warn-soft);color:var(--warn)}
+.slot.drink{border-color:#31556E;background:#EAF0F5;color:#31556E}
+.slot.ref{background:repeating-linear-gradient(45deg,#f3f1ec,#f3f1ec 6px,#fff 6px,#fff 12px);color:var(--soft);cursor:not-allowed}
+.slot.sel{outline:2px solid var(--fir);outline-offset:1px}
+.slot.wkd{box-shadow:inset 0 -3px 0 rgba(201,144,56,.5)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem;margin:8px 0}
+/* card back */
+.cardwrap{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.a6{width:315px;height:444px;background:#fff;border:1px solid #ddd;border-radius:6px;position:relative;box-shadow:0 3px 16px rgba(60,54,36,.12);padding:14px 26px 12px 16px;display:flex;flex-direction:column;align-items:center;text-align:center;font-family:Georgia,serif;color:#1F3326}
+.a6 .logo{font-family:Georgia,serif;font-size:22px;letter-spacing:.18em;font-weight:600;margin-top:2px}
+.a6 .logo small{display:block;font-style:italic;letter-spacing:0;font-size:11px;font-weight:400;color:#6E6A5E}
+.a6 .kick{color:var(--honey);letter-spacing:.25em;font-size:10px;font-family:-apple-system,sans-serif;font-weight:600;margin:4px 0 2px}
+.a6 .ttl{font-size:17px;font-weight:600;margin:0}
+.a6 .sub{font-style:italic;font-size:10px;color:#6E6A5E;margin-bottom:6px}
+.a6 .qrf{border:1.3px solid var(--honey);border-radius:10px;padding:7px;background:#fff}
+.a6 .scan{font-family:-apple-system,sans-serif;font-weight:700;font-size:9.5px;margin-top:4px}
+.a6 .link{font-family:-apple-system,sans-serif;font-size:8.5px;color:#6E6A5E}
+.a6 ol{list-style:none;padding:0;margin:6px 0 4px;align-self:stretch;text-align:left;font-family:-apple-system,sans-serif;font-size:8.6px}
+.a6 ol li{display:flex;gap:6px;align-items:center;margin:2px 0}
+.a6 ol li b{flex:0 0 14px;height:14px;border-radius:50%;background:var(--honey);color:#fff;font-size:8px;display:grid;place-items:center}
+.a6 .code{align-self:stretch;border:1.1px solid #b9c0b9;border-radius:6px;height:48px;text-align:left;font-family:-apple-system,sans-serif;font-size:7.5px;color:#6E6A5E;padding:4px 6px;margin:2px 0 4px}
+.a6 .small{font-family:-apple-system,sans-serif;font-size:7.4px;color:#6E6A5E;line-height:1.35}
+.a6 .foot{margin-top:auto;font-style:italic;color:var(--honey);font-size:9px}
+.a6 .legal{position:absolute;right:4px;top:50%;transform:translate(50%,-50%) rotate(90deg);transform-origin:center;font-family:-apple-system,sans-serif;font-size:6.5px;color:#6E6A5E;white-space:nowrap;right:12px}
+.old .code4{display:flex;gap:5px;margin-top:4px}.old .code4 span{flex:1;height:24px;border:1px solid #dfe3df;border-radius:4px}
+/* print */
+.sheets{display:flex;gap:18px;flex-wrap:wrap}
+.sheet{background:#fff;border:1px solid #cfcabd;box-shadow:0 2px 10px rgba(60,54,36,.1);position:relative}
+.sheet .cap{position:absolute;top:-20px;left:0;font-size:.75rem;color:var(--soft);white-space:nowrap}
+.pc{position:absolute;display:grid;place-items:center;font-weight:700;font-size:.85rem;border:1px dashed rgba(0,0,0,.25)}
+.pc.f{background:linear-gradient(160deg,#5d7d68,#2F3A26);color:#fff}
+.pc.b{background:#fff;color:var(--warn)}
+.fold{position:absolute;border-left:1.5px dotted #999}
+.cropnote{font-size:.78rem;color:var(--soft)}
+/* questions */
+.q{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.q p{margin:0 0 6px;font-weight:600}
+.q label{display:flex;gap:8px;align-items:flex-start;padding:6px 4px;border-radius:8px;cursor:pointer;min-height:40px;font-size:.92rem}
+.q label:hover{background:var(--fir-tint)}
+.q input{accent-color:var(--fir);margin-top:4px;width:18px;height:18px}
+.q small{display:block;color:var(--soft)}
+.copy{position:sticky;bottom:12px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 3px 16px rgba(60,54,36,.15);padding:12px 14px;margin-top:16px}
+.copy pre{white-space:pre-wrap;font-size:.8rem;background:var(--paper);border-radius:8px;padding:8px;margin:8px 0;max-height:160px;overflow:auto}
+.btn-p{font:inherit;background:var(--fir);color:#fff;border:0;border-radius:10px;padding:10px 16px;min-height:44px;font-weight:600;cursor:pointer}
+.btn-p:hover{background:var(--fir-d)}
+.tag{font-size:.72rem;color:var(--soft);text-transform:uppercase;letter-spacing:.09em;font-weight:600}
+@media (prefers-reduced-motion:no-preference){.slot,.seg button{transition:background-color .15s ease-out}}
+.slot.two{border-color:#31556E;background:#D6E4EE;color:#1F3F57;font-weight:600}
+.slot.busy{background:#eee;color:var(--soft);cursor:not-allowed;border-style:dashed}
+.chip.two{background:#D6E4EE;color:#1F3F57}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.panel-h{padding:12px 16px;border-bottom:1px solid var(--line);font-family:Georgia,serif;font-weight:600}
+.panel-s{padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-s h3.ph{font-family:inherit;font-weight:600;margin:0 0 10px;font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--soft)}
+.sub-t{font-size:.85rem;font-weight:600;margin:6px 0}
+.lodg{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:.92rem;min-height:44px}
+.lodg:first-of-type{border-top:0}
+.sw{width:42px;height:26px;border-radius:13px;background:#cfcabd;position:relative;border:0;cursor:pointer}
+.sw[aria-checked=true]{background:var(--fir)}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s ease-out}
+.sw[aria-checked=true]::after{transform:translateX(16px)}
+.gone{font-size:.82rem;color:var(--soft);background:var(--paper);border-radius:10px;padding:8px 10px;margin-top:10px}
+.gone s{color:var(--err)}
+.front{width:315px;height:444px;border-radius:6px;position:relative;overflow:hidden;box-shadow:0 3px 16px rgba(60,54,36,.12);background:linear-gradient(180deg,#f2b98a 0%,#d98a6a 35%,#5d6f7d 70%,#2F3A26 100%)}
+.front .hill{position:absolute;bottom:0;left:0;right:0;height:42%;background:radial-gradient(ellipse at 30% 0%,#3d4d3a 0,#2F3A26 60%)}
+.front .tub{position:absolute;bottom:22%;left:28%;width:44%;height:9%;border-radius:50%;background:#5a3b22;box-shadow:0 -6px 18px rgba(255,220,180,.5)}
+.front .badge{position:absolute;background:rgba(255,255,255,.94);border-radius:12px;padding:6px 12px;color:#1F3326;text-align:center;line-height:1.1}
+.front .badge small{display:block;font-size:9px;font-family:-apple-system,sans-serif}
+.front .badge b{font-family:Georgia,serif;font-size:20px;font-weight:600}
+.front .safe{position:absolute;inset:14px;border:1px dashed rgba(255,255,255,.45);border-radius:4px;pointer-events:none}
+.decided{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:.9rem}
+.decided li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Bons cadeaux du bain : semaine / week-end, écart offert, dos des cartes, impression</h1>
+<p class="lead">Version 2 du résumé de la spec <code>specs/gift-vouchers/gift-voucher-week-weekend-and-print.md</code> (27/11/2026), avec tes réponses. Tout se manipule : les prix saisis en ① alimentent ② à ⑤. Deux petites questions restent en bas, avec le bouton « Copier ».</p>
+
+<div class="brief">
+  <div><b>Constat</b>Les prix du bain sont répartis sur 3 sections, le même prix apparaît deux fois, et un prix extérieur vide reprend en silence le prix des logés. Aucun prix ne dépend du jour. Un bon soirée ne sert qu'en soirée. Validité libre seulement en « Sur mesure ». Une carte par page à l'impression.</div>
+  <div><b>Ce qu'on propose</b><ul><li>« Prix » = 2 grilles complètes : logés, et extérieurs semaine/week-end (heures suivantes réglables partout)</li><li>Week-end = vendredi soir → dimanche soir + jours fériés</li><li>Bon semaine ou week-end, choisi par l'acheteur</li><li>Usage : supplément, boisson offerte, ou 2 h + boisson</li><li>Validité : 3, 6, 12, 18 ou 24 mois</li><li>Nouveaux dos (carte commerçant et bon), prix « à partir de » au recto commerçant</li><li>Impression : 1 à 8 cartes par feuille</li></ul></div>
+  <div><b>Ce qu'on ne fait pas</b><ul><li>Rien ne change pour les logés ni pour l'heure offerte</li><li>Pas de solde gardé sur un bon</li><li>Pas de prix sur le recto du bon envoyé par mail</li><li>A4 uniquement</li></ul></div>
+  <div><b>Risques</b><ul><li>Un prix par logement sur le bain serait supprimé : je lis la prod avant la release</li><li>Le prix imprimé au recto ne suit pas une hausse de tarif</li><li>Recto-verso : le calage dépend de l'imprimante, faire un essai avec 2 feuilles</li><li>Plugin du bain : audit en cours, ses trous seront corrigés dans ce chantier</li></ul></div>
+</div>
+
+<!-- 1 -->
+<h2>① Fiche « Bain nordique » — section « Prix »</h2>
+<p class="hint">Tous les prix au même endroit, tous obligatoires : plus de « Prix de base », plus de « vide = tarif des logés ». Vide une case pour voir le refus.</p>
+<div class="panel">
+  <div class="panel-h">Bain nordique</div>
+  <div class="panel-s">
+    <h3 class="ph">Clients logés</h3>
+    <table class="grid-rates"><thead><tr><th></th><th>1re heure</th><th>Heures suivantes</th></tr></thead><tbody>
+      <tr><th>Journée</th><td><input data-r="gd1" value="30" inputmode="decimal" aria-label="Logés journée 1re heure"></td><td><input data-r="gdn" value="30" inputmode="decimal" aria-label="Logés journée heures suivantes"></td></tr>
+      <tr><th>Soirée (dès 20:00)</th><td><input data-r="ge1" value="40" inputmode="decimal" aria-label="Logés soirée 1re heure"></td><td><input data-r="gen" value="40" inputmode="decimal" aria-label="Logés soirée heures suivantes"></td></tr>
+    </tbody></table>
+    <div class="sub-t" style="margin-top:14px">Heure offerte par logement</div>
+    <div class="lodg"><span>Granja</span><button class="sw" role="switch" aria-checked="true" aria-label="Granja : 1re heure offerte"></button></div>
+    <div class="lodg"><span>Estiva</span><button class="sw" role="switch" aria-checked="true" aria-label="Estiva : 1re heure offerte"></button></div>
+    <div class="lodg"><span>Aventura Lodge</span><button class="sw" role="switch" aria-checked="false" aria-label="Aventura Lodge : 1re heure offerte"></button></div>
+  </div>
+  <div class="panel-s">
+    <h3 class="ph">Prix pour les extérieurs</h3>
+    <div style="overflow-x:auto"><table class="grid-rates" style="min-width:560px"><thead><tr><th></th><th colspan="2">Semaine</th><th colspan="2" class="wk">Week-end</th></tr><tr><th></th><th>1re heure</th><th>Heures suiv.</th><th class="wk">1re heure</th><th class="wk">Heures suiv.</th></tr></thead><tbody>
+      <tr><th>Journée</th><td><input data-r="wd1" value="50" inputmode="decimal" aria-label="Extérieurs semaine journée 1re heure"></td><td><input data-r="wdn" value="30" inputmode="decimal" aria-label="Extérieurs semaine journée heures suivantes"></td><td class="wk"><input data-r="ed1" value="70" inputmode="decimal" aria-label="Extérieurs week-end journée 1re heure"></td><td class="wk"><input data-r="edn" value="40" inputmode="decimal" aria-label="Extérieurs week-end journée heures suivantes"></td></tr>
+      <tr><th>Soirée</th><td><input data-r="we1" value="70" inputmode="decimal" aria-label="Extérieurs semaine soirée 1re heure"></td><td><input data-r="wen" value="40" inputmode="decimal" aria-label="Extérieurs semaine soirée heures suivantes"></td><td class="wk"><input data-r="ee1" value="90" inputmode="decimal" aria-label="Extérieurs week-end soirée 1re heure"></td><td class="wk"><input data-r="een" value="50" inputmode="decimal" aria-label="Extérieurs week-end soirée heures suivantes"></td></tr>
+    </tbody></table></div>
+    <div class="errline" id="rateErr"></div>
+    <div class="hint">Week-end : du vendredi 20:00 au dimanche soir, et les jours fériés.</div>
+    <div class="gone">Disparaissent : <s>Prix de base</s> (= Logés · Journée · 1re heure) · <s>Prix par logement</s> (doublon de la grille des logés) · <s>« Vide / 0 = tarif hébergés »</s> · les deux grilles de la section « Horaires ».</div>
+  </div>
+</div>
+<p class="hint">Les heures suivantes sont des exemples : ce sont les seules valeurs que je n'ai pas eues de toi.</p>
+
+<!-- 2 -->
+<h2>② GuestFlow — « Nouveau bon »</h2>
+<div class="two">
+<div class="card">
+  <div class="field"><span>Campagne</span><select id="nbCamp"><option value="day">Une heure de bain nordique en journée</option><option value="evening">Une heure de bain nordique en soirée</option></select></div>
+  <div class="field"><span>Période</span><select id="nbPer"><option value="week">Semaine</option><option value="weekend">Week-end</option></select></div>
+  <div class="field"><span>Validité</span><select id="nbVal"><option value="3">3 mois</option><option value="6">6 mois</option><option value="12">12 mois</option><option value="18" selected>18 mois</option><option value="24">24 mois</option></select></div>
+</div>
+<div class="card"><h3>Récapitulatif</h3><div class="recap" id="nbRecap"></div></div>
+</div>
+
+<!-- 3 -->
+<h2>③ Site — « Offrir un bon cadeau »</h2>
+<div class="two">
+  <div class="site">
+    <div class="seg" role="group" aria-label="Formule"><button data-sc="day" aria-pressed="true">Journée</button><button data-sc="evening" aria-pressed="false">Soirée</button></div>
+    <h3 id="siteT">Une heure de bain nordique en journée</h3>
+    <div class="seg" role="group" aria-label="Période" id="sitePerSeg"><button data-sp="week" aria-pressed="true">Semaine</button><button data-sp="weekend" aria-pressed="false">Week-end</button></div>
+    <p class="hint" id="sitePerHint"></p>
+    <div class="price num" id="sitePrice">50 €</div>
+    <span class="btn">Offrir ce bon</span>
+  </div>
+  <div class="card"><span class="tag">Sélecteur d'offres</span><p class="hint">Les deux cartes affichent « à partir de » : <b id="fromDay"></b> en journée, <b id="fromEve"></b> en soirée (prix de la semaine, le plus bas).</p></div>
+</div>
+
+<!-- 4 -->
+<h2>④ Utilisation du bon — semaine du 6 avril 2026</h2>
+<p class="hint">Lundi 6 avril = lundi de Pâques (férié) → tarif week-end. Mardi 15:00 est déjà réservé, et le bain ferme à 22:00 : ces cas montrent quand l'heure offerte n'est pas possible. Choisis un bon, puis clique un créneau.</p>
+<div class="card">
+  <div class="seg" role="group" aria-label="Bon" id="useSeg" style="flex-wrap:wrap">
+    <button data-u="day-week" aria-pressed="true">Journée semaine</button><button data-u="day-weekend" aria-pressed="false">Journée week-end</button><button data-u="evening-week" aria-pressed="false">Soirée semaine</button><button data-u="evening-weekend" aria-pressed="false">Soirée week-end</button>
+  </div>
+  <div class="legend"><span class="chip ok">Inclus</span><span class="chip warn">+ x € à régler</span><span class="chip drink">Inclus · boisson offerte</span><span class="chip two">2 h + boisson offerte</span><span class="chip n">Complet</span></div>
+  <div class="weekwrap"><div class="weekgrid" id="weekGrid"></div></div>
+  <div class="recap" id="useRecap"><div><span class="muted">Choisis un créneau.</span></div></div>
+</div>
+
+<!-- 5 -->
+<h2>⑤ Les cartes — recto commerçant avec prix, et les deux dos</h2>
+<p class="hint">Fond blanc, design proposé, un seul rectangle pour le code. Le prix du recto est lu dans GuestFlow à l'impression ; son coin se règle dans la campagne.</p>
+<div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+  <div class="field" style="margin:0;min-width:240px"><span>Campagne</span><select id="frCamp"><option value="day">Bain nordique en journée</option><option value="evening">Bain nordique en soirée</option></select></div>
+  <div class="field" style="margin:0;min-width:240px"><span>Position du prix</span><select id="frPos"><option value="br">En bas à droite</option><option value="bl">En bas à gauche</option><option value="tr">En haut à droite</option><option value="tl">En haut à gauche</option><option value="none">Aucun</option></select></div>
+  <span class="hint" style="margin:0">Le prix est celui du jour de l'impression.</span>
+</div>
+<div class="cardwrap">
+  <div><div class="tag" style="margin-bottom:6px">Carte commerçant · recto</div>
+    <div class="front" id="front"><div class="hill"></div><div class="tub"></div><div class="safe"></div><div class="badge" id="badge"><small>à partir de</small><b id="badgeP">50 €</b></div></div></div>
+  <div><div class="tag" style="margin-bottom:6px">Carte commerçant · dos</div>
+  <div class="a6">
+    <div class="logo"><small>Domaine</small>SOLIO</div>
+    <div class="kick">BON CADEAU</div>
+    <p class="ttl">Offrez un bon cadeau</p>
+    <div class="sub">en quelques minutes, depuis votre téléphone</div>
+    <div class="qrf"><svg class="qr" width="96" height="96" viewBox="0 0 25 25" shape-rendering="crispEdges"></svg></div>
+    <div class="scan">Scannez le QR code</div>
+    <div class="link">domainesolio.com/bon-cadeau/offrir/bain-nordique</div>
+    <ol><li><b>1</b>Scannez le QR code avec votre téléphone</li><li><b>2</b>Choisissez et réglez le bon sur notre site</li><li><b>3</b>Recopiez ci-dessous le code reçu par mail, offrez la carte</li></ol>
+    <div class="code">Code du bon</div>
+    <div class="small">Valable <span class="valM">18</span> mois à partir du paiement.<br>Vous avez reçu cette carte ? domainesolio.com/bon-cadeau/utiliser</div>
+    <div class="foot">Domaine Solio · Satillieu · Ardèche</div>
+    <div class="legal">Ne pas jeter sur la voie publique.</div>
+  </div></div>
+  <div><div class="tag" style="margin-bottom:6px">Bon envoyé par mail · dos</div>
+  <div class="a6">
+    <div class="logo"><small>Domaine</small>SOLIO</div>
+    <div class="kick">BON CADEAU</div>
+    <p class="ttl" style="font-size:14px">Une heure de bain nordique en soirée · week-end</p>
+    <div class="sub">offert par Claire à Julien</div>
+    <div class="qrf"><svg class="qr" width="84" height="84" viewBox="0 0 25 25" shape-rendering="crispEdges"></svg></div>
+    <div class="scan">Scannez le QR code</div>
+    <div class="link">domainesolio.com/bon-cadeau/utiliser</div>
+    <ol><li><b>1</b>Scannez le QR code avec votre téléphone</li><li><b>2</b>Choisissez votre créneau en ligne</li><li><b>3</b>Savourez votre parenthèse en Ardèche</li></ol>
+    <div class="code" style="height:auto">Code du bon<div style="font:700 15px -apple-system,sans-serif;color:#1F3326;letter-spacing:.08em;text-align:center;padding:3px 0 2px">K7QF-2M9X-HT4R-8PZC</div></div>
+    <div class="small">Votre bon comprend : 1 h de bain nordique en soirée, le week-end<br><i>« Bon anniversaire, profite bien ! »</i><br>Valable jusqu'au 27 mai 2028</div>
+    <div class="foot">Domaine Solio · Satillieu · Ardèche</div>
+    <div class="legal">Ne pas jeter sur la voie publique.</div>
+  </div></div>
+</div>
+
+<!-- 6 -->
+<h2>⑥ « Imprimer… » — jusqu'à 8 cartes par feuille</h2>
+<p class="hint">Les numéros montrent quel dos va avec quelle face. En recto-verso, chaque dos est placé là où tombera sa face une fois la feuille retournée.</p>
+<div class="two">
+<div class="card">
+  <div class="field"><span>Mode</span><div class="seg" id="pMode"><button data-m="duplex" aria-pressed="true">Recto-verso</button><button data-m="side" aria-pressed="false">Côte à côte, à plier</button></div></div>
+  <div class="field"><span>Cartes par feuille (A4)</span><select id="pPer"></select></div>
+  <div class="field" id="pCountF"><span>Nombre de cartes</span><input id="pCount" value="8" inputmode="numeric"><span class="msg" id="pCountMsg"></span></div>
+  <div class="field" id="pFlipF"><span>Retournement de la feuille</span><select id="pFlip"><option value="lr">De gauche à droite</option><option value="tb">De haut en bas</option></select></div>
+  <div class="cropnote" id="pNote"></div>
+</div>
+<div class="card"><span class="tag" id="pPages"></span><div class="sheets" id="sheets" style="margin-top:26px"></div></div>
+</div>
+<p class="hint">J'ai nommé le retournement par son geste (« de gauche à droite », « de haut en bas ») plutôt que « bord long / bord court » : en paysage, les imprimantes n'emploient pas ces mots de la même façon.</p>
+
+<!-- decided -->
+<h2>Décisions prises</h2>
+<ul class="decided">
+  <li>Q1 période choisie dans la campagne · Q2 bon semaine utilisé le week-end = supplément · Q3 une boisson quel que soit l'écart</li>
+  <li>Q4 textes adaptés au vrai parcours · Q5 validité et « Vous avez reçu cette carte ? » gardées · Q6 nouveau dos aussi pour le bon</li>
+  <li>Q7 jours fériés au tarif week-end · Q8 4 par feuille à 94 %, 8 par feuille à 66 %</li>
+  <li>Bon soirée week-end sur un créneau journée semaine : toujours 2 h + boisson</li>
+  <li>Prix par logement supprimé, l'heure offerte reste · prix du recto avec coin réglable par campagne · validité 3/6/12/18/24 · aucun ancien bon à reprendre</li>
+</ul>
+
+<h2>Deux questions restantes</h2>
+<form id="qs"></form>
+<div class="copy"><b>Résumé des choix</b><pre id="sum"></pre><button class="btn-p" id="copyBtn" type="button">Copier</button> <span id="copied" class="hint"></span></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const eur=c=>(Math.round(c*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:Number.isInteger(c)?0:2})+' €';
+const Q=[
+ {id:'R1',t:'L\'heure offerte (2 h + boisson) déborde sur la soirée, par ex. créneau 19:00 → 21:00 :',o:[['yes','Offerte quand même (Recommandé)','La 2e heure est offerte, même en soirée.'],['no','Seulement si elle reste en journée','Sinon le créneau donne 1 h + boisson.']]},
+ {id:'R2',t:'Veille de jour férié au soir (ex. dimanche 5 avril, 20:00, avant le lundi de Pâques) :',o:[['day','Seul le jour férié compte (Recommandé)','La veille au soir suit son propre jour (ici dimanche = déjà week-end ; un mercredi soir avant un jeudi férié reste semaine).'],['eve','La veille au soir passe aussi au tarif week-end','Comme le vendredi soir avant le week-end.']]}
+];
+const ans={};
+$('#qs').innerHTML=Q.map(q=>`<div class="q"><p>${q.id}. ${q.t}</p>${q.o.map((o,i)=>`<label><input type="radio" name="${q.id}" value="${o[0]}" ${i===0?'checked':''}><span>${o[1]}<small>${o[2]}</small></span></label>`).join('')}</div>`).join('');
+Q.forEach(q=>ans[q.id]=q.o[0][0]);
+$('#qs').addEventListener('change',e=>{ans[e.target.name]=e.target.value;renderAll()});
+function summary(){return 'Bons semaine/week-end — questions restantes :\n'+Q.map(q=>{const o=q.o.find(o=>o[0]===ans[q.id]);return `${q.id}. ${q.t} → ${o[1].replace(' (Recommandé)','')}`}).join('\n')}
+$('#copyBtn').onclick=()=>{const t=summary();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>$('#copied').textContent='Copié.').catch(()=>{const r=document.createRange();r.selectNodeContents($('#sum'));getSelection().removeAllRanges();getSelection().addRange(r);$('#copied').textContent='Sélectionné : ⌘C pour copier.'})};
+$$('.sw').forEach(b=>b.onclick=()=>b.setAttribute('aria-checked',b.getAttribute('aria-checked')!=='true'));
+
+/* rates — all required */
+const R={},last={wd1:50,wdn:30,ed1:70,edn:40,we1:70,wen:40,ee1:90,een:50,gd1:30,gdn:30,ge1:40,gen:40};
+function readRates(){let err='';$$('.grid-rates input').forEach(i=>{i.classList.remove('bad');const v=i.value.trim().replace(',','.');const k=i.dataset.r;
+ if(v===''||!/^\d+(\.\d{1,2})?$/.test(v)||+v>10000){i.classList.add('bad');if(!err)err=(k[0]==='g'?'Le tarif logés (':`Le tarif extérieurs (${k[0]==='w'?'semaine':'week-end'}, `)+(k[1]==='d'?'journée':'soirée')+', '+(k[2]==='1'?'1re heure':'heures suivantes')+(v===''?') est obligatoire.':') doit être un montant positif.');R[k]=last[k]}else{R[k]=+v;last[k]=+v}});$('#rateErr').textContent=err}
+const first=(b,p)=>R[(p==='weekend'?'e':'w')+(b==='day'?'d':'e')+'1'];
+const next=(b,p)=>R[(p==='weekend'?'e':'w')+(b==='day'?'d':'e')+'n'];
+$$('.grid-rates input').forEach(i=>i.addEventListener('input',renderAll));
+
+/* nouveau bon */
+function renderNB(){const c=$('#nbCamp').value,p=$('#nbPer').value,v=+$('#nbVal').value;const end=new Date(2026,10+v,27).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});const pr=first(c,p);
+ $('#nbRecap').innerHTML=`<div><span>1 h ${c==='day'?'journée':'soirée'} · ${p==='week'?'semaine':'week-end'}</span><span class="num">${eur(pr/1.2)} HT</span></div><div><span>TVA 20 %</span><span class="num">${eur(pr-pr/1.2)}</span></div><div class="tot"><span>Total</span><span class="num">${eur(pr)}</span></div><div><span>Valable jusqu'au</span><span class="num">${end}</span></div>`;$$('.valM').forEach(e=>e.textContent=v)}
+['#nbCamp','#nbPer','#nbVal'].forEach(s=>$(s).addEventListener('input',renderNB));
+
+/* site */
+let sc='day',sp='week';
+function segWire(sel,attr,cb){$$(sel+' button').forEach(b=>b.onclick=()=>{$$(sel+' button').forEach(x=>x.setAttribute('aria-pressed',x===b));cb(b.dataset[attr])})}
+$$('[data-sc]').forEach(b=>b.onclick=()=>{$$('[data-sc]').forEach(x=>x.setAttribute('aria-pressed',x===b));sc=b.dataset.sc;renderSite()});
+segWire('#sitePerSeg','sp',v=>{sp=v;renderSite()});
+function renderSite(){$('#siteT').textContent='Une heure de bain nordique en '+(sc==='day'?'journée':'soirée');$('#sitePrice').textContent=eur(first(sc,sp));
+ $('#sitePerHint').textContent=sp==='week'?(sc==='day'?'Semaine : du lundi au vendredi en journée. Utilisable le week-end avec un supplément.':'Semaine : du lundi au jeudi en soirée. Utilisable le week-end avec un supplément.'):(sc==='day'?'Week-end : samedi, dimanche et jours fériés, en journée. Utilisable tous les jours.':'Week-end : vendredi, samedi, dimanche et jours fériés, en soirée. Utilisable tous les jours.');
+ $('#fromDay').textContent=eur(Math.min(first('day','week'),first('day','weekend')));$('#fromEve').textContent=eur(Math.min(first('evening','week'),first('evening','weekend')))}
+
+/* use */
+let uv='day-week',sel=null;
+segWire('#useSeg','u',v=>{uv=v;sel=null;renderUse()});
+const days=['Lun 6 · férié','Mar 7','Mer 8','Jeu 9','Ven 10','Sam 11','Dim 12'],hours=['11:00','14:00','15:00','17:00','19:00','20:00','21:00'];
+const busy={'1|15:00':1};const H=h=>parseInt(h);
+const bandOf=h=>H(h)>=20?'evening':'day';
+const perOf=(d,h)=>d===0||d>=5||(d===4&&bandOf(h)==='evening')?'weekend':'week';
+function evalSlot(d,h){if(busy[d+'|'+h])return{tag:'busy',txt:'Complet'};const [vb,vp]=uv.split('-');const sb=bandOf(h),spp=perOf(d,h);const ref=first(vb,vp),pl=first(sb,spp);
+ if(vb==='evening'&&vp==='weekend'&&sb==='day'&&spp==='week'){const nh=(H(h)+1)+':00';const free=!busy[d+'|'+(nh.padStart(5,'0'))]&&H(h)+2<=22&&(ans.R1==='yes'||H(h)+1<20);if(free)return{tag:'two',txt:'2 h + boisson offerte',diff:pl-ref}}
+ const diff=pl-ref;if(diff>0){const c=[];if(sb==='evening'&&vb==='day')c.push('soirée');if(spp==='weekend'&&vp==='week')c.push('week-end');return{tag:'sup',txt:'+ '+eur(diff),diff,lbl:'Supplément '+(c.join(' ')||'créneau')}}
+ if(diff<0)return{tag:'drink',txt:'Inclus · boisson offerte',diff};return{tag:'in',txt:'Inclus'}}
+function renderUse(){let h='<div></div>'+days.map(d=>`<div class="h">${d}</div>`).join('');
+ hours.forEach(hr=>{h+=`<div class="t">${hr}</div>`;days.forEach((d,i)=>{const e=evalSlot(i,hr);h+=`<button class="slot ${e.tag==='sup'?'sup':e.tag} ${perOf(i,hr)==='weekend'?'wkd':''} ${sel&&sel[0]===i&&sel[1]===hr?'sel':''}" data-d="${i}" data-h="${hr}" ${e.tag==='busy'?'aria-disabled="true"':''}>${e.txt}</button>`})});
+ $('#weekGrid').innerHTML=h;$$('.slot').forEach(b=>b.onclick=()=>{if(b.classList.contains('busy'))return;sel=[+b.dataset.d,b.dataset.h];renderUse()});
+ if(!sel)return;const e=evalSlot(sel[0],sel[1]);const two=e.tag==='two';const end=H(sel[1])+(two?2:1);
+ let r=`<div><span>${days[sel[0]]} · ${sel[1]}–${end}:00 — ${bandOf(sel[1])==='day'?'journée':'soirée'} ${perOf(sel[0],sel[1])==='weekend'?'week-end':'semaine'}</span><span></span></div><div><span>1 h couverte par le bon</span><span class="num">Inclus</span></div>`;
+ if(e.tag==='sup')r+=`<div><span>${e.lbl}</span><span class="num">${eur(e.diff)}</span></div><div class="tot"><span>À régler</span><span class="num">${eur(e.diff)}</span></div>`;
+ else{if(two)r+=`<div><span>Heure offerte</span><span class="num">0 €</span></div>`;if(e.tag==='drink'||two)r+=`<div><span>Boisson offerte</span><span class="num">0 €</span></div><div class="hint">Écart noté sur le bon : ${eur(-e.diff)}. Mail : « Une boisson vous sera offerte sur place. »</div>`;r+=`<div class="tot"><span>À régler</span><span class="num">0 €</span></div>`}
+ $('#useRecap').innerHTML=r}
+
+/* cards */
+(function(){let s=7,h='';const rnd=()=>(s=(s*16807)%2147483647)/2147483647;const fin=(x,y)=>{for(let i=0;i<7;i++)for(let j=0;j<7;j++){if(i===0||j===0||i===6||j===6||(i>1&&i<5&&j>1&&j<5))h+=`<rect x="${x+i}" y="${y+j}" width="1" height="1"/>`}};
+ for(let i=0;i<25;i++)for(let j=0;j<25;j++){if(!((i<8&&j<8)||(i>16&&j<8)||(i<8&&j>16))&&rnd()>.52)h+=`<rect x="${i}" y="${j}" width="1" height="1"/>`}
+ fin(0,0);fin(18,0);fin(0,18);$$('.qr').forEach(q=>q.innerHTML=`<g fill="#1F3326">${h}</g>`)})();
+function renderFront(){const c=$('#frCamp').value,p=$('#frPos').value;const b=$('#badge');b.hidden=p==='none';b.style.top=b.style.bottom=b.style.left=b.style.right='';
+ b.style[p[0]==='t'?'top':'bottom']='22px';b.style[p[1]==='l'?'left':'right']='22px';$('#badgeP').textContent=eur(Math.min(first(c,'week'),first(c,'weekend')))}
+['#frCamp','#frPos'].forEach(s=>$(s).addEventListener('input',renderFront));
+
+/* print */
+const L={duplex:{1:['P',1,1,1],2:['L',2,1,1],4:['P',2,2,.94],8:['L',4,2,.66]},side:{1:['L',1,1,1],2:['P',1,2,.94],4:['L',2,2,.66]}};
+let pm='duplex';segWire('#pMode','m',v=>{pm=v;fillPer();renderPrint()});
+function fillPer(){const opts=Object.keys(L[pm]).map(Number);const cur=+$('#pPer').value||8;const pick=opts.includes(cur)?cur:opts[opts.length-1];$('#pPer').innerHTML=opts.map(o=>`<option ${o===pick?'selected':''}>${o}</option>`).join('')}
+['#pPer','#pCount','#pFlip'].forEach(s=>$(s).addEventListener('input',renderPrint));
+function renderPrint(){const per=+$('#pPer').value;const v=$('#pCount').value.trim();const ok=/^\d+$/.test(v)&&+v>=1&&+v<=200;$('#pCountF').classList.toggle('err',!ok);$('#pCountMsg').textContent=ok?'':'Le nombre de cartes doit être compris entre 1 et 200.';$('#pFlipF').hidden=pm!=='duplex';
+ const [o,cols,rows,sc]=L[pm][per];const SW=o==='P'?210:297,SH=o==='P'?297:210;const uw=(pm==='duplex'?105:210)*sc,uh=148*sc;const ox=(SW-cols*uw)/2,oy=(SH-rows*uh)/2;
+ const k=212/Math.max(SW,SH);const n=ok?+v:per;const sheets=Math.ceil(n/per);
+ $('#pNote').textContent=`Feuille A4 ${o==='P'?'portrait':'paysage'}, ${cols} × ${rows}, cartes à ${Math.round(sc*100)} %${sc<1?' (≈ '+Math.round(105*sc)+' × '+Math.round(148*sc)+' mm)':''}, traits de coupe.`;
+ $('#pPages').textContent=pm==='duplex'?`${sheets} feuille(s), ${sheets*2} page(s)`:`${sheets} feuille(s), recto seul`;
+ const cell=(x,y,w,hh,cls,txt)=>`<div class="pc ${cls}" style="left:${x*k}px;top:${y*k}px;width:${w*k}px;height:${hh*k}px">${txt}</div>`;
+ let out='';for(let s=0;s<Math.min(sheets,2);s++){const faces=pm==='duplex'?[false,true]:[false];faces.forEach(back=>{let c='';for(let i=0;i<per;i++){const num=s*per+i+1;if(num>n)continue;let col=i%cols,row=Math.floor(i/cols);
+   if(back){if($('#pFlip').value==='lr')col=cols-1-col;else row=rows-1-row}const x=ox+col*uw,y=oy+row*uh;
+   if(pm==='duplex')c+=cell(x,y,uw,uh,back?'b':'f',(back?'dos ':'')+num);else{c+=cell(x,y,uw/2,uh,'f',num)+cell(x+uw/2,y,uw/2,uh,'b','dos '+num)+`<div class="fold" style="left:${(x+uw/2)*k}px;top:${y*k}px;height:${uh*k}px"></div>`}}
+  out+=`<div class="sheet" style="width:${SW*k}px;height:${SH*k}px"><span class="cap">Feuille ${s+1}${pm==='duplex'?' · '+(back?'verso':'recto'):''}</span>${c}</div>`})}
+ $('#sheets').innerHTML=out}
+
+function renderAll(){readRates();renderNB();renderSite();renderUse();renderFront();renderPrint();$('#sum').textContent=summary()}
+fillPer();renderAll();
+</script>
+</body>
+</html>

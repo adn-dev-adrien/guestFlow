@@ -14,37 +14,45 @@ const LAYOUT = {
   safeMm: 5,
   legalStripMm: 5,
   qrMm: 23,
+  qrFramePadMm: 2.5,
   logoMm: 12,
   footerLineMm: 4,
-  qrGapMm: 3,
+  discMm: 4.6,
+  stepGapMm: 2,
+  codeBoxMm: 16,
   afterQrMm: 3,
-  afterItemsMm: 1.5,
-  afterMessageMm: 2,
+  afterStepsMm: 3,
+  afterCodeMm: 2,
   lineHeight: { sans: 1.326, serif: 1.371 },
-  pt: { title: 20, item: 8.5, code: 15, legal: 7 },
+  pt: { title: 17, step: 8.5, code: 15, legal: 7 },
   lines: {
-    scan: 3, link: 3, items: 7, itemText: 2, parties: 2, message: 4, logoName: 2,
+    logoName: 2, title: 2, subtitle: 2, step: 1, link: 1, includes: 3, message: 2,
   },
 };
 const TEXTS = {
   title: 'BON CADEAU',
-  howTo: 'Pour l’utiliser',
-  scan: 'Scannez pour réserver votre cadeau ou suivez ce lien :',
-  includes: 'Votre bon comprend :',
+  lodgingTitle: 'Un séjour offert',
+  subtitle: 'offert par {sender} à {recipient}',
+  subtitleSender: 'offert par {sender}',
+  subtitleRecipient: 'offert à {recipient}',
+  scan: 'Scannez le QR code',
+  steps: ['Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche'],
+  codeLabel: 'Code du bon',
+  includes: 'Votre bon comprend : {lines}',
   bullet: '•',
   recipient: 'Pour {name}',
   sender: 'de la part de {name}',
-  codeLabel: 'Votre code',
   codePlaceholder: 'XXXX-XXXX-XXXX-XXXX',
   validUntil: 'Valable jusqu’au {date}',
   legal: 'Ne pas jeter sur la voie publique.',
 };
 const BACK = {
-  layout: LAYOUT,
-  texts: TEXTS,
+  layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {} },
+  texts: { title: 'BON CADEAU' },
+  design: { layout: LAYOUT, voucherLayout: LAYOUT, texts: TEXTS },
   logoUrl: '/public/v1/gift-vouchers/logo?v=abc123def4567890',
   companyName: 'Domaine Solio',
-  identity: 'Domaine Solio · Saint-Cirq-Lapopie',
+  identity: 'Domaine Solio · Saint-Cirq-Lapopie · Lot',
   website: 'site.example',
   link: 'site.example/bon-cadeau/utiliser',
   previewQrSvg: SVG,
@@ -60,7 +68,7 @@ const LODGING = {
   ideas: [],
   termsVersionId: 4,
   visual: VISUAL,
-  back: { lineTemplate: 'Un séjour dans nos logements, d’une valeur de {amount}', validUntil: '15/05/2028' },
+  back: { lineTemplate: 'Un séjour dans nos logements, d’une valeur de {amount}', validUntil: '15/05/2028', title: 'Un séjour offert' },
 };
 const BATH = {
   slug: 'bain-jour',
@@ -81,7 +89,9 @@ const BATH = {
     extraTime: { 60: 'Temps supplémentaire : 1 h', 120: 'Temps supplémentaire : 2 h' },
     addOns: { 'option:7': { 1: 'Boisson', 2: '2 × Boisson' } },
     validUntil: '15/11/2027',
+    titles: { week: 'Un bain nordique · semaine', weekend: 'Un bain nordique · week-end' },
   },
+  periods: [{ period: 'week', priceCents: 10900, label: 'semaine' }],
 };
 const offerWith = (campaigns, back = BACK) => ({
   available: true, brand: 'Domaine Solio', termsVersionId: 4, minAmountCents: 2000, maxAmountCents: 200000, validityMonths: 18, ideas: [], campaigns, ...(back ? { back } : {}),
@@ -127,24 +137,26 @@ test('rule 66: the back is drawn from the dimensions and words GuestFlow sends',
   const verso = document.querySelector('.gf-card-flip .gf-verso');
   expect(verso.style.getPropertyValue('--m-qr')).toBe('23');
   expect(verso.style.getPropertyValue('--m-legal-strip')).toBe('5');
-  expect(verso.style.getPropertyValue('--p-title')).toBe('20');
-  expect(verso.style.getPropertyValue('--l-item-text')).toBe('2');
-  expect(verso.querySelector('.gf-v-title').textContent).toBe('BON CADEAU');
+  expect(verso.style.getPropertyValue('--p-title')).toBe('17');
+  expect(verso.style.getPropertyValue('--l-includes')).toBe('3');
+  expect(verso.querySelector('.gf-v-kicker').textContent).toBe('BON CADEAU');
+  expect(verso.querySelector('.gf-v-title').textContent).toBe('Un bain nordique · semaine');
+  expect([...verso.querySelectorAll('.gf-v-step-text')].map((n) => n.textContent)).toEqual(TEXTS.steps);
+  expect(verso.querySelector('.gf-v-codebox .gf-v-code-label').textContent).toBe('Code du bon');
   expect(verso.querySelector('.gf-v-scan').textContent).toBe(TEXTS.scan);
   expect(verso.querySelector('.gf-v-link').textContent).toBe('site.example/bon-cadeau/utiliser');
-  expect(verso.querySelector('.gf-v-identity').textContent).toBe('Domaine Solio · Saint-Cirq-Lapopie');
+  expect(verso.querySelector('.gf-v-identity').textContent).toBe('Domaine Solio · Saint-Cirq-Lapopie · Lot');
   expect(verso.querySelector('.gf-v-legal').textContent).toBe(TEXTS.legal);
   expect(verso.querySelector('.gf-v-logo img').getAttribute('src')).toBe('/wp-json/guestflow/v1/gift-vouchers/logo?v=abc123def4567890');
   expect(verso.querySelector('.gf-v-qr svg')).toBeTruthy();
 });
 
-test('rule 66: before payment the code is grey, « délivré après le paiement » stands under it, and the validity is the server\'s', async () => {
+test('rule 66: before payment the code is grey, and the validity is the server\'s', async () => {
   setup();
   await screen.findByText('Le bon comprend');
   const code = document.querySelector('.gf-card-flip .gf-v-code');
   expect(code.textContent).toBe('XXXX-XXXX-XXXX-XXXX');
   expect(code.classList.contains('is-wait')).toBe(true);
-  expect(document.querySelector('.gf-card-flip .gf-v-code-sub').textContent).toBe('délivré après le paiement');
   expect(document.querySelector('.gf-card-flip .gf-v-valid').textContent).toBe('Valable jusqu’au 15/11/2027');
 });
 
@@ -156,9 +168,9 @@ test('rule 66: on a wide block the card turns to its back as the buyer types in 
   expect(face()).toBe('back');
   type(/^De la part de/, 'Paul');
   type(/^Un mot/, 'Joyeux anniversaire');
-  expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie de la part de Paul']);
+  expect(texts('.gf-card-flip .gf-v-subtitle')).toEqual(['offert par Paul à Marie']);
   expect(texts('.gf-card-flip .gf-v-message')).toEqual(['Joyeux anniversaire']);
-  expect(texts('.gf-card-flip .gf-v-item')).toEqual(['• Bain nordique : 2 h en journée', '• Planche apéro']);
+  expect(texts('.gf-card-flip .gf-v-includes')).toEqual(['Votre bon comprend : Bain nordique : 2 h en journée · Planche apéro']);
 });
 
 test('rule 66: the recipient\'s last name turns the card too, and the back prints the first name only, as the PDF does', async () => {
@@ -166,9 +178,9 @@ test('rule 66: the recipient\'s last name turns the card too, and the back print
   await screen.findByText('Le bon comprend');
   type(/^Nom/, 'Durand');
   expect(face()).toBe('back');
-  expect(document.querySelector('.gf-card-flip .gf-v-parties').hidden).toBe(true);
+  expect(document.querySelector('.gf-card-flip .gf-v-subtitle').textContent).toBe('');
   type(/^Prénom/, 'Marie');
-  expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie']);
+  expect(texts('.gf-card-flip .gf-v-subtitle')).toEqual(['offert à Marie']);
   expect(document.querySelector('.gf-card-flip').textContent).not.toContain('Durand');
 });
 
@@ -192,7 +204,7 @@ test('rule 66: on a narrow block the card does not turn by itself; « Voir le ve
   type(/^Prénom/, 'Marie');
   type(/^Un mot/, 'Bravo');
   expect(face()).toBe('front');
-  expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie']);
+  expect(texts('.gf-card-flip .gf-v-subtitle')).toEqual(['offert à Marie']);
   fireEvent.click(screen.getByRole('button', { name: 'Voir le verso du bon' }));
   expect(face()).toBe('back');
 });
@@ -202,11 +214,9 @@ test('rule 66: choosing extra time or an option adds the line GuestFlow wrote fo
   await screen.findByText('Le bon comprend');
   fireEvent.click(screen.getByText('Ajouter au bon'));
   fireEvent.click(screen.getAllByRole('button', { name: /^Ajouter/ }).filter((b) => b.closest('.gf-step'))[0]);
-  await waitFor(() => expect(texts('.gf-card-flip .gf-v-item')).toHaveLength(3));
+  await waitFor(() => expect(texts('.gf-card-flip .gf-v-includes')[0]).toMatch(/Planche apéro · (Temps supplémentaire : 1 h|Boisson)$/));
   expect(face()).toBe('back');
-  const items = texts('.gf-card-flip .gf-v-item');
-  expect(items.slice(0, 2)).toEqual(['• Bain nordique : 2 h en journée', '• Planche apéro']);
-  expect(items[2]).toMatch(/^• (Temps supplémentaire : 1 h|Boisson)$/);
+  expect(texts('.gf-card-flip .gf-v-includes')[0]).toMatch(/^Votre bon comprend : Bain nordique : 2 h en journée · Planche apéro · /);
 });
 
 test('rule 66: the page composes no line of its own — no duration or count formatting in the card code', async () => {
@@ -223,9 +233,10 @@ test('rule 66: the page composes no line of its own — no duration or count for
 test('rule 66: a lodging voucher fills the server\'s template with the amount typed, and shows a placeholder before one', async () => {
   setup({ campaigns: [LODGING], hash: '#campagne=sejour' });
   await screen.findByLabelText(/Montant/);
-  expect(texts('.gf-card-flip .gf-v-item')).toEqual(['• Un séjour dans nos logements, d’une valeur de … €']);
+  expect(texts('.gf-card-flip .gf-v-includes')).toEqual(['Votre bon comprend : Un séjour dans nos logements, d’une valeur de … €']);
+  expect(texts('.gf-card-flip .gf-v-title')).toEqual(['Un séjour offert']);
   fireEvent.input(screen.getByLabelText(/Montant/), { target: { value: '150' } });
-  expect(texts('.gf-card-flip .gf-v-item')).toEqual(['• Un séjour dans nos logements, d’une valeur de 150,00 €']);
+  expect(texts('.gf-card-flip .gf-v-includes')).toEqual(['Votre bon comprend : Un séjour dans nos logements, d’une valeur de 150,00 €']);
   expect(document.querySelector('.gf-card-flip .gf-v-valid').textContent).toBe('Valable jusqu’au 15/05/2028');
 });
 
@@ -235,7 +246,7 @@ test('rule 66: a text too long is left to the back\'s own line limits, never cut
   const long = 'Un très long message '.repeat(10).trim();
   type(/^Un mot/, long);
   expect(texts('.gf-card-flip .gf-v-message')).toEqual([long]);
-  expect(document.querySelector('.gf-card-flip').querySelector('.gf-verso').style.getPropertyValue('--l-message')).toBe('4');
+  expect(document.querySelector('.gf-card-flip').querySelector('.gf-verso').style.getPropertyValue('--l-message')).toBe('2');
 });
 
 test('rule 66: « Agrandir » opens the card in a dialog; a click turns it, Escape closes it and the focus returns to the button', async () => {
@@ -259,7 +270,7 @@ test('rule 66: « Fermer » closes the dialog too, and the dialog follows what t
   await screen.findByText('Le bon comprend');
   type(/^Prénom/, 'Marie');
   fireEvent.click(screen.getByRole('button', { name: 'Agrandir' }));
-  expect(texts('.gf-card-zoom .gf-v-parties')).toEqual(['Pour Marie']);
+  expect(texts('.gf-card-zoom .gf-v-subtitle')).toEqual(['offert à Marie']);
   fireEvent.click(screen.getByRole('button', { name: 'Fermer' }));
   expect(screen.queryByRole('dialog')).toBeNull();
 });
@@ -357,9 +368,10 @@ test('rule 66: nothing can drift — every custom property the card code derives
   // voucherPdf.js needs pdfkit, which jsdom cannot load: the layout constant is read out of its source and evaluated alone.
   const source = fs.readFileSync(path.resolve(__dirname, '../../../server/src/plugins/gift-vouchers/voucherPdf.js'), 'utf8');
   const BACK_LAYOUT = new Function(`return ${source.slice(source.indexOf('const BACK_LAYOUT = ') + 20, source.indexOf('\n});', source.indexOf('const BACK_LAYOUT = ')) + 3)};`)(); // eslint-disable-line no-new-func
+  const VOUCHER_BACK_LAYOUT = new Function('BACK_LAYOUT', `return ${source.slice(source.indexOf('const VOUCHER_BACK_LAYOUT = ') + 28, source.indexOf('\n});', source.indexOf('const VOUCHER_BACK_LAYOUT = ')) + 3)};`)(BACK_LAYOUT); // eslint-disable-line no-new-func
   const BACK_TEXTS = TEXTS;
   const css = fs.readFileSync(path.resolve(__dirname, '../../../integrations/wordpress/guestflow-booking/assets/style.css'), 'utf8');
-  setup({ back: { ...BACK, layout: JSON.parse(JSON.stringify(BACK_LAYOUT)), texts: BACK_TEXTS } });
+  setup({ back: { ...BACK, design: { layout: BACK_LAYOUT, voucherLayout: JSON.parse(JSON.stringify(VOUCHER_BACK_LAYOUT)), texts: BACK_TEXTS } } });
   await screen.findByText('Le bon comprend');
   const verso = document.querySelector('.gf-card-flip .gf-verso');
   const produced = [...verso.style].filter((n) => /^--(m|p|l|lh)-/.test(n));
@@ -373,7 +385,7 @@ test('rule 66: a template is filled once, with the value taken literally', async
   setup();
   await screen.findByText('Le bon comprend');
   type(/^Prénom/, 'Marie $& {name}');
-  expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie $& {name}']);
+  expect(texts('.gf-card-flip .gf-v-subtitle')).toEqual(['offert à Marie $& {name}']);
 });
 
 // ── The page after payment ────────────────────────────────────────────────────────────────
@@ -417,9 +429,8 @@ test('rule 66: after payment the same card shows its back first, with the real c
   const code = document.querySelector('.gf-card-flip .gf-v-code');
   expect(code.textContent.replace(/\W/g, '')).toBe('7KQ4M9TX2WHBR6PE');
   expect(code.classList.contains('is-wait')).toBe(false);
-  expect(document.querySelector('.gf-card-flip .gf-v-code-sub').hidden).toBe(true);
   expect(document.querySelector('.gf-card-flip .gf-v-qr svg path').getAttribute('d')).toBe('M0 0h2v2H0z');
-  expect(texts('.gf-card-flip .gf-v-parties')).toEqual(['Pour Marie de la part de Paul']);
+  expect(texts('.gf-card-flip .gf-v-subtitle')).toEqual(['offert par Paul à Marie']);
   expect(document.querySelector('.gf-card-flip .gf-v-valid').textContent).toBe('Valable jusqu’au 15/11/2027');
   expect(calls.some((c) => c.path === '/gift-vouchers/offer')).toBe(true);
 });

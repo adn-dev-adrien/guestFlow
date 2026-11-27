@@ -1,5 +1,5 @@
 /**
- * The one path of the sale (specs/gift-voucher-campaigns.md rule 52): what is on offer, what it costs, the order, the payment link and the issue. The public controllers
+ * The one path of the sale (specs/gift-vouchers/gift-voucher-campaigns.md rule 52): what is on offer, what it costs, the order, the payment link and the issue. The public controllers
  * (the site key, the proof of work, the per-visitor limits) and the admin controllers (the session, the « Payé » / « Offert » / « Envoyer un lien » outcomes) are thin
  * wrappers over it; neither re-implements a rule, so a voucher composed at the counter and one bought on the site are the same thing.
  *
@@ -93,10 +93,15 @@ function createOfferService({
   /** What a composed voucher holds, as the pricing engine is asked for it: the included session, the extra time after it (its ranks continue), the options and the add-ons. */
   function engineRequestOf(contents) {
     const { resource } = contents;
-    const lines = [{ articleRef: `resource:${resource.id}`, session: { band: resource.band, minutes: resource.includedMinutes } }];
+    const period = resource.period || 'week';
+    const lines = [{ articleRef: `resource:${resource.id}`, session: { band: resource.band, minutes: resource.includedMinutes, period } }];
     const descriptors = [{ kind: 'session', label: null }];
     if (resource.extraMinutes > 0) {
-      lines.push({ articleRef: `resource:${resource.id}`, session: { band: resource.band, minutes: resource.extraMinutes, rankOffsetMinutes: resource.includedMinutes } });
+      lines.push({
+        articleRef: `resource:${resource.id}`, session: {
+          band: resource.band, minutes: resource.extraMinutes, rankOffsetMinutes: resource.includedMinutes, period,
+        },
+      });
       descriptors.push({ kind: 'extra', label: `Temps supplémentaire · ${durationText(resource.extraMinutes)}` });
     }
     contents.options.forEach((o) => { lines.push({ articleRef: o.articleRef, quantity: o.qty }); descriptors.push({ kind: 'option' }); });
@@ -104,7 +109,7 @@ function createOfferService({
     return { lines, descriptors };
   }
 
-  /** The priced lines a voucher keeps with its contents: the invoice-style recap of its mail reads them, never the engine (specs/gift-voucher-campaigns.md rule 20). */
+  /** The priced lines a voucher keeps with its contents: the invoice-style recap of its mail reads them, never the engine (specs/gift-vouchers/gift-voucher-campaigns.md rule 20). */
   const frozenLines = (lines) => lines.map(({
     label, qty, unitCents, totalCents, vatRate,
   }) => ({
@@ -121,7 +126,7 @@ function createOfferService({
     if (document.lines.length !== descriptors.length) return refuse('PRICE_UNAVAILABLE', 'Prix indisponible.');
     const priced = document.lines.map((line, index) => ({
       kind: descriptors[index].kind,
-      label: descriptors[index].label || (descriptors[index].kind === 'session' ? `${line.label} · ${BAND_WORDS[contents.resource.band]}` : line.label),
+      label: descriptors[index].label || (descriptors[index].kind === 'session' ? `${line.label} · ${BAND_WORDS[contents.resource.band]}${rules.periodSuffix(contents.resource)}` : line.label),
       detail: line.detail,
       qty: line.quantity,
       unitCents: line.unitCents,
@@ -177,8 +182,25 @@ function createOfferService({
     return { value };
   }
 
+  /** Rules 10-12 — the period asked: the one a campaign offers alone, the one chosen among two (required then), never one it does not offer. */
+  function periodOf(campaign, asked, { cheapestWhenMissing = false } = {}) {
+    const offered = campaign.periods && campaign.periods.length ? campaign.periods : ['week'];
+    if (asked === undefined || asked === null || asked === '') {
+      if (offered.length === 1) return { value: offered[0] };
+      // The public routes stay backward compatible (K1): a caller that predates the period gets the cheapest one, what an older connector shows as « à partir de ».
+      if (cheapestWhenMissing) {
+        const priced = periodPrices(campaign);
+        if (!priced.ok) return { problem: priced };
+        return { value: priced.prices.reduce((best, p) => (p.priceCents < best.priceCents ? p : best), priced.prices[0]).period };
+      }
+      return { problem: refuse('PERIOD_REQUIRED', 'Période : semaine ou week-end est à choisir.') };
+    }
+    if (!rules.PERIODS.includes(asked) || !offered.includes(asked)) return { problem: refuse('PERIOD_NOT_OFFERED', 'Période : ce bon ne se vend pas pour cette période.') };
+    return { value: asked };
+  }
+
   /** The frozen contents a campaign sells for a request: the composition, the extra time asked (within what is offered) and the add-ons chosen. */
-  function contentsFor(campaign, request) {
+  function contentsFor(campaign, request, { cheapestWhenMissing = false } = {}) {
     if (campaign.kind === 'lodging') return { ok: true, contents: { kind: 'lodging' } };
     const comp = campaign.composition;
     const extra = request.extraMinutes === undefined || request.extraMinutes === null ? 0 : asInt(request.extraMinutes);
@@ -190,12 +212,15 @@ function createOfferService({
     }
     const addOns = addOnsProblem(campaign, request.addOns);
     if (addOns.problem) return addOns.problem;
+    const period = periodOf(campaign, request.period, { cheapestWhenMissing, campaign });
+    if (period.problem) return period.problem;
     return {
       ok: true,
       contents: {
         kind: 'resource',
-        title: campaign.title,
+        title: `${campaign.title} · ${rules.PERIOD_LABELS[period.value]}`,
         resource: {
+          period: period.value,
           id: comp.resourceId,
           name: labelOf(`resource:${comp.resourceId}`),
           band: comp.band,
@@ -213,7 +238,7 @@ function createOfferService({
   function campaignOf(request, { admin }) {
     if (request.composition !== undefined && request.composition !== null) {
       if (!admin) return refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
-      const composition = campaignRules.validateComposition(request.composition, { catalogue });
+      const composition = campaignRules.validateComposition(request.composition, { catalogue, periods: rules.PERIODS.includes(request.period) ? [request.period] : ['week'] });
       if (!composition.ok) return refuse('COMPOSITION_INVALID', composition.errors[0].message, { errors: composition.errors });
       // What the operator picks for one voucher is offered with it: the add-ons bought and the extra time asked are inside what the one-shot offers.
       const askedAddOns = (Array.isArray(request.addOns) ? request.addOns : []).map((entry) => entry && entry.articleRef).filter(Boolean);
@@ -225,6 +250,7 @@ function createOfferService({
         oneShot: true,
         slug: null,
         validityMonths: request.validityMonths === undefined ? rules.DEFAULT_VALIDITY_MONTHS : asInt(request.validityMonths),
+        periods: rules.PERIODS.includes(request.period) ? [request.period] : ['week'],
         composition: composition.value,
         addOns: [...new Set([...(Array.isArray(request.offeredAddOns) ? request.offeredAddOns : []), ...askedAddOns])],
         extraTimeMaxMinutes: Math.max(Number(asInt(request.extraTimeMaxMinutes)) || 0, Number(asInt(request.extraMinutes)) || 0),
@@ -242,23 +268,34 @@ function createOfferService({
     }
     if (request.slug === undefined || request.slug === null || request.slug === '') {
       const lodging = admin ? campaigns.firstLodging() : campaigns.onSale().find((c) => c.kind === 'lodging');
-      return lodging ? { ok: true, campaign: lodging } : refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
+      return lodging ? withValidity(lodging, request, { admin }) : refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
     }
     const campaign = campaigns.findBySlug(request.slug);
     if (!campaign || campaign.oneShot) return refuse('CAMPAIGN_UNKNOWN', 'Offre inconnue.');
     if (campaign.state !== 'on_sale') return refuse('CAMPAIGN_CLOSED', 'Cette offre n’est plus en vente.');
-    return { ok: true, campaign };
+    return withValidity(campaign, request, { admin });
   }
 
-  function priceRequest(campaign, request) {
+  /** Rule 13 — « Nouveau bon » prefills the campaign's validity and may change it, from the short list; the site's giver never chooses. */
+  function withValidity(campaign, request, { admin }) {
+    if (!admin || request.validityMonths === undefined || request.validityMonths === null || request.validityMonths === '') return { ok: true, campaign };
+    const months = asInt(request.validityMonths);
+    if (!rules.VALIDITY_CHOICES.includes(months)) return refuse('VALIDITY_INVALID', rules.VALIDITY_REFUSAL);
+    return { ok: true, campaign: { ...campaign, validityMonths: months, validityAsked: true } };
+  }
+
+  // The validity an operator picked for this voucher is frozen with its contents; otherwise the voucher follows its campaign's.
+  const validityOf = (campaign) => (campaign.validityAsked ? { validityMonths: campaign.validityMonths } : {});
+
+  function priceRequest(campaign, request, { admin = false } = {}) {
     if (campaign.kind === 'lodging') {
       const priced = priceLodging(campaign, request.amountCents);
-      return priced.ok ? { ...priced, contents: { kind: 'lodging' } } : priced;
+      return priced.ok ? { ...priced, contents: { kind: 'lodging', ...validityOf(campaign) } } : priced;
     }
-    const contents = contentsFor(campaign, request);
+    const contents = contentsFor(campaign, request, { cheapestWhenMissing: !admin });
     if (!contents.ok) return contents;
     const priced = priceContents(contents.contents);
-    return priced.ok ? { ...priced, contents: { ...contents.contents, lines: frozenLines(priced.lines) } } : priced;
+    return priced.ok ? { ...priced, contents: { ...contents.contents, ...validityOf(campaign), lines: frozenLines(priced.lines) } } : priced;
   }
 
   /** Rules 5, 17, 26 — the price of a request, for the site and the back-office alike. */
@@ -266,12 +303,17 @@ function createOfferService({
     const body = request && typeof request === 'object' ? request : {};
     const found = campaignOf(body, { admin });
     if (!found.ok) return found;
-    const priced = priceRequest(found.campaign, body);
-    return priced.ok ? { ...priced, kind: found.campaign.kind, title: found.campaign.title } : priced;
+    const priced = priceRequest(found.campaign, body, { admin });
+    // Rule 13 — the end of the voucher is the server's to compute: the recap says « Valable jusqu'au … » from it.
+    const validUntil = rules.expiryFor(rules.parisDate(now()), found.campaign.validityMonths);
+    return priced.ok ? { ...priced, kind: found.campaign.kind, title: found.campaign.title, validUntil } : priced;
   }
 
-  /** Rule 66 — what a campaign sells before the buyer adds time or options: the frozen contents the back of its voucher is read from. → `{ ok, contents }` | refusal. */
-  const baseContents = (campaign) => contentsFor(campaign, {});
+  /**
+   * Rule 66 — what a campaign sells before the buyer adds time or options, for one period (the cheapest when none is named): the frozen contents the back of its voucher is read
+   * from. → `{ ok, contents }` | refusal.
+   */
+  const baseContents = (campaign, period) => contentsFor(campaign, period ? { period } : {}, { cheapestWhenMissing: true });
 
   // ── the offer ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -282,19 +324,54 @@ function createOfferService({
     const mode = element && element.modes.find((m) => m.band === resource.band);
     const hours = mode ? ` · de ${mode.from} à ${mode.to}` : '';
     return [
-      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${hours}`, qty: 1 },
+      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${rules.periodSuffix(resource)}${hours}`, qty: 1 },
       ...contents.options.map((o) => ({ kind: 'option', label: o.label, detail: null, qty: o.qty })),
     ];
   }
 
+  // Rule 11 — what a period means for a voucher of this band, in the words the page shows under the period control (and as a fact when only one period is sold).
+  const PERIOD_HINTS = Object.freeze({
+    week: Object.freeze({
+      day: 'Semaine : du lundi au vendredi en journée. Utilisable le week-end avec un supplément.',
+      evening: 'Semaine : du lundi au jeudi en soirée. Utilisable le week-end avec un supplément.',
+    }),
+    weekend: Object.freeze({
+      day: 'Week-end : samedi, dimanche et jours fériés, en journée. Utilisable tous les jours.',
+      evening: 'Week-end : vendredi, samedi, dimanche et jours fériés, en soirée. Utilisable tous les jours.',
+    }),
+  });
+
+  /** Rules 10-11 — the price of the base contents for each period the campaign sells, the cheapest first as « à partir de ». → `{ ok, periods: [{ period, priceCents, label }] }` | refusal. */
+  function periodPrices(campaign) {
+    const prices = [];
+    for (const period of (campaign.periods && campaign.periods.length ? campaign.periods : ['week'])) {
+      const base = contentsFor(campaign, { period });
+      if (!base.ok) return base;
+      const priced = priceContents(base.contents);
+      if (!priced.ok) return priced;
+      prices.push({
+        period, priceCents: priced.totalCents, label: rules.PERIOD_LABELS[period], hint: PERIOD_HINTS[period][campaign.composition.band] || null, base: base.contents,
+      });
+    }
+    // The cheapest first, as the docstring says (ties keep the order week, weekend): the first period is the one the page opens on and the one the top-level `contents` and `extraTime.prices` are for.
+    return { ok: true, prices: prices.sort((a, b) => a.priceCents - b.priceCents) };
+  }
+
   function describeResource(campaign) {
-    const base = contentsFor(campaign, {});
-    if (!base.ok) return base;
-    const priced = priceContents(base.contents);
+    const priced = periodPrices(campaign);
     if (!priced.ok) return priced;
+    const cheapest = priced.prices.reduce((best, p) => (p.priceCents < best.priceCents ? p : best), priced.prices[0]);
     const element = catalogue.element(`resource:${campaign.composition.resourceId}`);
     const mode = element && element.modes.find((m) => m.band === campaign.composition.band);
     const step = mode ? mode.slotMinutes : null;
+    const extraTimeFor = (period) => extrasPricing.extraTime({
+      resourceId: campaign.composition.resourceId,
+      band: campaign.composition.band,
+      rankOffsetMinutes: campaign.composition.minutes,
+      stepMinutes: step,
+      maxMinutes: campaign.extraTimeMaxMinutes,
+      period,
+    });
     return {
       ok: true,
       view: {
@@ -303,20 +380,17 @@ function createOfferService({
         title: campaign.title,
         validityMonths: campaign.validityMonths,
         band: mode ? { key: mode.band, label: BAND_WORDS[mode.band], from: mode.from, to: mode.to } : null,
-        contents: contentLines(base.contents),
+        contents: contentLines(cheapest.base),
+        contentsByPeriod: Object.fromEntries(priced.prices.map((p) => [p.period, contentLines(p.base)])),
         addOns: extrasPricing.priced(campaign.addOns.map((articleRef) => ({ articleRef, label: labelOf(articleRef), maxQty: campaignRules.MAX_QTY }))),
+        periods: priced.prices.map(({ period, priceCents, label, hint }) => ({ period, priceCents, label, hint })),
         extraTime: campaign.extraTimeMaxMinutes > 0 && step ? {
           maxMinutes: campaign.extraTimeMaxMinutes,
           stepMinutes: step,
-          prices: extrasPricing.extraTime({
-            resourceId: campaign.composition.resourceId,
-            band: campaign.composition.band,
-            rankOffsetMinutes: campaign.composition.minutes,
-            stepMinutes: step,
-            maxMinutes: campaign.extraTimeMaxMinutes,
-          }),
+          prices: extraTimeFor(cheapest.period),
+          pricesByPeriod: Object.fromEntries(priced.prices.map((p) => [p.period, extraTimeFor(p.period)])),
         } : null,
-        totalCents: priced.totalCents,
+        totalCents: cheapest.priceCents,
       },
     };
   }
@@ -413,7 +487,7 @@ function createOfferService({
     const body = request && typeof request === 'object' ? request : {};
     const found = campaignOf(body, { admin });
     if (!found.ok) return found;
-    const priced = priceRequest(found.campaign, body);
+    const priced = priceRequest(found.campaign, body, { admin });
     if (!priced.ok) return priced;
     const vatLines = vatOverride === undefined ? priced.vatLines : vatOverride;
     const order = transaction(() => {

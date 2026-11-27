@@ -35,6 +35,15 @@ function createModel(database) {
     } catch { return false; }
   })();
 
+  // The outside customer's weekend grid (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 1). Its own group, guarded like the others.
+  const WEEKEND_COLUMNS = ['hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate'];
+  const HAS_WEEKEND_COLUMNS = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+      return WEEKEND_COLUMNS.every((c) => cols.includes(c));
+    } catch { return false; }
+  })();
+
   // Thermal model (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.3). Guarded as its OWN
   // group rather than appended to HOURLY_COLUMNS, so a test schema carrying the hourly columns but
   // not these two keeps writing the hourly ones instead of silently dropping all of them.
@@ -136,7 +145,7 @@ function createModel(database) {
       turnoverMinutes: Number(resource.turnoverMinutes || 0),
       heatUpMinutes: Math.max(0, Number(resource.heatUpMinutes || 0)),
       heatRetentionMinutes: Math.max(0, Number(resource.heatRetentionMinutes || 0)),
-      ...Object.fromEntries(NEXT_RATE_COLUMNS.filter((c) => resource[c] !== undefined).map((c) => [c, nextRateOf(resource[c])])),
+      ...Object.fromEntries([...NEXT_RATE_COLUMNS, ...WEEKEND_COLUMNS].filter((c) => resource[c] !== undefined).map((c) => [c, nextRateOf(resource[c])])),
       ...(resource.bookingHorizonMonths === undefined ? {} : { bookingHorizonMonths: Number(resource.bookingHorizonMonths) || DEFAULT_RESOURCE_HORIZON_MONTHS }),
       ...(resource.sessionMaxPeople === undefined ? {} : { sessionMaxPeople: Number(resource.sessionMaxPeople) > 0 ? Number(resource.sessionMaxPeople) : null }),
     };
@@ -299,7 +308,7 @@ function createModel(database) {
       hourlyEveningRate: Number(payload.hourlyEveningRate) || 0,
       hourlyExternalDayRate: Number(payload.hourlyExternalDayRate) || 0,
       hourlyExternalEveningRate: Number(payload.hourlyExternalEveningRate) || 0,
-      ...Object.fromEntries(NEXT_RATE_COLUMNS.map((c) => [c, nextRateOf(payload[c])])),
+      ...Object.fromEntries([...NEXT_RATE_COLUMNS, ...WEEKEND_COLUMNS].map((c) => [c, nextRateOf(payload[c])])),
       // Negatives would invert the slot algebra (a negative warm-up would open past slots), so clamp.
       heatUpMinutes: Math.max(0, Number(payload.heatUpMinutes) || 0),
       heatRetentionMinutes: Math.max(0, Number(payload.heatRetentionMinutes) || 0),
@@ -314,6 +323,7 @@ function createModel(database) {
   const optionalSet = (has, cols) => (has ? cols.map((c) => `${c}=@${c}`).join(', ') : '');
   const HOURLY_SET = optionalSet(HAS_HOURLY_COLUMNS, HOURLY_COLUMNS);
   const NEXT_RATE_SET = optionalSet(HAS_NEXT_RATE_COLUMNS, NEXT_RATE_COLUMNS);
+  const WEEKEND_SET = optionalSet(HAS_WEEKEND_COLUMNS, WEEKEND_COLUMNS);
   const THERMAL_SET = optionalSet(HAS_THERMAL_COLUMNS, THERMAL_COLUMNS);
   const SENTENCE_SET = optionalSet(HAS_SENTENCE_COLUMNS, SENTENCE_COLUMNS);
   const HORIZON_SET = optionalSet(HAS_HORIZON_COLUMNS, HORIZON_COLUMNS);
@@ -321,6 +331,7 @@ function createModel(database) {
   const OPTIONAL_COLUMNS = [
     ...(HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS : []),
     ...(HAS_NEXT_RATE_COLUMNS ? NEXT_RATE_COLUMNS : []),
+    ...(HAS_WEEKEND_COLUMNS ? WEEKEND_COLUMNS : []),
     ...(HAS_THERMAL_COLUMNS ? THERMAL_COLUMNS : []),
     ...(HAS_SENTENCE_COLUMNS ? SENTENCE_COLUMNS : []),
     ...(HAS_HORIZON_COLUMNS ? HORIZON_COLUMNS : []),
@@ -354,7 +365,7 @@ function createModel(database) {
     const propertyIds = payload.propertyIds === undefined ? null : normalizePropertyIds(payload);
     const pricing = payload.propertyPricing === undefined && payload.propertyPrices === undefined ? null : normalizePricing(payload);
     const tx = database.transaction(() => {
-      const hourlySet = [HOURLY_SET, NEXT_RATE_SET, THERMAL_SET, SENTENCE_SET, HORIZON_SET, PEOPLE_SET].filter(Boolean).map((s) => `, ${s}`).join('');
+      const hourlySet = [HOURLY_SET, NEXT_RATE_SET, WEEKEND_SET, THERMAL_SET, SENTENCE_SET, HORIZON_SET, PEOPLE_SET].filter(Boolean).map((s) => `, ${s}`).join('');
       const updateSql = `UPDATE resources
            SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,

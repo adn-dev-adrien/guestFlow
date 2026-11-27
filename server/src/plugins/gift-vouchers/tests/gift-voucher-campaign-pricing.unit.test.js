@@ -25,7 +25,7 @@ test('2 h of day + a board = 95 + 14 = 109 €, each line with its VAT rate and 
   const answer = price({});
   assert.equal(answer.ok, true);
   assert.deepEqual(answer.lines.map((l) => [l.kind, l.label, l.qty, l.totalCents, l.vatRate]), [
-    ['session', 'Bain nordique · journée', 1, 9500, 20],
+    ['session', 'Bain nordique · journée · semaine', 1, 9500, 20],
     ['option', 'Planche apéro', 1, 1400, 10],
   ]);
   assert.equal(answer.totalCents, 10900);
@@ -37,7 +37,7 @@ test('2 h of day + a board = 95 + 14 = 109 €, each line with its VAT rate and 
 test('extra time continues the ranks of the included minutes: the 3rd hour is a following hour at 45 €, and one line or two cost the same', () => {
   const withExtra = price({ extraMinutes: 60 });
   assert.deepEqual(withExtra.lines.map((l) => [l.kind, l.label, l.totalCents]), [
-    ['session', 'Bain nordique · journée', 9500],
+    ['session', 'Bain nordique · journée · semaine', 9500],
     ['extra', 'Temps supplémentaire · 1 h', 4500],
     ['option', 'Planche apéro', 1400],
   ]);
@@ -75,7 +75,7 @@ test('a price is read each time: a rate changed on the resource moves the price 
   db.prepare('UPDATE resources SET hourlyExternalDayRate = 50, hourlyExternalNextDayRate = 45 WHERE id = ?').run(ids.bath);
   assert.equal(price({}).totalCents, before);
   assert.equal(api.campaigns.find(bath.id).updatedAt, updatedAt);
-  assert.equal(Object.keys(db.prepare('SELECT * FROM gift_voucher_campaigns WHERE id = ?').get(bath.id)).some((c) => /price|cents$/i.test(c) && !/amount|extra/i.test(c)), false, 'no price column on a campaign');
+  assert.equal(Object.keys(db.prepare('SELECT * FROM gift_voucher_campaigns WHERE id = ?').get(bath.id)).some((c) => /price|cents$/i.test(c) && !/amount|extra|position/i.test(c)), false, 'no price column on a campaign');
 });
 
 test('extra time is refused beyond what the campaign offers, off the slot step and where none is offered — each with its sentence', () => {
@@ -120,6 +120,6 @@ test('a campaign the engine cannot price is left out of the offer, and the opera
 
 test('a band with no external rate prices nothing: the engine refuses, no free voucher is ever sold', () => {
   db.prepare('UPDATE resources SET hourlyExternalDayRate = 0, price = 0 WHERE id = ?').run(ids.bath);
-  assert.deepEqual([price({}).code, price({}).message], ['PRICE_UNAVAILABLE', '« Bain nordique » n’a pas de tarif extérieur pour la journée.']);
+  assert.deepEqual([price({}).code, price({}).message], ['PRICE_UNAVAILABLE', '« Bain nordique » n’a pas de tarif extérieur pour la journée en semaine.']);
   db.prepare('UPDATE resources SET hourlyExternalDayRate = 50, price = 25 WHERE id = ?').run(ids.bath);
 });

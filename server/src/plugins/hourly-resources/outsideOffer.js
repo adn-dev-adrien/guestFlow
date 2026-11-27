@@ -3,19 +3,19 @@
  * `ctx.resourceBookingOffer` and handed out as `ctx.core.resourceBookingOffer()`. It names no instrument of payment: a session is paid, in whole or in
  * part, by a prepaid tender some plugin holds, and what remains by a link.
  *
- *   freeSlots({ resourceId, from, to, minutes, band?, includeTaken?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end, taken? }] }] }
+ *   freeSlots({ resourceId, from, to, minutes, band?, includeTaken?, excludeHoldRef?, now? })  → { horizonUntil, days: [{ date, slots: [{ start, end, taken? }] }] }
  *       the starts of a session of `minutes` the resource can take, inside its opening days and hours, on its grid, with its capacity, turnover, thermal readiness,
  *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch;
- *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site-outside-resource-booking.md rule 6)
- *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
+ *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site/site-outside-resource-booking.md rule 6); `excludeHoldRef` is the asker's own hold, which does not take its own slot
+ *   quote({ resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod?, extraMinutes, excludeHoldRef?, offeredHour?, memo?, now? }) → { ok: true, endTime, session, twoHours, extra } | { ok: false, code, message }
  *       the engine's price of a session placed at `start`: `coveredMinutes` first (already paid for in `coveredBand`, at the rank they take), then `extraMinutes` after
- *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45)
+ *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45); `excludeHoldRef` is the buyer's own hold, which does not count against the doubled block (rule 17); `offeredHour` freezes the rule-17 decision of a choice already confirmed (`true`: the doubled block must still be free, else `OFFERED_HOUR_UNAVAILABLE`; `false`: not doubled, whatever has been freed since; `null`: decided now); `memo` is a Map a caller pricing a long list of starts hands in so the same figure is asked of the engine once
  *   hold({ resourceId, date, start, end, ref, minutes?, now? }) → { ok: true, expiresAt } | { ok: false, code: 'SLOT_TAKEN', message }
  *   release(ref)
  *   limits({ resourceId }) → { ok: true, stepMinutes, minMinutes, maxMinutes, maxPeople } | { ok: false, code, message }   what a session of the resource may ask: the step and the shortest of its grid, the longest the opening hours hold, the party (20 when none is set)
  *   bookOutside({ resourceId, date, start, end, customer, people?, fulfilments, lines, tenders, holdRef?, channel, terms?, actor?, acceptedTotalCents?, now? })
  *       → { ok: true, bookingId, saleId } | { ok: false, code, message }   everything in one transaction, or nothing; `people` is the party declared, for information
- *       (specs/site-outside-resource-booking.md rule 26); a booking of the channel `site` or `mon-bain` tells the operator once it is written (rule 23) — called
+ *       (specs/site/site-outside-resource-booking.md rule 26); a booking of the channel `site` or `mon-bain` tells the operator once it is written (rule 23) — called
  *       inside the caller's own transaction it tells nobody, and returns `announce()` for the caller to run after its outermost transaction has committed
  *
  * Priced lines are the engine's: `fulfilments` are the lines `quote` answered (`role: 'session' | 'extra'`), `lines` are `{ articleRef, quantity }` options. `tenders` are
@@ -28,8 +28,9 @@ const { eachDate } = require('./schedulingModel');
 const {
   buildDays, validateBlock, toAbsMinutes, MINUTES_PER_DAY,
 } = require('./availability');
-const { toMinutes } = require('./hourlyPricing');
-const { quoteSession, sessionModesOf, isBanded } = require('./sessionQuote');
+const { toMinutes, periodOf } = require('./hourlyPricing');
+const { sessionModesOf, isBanded } = require('./sessionQuote');
+const { rateGridOf } = require('./bookingPricing');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
 const { bookedNotice } = require('./sessionNotices');
@@ -42,11 +43,14 @@ const CHANNELS = Object.freeze({ 'mon-bain': 'Mon bain', site: 'site', 'guest-ap
 const ANNOUNCED_CHANNELS = Object.freeze(['site', 'mon-bain']);
 const DEFAULT_MAX_PEOPLE = 20;
 const SLOT_TAKEN = 'Ce créneau n’est plus libre.';
+const LINE_FIELDS = Object.freeze(['label', 'detail', 'quantity', 'unitCents', 'totalCents', 'catalogueCents', 'offered', 'vatClass', 'components', 'fulfilmentRef']);
 
 const refuse = (code, message) => ({ ok: false, code, message });
 const timeOf = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 const sessionRefOf = (bookingId) => `hourly-slot:${Number(bookingId)}`;
 const extraRefOf = (bookingId) => `${sessionRefOf(bookingId)}:extra`;
+const offeredRefOf = (bookingId) => `${sessionRefOf(bookingId)}:offered`;
+const FULFILMENT_REFS = Object.freeze({ session: sessionRefOf, extra: extraRefOf, offered: offeredRefOf });
 const REASONS = Object.freeze({
   taken: SLOT_TAKEN, closed: 'Ce créneau est hors des horaires de la ressource.', past: 'Ce créneau est passé.', heating: 'Ce créneau est trop proche pour chauffer la ressource.',
   duration: 'Durée ou heure de début invalide pour cette ressource.', staff: SLOT_TAKEN,
@@ -73,7 +77,7 @@ function createOutsideOffer({
   const eveningStartOf = (resource) => (resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null);
 
   function freeSlots({
-    resourceId, from, to, minutes, band = null, includeTaken = false, now: at,
+    resourceId, from, to, minutes, band = null, includeTaken = false, excludeHoldRef = null, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
@@ -84,7 +88,9 @@ function createOutsideOffer({
     const result = { ok: true, horizonUntil: horizon, days: [] };
     if (!ISO_DATE.test(String(from)) || !ISO_DATE.test(String(to)) || !Number.isInteger(minutes) || minutes <= 0 || lo > hi) return result;
     const dates = eachDate(lo, hi);
-    const taken = occupancy.listForStay({ resourceId: resource.id, startDate: lo, endDate: dates[dates.length - 1] });
+    const taken = occupancy.listForStay({
+      resourceId: resource.id, startDate: lo, endDate: dates[dates.length - 1], excludeHoldRef,
+    });
     const bounds = boundsOf(resource, clock);
     const evening = eveningStartOf(resource);
     const days = buildDays({
@@ -112,7 +118,7 @@ function createOutsideOffer({
 
   function limits({ resourceId }) {
     const resource = offerable(resourceId);
-    const modes = resource ? sessionModesOf(resource).filter((mode) => mode.sellable) : [];
+    const modes = resource ? sessionModesOf(resource, { period: 'any' }).filter((mode) => mode.sellable) : [];
     if (!modes.length) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
     return {
       ok: true,
@@ -123,34 +129,145 @@ function createOutsideOffer({
     };
   }
 
+  // The engine's price of one session of the resource, for the outside customer (week-weekend-and-print spec rule 30): the standalone sale's
+  // quote asks the hourly family, with the date (or the period of a dateless session). The answer is the fulfilled line the sale takes.
+  function priceSession(resource, session, memo = null) {
+    const key = memo ? memoKeyOf(resource, session) : null;
+    if (key !== null && memo.has(key)) return memo.get(key);
+    const answer = standaloneSale().quote({ lines: [{ articleRef: `resource:${resource.id}`, session }] });
+    let priced;
+    if (answer.status !== 200) priced = refuse('PRICE_UNAVAILABLE', answer.body && answer.body.error ? answer.body.error : 'Prix indisponible.');
+    else if (answer.refusals.length) priced = refuse(answer.refusals[0].code, answer.refusals[0].message);
+    else if (!answer.document.lines[0]) priced = refuse('PRICE_UNAVAILABLE', 'Prix indisponible.');
+    else {
+      const line = answer.document.lines[0];
+      priced = {
+        ok: true,
+        line: { articleRef: line.articleKey, family: 'hourly', ...Object.fromEntries(LINE_FIELDS.filter((field) => line[field] !== undefined).map((field) => [field, line[field]])) },
+      };
+    }
+    if (key !== null) memo.set(key, priced);
+    return priced;
+  }
+
+  // Everything a session's price depends on: the resource, the band, the minutes and their ranks, and — for a dated session — the period of each of its slices, never the date itself
+  // (a list of 62 days asks the same few figures again and again).
+  function memoKeyOf(resource, session) {
+    let periods = session.period || null;
+    if (session.date && session.start !== undefined) {
+      const step = Math.max(1, Number(resource.slotDuration) || 30);
+      const from = toMinutes(session.start) + (Number(session.rankOffsetMinutes) || 0);
+      const evening = resource.hourlyEveningStart || null;
+      periods = '';
+      for (let t = from; t < from + Number(session.minutes); t += step) periods += periodOf(session.date, t, evening) === 'weekend' ? 'e' : 'w';
+    }
+    return JSON.stringify([resource.id, session.band, session.start || null, session.minutes, session.rankOffsetMinutes || 0, periods]);
+  }
+
+  // Which parts of its price a placed session owes above its reference (rule 15): the evening band, the weekend period, or both.
+  function placedOf(resource, date, line) {
+    const evening = eveningStartOf(resource);
+    const parts = (line.components || []).map((part) => String(part.key || '').split(':')).filter((bits) => bits[0] === 'band');
+    const band = parts.some((bits) => bits[1] === 'evening') ? 'evening' : 'day';
+    const period = parts.some((bits) => periodOf(date, `${bits[2]}:${bits[3]}`, evening === null ? null : timeOf(evening)) === 'weekend') ? 'weekend' : 'week';
+    return { band, period };
+  }
+
+  // What the supplement is named by (rule 15): the evening only when the slot is evening and the covered session day and the evening costs more at the slot's period; the weekend only when
+  // the slot is weekend and the covered session week and the weekend costs more in the slot's band; both for « soirée week-end »; neither (an odd grid) for the plain « créneau ».
+  const SUPPLEMENT_CAUSES = Object.freeze({
+    evening: 'evening', weekend: 'weekend', eveningWeekend: 'eveningWeekend', slot: 'slot',
+  });
+  const firstHourOf = (resource, band, period) => {
+    const grid = rateGridOf(resource, { external: true, period });
+    return band === 'evening' ? grid.eveningRate : grid.dayRate;
+  };
+  function causeOf(resource, { coveredBand, period, slot }) {
+    const bandUp = slot.band === 'evening' && coveredBand === 'day' && firstHourOf(resource, 'evening', slot.period) > firstHourOf(resource, 'day', slot.period);
+    const periodUp = slot.period === 'weekend' && period === 'week' && firstHourOf(resource, slot.band, 'weekend') > firstHourOf(resource, slot.band, 'week');
+    if (bandUp && periodUp) return SUPPLEMENT_CAUSES.eveningWeekend;
+    if (bandUp) return SUPPLEMENT_CAUSES.evening;
+    return periodUp ? SUPPLEMENT_CAUSES.weekend : SUPPLEMENT_CAUSES.slot;
+  }
+
   function quote({
-    resourceId, date, start, coveredBand, coveredMinutes, extraMinutes = 0,
+    resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod = 'week', extraMinutes = 0, excludeHoldRef = null, offeredHour = null, memo = null, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
     if (!ISO_DATE.test(String(date)) || !CLOCK.test(String(start))) return refuse('SLOT_INVALID', 'Créneau invalide.');
-    const config = sdk.coreModule('articles').makeArticle(resource, { kind: 'resource' }).config;
     const covered = Number(coveredMinutes);
     const extra = Number(extraMinutes) || 0;
-    const placed = quoteSession(config, { band: coveredBand, start, minutes: covered });
-    if (placed.refusal) return refuse(placed.refusal.code, placed.refusal.message);
-    const reference = quoteSession(config, { band: coveredBand, minutes: covered });
-    if (reference.refusal) return refuse(reference.refusal.code, reference.refusal.message);
-    const coveredCents = Math.min(reference.line.totalCents, placed.line.totalCents);
+    const period = coveredPeriod === 'weekend' ? 'weekend' : 'week';
+    const placed = priceSession(resource, { band: coveredBand, start, minutes: covered, date }, memo);
+    if (placed.code) return placed;
+    const reference = priceSession(resource, { band: coveredBand, minutes: covered, period }, memo);
+    if (reference.code) return reference;
+    const referenceCents = reference.line.totalCents;
+    const coveredCents = Math.min(referenceCents, placed.line.totalCents);
+    const supplementCents = placed.line.totalCents - coveredCents;
+    const slot = placedOf(resource, date, placed.line);
     const result = {
       ok: true,
       endTime: timeOf(toMinutes(start) + covered + extra),
       session: {
-        line: placed.line, totalCents: placed.line.totalCents, coveredCents, supplementCents: placed.line.totalCents - coveredCents,
+        line: placed.line,
+        totalCents: placed.line.totalCents,
+        coveredCents,
+        supplementCents,
+        leftoverCents: Math.max(0, referenceCents - placed.line.totalCents),
+        supplementCause: supplementCents > 0 ? causeOf(resource, { coveredBand, period, slot }) : null,
+        // The supplement is « soirée » only for an evening slot against a covered day session.
+        eveningOverDay: slot.band === 'evening' && coveredBand === 'day',
+        slot,
       },
+      twoHours: null,
       extra: null,
     };
-    if (extra > 0) {
-      const added = quoteSession(config, {
-        band: coveredBand, start, minutes: extra, rankOffsetMinutes: covered,
+    // Rule 17 — a covered evening-weekend session starting on a day-week slot (its band and period are those of its start): the session is doubled when the doubled block is free and
+    // ends by closing time. The offered hour is decided first; extra time is offered only within what fits after the doubled block, never by giving the hour up.
+    const clock = clockOf(at);
+    const eveningStart = eveningStartOf(resource);
+    const startBand = eveningStart !== null && toMinutes(start) >= eveningStart ? 'evening' : 'day';
+    const startPeriod = periodOf(date, start, eveningStart === null ? null : timeOf(eveningStart));
+    const blockFree = (endsAt) => {
+      if (endsAt > toMinutes(resource.closeTime || '23:59')) return false;
+      const taken = occupancy.listForStay({
+        resourceId: resource.id, startDate: date, endDate: date, excludeHoldRef,
       });
-      if (added.refusal) return refuse(added.refusal.code, added.refusal.message);
+      return validateBlock({
+        resource, block: { date, start, end: timeOf(endsAt) }, occupancy: taken, ...boundsOf(resource, clock),
+      }).ok;
+    };
+    if (coveredBand === 'evening' && period === 'weekend' && startBand === 'day' && startPeriod === 'week') {
+      const free = offeredHour === false ? false : blockFree(toMinutes(start) + 2 * covered);
+      if (offeredHour === true && !free) return refuse('OFFERED_HOUR_UNAVAILABLE', 'L’heure offerte ne tient plus à ce créneau.');
+      result.twoHours = {
+        free, minutes: covered, endTime: timeOf(toMinutes(start) + 2 * covered), line: null,
+      };
+      if (free) {
+        // The added time is priced like any other (so its value is the line's struck figure) and given away: a 0 € line of the booking.
+        const added = priceSession(resource, {
+          band: startBand, start, minutes: covered, rankOffsetMinutes: covered, date,
+        }, memo);
+        if (added.code) return added;
+        result.twoHours.line = {
+          ...added.line, label: 'Heure offerte', unitCents: 0, totalCents: 0, offered: true, catalogueCents: added.line.totalCents,
+        };
+        result.endTime = timeOf(toMinutes(start) + 2 * covered + extra);
+        if (extra > 0 && !blockFree(toMinutes(start) + 2 * covered + extra)) {
+          return refuse('EXTRA_TIME_UNAVAILABLE', 'Le temps supplémentaire ne tient pas après l’heure offerte à ce créneau.');
+        }
+      }
+    }
+    if (extra > 0) {
+      const offered = result.twoHours && result.twoHours.free ? covered : 0;
+      const added = priceSession(resource, {
+        band: coveredBand, start, minutes: extra, rankOffsetMinutes: covered + offered, date,
+      }, memo);
+      if (added.code) return added;
       result.extra = { line: added.line, totalCents: added.line.totalCents };
+      result.endTime = timeOf(toMinutes(start) + covered + offered + extra);
     }
     return result;
   }
@@ -205,7 +322,7 @@ function createOutsideOffer({
     bookingId, customer, fulfilments, lines, acceptedTotalCents,
   }) {
     return {
-      fulfilments: fulfilments.map(({ role, ...line }) => ({ ...line, fulfilmentRef: role === 'extra' ? extraRefOf(bookingId) : sessionRefOf(bookingId) })),
+      fulfilments: fulfilments.map(({ role, ...line }) => ({ ...line, fulfilmentRef: (FULFILMENT_REFS[role] || sessionRefOf)(bookingId) })),
       lines,
       customer: { name: customer.name, email: customer.email },
       originRef: `resource-booking:${bookingId}`,
@@ -215,7 +332,7 @@ function createOutsideOffer({
   }
 
   const coverOf = (bookingId, cover) => (cover.role
-    ? { fulfilmentRef: cover.role === 'extra' ? extraRefOf(bookingId) : sessionRefOf(bookingId), amountCents: cover.amountCents }
+    ? { fulfilmentRef: (FULFILMENT_REFS[cover.role] || sessionRefOf)(bookingId), amountCents: cover.amountCents }
     : { articleRef: cover.articleRef, amountCents: cover.amountCents });
 
   function applyTenders({ saleId, bookingId, tenders, day }) {
@@ -253,7 +370,8 @@ function createOutsideOffer({
         const created = bookings().createBooking({
           resourceId: resource.id, date, startTime: start, endTime: end, clientName: customer.name || null, clientPhone: customer.phone || null, notes: '',
         }, { excludeHoldRef: holdRef });
-        if (created.error) stop(created.status === 409 ? refuse('SLOT_TAKEN', SLOT_TAKEN) : refuse('BOOKING_REFUSED', created.error));
+        // A booking refused for a reason of its own (an outside band with no price) says so; only a capacity refusal is « slot taken ».
+        if (created.error) stop(created.code ? refuse(created.code, created.error) : (created.status === 409 ? refuse('SLOT_TAKEN', SLOT_TAKEN) : refuse('BOOKING_REFUSED', created.error)));
         const bookingId = Number(created.id);
         if (people) db.prepare('UPDATE resource_bookings SET people = ? WHERE id = ?').run(Number(people), bookingId);
         const core = standaloneSale();
@@ -292,4 +410,6 @@ function createOutsideOffer({
   };
 }
 
-module.exports = { createOutsideOffer, sessionRefOf, extraRefOf, SLOT_TAKEN };
+module.exports = {
+  createOutsideOffer, sessionRefOf, extraRefOf, offeredRefOf, SLOT_TAKEN,
+};

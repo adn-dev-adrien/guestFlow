@@ -73,6 +73,8 @@ test('export: campaign.json names the resource, the options, the add-ons and the
     composition: { resource: 'Bain nordique', band: 'day', minutes: 120, options: [{ option: 'Planche apéro', qty: 1 }] },
     addOns: ['Boisson'],
     extraTimeMaxMinutes: 120,
+    periods: ['week'],
+    frontPricePosition: 'bottom-right',
     images: {
       voucher: { name: 'Façade', use: 'voucher', file: 'images/voucher.jpg' },
       merchant: { name: 'Carte', use: 'merchant', file: 'images/merchant.png' },

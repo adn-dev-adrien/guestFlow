@@ -41,6 +41,7 @@ prices the resource charges exactly that.
    - The first-hour rates are today's four fields, unchanged in meaning and fallback.
    - The new fields are `hourlyNextDayRate`, `hourlyNextEveningRate`,
      `hourlyExternalNextDayRate` and `hourlyExternalNextEveningRate`.
+   > *Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rule 2 (2).*
    - **An empty following-hours rate means « same as the first hour »** of that band and audience,
      so a resource nobody edits prices exactly as today.
 2. **Rank.** The rank of a slice is the hour of the session it falls in, counted from the

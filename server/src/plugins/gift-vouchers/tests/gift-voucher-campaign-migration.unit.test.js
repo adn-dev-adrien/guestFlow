@@ -54,6 +54,8 @@ test('the settings of the plugin become the lodging campaign « sejour », on sa
     vatRatePercent: 5.5,
     voucherVisualId: null,
     merchantVisualId: null,
+    periods: ['week', 'weekend'],
+    frontPricePosition: 'bottom-right',
     createdAt: campaigns[0].createdAt,
     updatedAt: campaigns[0].updatedAt,
   });
@@ -105,5 +107,5 @@ test('a voucher or an order written after the migration without a campaign reads
   assert.equal(createCampaignsModel(db).list().length, 1);
   db.prepare("INSERT INTO gift_voucher_orders (amountCents, source, createdAt) VALUES (5000, 'manual', '2026-11-03T10:00:00Z')").run(); // date-literal-ok: the suite runs on its own clock, never the real today
   assert.equal(db.prepare('SELECT contents FROM gift_voucher_orders').get().contents, '{"kind":"lodging"}');
-  assert.deepEqual(MIGRATIONS.slice(-6).map((m) => m.name), ['gift_voucher_campaigns_v1', 'gift_voucher_visuals_v1', 'gift_voucher_uses_v1', 'gift_voucher_uses_people_v2', 'gift_voucher_uses_ref_v3', 'gift_voucher_recipient_names_v4']);
+  assert.deepEqual(MIGRATIONS.slice(-7).map((m) => m.name), ['gift_voucher_campaigns_v1', 'gift_voucher_visuals_v1', 'gift_voucher_uses_v1', 'gift_voucher_uses_people_v2', 'gift_voucher_uses_ref_v3', 'gift_voucher_recipient_names_v4', 'gift_voucher_week_weekend_v5']);
 });

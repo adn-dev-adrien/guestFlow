@@ -1,5 +1,5 @@
 /**
- * The mail a recipient gets when the bath is booked on « Mon bain » (specs/gift-voucher-campaigns.md rule 31): the day, the hours, the address, what is included and what was paid. It
+ * The mail a recipient gets when the bath is booked on « Mon bain » (specs/gift-vouchers/gift-voucher-campaigns.md rule 31): the day, the hours, the address, what is included and what was paid. It
  * answers the recipient's own action, so it leaves by itself (the same exception as the receipt of a purchase, rule 20). French — the recipient's language is not known. → `{ subject, text, html }`.
  */
 
@@ -14,13 +14,15 @@ const longDate = (iso) => new Intl.DateTimeFormat('fr-FR', {
 }).format(new Date(`${iso}T12:00:00Z`));
 
 function renderUseMail({
-  companyName, address, title, resourceName, date, start, end, people, included, supplement, extras, dueCents, number,
+  companyName, address, title, resourceName, date, start, end, people, included, supplement, gifts = [], extras, dueCents, number,
 }) {
   const when = `${longDate(date)}, de ${start} à ${end}`;
   const includedLines = included.map((line) => (line.qty > 1 ? `${line.qty} × ${line.label}` : line.label));
   const paidLines = [
     `Réglé par le bon cadeau n° ${number}.`,
     ...(supplement ? [`${supplement.label} : ${rules.formatEuros(supplement.cents)}`] : []),
+    ...(gifts.some((g) => g.label === 'Boisson offerte') ? ['Une boisson vous sera offerte sur place.'] : []),
+    ...(gifts.some((g) => g.label === 'Heure offerte') ? ['Une heure supplémentaire vous est offerte.'] : []),
     ...extras.map((extra) => `${extra.qty > 1 ? `${extra.qty} × ` : ''}${extra.label} : ${rules.formatEuros(extra.cents)}`),
     dueCents > 0 ? `Payé en ligne : ${rules.formatEuros(dueCents)}.` : 'Rien d’autre à payer.',
   ];

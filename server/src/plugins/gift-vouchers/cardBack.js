@@ -1,6 +1,6 @@
 /**
- * The voucher's back for the website (specs/gift-voucher-campaigns.md rule 66). The site draws the back in HTML, millimetre for millimetre as `voucherPdf.js` draws it, and writes
- * nothing of it itself: this module sends the dimensions and the fixed words the PDF reads (`BACK_LAYOUT`, `BACK_TEXTS`), the company's logo, name, town and website, the link
+ * The voucher's back for the website (specs/gift-vouchers/gift-voucher-campaigns.md rule 66). The site draws the back in HTML, millimetre for millimetre as `voucherPdf.js` draws it, and writes
+ * nothing of it itself: this module sends the dimensions and the fixed words the PDF reads (`design`: `BACK_LAYOUT`, `VOUCHER_BACK_LAYOUT`, `BACK_TEXTS`; `layout` and `texts` stay what 4.7.0 sent, K10), the company's logo, name, town and website, the link
  * printed beside the QR code, the lines « Votre bon comprend » (`contentLines`, the PDF's own function) and the validity (`rules.expiryFor`, the issuance's own). The page only
  * adds what the buyer types.
  *
@@ -18,8 +18,9 @@ const {
   contentLines, LODGING_LINE, extraTimeLine, countOf,
 } = require('./contentsText');
 const {
-  BACK_LAYOUT, BACK_TEXTS, redeemUrl, shortLink,
+  BACK_LAYOUT, VOUCHER_BACK_LAYOUT, BACK_TEXTS, redeemUrl, shortLink,
 } = require('./voucherPdf');
+const { LEGACY_BACK_LAYOUT, LEGACY_BACK_TEXTS } = require('./legacyBack');
 
 const LOGO_PATH = '/public/v1/gift-vouchers/logo';
 const COMPANY_KEPT_MS = 60 * 1000;
@@ -59,11 +60,13 @@ function createCardBack({
     const { company: who, origin } = site;
     const mark = who.logo ? hashOf(who.logo) : null;
     return {
-      layout: BACK_LAYOUT,
-      texts: BACK_TEXTS,
+      // K10 — `layout` and `texts` are what 4.7.0 sent, for a connector before 1.27.0; the redrawn back is `design`, read by 1.27.0 and after.
+      layout: LEGACY_BACK_LAYOUT,
+      texts: LEGACY_BACK_TEXTS,
+      design: { layout: BACK_LAYOUT, voucherLayout: VOUCHER_BACK_LAYOUT, texts: BACK_TEXTS },
       logoUrl: mark ? `${LOGO_PATH}?v=${mark}` : null,
       companyName: who.name,
-      identity: [who.name, who.town].filter(Boolean).join(' · '),
+      identity: [who.name, who.town, who.department].filter(Boolean).join(' · '),
       website: shortLink(origin),
       link: shortLink(redeemUrl({ origin, linkBase: linkBase() })),
       previewQrSvg: await qrSvg(origin),
@@ -72,13 +75,20 @@ function createCardBack({
 
   /** `view` is the campaign as the offer describes it (its title, kind and validity), `campaign` the stored row. */
   function campaign(view, stored) {
-    const validUntil = rules.formatFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
-    if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil };
-    const base = baseContents(stored);
+    const validUntil = rules.formatLongFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
+    if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil, title: BACK_TEXTS.lodgingTitle, steps: BACK_TEXTS.lodgingSteps };
+    // Rule 20 — a campaign that sells two periods has the lines of each (« · semaine » / « · week-end »); `lines` are the cheapest period's, for a page that predates them.
+    const linesOf = (period) => {
+      const read = baseContents(stored, period);
+      return read.ok ? contentLines({ contents: JSON.stringify(read.contents) }) : [];
+    };
+    const linesByPeriod = Object.fromEntries((view.periods || []).map((p) => [p.period, linesOf(p.period)]));
     const addOns = Object.fromEntries((view.addOns || []).map((a) => [a.articleRef, Object.fromEntries((a.prices || []).map((p) => [p.qty, countOf(p.qty, a.label)]))]));
     const extraTime = Object.fromEntries(((view.extraTime && view.extraTime.prices) || []).map((p) => [p.minutes, extraTimeLine(p.minutes)]));
+    // Rule 20 of the week-weekend spec — the back's title is the campaign's, with the period the giver picks: one title per period the campaign sells.
+    const titles = Object.fromEntries((view.periods || []).map((p) => [p.period, `${view.title} · ${rules.PERIOD_LABELS[p.period]}`]));
     return {
-      lines: base.ok ? contentLines({ contents: JSON.stringify(base.contents) }) : [], extraTime, addOns, validUntil,
+      lines: linesOf(), linesByPeriod, extraTime, addOns, validUntil, titles,
     };
   }
 
@@ -87,9 +97,12 @@ function createCardBack({
     if (!site) return null;
     const { origin } = site;
     const base = { origin, linkBase: linkBase() };
+    const contents = rules.contentsOf(issued);
     return {
+      title: contents && contents.title ? contents.title : BACK_TEXTS.lodgingTitle,
+      steps: contents && contents.kind === 'lodging' ? BACK_TEXTS.lodgingSteps : BACK_TEXTS.steps,
       lines: contentLines(issued),
-      validUntil: rules.formatFrDate(issued.expiresOn),
+      validUntil: rules.formatLongFrDate(issued.expiresOn),
       link: shortLink(redeemUrl(base)),
       qrSvg: await qrSvg(redeemUrl(base, plainCode)),
     };

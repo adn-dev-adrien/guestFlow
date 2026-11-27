@@ -1,5 +1,5 @@
 /**
- * The `hourly` article family — the hourly contributor wrapped (specs/pricing-components.md §3 rules 5, 47).
+ * The `hourly` article family — the hourly contributor wrapped (specs/pricing/pricing-components.md §3 rules 5, 47).
  *
  * The family is registered next to the contributor (`ctx.priceLineContributor` stays as the alias the engine reads
  * until PR C): `price` asks the contributor, line by line, and returns what the core families return — `quantity`,
@@ -80,8 +80,8 @@ function createHourlyFamily(contributor) {
     validate,
     price,
     describe,
-    // Dateless sessions for a customer with no stay (specs/gift-voucher-campaigns.md rules 4, 44): the core's sale quote asks them, and a catalogue view lists the modes.
-    sessionModes: (config) => sessionModesOf(config.resource),
+    // Dateless sessions for a customer with no stay (specs/gift-vouchers/gift-voucher-campaigns.md rules 4, 44): the core's sale quote asks them, and a catalogue view lists the modes.
+    sessionModes: (config) => sessionModesOf(config.resource, { period: 'any' }),
     quoteSession,
   };
 }

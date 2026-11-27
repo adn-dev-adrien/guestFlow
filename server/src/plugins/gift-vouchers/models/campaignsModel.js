@@ -1,5 +1,5 @@
 /**
- * `gift_voucher_campaigns` — the offers the operator configures (specs/gift-voucher-campaigns.md §5, rules 2, 8, 9, 46). A row holds no price: a composed campaign
+ * `gift_voucher_campaigns` — the offers the operator configures (specs/gift-vouchers/gift-voucher-campaigns.md §5, rules 2, 8, 9, 46). A row holds no price: a composed campaign
  * names what it contains and the pricing engine reads the prices when asked (rule 5). JSON columns are parsed on the way out and written on the way in; a campaign
  * is never deleted — it is closed, and its vouchers stay valid. A one-shot campaign (« Sur mesure ») is bound to its only voucher: no slug, never on sale, left out of every list.
  */
@@ -29,12 +29,14 @@ function present(row) {
     vatRatePercent: row.vatRatePercent,
     voucherVisualId: row.voucherVisualId,
     merchantVisualId: row.merchantVisualId,
+    periods: rules.parseJson(row.periods, [...rules.PERIODS]),
+    frontPricePosition: row.frontPricePosition || 'bottom-right',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-const COLUMNS = ['name', 'title', 'kind', 'state', 'oneShot', 'slug', 'validityMonths', 'composition', 'addOns', 'extraTimeMaxMinutes', 'minAmountCents', 'maxAmountCents', 'ideas', 'vatRatePercent', 'voucherVisualId', 'merchantVisualId'];
+const COLUMNS = ['name', 'title', 'kind', 'state', 'oneShot', 'slug', 'validityMonths', 'composition', 'addOns', 'extraTimeMaxMinutes', 'minAmountCents', 'maxAmountCents', 'ideas', 'vatRatePercent', 'voucherVisualId', 'merchantVisualId', 'periods', 'frontPricePosition'];
 
 const stored = (value) => ({
   ...value,
@@ -42,6 +44,8 @@ const stored = (value) => ({
   composition: value.composition ? JSON.stringify(value.composition) : null,
   addOns: JSON.stringify(value.addOns || []),
   ideas: JSON.stringify(value.ideas || []),
+  periods: JSON.stringify(value.periods || rules.PERIODS),
+  frontPricePosition: value.frontPricePosition || 'bottom-right',
 });
 
 function createCampaignsModel(db, { now = () => new Date() } = {}) {

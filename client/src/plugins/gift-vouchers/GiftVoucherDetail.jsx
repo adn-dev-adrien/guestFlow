@@ -1,9 +1,9 @@
 /**
- * GiftVoucherDetail — one voucher (specs/gift-vouchers.md rules 25-28): its figures, the code (masked until « Afficher
+ * GiftVoucherDetail — one voucher (specs/gift-vouchers/gift-vouchers.md rules 25-28): its figures, the code (masked until « Afficher
  * le code »), its movements and the actions. Rendered in the side panel on `lg`, in a dialog below.
  *
  * Cancelling follows the 14-day withdrawal the server reports (`withdrawal.open`): a confirmation naming the voucher and the amount to refund within it, a forcing
- * dialog with a mandatory reason after it (specs/gift-voucher-campaigns.md rule 54); a cancelled voucher carries its refund line, marked settled from here.
+ * dialog with a mandatory reason after it (specs/gift-vouchers/gift-voucher-campaigns.md rule 54); a cancelled voucher carries its refund line, marked settled from here.
  *
  * Props: voucher (the server's detail payload), onChange(voucher), onClose (shown as « Fermer » when given)
  */
@@ -13,7 +13,7 @@ import {
   Box, Button, Chip, Divider, Link, Stack, Typography,
 } from '@mui/material';
 import {
-  ConfirmDialog, StatusBadge, SummaryItem, useToast,
+  ConfirmDialog, PrintSheetsDialog, StatusBadge, SummaryItem, useToast,
 } from '../sdk';
 import giftVouchersApi from './giftVouchersApi';
 import {
@@ -71,6 +71,7 @@ export default function GiftVoucherDetail({ voucher, onChange, onClose }) {
   const actions = [
     { key: 'resend', label: T.resend, onClick: () => setDialog('resend'), disabled: !voucher.canDownload, hint: !voucher.canDownload ? T.notDownloadable : null },
     { key: 'pdf', label: T.pdf, onClick: pdf, disabled: !voucher.canDownload },
+    { key: 'print', label: T.print, onClick: () => setDialog('print'), disabled: !voucher.canDownload },
     { key: 'extend', label: T.extend, onClick: () => setDialog('extend'), disabled: cancelled },
     { key: 'adjust', label: T.adjust, onClick: () => setDialog('adjust'), disabled: cancelled },
     {
@@ -177,6 +178,14 @@ export default function GiftVoucherDetail({ voucher, onChange, onClose }) {
 
       <ExtendDialog open={dialog === 'extend'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
       <AdjustDialog open={dialog === 'adjust'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
+      <PrintSheetsDialog
+        open={dialog === 'print'}
+        onClose={() => setDialog(null)}
+        title={T.printTitle}
+        initialCount={1}
+        fetchLayout={(options) => giftVouchersApi.voucherPrintLayout(voucher.id, options)}
+        onPrint={(options) => giftVouchersApi.downloadVoucherPrint(voucher.id, voucher.number, options)}
+      />
       <ResendDialog open={dialog === 'resend'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
       <ForcedCancelDialog open={dialog === 'forced'} onClose={() => setDialog(null)} voucher={voucher} onDone={done} />
       <ConfirmDialog

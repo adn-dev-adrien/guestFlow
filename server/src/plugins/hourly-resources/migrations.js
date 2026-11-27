@@ -1,5 +1,5 @@
 /**
- * The `hourly-resources` plugin's migrations (specs/plugins-phase-3c-hourly-resources.md rules 7, 16,
+ * The `hourly-resources` plugin's migrations (specs/plugins/plugins-phase-3c-hourly-resources.md rules 7, 16,
  * 25 and §5).
  *
  * `resource_bookings` left the core baseline: on an existing database it is already there and
@@ -79,6 +79,7 @@ const HOURLY_COLUMN_RESETS = [
   ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
   ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['hourlyDegressiveTiers', "'[]'"],
   ['hourlyNextDayRate', 'NULL'], ['hourlyNextEveningRate', 'NULL'], ['hourlyExternalNextDayRate', 'NULL'], ['hourlyExternalNextEveningRate', 'NULL'], ['heatUpMinutes', '0'],
+  ['hourlyExternalWeekendDayRate', 'NULL'], ['hourlyExternalWeekendEveningRate', 'NULL'], ['hourlyExternalWeekendNextDayRate', 'NULL'], ['hourlyExternalWeekendNextEveningRate', 'NULL'],
   ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'], ['bookingHorizonMonths', '3'],
 ];
 
@@ -100,7 +101,7 @@ function countHourlySettings(db) {
   return db.prepare(`SELECT COUNT(*) AS n FROM resources WHERE ${differs.join(' OR ')}`).get().n;
 }
 
-// specs/resource-booking-pricing-and-invoicing.md §5 — offered time, the payment (the fiches' tender lines), the arrival,
+// specs/resources/resource-booking-pricing-and-invoicing.md §5 — offered time, the payment (the fiches' tender lines), the arrival,
 // the billing address of a guest with no client record, and the Qonto invoice with its attachment. Every column is
 // nullable or defaulted: an existing booking keeps its price (`offeredMinutes = 0`).
 const BOOKING_COLUMNS_V2 = [
@@ -141,7 +142,7 @@ function bookingsV2(db) {
   db.exec(`UPDATE resource_bookings SET paidAt = ${day} WHERE paid = 1 AND paidAt IS NULL`);
 }
 
-// specs/resource-booking-pricing-and-invoicing.md rules 34-36 — the VAT rate is frozen with the payment (`paidVatRate`,
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 34-36 — the VAT rate is frozen with the payment (`paidVatRate`,
 // NULL = not subject), and an invoice whose « marquer payée » Qonto did not take is retried (`invoiceMarkPending`).
 // A booking paid before this migration gets the rate in force now — the rate its sale was journaled with until then;
 // an invoiced one keeps the rate its invoice states.
@@ -163,7 +164,7 @@ function bookingsV3(db, rateOf) {
   });
 }
 
-// specs/resource-booking-pricing-and-invoicing.md rule 50 — the identity (name and billing address) a booking's Qonto
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 50 — the identity (name and billing address) a booking's Qonto
 // client was created with: a later invoice reuses that client only for the same identity. NULL on a booking invoiced
 // before: its Qonto client is not reused, the next invoice creates one with what the record holds.
 const BOOKING_COLUMNS_V4 = [
@@ -177,10 +178,12 @@ function bookingsV4(db) {
   });
 }
 
-// specs/pricing-components.md §3 rule 24 (E4): NULL marks a booking priced before the one hourly grid — its free hour stays valued on the
+// specs/pricing/pricing-components.md §3 rule 24 (E4): NULL marks a booking priced before the one hourly grid — its free hour stays valued on the
 // band it falls in, as stored; 1 marks a booking priced since (the free hour is worth the day rate).
+// `engineRated` (rule 29 of the week-weekend spec, migration v14) rides with it: a database built step by step by a suite gets both columns, a production one gets the second at v14.
 const BOOKING_COLUMNS_V5 = [
   ['freeHourAtDayRate', 'INTEGER'],
+  ['engineRated', 'INTEGER'],
 ];
 
 function bookingsV5(db) {
@@ -203,21 +206,21 @@ function bookingsV6(db) {
   });
 }
 
-// specs/site-outside-resource-booking.md rule 26 — the people declared at booking, for information. NULL for every existing row.
+// specs/site/site-outside-resource-booking.md rule 26 — the people declared at booking, for information. NULL for every existing row.
 function bookingsV7(db) {
   if (!hasTable(db, 'resource_bookings')) return;
   if (!hasColumn(db, 'resource_bookings', 'people')) db.exec('ALTER TABLE resource_bookings ADD COLUMN people INTEGER');
 }
 
-// specs/site-outside-resource-booking.md rule 12 — a session ordered on the website, held while it is paid. Nothing to carry: the table starts empty.
+// specs/site/site-outside-resource-booking.md rule 12 — a session ordered on the website, held while it is paid. Nothing to carry: the table starts empty.
 const createSessionOrdersTable = (db) => db.exec(require('./sessionOrdersModel').CREATE_SQL);
 
-// specs/gift-voucher-campaigns.md rule 29 — the slot held while a remainder is being paid. Nothing to carry: the table starts empty.
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 29 — the slot held while a remainder is being paid. Nothing to carry: the table starts empty.
 const createHoldsTable = (db) => db.exec(require('./holdsModel').CREATE_SQL);
 // Rule 36 — the elements a prepaid instrument paid that the client did not take.
 const createLineMarksTable = (db) => db.exec(require('./lineMarksModel').CREATE_SQL);
 
-// specs/hourly-extra-hour-rates.md rules 1, 7 — the price of the following hours, per audience and band (NULL = same as the first hour). The percent
+// specs/resources/hourly-extra-hour-rates.md rules 1, 7 — the price of the following hours, per audience and band (NULL = same as the first hour). The percent
 // table (`hourlyDegressiveTiers`) is withdrawn: a resource that had one gets the rate its 2nd hour was worth, rounded to the cent; the later
 // rows are dropped. The column stays in the table, unread.
 const NEXT_RATE_COLUMNS = ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'];
@@ -263,12 +266,74 @@ function nextHourRates(db) {
   }
 }
 
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 4 — every price of an hourly resource explicit, so nothing changes on the day of the update: each empty
+// following-hours rate takes its first-hour rate, each outside first-hour rate at 0 takes the guests' rate it used to fall back to (a resource sold outside only: one that is not keeps its week columns, the guests' live rate
+// serving a lodging with no stay as before), the weekend grid copies the week grid wherever the week grid is set and the weekend value is empty (every hourly resource of the planning, a captured weekend value never overwritten), and a per-lodging price (withdrawn for an hourly resource of the planning — one with no planning card keeps its prices) is dropped — the log names the lodging and the price.
+const WEEKEND_COLUMNS = ['hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate'];
+
+function explicitHourlyRates(db) {
+  if (!hasTable(db, 'resources') || !hasColumn(db, 'resources', 'priceType') || !hasColumn(db, 'resources', 'showsPlanningCard')) return;
+  [...NEXT_RATE_COLUMNS, ...WEEKEND_COLUMNS].forEach((column) => {
+    if (!hasColumn(db, 'resources', column)) db.exec(`ALTER TABLE resources ADD COLUMN ${column} REAL`);
+  });
+  const rows = db.prepare("SELECT * FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1").all();
+  const writeGuests = db.prepare('UPDATE resources SET hourlyNextDayRate = @nd, hourlyNextEveningRate = @ne WHERE id = @id');
+  const writeOutside = db.prepare(`UPDATE resources SET hourlyExternalDayRate = @xd, hourlyExternalEveningRate = @xe, hourlyExternalNextDayRate = @xnd, hourlyExternalNextEveningRate = @xne,
+    hourlyExternalWeekendDayRate = @wd, hourlyExternalWeekendEveningRate = @we, hourlyExternalWeekendNextDayRate = @wnd, hourlyExternalWeekendNextEveningRate = @wne WHERE id = @id`);
+  const present = (value) => value !== null && value !== undefined && value !== '';
+  rows.forEach((row) => {
+    const day = Number(row.price) || 0;
+    const evening = Number(row.hourlyEveningRate) || 0;
+    const guestEvening = evening > 0 ? evening : day;
+    writeGuests.run({
+      id: row.id,
+      nd: present(row.hourlyNextDayRate) ? Number(row.hourlyNextDayRate) : day,
+      ne: present(row.hourlyNextEveningRate) ? Number(row.hourlyNextEveningRate) : guestEvening,
+    });
+    // Only a resource sold outside has its empty or 0 outside first hours filled from the guests' rate (K9): one that is not keeps its week columns as they are, the guests' live rate serving
+    // a lodging with no stay as before. The weekend columns copy the week ones wherever those are set, for every hourly resource of the planning, and a captured weekend value is never overwritten.
+    const soldOutside = Number(row.sellableExternally) === 1;
+    const storedDay = Number(row.hourlyExternalDayRate) || 0;
+    const storedEvening = Number(row.hourlyExternalEveningRate) || 0;
+    const xd = soldOutside && !(storedDay > 0) ? day : storedDay;
+    const xe = soldOutside && !(storedEvening > 0) ? (evening > 0 ? evening : xd) : storedEvening;
+    const following = (value, firstHour) => (present(value) ? Number(value) : (soldOutside ? firstHour : null));
+    const xnd = following(row.hourlyExternalNextDayRate, xd);
+    const xne = following(row.hourlyExternalNextEveningRate, xe);
+    const weekendFrom = (value, weekValue) => (present(value) ? Number(value) : weekValue);
+    writeOutside.run({
+      id: row.id,
+      xd,
+      xe,
+      xnd,
+      xne,
+      wd: weekendFrom(row.hourlyExternalWeekendDayRate, xd > 0 ? xd : null),
+      we: weekendFrom(row.hourlyExternalWeekendEveningRate, xe > 0 ? xe : null),
+      wnd: weekendFrom(row.hourlyExternalWeekendNextDayRate, xnd),
+      wne: weekendFrom(row.hourlyExternalWeekendNextEveningRate, xne),
+    });
+  });
+  if (!hasTable(db, 'property_resource_prices') || !hasTable(db, 'properties')) return;
+  const dropped = db.prepare(`SELECT prp.propertyId, prp.resourceId, prp.price, p.name AS propertyName, r.name AS resourceName FROM property_resource_prices prp
+    JOIN resources r ON r.id = prp.resourceId JOIN properties p ON p.id = prp.propertyId WHERE r.priceType = 'per_hour' AND r.showsPlanningCard = 1 AND prp.price IS NOT NULL`).all();
+  dropped.forEach((line) => {
+    console.log(`[hourly-resources] lodging "${line.propertyName}" (#${line.propertyId}): its price ${line.price} € on "${line.resourceName}" (#${line.resourceId}) is dropped — the resource's own grid applies.`);
+  });
+  db.exec("UPDATE property_resource_prices SET price = NULL WHERE price IS NOT NULL AND resourceId IN (SELECT id FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1)");
+}
+
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
-// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
+// specs/plugins/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
 function keepBookingIdsCited(db) {
   const { highestCitedId, raiseCounter } = require('../sdk/citedIdCounterFloor');
   raiseCounter(db, 'resource_bookings', highestCitedId(db, 'resource-booking:', [{ table: 'standalone_sales', column: 'originRef' }]));
 }
+
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 29 — the fact that decides a booking's price path: 1 marks an outside session made or moved on the engine path (real date and
+// period, any start and duration); NULL is every row of before, which keeps the figure and the way it was priced.
+const bookingsEngineRated = (db) => {
+  if (hasTable(db, 'resource_bookings') && !hasColumn(db, 'resource_bookings', 'engineRated')) db.exec('ALTER TABLE resource_bookings ADD COLUMN engineRated INTEGER');
+};
 
 function migrationsFor(rateOf) {
   return [
@@ -285,9 +350,11 @@ function migrationsFor(rateOf) {
     { name: 'next_hour_rates_v10', up: nextHourRates },
     { name: 'resource_bookings_people_v11', up: bookingsV7 },
     { name: 'resource_session_orders_v12', up: createSessionOrdersTable },
+    { name: 'explicit_hourly_rates_v13', up: explicitHourlyRates },
+    { name: 'resource_bookings_engine_rated_v14', up: bookingsEngineRated },
   ];
 }
 
 module.exports = {
-  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, bookingsV7, createTables, hasColumn, nextHourRates, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, bookingsV7, createTables, hasColumn, nextHourRates, explicitHourlyRates, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

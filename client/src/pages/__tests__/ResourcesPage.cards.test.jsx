@@ -13,7 +13,7 @@ import ResourcesPage from '../ResourcesPage';
 let hourlyOn = true;
 let slots = [];
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => hourlyOn }));
-vi.mock('../../plugins/sdk', () => ({ useSlot: () => slots }));
+vi.mock('../../plugins/sdk', () => ({ useSlot: (name) => (name === 'resources.fields' ? slots : []) }));
 vi.mock('../../api', () => ({
   default: {
     getResourcesCatalogueView: vi.fn(), getProperties: vi.fn(), getResource: vi.fn(), createResource: vi.fn(),
@@ -37,7 +37,7 @@ const BATH = {
 const stored = (over = {}) => ({
   id: 2, name: 'Bain nordique', note: 'Chauffé au bois', quantity: 1, price: 30, basePrice: 30, priceType: 'per_hour',
   propertyIds: [], propertyPricing: { 2: { price: 40, freeMinutes: 60 } }, isComplex: 1, openTime: '11:00', closeTime: '22:00',
-  minimumUsageMinutes: 60, ...over,
+  minimumUsageMinutes: 60, showsPlanningCard: 1, ...over,
 });
 
 function renderPage() {
@@ -108,14 +108,28 @@ test('rule 20: a card opens the editor with Général, Prix and Mails; the quant
   expect(screen.getByLabelText('En service')).toHaveValue('1');
 });
 
-test('rule 20: the per-property lines carry the price and « 1re heure offerte » for an hourly resource', async () => {
+// Amended 2026-11-27 (gift-voucher-week-weekend-and-print rule 3): an hourly resource has no price per lodging, only its offered hour.
+test('rule 20: the per-property lines carry only « 1re heure offerte » for an hourly resource', async () => {
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Bain nordique' }));
-  expect(await screen.findByLabelText('Prix · Estiva')).toHaveValue('40');
+  expect(await screen.findByText('Heure offerte par logement')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Prix · Estiva')).not.toBeInTheDocument();
   const estiva = screen.getByRole('group', { name: 'Estiva' });
   expect(within(estiva).getByRole('checkbox', { name: '1re heure offerte' })).toBeChecked();
   expect(within(screen.getByRole('group', { name: 'Granja' })).getByRole('checkbox', { name: '1re heure offerte' })).not.toBeChecked();
+});
+
+// G6 — two flags: the per-lodging price is hidden for a resource of the planning only; the offered hour shows for every resource sold by the hour.
+test('rule 20: an hourly resource with no planning card keeps its price per lodging beside « 1re heure offerte »', async () => {
+  const user = userEvent.setup();
+  api.getResource.mockResolvedValue(stored({ showsPlanningCard: 0, propertyPricing: { 2: { price: 40, freeMinutes: 60 } } }));
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Bain nordique' }));
+  expect(await screen.findByText('Prix par logement')).toBeInTheDocument();
+  const estiva = screen.getByRole('group', { name: 'Estiva' });
+  expect(within(estiva).getByLabelText('Prix · Estiva')).toHaveValue('40');
+  expect(within(estiva).getByRole('checkbox', { name: '1re heure offerte' })).toBeChecked();
 });
 
 test('rule 20: a plugin that has fields for the resource gets its own « Horaires » section', async () => {
@@ -139,7 +153,7 @@ test('rule 20: saving sends the payload and toasts', async () => {
   const [id, payload] = api.updateResource.mock.calls[0];
   expect(id).toBe(2);
   expect(payload.price).toBe(35.5);
-  expect(payload.propertyPricing).toEqual({ 2: { price: 40, freeMinutes: 60 } });
+  expect(payload.propertyPricing).toEqual({ 2: { price: null, freeMinutes: 60 } });
   expect(await screen.findByText('Ressource enregistrée')).toBeInTheDocument();
 });
 
@@ -194,9 +208,9 @@ test('rule 20: deleting a free resource asks once, then deletes', async () => {
   expect(await screen.findByText('Ressource supprimée')).toBeInTheDocument();
 });
 
-test('rule 28: a property line with a typed price keeps it; a stored inherited line reloads blank', async () => {
+test('rule 28: a property line with a typed price keeps it; a stored inherited line reloads blank (a resource that is not sold by the hour)', async () => {
   const user = userEvent.setup();
-  api.getResource.mockResolvedValue(stored({ propertyPricing: { 1: { price: null, freeMinutes: 60 }, 2: { price: 40, freeMinutes: 0 } } }));
+  api.getResource.mockResolvedValue(stored({ priceType: 'per_stay', propertyPricing: { 1: { price: null, freeMinutes: 0 }, 2: { price: 40, freeMinutes: 0 } } }));
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Bain nordique' }));
   expect(await screen.findByLabelText('Prix · Granja')).toHaveValue('');

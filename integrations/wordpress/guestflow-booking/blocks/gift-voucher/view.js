@@ -1,5 +1,5 @@
 /**
- * Gift voucher tunnel frontend (build-free, plain ES) — specs/gift-vouchers.md §3.C, §3.D and §6.
+ * Gift voucher tunnel frontend (build-free, plain ES) — specs/gift-vouchers/gift-vouchers.md §3.C, §3.D and §6.
  *
  * Its own small state machine, independent of the booking block (rule 12): it shares only the runtime
  * (`GF.api`, `GF.el`, `GF.t`), `assets/voucher-parts.js` (proof of work, stepper, amounts) and the field styles.
@@ -7,7 +7,7 @@
  *   loading → [campaign choice] → form ─(pay)→ [redirect to the hosted payment page]
  *   ?gf_voucher=<id>&gf_token=<t> → waiting (poll) → voucher | failed | link expired (« Recommencer ») | still pending
  *
- * specs/gift-voucher-campaigns.md rules 16-19: the page lists the campaigns on sale grouped by kind; a card address
+ * specs/gift-vouchers/gift-voucher-campaigns.md rules 16-19: the page lists the campaigns on sale grouped by kind; a card address
  * (`#campagne=<slug>`) opens one directly. EVERY way into a campaign — the address, a click on the chooser, a single
  * offer — goes through `open()`, the one place that builds the form, so a campaign opened by its card address works
  * exactly like one chosen on the site. A `lodging` campaign keeps the free-amount tunnel; a `resource` campaign
@@ -39,7 +39,7 @@
 
   var money = GF.voucherMoney;
 
-  // The address of a printed card: `#campagne=<slug>` (specs/gift-voucher-campaigns.md rule 9).
+  // The address of a printed card: `#campagne=<slug>` (specs/gift-vouchers/gift-voucher-campaigns.md rule 9).
   function hashCampaign() {
     var found = /[#&]campagne=([^&]+)/.exec(window.location.hash || '');
     if (!found) return '';
@@ -101,6 +101,11 @@
     });
   }
 
+  // The price an offer is announced at: the lowest of its periods, « dès » when it sells two (week-weekend-and-print spec rule 11).
+  function fromPrice(c) {
+    return (c.periods && c.periods.length > 1 ? GF.t('gvExtrasFrom', money(c.totalCents)) : money(c.totalCents));
+  }
+
   // ── Campaigns: the chooser, and the one `open()` every entry goes through ─────────────────────
   function mount(container, offer) {
     if (!Array.isArray(offer.campaigns)) { buildForm(container, offer, null, null); return; }
@@ -118,7 +123,7 @@
       var row = GF.el('div', { class: 'gf-gv-switch-row' });
       ['lodging', 'resource'].forEach(function (kind) {
         campaigns.filter(function (c) { return c.kind === kind; }).forEach(function (c) {
-          var price = c.kind === 'resource' ? (c.totalCents != null ? money(c.totalCents) : '') : GF.t('gvFreeAmount');
+          var price = c.kind === 'resource' ? (c.totalCents != null ? fromPrice(c) : '') : GF.t('gvFreeAmount');
           var opt = GF.el('button', { type: 'button', class: 'gf-gv-switch-opt', 'data-slug': c.slug });
           var thumb = front(c, 'gf-gv-switch-thumb', true, null);
           if (thumb) opt.appendChild(thumb);
@@ -149,7 +154,7 @@
           card.appendChild(GF.el('span', { class: 'gf-gv-offer-text' },
             GF.el('b', {}, c.title),
             detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, detail) : null,
-            c.kind === 'resource' && c.totalCents != null ? GF.el('span', { class: 'gf-gv-offer-price' }, money(c.totalCents)) : null));
+            c.kind === 'resource' && c.totalCents != null ? GF.el('span', { class: 'gf-gv-offer-price' }, fromPrice(c)) : null));
           card.addEventListener('click', function () { open(c.slug, true); });
           list.appendChild(card);
         });
@@ -312,30 +317,75 @@
     var extrasFold = null;
     var recap = null;
     var extraMinutes = 0;
+    var periods = isResource && Array.isArray(campaign.periods) ? campaign.periods : [];
+    var period = periods.length ? periods[0].period : '';
+    var periodControl = null;
     var addOnQty = {};
     var priced = null;
     var pricedError = '';
     var priceSeq = 0;
     var priceTimer = null;
     if (isResource) {
-      var includes = GF.el('ul', { class: 'gf-gv-items' }, (campaign.contents || []).map(function (line) {
-        return GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, ' — ' + line.detail) : null);
-      }));
+      // The lines GuestFlow wrote for the period picked (« 1 h en journée · week-end »): a campaign that sells two sends those of each.
+      var includes = GF.el('ul', { class: 'gf-gv-items' });
+      var drawIncludes = function () {
+        includes.innerHTML = '';
+        ((campaign.contentsByPeriod && campaign.contentsByPeriod[period]) || campaign.contents || []).forEach(function (line) {
+          includes.appendChild(GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, ' — ' + line.detail) : null));
+        });
+      };
+      drawIncludes();
+      // The fold opens on the figures of the period the page starts on (the server's, per period), not on the top-level ones.
+      var extraTimeOf = function (code) {
+        var by = campaign.extraTime && campaign.extraTime.pricesByPeriod;
+        return by && by[code] ? Object.assign({}, campaign.extraTime, { prices: by[code] }) : campaign.extraTime;
+      };
       extrasFold = GF.voucherExtrasFold({
-        extraTime: campaign.extraTime,
+        extraTime: extraTimeOf(period),
         addOns: campaign.addOns,
         onExtraTime: function (n) { extraMinutes = n; turnToBack(); changed(); },
         onAddOn: function (ref, n) { addOnQty[ref] = n; turnToBack(); changed(); },
       });
       recap = GF.el('div', { class: 'gf-gv-recap', 'aria-live': 'polite' });
+      // Rule 11 — the giver picks the week or the weekend inside the campaign, each with the server's price; a single period is just sent.
+      if (periods.length > 1) {
+        var periodWord = { week: 'gvPeriodWeek', weekend: 'gvPeriodWeekend' };
+        periodControl = GF.el('div', { class: 'gf-gv-period', role: 'radiogroup', 'aria-label': GF.t('gvPeriod') },
+          periods.map(function (p) {
+            var btn = GF.el('button', {
+              type: 'button', class: 'gf-gv-period-opt', role: 'radio', 'data-period': p.period, 'aria-checked': p.period === period ? 'true' : 'false',
+            }, GF.el('b', {}, GF.t(periodWord[p.period] || p.label)), GF.el('span', {}, money(p.priceCents)));
+            btn.addEventListener('click', function () {
+              period = p.period;
+              Array.prototype.forEach.call(periodControl.children, function (n) { n.setAttribute('aria-checked', n.getAttribute('data-period') === period ? 'true' : 'false'); });
+              priced = null;
+              drawIncludes();
+              periodHint.textContent = hintOf(period);
+              // The extra-time steps are priced for the period (rule 11): the fold shows those of the one picked.
+              if (extrasFold && campaign.extraTime && campaign.extraTime.pricesByPeriod) extrasFold.updateExtraTimePrices(campaign.extraTime.pricesByPeriod[period]);
+              turnToBack();
+              drawRecap();
+              askPrice();
+            });
+            return btn;
+          }));
+      }
+      // What the period means (the server's words), under the control; with a single period it is the fact that period is sold for.
+      var hintOf = function (code) {
+        for (var i = 0; i < periods.length; i += 1) if (periods[i].period === code) return periods[i].hint || '';
+        return '';
+      };
+      var periodHint = periods.length ? GF.el('p', { class: 'gf-gv-hint gf-gv-period-hint' }, hintOf(period)) : null;
       composeBlock = GF.el('div', { class: 'gf-gv-compose' },
         GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvIncludes')), includes,
+        periodControl ? GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvPeriod')) : null, periodControl, periodHint,
         campaign.band ? GF.el('p', { class: 'gf-gv-hint' }, GF.t('gvBand', campaign.band.label, campaign.band.from, campaign.band.to)) : null,
         extrasFold, recap);
     }
 
     function composeRequest() {
       var req = { slug: campaign.slug, extraMinutes: extraMinutes, addOns: [] };
+      if (period) req.period = period;
       Object.keys(addOnQty).forEach(function (ref) { if (addOnQty[ref] > 0) req.addOns.push({ articleRef: ref, qty: addOnQty[ref] }); });
       return req;
     }
@@ -441,7 +491,8 @@
       if (!isResource) {
         return [String(b.lineTemplate || '').replace('{amount}', function () { return cents != null ? GF.cardEuros(cents) : '… €'; })];
       }
-      var lines = (b.lines || []).slice();
+      // A campaign that sells two periods sends the lines of each (rule 20): the page shows those of the period the giver picked.
+      var lines = ((b.linesByPeriod && b.linesByPeriod[period]) || b.lines || []).slice();
       if (extraMinutes > 0 && b.extraTime && b.extraTime[extraMinutes]) lines.push(b.extraTime[extraMinutes]);
       (campaign.addOns || []).forEach(function (a) {
         var qty = addOnQty[a.articleRef] || 0;
@@ -461,11 +512,14 @@
       if (payBtn && !busy) payBtn.textContent = a.cents != null ? GF.t('gvPay', GF.euro(a.cents / 100)) : GF.t('gvPayBare');
       if (card && back) {
         card.set({
+          title: (campaign.back.titles && campaign.back.titles[period]) || campaign.back.title || campaign.title,
           recipient: recipientInput.value.trim(),
           sender: senderInput.value.trim(),
           message: messageInput.value.trim(),
           lines: cardLines(a.cents),
           validUntil: campaign.back.validUntil,
+          steps: campaign.back.steps,
+          kind: campaign.kind,
         });
       }
     }
@@ -500,7 +554,7 @@
       return a.cents;
     }
 
-    // ── Proof of work: the same challenge the booking request solves (specs/gift-vouchers.md rule 15) ──
+    // ── Proof of work: the same challenge the booking request solves (specs/gift-vouchers/gift-vouchers.md rule 15) ──
     var proof = GF.voucherProof();
     // The work starts when the form is in front of the visitor or touched, never on a mere page view.
     if (available) proof.observe(root);
@@ -640,7 +694,7 @@
       }) : null;
       if (card) {
         card.set({
-          recipient: v.recipientName || '', sender: v.senderName || '', message: v.message || '', lines: voucherBack.lines, validUntil: voucherBack.validUntil, code: code, qrSvg: voucherBack.qrSvg, link: voucherBack.link,
+          title: voucherBack.title || v.title || '', recipient: v.recipientName || '', sender: v.senderName || '', message: v.message || '', lines: voucherBack.lines, validUntil: voucherBack.validUntil, code: code, qrSvg: voucherBack.qrSvg, link: voucherBack.link, steps: voucherBack.steps, kind: v.kind,
         });
         lead.classList.add('has-card');
         lead.appendChild(GF.el('div', { class: 'gf-card-col' }, card.node));

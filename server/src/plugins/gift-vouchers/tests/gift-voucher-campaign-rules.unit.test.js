@@ -67,6 +67,8 @@ test('rule 4: a valid composition — one hourly resource with its band and incl
     vatRatePercent: null,
     voucherVisualId: null,
     merchantVisualId: null,
+    periods: ['week', 'weekend'],
+    frontPricePosition: 'bottom-right',
   });
 });
 
@@ -114,19 +116,20 @@ test('rule 4: add-ons are sellable options, none repeated, none already included
   ]]);
   assert.deepEqual(errorsOf(bath({ extraTimeMaxMinutes: 480 }))[0][0], 'extraTimeMaxMinutes', '2 h included + 8 h does not fit the day');
   assert.deepEqual(sessionCalls.at(-1), {
-    resourceId: 1, band: 'day', minutes: 480, rankOffsetMinutes: 120,
-  }, 'the extra time is judged after the included minutes');
+    resourceId: 1, band: 'day', minutes: 480, rankOffsetMinutes: 120, period: 'weekend',
+  }, 'the extra time is judged after the included minutes, in each period the campaign sells (every period is judged, so a refusal can name the one it is about)');
   assert.equal(errorsOf(bath({ extraTimeMaxMinutes: 0 })).length, 0);
   assert.equal(errorsOf(bath({ extraTimeMaxMinutes: -60 }))[0][0], 'extraTimeMaxMinutes');
 });
 
-test('rule 2: the name and the public title are texts, the validity whole months from 1 to 120, the state one of three, the kind one of two', () => {
+test('rule 2: the name and the public title are texts, the validity one of 3, 6, 12, 18 or 24 months, the state one of three, the kind one of two', () => {
   assert.deepEqual(errorsOf(bath({ name: '' }))[0][0], 'name');
   assert.deepEqual(errorsOf(bath({ title: ' ' }))[0][0], 'title');
   assert.deepEqual(errorsOf(bath({ name: 'x'.repeat(81) }))[0][0], 'name');
   assert.deepEqual(errorsOf(bath({ name: 42 }))[0][0], 'name');
-  ['1', '18', 120, '120'].forEach((v) => assert.deepEqual(errorsOf(bath({ validityMonths: v })), [], String(v)));
-  ['0', '121', '-1', '1.5', 'abc', '', [], {}, null].forEach((v) => assert.equal(errorsOf(bath({ validityMonths: v }))[0][0], 'validityMonths', JSON.stringify(v)));
+  // Amended 2026-11-27 (gift-voucher-week-weekend-and-print rule 13): a short list, nothing else.
+  ['3', '6', 12, '18', 24].forEach((v) => assert.deepEqual(errorsOf(bath({ validityMonths: v })), [], String(v)));
+  ['1', '4', '120', '121', '0', '-1', '1.5', 'abc', '', [], {}, null].forEach((v) => assert.deepEqual(errorsOf(bath({ validityMonths: v }))[0], ['validityMonths', 'La validité doit être de 3, 6, 12, 18 ou 24 mois.'], JSON.stringify(v)));
   assert.deepEqual(errorsOf(bath({ state: 'sold' }))[0][0], 'state');
   assert.deepEqual(errorsOf(bath({ kind: 'bath' }))[0][0], 'kind');
   assert.deepEqual(errorsOf(null), [['body', 'Corps de requête invalide.']]);
@@ -185,4 +188,14 @@ test('rule 7: a campaign goes on sale with a voucher front — without one it st
   assert.equal(rules.validateCampaign(bath({ slug: 'avec-recto', state: 'on_sale', voucherVisualId: 5 }), deps({ visuals })).ok, true);
   assert.equal(rules.validateCampaign(bath({ slug: 'brouillon', state: 'draft' }), deps({ visuals })).ok, true);
   assert.equal(rules.validateCampaign(bath({ slug: undefined }), deps({ visuals, oneShot: true })).ok, true);
+});
+
+test('a refusal that says which period it is about is never prefixed with that period, found from the data and not from a word in the sentence (L8)', () => {
+  // The engine's own sentence for a weekend band with no price (`notSoldSentence`; the real engine produces it in gift-voucher-contents-period.unit.test.js).
+  const realSentence = '« Bain nordique » n’a pas de tarif extérieur pour la journée le week-end.';
+  const aboutWeekend = { catalogue: { ...catalogue, sessionRefusal: (s) => (s.period === 'weekend' ? { message: realSentence, period: 'weekend' } : null) } };
+  const asked = errorsOf(bath({ periods: ['week', 'weekend'] }), aboutWeekend);
+  assert.deepEqual(asked, [['composition.minutes', `Durée incluse : ${realSentence}`]], 'the structured period says the sentence is about the weekend: no prefix added to the engine’s own sentence');
+  const aboutAnother = { catalogue: { ...catalogue, sessionRefusal: (s) => (s.period === 'weekend' ? 'Un week-end sans tarif.' : null) } };
+  assert.deepEqual(errorsOf(bath({ periods: ['week', 'weekend'] }), aboutAnother), [['composition.minutes', 'Durée incluse : (week-end) Un week-end sans tarif.']], 'a plain sentence that happens to hold the word is still prefixed');
 });

@@ -235,7 +235,8 @@ test('options-resources-ux rule 31: a resource\'s durations, prices, rates and q
     }
   }
   for (const value of [1e999, 1e308]) {
-    for (const field of ['price', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate']) assert.deepEqual(refused({ [field]: value }), [field], `${field} ${text(value)}`);
+    // The hourly rates are the plugin's own checks since 2026-11-27 (hourly-weekend-rates.unit.test.js).
+    for (const field of ['price']) assert.deepEqual(refused({ [field]: value }), [field], `${field} ${text(value)}`);
     assert.deepEqual(refused({ quantity: value }), ['quantity']);
     assert.deepEqual(refused({ propertyPricing: { 1: { price: value } } }), ['propertyPricing.1']);
     assert.deepEqual(refused({ propertyPricing: { 1: { price: 5, freeMinutes: value } } }), ['propertyPricing.1.freeMinutes']);

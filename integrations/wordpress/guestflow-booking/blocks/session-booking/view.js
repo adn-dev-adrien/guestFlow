@@ -120,11 +120,19 @@
       GF.el('span', {}, money(0), GF.el('small', {}, GF.t('sbIncludedIn'))));
   }
 
+  // A 0 € line the voucher gives for a cheaper slot: « Boisson offerte », « Heure offerte ».
+  function giftLine(gift) {
+    return GF.el('div', { class: 'gf-sb-summary-line is-included' },
+      GF.el('span', {}, gift.label, gift.detail ? GF.el('small', {}, gift.detail) : null),
+      GF.el('span', {}, money(0)));
+  }
+
   // The recap of a session paid online (its parts), or of one a voucher covers (what the voucher includes, the evening supplement, the extras).
   function recapOf(recap) {
     if (recap.parts) return recapLines(recap.parts, recap.extras);
     var lines = (recap.included || []).map(includedLine);
     if (recap.supplement) lines.push(GF.el('div', { class: 'gf-sb-summary-line' }, GF.el('span', {}, recap.supplement.label), GF.el('span', {}, GF.euro(recap.supplement.cents / 100))));
+    (recap.gifts || []).forEach(function (gift) { lines.push(giftLine(gift)); });
     return lines.concat(recapLines([], recap.extras));
   }
 
@@ -398,6 +406,13 @@
     // What a start costs, as the server says it (rules 9-10): « 113 € · dont soirée », « Inclus dans le bon », « + 63 € · soirée ».
     function tagOf(slot) {
       if (st.voucher) {
+        // Rules 15-17 of the week-weekend spec — the server tags every slot against the voucher's value: included, a gift of a drink or of an hour, or a supplement.
+        // The recipient added time: what is still due is shown first, the gift after it (« + 45 € · boisson offerte »).
+        var gifts = { drink: 'sbGiftDrink', twoHoursDrink: 'sbGiftTwoHoursDrink', twoHours: 'sbGiftTwoHours' };
+        if (gifts[slot.tag] && slot.dueCents) return { text: '+ ' + money(slot.dueCents) + GF.t(gifts[slot.tag]), cls: slot.evening ? ' is-evening' : '' };
+        if (slot.tag === 'drink') return { text: GF.t('sbIncludedDrink'), cls: ' is-in' };
+        if (slot.tag === 'twoHoursDrink') return { text: GF.t('sbIncludedTwoHoursDrink'), cls: ' is-in' };
+        if (slot.tag === 'twoHours') return { text: GF.t('sbIncludedTwoHours'), cls: ' is-in' };
         if (!slot.dueCents) return { text: GF.t('sbIncluded'), cls: ' is-in' };
         return { text: '+ ' + money(slot.dueCents) + (slot.evening ? GF.t('sbEvening') : ''), cls: slot.evening ? ' is-evening' : '' };
       }
@@ -589,6 +604,7 @@
         if (st.voucher) {
           (q.included || []).forEach(function (line) { summary.appendChild(includedLine(line)); });
           if (q.supplement) summary.appendChild(GF.el('div', { class: 'gf-sb-summary-line' }, GF.el('span', {}, q.supplement.label), GF.el('span', {}, GF.euro(q.supplement.cents / 100))));
+          (q.gifts || []).forEach(function (gift) { summary.appendChild(giftLine(gift)); });
           (q.extras || []).forEach(function (e) {
             summary.appendChild(GF.el('div', { class: 'gf-sb-summary-line' },
               GF.el('span', {}, (e.qty > 1 ? e.qty + ' × ' : '') + e.label, e.detail ? GF.el('small', {}, e.detail) : null), GF.el('span', {}, GF.euro(e.cents / 100))));
@@ -664,7 +680,7 @@
       if (code === 'PHONE_INVALID') { setError('phone', text); phoneInput.focus(); return; }
       if (code === 'TERMS_NOT_ACCEPTED' || code === 'TERMS_OUTDATED') { setError('terms', text); termsInput.focus(); return; }
       showAlert(text);
-      if (code === 'SLOT_TAKEN' || code === 'BEYOND_HORIZON') { st.slot = null; st.quote = null; loadSlots(); paintAll(); }
+      if (code === 'SLOT_TAKEN' || code === 'BEYOND_HORIZON' || code === 'RECAP_CHANGED') { st.slot = null; st.quote = null; loadSlots(); paintAll(); }
     }
 
     function bookedHere(data) {
@@ -678,7 +694,7 @@
 
     function confirm(retried) {
       var body = st.voucher ? {
-        code: st.code, start: startOf(), extraMinutes: extraMinutes(), addOns: addOnsRequest(),
+        code: st.code, start: startOf(), end: st.quote && st.quote.end ? st.quote.end : undefined, extraMinutes: extraMinutes(), addOns: addOnsRequest(),
         firstName: firstInput.value.trim(), lastName: lastInput.value.trim(), people: st.people, email: emailInput.value.trim(), phone: phoneInput.value.trim(),
         termsVersionId: termsVersion() || 0, returnPath: window.location.pathname + '?gf_use=paid',
       } : {

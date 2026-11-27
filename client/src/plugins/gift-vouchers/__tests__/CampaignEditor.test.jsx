@@ -44,7 +44,7 @@ test('a composed campaign shows its sections, its composition and the links read
 test('the price comes from the server preview: lines, total and « dont TVA » per rate', async () => {
   open();
   expect(await screen.findByTestId('price-recap')).toBeInTheDocument();
-  expect(giftVouchersApi.previewPrice).toHaveBeenCalledWith({ composition: campaign().composition }, expect.anything());
+  expect(giftVouchersApi.previewPrice).toHaveBeenCalledWith({ composition: campaign().composition, period: 'week' }, expect.anything());
   expect(screen.getByText('Bain nordique · journée')).toBeInTheDocument();
   expect(screen.getByText(/109,00/)).toBeInTheDocument();
   expect(screen.getByText('dont TVA 20 %')).toBeInTheDocument();
@@ -52,9 +52,9 @@ test('the price comes from the server preview: lines, total and « dont TVA » p
 });
 
 test('the reason the engine gives when the content cannot be priced is shown in the preview', async () => {
-  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée.'), { code: 'PRICE_UNAVAILABLE' }));
+  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.'), { code: 'PRICE_UNAVAILABLE' }));
   open();
-  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée.')).toBeInTheDocument();
+  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.')).toBeInTheDocument();
 });
 
 test('a saved campaign the engine cannot price shows its reason at the top', async () => {
@@ -65,21 +65,21 @@ test('a saved campaign the engine cannot price shows its reason at the top', asy
 
 test('saving sends the composition and shows the server refusal under the field it names; the draft is kept', async () => {
   giftVouchersApi.updateCampaign.mockRejectedValue(refusal([
-    { field: 'validityMonths', message: 'Validité : un nombre entier de mois, de 1 à 120.' },
+    { field: 'validityMonths', message: 'La validité doit être de 3, 6, 12, 18 ou 24 mois.' },
     { field: 'composition.minutes', message: 'Durée incluse : 30 min ne convient pas.' },
   ]));
   open();
-  const months = await screen.findByLabelText('Validité (mois)');
-  await userEvent.clear(months);
-  await userEvent.type(months, '0');
+  const months = await screen.findByLabelText('Validité');
+  await userEvent.click(months);
+  await userEvent.click(await screen.findByRole('option', { name: '6 mois' }));
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(giftVouchersApi.updateCampaign).toHaveBeenCalled());
   const [id, body] = giftVouchersApi.updateCampaign.mock.calls[0];
   expect(id).toBe('5');
-  expect(body).toMatchObject({ kind: 'resource', validityMonths: '0', composition: campaign().composition, addOns: ['option:11'], extraTimeMaxMinutes: 120 });
-  expect(await screen.findByText('Validité : un nombre entier de mois, de 1 à 120.')).toBeInTheDocument();
+  expect(body).toMatchObject({ kind: 'resource', validityMonths: '6', composition: campaign().composition, addOns: ['option:11'], extraTimeMaxMinutes: 120 });
+  expect(await screen.findByText('La validité doit être de 3, 6, 12, 18 ou 24 mois.')).toBeInTheDocument();
   expect(screen.getByText('Durée incluse : 30 min ne convient pas.')).toBeInTheDocument();
-  expect(months).toHaveValue('0');
+  expect(months).toHaveTextContent('6 mois');
 });
 
 test('a locked slug cannot be edited and says why', async () => {
@@ -197,8 +197,8 @@ test('rule 61: « Réessayer » brings the price back and the focus stays in the
 });
 
 test('rule 61: a refusal of the price shows its reason without « Réessayer »', async () => {
-  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée.'), { status: 422, code: 'PRICE_UNAVAILABLE' }));
+  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.'), { status: 422, code: 'PRICE_UNAVAILABLE' }));
   open();
-  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée.')).toBeInTheDocument();
+  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
 });

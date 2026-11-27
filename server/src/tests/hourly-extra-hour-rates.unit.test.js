@@ -131,15 +131,16 @@ test('rule 3 — a free hour placed in the evening: valued at the day rate, the 
   assert.equal(priced.totalPrice, 90);
 });
 
-test('rule 4 — the audience decides the rate set: guests take price / hourlyEveningRate and their following rates, outsiders the external ones with the guest fallback', NEEDS_PLUGIN, () => {
+test('rule 4 — the audience decides the rate set: guests take price / hourlyEveningRate and their following rates, outsiders the external ones, with no fallback to the guests\'', NEEDS_PLUGIN, () => {
   const resource = {
     price: 25, hourlyEveningRate: 35, hourlyNextDayRate: 20, hourlyNextEveningRate: null,
     hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyExternalNextDayRate: 40, hourlyExternalNextEveningRate: 0,
   };
   assert.deepEqual(rateGridOf(resource, { external: false }), { dayRate: 25, eveningRate: 35, dayNextRate: 20, eveningNextRate: null });
   assert.deepEqual(rateGridOf(resource, { external: true }), { dayRate: 50, eveningRate: 70, dayNextRate: 40, eveningNextRate: 0 });
-  const fallback = rateGridOf({ ...resource, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyExternalNextDayRate: null }, { external: true });
-  assert.deepEqual(fallback, { dayRate: 25, eveningRate: 35, dayNextRate: null, eveningNextRate: 0 });
+  // Amended 2026-11-27 (gift-voucher-week-weekend-and-print rule 2): an outside first-hour rate at 0 is not sold, it no longer takes the guests' rate.
+  const unsold = rateGridOf({ ...resource, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyExternalNextDayRate: null }, { external: true });
+  assert.deepEqual(unsold, { dayRate: 0, eveningRate: 0, dayNextRate: null, eveningNextRate: 0 });
   assert.deepEqual(rateGridOf(resource, { external: false, guestDayRate: 30 }), { dayRate: 30, eveningRate: 35, dayNextRate: 20, eveningNextRate: null });
 });
 
@@ -196,43 +197,10 @@ test('rule 6 — the resource card says « puis » for the outside rates and a l
   assert.equal(plain.find((l) => l.label === 'Extérieurs').value, '50 € / h · soir 70 € / h');
 });
 
-const callCreate = (body) => {
-  const written = [];
-  const model = { insert: (payload) => { written.push(payload); return 1; } };
-  const controller = resourcesController.buildController(model, { isOffered: () => true, properties: () => [] });
-  let out;
-  const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { out = { status: this.statusCode, body: b }; return this; } };
-  controller.create({ query: {}, params: {}, body }, res);
-  return { ...out, written };
-};
+// Rule 5's validation moved to the plugin's own checks and became « every price required » — see hourly-weekend-rates.unit.test.js (gift-voucher-week-weekend-and-print rules 2, 28).
 const BASE = {
   name: 'Bain', priceType: 'per_hour', price: 50, quantity: 1,
 };
-
-test('rule 5 — a wrong following-hours rate is refused on its own field with the sentence naming its band and audience', () => {
-  const cases = [
-    ['hourlyNextDayRate', 'journée, hébergés'], ['hourlyNextEveningRate', 'soir, hébergés'],
-    ['hourlyExternalNextDayRate', 'journée, extérieurs'], ['hourlyExternalNextEveningRate', 'soir, extérieurs'],
-  ];
-  cases.forEach(([field, where]) => {
-    [-1, 'abc', 10000.5, 12.345, 1e300].forEach((bad) => {
-      const refused = callCreate({ ...BASE, [field]: bad });
-      assert.equal(refused.status, 422, `${field} = ${bad}`);
-      assert.deepEqual(refused.body.details, [{ field, message: `Le tarif des heures suivantes (${where}) doit être un montant positif.` }]);
-      assert.equal(refused.written.length, 0);
-    });
-  });
-});
-
-test('rule 5 — empty, 0 and a price with two decimals are accepted; the percent table is no longer part of the contract', () => {
-  [undefined, null, '', 0, '0', 40, '37,50', 37.5, 10000].forEach((fine) => {
-    assert.equal(callCreate({ ...BASE, hourlyNextDayRate: fine, hourlyExternalNextEveningRate: fine }).status, 200, String(fine));
-  });
-  const withTable = callCreate({ ...BASE, hourlyDegressiveTiers: [{ fromHour: 2, percent: -5 }] });
-  assert.equal(withTable.status, 200, 'an old client sending a table is not refused over it');
-  const id = resourcesModel.insert({ ...BASE, name: 'Bain sans table', hourlyDegressiveTiers: [{ fromHour: 2, percent: 10 }] });
-  assert.equal(db.prepare('SELECT hourlyDegressiveTiers AS t FROM resources WHERE id = ?').get(id).t, '[]', 'the column is no longer written');
-});
 
 test('rule 1, 5 — the four rates are stored as numbers or NULL, read back the same, and a save that does not send them keeps them', () => {
   const model = resourcesModel;

@@ -127,7 +127,7 @@ test('rule 43: the receipt’s recap (rule 20 of the campaigns spec) says the VA
 }));
 
 test('rule 43: the plugin declares no mail template any more — the mail is built from the voucher (rule 20 of the campaigns spec)', () => {
-  assert.deepEqual(settings.DECLARED.map((d) => d.key), ['pageUrl', 'linkBase']);
+  assert.deepEqual(settings.DECLARED.map((d) => d.key), ['pageUrl', 'linkBase', 'leftoverDrinkArticleRef']);
 });
 
 test('rule 43: the VAT is on the operator’s detail and the receipt, never on the printed voucher', () => {

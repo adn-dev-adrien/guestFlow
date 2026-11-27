@@ -125,6 +125,7 @@ export const campaign = (over = {}) => ({
   slug: 'bain-jour',
   slugLockedAt: null,
   validityMonths: 12,
+  periods: ['week'],
   composition: { resourceId: 1, band: 'day', minutes: 120, options: [{ articleRef: 'option:10', qty: 1 }] },
   addOns: ['option:11'],
   extraTimeMaxMinutes: 120,
@@ -173,6 +174,7 @@ export const OFFER = {
         articleRef: 'option:11', label: 'Boisson', maxQty: 20, unitLabel: 'l’unité', linear: true, prices: Array.from({ length: 20 }, (_, i) => ({ qty: i + 1, cents: (i + 1) * 650 - (i > 0 ? 50 : 0) })),
       }],
       extraTime: { maxMinutes: 120, stepMinutes: 60, prices: [{ minutes: 60, cents: 4500 }, { minutes: 120, cents: 8700 }] },
+      periods: [{ period: 'week', priceCents: 10900, label: 'semaine' }],
       totalCents: 10900,
     },
     {

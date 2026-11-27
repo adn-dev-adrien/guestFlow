@@ -1,15 +1,15 @@
 /**
- * The recipient's use of a composed voucher on « Mon bain » (specs/gift-voucher-campaigns.md rules 12-15, 23-32, 44-45, 51): what the voucher holds, the free slots tagged by what they
+ * The recipient's use of a composed voucher on « Mon bain » (specs/gift-vouchers/gift-voucher-campaigns.md rules 12-15, 23-32, 44-45, 51): what the voucher holds, the free slots tagged by what they
  * cost the recipient, the recap of a choice, and the confirmation — which books at once when nothing is due, and otherwise holds the slot and the voucher for 15 minutes while the
  * remainder is paid.
  *
  *   open({ code, visitor })                           → the contents, the names, the validity, the add-ons and extra time on offer, each step
  *                                                       priced like the offer prices it (rule 64), the horizon (rule 24)
- *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement', supplementCents, dueCents, evening }] }] }` (rules 25, 14; `dueCents` is what the start costs above the voucher, extra time included, and `evening` whether
- *                                                       part of it is in the evening band: specs/site-outside-resource-booking.md rule 10)
- *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 64), what is still due, the VAT (rules 26-27)
+ *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement' | 'drink' | 'twoHoursDrink' | 'twoHours', supplementCents, supplementLabel, dueCents, evening }] }] }` (rules 25, 14-17 of the week-weekend spec; `dueCents` is what the start costs above the voucher, extra time included, and `evening` whether
+ *                                                       part of it is in the evening band: specs/site/site-outside-resource-booking.md rule 10)
+ *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: start, end (the doubled one when the offered hour applies), included, supplement, gifts, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 64), what is still due, the VAT (rules 26-27)
  *   confirm({ code, start, extraMinutes?, addOns?, email, phone, firstName?, lastName?, name?, people?, termsVersionId, visitor, returnUrl? }) → `{ booked: true }` | `{ payUrl, heldUntil }` (rules 28-29)
- *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book and settle in one transaction, or say the money is owed back (rule 29)
+ *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book exactly the composition that was confirmed (the offered hour decided then, rule 17) and settle in one transaction, or say the money is owed back (rule 29)
  *   lapseDue()                                        the job: 15 minutes ended unpaid, the slot and the voucher are free again
  *   lapseVoucher(voucherId)                           a voucher was cancelled: its pending uses end with it
  *   traceUnused({ ref, label, valueCents })           the arrival SAS marked an element « non pris »: the unused value is traced (rule 15)
@@ -33,6 +33,12 @@ const MAX_PEOPLE = 100;
 const START = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const BAND_WORDS = Object.freeze({ day: 'journée', evening: 'soirée' });
+// Rule 15 of the week-weekend spec — the line a supplement is named by, from what the slot costs above the voucher.
+const SUPPLEMENT_LABELS = Object.freeze({
+  evening: 'Supplément soirée', weekend: 'Supplément week-end', eveningWeekend: 'Supplément soirée week-end', slot: 'Supplément créneau',
+});
+const GAP_LABEL = 'Écart de créneau';
+const OFFERED_HOUR_LABEL = 'Heure offerte';
 
 const refuse = (code, message, status = 400, extra = {}) => ({
   ok: false, status, code, message, ...extra,
@@ -48,7 +54,7 @@ const clockOf = (start) => start.slice(11, 16);
 
 function createUseService({
   vouchers, campaigns, redemption, uses, unused, catalogue, engine, resources, terms, payments, sendMail, address, companyName, durationText,
-  basketSource, prepaidSource, prepaidLabel, notify = () => {}, now = () => new Date(), transaction,
+  basketSource, prepaidSource, prepaidLabel, notify = () => {}, now = () => new Date(), transaction, drinkRef = () => '',
 }) {
   const hook = () => resources();
   const extrasPricing = createExtrasPricing({ engine, catalogue });
@@ -78,6 +84,14 @@ function createUseService({
   }
 
   const elementOf = (contents) => catalogue.element(`resource:${contents.resource.id}`);
+  const periodOf = (contents) => contents.resource.period || 'week';
+
+  /** Rule 16 — the catalogue option a cheaper slot gives away, or null when none is set (or the catalogue no longer sells it): the gap is then only traced. */
+  function giftDrink() {
+    const ref = drinkRef();
+    const element = ref ? catalogue.element(ref) : null;
+    return element && element.sellable !== false ? { articleRef: ref, label: element.label } : null;
+  }
   const modeOf = (contents) => {
     const element = elementOf(contents);
     return element ? element.modes.find((m) => m.band === contents.resource.band) : null;
@@ -90,7 +104,7 @@ function createUseService({
     const hours = mode ? ` · de ${mode.from} à ${mode.to}` : '';
     const given = resource.extraMinutes > 0 ? ` + ${durationText(resource.extraMinutes)} de temps supplémentaire` : '';
     return [
-      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${given}${hours}`, qty: 1 },
+      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${rules.periodSuffix(resource)}${given}${hours}`, qty: 1 },
       ...contents.options.map((o) => ({ kind: 'option', label: o.label, detail: null, qty: o.qty })),
       ...contents.addOns.map((o) => ({ kind: 'addOn', label: o.label, detail: null, qty: o.qty })),
     ];
@@ -134,6 +148,7 @@ function createUseService({
         stepMinutes: mode.slotMinutes,
         maxMinutes: longest,
         keepUnpriced: true,
+        period: periodOf(contents),
       }),
     };
   }
@@ -143,16 +158,16 @@ function createUseService({
    * of the fold equals the line of the recap for the same minutes. Steps run until the slot no longer holds the longer session (the close time, the next booking) or the engine
    * cannot price one.
    */
-  function extraTimePricesAt(contents, date, time, stepMinutes) {
+  function extraTimePricesAt(contents, date, time, stepMinutes, holdRef = null) {
     const { resource } = contents;
     const prices = [];
     for (let minutes = stepMinutes; ; minutes += stepMinutes) {
       const free = hook().freeSlots({
-        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + minutes, band: resource.band, now: now(),
+        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + minutes, excludeHoldRef: holdRef, now: now(),
       });
       if (!free.days.some((day) => day.date === date && day.slots.some((slot) => slot.start === time))) break;
       const priced = hook().quote({
-        resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, extraMinutes: minutes,
+        resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: minutes, excludeHoldRef: holdRef, now: now(),
       });
       if (!priced.ok || !priced.extra) break;
       const answer = engine.quote({ lines: [], fulfilments: [{ ...priced.extra.line, fulfilmentRef: 'use:extra' }] });
@@ -210,40 +225,62 @@ function createUseService({
     if (!Number.isInteger(extra) || extra < 0) return refuse('EXTRA_TIME_INVALID', 'Temps supplémentaire : un nombre entier de minutes est attendu.');
     const { contents } = found;
     const { resource } = contents;
+    // The list never hides the slot the recap accepts: the voucher's own hold (a recipient back from the bank page) takes no slot from its own voucher, here as in `quote`.
+    const own = uses.heldOf(found.voucher.id)[0];
+    const holdRef = own ? own.holdRef : null;
+    // Rule 15 — every slot is offered, in every direction: no band filter, each tagged by what it costs against the voucher's reference.
     const free = hook().freeSlots({
-      resourceId: resource.id, from, to, minutes: resource.minutes + extra, band: resource.band, now: now(),
+      resourceId: resource.id, from, to, minutes: resource.minutes + extra, excludeHoldRef: holdRef, now: now(),
     });
     if (!free.ok) return refuse(free.code, free.message, 409);
     if (from > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
-    const element = elementOf(contents);
-    const evening = element ? element.modes.find((m) => m.band === 'evening') : null;
-    // What a start costs the recipient above the voucher: the evening supplement of the covered session and the extra time, each hour at the band it falls in (rules 9-10). The price of
-    // a start is the same on every date, so one quote per start.
+    // What a start costs the recipient against the voucher, one quote per date and start (the day's rates, the weekend included).
     const priced = new Map();
+    const memo = new Map();
     const priceOf = (date, start) => {
-      if (!priced.has(start)) {
+      const key = `${date}T${start}`;
+      if (!priced.has(key)) {
         const answer = hook().quote({
-          resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, extraMinutes: extra,
+          resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, excludeHoldRef: holdRef, memo, now: now(),
         });
-        const supplementCents = answer.ok ? answer.session.supplementCents : 0;
-        const extraCents = answer.ok && answer.extra ? answer.extra.totalCents : 0;
-        const extraInEvening = answer.ok && answer.extra ? answer.extra.line.components.some((part) => part.key.startsWith('band:evening')) : false;
-        priced.set(start, { supplementCents, dueCents: supplementCents + extraCents, evening: supplementCents > 0 || (extraCents > 0 && extraInEvening) });
+        // A start the engine refuses (a band with no price, a slot past closing) is not offered: it is never tagged « in » at 0 €.
+        priced.set(key, answer.ok ? tagOf(answer) : null);
       }
-      return priced.get(start);
+      return priced.get(key);
     };
-    const tagged = free.days.map((day) => ({
-      date: day.date,
-      slots: day.slots.map((slot) => {
-        const crossesEvening = resource.band === 'day' && evening && slot.end > evening.from;
-        if (!crossesEvening && extra === 0) return { ...slot, tag: 'in', supplementCents: 0, dueCents: 0, evening: false };
-        const { supplementCents, dueCents, evening: inEvening } = priceOf(day.date, slot.start);
-        return {
-          ...slot, tag: supplementCents > 0 ? 'supplement' : 'in', supplementCents, dueCents, evening: inEvening,
-        };
-      }),
-    }));
+    const tagged = free.days
+      .map((day) => ({
+        date: day.date,
+        slots: day.slots.flatMap((slot) => {
+          const tag = priceOf(day.date, slot.start);
+          return tag ? [{ ...slot, ...tag }] : [];
+        }),
+      }))
+      .filter((day) => day.slots.length);
     return { ok: true, data: { horizonUntil: free.horizonUntil, days: tagged } };
+  }
+
+  /** Rules 15-17 — the tag of a slot from the booking offer's quote: « in », « supplement », « drink » (a cheaper slot), « twoHoursDrink » (an evening-weekend voucher on a day-week slot). */
+  function tagOf(answer) {
+    const { session } = answer;
+    const extraCents = answer.extra ? answer.extra.totalCents : 0;
+    const extraInEvening = answer.extra ? answer.extra.line.components.some((part) => part.key.startsWith('band:evening')) : false;
+    const base = {
+      supplementCents: session.supplementCents,
+      supplementLabel: session.supplementCents > 0 ? SUPPLEMENT_LABELS[session.supplementCause] : null,
+      dueCents: session.supplementCents + extraCents,
+      evening: (session.supplementCents > 0 && session.eveningOverDay) || (extraCents > 0 && extraInEvening),
+      // A doubled slot (rule 17) ends later than the slot the page asked for; the end is the one the recap shows.
+      end: answer.endTime,
+    };
+    if (session.supplementCents > 0) return { ...base, tag: 'supplement' };
+    const doubled = Boolean(answer.twoHours && answer.twoHours.free);
+    const drink = Boolean(giftDrink());
+    if (session.leftoverCents > 0 || doubled) {
+      if (doubled) return { ...base, tag: drink ? 'twoHoursDrink' : 'twoHours' };
+      return { ...base, tag: drink ? 'drink' : 'in' };
+    }
+    return { ...base, tag: 'in' };
   }
 
   // ── the recap ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -274,7 +311,7 @@ function createUseService({
    * continuing, the options the voucher holds and the add-ons added. `checkSlot: false` is the confirmation of a payment, where the slot is judged by the booking itself.
    * → `{ ok: true, …, covers, fulfilments, lines, dueCents }` | a refusal.
    */
-  function compose(voucher, contents, request, { checkSlot = true } = {}) {
+  function compose(voucher, contents, request, { checkSlot = true, holdRef = null, frozenHour = null } = {}) {
     const asked = String(request.start || '');
     const parts = START.exec(asked);
     if (!parts) return refuse('SLOT_INVALID', 'Créneau invalide.');
@@ -287,21 +324,29 @@ function createUseService({
     if (!hook()) return refuse('BOOKING_UNAVAILABLE', 'Les réservations en ligne ne sont pas disponibles pour le moment.', 409);
     const { resource } = contents;
     const priced = hook().quote({
-      resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, extraMinutes: extra,
+      resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, excludeHoldRef: holdRef, offeredHour: frozenHour, now: now(),
     });
     if (!priced.ok) return refuse(priced.code, priced.message, 409);
     if (checkSlot) {
       const free = hook().freeSlots({
-        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + extra, band: resource.band, now: now(),
+        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + extra, excludeHoldRef: holdRef, now: now(),
       });
       if (date > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
       if (!free.days.some((day) => day.date === date && day.slots.some((slot) => slot.start === time))) return refuse('SLOT_TAKEN', 'Ce créneau n’est plus libre.', 409);
     }
-    const fulfilments = [{ role: 'session', ...priced.session.line }, ...(priced.extra ? [{ role: 'extra', ...priced.extra.line }] : [])];
+    // Rules 16-17 — the booking carries what the voucher gives for a cheaper slot: the added hour (an evening-weekend voucher on a day-week slot) and one free drink, each a 0 € line.
+    const offeredHour = priced.twoHours && priced.twoHours.free && priced.twoHours.line ? priced.twoHours : null;
+    const leftoverCents = priced.session.leftoverCents;
+    const drink = leftoverCents > 0 || offeredHour ? giftDrink() : null;
+    const fulfilments = [
+      { role: 'session', ...priced.session.line },
+      ...(offeredHour ? [{ role: 'offered', ...offeredHour.line }] : []),
+      ...(priced.extra ? [{ role: 'extra', ...priced.extra.line }] : []),
+    ];
     const held = [...contents.options, ...contents.addOns].map((o) => ({ articleRef: o.articleRef, quantity: o.qty }));
     const bought = added.value.map((o) => ({ articleRef: o.articleRef, quantity: o.qty }));
     const answer = engine.quote({
-      lines: [...held, ...bought],
+      lines: [...held, ...bought, ...(drink ? [{ articleRef: drink.articleRef, quantity: 1, offered: true }] : [])],
       fulfilments: fulfilments.map(({ role, ...line }) => ({ ...line, fulfilmentRef: `use:${role}` })),
     });
     if (answer.status !== 200) return refuse('PRICE_UNAVAILABLE', answer.body && answer.body.error ? answer.body.error : 'Prix indisponible.', 409);
@@ -311,9 +356,11 @@ function createUseService({
     const take = (predicate) => { const index = free.findIndex(predicate); return index < 0 ? null : free.splice(index, 1)[0]; };
     const sessionRow = take((r) => r.fulfilmentRef === 'use:session');
     const extraRow = priced.extra ? take((r) => r.fulfilmentRef === 'use:extra') : null;
-    const heldRows = held.map((o) => take((r) => r.articleKey === o.articleRef && !r.fulfilmentRef));
-    const boughtRows = bought.map((o) => take((r) => r.articleKey === o.articleRef && !r.fulfilmentRef));
-    if (!sessionRow || heldRows.includes(null) || boughtRows.includes(null)) return refuse('PRICE_UNAVAILABLE', 'Prix indisponible.', 409);
+    const heldRows = held.map((o) => take((r) => r.articleKey === o.articleRef && !r.fulfilmentRef && !r.offered));
+    const boughtRows = bought.map((o) => take((r) => r.articleKey === o.articleRef && !r.fulfilmentRef && !r.offered));
+    const drinkRow = drink ? take((r) => r.articleKey === drink.articleRef && !r.fulfilmentRef && r.offered) : null;
+    const hourRow = offeredHour ? take((r) => r.fulfilmentRef === 'use:offered') : null;
+    if (!sessionRow || heldRows.includes(null) || boughtRows.includes(null) || (drink && !drinkRow)) return refuse('PRICE_UNAVAILABLE', 'Prix indisponible.', 409);
     const covers = [
       { role: 'session', amountCents: priced.session.coveredCents },
       ...heldRows.map((row, i) => ({ articleRef: held[i].articleRef, amountCents: row.totalCents })),
@@ -328,7 +375,9 @@ function createUseService({
       time,
       endTime: priced.endTime,
       fulfilments,
-      lines: [...held, ...bought],
+      lines: [...held, ...bought, ...(drink ? [{ articleRef: drink.articleRef, quantity: 1, offered: true }] : [])],
+      boughtCount: bought.length,
+      leftoverCents,
       covers,
       coveredCents,
       supplementCents,
@@ -342,7 +391,11 @@ function createUseService({
           { ...lineOf(sessionRow), valueCents: priced.session.coveredCents, label: `${resource.name} · ${durationText(resource.minutes)}`, detail: sessionRow.detail },
           ...heldRows.map(lineOf),
         ],
-        supplement: supplementCents > 0 ? { label: 'Supplément soirée', cents: supplementCents } : null,
+        supplement: supplementCents > 0 ? { label: SUPPLEMENT_LABELS[priced.session.supplementCause] || SUPPLEMENT_LABELS.slot, cents: supplementCents } : null,
+        gifts: [
+          ...(hourRow ? [{ label: OFFERED_HOUR_LABEL, detail: durationText(offeredHour.minutes) }] : []),
+          ...(drinkRow ? [{ label: 'Boisson offerte', detail: null }] : []),
+        ],
         extras: [
           ...(extraRow ? [{ label: `Temps supplémentaire · ${durationText(extra)}`, detail: extraRow.detail || null, qty: 1, cents: extraRow.totalCents }] : []),
           ...boughtRows.map((row) => ({ label: row.label, detail: row.detail || null, qty: row.quantity, cents: row.totalCents })),
@@ -358,10 +411,13 @@ function createUseService({
   function quote(request) {
     const found = voucherOf(request, request.visitor);
     if (!found.ok) return found;
-    const composed = compose(found.voucher, found.contents, request);
+    // The recipient back from the bank page: the voucher's own hold on the slot never takes the slot from its own recap.
+    const own = uses.heldOf(found.voucher.id)[0];
+    const holdRef = own ? own.holdRef : null;
+    const composed = compose(found.voucher, found.contents, request, { holdRef });
     if (!composed.ok) return composed;
     const mode = modeOf(found.contents);
-    const extraTimePrices = mode ? extraTimePricesAt(found.contents, composed.date, composed.time, mode.slotMinutes) : [];
+    const extraTimePrices = mode ? extraTimePricesAt(found.contents, composed.date, composed.time, mode.slotMinutes, holdRef) : [];
     return { ok: true, data: { ...composed.view, extraTimePrices } };
   }
 
@@ -418,6 +474,7 @@ function createUseService({
       people: use.people,
       included: composed.view.included,
       supplement: composed.view.supplement,
+      gifts: composed.view.gifts,
       extras: composed.view.extras,
       dueCents: composed.dueCents,
       number: voucher.number,
@@ -425,6 +482,11 @@ function createUseService({
     Promise.resolve().then(() => sendMail({
       to: use.email, subject: mail.subject, text: mail.text, html: mail.html, key: `gift-voucher-use:${use.id}`,
     })).catch(() => {});
+  }
+
+  /** Rule 16 — what a cheaper slot left of the voucher's value is traced on the voucher (nothing is kept as a balance): « Écart de créneau ». */
+  function traceGap(voucher, composed) {
+    if (composed.leftoverCents > 0) unused.record({ voucherId: voucher.id, label: GAP_LABEL, valueCents: composed.leftoverCents });
   }
 
   function bookNow(voucher, contents, composed, fields) {
@@ -435,6 +497,7 @@ function createUseService({
       const done = hook().bookOutside(bookingRequest(voucher, use, composed));
       if (!done.ok) orThrow(refuse(done.code, done.message, 409));
       redemption.settleUse({ useId: use.id, bookingId: done.bookingId });
+      traceGap(voucher, composed);
       uses.setBooked(use.id, { bookingId: done.bookingId, saleId: done.saleId });
       return { use: uses.find(use.id), done };
     });
@@ -503,6 +566,10 @@ function createUseService({
     uses.heldOf(voucher.id).forEach((previous) => lapse(previous, 'replaced'));
     const composed = compose(voucher, contents, request);
     if (!composed.ok) return composed;
+    // The end the recap showed: when the offered hour (rule 17) was decided otherwise since — the doubled block taken meanwhile — the choice is not silently downgraded.
+    if (typeof request.end === 'string' && request.end && request.end !== composed.endTime) {
+      return refuse('RECAP_CHANGED', 'Le créneau a changé depuis le récapitulatif (heure offerte, durée) : relire le récapitulatif avant de confirmer.', 409);
+    }
     const visitor = request.visitor || {};
     const fields = {
       voucherId: voucher.id,
@@ -511,7 +578,7 @@ function createUseService({
       startTime: composed.time,
       endTime: composed.endTime,
       extraMinutes: Number(asInt(request.extraMinutes)) || 0,
-      addOns: composed.lines.slice(contents.options.length + contents.addOns.length).map((l) => ({ articleRef: l.articleRef, qty: l.quantity })),
+      addOns: composed.lines.slice(contents.options.length + contents.addOns.length, contents.options.length + contents.addOns.length + composed.boughtCount).map((l) => ({ articleRef: l.articleRef, qty: l.quantity })),
       name: given || [voucher.recipientFirstName, voucher.recipientLastName].filter(Boolean).join(' '),
       people,
       recap: composed.view,
@@ -543,6 +610,12 @@ function createUseService({
     return owedBack(reason);
   };
 
+  /** Rule 17 — what the confirmation decided about the offered hour, read back from the recap it stored: the payment books exactly that composition, whatever was freed or taken since. */
+  const confirmedOfferedHour = (use) => {
+    const recap = JSON.parse(use.recap || '{}');
+    return Array.isArray(recap.gifts) && recap.gifts.some((gift) => gift.label === OFFERED_HOUR_LABEL);
+  };
+
   /**
    * The remainder was paid — on time or late. Books the session and settles the voucher in one transaction. When the slot was taken after the hold lapsed, or the voucher was used
    * meanwhile, the money is flagged « à rembourser » on its payment link — the core's own refund line for a payment a basket cannot honour, which its journal already lists —
@@ -557,8 +630,9 @@ function createUseService({
     if (!voucher || voucher.cancelledAt || contents.kind !== 'resource') return unhonoured(use, 'bon cadeau annulé');
     const composed = compose(voucher, contents, {
       start: `${use.date}T${use.startTime}`, extraMinutes: use.extraMinutes, addOns: JSON.parse(use.addOns || '[]'),
-    }, { checkSlot: false });
+    }, { checkSlot: false, holdRef: use.state === 'held' ? use.holdRef : null, frozenHour: confirmedOfferedHour(use) });
     if (!composed.ok) return unhonoured(use, composed.message);
+    if (composed.endTime !== use.endTime || composed.time !== use.startTime) return unhonoured(use, 'créneau différent de celui confirmé');
     if (Number(amountCents) !== composed.dueCents) return unhonoured(use, 'montant payé différent du reste à payer');
     const stillHeld = use.state === 'held';
     const booked = attempt(() => {
@@ -569,6 +643,7 @@ function createUseService({
       const done = hook().bookOutside(bookingRequest(voucher, use, composed, { holdRef: stillHeld ? use.holdRef : null, linkId }));
       if (!done.ok) orThrow(refuse(done.code, done.code === 'SLOT_TAKEN' ? 'créneau pris entre-temps' : done.message, 409));
       redemption.settleUse({ useId: use.id, bookingId: done.bookingId });
+      traceGap(voucher, composed);
       uses.setBooked(use.id, { bookingId: done.bookingId, saleId: done.saleId });
       return done;
     });

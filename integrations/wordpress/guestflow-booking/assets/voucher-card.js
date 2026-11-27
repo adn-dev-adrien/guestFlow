@@ -2,20 +2,21 @@
  * The voucher card that turns (specs/gift-vouchers/gift-voucher-campaigns.md rule 66, build-free plain ES): one A6 card, its front the campaign's picture (rule 62) and its back drawn in HTML
  * as GuestFlow's PDF draws it. Shared by the purchase form (the preview) and the page shown after payment (the real voucher).
  *
- * It writes nothing of the back itself. GuestFlow sends the dimensions (`layout`, turned here into CSS custom properties), the fixed words (`texts`), the logo, the company's
+ * It writes nothing of the back itself. GuestFlow sends the dimensions (`design.voucherLayout`, turned here into CSS custom properties), the fixed words (`design.texts`), the logo, the company's
  * name, town and website, the printed link, the QR code and the lines; the page hands over what the buyer typed. A back is drawn only when GuestFlow sent one; without it
- * the card is its front alone.
+ * the card is its front alone. `back.layout` and `back.texts` are the drawing of the connectors before 1.27.0 and are never read here (K10): a GuestFlow older than this
+ * connector sends no `design`, and the back is then drawn from the stylesheet's own defaults and the words below, never a literal « {lines} ».
  *
  *   GFBooking.voucherCard({
  *     title,                 string   alternative text of the front
  *     front,                 () → img node | null   called once per drawing of the front (the card, the zoom, the print sheet)
- *     back,                  the offer's `back` ({ layout, texts, logoUrl, companyName, identity, website, link, previewQrSvg }) | null
+ *     back,                  the offer's `back` ({ design: { layout, voucherLayout, texts }, logoUrl, companyName, identity, website, link, previewQrSvg }) | null
  *     preview,               true before payment: the « Aperçu » pill and the grey code
  *     print,                 true to allow print(): both faces side by side at 105 × 148 mm, laid on <body> only while the page is printed
  *     startOnBack,           true to open on the back (the page after payment)
  *   }) → null (nothing to draw) | {
  *     node,                  the card, its « Recto / Verso » control and « Agrandir »
- *     set({ recipient, sender, message, lines, validUntil, code, qrSvg, link }),   what the back says now
+ *     set({ title, recipient, sender, message, lines, validUntil, code, qrSvg, link, steps, kind }),   what the back says now (`kind` 'lodging' picks a stay voucher's steps when GuestFlow sent none)
  *     turn(toBack),          isBack(),          reveal(),          print()
  *   }
  */
@@ -26,6 +27,36 @@
   var PT_PER_MM = 0.35278;
 
   function kebab(key) { return key.replace(/[A-Z]/g, function (c) { return '-' + c.toLowerCase(); }); }
+
+  // The words of the back when GuestFlow is older than this connector and sends none of its own (K10): the same French as the PDF.
+  var FALLBACK_TEXTS = {
+    title: 'BON CADEAU',
+    lodgingTitle: 'Un séjour offert',
+    subtitle: 'offert par {sender} à {recipient}',
+    subtitleSender: 'offert par {sender}',
+    subtitleRecipient: 'offert à {recipient}',
+    scan: 'Scannez le QR code',
+    steps: ['Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche'],
+    lodgingSteps: ['Scannez le QR code avec votre téléphone', 'Réservez votre séjour en ligne : le code se remplit tout seul', 'Savourez votre parenthèse en Ardèche'],
+    codeLabel: 'Code du bon',
+    includes: 'Votre bon comprend — {lines}',
+    codePlaceholder: 'XXXX-XXXX-XXXX-XXXX',
+    validUntil: 'Valable jusqu’au {date}',
+    legal: 'Ne pas jeter sur la voie publique.'
+  };
+
+  // A word GuestFlow did not send falls back to the connector's own.
+  function textsOf(design) {
+    var sent = (design && design.texts) || {};
+    var out = {};
+    Object.keys(FALLBACK_TEXTS).forEach(function (key) { out[key] = sent[key] != null ? sent[key] : FALLBACK_TEXTS[key]; });
+    return out;
+  }
+
+  // The first `{key}` only, as GuestFlow's own filling does; the value is taken literally. A template with no such place (an older GuestFlow's) takes the value at its end.
+  function fillOrAppend(template, key, value) {
+    return String(template || '').indexOf('{' + key + '}') < 0 ? String(template || '') + ' ' + value : fill(template, key, value);
+  }
 
   // The first `{key}` only, as GuestFlow's own filling does; the value is taken literally.
   function fill(template, key, value) { return String(template || '').replace('{' + key + '}', function () { return value; }); }
@@ -64,33 +95,37 @@
 
   // ── The back: one drawing, repainted when the state changes ───────────────────────────────────
   function drawBack(back, preview) {
-    var layout = back.layout;
-    var texts = back.texts;
+    var design = back.design || null;
+    var layout = design ? (design.voucherLayout || design.layout || null) : null;
+    var texts = textsOf(design);
     var root = div('gf-verso');
-    root.style.setProperty('--m-trim', String(layout.trimMm.width));
-    Object.keys(layout).forEach(function (key) {
-      if (/Mm$/.test(key) && typeof layout[key] === 'number') root.style.setProperty('--m-' + kebab(key.replace(/Mm$/, '')), String(layout[key]));
-    });
-    ['pt', 'lines'].forEach(function (group) {
-      Object.keys(layout[group] || {}).forEach(function (key) {
-        if (group === 'lines' && key === 'items') return; // the number of lines listed is cut in the script, not by the stylesheet
-        root.style.setProperty('--' + (group === 'pt' ? 'p' : 'l') + '-' + kebab(key), String(layout[group][key]));
+    // Without a layout from GuestFlow every variable falls back to the stylesheet's own value (`var(--x, default)`).
+    if (layout) {
+      root.style.setProperty('--m-trim', String((layout.trimMm || { width: 105 }).width));
+      Object.keys(layout).forEach(function (key) {
+        if (/Mm$/.test(key) && typeof layout[key] === 'number') root.style.setProperty('--m-' + kebab(key.replace(/Mm$/, '')), String(layout[key]));
       });
-    });
-    root.style.setProperty('--lh-sans', String((layout.lineHeight || {}).sans || 1.326));
-    root.style.setProperty('--lh-serif', String((layout.lineHeight || {}).serif || 1.371));
+      ['pt', 'lines'].forEach(function (group) {
+        Object.keys(layout[group] || {}).forEach(function (key) {
+          root.style.setProperty('--' + (group === 'pt' ? 'p' : 'l') + '-' + kebab(key), String(layout[group][key]));
+        });
+      });
+      root.style.setProperty('--lh-sans', String((layout.lineHeight || {}).sans || 1.326));
+      root.style.setProperty('--lh-serif', String((layout.lineHeight || {}).serif || 1.371));
+    }
 
     var pill = preview ? span('gf-v-pill', GF.t('gvPreviewPill')) : null;
     var logo = div('gf-v-logo');
     var qr = div('gf-v-qr');
-    var scan = div('gf-v-t gf-v-scan gf-v-clamp', texts.scan);
+    var title = div('gf-v-t gf-v-title gf-v-clamp');
+    var subtitle = div('gf-v-t gf-v-subtitle gf-v-clamp');
+    var scan = div('gf-v-t gf-v-scan', texts.scan);
     var link = div('gf-v-t gf-v-link gf-v-clamp');
-    var items = div('gf-v-items');
-    var parties = div('gf-v-t gf-v-parties gf-v-clamp');
-    var message = div('gf-v-t gf-v-message gf-v-clamp');
+    var steps = div('gf-v-steps');
     var codeLabel = div('gf-v-t gf-v-code-label', texts.codeLabel);
     var code = div('gf-v-t gf-v-code');
-    var codeSub = div('gf-v-t gf-v-code-sub', GF.t('gvCodeAfterPay'));
+    var includes = div('gf-v-t gf-v-includes gf-v-clamp');
+    var message = div('gf-v-t gf-v-message gf-v-clamp');
     var valid = div('gf-v-t gf-v-valid');
     var safe = div('gf-v-safe');
 
@@ -111,30 +146,43 @@
     }
     drawLogo();
 
+    // The three steps are the server's: a voucher for a stay has its own (rule 20), sent with the back.
+    var drawnSteps = null;
+    function drawSteps(list) {
+      drawnSteps = list;
+      steps.innerHTML = '';
+      (list || []).forEach(function (text, i) {
+        var row = div('gf-v-step');
+        row.appendChild(span('gf-v-disc', String(i + 1)));
+        row.appendChild(div('gf-v-t gf-v-step-text', text));
+        steps.appendChild(row);
+      });
+    }
+    // The steps are the server's (rule 20); a GuestFlow that sends none leaves them to the kind of voucher — a stay voucher never says « Choisissez votre créneau en ligne ».
+    function stepsOf(s) { return s.steps || (s.kind === 'lodging' ? texts.lodgingSteps : texts.steps); }
+    drawSteps(texts.steps);
+
+    // Rules 18-20 of the week-weekend spec: the logo, the kicker, the title and the subtitle, the QR code in its frame, the three steps, the one rectangle of the code, the small lines.
     safe.appendChild(logo);
-    safe.appendChild(div('gf-v-t gf-v-title', texts.title));
-    safe.appendChild(div('gf-v-rule'));
-    safe.appendChild(div('gf-v-t gf-v-how', texts.howTo));
-    safe.appendChild(div('gf-v-qrrow', null));
-    safe.lastChild.appendChild(qr);
-    var side = div('gf-v-side');
-    side.appendChild(scan);
-    side.appendChild(link);
-    safe.lastChild.appendChild(side);
-    safe.appendChild(div('gf-v-t gf-v-includes', texts.includes));
-    safe.appendChild(items);
-    safe.appendChild(parties);
+    safe.appendChild(div('gf-v-t gf-v-kicker', texts.title));
+    safe.appendChild(title);
+    safe.appendChild(subtitle);
+    var frame = div('gf-v-qrframe');
+    frame.appendChild(qr);
+    safe.appendChild(frame);
+    safe.appendChild(scan);
+    safe.appendChild(link);
+    safe.appendChild(steps);
+    var box = div('gf-v-codebox');
+    box.appendChild(codeLabel);
+    box.appendChild(code);
+    safe.appendChild(box);
+    safe.appendChild(includes);
     safe.appendChild(message);
-    var zone = div('gf-v-zone');
-    zone.appendChild(codeLabel);
-    zone.appendChild(code);
-    zone.appendChild(codeSub);
-    zone.appendChild(valid);
-    safe.appendChild(zone);
+    safe.appendChild(valid);
 
     var foot = div('gf-v-foot');
     foot.appendChild(div('gf-v-t gf-v-identity', back.identity || back.companyName || ''));
-    if (back.website) foot.appendChild(div('gf-v-t gf-v-site', back.website));
     var legal = div('gf-v-legal');
     legal.appendChild(span('gf-v-t', texts.legal));
 
@@ -145,31 +193,32 @@
 
     var drawnQr = null;
     function update(s) {
-      var most = layout.lines || {};
       if (s.qrSvg !== drawnQr) {
         drawnQr = s.qrSvg;
         qr.innerHTML = plainSvg(s.qrSvg) ? s.qrSvg : '';
       }
+      var wanted = stepsOf(s);
+      if (wanted !== drawnSteps) drawSteps(wanted);
+      title.textContent = s.title || back.title || '';
+      var who = s.sender && s.recipient ? fill(fill(texts.subtitle, 'sender', s.sender), 'recipient', s.recipient)
+        : (s.sender ? fill(texts.subtitleSender, 'sender', s.sender) : (s.recipient ? fill(texts.subtitleRecipient, 'recipient', s.recipient) : ''));
+      // Empty, the subtitle keeps its gap as the PDF does (rule 20): its margin stays, only the text goes.
+      subtitle.textContent = who;
       link.textContent = s.link || back.link || '';
-      items.innerHTML = '';
-      (s.lines || []).slice(0, most.items || 7).forEach(function (line) {
-        items.appendChild(div('gf-v-t gf-v-item gf-v-clamp', texts.bullet + ' ' + line));
-      });
-      var who = [s.recipient && fill(texts.recipient, 'name', s.recipient), s.sender && fill(texts.sender, 'name', s.sender)].filter(Boolean).join(' ');
-      parties.textContent = who;
-      parties.hidden = !who;
+      includes.textContent = (s.lines || []).length ? fillOrAppend(texts.includes, 'lines', (s.lines || []).join(' · ')) : '';
+      includes.hidden = !includes.textContent;
       message.textContent = s.message || '';
       message.hidden = !s.message;
       code.textContent = s.code || texts.codePlaceholder;
       code.classList.toggle('is-wait', !s.code);
-      codeSub.hidden = !!s.code;
       valid.textContent = s.validUntil ? fill(texts.validUntil, 'date', s.validUntil) : '';
     }
     return { node: root, update: update };
   }
 
   GF.voucherCard = function (o) {
-    var back = o.back && o.back.layout && o.back.texts ? o.back : null;
+    // A back is drawn from `design` alone; a GuestFlow before 1.27.0's `design` sends only the legacy `layout` and `texts`, which are enough to know there is a back and are never read.
+    var back = o.back && (o.back.design || (o.back.layout && o.back.texts)) ? o.back : null;
     var probe = o.front ? o.front() : null;
     if (!back && !probe) return null;
     var state = {

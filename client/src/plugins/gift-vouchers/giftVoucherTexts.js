@@ -1,4 +1,4 @@
-// French copy and presentation maps of the « Bons cadeaux » screens (specs/gift-vouchers.md §6). The server decides each
+// French copy and presentation maps of the « Bons cadeaux » screens (specs/gift-vouchers/gift-vouchers.md §6). The server decides each
 // voucher's state; these maps only give it a label and a colour.
 export const STATE_BADGES = Object.freeze({
   pending: { label: 'En attente', status: 'neutral' },
@@ -39,7 +39,7 @@ export const TEXTS = Object.freeze({
   detail: {
     code: 'Code', reveal: 'Afficher le code', hide: 'Masquer le code', expiry: 'Valable jusqu’au', balance: 'Solde',
     from: 'De la part de', to: 'Pour', email: 'E-mail', vat: 'TVA', message: 'Message', movements: 'Mouvements', close: 'Fermer',
-    resend: 'Renvoyer le mail', pdf: 'Télécharger le bon', extend: 'Prolonger', cancel: 'Annuler le bon', adjust: 'Corriger le solde',
+    resend: 'Renvoyer le mail', pdf: 'Télécharger le bon', print: 'Imprimer…', printTitle: 'Imprimer le bon', extend: 'Prolonger', cancel: 'Annuler le bon', adjust: 'Corriger le solde',
     campaign: 'Campagne', contents: 'Contenu', oneShot: 'Bon sur mesure', unused: 'Part non utilisée', usedOn: 'Utilisé le', booking: 'Fiche du passage',
     notDownloadable: 'Ce bon est utilisé, expiré ou annulé : il ne peut plus être téléchargé ni renvoyé.',
     cancelNotAllowed: 'Ce bon a déjà servi : il ne peut plus être annulé.',
@@ -105,9 +105,18 @@ export const SETTINGS_TEXTS = Object.freeze({
     linkBase: 'Base des liens permanents',
     linkBaseHelp: 'Premier segment des deux liens imprimés sur les cartes : /bon-cadeau/offrir/… et /bon-cadeau/utiliser.',
   },
+  drink: {
+    title: 'Créneau moins cher que le bon',
+    label: 'Boisson offerte sur l’écart',
+    none: 'Aucune : l’écart est seulement noté sur le bon',
+    pending: 'Option enregistrée',
+    deleted: 'Option supprimée du catalogue',
+    notGivable: 'Cette option n’est plus vendable hors séjour : aucune boisson ne sera offerte tant qu’elle n’est pas remplacée.',
+    help: 'Quand le bénéficiaire choisit un créneau qui coûte moins que son bon, une boisson de cette option lui est offerte, sans autre contrepartie.',
+  },
 });
 
-// Lodging fields of a campaign (specs/gift-voucher-campaigns.md rule 3): the amount bounds, the VAT rate and the price ideas moved here from the settings.
+// Lodging fields of a campaign (specs/gift-vouchers/gift-voucher-campaigns.md rule 3): the amount bounds, the VAT rate and the price ideas moved here from the settings.
 export const LODGING_TEXTS = Object.freeze({
   title: 'Montant libre',
   help: 'Bornes du montant, TVA et idées de séjour du bon séjour.',
@@ -132,6 +141,10 @@ export const CAMPAIGN_STATES = Object.freeze({
 
 export const CAMPAIGN_KINDS = Object.freeze({ lodging: 'Montant libre', resource: 'Composé' });
 
+// The validity menu (week-weekend-and-print spec rule 13) and the periods of a bath voucher (rule 10): the words only, the server judges.
+export const VALIDITY_CHOICES = Object.freeze([3, 6, 12, 18, 24]);
+export const PERIOD_LABELS = Object.freeze({ week: 'Semaine', weekend: 'Week-end' });
+
 export const CAMPAIGN_TEXTS = Object.freeze({
   title: 'Campagnes',
   newCampaign: 'Nouvelle campagne',
@@ -150,7 +163,8 @@ export const CAMPAIGN_TEXTS = Object.freeze({
     saved: 'Campagne enregistrée.',
     duplicate: 'Dupliquer', duplicated: 'Copie créée en brouillon.',
     exportRecipe: 'Exporter la recette',
-    general: 'Général', name: 'Nom (interne)', publicTitle: 'Titre public', publicTitleHelp: 'Sur le site et au dos du bon.', state: 'État', validity: 'Validité (mois)', kind: 'Type',
+    general: 'Général', name: 'Nom (interne)', publicTitle: 'Titre public', publicTitleHelp: 'Sur le site et au dos du bon.', state: 'État', validity: 'Validité', kind: 'Type',
+    periods: 'Périodes proposées', periodsHelp: 'Le donateur choisit la semaine ou le week-end ; chaque période a son prix.', previewNoPeriod: 'Aucune période n’est cochée : le bon ne peut pas se vendre.', previewPeriod: (label) => `Prix · ${label}`,
     content: 'Contenu', addOns: 'Options proposées', addOnsLabel: 'Options à proposer', addOnsHelp: 'Proposées à l’offreur et au destinataire en plus du contenu.',
     extraTime: 'Temps en plus', extraTimeOffered: 'Proposer du temps en plus', extraTimeMax: 'Temps en plus au maximum (min)',
     visuals: 'Visuels', voucherFront: 'Recto du bon', merchantFront: 'Recto de la carte commerçant (facultatif)', noVisual: 'Aucun',
@@ -158,6 +172,9 @@ export const CAMPAIGN_TEXTS = Object.freeze({
     links: 'Liens permanents', slug: 'Identifiant du lien', slugLocked: 'Verrouillé : une carte du commerçant a été imprimée avec ce lien.',
     linkOffer: 'Acheter', linkUse: 'Utiliser', linkNone: 'Le lien d’achat apparaît avec l’identifiant.',
     downloads: 'Téléchargements', merchantCard: 'Carte commerçant (PDF imprimeur)', merchantCardNote: 'A6 recto verso, fonds perdus 3 mm, traits de coupe, image à sa résolution d’origine.',
+    print: 'Imprimer…', printTitle: 'Imprimer des cartes commerçant', priceOfTheDay: 'Le prix est celui du jour de l’impression.',
+    frontPrice: 'Position du prix', frontPriceHelp: 'Sur le recto de la carte commerçant : « à partir de » et le prix le plus bas de la campagne.',
+    frontPriceOptions: Object.freeze([{ value: 'bottom-right', label: 'En bas à droite' }, { value: 'bottom-left', label: 'En bas à gauche' }, { value: 'top-right', label: 'En haut à droite' }, { value: 'top-left', label: 'En haut à gauche' }, { value: 'none', label: 'Aucun' }]),
     merchantCardDone: 'Carte commerçant téléchargée.', downloadFailed: 'Le téléchargement n’a pas abouti.',
     preview: 'Prix calculé', previewLodging: 'Montant libre : le prix est celui que choisit l’offreur.', previewIdle: 'Choisir une ressource pour voir le prix.',
     previewFailed: 'Prix indisponible.', vatIncluded: (rate) => `dont TVA ${rate} %`, total: 'Total',
@@ -208,7 +225,7 @@ export const NEW_VOUCHER_TEXTS = Object.freeze({
   custom: 'Sur mesure', customHelp: 'Un bon composé pour ce client seul, hors des campagnes.',
   amount: 'Montant (€)', amountRange: (min, max) => `de ${min} à ${max}`,
   ideas: 'Idées',
-  validity: 'Validité (mois)', visual: 'Visuel', noVisual: 'Aucun', addVisual: 'Ajouter un visuel',
+  validity: 'Validité', period: 'Période', periodFact: (label) => `Période : ${label}`, validUntil: (date) => `Valable jusqu’au ${date}`, visual: 'Visuel', noVisual: 'Aucun', addVisual: 'Ajouter un visuel',
   extraTime: 'Temps en plus', addOns: 'Options', quantity: 'Quantité',
   extras: {
     title: 'Ajouter au bon',
@@ -256,4 +273,7 @@ export const NEW_VOUCHER_ERROR_FIELDS = Object.freeze({
   ADDON_NOT_OFFERED: 'addOns',
   ADDON_QTY_INVALID: 'addOns',
   ADDON_DUPLICATE: 'addOns',
+  PERIOD_REQUIRED: 'period',
+  PERIOD_NOT_OFFERED: 'period',
+  VALIDITY_INVALID: 'validityMonths',
 });

@@ -1,5 +1,5 @@
 /**
- * A campaign as a recipe (specs/gift-voucher-campaigns.md rule 10): a `.zip` holding `campaign.json` and its images. The recipe names what the campaign contains — the resource, the
+ * A campaign as a recipe (specs/gift-vouchers/gift-voucher-campaigns.md rule 10): a `.zip` holding `campaign.json` and its images. The recipe names what the campaign contains — the resource, the
  * options, the add-ons — by their names in GuestFlow and the tariff mode by its band, never by a price or an internal id, so it can be read, edited and carried to another instance.
  * An import is all-or-nothing: the names are resolved to the catalogue, the whole campaign goes through the same `campaignRules` as the form, the images through the same judgement as
  * the visual library, and only when every field passes is anything written — the campaign as a draft, its images joining the library.
@@ -53,6 +53,8 @@ function createRecipe({
         kind: campaign.kind,
         slug: campaign.slug,
         validityMonths: campaign.validityMonths,
+        periods: campaign.periods,
+        frontPricePosition: campaign.frontPricePosition,
         composition: {
           resource: nameOf(`resource:${composition.resourceId}`),
           band: composition.band,
@@ -102,6 +104,9 @@ function createRecipe({
         state: 'draft',
         slug: c.slug === null ? undefined : c.slug,
         validityMonths: c.validityMonths,
+        // A recipe written before the weekend grid names neither: both periods and the default corner then apply (the rules' own defaults).
+        periods: c.periods,
+        frontPricePosition: c.frontPricePosition,
         composition: { resourceId: resource.element ? resource.element.id : undefined, band: comp.band, minutes: comp.minutes, options: options.filter(Boolean) },
         addOns: addOns.filter(Boolean),
         extraTimeMaxMinutes: c.extraTimeMaxMinutes,

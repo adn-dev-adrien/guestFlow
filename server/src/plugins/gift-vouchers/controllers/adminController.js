@@ -1,7 +1,7 @@
 /**
- * `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers.md rules 24-28, §4.3). Thin handlers over the models
+ * `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers/gift-vouchers.md rules 24-28, §4.3). Thin handlers over the models
  * and rules: they validate the shape of what they receive, ask the models, and answer. Every action that changes a voucher
- * writes a movement carrying its author (rule 25). A voucher is sold through the same `offerService` as on the site (specs/gift-voucher-campaigns.md
+ * writes a movement carrying its author (rule 25). A voucher is sold through the same `offerService` as on the site (specs/gift-vouchers/gift-voucher-campaigns.md
  * rules 41, 52): this side adds the session and the three outcomes — « Payé », « Offert », « Envoyer un lien ».
  */
 
@@ -15,7 +15,7 @@ const { DOCUMENT_REFUSALS } = require('../documentRefusals');
 const { contentLines } = require('../contentsText');
 
 const OUTCOMES = Object.freeze(['paid', 'offered', 'link']);
-const REQUEST_KEYS = Object.freeze(['slug', 'composition', 'title', 'validityMonths', 'offeredAddOns', 'extraTimeMaxMinutes', 'extraMinutes', 'addOns', 'amountCents']);
+const REQUEST_KEYS = Object.freeze(['slug', 'composition', 'title', 'validityMonths', 'offeredAddOns', 'extraTimeMaxMinutes', 'extraMinutes', 'addOns', 'amountCents', 'period']);
 const MAX_REASON = 200;
 const MAX_EMAIL = 254;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -395,8 +395,37 @@ function buildAdminController({
     return res.send(buffer);
   });
 
+  const printOptionsOf = (req) => ({
+    mode: req.query.mode, perSheet: req.query.perSheet, count: req.query.count, flip: req.query.flip,
+  });
+  const printInvalid = (res, error) => res.status(400).json({ error: error.message, code: error.code, field: error.field });
+
+  /** Rule 27 — the layout of the print sheets of a voucher: the dialog's preview and the PDF's own layout. */
+  const printLayout = guarded(async (req, res) => {
+    downloadable(find(req));
+    try {
+      return res.json(documents.layoutOf(printOptionsOf(req)));
+    } catch (error) {
+      if (error && error.code === 'PRINT_INVALID') return printInvalid(res, error);
+      throw error;
+    }
+  });
+
+  /** Rules 22-27 — copies of a voucher on A4 sheets, two-sided or folded. */
+  const printPdf = guarded(async (req, res) => {
+    const v = downloadable(find(req));
+    try {
+      const buffer = await documents.voucherPrintPdf(v, printOptionsOf(req));
+      res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${v.number}-impression.pdf"`, 'Cache-Control': 'no-store' });
+      return res.send(buffer);
+    } catch (error) {
+      if (error && error.code === 'PRINT_INVALID') return printInvalid(res, error);
+      throw error;
+    }
+  });
+
   return {
-    list, read, create, extend, cancel, settleRefund, adjust, reveal, resend, pdf,
+    list, read, create, extend, cancel, settleRefund, adjust, reveal, resend, pdf, printLayout, printPdf,
   };
 }
 

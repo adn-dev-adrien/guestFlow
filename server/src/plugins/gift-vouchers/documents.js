@@ -1,5 +1,5 @@
 /**
- * The two printed documents, assembled from what is stored (specs/gift-voucher-campaigns.md rules 21, 33, 48-50): the voucher's PDF — the front frozen on the voucher when it
+ * The two printed documents, assembled from what is stored (specs/gift-vouchers/gift-voucher-campaigns.md rules 21, 33, 48-50): the voucher's PDF — the front frozen on the voucher when it
  * was issued, the back from the voucher, the company's settings and the permanent paths — and the merchant card of a campaign, from the campaign's current merchant visual.
  * The drawing is `voucherPdf`; this reads the voucher's code back, the image bytes and the company, and refuses with a code the controllers word.
  */
@@ -7,6 +7,7 @@
 const rules = require('./voucherRules');
 const images = require('./visualImages');
 const pdf = require('./voucherPdf');
+const printLayout = require('./printLayout');
 
 const refused = (code) => Object.assign(new Error(code), { code });
 
@@ -45,18 +46,55 @@ function createDocuments({
     }, qr ? { qr } : undefined);
   }
 
-  /** Rules 33, 49 — the merchant card of a campaign: refused without a slug, a merchant front or the website. */
-  async function merchantCardPdf(campaign, { qr } = {}) {
+  /** What a merchant card is drawn from: refused without a slug, a merchant front or the website. */
+  async function merchantInputs(campaign, fromCents) {
     if (!campaign.slug) throw refused('CAMPAIGN_NO_SLUG');
     const visual = campaign.merchantVisualId ? visuals.find(campaign.merchantVisualId) : null;
     if (!visual || visual.deletedAt) throw refused('NO_MERCHANT_VISUAL');
     const { company: who, origin } = await companyAndOrigin();
-    return render.renderMerchantCardPdf({
-      campaign, front: frontOf(visual.current.id), company: who, origin, linkBase: linkBase(),
-    }, qr ? { qr } : undefined);
+    return {
+      campaign, front: frontOf(visual.current.id), company: who, origin, linkBase: linkBase(), fromCents: fromCents === undefined ? null : fromCents,
+    };
   }
 
-  return { voucherPdf, merchantCardPdf, frontOf };
+  /** Rules 33, 49 and rule 21 of the week-weekend spec — the merchant card of a campaign; `fromCents` is the lowest price it offers today, printed in the corner it chose. */
+  async function merchantCardPdf(campaign, { qr, fromCents } = {}) {
+    return render.renderMerchantCardPdf(await merchantInputs(campaign, fromCents), qr ? { qr } : undefined);
+  }
+
+  /** The layout of a print request, or the refusal that names its field (rules 23, 27). */
+  function layoutOf(options) {
+    const planned = printLayout.plan(options || {});
+    if (!planned.ok) throw Object.assign(new Error('PRINT_INVALID'), { code: 'PRINT_INVALID', field: planned.field, message: planned.message });
+    return planned.layout;
+  }
+
+  /** Rules 22-27 — merchant cards on A4 sheets, two-sided or folded. */
+  async function merchantPrintPdf(campaign, options, { qr, fromCents } = {}) {
+    const layout = layoutOf(options);
+    const inputs = await merchantInputs(campaign, fromCents);
+    return render.renderPrintSheets({ layout, title: `Cartes commerçant ${inputs.company.name}`, draw: render.merchantDrawing(inputs, qr ? { qr } : undefined) });
+  }
+
+  /** Rules 22-27 — copies of an issued voucher on A4 sheets, two-sided or folded. */
+  async function voucherPrintPdf(voucher, options, { qr } = {}) {
+    const layout = layoutOf(options);
+    const plain = decrypt(voucher.codeEncrypted);
+    if (!plain.ok) throw refused('CODE_UNREADABLE');
+    const { company: who, origin } = await companyAndOrigin();
+    const frozen = rules.parseJson(voucher.visualVersions, null);
+    return render.renderPrintSheets({
+      layout,
+      title: `Bon cadeau ${voucher.number}`,
+      draw: render.voucherDrawing({
+        voucher: { ...voucher, code: plain.value }, front: frontOf(frozen && frozen.voucher), company: who, origin, linkBase: linkBase(),
+      }, qr ? { qr } : undefined),
+    });
+  }
+
+  return {
+    voucherPdf, merchantCardPdf, merchantPrintPdf, voucherPrintPdf, layoutOf, frontOf,
+  };
 }
 
 module.exports = { createDocuments };

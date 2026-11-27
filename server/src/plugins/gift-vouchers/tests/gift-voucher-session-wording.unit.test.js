@@ -51,7 +51,7 @@ test('rule 21 — after the payment, a bath voucher is drawn by its title and co
   const page = await site('GET', `/orders/${orderId}?token=${token}`);
   const { voucher } = page.body.data;
   assert.deepEqual([voucher.kind, voucher.title], ['resource', 'Un bain nordique']);
-  assert.deepEqual(voucher.contentLines, ['Bain nordique : 2 h en journée', 'Planche apéro']);
+  assert.deepEqual(voucher.contentLines, ['Bain nordique\u00a0: 2 h en journée · semaine', 'Planche apéro']);
   await api.receipt.idle();
 }));
 
@@ -60,7 +60,7 @@ test('rules 17, 21, 66 — the WordPress block picks the session wording for a b
   const view = read('blocks/gift-voucher/view.js');
   assert.match(blocks, /'gvIntroSession'\s*=> __\('Valable %d mois à compter du paiement, pour une séance à réserver en ligne\.'/);
   assert.match(view, /GF\.t\(isResource \? 'gvIntroSession' : 'gvIntro', months\)/);
-  assert.match(view, /var lines = \(b\.lines \|\| \[\]\)\.slice\(\)/);
+  assert.match(view, /var lines = \(\(b\.linesByPeriod && b\.linesByPeriod\[period\]\) \|\| b\.lines \|\| \[\]\)\.slice\(\)/);
   assert.match(view, /lines: voucherBack\.lines/);
   const po = read('languages/guestflow-booking-en_GB.po');
   assert.ok(po.includes('msgid "Valable %d mois à compter du paiement, pour une séance à réserver en ligne."'));

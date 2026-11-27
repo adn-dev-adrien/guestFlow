@@ -13,7 +13,12 @@ const OFFER = {
   // The back of specs/gift-vouchers/gift-voucher-campaigns.md rule 66, reduced to what this suite reads: the card that names the first name only.
   back: {
     layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
-    texts: { title: 'BON CADEAU', recipient: 'Pour {name}', sender: 'de la part de {name}', codePlaceholder: 'XXXX', validUntil: '{date}', bullet: '•' },
+    texts: { title: 'BON CADEAU' },
+    design: {
+      layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
+      voucherLayout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {}, lineHeight: {} },
+      texts: { title: 'BON CADEAU', subtitleRecipient: 'offert à {recipient}', subtitleSender: 'offert par {sender}', subtitle: 'offert par {sender} à {recipient}', codePlaceholder: 'XXXX', validUntil: '{date}', steps: [] },
+    },
     companyName: 'Domaine Solio',
   },
   campaigns: [{

@@ -914,6 +914,18 @@ msgstr "The voucher includes"
 msgid "Séance en %s, de %s à %s."
 msgstr "Session in the %s, from %s to %s."
 
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Période"
+msgstr "Period"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Semaine"
+msgstr "Weekday"
+
+#: blocks/gift-voucher, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Week-end"
+msgstr "Weekend"
+
 #: blocks/gift-voucher-use, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-campaigns.md)
 msgid "Ajouter au bon"
 msgstr "Add to the voucher"
@@ -1151,3 +1163,27 @@ msgstr "included in the voucher"
 #: blocks/session-booking, includes/class-gf-blocks.php (specs/site/site-outside-resource-booking.md rule 37)
 msgid "%s au maximum par séance"
 msgstr "%s at most per session"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Inclus · boisson offerte"
+msgstr "Included · free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Inclus · 2 h + boisson offerte"
+msgstr "Included · 2 h + free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Inclus · 2 h"
+msgstr "Included · 2 h"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 17)
+msgid " · boisson offerte"
+msgstr " · free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 17)
+msgid " · 2 h + boisson offerte"
+msgstr " · 2 h + free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 17)
+msgid " · 2 h"
+msgstr " · 2 h"

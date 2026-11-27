@@ -31,7 +31,8 @@ const insert = (table, row) => {
 
 const resource = (over = {}) => insert('resources', {
   name: 'Bain nordique', quantity: 1, price: 25, priceType: 'per_hour', showsPlanningCard: 1, slotDuration: 60, minimumUsageMinutes: 60, openTime: '10:00', closeTime: '22:00',
-  hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyExternalNextDayRate: 45, hourlyExternalNextEveningRate: 63, sellableExternally: 1, ...over,
+  hourlyEveningStart: '19:00', hourlyEveningRate: 35, hourlyExternalDayRate: 50, hourlyExternalEveningRate: 70, hourlyExternalNextDayRate: 45, hourlyExternalNextEveningRate: 63, sellableExternally: 1,
+  hourlyExternalWeekendDayRate: 50, hourlyExternalWeekendEveningRate: 70, hourlyExternalWeekendNextDayRate: 45, hourlyExternalWeekendNextEveningRate: 63, ...over,
 });
 
 const option = (over = {}) => insert('options', {
@@ -82,7 +83,7 @@ function openShop(over = {}) {
     companyName: () => 'Domaine Solio',
     pageUrl: () => 'https://site.example.test/bon-cadeau',
     company: async () => ({
-      name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', website: 'https://site.example.test', logo: null,
+      name: 'Domaine Solio', town: 'Saint-Cirq-Lapopie', department: 'Lot', website: 'https://site.example.test', logo: null,
     }),
     filesDir,
     terms,
@@ -113,7 +114,7 @@ function bathCampaign(ids, over = {}) {
   return {
     name: 'Bain journée', title: 'Un bain nordique', kind: 'resource', state: 'on_sale', slug: 'bain-jour', validityMonths: 12,
     composition: { resourceId: ids.bath, band: 'day', minutes: 120, options: [{ articleRef: `option:${ids.board}`, qty: 1 }] },
-    addOns: [`option:${ids.drink}`], extraTimeMaxMinutes: 120, voucherVisualId: front.id, ...over,
+    addOns: [`option:${ids.drink}`], extraTimeMaxMinutes: 120, voucherVisualId: front.id, periods: ['week'], ...over,
   };
 }
 

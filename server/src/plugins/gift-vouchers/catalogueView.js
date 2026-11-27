@@ -5,7 +5,7 @@
  *
  *   list()                                   → [{ articleRef, kind, id, label, category, priceType, priceTypeLabel, hourly, modes, sellable, reason }], resources then options
  *   element(articleRef)                      → one of those, or null
- *   sessionRefusal({ resourceId, band, minutes, rankOffsetMinutes }) → the engine's sentence for a session that cannot be sold, or null
+ *   sessionRefusal({ resourceId, band, minutes, rankOffsetMinutes, period }) → the engine's sentence for a session that cannot be sold (`{ message, period }` when it is about one period), or null
  *
  * Whether an option sells with no stay is `articles.outsideSale` (specs/pricing/pricing-components.md rule 124), never a list of families kept here.
  * A resource has `modes` only when it is an hourly resource shown on the planning (`outside-day`, `outside-evening`); an option has none.
@@ -80,15 +80,19 @@ function createCatalogueView({ db, articles }) {
   }
 
   function sessionRefusal({
-    resourceId, band, minutes, rankOffsetMinutes,
+    resourceId, band, minutes, rankOffsetMinutes, period,
   }) {
     const row = db.prepare('SELECT * FROM resources WHERE id = ?').get(Number(resourceId));
     if (!row) return 'Ressource inconnue.';
     const article = articles.makeArticle(row, { kind: 'resource' });
     const family = articles.liveFamilies().hourly;
     if (!family || typeof family.quoteSession !== 'function') return 'Les ressources à l’heure ne sont pas disponibles pour le moment.';
-    const answer = family.quoteSession(article.config, { band, minutes, ...(rankOffsetMinutes === undefined ? {} : { rankOffsetMinutes }) });
-    return answer.refusal ? answer.refusal.message : null;
+    const answer = family.quoteSession(article.config, {
+      band, minutes, ...(rankOffsetMinutes === undefined ? {} : { rankOffsetMinutes }), ...(period ? { period } : {}),
+    });
+    if (!answer.refusal) return null;
+    // A refusal about one period says which (`{ message, period }`), for the form to name it only when the sentence does not already.
+    return answer.refusal.period ? { message: answer.refusal.message, period: answer.refusal.period } : answer.refusal.message;
   }
 
   return { list, element, sessionRefusal };

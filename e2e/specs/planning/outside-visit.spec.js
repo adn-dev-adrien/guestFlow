@@ -24,7 +24,7 @@ test.beforeAll(async () => {
 
 // One visit per viewport: a bath of its own (one slot per resource), the suggested list set through the settings route, a walk-in booked on today.
 async function seedVisit(request, label) {
-  const bath = await createHourlyResource({ name: `Bain visite ${label} ${TAG}` });
+  const bath = await createHourlyResource({ name: `Bain visite ${label} ${TAG}`, soldOutside: true });
   const listed = await request.put(`/api/settings/suggested-articles/resource/${bath.id}`, { data: { articleRefs: [`option:${drinks.beer.id}`, `option:${drinks.lemonade.id}`] } });
   expect(listed.status()).toBe(200);
   const booked = await request.post('/api/resource-bookings', {

@@ -1,5 +1,5 @@
 /**
- * `/api/gift-vouchers/{catalogue,campaigns,offer}` — the operator's campaigns (specs/gift-voucher-campaigns.md rules 2-9, 46, 52, §4.4). Thin: the form is judged by
+ * `/api/gift-vouchers/{catalogue,campaigns,offer}` — the operator's campaigns (specs/gift-vouchers/gift-voucher-campaigns.md rules 2-9, 46, 52, §4.4). Thin: the form is judged by
  * `campaignRules`, stored by `campaignsModel`, priced and described by `offerService` — the same service the site's controllers call, so the operator reads what the
  * giver will read.
  */
@@ -99,12 +99,53 @@ function buildCampaignsController({
     return answered.ok ? res.json(answered) : res.status(statusOf(answered.code)).json({ error: answered.message, code: answered.code, ...(answered.errors ? { errors: answered.errors } : {}) });
   };
 
+  /** Rule 21 of the week-weekend spec — the lowest price the campaign offers today, the one printed on the card's front; none for a campaign the engine cannot price (a lodging one has no price of its own). */
+  const fromCentsOf = (campaign) => {
+    const status = offerService.campaignStatus(campaign);
+    return status.priceable && status.totalCents ? status.totalCents : null;
+  };
+
+  const printOptionsOf = (req) => ({
+    mode: req.query.mode, perSheet: req.query.perSheet, count: req.query.count, flip: req.query.flip,
+  });
+  const printRefusal = (res, error) => {
+    if (error && error.code === 'PRINT_INVALID') return res.status(400).json({ error: error.message, code: error.code, field: error.field });
+    const refusal = DOCUMENT_REFUSALS[error && error.code];
+    if (!refusal) throw error;
+    return res.status(refusal[0]).json({ error: refusal[1], code: error.code });
+  };
+
+  /** Rule 27 — the layout of the print sheets, the preview of the dialog: the very layout the PDF is drawn from. */
+  const printLayout = (req, res) => {
+    const campaign = campaigns.find(idOf(req));
+    if (!campaign || campaign.oneShot) return notFound(res);
+    try {
+      return res.json(documents.layoutOf(printOptionsOf(req)));
+    } catch (error) {
+      return printRefusal(res, error);
+    }
+  };
+
+  /** Rules 22-27 — merchant cards on A4 sheets. Printing them prints the link: the slug is locked from then on, as for the merchant card. */
+  const printPdf = async (req, res) => {
+    const campaign = campaigns.find(idOf(req));
+    if (!campaign || campaign.oneShot) return notFound(res);
+    try {
+      const buffer = await documents.merchantPrintPdf(campaign, printOptionsOf(req), { fromCents: fromCentsOf(campaign) });
+      campaigns.lockSlug(campaign.id);
+      res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="cartes-commercant-${campaign.slug}.pdf"`, 'Cache-Control': 'no-store' });
+      return res.send(buffer);
+    } catch (error) {
+      return printRefusal(res, error);
+    }
+  };
+
   /** Rules 33, 49 — the merchant card for the printer. Serving it prints the link: the slug is locked from then on, and only once the PDF exists. */
   const merchantCard = async (req, res) => {
     const campaign = campaigns.find(idOf(req));
     if (!campaign || campaign.oneShot) return notFound(res);
     try {
-      const buffer = await documents.merchantCardPdf(campaign);
+      const buffer = await documents.merchantCardPdf(campaign, { fromCents: fromCentsOf(campaign) });
       campaigns.lockSlug(campaign.id);
       res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="carte-commercant-${campaign.slug}.pdf"`, 'Cache-Control': 'no-store' });
       return res.send(buffer);
@@ -137,7 +178,7 @@ function buildCampaignsController({
   const offerPrice = (req, res) => previewPrice(req, res);
 
   return {
-    catalogue: catalogueRead, list, read, create, update, duplicate, previewPrice, offer, offerPrice, merchantCard, exportRecipe, importRecipe,
+    catalogue: catalogueRead, list, read, create, update, duplicate, previewPrice, offer, offerPrice, merchantCard, printLayout, printPdf, exportRecipe, importRecipe,
   };
 }
 

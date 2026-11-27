@@ -34,13 +34,22 @@ test('the offer lists the campaigns on sale only, each with its title, its band 
       key: 'day', label: 'journée', from: '10:00', to: '19:00',
     },
     contents: [
-      { kind: 'session', label: 'Bain nordique', detail: '2 h en journée · de 10:00 à 19:00', qty: 1 },
+      { kind: 'session', label: 'Bain nordique', detail: '2 h en journée · semaine · de 10:00 à 19:00', qty: 1 },
       { kind: 'option', label: 'Planche apéro', detail: null, qty: 1 },
     ],
+    contentsByPeriod: {
+      week: [
+        { kind: 'session', label: 'Bain nordique', detail: '2 h en journée · semaine · de 10:00 à 19:00', qty: 1 },
+        { kind: 'option', label: 'Planche apéro', detail: null, qty: 1 },
+      ],
+    },
     addOns: [{
       articleRef: `option:${ids.drink}`, label: 'Boisson', maxQty: 20, unitLabel: 'l’unité', linear: true, prices: Array.from({ length: 20 }, (_, i) => ({ qty: i + 1, cents: (i + 1) * 650 })),
     }],
-    extraTime: { maxMinutes: 120, stepMinutes: 60, prices: [{ minutes: 60, cents: 4500 }, { minutes: 120, cents: 9000 }] },
+    periods: [{ period: 'week', priceCents: 10900, label: 'semaine', hint: 'Semaine : du lundi au vendredi en journée. Utilisable le week-end avec un supplément.' }],
+    extraTime: {
+      maxMinutes: 120, stepMinutes: 60, prices: [{ minutes: 60, cents: 4500 }, { minutes: 120, cents: 9000 }], pricesByPeriod: { week: [{ minutes: 60, cents: 4500 }, { minutes: 120, cents: 9000 }] },
+    },
     totalCents: 10900,
   });
   const night = campaigns.find((c) => c.slug === 'bain-soir');

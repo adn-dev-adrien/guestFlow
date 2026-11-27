@@ -84,6 +84,10 @@ function loadInputs(db, inputs) {
   const figures = app('utils/pricingStoredFiguresMigration.js');
   figures.runPricingStoredFiguresMigration(db);
   figures.backfillSaleFiguresOnce(db, { force: true });
+  // The hourly plugin's own migration that makes every price of its resources explicit (the weekend grid copies the week grid where it is empty, a per-lodging price on a planning bath is
+  // dropped): a copy of the production database was captured before it and a real boot runs it, so the gate runs it with its real semantics. A figure it moves legitimately (D20) is recorded
+  // in the allowlist, never hidden here.
+  if (shipped.has('hourly-resources')) app('plugins/hourly-resources/migrations.js').explicitHourlyRates(db);
 }
 
 function ficheOf(id) {

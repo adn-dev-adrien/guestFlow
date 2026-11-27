@@ -52,16 +52,16 @@ test('specs/gift-vouchers/gift-vouchers.md rule 46 — nothing exists before the
   assert.deepEqual([row.state, row.source, row.campaignId, row.amountCents, row.createdBy], ['pending', 'site', bath.id, 10900, 'public']);
   assert.deepEqual(JSON.parse(row.contents), {
     kind: 'resource',
-    title: 'Un bain nordique',
+    title: 'Un bain nordique · semaine',
     resource: {
-      id: ids.bath, name: 'Bain nordique', band: 'day', minutes: 120, includedMinutes: 120, extraMinutes: 0,
+      period: 'week', id: ids.bath, name: 'Bain nordique', band: 'day', minutes: 120, includedMinutes: 120, extraMinutes: 0,
     },
     options: [{ articleRef: `option:${ids.board}`, label: 'Planche apéro', qty: 1 }],
     addOns: [],
     // rule 20 — the priced lines, kept for the invoice-style recap of the mail
     lines: [
       {
-        label: 'Bain nordique · journée', qty: 1, unitCents: 9500, totalCents: 9500, vatRate: 20,
+        label: 'Bain nordique · journée · semaine', qty: 1, unitCents: 9500, totalCents: 9500, vatRate: 20,
       },
       {
         label: 'Planche apéro', qty: 1, unitCents: 1400, totalCents: 1400, vatRate: 10,
@@ -72,7 +72,7 @@ test('specs/gift-vouchers/gift-vouchers.md rule 46 — nothing exists before the
   const link = await site('POST', `/orders/${orderId}/pay`, { token });
   assert.equal(link.status, 200);
   assert.deepEqual(shop.links.at(-1).sale, {
-    ref: orderId, title: 'Un bain nordique · 109,00 €', amountCents: 10900, validityMinutes: 60,
+    ref: orderId, title: 'Un bain nordique · semaine · 109,00 €', amountCents: 10900, validityMinutes: 60,
   });
   assert.deepEqual(existing(), { ...before, gift_voucher_orders: before.gift_voucher_orders + 1 }, 'only the order exists, whether or not a link was minted');
   const page = await site('GET', `/orders/${orderId}?token=${token}`);
@@ -212,13 +212,13 @@ test('« Sur mesure » follows the same path: a one-shot campaign bound to its o
     const issued = await server.call('POST', '/api/gift-vouchers', request);
     assert.equal(issued.status, 201, JSON.stringify(issued.body));
     assert.equal(issued.body.amountCents, preview.body.totalCents, 'the price shown is the price sold');
-    assert.deepEqual([issued.body.oneShot, issued.body.contents.title, issued.body.expiresOn], [true, 'Bain pour Marie', '2027-05-15']); // date-literal-ok: the suite runs on its own clock, never the real today
+    assert.deepEqual([issued.body.oneShot, issued.body.contents.title, issued.body.expiresOn], [true, 'Bain pour Marie · semaine', '2027-05-15']); // date-literal-ok: the suite runs on its own clock, never the real today
     const one = db.prepare('SELECT * FROM gift_voucher_campaigns WHERE oneShot = 1').get();
     assert.deepEqual([one.slug, one.state, one.kind], [null, 'closed', 'resource']);
     assert.equal(count('gift_voucher_campaigns'), campaignsBefore + 1);
     assert.equal((await server.call('GET', '/api/gift-vouchers/campaigns')).body.items.some((c) => c.id === one.id), false);
     assert.equal((await server.call('GET', `/api/gift-vouchers/campaigns/${one.id}`)).status, 404);
-    assert.equal((await server.call('GET', '/api/gift-vouchers/offer')).body.campaigns.some((c) => c.title === 'Bain pour Marie'), false);
+    assert.equal((await server.call('GET', '/api/gift-vouchers/offer')).body.campaigns.some((c) => c.title.startsWith('Bain pour Marie')), false);
     assert.equal((await server.call('POST', '/api/gift-vouchers', { ...request, composition: { ...request.composition, minutes: 45 } })).status, 400, 'a wrong composition is refused');
     assert.equal(count('gift_voucher_campaigns'), campaignsBefore + 1, 'a refused one-shot leaves no campaign behind');
   } finally {
