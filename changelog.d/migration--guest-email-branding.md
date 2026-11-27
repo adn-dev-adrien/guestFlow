@@ -1,1 +1,0 @@
-- **Guest email branding** — four nullable `TEXT` columns on `app_settings`: `companyLogoDarkPath`, `emailColorPage`, `emailColorAccent`, `emailColorLink`. NULL means « no night logo » / Maison's default colours (`#F8F5EF`, `#C99038`, `#2F5D46`): existing instances change only in layout (a white card, light variant) until colours are set. No data is rewritten.
