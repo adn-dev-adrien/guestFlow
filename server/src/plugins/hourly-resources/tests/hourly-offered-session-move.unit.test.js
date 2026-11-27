@@ -1,4 +1,4 @@
-// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 36 (round 4, D) — a session line offered at the visit (« Offrir ») is one figure on every reader of the booking, through
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 2, 29, 30 (round 4, D) — a session line offered at the visit (« Offrir ») is one figure on every reader of the booking, through
 // the offer itself, a notes-only save and a move: the stored total follows the document's session figure.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
