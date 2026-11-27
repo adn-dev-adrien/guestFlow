@@ -48,6 +48,8 @@ const refuse = (code, message) => ({ ok: false, code, message });
 const timeOf = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 const sessionRefOf = (bookingId) => `hourly-slot:${Number(bookingId)}`;
 const extraRefOf = (bookingId) => `${sessionRefOf(bookingId)}:extra`;
+const offeredRefOf = (bookingId) => `${sessionRefOf(bookingId)}:offered`;
+const FULFILMENT_REFS = Object.freeze({ session: sessionRefOf, extra: extraRefOf, offered: offeredRefOf });
 const REASONS = Object.freeze({
   taken: SLOT_TAKEN, closed: 'Ce créneau est hors des horaires de la ressource.', past: 'Ce créneau est passé.', heating: 'Ce créneau est trop proche pour chauffer la ressource.',
   duration: 'Durée ou heure de début invalide pour cette ressource.', staff: SLOT_TAKEN,
@@ -185,7 +187,7 @@ function createOutsideOffer({
     };
     // Rule 17 — a covered evening-weekend session on a day-week slot: the session is doubled when the doubled block is free and ends by closing time.
     if (coveredBand === 'evening' && period === 'weekend' && slot.band === 'day' && slot.period === 'week') {
-      const endsAt = toMinutes(start) + 2 * covered;
+      const endsAt = toMinutes(start) + 2 * covered + extra;
       const clock = clockOf(at);
       const taken = occupancy.listForStay({ resourceId: resource.id, startDate: date, endDate: date });
       const verdict = endsAt <= toMinutes(resource.closeTime || '23:59')
@@ -193,7 +195,20 @@ function createOutsideOffer({
           resource, block: { date, start, end: timeOf(endsAt) }, occupancy: taken, ...boundsOf(resource, clock),
         })
         : { ok: false };
-      result.twoHours = { free: Boolean(verdict.ok), minutes: covered, endTime: timeOf(endsAt) };
+      result.twoHours = {
+        free: Boolean(verdict.ok), minutes: covered, endTime: timeOf(toMinutes(start) + 2 * covered), line: null,
+      };
+      if (verdict.ok) {
+        // The added time is priced like any other (so its value is the line's struck figure) and given away: a 0 € line of the booking.
+        const added = priceSession(resource, {
+          band: slot.band, start, minutes: covered, rankOffsetMinutes: covered, date,
+        });
+        if (added.code) return added;
+        result.twoHours.line = {
+          ...added.line, label: 'Heure offerte', unitCents: 0, totalCents: 0, offered: true, catalogueCents: added.line.totalCents,
+        };
+        result.endTime = timeOf(toMinutes(start) + 2 * covered + extra);
+      }
     }
     if (extra > 0) {
       const offered = result.twoHours && result.twoHours.free ? covered : 0;
@@ -257,7 +272,7 @@ function createOutsideOffer({
     bookingId, customer, fulfilments, lines, acceptedTotalCents,
   }) {
     return {
-      fulfilments: fulfilments.map(({ role, ...line }) => ({ ...line, fulfilmentRef: role === 'extra' ? extraRefOf(bookingId) : sessionRefOf(bookingId) })),
+      fulfilments: fulfilments.map(({ role, ...line }) => ({ ...line, fulfilmentRef: (FULFILMENT_REFS[role] || sessionRefOf)(bookingId) })),
       lines,
       customer: { name: customer.name, email: customer.email },
       originRef: `resource-booking:${bookingId}`,
@@ -267,7 +282,7 @@ function createOutsideOffer({
   }
 
   const coverOf = (bookingId, cover) => (cover.role
-    ? { fulfilmentRef: cover.role === 'extra' ? extraRefOf(bookingId) : sessionRefOf(bookingId), amountCents: cover.amountCents }
+    ? { fulfilmentRef: (FULFILMENT_REFS[cover.role] || sessionRefOf)(bookingId), amountCents: cover.amountCents }
     : { articleRef: cover.articleRef, amountCents: cover.amountCents });
 
   function applyTenders({ saleId, bookingId, tenders, day }) {
@@ -344,4 +359,6 @@ function createOutsideOffer({
   };
 }
 
-module.exports = { createOutsideOffer, sessionRefOf, extraRefOf, SLOT_TAKEN };
+module.exports = {
+  createOutsideOffer, sessionRefOf, extraRefOf, offeredRefOf, SLOT_TAKEN,
+};

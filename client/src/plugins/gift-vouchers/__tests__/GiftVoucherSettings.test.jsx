@@ -8,7 +8,7 @@ import GiftVoucherSettings from '../GiftVoucherSettings';
 import { renderWithShell } from './giftVoucherFixtures';
 
 vi.mock('../giftVouchersApi', () => ({
-  default: { getSettings: vi.fn(), saveSettings: vi.fn() },
+  default: { getSettings: vi.fn(), saveSettings: vi.fn(), catalogue: vi.fn() },
 }));
 
 const stored = { pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'bon-cadeau' };
@@ -17,6 +17,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   giftVouchersApi.getSettings.mockResolvedValue(stored);
   giftVouchersApi.saveSettings.mockResolvedValue(stored);
+  giftVouchersApi.catalogue.mockResolvedValue({ elements: [{ articleRef: 'option:5', kind: 'option', label: 'Boisson chaude', sellable: true }, { articleRef: 'option:6', kind: 'option', label: 'Bougie', sellable: false }] });
 });
 
 test('shows the two declared settings and nothing that moved to the campaign', async () => {
@@ -43,7 +44,7 @@ test('saving sends only the declared keys', async () => {
   await userEvent.type(base, 'cadeau');
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(giftVouchersApi.saveSettings).toHaveBeenCalled());
-  expect(giftVouchersApi.saveSettings.mock.calls[0][0]).toEqual({ pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'cadeau' });
+  expect(giftVouchersApi.saveSettings.mock.calls[0][0]).toEqual({ pageUrl: 'https://site.example.test/bon-cadeau', linkBase: 'cadeau', leftoverDrinkArticleRef: '' });
 });
 
 test('the server message for a key is shown on its field and the draft is kept', async () => {
@@ -55,4 +56,15 @@ test('the server message for a key is shown on its field and the draft is kept',
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Début des liens permanents : minuscules, chiffres et tirets.')).toBeInTheDocument();
   expect(base).toHaveValue('Bon Cadeau');
+});
+
+// week-weekend-and-print spec rule 16 — the option a cheaper slot gives away: a menu of the options the engine sells outside a stay, « Aucune » by default.
+test('« Boisson offerte sur l’écart » lists the sellable options only and is saved as typed', async () => {
+  renderWithShell(<GiftVoucherSettings />);
+  await userEvent.click(await screen.findByLabelText('Boisson offerte sur l’écart'));
+  expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Aucune : l’écart est seulement noté sur le bon', 'Boisson chaude']);
+  await userEvent.click(screen.getByRole('option', { name: 'Boisson chaude' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(giftVouchersApi.saveSettings).toHaveBeenCalled());
+  expect(giftVouchersApi.saveSettings.mock.calls[0][0]).toMatchObject({ leftoverDrinkArticleRef: 'option:5' });
 });

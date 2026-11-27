@@ -167,6 +167,7 @@ function buildGiftVouchersApi({
   });
   const useService = createUseService({
     vouchers, campaigns, redemption, uses, unused, catalogue, engine, resources, terms, payments, sendMail, address, companyName, durationText: offerService.durationText, basketSource: USE_SOURCE, prepaidSource: PREPAID_SOURCE, prepaidLabel: PREPAID_LABEL, notify, now, transaction,
+    drinkRef: () => String(settingsStore().get('leftoverDrinkArticleRef') || ''),
   });
   const use = buildPublicUseController({
     useService, proof, respond, siteOrigin,

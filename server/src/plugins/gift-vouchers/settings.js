@@ -26,9 +26,16 @@ function linkBaseError(value) {
   return null;
 }
 
+// week-weekend-and-print spec rule 16 — the catalogue option a cheaper slot gives away as « Boisson offerte »: `option:<id>`, or nothing (then the gap is only traced).
+function drinkRefError(value) {
+  if (value === null || value === '') return null;
+  return typeof value === 'string' && /^option:[1-9]\d*$/.test(value) ? null : 'Boisson offerte : une option du catalogue est attendue.';
+}
+
 const DECLARED = Object.freeze([
   { key: 'pageUrl', default: '', validate: httpsUrlError },
   { key: 'linkBase', default: DEFAULT_LINK_BASE, validate: linkBaseError },
+  { key: 'leftoverDrinkArticleRef', default: '', validate: drinkRefError },
 ]);
 
 module.exports = { DECLARED, DEFAULT_LINK_BASE };

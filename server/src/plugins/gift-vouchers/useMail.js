@@ -14,13 +14,15 @@ const longDate = (iso) => new Intl.DateTimeFormat('fr-FR', {
 }).format(new Date(`${iso}T12:00:00Z`));
 
 function renderUseMail({
-  companyName, address, title, resourceName, date, start, end, people, included, supplement, extras, dueCents, number,
+  companyName, address, title, resourceName, date, start, end, people, included, supplement, gifts = [], extras, dueCents, number,
 }) {
   const when = `${longDate(date)}, de ${start} à ${end}`;
   const includedLines = included.map((line) => (line.qty > 1 ? `${line.qty} × ${line.label}` : line.label));
   const paidLines = [
     `Réglé par le bon cadeau n° ${number}.`,
     ...(supplement ? [`${supplement.label} : ${rules.formatEuros(supplement.cents)}`] : []),
+    ...(gifts.some((g) => g.label === 'Boisson offerte') ? ['Une boisson vous sera offerte sur place.'] : []),
+    ...(gifts.some((g) => g.label === 'Heure offerte') ? ['Une heure supplémentaire vous est offerte.'] : []),
     ...extras.map((extra) => `${extra.qty > 1 ? `${extra.qty} × ` : ''}${extra.label} : ${rules.formatEuros(extra.cents)}`),
     dueCents > 0 ? `Payé en ligne : ${rules.formatEuros(dueCents)}.` : 'Rien d’autre à payer.',
   ];

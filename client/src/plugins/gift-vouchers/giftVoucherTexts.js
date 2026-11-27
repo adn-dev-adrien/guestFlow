@@ -105,6 +105,12 @@ export const SETTINGS_TEXTS = Object.freeze({
     linkBase: 'Base des liens permanents',
     linkBaseHelp: 'Premier segment des deux liens imprimés sur les cartes : /bon-cadeau/offrir/… et /bon-cadeau/utiliser.',
   },
+  drink: {
+    title: 'Créneau moins cher que le bon',
+    label: 'Boisson offerte sur l’écart',
+    none: 'Aucune : l’écart est seulement noté sur le bon',
+    help: 'Quand le bénéficiaire choisit un créneau qui coûte moins que son bon, une boisson de cette option lui est offerte, sans autre contrepartie.',
+  },
 });
 
 // Lodging fields of a campaign (specs/gift-voucher-campaigns.md rule 3): the amount bounds, the VAT rate and the price ideas moved here from the settings.

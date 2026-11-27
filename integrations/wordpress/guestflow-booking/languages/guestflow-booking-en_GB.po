@@ -1163,3 +1163,15 @@ msgstr "included in the voucher"
 #: blocks/session-booking, includes/class-gf-blocks.php (specs/site/site-outside-resource-booking.md rule 37)
 msgid "%s au maximum par séance"
 msgstr "%s at most per session"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Inclus · boisson offerte"
+msgstr "Included · free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Inclus · 2 h + boisson offerte"
+msgstr "Included · 2 h + free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
+msgid "Inclus · 2 h"
+msgstr "Included · 2 h"

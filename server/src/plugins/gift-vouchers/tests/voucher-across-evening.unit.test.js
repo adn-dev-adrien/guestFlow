@@ -50,7 +50,7 @@ test('rule 10 — an hour of a 1 h day voucher inside the day band is wholly inc
   const free = slots(v, 0);
   assert.deepEqual([free['10:00'].dueCents, free['10:00'].evening], [0, false]);
   assert.deepEqual([free['19:00'].dueCents, free['19:00'].evening], [0, false], '19:00–20:00 is still the day band');
-  assert.equal(free['20:00'], undefined, 'a day voucher is offered the starts of the day band only');
+  assert.deepEqual([free['20:00'].tag, free['20:00'].dueCents], ['supplement', 2000], 'a day voucher is offered the evening starts too (rule 14 amended): they cost more, the supplement is due');
   const half = voucherOf('demi-heure');
   const halves = slots(half, 0);
   assert.deepEqual([halves['19:00'].dueCents, halves['19:00'].evening], [0, false]);
