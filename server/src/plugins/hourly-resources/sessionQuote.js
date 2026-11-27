@@ -48,7 +48,12 @@ function sessionModesOf(resource, { period = 'week', date = null } = {}) {
     return byPeriod[0].map((weekMode, index) => {
       const sold = byPeriod.map((modes) => modes[index]).filter((mode) => mode.sellable);
       const cheapest = sold.reduce((best, mode) => (mode.rateCents < best.rateCents ? mode : best), sold[0] || weekMode);
-      return { ...cheapest, sellable: sold.length > 0, ...(sold.length ? {} : { reason: weekMode.reason }) };
+      // `byPeriod` is the band's own figures per period (rule 28): a screen that sells one period shows that period's, never the week's by default.
+      const byThePeriod = Object.fromEntries(['week', 'weekend'].map((one, which) => {
+        const { rateCents, followingRateCents, followingText, sellable, reason } = byPeriod[which][index];
+        return [one, { rateCents, followingRateCents, followingText, sellable, ...(reason ? { reason } : {}) }];
+      }));
+      return { ...cheapest, sellable: sold.length > 0, ...(sold.length ? {} : { reason: weekMode.reason }), byPeriod: byThePeriod };
     });
   }
   const open = toMinutes(resource.openTime || '00:00');

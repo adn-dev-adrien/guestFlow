@@ -56,3 +56,18 @@ test('the PDF\'s contents line has a dash after « Votre bon comprend », never 
   assert.ok(texts.some((t) => t === 'Votre bon comprend — Bain nordique : 1 h en journée · week-end'), texts.filter((t) => /comprend/.test(t)).join('|'));
   assert.ok(!texts.some((t) => /comprend : /.test(t)));
 });
+
+test('a composition refusal that concerns one period names it; one that concerns both does not', () => {
+  const rulesOf = require('../campaignRules');
+  const ctx = require('./campaignFixtures').rulesContext(s.api);
+  s.db.prepare('UPDATE resources SET hourlyExternalWeekendDayRate = 0 WHERE id = ?').run(s.ids.bath);
+  try {
+    const both = rulesOf.validateCampaign(require('./campaignFixtures').bathCampaign(s.ids, { slug: 'refus', periods: ['week', 'weekend'] }), ctx);
+    assert.equal(both.ok, false);
+    assert.match(both.errors.find((e) => e.field === 'composition.minutes').message, /^Durée incluse : \(week-end\) « Bain nordique » n’a pas de tarif extérieur pour la journée le week-end\.$/);
+    const week = rulesOf.validateCampaign(require('./campaignFixtures').bathCampaign(s.ids, { slug: 'refus-semaine', periods: ['week'] }), ctx);
+    assert.equal(week.ok, true, JSON.stringify(week.errors));
+  } finally {
+    s.db.prepare('UPDATE resources SET hourlyExternalWeekendDayRate = 70 WHERE id = ?').run(s.ids.bath);
+  }
+});

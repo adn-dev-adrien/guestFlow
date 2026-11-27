@@ -38,7 +38,7 @@ test('the catalogue lists every resource and every option of the database, resou
 test('an hourly resource with a planning card offers two outside modes — rate, band hours, following-hours rate, slot, minimum — read from the engine’s family', () => {
   const bath = byRef(`resource:${ids.bath}`);
   assert.deepEqual([bath.hourly, bath.sellable, bath.reason, bath.priceType, bath.priceTypeLabel], [true, true, null, 'per_hour', 'Par heure']);
-  assert.deepEqual(bath.modes, [
+  assert.deepEqual(bath.modes.map(({ byPeriod, ...mode }) => mode), [
     {
       key: 'outside-day', band: 'day', label: 'Extérieur · journée', rateCents: 5000, from: '10:00', to: '19:00', lengthMinutes: 540, followingRateCents: 4500, followingText: 'puis 45 €/h', slotMinutes: 60, minimumMinutes: 60, sellable: true,
     },
@@ -46,6 +46,11 @@ test('an hourly resource with a planning card offers two outside modes — rate,
       key: 'outside-evening', band: 'evening', label: 'Extérieur · soirée', rateCents: 7000, from: '19:00', to: '22:00', lengthMinutes: 180, followingRateCents: 6300, followingText: 'puis 63 €/h', slotMinutes: 60, minimumMinutes: 60, sellable: true,
     },
   ]);
+  // Each band's own figures per period (a screen that sells the weekend shows the weekend's): the fixture's weekend grid copies the week's.
+  assert.deepEqual(bath.modes[0].byPeriod, {
+    week: { rateCents: 5000, followingRateCents: 4500, followingText: 'puis 45 €/h', sellable: true },
+    weekend: { rateCents: 5000, followingRateCents: 4500, followingText: 'puis 45 €/h', sellable: true },
+  });
 });
 
 test('a resource with no evening has the day band only, to its closing time; a band with no external rate is a greyed mode with its reason', () => {

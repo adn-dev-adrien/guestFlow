@@ -105,13 +105,14 @@ function validateOptions(list, { catalogue }, field, label) {
   return { errors, value };
 }
 
-// The first refusal of the sentence-per-period check, null when every period passes.
+// The first refusal of the sentence-per-period check, null when every period passes. When the periods do not all refuse the same way, the refusal names the period it is about
+// (« (week-end) … »): the operator then knows which grid to look at.
 function firstRefusal(periods, refusalOf) {
-  for (const period of periods) {
-    const refusal = refusalOf(period);
-    if (refusal) return refusal;
-  }
-  return null;
+  const answers = periods.map((period) => ({ period, refusal: refusalOf(period) }));
+  const first = answers.find((answer) => answer.refusal);
+  if (!first) return null;
+  const same = answers.every((answer) => answer.refusal === first.refusal);
+  return same ? first.refusal : `(${rules.PERIOD_LABELS[first.period]}) ${first.refusal}`;
 }
 
 /** Rule 10 of the week-weekend spec — the periods a resource campaign sells: one or both, both when none is sent. */

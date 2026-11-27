@@ -243,7 +243,7 @@ test('rule 20: the invoice-style recap — date, number, each line with quantity
   const mail = await write();
   const lines = mail.text.split('\n');
   assert.ok(lines.includes('Date : 15/11/2026 · Bon n° BC-2026-' + String(voucher.number.slice(-4))));
-  assert.ok(lines.includes('- 1 × Bain nordique · journée · 95,00 € TTC l’unité · TVA 20 % · 95,00 €'));
+  assert.ok(lines.includes('- 1 × Bain nordique · journée · semaine · 95,00 € TTC l’unité · TVA 20 % · 95,00 €'));
   assert.ok(lines.includes('- 1 × Planche apéro · 14,00 € TTC l’unité · TVA 10 % · 14,00 €'));
   assert.ok(lines.some((l) => /^- 2 × Boisson · 6,50 € TTC l’unité · TVA 20 % · 13,00 €$/.test(l)));
   const total = lines.find((l) => l.startsWith('Total payé TTC : '));
@@ -256,7 +256,7 @@ test('rule 20: the invoice-style recap — date, number, each line with quantity
   assert.match(mail.html, /Total payé TTC : /);
   require('../../../models/standaloneSalesModel').setExternalRate('resources', 5.5);
   try {
-    assert.equal((await write()).text.split('\n').filter((l) => l.startsWith('- 1 × Bain nordique'))[0], '- 1 × Bain nordique · journée · 95,00 € TTC l’unité · TVA 20 % · 95,00 €', 'a rate that moved since changes nothing');
+    assert.equal((await write()).text.split('\n').filter((l) => l.startsWith('- 1 × Bain nordique'))[0], '- 1 × Bain nordique · journée · semaine · 95,00 € TTC l’unité · TVA 20 % · 95,00 €', 'a rate that moved since changes nothing');
   } finally {
     require('../../../models/standaloneSalesModel').setExternalRate('resources', 20);
   }

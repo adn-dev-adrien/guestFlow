@@ -86,3 +86,12 @@ test('rule 17 — a confirmation made after the offered hour became impossible i
   const sansEnd = await s.confirm(v, THU, '14:00');
   assert.equal(sansEnd.ok, true, 'an older client that sends no end keeps its behaviour');
 });
+
+test('rule 64 — the extra-time steps are priced on the slot chosen, whatever its band: a day voucher on an evening slot has its steps', () => {
+  const day = s.sell('jour', 'week');
+  const recap = s.quoteOf(day, '2026-11-17', '19:00'); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.equal(recap.ok, true, JSON.stringify(recap));
+  assert.ok(recap.data.extraTimePrices.length > 0, 'steps priced at 19:00');
+  const evening = s.quoteOf(day, '2026-11-17', '10:00'); // date-literal-ok: the suite runs on its own clock, never the real today
+  assert.ok(evening.data.extraTimePrices.length > 0);
+});

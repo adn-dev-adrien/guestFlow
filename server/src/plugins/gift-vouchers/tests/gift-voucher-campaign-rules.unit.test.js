@@ -116,8 +116,8 @@ test('rule 4: add-ons are sellable options, none repeated, none already included
   ]]);
   assert.deepEqual(errorsOf(bath({ extraTimeMaxMinutes: 480 }))[0][0], 'extraTimeMaxMinutes', '2 h included + 8 h does not fit the day');
   assert.deepEqual(sessionCalls.at(-1), {
-    resourceId: 1, band: 'day', minutes: 480, rankOffsetMinutes: 120, period: 'week',
-  }, 'the extra time is judged after the included minutes, in each period the campaign sells (the first that refuses ends the check)');
+    resourceId: 1, band: 'day', minutes: 480, rankOffsetMinutes: 120, period: 'weekend',
+  }, 'the extra time is judged after the included minutes, in each period the campaign sells (every period is judged, so a refusal can name the one it is about)');
   assert.equal(errorsOf(bath({ extraTimeMaxMinutes: 0 })).length, 0);
   assert.equal(errorsOf(bath({ extraTimeMaxMinutes: -60 }))[0][0], 'extraTimeMaxMinutes');
 });

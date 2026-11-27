@@ -282,7 +282,7 @@ export default function CampaignEditor() {
                 {errorOf('periods') ? <FormHelperText error>{errorOf('periods')}</FormHelperText> : null}
               </FormSection>
               <FormSection title={T.content}>
-                <CompositionEditor value={composition} onChange={setValue('composition')} elements={elements} errors={errors} />
+                <CompositionEditor value={composition} onChange={setValue('composition')} elements={elements} errors={errors} periods={draft.periods.length ? draft.periods : ['week']} />
               </FormSection>
               <FormSection title={T.addOns} help={T.addOnsHelp}>
                 <AddOnsPicker value={draft.addOns} onChange={setValue('addOns')} elements={elements} errors={errors} label={T.addOnsLabel} />

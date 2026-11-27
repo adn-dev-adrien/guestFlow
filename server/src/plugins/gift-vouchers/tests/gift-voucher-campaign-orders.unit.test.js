@@ -61,7 +61,7 @@ test('specs/gift-vouchers/gift-vouchers.md rule 46 — nothing exists before the
     // rule 20 — the priced lines, kept for the invoice-style recap of the mail
     lines: [
       {
-        label: 'Bain nordique · journée', qty: 1, unitCents: 9500, totalCents: 9500, vatRate: 20,
+        label: 'Bain nordique · journée · semaine', qty: 1, unitCents: 9500, totalCents: 9500, vatRate: 20,
       },
       {
         label: 'Planche apéro', qty: 1, unitCents: 1400, totalCents: 1400, vatRate: 10,

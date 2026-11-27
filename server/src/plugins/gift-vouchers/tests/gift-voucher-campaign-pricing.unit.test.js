@@ -25,7 +25,7 @@ test('2 h of day + a board = 95 + 14 = 109 €, each line with its VAT rate and 
   const answer = price({});
   assert.equal(answer.ok, true);
   assert.deepEqual(answer.lines.map((l) => [l.kind, l.label, l.qty, l.totalCents, l.vatRate]), [
-    ['session', 'Bain nordique · journée', 1, 9500, 20],
+    ['session', 'Bain nordique · journée · semaine', 1, 9500, 20],
     ['option', 'Planche apéro', 1, 1400, 10],
   ]);
   assert.equal(answer.totalCents, 10900);
@@ -37,7 +37,7 @@ test('2 h of day + a board = 95 + 14 = 109 €, each line with its VAT rate and 
 test('extra time continues the ranks of the included minutes: the 3rd hour is a following hour at 45 €, and one line or two cost the same', () => {
   const withExtra = price({ extraMinutes: 60 });
   assert.deepEqual(withExtra.lines.map((l) => [l.kind, l.label, l.totalCents]), [
-    ['session', 'Bain nordique · journée', 9500],
+    ['session', 'Bain nordique · journée · semaine', 9500],
     ['extra', 'Temps supplémentaire · 1 h', 4500],
     ['option', 'Planche apéro', 1400],
   ]);

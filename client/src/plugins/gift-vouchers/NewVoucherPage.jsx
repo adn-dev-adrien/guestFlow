@@ -235,7 +235,7 @@ export default function NewVoucherPage() {
                 {catalogue.error ? <ErrorAlert message="Le catalogue n’a pas pu être chargé." onRetry={catalogue.retry} /> : null}
                 {catalogue.elements ? (
                   <>
-                    <CompositionEditor value={custom.composition} onChange={(composition) => { setCustom((c) => ({ ...c, composition })); setRefusals([]); }} elements={catalogue.elements} errors={refusalList} />
+                    <CompositionEditor value={custom.composition} onChange={(composition) => { setCustom((c) => ({ ...c, composition })); setRefusals([]); }} elements={catalogue.elements} errors={refusalList} periods={[custom.period]} />
                     <AddOnsPicker
                       value={custom.offeredAddOns} onChange={(next) => setCustom((c) => ({ ...c, offeredAddOns: next }))} elements={catalogue.elements}
                       errors={refusalList} label={T.offeredAddOns}
@@ -247,9 +247,11 @@ export default function NewVoucherPage() {
                   </>
                 ) : <LoadingState />}
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
-                  <TextField select label={T.period} value={custom.period} onChange={(e) => setCustom((c) => ({ ...c, period: e.target.value }))} size="small" fullWidth>
-                    {Object.entries(PERIOD_LABELS).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
-                  </TextField>
+                  {custom.composition && custom.composition.resourceId ? (
+                    <TextField select label={T.period} value={custom.period} onChange={(e) => setCustom((c) => ({ ...c, period: e.target.value }))} size="small" fullWidth>
+                      {Object.entries(PERIOD_LABELS).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+                    </TextField>
+                  ) : null}
                   <ValidityField label={T.validity} value={custom.validityMonths} onChange={(months) => setCustom((c) => ({ ...c, validityMonths: months }))} error={validityRefusal} />
                 </Box>
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr' }}>

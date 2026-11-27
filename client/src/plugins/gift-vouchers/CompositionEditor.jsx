@@ -21,7 +21,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import { QuantityField } from '../sdk';
 import { formatCents } from './giftVoucherFormat';
-import { COMPOSITION_TEXTS as T } from './giftVoucherTexts';
+import { COMPOSITION_TEXTS as T, PERIOD_LABELS } from './giftVoucherTexts';
 
 const MAX_QTY = 20;
 
@@ -79,7 +79,11 @@ function ElementPicker({
   );
 }
 
-function ModeChoice({ mode, selected, onSelect }) {
+// The figures a band shows for the periods the voucher is sold for (the server gives each band's own per period): one period, its figures in the title; two, one line each.
+function ModeChoice({ mode, selected, onSelect, periods }) {
+  const figures = (period) => (mode.byPeriod && mode.byPeriod[period]) || mode;
+  const single = periods.length === 1 ? figures(periods[0]) : null;
+  const shown = single || mode;
   return (
     <Box
       component="label"
@@ -90,9 +94,17 @@ function ModeChoice({ mode, selected, onSelect }) {
     >
       <Radio checked={selected} disabled={!mode.sellable} onChange={onSelect} size="small" sx={{ p: 0.5 }} slotProps={{ input: { 'aria-label': mode.label } }} />
       <Box sx={{ minWidth: 0 }}>
-        <Typography variant="body2" fontWeight={600}>{`${mode.label} · ${formatCents(mode.rateCents)} ${T.perHour}`}</Typography>
+        <Typography variant="body2" fontWeight={600}>{single ? `${mode.label} · ${formatCents(shown.rateCents)} ${T.perHour}` : mode.label}</Typography>
         <Typography variant="caption" color="text.secondary" component="div">{T.hours(mode.from, mode.to)}</Typography>
-        {mode.followingText ? <Typography variant="caption" color="text.secondary" component="div">{mode.followingText}</Typography> : null}
+        {single && single.followingText ? <Typography variant="caption" color="text.secondary" component="div">{single.followingText}</Typography> : null}
+        {!single ? periods.map((period) => {
+          const f = figures(period);
+          return (
+            <Typography key={period} variant="caption" color="text.secondary" component="div">
+              {`${PERIOD_LABELS[period]} : ${formatCents(f.rateCents)} ${T.perHour}${f.followingText ? ` ${f.followingText}` : ''}`}
+            </Typography>
+          );
+        }) : null}
         {!mode.sellable && mode.reason ? <Typography variant="caption" color="error" component="div">{mode.reason}</Typography> : null}
       </Box>
     </Box>
@@ -100,7 +112,7 @@ function ModeChoice({ mode, selected, onSelect }) {
 }
 
 export default function CompositionEditor({
-  value, onChange, elements, errors = [], prefix = 'composition',
+  value, onChange, elements, errors = [], prefix = 'composition', periods = ['week'],
 }) {
   const [picking, setPicking] = useState(false);
   const [secondResource, setSecondResource] = useState(false);
@@ -145,7 +157,7 @@ export default function CompositionEditor({
               </Stack>
               <Stack spacing={1} role="radiogroup" aria-label={T.modes}>
                 {resource.modes.map((m) => (
-                  <ModeChoice key={m.key} mode={m} selected={m.band === value.band} onSelect={() => onChange({ ...value, band: m.band })} />
+                  <ModeChoice key={m.key} mode={m} periods={periods} selected={m.band === value.band} onSelect={() => onChange({ ...value, band: m.band })} />
                 ))}
               </Stack>
               {errorOf('band') ? <Typography variant="body2" color="error" role="alert">{errorOf('band')}</Typography> : null}

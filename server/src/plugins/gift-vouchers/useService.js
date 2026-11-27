@@ -162,7 +162,7 @@ function createUseService({
     const prices = [];
     for (let minutes = stepMinutes; ; minutes += stepMinutes) {
       const free = hook().freeSlots({
-        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + minutes, band: resource.band, now: now(),
+        resourceId: resource.id, from: date, to: date, minutes: resource.minutes + minutes, now: now(),
       });
       if (!free.days.some((day) => day.date === date && day.slots.some((slot) => slot.start === time))) break;
       const priced = hook().quote({

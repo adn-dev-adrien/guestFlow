@@ -126,7 +126,7 @@ function createOfferService({
     if (document.lines.length !== descriptors.length) return refuse('PRICE_UNAVAILABLE', 'Prix indisponible.');
     const priced = document.lines.map((line, index) => ({
       kind: descriptors[index].kind,
-      label: descriptors[index].label || (descriptors[index].kind === 'session' ? `${line.label} · ${BAND_WORDS[contents.resource.band]}` : line.label),
+      label: descriptors[index].label || (descriptors[index].kind === 'session' ? `${line.label} · ${BAND_WORDS[contents.resource.band]}${rules.periodSuffix(contents.resource)}` : line.label),
       detail: line.detail,
       qty: line.quantity,
       unitCents: line.unitCents,
