@@ -18,7 +18,7 @@ const insurance = fx.option({ title: 'Assurance annulation', isCancellationInsur
 const percent = fx.option({ title: 'Majoration', priceType: 'percent_of_stay' });
 const card = fx.option({ title: 'Massage', showsPlanningCard: 1, price: 40 });
 const progressive = fx.option({ title: 'Atelier', priceType: 'per_participant_progressive', optionProgressiveTiers: JSON.stringify([{ from: 1, price: 20 }]) });
-const noRate = fx.resource({ name: 'Bain gratuit', price: 0, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0 });
+const noRate = fx.resource({ name: 'Bain gratuit', price: 0, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, hourlyExternalWeekendDayRate: 0, hourlyExternalWeekendEveningRate: 0 });
 const { api } = fx.openShop();
 const view = api.catalogue;
 const byRef = (ref) => view.element(ref);
@@ -51,7 +51,7 @@ test('an hourly resource with a planning card offers two outside modes — rate,
 test('a resource with no evening has the day band only, to its closing time; a band with no external rate is a greyed mode with its reason', () => {
   const day = fx.resource({ name: 'Bain de jour', hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalEveningRate: 0 });
   assert.deepEqual(byRef(`resource:${day}`).modes.map((m) => [m.band, m.from, m.to, m.rateCents]), [['day', '10:00', '22:00', 5000]]);
-  const half = fx.resource({ name: 'Bain sans tarif', price: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 80, hourlyEveningRate: 0 });
+  const half = fx.resource({ name: 'Bain sans tarif', price: 0, hourlyExternalDayRate: 0, hourlyExternalWeekendDayRate: 0, hourlyExternalEveningRate: 80, hourlyEveningRate: 0 });
   const element = byRef(`resource:${half}`);
   assert.deepEqual(element.modes.map((m) => [m.band, m.sellable, m.reason || null]), [
     ['day', false, '« Bain sans tarif » n’a pas de tarif extérieur pour la journée.'], ['evening', true, null],

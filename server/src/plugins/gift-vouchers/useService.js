@@ -236,14 +236,20 @@ function createUseService({
         const answer = hook().quote({
           resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, now: now(),
         });
-        priced.set(key, answer.ok ? tagOf(answer) : { tag: 'in', supplementCents: 0, supplementLabel: null, dueCents: 0, evening: false });
+        // A start the engine refuses (a band with no price, a slot past closing) is not offered: it is never tagged « in » at 0 €.
+        priced.set(key, answer.ok ? tagOf(answer) : null);
       }
       return priced.get(key);
     };
-    const tagged = free.days.map((day) => ({
-      date: day.date,
-      slots: day.slots.map((slot) => ({ ...slot, ...priceOf(day.date, slot.start) })),
-    }));
+    const tagged = free.days
+      .map((day) => ({
+        date: day.date,
+        slots: day.slots.flatMap((slot) => {
+          const tag = priceOf(day.date, slot.start);
+          return tag ? [{ ...slot, ...tag }] : [];
+        }),
+      }))
+      .filter((day) => day.slots.length);
     return { ok: true, data: { horizonUntil: free.horizonUntil, days: tagged } };
   }
 

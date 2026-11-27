@@ -88,13 +88,18 @@ test('priceBooking total: hourly-scheduled uses the banded grid; external vs gue
   assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00' }), 100);
 });
 
-// Amended 2026-11-27 (gift-voucher-week-weekend-and-print rule 2): no fallback — an outside grid left unset sells nothing.
-test('priceBooking total: an unset external grid is not sold, it no longer takes the guest grid', () => {
+// Amended 2026-11-27 (gift-voucher-week-weekend-and-print rules 2, 28): no fallback — an outside grid left unset sells nothing, and says so (never a 0 € price).
+test('priceBooking: an unset external grid is not sold, it no longer takes the guest grid — the booking is refused with a sentence', () => {
   const { model, resourceId } = freshModel({
     priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,
     price: 30, hourlyEveningStart: '20:00', hourlyEveningRate: 50,
   });
-  assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00' }), 0);
+  const answer = model.priceBooking({ resourceId, date: `${FAR_YEAR}-02-12`, startTime: '19:00', endTime: '21:00' });
+  assert.equal(answer.status, 409);
+  assert.equal(answer.code, 'BAND_NOT_SOLD');
+  assert.match(answer.error, /n’a pas de tarif extérieur pour la journée/);
+  const created = model.createBooking({ resourceId, date: `${FAR_YEAR}-02-12`, startTime: '19:00', endTime: '21:00' });
+  assert.equal(created.code, 'BAND_NOT_SOLD');
 });
 
 test('priceBooking total: non-scheduled hourly resource keeps the flat price (regression)', () => {

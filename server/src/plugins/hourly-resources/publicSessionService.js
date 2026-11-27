@@ -65,7 +65,7 @@ function createPublicSessionService({
     const rows = db.prepare("SELECT * FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 AND sellableExternally = 1 ORDER BY name, id").all().filter(isOfferedOnline);
     const version = terms.current('resource');
     return rows.map((resource) => {
-      const modes = sessionModesOf(resource).filter((mode) => mode.sellable);
+      const modes = sessionModesOf(resource, { period: 'any' }).filter((mode) => mode.sellable);
       return {
         id: resource.id,
         name: resource.name,

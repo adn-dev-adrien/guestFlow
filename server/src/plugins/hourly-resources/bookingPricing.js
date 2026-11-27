@@ -9,7 +9,9 @@
  */
 
 const sdk = require('../sdk');
-const { priceSessions, bookingDeductions, toMinutes } = require('./hourlyPricing');
+const {
+  priceSessions, bookingDeductions, toMinutes, periodOf,
+} = require('./hourlyPricing');
 
 const { splitTtc } = sdk.coreModule('vat');
 
@@ -86,6 +88,30 @@ function rateGridOf(resource, { external, period = 'week', guestDayRate = Number
   };
 }
 
+const BAND_WORDS = Object.freeze({ day: 'la journée', evening: 'la soirée' });
+
+/** The sentence that says an outside band has no price: « Bain nordique » n’a pas de tarif extérieur pour la soirée le week-end. */
+const notSoldSentence = (resource, band, period) => `« ${resource.name} » n’a pas de tarif extérieur pour ${BAND_WORDS[band]}${period === 'weekend' ? ' le week-end' : ''}.`;
+
+/**
+ * The first slice of [fromMin, toMin) that falls in an outside band with no first-hour price (a first hour that is 0 or empty is not sold: no fallback to another band, period
+ * or the guests' rate), or null when every slice is sold. `date` gives each slice its own period; without it `period` applies to all. → `{ band, period }` | null.
+ */
+function unsoldSliceOf(resource, {
+  date = null, period = 'week', fromMin, toMin,
+}) {
+  const eveningStart = resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null;
+  const step = Math.max(1, Number(resource.slotDuration) || 30);
+  const grids = { week: rateGridOf(resource, { external: true, period: 'week' }), weekend: rateGridOf(resource, { external: true, period: 'weekend' }) };
+  for (let t = fromMin; t < toMin; t += step) {
+    const at = date ? periodOf(date, t, eveningStart === null ? null : resource.hourlyEveningStart) : period;
+    const band = eveningStart !== null && t >= eveningStart ? 'evening' : 'day';
+    const rate = band === 'evening' ? grids[at].eveningRate : grids[at].dayRate;
+    if (!(rate > 0)) return { band, period: at };
+  }
+  return null;
+}
+
 /**
  * What `priceSessions` is configured with for a resource: the guests' grid, or the outside customer's week grid with its weekend grid attached (the engine picks
  * each slice's period from its date). A quote with no date passes `period` and never reads a calendar (rule 8).
@@ -109,10 +135,12 @@ function rateConfigOf(resource, { external, period = null, guestDayRate }) {
  * @param {number} [p.offeredMinutes] already validated by `offeredRefusal`
  * @param {{ rate: number|null }|null} [p.vat] the rate that applies, `rate: null` when the instance has no VAT
  * @param {string|null} [p.date]    the booking's day: an outside booking is priced on its real date (week or weekend); none → the week grid
+ * @param {boolean} [p.lodging] the booking carries a lodging (with or without a reservation): it is priced on the week grid, as before the weekend grid existed (K3)
+ * @param {boolean} [p.judgeBands] false for a booking already stored (an invoice copies its figures): an outside band with no price is refused only when a booking is made or moved
  * @param {boolean} [p.freeHourAtDayRate] false for a booking stored before the one hourly grid: its free hour keeps the band it fell in
  */
 function priceBookingLines({
-  resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true, date = null,
+  resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true, date = null, lodging = false, judgeBands = true,
 }) {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
@@ -149,8 +177,18 @@ function priceBookingLines({
 
   // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5).
   if (Number(resource.showsPlanningCard || 0) === 1) {
+    // An outside band with no price is refused, never priced 0 € nor at another rate (the caller turns `refusal` into the answer of the save or the preview).
+    const unsold = external && judgeBands ? unsoldSliceOf(resource, {
+      date, period: 'week', fromMin: start, toMin: end,
+    }) : null;
+    if (unsold) return { ...base, refusal: notSoldSentence(resource, unsold.band, unsold.period) };
+    // A placed outside session (no lodging) made or moved now is priced on any start and duration the planning allows, off the slot grid included: no flat guests' rate stands in. A booking already stored keeps its stored figure.
+    const outsideSession = external && !lodging && judgeBands;
     const cfg = {
-      ...rateConfigOf(resource, { external, guestDayRate, period: date ? null : 'week' }), eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration,
+      ...rateConfigOf(resource, { external, guestDayRate, period: date ? null : 'week' }),
+      eveningStart: resource.hourlyEveningStart,
+      slotMinutes: resource.slotDuration,
+      ...(outsideSession ? { anyStart: true } : {}),
     };
     const sessionDate = date || '2000-01-01';
     // The free minutes are not a rank (specs/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
@@ -171,7 +209,8 @@ function priceBookingLines({
         offeredValue,
       });
     }
-    // off-grid range → the flat computation below.
+    if (outsideSession) return finish({ pricing: 'banded', rateGrid: 'external' });
+    // off-grid range of a guest or a lodging → the flat computation below.
   }
 
   const grossTotal = round2((guestDayRate * durationMinutes) / 60);
@@ -190,5 +229,5 @@ function priceBookingLines({
 }
 
 module.exports = {
-  priceBookingLines, offeredRefusal, vatOf, rateGridOf, rateConfigOf, bandLineOf, duration, OFFER_STEP_MINUTES,
+  priceBookingLines, offeredRefusal, vatOf, rateGridOf, rateConfigOf, bandLineOf, duration, unsoldSliceOf, notSoldSentence, OFFER_STEP_MINUTES,
 };

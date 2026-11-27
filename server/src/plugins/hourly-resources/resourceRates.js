@@ -3,7 +3,7 @@
  * (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 1, 2, 28; amends specs/resources/hourly-extra-hour-rates.md rule 5).
  *
  * Every price is required and explicit — no field falls back to another: the guests' grid always, the outside grid (week and weekend) when the resource is sold
- * outside a stay. A price is a number from 0 to 10 000 with at most two decimals; a value the resource already holds, sent back unchanged, is not judged again.
+ * outside a stay. A guests' price is a number from 0 to 10 000 with at most two decimals, a price of the outside grid a number above 0 (to stop selling outside, switch « Vendable hors séjour » off); a guests' value the resource already holds, sent back unchanged, is not judged again. The judgement is on the stored resource under the payload.
  * Pure: no DB, no clock. `[{ field, message }]`, empty when acceptable.
  */
 
@@ -34,28 +34,35 @@ function amountOf(raw) {
   return NaN;
 }
 
-const refusedAmount = (raw, stored) => {
+const refusedAmount = (raw, stored, { positive = false } = {}) => {
   const value = amountOf(raw);
   if (!Number.isFinite(value)) return true;
+  if (positive && !(value > 0)) return true;
   if (stored !== undefined && stored !== null && Number(stored) === value) return false;
   return value < 0 || value > 10000 || Math.abs(Math.round(value * 100) - value * 100) > 1e-6;
 };
 
+// What the save will hold is the stored resource under the payload: a partial save is judged on the whole, never on the keys it happens to carry.
 function validateHourlyRates(body, stored = null) {
-  const payload = body || {};
+  const payload = { ...(stored || {}), ...(body || {}) };
   if (payload.priceType !== 'per_hour' || !isOn(payload.showsPlanningCard)) return [];
   const evening = Boolean(payload.hourlyEveningStart);
   const sold = isOn(payload.sellableExternally);
   const details = [];
-  const check = (field, audience, where, band) => {
+  const check = (field, audience, where, band, positive) => {
     if (band === 'evening' && !evening) return;
     const raw = payload[field];
-    if (isBlank(raw) ? !(stored && !isBlank(stored[field]) && raw === undefined) : refusedAmount(raw, stored && stored[field])) {
+    if (isBlank(raw) || refusedAmount(raw, stored && stored[field], { positive })) {
       details.push({ field, message: `Le tarif ${audience} (${where}) doit être un montant positif.` });
     }
   };
-  GUEST.forEach(([field, audience, where, band]) => check(field, audience, where, band));
-  if (sold) OUTSIDE.forEach(([field, where, band]) => check(field, 'extérieurs', where, band));
+  // Rule 5 — a resource sold by the hour on the planning has one grid: a price per lodging is no longer a thing (its free minutes are).
+  Object.entries((body && body.propertyPricing) || {}).forEach(([pid, line]) => {
+    if (line && !isBlank(line.price)) details.push({ field: `propertyPricing.${pid}`, message: 'Une ressource à l’heure n’a pas de prix par logement : sa grille de tarifs s’applique.' });
+  });
+  GUEST.forEach(([field, audience, where, band]) => check(field, audience, where, band, false));
+  // K2 — every field of the outside grid is a price above 0 when the resource is sold outside; to stop selling outside, switch « Vendable hors séjour » off.
+  if (sold) OUTSIDE.forEach(([field, where, band]) => check(field, 'extérieurs', where, band, true));
   return details;
 }
 

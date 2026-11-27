@@ -4,6 +4,8 @@
  * footer that sums the schedule up. A resource not sold by the hour gets nothing. Pure.
  */
 
+const { rateGridOf } = require('./bookingPricing');
+
 const eurosText = (amount) => {
   const cents = Math.round(Number(amount || 0) * 100);
   const whole = String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
@@ -22,42 +24,35 @@ function durationLabel(minutes) {
 const hourly = (amount) => `${eurosText(amount)} / h`;
 
 function eveningLine(resource) {
-  if (!resource.hourlyEveningStart || !(Number(resource.hourlyEveningRate) > 0)) return null;
-  return { label: 'Soir', value: `${hourly(resource.hourlyEveningRate)} après ${resource.hourlyEveningStart}` };
+  const guest = rateGridOf(resource, { external: false });
+  if (!resource.hourlyEveningStart || !(guest.eveningRate > 0)) return null;
+  return { label: 'Soir', value: `${hourly(guest.eveningRate)} après ${resource.hourlyEveningStart}` };
 }
 
 // specs/hourly-extra-hour-rates.md rule 6 — « puis X € / h » where the following hours cost something else than the first one. `null` stored = same as the first hour.
-const nextRate = (value) => (value === null || value === undefined || value === '' ? null : Number(value));
 const differs = (next, first) => next !== null && Number.isFinite(next) && Math.round(next * 100) !== Math.round(Number(first) * 100);
 const thenText = (next, first) => (differs(next, first) ? ` puis ${hourly(next)}` : '');
 
 function nextHoursLine(resource) {
-  const evening = resource.hourlyEveningStart && Number(resource.hourlyEveningRate) > 0;
-  const dayNext = nextRate(resource.hourlyNextDayRate);
-  const eveningNext = nextRate(resource.hourlyNextEveningRate);
+  const guest = rateGridOf(resource, { external: false });
+  const evening = resource.hourlyEveningStart && guest.eveningRate > 0;
   const parts = [];
-  if (differs(dayNext, resource.price)) parts.push(`${evening ? 'jour ' : ''}${hourly(dayNext)}`);
-  if (evening && differs(eveningNext, resource.hourlyEveningRate)) parts.push(`soir ${hourly(eveningNext)}`);
+  if (differs(guest.dayNextRate, guest.dayRate)) parts.push(`${evening ? 'jour ' : ''}${hourly(guest.dayNextRate)}`);
+  if (evening && differs(guest.eveningNextRate, guest.eveningRate)) parts.push(`soir ${hourly(guest.eveningNextRate)}`);
   return parts.length ? { label: 'Heures suivantes', value: parts.join(' · ') } : null;
 }
 
-// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 2, 9 — the outside grid as stored: no fallback to the guests' rates, a week and a weekend set.
-function externalPeriodText(resource, fields) {
-  const [dayField, eveningField, dayNextField, eveningNextField] = fields;
-  const dayFirst = Number(resource[dayField]) || 0;
-  const eveningFirst = Number(resource[eveningField]) || 0;
-  const dayNext = nextRate(resource[dayNextField]);
-  const eveningNext = nextRate(resource[eveningNextField]);
-  const day = dayFirst > 0 ? `${hourly(dayFirst)}${thenText(dayNext, dayFirst)}` : '';
-  const evening = eveningFirst > 0 ? `soir ${hourly(eveningFirst)}${thenText(eveningNext, eveningFirst)}` : '';
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 2, 9, 30 — the outside grid as the one reader of the rate columns gives it: no fallback to the guests' rates, a week and a weekend set.
+function externalPeriodText(resource, period) {
+  const grid = rateGridOf(resource, { external: true, period });
+  const day = grid.dayRate > 0 ? `${hourly(grid.dayRate)}${thenText(grid.dayNextRate, grid.dayRate)}` : '';
+  const evening = grid.eveningRate > 0 ? `soir ${hourly(grid.eveningRate)}${thenText(grid.eveningNextRate, grid.eveningRate)}` : '';
   return [day, evening].filter(Boolean).join(' · ');
 }
 
 function externalLine(resource) {
-  const week = externalPeriodText(resource, ['hourlyExternalDayRate', 'hourlyExternalEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate']);
-  const weekend = externalPeriodText(resource, [
-    'hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate',
-  ]);
+  const week = externalPeriodText(resource, 'week');
+  const weekend = externalPeriodText(resource, 'weekend');
   if (!week && !weekend) return null;
   const value = weekend && weekend !== week ? [week && `semaine ${week}`, `week-end ${weekend}`].filter(Boolean).join(' · ') : week;
   return { label: 'Extérieurs', value };

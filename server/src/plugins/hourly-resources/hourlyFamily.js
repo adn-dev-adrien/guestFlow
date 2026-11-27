@@ -81,7 +81,7 @@ function createHourlyFamily(contributor) {
     price,
     describe,
     // Dateless sessions for a customer with no stay (specs/gift-voucher-campaigns.md rules 4, 44): the core's sale quote asks them, and a catalogue view lists the modes.
-    sessionModes: (config) => sessionModesOf(config.resource),
+    sessionModes: (config) => sessionModesOf(config.resource, { period: 'any' }),
     quoteSession,
   };
 }

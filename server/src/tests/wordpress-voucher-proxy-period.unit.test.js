@@ -6,6 +6,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { requirePlugins } = require('../plugins/sdk/testing');
+
+if (!requirePlugins(['gift-vouchers'])) return;
 
 const proxy = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'guestflow-booking', 'includes', 'class-gf-rest-proxy.php'), 'utf8');
 const controller = fs.readFileSync(path.join(__dirname, '..', 'plugins', 'gift-vouchers', 'controllers', 'publicOrdersController.js'), 'utf8');

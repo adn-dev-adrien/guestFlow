@@ -115,7 +115,7 @@ function createOutsideOffer({
 
   function limits({ resourceId }) {
     const resource = offerable(resourceId);
-    const modes = resource ? sessionModesOf(resource).filter((mode) => mode.sellable) : [];
+    const modes = resource ? sessionModesOf(resource, { period: 'any' }).filter((mode) => mode.sellable) : [];
     if (!modes.length) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
     return {
       ok: true,

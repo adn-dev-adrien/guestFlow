@@ -87,11 +87,16 @@ test('rule 2 — every price is required: a blank grid field is refused on its o
   assert.equal(blank.find((d) => d.field === 'hourlyExternalWeekendNextEveningRate').message, 'Le tarif extérieurs (week-end, soirée, heures suivantes) doit être un montant positif.');
 });
 
-test('rule 2 — a number from 0 to 10 000 with two decimals; 0 is explicit; the outside grid only when the resource is sold outside a stay', NEEDS_PLUGIN, () => {
+test('rule 2 — a number from 0 to 10 000 with two decimals; 0 is explicit for the guests; the outside grid only when the resource is sold outside a stay, and above 0 (K2)', NEEDS_PLUGIN, () => {
   [-1, 'abc', 10000.5, 12.345, 1e300].forEach((bad) => {
     assert.deepEqual(fields(validateHourlyRates({ ...REQUIRED, hourlyExternalWeekendDayRate: bad })), ['hourlyExternalWeekendDayRate'], String(bad));
   });
-  [0, '0', '37,50', 10000].forEach((fine) => assert.deepEqual(validateHourlyRates({ ...REQUIRED, hourlyExternalWeekendDayRate: fine }), [], String(fine)));
+  [0, '0'].forEach((zero) => {
+    assert.deepEqual(fields(validateHourlyRates({ ...REQUIRED, hourlyExternalWeekendDayRate: zero })), ['hourlyExternalWeekendDayRate'], `outside ${zero}`);
+    assert.deepEqual(validateHourlyRates({ ...REQUIRED, hourlyNextDayRate: zero }), [], `guests ${zero}`);
+  });
+  assert.equal(validateHourlyRates({ ...REQUIRED, hourlyExternalWeekendDayRate: 0 })[0].message, 'Le tarif extérieurs (week-end, journée, 1re heure) doit être un montant positif.');
+  ['37,50', 10000].forEach((fine) => assert.deepEqual(validateHourlyRates({ ...REQUIRED, hourlyExternalWeekendDayRate: fine }), [], String(fine)));
   assert.deepEqual(validateHourlyRates({ ...REQUIRED, sellableExternally: 0, hourlyExternalWeekendDayRate: '' }), []);
   assert.deepEqual(validateHourlyRates({ ...REQUIRED, hourlyEveningStart: '', hourlyEveningRate: '', hourlyNextEveningRate: '' }), [], 'no evening band, no evening price');
   assert.deepEqual(validateHourlyRates({ priceType: 'per_stay', price: '' }), []);

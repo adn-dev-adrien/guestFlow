@@ -48,7 +48,9 @@ const nextRateOf = (value, fallback) => (value === null || value === undefined |
 function normalizeConfig(cfg = {}) {
   const dayRate = Math.max(0, Number(cfg.dayRate) || 0);
   const eveningRateRaw = Number(cfg.eveningRate) || 0;
-  const hasEvening = Boolean(cfg.eveningStart) && eveningRateRaw > 0;
+  // The outside grid never falls back from the evening to the day rate: a band with no price is refused by the caller before it gets here (a guest grid keeps the fallback).
+  const outside = Boolean(cfg.weekend || cfg.outside);
+  const hasEvening = Boolean(cfg.eveningStart) && (outside || eveningRateRaw > 0);
   const dayNextRate = nextRateOf(cfg.dayNextRate, dayRate);
   const eveningRate = hasEvening ? eveningRateRaw : dayRate;
   const base = {
@@ -67,7 +69,7 @@ function normalizeConfig(cfg = {}) {
     eveningClock: cfg.eveningStart ? toMinutes(cfg.eveningStart) : null,
     forcePeriod: cfg.period === 'weekend' || cfg.period === 'week' ? cfg.period : null,
     weekend: normalizeConfig({
-      ...cfg.weekend, eveningStart: cfg.eveningStart, slotMinutes: cfg.slotMinutes, rankOffsetMinutes: cfg.rankOffsetMinutes,
+      ...cfg.weekend, outside: true, eveningStart: cfg.eveningStart, slotMinutes: cfg.slotMinutes, rankOffsetMinutes: cfg.rankOffsetMinutes,
     }),
   };
 }
@@ -177,7 +179,7 @@ function isValidSession(session, cfg = {}) {
   const e = toMinutes(session.end);
   if (!(e > s)) return false;
   const slot = Math.max(1, Number(cfg.slotMinutes) || 30);
-  if (s % slot !== 0 || e % slot !== 0) return false;
+  if (!cfg.anyStart && (s % slot !== 0 || e % slot !== 0)) return false;
   if (cfg.openTime && s < toMinutes(cfg.openTime)) return false;
   if (cfg.closeTime && e > toMinutes(cfg.closeTime)) return false;
   const min = Math.max(0, Number(cfg.minMinutes) || 0);

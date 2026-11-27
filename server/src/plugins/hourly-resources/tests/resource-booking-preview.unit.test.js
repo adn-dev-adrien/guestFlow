@@ -95,12 +95,21 @@ test('rule 1 — the logement offers 60 min: the offered hour is valued at its o
   assert.equal(out.freeValue, 30);
 });
 
-test('finding 1 — an off-grid range falls back to the flat guest rate, the figure stored today', () => {
+test('finding 1 — an off-grid range of a booking that carries a lodging falls back to the flat guest rate, the figure stored today', () => {
+  const { model, resourceId } = seed();
+  const out = model.priceBooking(draft(resourceId, '18:05', '19:35', { propertyId: 2 }));
+  assert.equal(out.pricing, 'flat-hourly');
+  assert.equal(out.grossTotal, 37.5);
+  assert.equal(out.rateGrid, null);
+});
+
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 30 (K4) — an outside session off the slot grid is priced by the hourly engine, not at the guests' flat rate.
+test('K4 — an off-grid outside range is priced on the outside grid (external 30 / 40 €/h from 19:00), banded', () => {
   const { model, resourceId } = seed();
   const out = model.priceBooking(draft(resourceId, '18:05', '19:35'));
-  assert.equal(out.pricing, 'flat-hourly');
-  assert.equal(out.total, 37.5);
-  assert.equal(out.rateGrid, null);
+  assert.equal(out.pricing, 'banded');
+  assert.equal(out.rateGrid, 'external');
+  assert.equal(out.total, 50);
 });
 
 test('finding 2 — a fixed-price resource booked 2 h costs its flat price', () => {

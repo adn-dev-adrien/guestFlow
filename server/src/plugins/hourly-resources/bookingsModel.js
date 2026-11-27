@@ -241,12 +241,20 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   // hour on the band it fell in; a draft, a new booking or a booking whose slot or party moved is priced on the one grid.
   function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null, stored = null }) {
     const pid = Number(propertyId || 0);
+    const lodging = Boolean(reservationId) || pid > 0;
     const override = pid > 0 ? sdk.coreModule('catalogue').resourcePriceOverride(database, resource.id, pid) || null : null;
     return priceBookingLines({
       resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat: frozenVat || vatFor({ reservationId, date }),
-      freeHourAtDayRate: stored ? Number(stored.freeHourAtDayRate) === 1 : true, date: reservationId ? null : date,
+      freeHourAtDayRate: stored ? Number(stored.freeHourAtDayRate) === 1 : true,
+      // A booking that carries a lodging (with or without a stay) is priced on the week grid, its free minutes valued there — as before the weekend grid existed.
+      date: lodging ? null : date,
+      lodging,
+      judgeBands: !(stored && stored.id),
     });
   }
+
+  // An outside band with no price (a first hour at 0 or empty) is refused by the save and the preview: the answer of a refused booking, never a 0 € price.
+  const notSold = (priced) => ({ error: priced.refusal, status: 409, code: 'BAND_NOT_SOLD' });
 
   // Rule 35 — the VAT of a paid booking is the one frozen with its payment.
   const frozenVatOf = (row) => (row && isPaid(row) && row.paymentRecordedAt ? { rate: row.paidVatRate === null || row.paidVatRate === undefined ? null : Number(row.paidVatRate) } : null);
@@ -317,7 +325,8 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate, storedTimes })
       || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date });
     if (refusal) return refusal;
-    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat, stored });
+    const priced = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat, stored });
+    return priced.refusal ? notSold(priced) : priced;
   }
 
   // Rule 15 — what the screen showed is compared with what is stored, never enforced.
@@ -516,7 +525,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes: payload.offeredMinutes, date });
     if (refusal) return refusal;
 
-    const totalPrice = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date }).total;
+    const priced = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date });
+    if (priced.refusal) return notSold(priced);
+    const totalPrice = priced.total;
     const billing = billingOf(payload.billing);
     const result = database.prepare(
       'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity, freeHourAtDayRate) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,1)'
@@ -564,10 +575,12 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       // Specs/pricing-components.md §3 rule 74 — only the operator moving the slot or the party puts a booking on the one hourly grid; any other
       // save of an unpaid booking re-prices it as before (rule 36 reading), its free hour still valued as it was sold.
       if (pricedMoved) freeHourAtDayRate = 1;
-      totalPrice = breakdownOf({
+      const priced = breakdownOf({
         resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate,
         stored: { freeHourAtDayRate },
-      }).total;
+      });
+      if (priced.refusal) return notSold(priced);
+      totalPrice = priced.total;
       // Rule 12 — a recorded payment covers the total it was taken for: a price that moves takes it back.
       if (isPaid(existing) && Math.abs(Number(existing.totalPrice) - totalPrice) >= 0.005) {
         return { error: 'Le prix change : retirer d’abord le paiement enregistré.', status: 409, code: 'BOOKING_PAID' };
