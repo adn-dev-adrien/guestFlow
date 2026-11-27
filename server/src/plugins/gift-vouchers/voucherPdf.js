@@ -64,6 +64,8 @@ const BACK_TEXTS = Object.freeze({
   subtitleRecipient: 'offert à {recipient}',
   scan: 'Scannez le QR code',
   steps: Object.freeze(['Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche']),
+  // A voucher for a stay is not used on « Mon bain »: its page points to the booking page, where the code fills itself in (rule 20).
+  lodgingSteps: Object.freeze(['Scannez le QR code avec votre téléphone', 'Réservez votre séjour en ligne : le code se remplit tout seul', 'Savourez votre parenthèse en Ardèche']),
   codeLabel: 'Code du bon',
   includes: 'Votre bon comprend : {lines}',
   bullet: '•',
@@ -432,6 +434,9 @@ function drawBack(sheet, {
 
 const say = (template, values) => Object.entries(values).reduce((text, [key, value]) => text.replace(`{${key}}`, () => value), template);
 
+/** Rule 20 — the three steps of a voucher's back: those of a session voucher, or of a stay voucher (which is used on the booking page of a lodging). */
+const stepsOf = (contents) => (contents && contents.kind === 'lodging' ? BACK_TEXTS.lodgingSteps : BACK_TEXTS.steps);
+
 /** Rule 20 — what the voucher's back says: the campaign's public title, who gave it to whom, the three steps, the printed code, the contents, the message and the end of its validity. */
 function voucherBackSpec({
   F, voucher, url, link,
@@ -447,7 +452,7 @@ function voucherBackSpec({
   return {
     title,
     subtitle,
-    steps: BACK_TEXTS.steps,
+    steps: stepsOf(contents),
     url,
     link,
     printedCode: code.format(voucher.code),

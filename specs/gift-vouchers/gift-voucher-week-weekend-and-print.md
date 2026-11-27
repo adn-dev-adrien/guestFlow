@@ -172,7 +172,10 @@ to eight per sheet, two-sided or folded.
       subtitle « offert par <giver> à <recipient> »;
     - QR to `/<base>/utiliser#bon=<code>`;
     - steps: 1 « Scannez le QR code avec votre téléphone », 2 « Choisissez votre créneau en
-      ligne », 3 « Savourez votre parenthèse en Ardèche »;
+      ligne », 3 « Savourez votre parenthèse en Ardèche »; a voucher for a **stay** (a lodging
+      campaign) says instead 2 « Réservez votre séjour en ligne : le code se remplit tout seul »
+      — its use page shows a notice and a link to the booking page, where the code fills itself in
+      (`BACK_TEXTS.lodgingSteps`, sent with the back by `cardBack.js`);
     - the rectangle holds the printed code (bold, large), labelled « Code du bon »;
     - under it, small: the contents (« Votre bon comprend : … », at most 3 lines), the message in
       italics (at most 2 lines), « Valable jusqu'au <date> ».

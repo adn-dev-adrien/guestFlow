@@ -15,7 +15,7 @@
  *     startOnBack,           true to open on the back (the page after payment)
  *   }) → null (nothing to draw) | {
  *     node,                  the card, its « Recto / Verso » control and « Agrandir »
- *     set({ title, recipient, sender, message, lines, validUntil, code, qrSvg, link }),   what the back says now
+ *     set({ title, recipient, sender, message, lines, validUntil, code, qrSvg, link, steps }),   what the back says now
  *     turn(toBack),          isBack(),          reveal(),          print()
  *   }
  */
@@ -111,12 +111,19 @@
     }
     drawLogo();
 
-    (texts.steps || []).forEach(function (text, i) {
-      var row = div('gf-v-step');
-      row.appendChild(span('gf-v-disc', String(i + 1)));
-      row.appendChild(div('gf-v-t gf-v-step-text', text));
-      steps.appendChild(row);
-    });
+    // The three steps are the server's: a voucher for a stay has its own (rule 20), sent with the back.
+    var drawnSteps = null;
+    function drawSteps(list) {
+      drawnSteps = list;
+      steps.innerHTML = '';
+      (list || []).forEach(function (text, i) {
+        var row = div('gf-v-step');
+        row.appendChild(span('gf-v-disc', String(i + 1)));
+        row.appendChild(div('gf-v-t gf-v-step-text', text));
+        steps.appendChild(row);
+      });
+    }
+    drawSteps(texts.steps);
 
     // Rules 18-20 of the week-weekend spec: the logo, the kicker, the title and the subtitle, the QR code in its frame, the three steps, the one rectangle of the code, the small lines.
     safe.appendChild(logo);
@@ -153,6 +160,7 @@
         drawnQr = s.qrSvg;
         qr.innerHTML = plainSvg(s.qrSvg) ? s.qrSvg : '';
       }
+      if ((s.steps || texts.steps) !== drawnSteps) drawSteps(s.steps || texts.steps);
       title.textContent = s.title || back.title || '';
       var who = s.sender && s.recipient ? fill(fill(texts.subtitle, 'sender', s.sender), 'recipient', s.recipient)
         : (s.sender ? fill(texts.subtitleSender, 'sender', s.sender) : (s.recipient ? fill(texts.subtitleRecipient, 'recipient', s.recipient) : ''));

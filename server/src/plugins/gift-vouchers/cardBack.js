@@ -73,7 +73,7 @@ function createCardBack({
   /** `view` is the campaign as the offer describes it (its title, kind and validity), `campaign` the stored row. */
   function campaign(view, stored) {
     const validUntil = rules.formatFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
-    if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil, title: BACK_TEXTS.lodgingTitle };
+    if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil, title: BACK_TEXTS.lodgingTitle, steps: BACK_TEXTS.lodgingSteps };
     const base = baseContents(stored);
     const addOns = Object.fromEntries((view.addOns || []).map((a) => [a.articleRef, Object.fromEntries((a.prices || []).map((p) => [p.qty, countOf(p.qty, a.label)]))]));
     const extraTime = Object.fromEntries(((view.extraTime && view.extraTime.prices) || []).map((p) => [p.minutes, extraTimeLine(p.minutes)]));
@@ -92,6 +92,7 @@ function createCardBack({
     const contents = rules.contentsOf(issued);
     return {
       title: contents && contents.title ? contents.title : BACK_TEXTS.lodgingTitle,
+      steps: contents && contents.kind === 'lodging' ? BACK_TEXTS.lodgingSteps : BACK_TEXTS.steps,
       lines: contentLines(issued),
       validUntil: rules.formatFrDate(issued.expiresOn),
       link: shortLink(redeemUrl(base)),
