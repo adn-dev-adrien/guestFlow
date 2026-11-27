@@ -266,7 +266,7 @@ function nextHourRates(db) {
 
 // specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 4 — every price of an hourly resource explicit, so nothing changes on the day of the update: each empty
 // following-hours rate takes its first-hour rate, each outside first-hour rate at 0 takes the guests' rate it used to fall back to, the weekend grid copies the week
-// grid, and a per-lodging price (withdrawn for an hourly resource) is dropped — the log names the lodging and the price.
+// grid, and a per-lodging price (withdrawn for an hourly resource of the planning — one with no planning card keeps its prices) is dropped — the log names the lodging and the price.
 const WEEKEND_COLUMNS = ['hourlyExternalWeekendDayRate', 'hourlyExternalWeekendEveningRate', 'hourlyExternalWeekendNextDayRate', 'hourlyExternalWeekendNextEveningRate'];
 
 function explicitHourlyRates(db) {
@@ -297,11 +297,11 @@ function explicitHourlyRates(db) {
   });
   if (!hasTable(db, 'property_resource_prices') || !hasTable(db, 'properties')) return;
   const dropped = db.prepare(`SELECT prp.propertyId, prp.resourceId, prp.price, p.name AS propertyName, r.name AS resourceName FROM property_resource_prices prp
-    JOIN resources r ON r.id = prp.resourceId JOIN properties p ON p.id = prp.propertyId WHERE r.priceType = 'per_hour' AND prp.price IS NOT NULL`).all();
+    JOIN resources r ON r.id = prp.resourceId JOIN properties p ON p.id = prp.propertyId WHERE r.priceType = 'per_hour' AND r.showsPlanningCard = 1 AND prp.price IS NOT NULL`).all();
   dropped.forEach((line) => {
     console.log(`[hourly-resources] lodging "${line.propertyName}" (#${line.propertyId}): its price ${line.price} € on "${line.resourceName}" (#${line.resourceId}) is dropped — the resource's own grid applies.`);
   });
-  db.exec("UPDATE property_resource_prices SET price = NULL WHERE price IS NOT NULL AND resourceId IN (SELECT id FROM resources WHERE priceType = 'per_hour')");
+  db.exec("UPDATE property_resource_prices SET price = NULL WHERE price IS NOT NULL AND resourceId IN (SELECT id FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1)");
 }
 
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */

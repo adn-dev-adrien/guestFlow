@@ -42,7 +42,7 @@ const SECTION_OF = { name: 'general', quantity: 'general', price: 'prices' };
 const sectionOf = (field, ownedFields = []) => SECTION_OF[field] || (ownedFields.includes(field) ? 'prices' : (EXTERNAL_FIELDS.includes(field) || field === 'sessionMaxPeople' ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices')));
 
 function PropertyPriceLines({ form, setForm, properties, errors }) {
-  const hourly = form.priceType === 'per_hour';
+  const hourly = form.priceType === 'per_hour' && Boolean(form.showsPlanningCard);
   const scope = form.propertyIds.length > 0 ? properties.filter((p) => form.propertyIds.includes(Number(p.id))) : properties;
   const lineOf = (pid) => (form.propertyPricing || {})[String(pid)] || { price: '', freeMinutes: 0 };
   const update = (pid, patch) => {

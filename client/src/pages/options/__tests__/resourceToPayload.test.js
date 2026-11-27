@@ -94,8 +94,8 @@ describe('toResourcePayload — property price lines', () => {
   });
 
   // Rule 3 of the week-weekend spec — a resource sold by the hour has no price per lodging, only its offered hour.
-  it('an hourly resource sends no price per lodging: only the offered hour', () => {
-    const p = toResourcePayload({ ...base, propertyPricing: { 1: line('12,5', 60), 2: line('9', 0) } });
+  it('an hourly resource of the planning sends no price per lodging: only the offered hour', () => {
+    const p = toResourcePayload({ ...base, showsPlanningCard: true, propertyPricing: { 1: line('12,5', 60), 2: line('9', 0) } });
     expect(p.propertyPricing).toEqual({ 1: { price: null, freeMinutes: 60 } });
   });
 

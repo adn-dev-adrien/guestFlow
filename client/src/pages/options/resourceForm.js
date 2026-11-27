@@ -83,8 +83,9 @@ export function toResourcePayload(form, forms = []) {
     propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
     propertyPricing: Object.entries(form.propertyPricing || {}).reduce((acc, [propertyId, line]) => {
       if (!inScope(form, propertyId)) return acc;
-      // A resource sold by the hour has no price per lodging: only its offered hour (rule 3).
-      const typed = form.priceType !== 'per_hour' && line && !isBlank(line.price);
+      // A resource sold by the hour on the planning has no price per lodging: only its offered hour (rule 3). One with no planning card keeps its prices (rule 4).
+      const planned = form.priceType === 'per_hour' && Boolean(form.showsPlanningCard);
+      const typed = !planned && line && !isBlank(line.price);
       const freeMinutes = form.priceType === 'per_hour' ? Math.max(0, Math.round(Number(line && line.freeMinutes) || 0)) : 0;
       if (typed || freeMinutes > 0) acc[String(propertyId)] = { price: typed ? parseAmount(line.price) : null, freeMinutes };
       return acc;
