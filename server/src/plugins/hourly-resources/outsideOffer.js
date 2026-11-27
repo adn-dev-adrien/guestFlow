@@ -7,9 +7,9 @@
  *       the starts of a session of `minutes` the resource can take, inside its opening days and hours, on its grid, with its capacity, turnover, thermal readiness,
  *       existing bookings and active holds, never past the resource's booking horizon; `band` keeps the starts before (`day`) or from (`evening`) the evening switch;
  *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site-outside-resource-booking.md rule 6)
- *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, excludeHoldRef?, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
+ *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, excludeHoldRef?, memo?, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
  *       the engine's price of a session placed at `start`: `coveredMinutes` first (already paid for in `coveredBand`, at the rank they take), then `extraMinutes` after
- *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45); `excludeHoldRef` is the buyer's own hold, which does not count against the doubled block (rule 17)
+ *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45); `excludeHoldRef` is the buyer's own hold, which does not count against the doubled block (rule 17); `memo` is a Map a caller pricing a long list of starts hands in so the same figure is asked of the engine once
  *   hold({ resourceId, date, start, end, ref, minutes?, now? }) → { ok: true, expiresAt } | { ok: false, code: 'SLOT_TAKEN', message }
  *   release(ref)
  *   limits({ resourceId }) → { ok: true, stepMinutes, minMinutes, maxMinutes, maxPeople } | { ok: false, code, message }   what a session of the resource may ask: the step and the shortest of its grid, the longest the opening hours hold, the party (20 when none is set)
@@ -129,16 +129,37 @@ function createOutsideOffer({
 
   // The engine's price of one session of the resource, for the outside customer (week-weekend-and-print spec rule 30): the standalone sale's
   // quote asks the hourly family, with the date (or the period of a dateless session). The answer is the fulfilled line the sale takes.
-  function priceSession(resource, session) {
+  function priceSession(resource, session, memo = null) {
+    const key = memo ? memoKeyOf(resource, session) : null;
+    if (key !== null && memo.has(key)) return memo.get(key);
     const answer = standaloneSale().quote({ lines: [{ articleRef: `resource:${resource.id}`, session }] });
-    if (answer.status !== 200) return refuse('PRICE_UNAVAILABLE', answer.body && answer.body.error ? answer.body.error : 'Prix indisponible.');
-    if (answer.refusals.length) return refuse(answer.refusals[0].code, answer.refusals[0].message);
-    const line = answer.document.lines[0];
-    if (!line) return refuse('PRICE_UNAVAILABLE', 'Prix indisponible.');
-    return {
-      ok: true,
-      line: { articleRef: line.articleKey, family: 'hourly', ...Object.fromEntries(LINE_FIELDS.filter((field) => line[field] !== undefined).map((field) => [field, line[field]])) },
-    };
+    let priced;
+    if (answer.status !== 200) priced = refuse('PRICE_UNAVAILABLE', answer.body && answer.body.error ? answer.body.error : 'Prix indisponible.');
+    else if (answer.refusals.length) priced = refuse(answer.refusals[0].code, answer.refusals[0].message);
+    else if (!answer.document.lines[0]) priced = refuse('PRICE_UNAVAILABLE', 'Prix indisponible.');
+    else {
+      const line = answer.document.lines[0];
+      priced = {
+        ok: true,
+        line: { articleRef: line.articleKey, family: 'hourly', ...Object.fromEntries(LINE_FIELDS.filter((field) => line[field] !== undefined).map((field) => [field, line[field]])) },
+      };
+    }
+    if (key !== null) memo.set(key, priced);
+    return priced;
+  }
+
+  // Everything a session's price depends on: the resource, the band, the minutes and their ranks, and — for a dated session — the period of each of its slices, never the date itself
+  // (a list of 62 days asks the same few figures again and again).
+  function memoKeyOf(resource, session) {
+    let periods = session.period || null;
+    if (session.date && session.start !== undefined) {
+      const step = Math.max(1, Number(resource.slotDuration) || 30);
+      const from = toMinutes(session.start) + (Number(session.rankOffsetMinutes) || 0);
+      const evening = resource.hourlyEveningStart || null;
+      periods = '';
+      for (let t = from; t < from + Number(session.minutes); t += step) periods += periodOf(session.date, t, evening) === 'weekend' ? 'e' : 'w';
+    }
+    return JSON.stringify([resource.id, session.band, session.start || null, session.minutes, session.rankOffsetMinutes || 0, periods]);
   }
 
   // Which parts of its price a placed session owes above its reference (rule 15): the evening band, the weekend period, or both.
@@ -168,7 +189,7 @@ function createOutsideOffer({
   }
 
   function quote({
-    resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod = 'week', extraMinutes = 0, excludeHoldRef = null, now: at,
+    resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod = 'week', extraMinutes = 0, excludeHoldRef = null, memo = null, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
@@ -176,9 +197,9 @@ function createOutsideOffer({
     const covered = Number(coveredMinutes);
     const extra = Number(extraMinutes) || 0;
     const period = coveredPeriod === 'weekend' ? 'weekend' : 'week';
-    const placed = priceSession(resource, { band: coveredBand, start, minutes: covered, date });
+    const placed = priceSession(resource, { band: coveredBand, start, minutes: covered, date }, memo);
     if (placed.code) return placed;
-    const reference = priceSession(resource, { band: coveredBand, minutes: covered, period });
+    const reference = priceSession(resource, { band: coveredBand, minutes: covered, period }, memo);
     if (reference.code) return reference;
     const referenceCents = reference.line.totalCents;
     const coveredCents = Math.min(referenceCents, placed.line.totalCents);
@@ -225,7 +246,7 @@ function createOutsideOffer({
         // The added time is priced like any other (so its value is the line's struck figure) and given away: a 0 € line of the booking.
         const added = priceSession(resource, {
           band: startBand, start, minutes: covered, rankOffsetMinutes: covered, date,
-        });
+        }, memo);
         if (added.code) return added;
         result.twoHours.line = {
           ...added.line, label: 'Heure offerte', unitCents: 0, totalCents: 0, offered: true, catalogueCents: added.line.totalCents,
@@ -240,7 +261,7 @@ function createOutsideOffer({
       const offered = result.twoHours && result.twoHours.free ? covered : 0;
       const added = priceSession(resource, {
         band: coveredBand, start, minutes: extra, rankOffsetMinutes: covered + offered, date,
-      });
+      }, memo);
       if (added.code) return added;
       result.extra = { line: added.line, totalCents: added.line.totalCents };
       result.endTime = timeOf(toMinutes(start) + covered + offered + extra);

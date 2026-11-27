@@ -232,11 +232,12 @@ function createUseService({
     if (from > free.horizonUntil) return refuse('BEYOND_HORIZON', `Réservable jusqu’au ${longDate(free.horizonUntil)}.`, 409, { horizonUntil: free.horizonUntil });
     // What a start costs the recipient against the voucher, one quote per date and start (the day's rates, the weekend included).
     const priced = new Map();
+    const memo = new Map();
     const priceOf = (date, start) => {
       const key = `${date}T${start}`;
       if (!priced.has(key)) {
         const answer = hook().quote({
-          resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, now: now(),
+          resourceId: resource.id, date, start, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, memo, now: now(),
         });
         // A start the engine refuses (a band with no price, a slot past closing) is not offered: it is never tagged « in » at 0 €.
         priced.set(key, answer.ok ? tagOf(answer) : null);
