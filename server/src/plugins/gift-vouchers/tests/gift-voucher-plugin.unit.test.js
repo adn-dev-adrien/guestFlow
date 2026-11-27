@@ -50,7 +50,7 @@ test('rule 1: the plugin is in the catalogue, its manifest is valid and names no
   const manifest = readSourceManifest('gift-vouchers');
   assert.equal(findPlugin('gift-vouchers').name, 'Bons cadeaux');
   assert.deepEqual(manifest.requires, []);
-  assert.equal(manifest.sdk, '^2.36.0');
+  assert.equal(manifest.sdk, '^2.38.0');
   assert.ok(require('../..').some((m) => m.id === 'gift-vouchers'));
 });
 

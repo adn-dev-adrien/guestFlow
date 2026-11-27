@@ -34,7 +34,7 @@ test('the offer lists the campaigns on sale only, each with its title, its band 
       key: 'day', label: 'journée', from: '10:00', to: '19:00',
     },
     contents: [
-      { kind: 'session', label: 'Bain nordique', detail: '2 h en journée · de 10:00 à 19:00', qty: 1 },
+      { kind: 'session', label: 'Bain nordique', detail: '2 h en journée · semaine · de 10:00 à 19:00', qty: 1 },
       { kind: 'option', label: 'Planche apéro', detail: null, qty: 1 },
     ],
     addOns: [{

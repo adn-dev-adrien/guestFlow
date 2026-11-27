@@ -46,7 +46,7 @@ test('the voucher list reads the contents, the campaign and the use of each vouc
   const all = (await server.call('GET', '/api/gift-vouchers')).body;
   const row = all.items.find((v) => v.id === bath.body.id);
   assert.deepEqual([row.kind, row.campaignName, row.usedOn, row.bookingId], ['resource', 'Bain journée', null, null]);
-  assert.match(row.contentsText, /^Bain nordique : 2 h en journée · Planche apéro$/);
+  assert.match(row.contentsText, /^Bain nordique : 2 h en journée · semaine · Planche apéro$/);
   assert.deepEqual(all.campaigns.map((c) => c.name).sort(), ['Bain journée', all.campaigns.find((c) => c.kind === 'lodging').name].sort());
 
   const byKind = (await server.call('GET', '/api/gift-vouchers?kind=resource')).body.items;
@@ -56,7 +56,7 @@ test('the voucher list reads the contents, the campaign and the use of each vouc
   assert.equal((await server.call('GET', '/api/gift-vouchers?kind=other')).status, 400);
   assert.equal((await server.call('GET', '/api/gift-vouchers?campaignId=abc')).status, 400);
 
-  assert.deepEqual(bath.body.contentLines.slice(0, 2), ['Bain nordique : 2 h en journée', 'Planche apéro']);
+  assert.deepEqual(bath.body.contentLines.slice(0, 2), ['Bain nordique : 2 h en journée · semaine', 'Planche apéro']);
   assert.equal(bath.body.refundCents, bath.body.balanceCents);
   const given = await server.call('POST', '/api/gift-vouchers', { slug: campaign.slug, outcome: 'offered', recipientFirstName: 'Marie', recipientLastName: 'Durand' });
   assert.equal(given.body.refundCents, 0, 'a voucher given away refunds nothing');

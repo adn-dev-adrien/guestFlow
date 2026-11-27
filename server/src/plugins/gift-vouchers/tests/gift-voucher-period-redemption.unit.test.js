@@ -44,7 +44,9 @@ test('rule 10 — a campaign offers one or both periods, both by default; at lea
 test('rule 11 — the offer shows one price per period and the lowest as « à partir de »', async () => {
   const { campaigns } = await api.offerService.offer();
   const view = campaigns.find((c) => c.slug === 'une-heure');
-  assert.deepEqual(view.periods, [{ period: 'week', priceCents: 5000, label: 'semaine' }, { period: 'weekend', priceCents: 7000, label: 'week-end' }]);
+  assert.deepEqual(view.periods.map(({ hint, ...rest }) => rest), [{ period: 'week', priceCents: 5000, label: 'semaine' }, { period: 'weekend', priceCents: 7000, label: 'week-end' }]);
+  assert.equal(view.periods[0].hint, 'Semaine : du lundi au vendredi en journée. Utilisable le week-end avec un supplément.');
+  assert.equal(view.periods[1].hint, 'Week-end : samedi, dimanche et jours fériés, en journée. Utilisable tous les jours.');
   assert.equal(view.totalCents, 5000);
   assert.deepEqual(view.extraTime.pricesByPeriod.weekend, [{ minutes: 60, cents: 6000 }]);
   assert.deepEqual(campaigns.find((c) => c.slug === 'semaine').periods.map((p) => p.period), ['week']);

@@ -326,9 +326,15 @@
     var priceSeq = 0;
     var priceTimer = null;
     if (isResource) {
-      var includes = GF.el('ul', { class: 'gf-gv-items' }, (campaign.contents || []).map(function (line) {
-        return GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, ' — ' + line.detail) : null);
-      }));
+      // The lines GuestFlow wrote for the period picked (« 1 h en journée · week-end »): a campaign that sells two sends those of each.
+      var includes = GF.el('ul', { class: 'gf-gv-items' });
+      var drawIncludes = function () {
+        includes.innerHTML = '';
+        ((campaign.contentsByPeriod && campaign.contentsByPeriod[period]) || campaign.contents || []).forEach(function (line) {
+          includes.appendChild(GF.el('li', {}, (line.qty > 1 ? line.qty + ' × ' : '') + line.label, line.detail ? GF.el('span', { class: 'gf-gv-offer-detail' }, ' — ' + line.detail) : null));
+        });
+      };
+      drawIncludes();
       extrasFold = GF.voucherExtrasFold({
         extraTime: campaign.extraTime,
         addOns: campaign.addOns,
@@ -348,6 +354,10 @@
               period = p.period;
               Array.prototype.forEach.call(periodControl.children, function (n) { n.setAttribute('aria-checked', n.getAttribute('data-period') === period ? 'true' : 'false'); });
               priced = null;
+              drawIncludes();
+              periodHint.textContent = hintOf(period);
+              // The extra-time steps are priced for the period (rule 11): the fold shows those of the one picked.
+              if (extrasFold && campaign.extraTime && campaign.extraTime.pricesByPeriod) extrasFold.updateExtraTimePrices(campaign.extraTime.pricesByPeriod[period]);
               turnToBack();
               drawRecap();
               askPrice();
@@ -355,9 +365,15 @@
             return btn;
           }));
       }
+      // What the period means (the server's words), under the control; with a single period it is the fact that period is sold for.
+      var hintOf = function (code) {
+        for (var i = 0; i < periods.length; i += 1) if (periods[i].period === code) return periods[i].hint || '';
+        return '';
+      };
+      var periodHint = periods.length ? GF.el('p', { class: 'gf-gv-hint gf-gv-period-hint' }, hintOf(period)) : null;
       composeBlock = GF.el('div', { class: 'gf-gv-compose' },
         GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvIncludes')), includes,
-        periodControl ? GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvPeriod')) : null, periodControl,
+        periodControl ? GF.el('div', { class: 'gf-gv-group-label' }, GF.t('gvPeriod')) : null, periodControl, periodHint,
         campaign.band ? GF.el('p', { class: 'gf-gv-hint' }, GF.t('gvBand', campaign.band.label, campaign.band.from, campaign.band.to)) : null,
         extrasFold, recap);
     }
@@ -470,7 +486,8 @@
       if (!isResource) {
         return [String(b.lineTemplate || '').replace('{amount}', function () { return cents != null ? GF.cardEuros(cents) : '… €'; })];
       }
-      var lines = (b.lines || []).slice();
+      // A campaign that sells two periods sends the lines of each (rule 20): the page shows those of the period the giver picked.
+      var lines = ((b.linesByPeriod && b.linesByPeriod[period]) || b.lines || []).slice();
       if (extraMinutes > 0 && b.extraTime && b.extraTime[extraMinutes]) lines.push(b.extraTime[extraMinutes]);
       (campaign.addOns || []).forEach(function (a) {
         var qty = addOnQty[a.articleRef] || 0;

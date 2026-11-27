@@ -84,7 +84,7 @@ test('rule 21: a bath voucher’s back reads the campaign and the settings — t
   [
     'BON CADEAU', 'Un bain nordique · semaine', 'offert par Paul à Marie', 'Scannez le QR code', 'site.example.test/bon-cadeau/utiliser',
     'Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche', 'Code du bon', code.format(plainCode(voucher)),
-    'Votre bon comprend : Bain nordique : 2 h en journée · Planche apéro · Temps supplémentaire : 1 h · 2 × Boisson', 'Joyeux anniversaire', 'Valable jusqu’au 15/11/2027',
+    'Votre bon comprend — Bain nordique : 2 h en journée · semaine · Planche apéro · Temps supplémentaire : 1 h · 2 × Boisson', 'Joyeux anniversaire', 'Valable jusqu’au 15/11/2027',
     'Domaine Solio · Saint-Cirq-Lapopie · Lot',
   ].forEach((line) => assert.ok(says(texts, line), `the back says « ${line} »`));
   assert.equal(texts.some((t) => /€|TVA|\bHT\b|TTC|\d+,\d{2}/.test(t)), false, 'no amount, no VAT on a resource voucher');
@@ -95,7 +95,7 @@ test('rule 21: a bath voucher’s back reads the campaign and the settings — t
 test('rule 21: a lodging voucher’s back says its value, and only there', async () => {
   const voucher = sell({ slug: 'sejour', amountCents: 15000 });
   const { texts, result } = await recorded(() => api.documents.voucherPdf(voucher));
-  assert.ok(says(texts, 'Votre bon comprend : Un séjour dans nos logements, d’une valeur de 150,00 €'));
+  assert.ok(says(texts, 'Votre bon comprend — Un séjour dans nos logements, d’une valeur de 150,00 €'));
   assert.equal(texts.filter((t) => /€/.test(t)).length, 1);
   assert.equal(pages(result), 2);
 });
@@ -225,7 +225,7 @@ test('rules 20, 57: the mail — greeting, title, parties, the code in large typ
   const printNote = 'Le PDF joint s\'imprime tel quel. Si vous avez la carte du commerçant, vous pouvez aussi recopier le code dans l\'encart blanc.';
   [
     'Bonjour,', 'Un bain nordique · semaine', 'Pour Marie de la part de Paul', formatted, printNote, 'Le bon comprend :',
-    '- Bain nordique : 2 h en journée', '- Planche apéro', '- Temps supplémentaire : 1 h', '- Boisson', 'Valable jusqu’au 15/11/2027.',
+    '- Bain nordique : 2 h en journée · semaine', '- Planche apéro', '- Temps supplémentaire : 1 h', '- Boisson', 'Valable jusqu’au 15/11/2027.',
   ].forEach((line) => assert.ok(mail.text.includes(line), `the text says « ${line} »`));
   assert.ok(mail.html.includes(formatted) && mail.html.includes('font-size:26px'), 'the code in large type');
   assert.ok(mail.html.includes(printNote.replace(/'/g, '&#39;')), 'and the sentence in the HTML too');

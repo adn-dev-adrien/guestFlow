@@ -68,3 +68,47 @@ test('rule 11 — a campaign that sells one period shows no control and sends th
   expect(document.querySelector('.gf-gv-period')).toBeNull();
   expect(asked.at(-1)).toMatchObject({ slug: 'bain-semaine', period: 'week' });
 });
+
+// Rule 11 — what a period means (the server's words) sits under the control and follows the choice; a single period is shown as a fact; the content lines and the extra-time steps follow the period.
+test('rule 11 — the hint under the period control, the contents and the extra-time steps follow the period picked', async () => {
+  const hinted = {
+    ...BATH,
+    periods: [
+      { period: 'week', priceCents: 5000, label: 'semaine', hint: 'Semaine : du lundi au vendredi en journée.' },
+      { period: 'weekend', priceCents: 7000, label: 'week-end', hint: 'Week-end : samedi, dimanche et jours fériés, en journée.' },
+    ],
+    contentsByPeriod: {
+      week: [{ kind: 'session', label: 'Bain nordique', detail: '1 h en journée · semaine', qty: 1 }],
+      weekend: [{ kind: 'session', label: 'Bain nordique', detail: '1 h en journée · week-end', qty: 1 }],
+    },
+    extraTime: {
+      maxMinutes: 60, stepMinutes: 60, prices: [{ minutes: 60, cents: 4500 }], pricesByPeriod: { week: [{ minutes: 60, cents: 4500 }], weekend: [{ minutes: 60, cents: 6000 }] },
+    },
+  };
+  document.body.innerHTML = '<div data-gf-gift-voucher></div>';
+  const routes = (method, p) => {
+    if (p === '/gift-vouchers/offer') return { status: 200, body: { data: { ...OFFER, campaigns: [hinted] } } };
+    if (p === '/gift-vouchers/offer/price') return { status: 200, body: { data: { lines: [], totalCents: 5000, extrasCents: 0, vat: [] } } };
+    return { status: 404, body: { error: { code: 'NOT_FOUND', message: 'x' } } };
+  };
+  loadBlock('blocks/gift-voucher/view.js', { routes, assets: ASSETS });
+  await screen.findByText('Récapitulatif');
+  expect(document.querySelector('.gf-gv-period-hint').textContent).toBe('Semaine : du lundi au vendredi en journée.');
+  expect(document.querySelector('.gf-gv-items').textContent).toMatch(/semaine/);
+  fireEvent.click(document.querySelector('.gf-gv-period-opt[data-period="weekend"]'));
+  await waitFor(() => expect(document.querySelector('.gf-gv-period-hint').textContent).toBe('Week-end : samedi, dimanche et jours fériés, en journée.'));
+  expect(document.querySelector('.gf-gv-items').textContent).toMatch(/week-end/);
+  expect(document.querySelector('.gf-gv-items').textContent).not.toMatch(/semaine/);
+});
+
+test('rule 11 — a single-period campaign shows its period as a fact, no control', async () => {
+  const one = { ...ONE, periods: [{ period: 'week', priceCents: 5000, label: 'semaine', hint: 'Semaine : du lundi au vendredi en journée.' }] };
+  document.body.innerHTML = '<div data-gf-gift-voucher></div>';
+  const routes = (method, p) => (p === '/gift-vouchers/offer'
+    ? { status: 200, body: { data: { ...OFFER, campaigns: [one] } } }
+    : { status: 200, body: { data: { lines: [], totalCents: 5000, extrasCents: 0, vat: [] } } });
+  loadBlock('blocks/gift-voucher/view.js', { routes, assets: ASSETS });
+  await screen.findByText('Récapitulatif');
+  expect(document.querySelector('.gf-gv-period')).toBeNull();
+  expect(document.querySelector('.gf-gv-period-hint').textContent).toBe('Semaine : du lundi au vendredi en journée.');
+});

@@ -103,7 +103,7 @@ function createUseService({
     const hours = mode ? ` · de ${mode.from} à ${mode.to}` : '';
     const given = resource.extraMinutes > 0 ? ` + ${durationText(resource.extraMinutes)} de temps supplémentaire` : '';
     return [
-      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${given}${hours}`, qty: 1 },
+      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${rules.periodSuffix(resource)}${given}${hours}`, qty: 1 },
       ...contents.options.map((o) => ({ kind: 'option', label: o.label, detail: null, qty: o.qty })),
       ...contents.addOns.map((o) => ({ kind: 'addOn', label: o.label, detail: null, qty: o.qty })),
     ];

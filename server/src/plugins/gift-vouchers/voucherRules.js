@@ -13,6 +13,9 @@ const VALIDITY_REFUSAL = 'La validité doit être de 3, 6, 12, 18 ou 24 mois.';
 // Rule 10 — a bath voucher is sold for the week or for the weekend of the outside grid.
 const PERIODS = Object.freeze(['week', 'weekend']);
 const PERIOD_LABELS = Object.freeze({ week: 'semaine', weekend: 'week-end' });
+
+/** « · week-end » — the period a bath voucher was sold for (rule 12 of the week-weekend spec), nothing for a voucher sold before periods existed. */
+const periodSuffix = (resource) => (resource && resource.period && PERIOD_LABELS[resource.period] ? ` · ${PERIOD_LABELS[resource.period]}` : '');
 const FRONT_PRICE_POSITIONS = Object.freeze(['bottom-right', 'bottom-left', 'top-right', 'top-left', 'none']);
 const DEFAULT_VAT_PERCENT = 10;
 
@@ -172,6 +175,7 @@ module.exports = {
   VALIDITY_REFUSAL,
   PERIODS,
   PERIOD_LABELS,
+  periodSuffix,
   FRONT_PRICE_POSITIONS,
   DEFAULT_VAT_PERCENT,
   MONEY_KINDS,

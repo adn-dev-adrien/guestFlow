@@ -70,7 +70,8 @@ const BACK_TEXTS = Object.freeze({
   // A voucher for a stay is not used on « Mon bain »: its page points to the booking page, where the code fills itself in (rule 20).
   lodgingSteps: Object.freeze(['Scannez le QR code avec votre téléphone', 'Réservez votre séjour en ligne : le code se remplit tout seul', 'Savourez votre parenthèse en Ardèche']),
   codeLabel: 'Code du bon',
-  includes: 'Votre bon comprend : {lines}',
+  // The dash, not a colon: the first line of the contents already has one (« Bain nordique : 1 h en journée · week-end »).
+  includes: 'Votre bon comprend — {lines}',
   bullet: '•',
   recipient: 'Pour {name}',
   sender: 'de la part de {name}',

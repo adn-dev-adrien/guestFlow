@@ -22,7 +22,7 @@ function contentLines(voucher) {
   if (contents.kind === 'lodging') return [LODGING_LINE.replace('{amount}', rules.formatEuros(voucher.amountCents))];
   const { resource } = contents;
   return [
-    `${resource.name} : ${durationText(resource.includedMinutes)} ${BAND_WORDS[resource.band] || ''}`.trim(),
+    `${resource.name} : ${durationText(resource.includedMinutes)} ${BAND_WORDS[resource.band] || ''}`.trim() + rules.periodSuffix(resource),
     ...contents.options.map((o) => countOf(o.qty, o.label)),
     ...(resource.extraMinutes > 0 ? [extraTimeLine(resource.extraMinutes)] : []),
     ...contents.addOns.map((o) => countOf(o.qty, o.label)),

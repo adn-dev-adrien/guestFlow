@@ -88,7 +88,7 @@ test('rule 66 — a campaign\'s lines are the PDF\'s own contentLines of a vouch
   const offered = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
   const voucher = (await buy(site, bath.slug)).voucher;
   assert.deepEqual(offered.back.lines, voucher.contentLines);
-  assert.deepEqual(offered.back.lines, ['Bain nordique : 2 h en journée', 'Planche apéro']);
+  assert.deepEqual(offered.back.lines, ['Bain nordique : 2 h en journée · semaine', 'Planche apéro']);
 }));
 
 test('rule 66 — a lodging campaign sends a template; filled with the amount it is the PDF\'s line', () => withServer(async (site) => {

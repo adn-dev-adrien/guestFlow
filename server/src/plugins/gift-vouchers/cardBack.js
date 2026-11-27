@@ -74,13 +74,18 @@ function createCardBack({
   function campaign(view, stored) {
     const validUntil = rules.formatFrDate(rules.expiryFor(rules.parisDate(now()), view.validityMonths));
     if (view.kind === 'lodging') return { lineTemplate: LODGING_LINE, validUntil, title: BACK_TEXTS.lodgingTitle, steps: BACK_TEXTS.lodgingSteps };
-    const base = baseContents(stored);
+    // Rule 20 — a campaign that sells two periods has the lines of each (« · semaine » / « · week-end »); `lines` are the cheapest period's, for a page that predates them.
+    const linesOf = (period) => {
+      const read = baseContents(stored, period);
+      return read.ok ? contentLines({ contents: JSON.stringify(read.contents) }) : [];
+    };
+    const linesByPeriod = Object.fromEntries((view.periods || []).map((p) => [p.period, linesOf(p.period)]));
     const addOns = Object.fromEntries((view.addOns || []).map((a) => [a.articleRef, Object.fromEntries((a.prices || []).map((p) => [p.qty, countOf(p.qty, a.label)]))]));
     const extraTime = Object.fromEntries(((view.extraTime && view.extraTime.prices) || []).map((p) => [p.minutes, extraTimeLine(p.minutes)]));
     // Rule 20 of the week-weekend spec — the back's title is the campaign's, with the period the giver picks: one title per period the campaign sells.
     const titles = Object.fromEntries((view.periods || []).map((p) => [p.period, `${view.title} · ${rules.PERIOD_LABELS[p.period]}`]));
     return {
-      lines: base.ok ? contentLines({ contents: JSON.stringify(base.contents) }) : [], extraTime, addOns, validUntil, titles,
+      lines: linesOf(), linesByPeriod, extraTime, addOns, validUntil, titles,
     };
   }
 

@@ -309,8 +309,11 @@ function createOfferService({
     return priced.ok ? { ...priced, kind: found.campaign.kind, title: found.campaign.title, validUntil } : priced;
   }
 
-  /** Rule 66 — what a campaign sells before the buyer adds time or options: the frozen contents the back of its voucher is read from. → `{ ok, contents }` | refusal. */
-  const baseContents = (campaign) => contentsFor(campaign, {});
+  /**
+   * Rule 66 — what a campaign sells before the buyer adds time or options, for one period (the cheapest when none is named): the frozen contents the back of its voucher is read
+   * from. → `{ ok, contents }` | refusal.
+   */
+  const baseContents = (campaign, period) => contentsFor(campaign, period ? { period } : {}, { cheapestWhenMissing: true });
 
   // ── the offer ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -321,10 +324,22 @@ function createOfferService({
     const mode = element && element.modes.find((m) => m.band === resource.band);
     const hours = mode ? ` · de ${mode.from} à ${mode.to}` : '';
     return [
-      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${hours}`, qty: 1 },
+      { kind: 'session', label: resource.name, detail: `${durationText(resource.includedMinutes)} en ${BAND_WORDS[resource.band]}${rules.periodSuffix(resource)}${hours}`, qty: 1 },
       ...contents.options.map((o) => ({ kind: 'option', label: o.label, detail: null, qty: o.qty })),
     ];
   }
+
+  // Rule 11 — what a period means for a voucher of this band, in the words the page shows under the period control (and as a fact when only one period is sold).
+  const PERIOD_HINTS = Object.freeze({
+    week: Object.freeze({
+      day: 'Semaine : du lundi au vendredi en journée. Utilisable le week-end avec un supplément.',
+      evening: 'Semaine : du lundi au jeudi en soirée. Utilisable le week-end avec un supplément.',
+    }),
+    weekend: Object.freeze({
+      day: 'Week-end : samedi, dimanche et jours fériés, en journée. Utilisable tous les jours.',
+      evening: 'Week-end : vendredi, samedi, dimanche et jours fériés, en soirée. Utilisable tous les jours.',
+    }),
+  });
 
   /** Rules 10-11 — the price of the base contents for each period the campaign sells, the cheapest first as « à partir de ». → `{ ok, periods: [{ period, priceCents, label }] }` | refusal. */
   function periodPrices(campaign) {
@@ -334,7 +349,9 @@ function createOfferService({
       if (!base.ok) return base;
       const priced = priceContents(base.contents);
       if (!priced.ok) return priced;
-      prices.push({ period, priceCents: priced.totalCents, label: rules.PERIOD_LABELS[period], base: base.contents });
+      prices.push({
+        period, priceCents: priced.totalCents, label: rules.PERIOD_LABELS[period], hint: PERIOD_HINTS[period][campaign.composition.band] || null, base: base.contents,
+      });
     }
     return { ok: true, prices };
   }
@@ -363,8 +380,9 @@ function createOfferService({
         validityMonths: campaign.validityMonths,
         band: mode ? { key: mode.band, label: BAND_WORDS[mode.band], from: mode.from, to: mode.to } : null,
         contents: contentLines(cheapest.base),
+        contentsByPeriod: Object.fromEntries(priced.prices.map((p) => [p.period, contentLines(p.base)])),
         addOns: extrasPricing.priced(campaign.addOns.map((articleRef) => ({ articleRef, label: labelOf(articleRef), maxQty: campaignRules.MAX_QTY }))),
-        periods: priced.prices.map(({ period, priceCents, label }) => ({ period, priceCents, label })),
+        periods: priced.prices.map(({ period, priceCents, label, hint }) => ({ period, priceCents, label, hint })),
         extraTime: campaign.extraTimeMaxMinutes > 0 && step ? {
           maxMinutes: campaign.extraTimeMaxMinutes,
           stepMinutes: step,

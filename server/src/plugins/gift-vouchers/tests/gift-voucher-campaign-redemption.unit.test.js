@@ -152,7 +152,7 @@ test('« Mon bain » opens a voucher: its contents, the names, the validity, the
   const { ok, data } = ask.open(voucher);
   assert.equal(ok, true);
   assert.deepEqual(data.contents.map((c) => [c.kind, c.label, c.detail, c.qty]), [
-    ['session', 'Bain nordique', '2 h en journée · de 10:00 à 19:00', 1],
+    ['session', 'Bain nordique', '2 h en journée · semaine · de 10:00 à 19:00', 1],
     ['option', 'Planche apéro', null, 1],
   ]);
   assert.deepEqual([data.kind, data.recipientName, data.senderName, data.message, data.expiresOn], ['resource', 'Léa', 'Paul', 'Joyeux anniversaire', '2027-11-15']); // date-literal-ok: the suite runs on its own clock, never the real today
