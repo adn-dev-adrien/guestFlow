@@ -38,6 +38,7 @@ const SUPPLEMENT_LABELS = Object.freeze({
   evening: 'Supplément soirée', weekend: 'Supplément week-end', eveningWeekend: 'Supplément soirée week-end', slot: 'Supplément créneau',
 });
 const GAP_LABEL = 'Écart de créneau';
+const OFFERED_HOUR_LABEL = 'Heure offerte';
 
 const refuse = (code, message, status = 400, extra = {}) => ({
   ok: false, status, code, message, ...extra,
@@ -307,7 +308,7 @@ function createUseService({
    * continuing, the options the voucher holds and the add-ons added. `checkSlot: false` is the confirmation of a payment, where the slot is judged by the booking itself.
    * → `{ ok: true, …, covers, fulfilments, lines, dueCents }` | a refusal.
    */
-  function compose(voucher, contents, request, { checkSlot = true, holdRef = null } = {}) {
+  function compose(voucher, contents, request, { checkSlot = true, holdRef = null, frozenHour = null } = {}) {
     const asked = String(request.start || '');
     const parts = START.exec(asked);
     if (!parts) return refuse('SLOT_INVALID', 'Créneau invalide.');
@@ -320,7 +321,7 @@ function createUseService({
     if (!hook()) return refuse('BOOKING_UNAVAILABLE', 'Les réservations en ligne ne sont pas disponibles pour le moment.', 409);
     const { resource } = contents;
     const priced = hook().quote({
-      resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, excludeHoldRef: holdRef, now: now(),
+      resourceId: resource.id, date, start: time, coveredBand: resource.band, coveredMinutes: resource.minutes, coveredPeriod: periodOf(contents), extraMinutes: extra, excludeHoldRef: holdRef, offeredHour: frozenHour, now: now(),
     });
     if (!priced.ok) return refuse(priced.code, priced.message, 409);
     if (checkSlot) {
@@ -389,7 +390,7 @@ function createUseService({
         ],
         supplement: supplementCents > 0 ? { label: SUPPLEMENT_LABELS[priced.session.supplementCause] || SUPPLEMENT_LABELS.slot, cents: supplementCents } : null,
         gifts: [
-          ...(hourRow ? [{ label: 'Heure offerte', detail: durationText(offeredHour.minutes) }] : []),
+          ...(hourRow ? [{ label: OFFERED_HOUR_LABEL, detail: durationText(offeredHour.minutes) }] : []),
           ...(drinkRow ? [{ label: 'Boisson offerte', detail: null }] : []),
         ],
         extras: [
@@ -603,6 +604,12 @@ function createUseService({
     return owedBack(reason);
   };
 
+  /** Rule 17 — what the confirmation decided about the offered hour, read back from the recap it stored: the payment books exactly that composition, whatever was freed or taken since. */
+  const confirmedOfferedHour = (use) => {
+    const recap = JSON.parse(use.recap || '{}');
+    return Array.isArray(recap.gifts) && recap.gifts.some((gift) => gift.label === OFFERED_HOUR_LABEL);
+  };
+
   /**
    * The remainder was paid — on time or late. Books the session and settles the voucher in one transaction. When the slot was taken after the hold lapsed, or the voucher was used
    * meanwhile, the money is flagged « à rembourser » on its payment link — the core's own refund line for a payment a basket cannot honour, which its journal already lists —
@@ -617,8 +624,9 @@ function createUseService({
     if (!voucher || voucher.cancelledAt || contents.kind !== 'resource') return unhonoured(use, 'bon cadeau annulé');
     const composed = compose(voucher, contents, {
       start: `${use.date}T${use.startTime}`, extraMinutes: use.extraMinutes, addOns: JSON.parse(use.addOns || '[]'),
-    }, { checkSlot: false, holdRef: use.state === 'held' ? use.holdRef : null });
+    }, { checkSlot: false, holdRef: use.state === 'held' ? use.holdRef : null, frozenHour: confirmedOfferedHour(use) });
     if (!composed.ok) return unhonoured(use, composed.message);
+    if (composed.endTime !== use.endTime || composed.time !== use.startTime) return unhonoured(use, 'créneau différent de celui confirmé');
     if (Number(amountCents) !== composed.dueCents) return unhonoured(use, 'montant payé différent du reste à payer');
     const stillHeld = use.state === 'held';
     const booked = attempt(() => {

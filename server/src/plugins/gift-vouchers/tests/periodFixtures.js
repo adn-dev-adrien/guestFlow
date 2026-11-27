@@ -20,7 +20,7 @@ function setup() {
   const links = use.paymentLinks();
   const settingsStore = memorySettings();
   const shop = fx.openShop({ resources: () => offerOfBath.offer, payments: links.payments, settingsStore: () => settingsStore });
-  const { api, db, clock } = shop;
+  const { api, db, clock, sent } = shop;
   db.prepare('UPDATE resources SET hourlyExternalWeekendDayRate = 70, hourlyExternalWeekendEveningRate = 90, hourlyExternalWeekendNextDayRate = 60, hourlyExternalWeekendNextEveningRate = 80 WHERE id = ?').run(ids.bath);
   const hour = { composition: { resourceId: ids.bath, band: 'day', minutes: 60, options: [] }, addOns: [], extraTimeMaxMinutes: 60 };
   const create = (over) => {
@@ -43,7 +43,7 @@ function setup() {
   });
   const saleOf = (bookingId) => require('../../../utils/standaloneSale').documentOf(Number(db.prepare('SELECT saleRef FROM resource_bookings WHERE id = ?').get(bookingId).saleRef.split(':')[1]));
   return {
-    ids, offerOfBath, links, settingsStore, api, db, clock, hour, create, campaign, sell, slotsOf, quoteOf, confirm, saleOf,
+    ids, offerOfBath, links, settingsStore, api, db, clock, sent, hour, create, campaign, sell, slotsOf, quoteOf, confirm, saleOf,
   };
 }
 

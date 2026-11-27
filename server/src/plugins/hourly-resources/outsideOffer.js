@@ -9,7 +9,7 @@
  *       `includeTaken` also lists, marked `taken: true`, the starts that fit the opening hours but are taken by a booking or a hold (specs/site/site-outside-resource-booking.md rule 6)
  *   quote({ resourceId, date, start, coveredBand, coveredMinutes, extraMinutes, excludeHoldRef?, memo?, now? }) → { ok: true, endTime, session, extra } | { ok: false, code, message }
  *       the engine's price of a session placed at `start`: `coveredMinutes` first (already paid for in `coveredBand`, at the rank they take), then `extraMinutes` after
- *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45); `excludeHoldRef` is the buyer's own hold, which does not count against the doubled block (rule 17); `memo` is a Map a caller pricing a long list of starts hands in so the same figure is asked of the engine once
+ *       them, their ranks continuing; `session.supplementCents` is what the covered slices cost above their band's price (a covered day session run into the evening, rule 45); `excludeHoldRef` is the buyer's own hold, which does not count against the doubled block (rule 17); `offeredHour` freezes the rule-17 decision of a choice already confirmed (`true`: the doubled block must still be free, else `OFFERED_HOUR_UNAVAILABLE`; `false`: not doubled, whatever has been freed since; `null`: decided now); `memo` is a Map a caller pricing a long list of starts hands in so the same figure is asked of the engine once
  *   hold({ resourceId, date, start, end, ref, minutes?, now? }) → { ok: true, expiresAt } | { ok: false, code: 'SLOT_TAKEN', message }
  *   release(ref)
  *   limits({ resourceId }) → { ok: true, stepMinutes, minMinutes, maxMinutes, maxPeople } | { ok: false, code, message }   what a session of the resource may ask: the step and the shortest of its grid, the longest the opening hours hold, the party (20 when none is set)
@@ -189,7 +189,7 @@ function createOutsideOffer({
   }
 
   function quote({
-    resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod = 'week', extraMinutes = 0, excludeHoldRef = null, memo = null, now: at,
+    resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod = 'week', extraMinutes = 0, excludeHoldRef = null, offeredHour = null, memo = null, now: at,
   }) {
     const resource = offerable(resourceId);
     if (!resource) return refuse('RESOURCE_UNAVAILABLE', 'Cette ressource ne se réserve pas à l’heure.');
@@ -238,7 +238,8 @@ function createOutsideOffer({
       }).ok;
     };
     if (coveredBand === 'evening' && period === 'weekend' && startBand === 'day' && startPeriod === 'week') {
-      const free = blockFree(toMinutes(start) + 2 * covered);
+      const free = offeredHour === false ? false : blockFree(toMinutes(start) + 2 * covered);
+      if (offeredHour === true && !free) return refuse('OFFERED_HOUR_UNAVAILABLE', 'L’heure offerte ne tient plus à ce créneau.');
       result.twoHours = {
         free, minutes: covered, endTime: timeOf(toMinutes(start) + 2 * covered), line: null,
       };
