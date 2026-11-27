@@ -103,3 +103,20 @@ test('the voucher draws its own sizes, smaller than the merchant card’s', () =
   assert.ok(pdf.VOUCHER_BACK_LAYOUT.pt.title < pdf.BACK_LAYOUT.pt.title);
   assert.ok(pdf.VOUCHER_BACK_LAYOUT.qrMm >= 16, 'a QR code a phone still reads');
 });
+
+// Round 4 B — with several lines the options are listed in order as far as they fit (the last line ends with an ellipsis); only a single line makes the first item's name give way.
+test('a roomy back with six options lists those that fit, in order, the last line ending with an ellipsis; one line keeps the first item\'s detail and period', async () => {
+  const roomy = await backOf({
+    mark: 'no logo', title: FACTORS.title[0], parties: [null, null], message: '', options: FACTORS.options[2],
+  });
+  const at = roomy.findIndex((t) => /^Votre bon comprend — /.test(t));
+  const listed = roomy.slice(at).join(' ');
+  for (const n of [1, 2, 3, 4, 5]) assert.ok(listed.includes(`numéro ${n}`), `option ${n} is listed: ${listed}`);
+  assert.ok(roomy[at + 1].endsWith('…') || roomy[at].endsWith('…') || roomy.slice(at, at + 4).some((t) => t.endsWith('…')), 'the cut ends with an ellipsis');
+  const crowded = await backOf({
+    mark: 'logo', title: FACTORS.title[2], parties: FACTORS.parties[2], message: FACTORS.message[2], options: FACTORS.options[2],
+  });
+  const one = crowded.filter((t) => /^Votre bon comprend — /.test(t));
+  assert.equal(one.length, 1);
+  assert.match(one[0], / : 1 h en soirée · week-end/);
+});

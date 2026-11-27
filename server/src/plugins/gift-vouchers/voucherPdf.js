@@ -484,7 +484,8 @@ function drawBack(sheet, {
 }
 
 /**
- * « Votre bon comprend — <name> : <detail> · <period> · <other items> » on the `lines` it was allotted: the whole text when it fits them; otherwise the name of the first item gives way
+ * « Votre bon comprend — <name> : <detail> · <period> · <other items> » on the `lines` it was allotted: the whole text when it fits them. When it does not, with several lines the items
+ * are listed in order as far as they fit and the last line ends with an ellipsis (the pen cuts it), the first item staying whole; with ONE line the name of the first item gives way
  * (an ellipsis) so that its detail and its period (after the colon) stay whole, with room kept for « ·… » when other items follow. The first item has no colon when it is a lodging
  * voucher's one line, which is then cut like any text.
  */
@@ -495,9 +496,10 @@ function contentsText({
   const tail = detail.length ? ` : ${detail.join(' : ')}` : '';
   const rest = others.length ? ` · ${others.join(' · ')}` : '';
   const whole = `${say(BACK_TEXTS.includes, { lines: tail ? lead : first })}${tail}${rest}`;
-  if (!tail || fitLines(doc, whole, width, lines + 1).length <= lines) return whole;
-  const more = rest ? ' ·…' : '';
   const fits = (text) => fitLines(doc, text, width, lines + 1).length <= lines;
+  if (!tail || fits(whole)) return whole;
+  const more = rest ? ' ·…' : '';
+  if (lines > 1 && fits(`${say(BACK_TEXTS.includes, { lines: lead })}${tail}${more}`)) return whole;
   let cut = lead;
   while (cut.length > 1 && !fits(`${say(BACK_TEXTS.includes, { lines: cut })}${tail}${more}`)) cut = `${cut.slice(0, -2).trimEnd()}…`;
   return `${say(BACK_TEXTS.includes, { lines: cut })}${tail}${more}`;
