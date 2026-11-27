@@ -109,9 +109,9 @@ function legacyGridOf(resource, { external, guestDayRate = Number(resource.price
 }
 
 const BAND_WORDS = Object.freeze({ day: 'la journée', evening: 'la soirée' });
-const PERIOD_WORDS = Object.freeze({ week: ' en semaine', weekend: ' le week-end' });
+const PERIOD_WORDS = Object.freeze({ week: ' en semaine', weekend: ' le week-end', any: ', en semaine et le week-end' });
 
-/** The sentence that says an outside band has no price, naming the period it is about: « Bain nordique » n’a pas de tarif extérieur pour la soirée le week-end. (no period → none named). */
+/** The sentence that says an outside band has no price, naming the period it is about: « Bain nordique » n’a pas de tarif extérieur pour la soirée le week-end. (no period → none named; `any` → both: « … pour la journée, en semaine et le week-end. »). */
 const notSoldSentence = (resource, band, period) => `« ${resource.name} » n’a pas de tarif extérieur pour ${BAND_WORDS[band]}${PERIOD_WORDS[period] || ''}.`;
 
 /**

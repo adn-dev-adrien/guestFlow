@@ -53,7 +53,7 @@ function sessionModesOf(resource, { period = 'week', date = null } = {}) {
         const { rateCents, followingRateCents, followingText, sellable, reason } = byPeriod[which][index];
         return [one, { rateCents, followingRateCents, followingText, sellable, ...(reason ? { reason } : {}) }];
       }));
-      return { ...cheapest, sellable: sold.length > 0, ...(sold.length ? {} : { reason: weekMode.reason }), byPeriod: byThePeriod };
+      return { ...cheapest, sellable: sold.length > 0, ...(sold.length ? {} : { reason: notSoldSentence(resource, weekMode.band, 'any') }), byPeriod: byThePeriod };
     });
   }
   const open = toMinutes(resource.openTime || '00:00');

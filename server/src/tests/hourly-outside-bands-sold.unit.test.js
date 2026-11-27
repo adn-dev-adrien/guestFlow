@@ -77,5 +77,5 @@ test('F3 — sellability reads both periods: a resource sold only on weekends is
   assert.deepEqual(modes.map((m) => [m.band, m.sellable, m.rateCents]), [['day', true, 7000], ['evening', true, 9000]]);
   const none = { ...weekendOnly, hourlyExternalWeekendDayRate: 0, hourlyExternalWeekendEveningRate: 0 };
   assert.equal(isOfferedOnline(none), false);
-  assert.match(sessionModesOf(none, { period: 'any' })[0].reason, /n’a pas de tarif extérieur pour la journée/);
+  assert.equal(sessionModesOf(none, { period: 'any' })[0].reason, `« ${none.name} » n’a pas de tarif extérieur pour la journée, en semaine et le week-end.`);
 });

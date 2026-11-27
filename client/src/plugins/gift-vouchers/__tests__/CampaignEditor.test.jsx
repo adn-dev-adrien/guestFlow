@@ -52,9 +52,9 @@ test('the price comes from the server preview: lines, total and « dont TVA » p
 });
 
 test('the reason the engine gives when the content cannot be priced is shown in the preview', async () => {
-  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée.'), { code: 'PRICE_UNAVAILABLE' }));
+  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.'), { code: 'PRICE_UNAVAILABLE' }));
   open();
-  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée.')).toBeInTheDocument();
+  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.')).toBeInTheDocument();
 });
 
 test('a saved campaign the engine cannot price shows its reason at the top', async () => {
@@ -197,8 +197,8 @@ test('rule 61: « Réessayer » brings the price back and the focus stays in the
 });
 
 test('rule 61: a refusal of the price shows its reason without « Réessayer »', async () => {
-  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée.'), { status: 422, code: 'PRICE_UNAVAILABLE' }));
+  giftVouchersApi.previewPrice.mockRejectedValue(Object.assign(new Error('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.'), { status: 422, code: 'PRICE_UNAVAILABLE' }));
   open();
-  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée.')).toBeInTheDocument();
+  expect(await screen.findByText('« Bain nordique » n’a pas de tarif extérieur pour la soirée en semaine.')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
 });
