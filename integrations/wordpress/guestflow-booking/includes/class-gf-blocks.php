@@ -397,7 +397,7 @@ final class GF_Blocks
                 'sbIncludedTwoHours' => __('Inclus · 2 h', 'guestflow-booking'),
                 'sbGiftDrink'     => __(' · boisson offerte', 'guestflow-booking'),
                 'sbGiftTwoHoursDrink' => __(' · 2 h + boisson offerte', 'guestflow-booking'),
-                'sbGiftTwoHours'  => __(' · 2 h offerte', 'guestflow-booking'),
+                'sbGiftTwoHours'  => __(' · 2 h', 'guestflow-booking'),
                 'sbWithEvening'   => __(' · dont soirée', 'guestflow-booking'),
                 'sbEvening'       => __(' · soirée', 'guestflow-booking'),
                 'sbAddTitle'      => __('Ajouter à la séance', 'guestflow-booking'),

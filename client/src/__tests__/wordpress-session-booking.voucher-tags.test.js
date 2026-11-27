@@ -35,6 +35,7 @@ const TAGS = [
   { start: '15:00', end: '18:00', tag: 'twoHoursDrink', supplementCents: 0, dueCents: 4500, evening: false },
   { start: '18:00', end: '20:00', tag: 'drink', supplementCents: 0, dueCents: 4500, evening: false },
   { start: '20:00', end: '23:00', tag: 'twoHours', supplementCents: 0, dueCents: 4500, evening: false },
+  { start: '21:00', end: '23:00', tag: 'twoHours', supplementCents: 0, dueCents: 0, evening: false },
 ];
 
 function voucherSetup() {
@@ -106,5 +107,6 @@ test('rule 17 — when the recipient adds time the price is not hidden by the gi
   const text = async (start) => (await slotButton(start)).querySelector('span').textContent.replace(/\s/g, ' ');
   expect(await text('15:00')).toMatch(/^\+ 45 € · 2 h \+ boisson offerte$/);
   expect(await text('18:00')).toMatch(/^\+ 45 € · boisson offerte$/);
-  expect(await text('20:00')).toMatch(/^\+ 45 € · 2 h offerte$/);
+  expect(await text('20:00')).toMatch(/^\+ 45 € · 2 h$/);
+  expect(await text('21:00')).toBe('Inclus · 2 h');
 });
