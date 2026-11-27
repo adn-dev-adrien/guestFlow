@@ -1,5 +1,5 @@
 /**
- * The A4 poster of one lodging's QR code (specs/guest-app.md rules 1, 48): the app's name, the lodging, the
+ * The A4 poster of one lodging's QR code (specs/guest-app/guest-app.md rules 1, 48): the app's name, the lodging, the
  * code a phone scans to open `https://<guest host>/l/<lodgingCode>`, and one line in French and in English.
  * Regenerating the code makes every printed poster of that lodging obsolete: print a new one.
  */
@@ -17,6 +17,9 @@ const lodgingUrl = (guestHost, lodgingCode) => `https://${guestHost}/l/${lodging
 
 /** The URL of a stay's own link (rule 1). */
 const stayLinkUrl = (guestHost, stayToken) => `https://${guestHost}/s/${stayToken}`;
+
+/** Demo mode rule 1 — the one demo link: `https://<guest host>/d/<demoToken>`. */
+const demoLinkUrl = (guestHost, demoToken) => `https://${guestHost}/d/${demoToken}`;
 
 /** → a Buffer holding the PDF. */
 async function renderQrPoster({ appName, lodgingName, url }) {
@@ -40,4 +43,6 @@ async function renderQrPoster({ appName, lodgingName, url }) {
   return done;
 }
 
-module.exports = { lodgingUrl, renderQrPoster, stayLinkUrl };
+module.exports = {
+  demoLinkUrl, lodgingUrl, renderQrPoster, stayLinkUrl,
+};

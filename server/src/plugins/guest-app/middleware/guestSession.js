@@ -1,5 +1,5 @@
 /**
- * Reads `gf_guest`, loads the session and re-derives its stay's window on every request (specs/guest-app.md
+ * Reads `gf_guest`, loads the session and re-derives its stay's window on every request (specs/guest-app/guest-app.md
  * rules 1, 4, 9, 11quater). A dead session answers 401 `SESSION_EXPIRED` and loses its cookie; the app then
  * exchanges its stored stay link again, or falls back to the lodging's visitor mode. A session opened from a
  * stay link dies with that link (« Régénérer le lien »).
@@ -7,6 +7,7 @@
 
 const sdk = require('../../sdk');
 const { deriveSession } = require('../currentStay');
+const { demoSession } = require('../demoStay');
 
 const { fail, refusal } = require('../refusals');
 
@@ -29,10 +30,44 @@ const clearSessionCookie = (res, { secure = true } = {}) => res.clearCookie(COOK
 const coreHttps = () => sdk.coreModule('securityConfig').shouldEnforceHttps();
 
 function buildGuestSession({
-  sessions, stays, stayLinks, lodgings, now, httpsEnabled = coreHttps,
+  sessions, stays, stayLinks, lodgings, now, httpsEnabled = coreHttps, demoLinks = () => ({ isLive: () => false }), onDemoGone = () => {},
 }) {
   const setCookie = (res, token, expires) => setSessionCookie(res, token, expires, { secure: httpsEnabled() });
   const clearCookie = (res) => clearSessionCookie(res, { secure: httpsEnabled() });
+
+  /**
+   * Demo mode rules 5, 6 — a demo session reads no reservation: the fictitious stay is built from its lodging and moment, the mode
+   * derived by the real helpers. A lodging switched off meanwhile falls back to the first one the app shows; none left, no session.
+   */
+  function loadDemo(session, token, at) {
+    // Demo mode rule 11 — a demo session found expired or revoked takes its simulated orders with it.
+    if (!demoLinks().isLive(session.demoLinkId) || at >= new Date(session.expiresAt)) {
+      onDemoGone(session.id);
+      return null;
+    }
+    let current = session;
+    let lodging = lodgings().findEnabled(session.propertyId);
+    if (!lodging) {
+      const [first] = lodgings().listEnabled();
+      lodging = first ? lodgings().findEnabled(first.propertyId) : null;
+      if (!lodging) return null;
+      current = sessions().switchDemo(session.id, { propertyId: lodging.propertyId, moment: session.demoMoment });
+    }
+    const built = demoSession({
+      propertyId: lodging.propertyId, moment: current.demoMoment, now: at, times: lodgings().checkTimes(lodging.propertyId),
+    });
+    if (!built) return null;
+    return {
+      session: sessions().touch(current.id, { mode: built.mode, expiresAt: current.expiresAt, now: at }),
+      token,
+      stay: built.stay,
+      window: built.stay ? built.window : null,
+      lodging,
+      mode: built.mode,
+      demo: true,
+      ...(built.ended ? { ended: true } : {}),
+    };
+  }
 
   /** → { session, token, stay, window, lodging, mode } or null. */
   function load(req) {
@@ -40,6 +75,7 @@ function buildGuestSession({
     const session = sessions().findByToken(token);
     if (!session) return null;
     const at = now();
+    if (session.origin === 'demo') return loadDemo(session, token, at);
     const lodging = lodgings().findEnabled(session.propertyId);
     if (!lodging) return null;
     if (session.stayLinkId !== null && !stayLinks().isLive(session.stayLinkId)) return null;

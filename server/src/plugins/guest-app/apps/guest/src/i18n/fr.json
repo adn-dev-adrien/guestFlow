@@ -263,5 +263,17 @@
  "places.gps.waze": "Waze",
  "places.verified": "Vérifié le {date}",
  "places.accepts": "Ce qu’on peut y déposer",
- "places.energies": "Énergies proposées"
+ "places.energies": "Énergies proposées",
+ "demo.label": "Démo",
+ "demo.title": "Démonstration",
+ "demo.lodging": "Logement",
+ "demo.momentTitle": "Moment",
+ "demo.moment.preArrival": "Avant l’arrivée",
+ "demo.moment.stay": "Pendant le séjour",
+ "demo.moment.ended": "Après le départ",
+ "demo.confirmed": "Démo : rien n’a été commandé ni payé.",
+ "demo.chip": "Démo",
+ "demo.gateIntro": "Ici, le voyageur ouvre le portail.",
+ "demo.gateCode": "Code du clavier",
+ "demo.gateNote": "Démo : aucun portail n’est ouvert."
 }

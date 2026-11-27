@@ -37,6 +37,9 @@ function buildAdminRouter({
   router.get('/studio/settings', studioSettings.read);
   router.put('/studio/settings', studioSettings.write);
   router.post('/studio/soliomap/sync', studioSettings.sync);
+  // specs/guest-app/guest-app-demo-mode.md rules 1, 2 — the demo link, admin only like the rest of the Studio.
+  router.get('/studio/demo-link', studioSettings.demoLinkRead);
+  router.post('/studio/demo-link/regenerate', studioSettings.demoLinkRegenerate);
   router.get('/studio/lodgings/:propertyId/booklet', studio.readBooklet);
   router.put('/studio/lodgings/:propertyId/booklet', studio.writeBooklet);
   router.get('/studio/lodgings/:propertyId/preview', studio.preview);

@@ -40,9 +40,10 @@ function Screens() {
   const { pathname } = useLocation();
   if (pathname.startsWith('/s/')) return <Routes><Route path="/s/:token" element={<EntryPage kind="stay" />} /></Routes>;
   if (pathname.startsWith('/l/')) return <Routes><Route path="/l/:code" element={<EntryPage kind="lodging" />} /></Routes>;
+  if (pathname.startsWith('/d/')) return <Routes><Route path="/d/:token" element={<EntryPage kind="demo" />} /></Routes>;
   if (pathname === '/retrouver' && session.status !== 'inactive') return <LookupPage />;
   if (session.status === 'loading' && !session.me) return <EntryPage kind="none" />;
-  if (session.status === 'inactive') return <UnavailableScreen />;
+  if (session.status === 'inactive') return <UnavailableScreen error={session.error} />;
   if (session.status === 'unknown') return <UnknownCodeScreen />;
   if (!session.me) return <FailedScreen error={session.error} onRetry={session.reload} />;
   return (
@@ -73,7 +74,7 @@ function Root() {
   const theme = useMemo(() => muiTheme(register), [register]);
   const vars = useMemo(() => cssVars(register), [register]);
   const { pathname } = useLocation();
-  const bare = !session.me || pathname.startsWith('/s/') || pathname.startsWith('/l/') || pathname === '/retrouver';
+  const bare = !session.me || pathname.startsWith('/s/') || pathname.startsWith('/l/') || pathname.startsWith('/d/') || pathname === '/retrouver';
 
   useEffect(() => { document.documentElement.lang = session.lang; }, [session.lang]);
   useEffect(() => {
@@ -81,7 +82,8 @@ function Root() {
     if (meta) meta.setAttribute('content', vars['--paper']);
   }, [vars]);
 
-  const cls = ['app', session.night ? 'night' : '', layout.wide ? 'wide' : '', layout.desk ? 'desk' : ''].filter(Boolean).join(' ');
+  const demo = Boolean(session.me && session.me.demo && !bare);
+  const cls = ['app', session.night ? 'night' : '', layout.wide ? 'wide' : '', layout.desk ? 'desk' : '', demo ? 'demo' : ''].filter(Boolean).join(' ');
   return (
     <LangContext.Provider value={session.lang}>
       <ThemeProvider theme={theme}>
@@ -89,7 +91,7 @@ function Root() {
           <ToastProvider>
             {bare ? <div className="shell bare"><main className="main"><Screens /></main></div> : (
               <AppShell layout={layout} appName={session.me && session.me.appName}>
-                <Screens />
+                <Screens key={session.epoch} />
               </AppShell>
             )}
           </ToastProvider>

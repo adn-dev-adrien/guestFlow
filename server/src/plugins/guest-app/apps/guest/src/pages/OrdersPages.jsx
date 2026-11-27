@@ -111,6 +111,7 @@ export function OrderPage() {
         <div className="done">
           <svg className="chk" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" /><path d="M30 52l13 13 27-29" /></svg>
           <h1>{t('order.sent')}</h1>
+          {order.demo ? <p className="demoline">{t('demo.confirmed')}</p> : null}
           {[order.promise, ...(order.extraPromises || []), order.movedNotice].filter(Boolean).map((text) => <p key={text}>{text}</p>)}
           <div style={{ width: '100%', maxWidth: 520, display: 'grid', gap: 12, textAlign: 'left' }}>
             <OrderCard order={order} />

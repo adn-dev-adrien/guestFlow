@@ -25,7 +25,7 @@ export default function OrderCard({ order, compact = false, onOpen, onAbandon, o
       <header>
         <b>{t('order.title', { id: order.id })}</b>
         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <StatusChip tone={statusTone(order.status)}>{order.statusLabel}</StatusChip>
+          {order.demo ? <StatusChip tone="warn">{t('demo.chip')}</StatusChip> : <StatusChip tone={statusTone(order.status)}>{order.statusLabel}</StatusChip>}
           {order.deliveryLabel ? <StatusChip tone={order.status === 'delivered' ? 'ok' : 'mut'}>{order.deliveryLabel}</StatusChip> : null}
         </span>
       </header>

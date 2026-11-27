@@ -55,6 +55,9 @@ export const api = {
   home: (id) => request(`/lodgings/${enc(id)}/home`),
   saveHome: (id, blocks) => request(`/lodgings/${enc(id)}/home`, { method: 'PUT', body: { blocks } }),
   homePreview: (id, blocks, lang) => request(`/lodgings/${enc(id)}/home/preview?lang=${enc(lang)}`, { method: 'POST', body: { blocks } }),
+  // specs/guest-app/guest-app-demo-mode.md rules 1, 2 — the one demo link: its URL and QR, created on first need; regenerated.
+  demoLink: () => request('/studio/demo-link'),
+  regenerateDemoLink: () => request('/studio/demo-link/regenerate', { method: 'POST' }),
   qrPosterUrl: (id) => `${BASE}/lodgings/${enc(id)}/qr-poster.pdf`,
 
   items: (propertyId) => request(`/items?propertyId=${enc(propertyId)}`),

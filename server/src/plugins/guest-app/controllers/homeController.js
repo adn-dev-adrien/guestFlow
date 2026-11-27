@@ -1,5 +1,5 @@
 /**
- * The « Domotique » page (specs/guest-app-home-automation.md §3.C-§3.D, §4.3).
+ * The « Domotique » page (specs/guest-app/guest-app-home-automation.md §3.C-§3.D, §4.3).
  *
  * Guest side: the page ready to render, a tap on a light, the state of that tap. Studio side: the lodging's blocks,
  * the catalogue shaped as pickers, the preview. The house's data comes from the Sowel connector through
@@ -59,7 +59,7 @@ function pickersOf(catalog, blocks) {
 const confirmedOf = (data, pairs) => data.confirmed([...new Set(pairs.map((p) => p.equipmentId))]);
 
 function buildHomeController({
-  homeBlocks, lodgings, homeData = () => sdk.core.homeData(), now = () => new Date(),
+  homeBlocks, lodgings, homeData = () => sdk.core.homeData(), now = () => new Date(), demoCommands = () => null,
 }) {
   const propertyIdOf = (req) => {
     const id = Number(req.params.propertyId);
@@ -67,14 +67,19 @@ function buildHomeController({
   };
 
   /** Everything the view needs for one lodging, or null without a connector. */
-  function viewOf(propertyId, lang) {
+  function viewOf(propertyId, lang, simulated = []) {
     const data = homeData();
     if (!data) return null;
     const blocks = homeBlocks().blocksOf(propertyId);
     const catalog = data.catalog();
     const pairs = selectionOf([blocks], catalog);
+    // Demo mode rule 13 — the lights a demo session switched read as the house would confirm them; the readings stay real.
+    const confirmed = [
+      ...simulated.map(({ equipmentId, value }) => ({ equipmentId, value, answeredAt: now().toISOString() })),
+      ...confirmedOf(data, pairs),
+    ];
     return buildHomeView({
-      blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed: confirmedOf(data, pairs),
+      blocks, catalog, readings: data.readings(pairs), series: data.series(pairs), confirmed,
       lastPollAt: data.channel().lastPollAt, now: now(), lang,
     });
   }
@@ -139,7 +144,7 @@ function buildHomeController({
     /** GET /public/v1/guest/home — rule 18. */
     read(req, res) {
       const lang = languageOf(req, req.guest.stay);
-      const view = viewOf(req.guest.lodging.propertyId, lang);
+      const view = viewOf(req.guest.lodging.propertyId, lang, req.guest.demo ? demoCommands().settled(req.guest.session.id) : []);
       if (!view) return fail(res, refusal(404, 'MODULE_OFF', 'moduleOff'));
       return publicHttp.ok(res, view);
     },
@@ -151,6 +156,11 @@ function buildHomeController({
       const propertyId = req.guest.lodging.propertyId;
       const item = pilotableLight(propertyId, String(req.params.lightId));
       if (!item) return fail(res, refusal(403, 'NOT_PILOTABLE', 'lightNotPilotable'));
+      // Demo mode rule 13 — accepted, then done after a moment; the house is never called.
+      if (req.guest.demo) {
+        const simulated = demoCommands().queue(req.guest.session.id, { equipmentId: item.equipmentId, value: on ? 'on' : 'off' });
+        return res.status(202).json({ data: commandView(simulated, languageOf(req, req.guest.stay)) });
+      }
       const queued = homeData().queueCommand({
         stayId: req.guest.stay.id,
         propertyId,
@@ -165,6 +175,11 @@ function buildHomeController({
 
     /** GET /public/v1/guest/home/commands/:id — rule 22: a stay reads its own taps only. */
     command(req, res) {
+      if (req.guest.demo) {
+        const simulated = demoCommands().read(req.guest.session.id, req.params.id);
+        if (!simulated) return fail(res, refusal(404, 'NOT_FOUND', 'commandNotFound'));
+        return publicHttp.ok(res, commandView(simulated, languageOf(req, req.guest.stay)));
+      }
       const data = homeData();
       const id = Number(req.params.id);
       const command = data && Number.isInteger(id) && id > 0 ? data.command(id) : null;

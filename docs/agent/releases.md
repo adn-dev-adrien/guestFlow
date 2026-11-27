@@ -14,13 +14,14 @@ Production runs **published releases**, never a branch. The full model lives in
 - **Claude squash-merges the release PR, and only the release PR** (granted 2026-08-22). The
   authorisation is narrow on purpose: it covers a `release: vX.Y.Z` PR that the release skill itself
   opened in the current run, on a `release/vX.Y.Z` branch, containing nothing but the three version
-  bumps and the changelog fold. Every other PR in this repository stays the user's to merge. The
+  bumps and the changelog fold. Since 2026-11-27 Claude also squash-merges every other PR on a green CI
+  (`CLAUDE.md` §5.1); cutting a release stays the user's decision unless explicitly asked. The
   merge is **squash**, and it happens **only once every check reports `pass`** — re-read immediately
   before merging, never trusted from an earlier look. `--admin` is forbidden: bypassing a pending or
   failing check is exactly what this authorisation is not.
 - A release is cut with the **`/guestflow-release` skill**: pre-flight suites → fold `changelog.d/`
   into a `CHANGELOG.md` section → write the operator digest → bump the three `package.json` files →
-  `release/vX.Y.Z` PR → the user squash-merges → Claude tags `vX.Y.Z` on `master` →
+  `release/vX.Y.Z` PR → Claude squash-merges on a green CI → Claude tags `vX.Y.Z` on `master` →
   `.github/workflows/release.yml` publishes the archive, its `SHA256SUMS` and the WordPress plugin.
   Since 2026-08-22 the skill merges that PR itself once the CI is green, so a release runs end to
   end from a single request; never end a release turn asking to be told the PR was merged.

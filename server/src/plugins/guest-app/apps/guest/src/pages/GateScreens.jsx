@@ -20,13 +20,15 @@ export function UnknownCodeScreen() {
   );
 }
 
-export function UnavailableScreen() {
+export function UnavailableScreen({ error = null }) {
   const t = useT();
+  // Demo mode rule 4 — the demo link with no lodging in the app says so, in the server's words.
+  const noLodging = error && error.code === 'NO_LODGING';
   return (
     <div className="unavail">
       <Icon name="moon" />
       <h1>{t('off.title')}</h1>
-      <p>{t('off.text')}</p>
+      <p>{noLodging ? error.message : t('off.text')}</p>
     </div>
   );
 }

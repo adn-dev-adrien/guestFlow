@@ -5,7 +5,7 @@
  * carries the label.
  */
 import {
-  ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, Bath, BookOpen, Check, ChevronRight, Clock, CloudOff, CloudRain, Copy,
+  ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, Bath, BookOpen, Check, ChevronDown, ChevronRight, Clock, CloudOff, CloudRain, Copy,
   CreditCard, Droplet, Fence, Gift, House, Info, Lightbulb, LocateFixed, Mail, MapPin, MessageCircle, Minus, Moon, Navigation, Phone, Plus, QrCode,
   ReceiptText, Search, Share, ShoppingBag, Store, Sun, Thermometer, Trash2, TriangleAlert, Wifi, WifiOff, Wind, X, Zap,
 } from 'lucide-react';
@@ -27,6 +27,7 @@ export const ICONS = Object.freeze({
   moon: Moon,
   back: ArrowLeft,
   chev: ChevronRight,
+  chevDown: ChevronDown,
   plus: Plus,
   minus: Minus,
   trash: Trash2,
