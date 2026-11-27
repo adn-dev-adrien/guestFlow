@@ -14,7 +14,7 @@ import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import {
-  ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, useLatestPreview, useToast,
+  ErrorAlert, FocusKeeper, LoadingState, PageActionBar, PreviewFailure, PrintSheetsDialog, useLatestPreview, useToast,
 } from '../sdk';
 import giftVouchersApi from './giftVouchersApi';
 import AddOnsPicker from './AddOnsPicker';
@@ -24,7 +24,6 @@ import FormSection from './FormSection';
 import IdeasEditor from './IdeasEditor';
 import PriceRecap from './PriceRecap';
 import FrontPriceField from './FrontPriceField';
-import PrintSheetsDialog from '../../components/PrintSheetsDialog';
 import ValidityField from './ValidityField';
 import VisualPicker from './VisualPicker';
 import useCatalogue from './useCatalogue';

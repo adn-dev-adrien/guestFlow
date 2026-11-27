@@ -13,9 +13,8 @@ import {
   Box, Button, Chip, Divider, Link, Stack, Typography,
 } from '@mui/material';
 import {
-  ConfirmDialog, StatusBadge, SummaryItem, useToast,
+  ConfirmDialog, PrintSheetsDialog, StatusBadge, SummaryItem, useToast,
 } from '../sdk';
-import PrintSheetsDialog from '../../components/PrintSheetsDialog';
 import giftVouchersApi from './giftVouchersApi';
 import {
   AdjustDialog, ExtendDialog, ForcedCancelDialog, ResendDialog,

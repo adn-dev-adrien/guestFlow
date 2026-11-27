@@ -7,6 +7,8 @@ export { usePlugin } from '../../hooks/usePlugins';
 export { useAppDialogs, useToast } from '../../components/DialogProvider';
 export { default as PageActionBar } from '../../components/PageActionBar';
 export { default as FormDialog } from '../../components/FormDialog';
+// « Imprimer… » of a two-sided A6 document (gift-voucher-week-weekend-and-print spec rules 22-23, SDK 2.38.0).
+export { default as PrintSheetsDialog } from '../../components/PrintSheetsDialog';
 export { default as ConfirmDialog } from '../../components/ConfirmDialog';
 export { default as LoadingState } from '../../components/LoadingState';
 export { default as ErrorAlert } from '../../components/ErrorAlert';

@@ -3,7 +3,18 @@
  * columns ⇄ the typed text, the payload and the inline checks that mirror the server's (`server/src/plugins/hourly-resources/resourceRates.js`). Owned by the plugin: the
  * core's resource form only asks its contributions (`resources.priceFields`). Amounts are the text typed (« 12,5 »); a comma is accepted.
  */
-import { amountProblem, isBlank, parseAmount } from '../../pages/options/optionForm';
+
+// The typed-amount helpers of the form (a comma is accepted), kept here: a plugin reaches the core through the SDK only.
+const parseAmount = (text) => {
+  const clean = String(text ?? '').trim().replace(/\s/g, '').replace(',', '.');
+  return /^-?\d+(\.\d*)?$/.test(clean) || /^-?\.\d+$/.test(clean) ? Number(clean) : NaN;
+};
+const isBlank = (text) => String(text ?? '').trim() === '';
+const amountProblem = (text) => {
+  const value = parseAmount(text);
+  if (Number.isNaN(value) || value < 0) return 'invalid';
+  return Math.abs(Math.round(value * 100) - value * 100) > 1e-6 ? 'decimals' : '';
+};
 
 // [field, audience, « where » of the refusal sentence, band] — `price` (the guests' day first hour) stays the core column.
 const GUEST = [
