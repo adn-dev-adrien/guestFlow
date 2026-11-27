@@ -1175,3 +1175,15 @@ msgstr "Included · 2 h + free drink"
 #: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md)
 msgid "Inclus · 2 h"
 msgstr "Included · 2 h"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 17)
+msgid " · boisson offerte"
+msgstr " · free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 17)
+msgid " · 2 h + boisson offerte"
+msgstr " · 2 h + free drink"
+
+#: blocks/session-booking, includes/class-gf-blocks.php (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 17)
+msgid " · 2 h offerte"
+msgstr " · 2 h free"

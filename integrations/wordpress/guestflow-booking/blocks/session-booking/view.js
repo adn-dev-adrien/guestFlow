@@ -407,6 +407,9 @@
     function tagOf(slot) {
       if (st.voucher) {
         // Rules 15-17 of the week-weekend spec — the server tags every slot against the voucher's value: included, a gift of a drink or of an hour, or a supplement.
+        // The recipient added time: what is still due is shown first, the gift after it (« + 45 € · boisson offerte »).
+        var gifts = { drink: 'sbGiftDrink', twoHoursDrink: 'sbGiftTwoHoursDrink', twoHours: 'sbGiftTwoHours' };
+        if (gifts[slot.tag] && slot.dueCents) return { text: '+ ' + money(slot.dueCents) + GF.t(gifts[slot.tag]), cls: slot.evening ? ' is-evening' : '' };
         if (slot.tag === 'drink') return { text: GF.t('sbIncludedDrink'), cls: ' is-in' };
         if (slot.tag === 'twoHoursDrink') return { text: GF.t('sbIncludedTwoHoursDrink'), cls: ' is-in' };
         if (slot.tag === 'twoHours') return { text: GF.t('sbIncludedTwoHours'), cls: ' is-in' };
@@ -677,7 +680,7 @@
       if (code === 'PHONE_INVALID') { setError('phone', text); phoneInput.focus(); return; }
       if (code === 'TERMS_NOT_ACCEPTED' || code === 'TERMS_OUTDATED') { setError('terms', text); termsInput.focus(); return; }
       showAlert(text);
-      if (code === 'SLOT_TAKEN' || code === 'BEYOND_HORIZON') { st.slot = null; st.quote = null; loadSlots(); paintAll(); }
+      if (code === 'SLOT_TAKEN' || code === 'BEYOND_HORIZON' || code === 'RECAP_CHANGED') { st.slot = null; st.quote = null; loadSlots(); paintAll(); }
     }
 
     function bookedHere(data) {
@@ -691,7 +694,7 @@
 
     function confirm(retried) {
       var body = st.voucher ? {
-        code: st.code, start: startOf(), extraMinutes: extraMinutes(), addOns: addOnsRequest(),
+        code: st.code, start: startOf(), end: st.quote && st.quote.end ? st.quote.end : undefined, extraMinutes: extraMinutes(), addOns: addOnsRequest(),
         firstName: firstInput.value.trim(), lastName: lastInput.value.trim(), people: st.people, email: emailInput.value.trim(), phone: phoneInput.value.trim(),
         termsVersionId: termsVersion() || 0, returnPath: window.location.pathname + '?gf_use=paid',
       } : {

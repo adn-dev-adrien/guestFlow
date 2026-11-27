@@ -31,6 +31,10 @@ const TAGS = [
   { start: '12:00', end: '13:00', tag: 'drink', supplementCents: 0, dueCents: 0, evening: false },
   { start: '13:00', end: '14:00', tag: 'in', supplementCents: 0, dueCents: 0, evening: false },
   { start: '14:00', end: '15:00', tag: 'supplement', supplementCents: 2000, supplementLabel: 'Supplément soirée week-end', dueCents: 2000, evening: true },
+  // The recipient added time: the gift stays, the price of the added time is shown first.
+  { start: '15:00', end: '18:00', tag: 'twoHoursDrink', supplementCents: 0, dueCents: 4500, evening: false },
+  { start: '18:00', end: '20:00', tag: 'drink', supplementCents: 0, dueCents: 4500, evening: false },
+  { start: '20:00', end: '23:00', tag: 'twoHours', supplementCents: 0, dueCents: 4500, evening: false },
 ];
 
 function voucherSetup() {
@@ -92,4 +96,15 @@ test('rule 17 — the recap of a doubled slot lists the offered hour and the dri
   const summary = document.querySelector('.gf-summary').textContent.replace(/\s/g, ' ');
   expect(summary).toMatch(/Boisson offerte/);
   expect(summary).toMatch(/10:00 – 12:00/);
+});
+
+test('rule 17 — when the recipient adds time the price is not hidden by the gift: « + 45 € · boisson offerte »', async () => {
+  voucherSetup();
+  await screen.findByLabelText('Code bon cadeau');
+  await applyTyped(validCode());
+  fireEvent.click(await firstFreeDay());
+  const text = async (start) => (await slotButton(start)).querySelector('span').textContent.replace(/\s/g, ' ');
+  expect(await text('15:00')).toMatch(/^\+ 45 € · 2 h \+ boisson offerte$/);
+  expect(await text('18:00')).toMatch(/^\+ 45 € · boisson offerte$/);
+  expect(await text('20:00')).toMatch(/^\+ 45 € · 2 h offerte$/);
 });

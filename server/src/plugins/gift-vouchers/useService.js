@@ -34,7 +34,9 @@ const START = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const BAND_WORDS = Object.freeze({ day: 'journée', evening: 'soirée' });
 // Rule 15 of the week-weekend spec — the line a supplement is named by, from what the slot costs above the voucher.
-const SUPPLEMENT_LABELS = Object.freeze({ evening: 'Supplément soirée', weekend: 'Supplément week-end', eveningWeekend: 'Supplément soirée week-end' });
+const SUPPLEMENT_LABELS = Object.freeze({
+  evening: 'Supplément soirée', weekend: 'Supplément week-end', eveningWeekend: 'Supplément soirée week-end', slot: 'Supplément créneau',
+});
 const GAP_LABEL = 'Écart de créneau';
 
 const refuse = (code, message, status = 400, extra = {}) => ({
@@ -262,7 +264,9 @@ function createUseService({
       supplementCents: session.supplementCents,
       supplementLabel: session.supplementCents > 0 ? SUPPLEMENT_LABELS[session.supplementCause] : null,
       dueCents: session.supplementCents + extraCents,
-      evening: (session.supplementCents > 0 && /evening/i.test(session.supplementCause || '')) || (extraCents > 0 && extraInEvening),
+      evening: (session.supplementCents > 0 && session.eveningOverDay) || (extraCents > 0 && extraInEvening),
+      // A doubled slot (rule 17) ends later than the slot the page asked for; the end is the one the recap shows.
+      end: answer.endTime,
     };
     if (session.supplementCents > 0) return { ...base, tag: 'supplement' };
     const doubled = Boolean(answer.twoHours && answer.twoHours.free);
@@ -382,7 +386,7 @@ function createUseService({
           { ...lineOf(sessionRow), valueCents: priced.session.coveredCents, label: `${resource.name} · ${durationText(resource.minutes)}`, detail: sessionRow.detail },
           ...heldRows.map(lineOf),
         ],
-        supplement: supplementCents > 0 ? { label: SUPPLEMENT_LABELS[priced.session.supplementCause] || SUPPLEMENT_LABELS.evening, cents: supplementCents } : null,
+        supplement: supplementCents > 0 ? { label: SUPPLEMENT_LABELS[priced.session.supplementCause] || SUPPLEMENT_LABELS.slot, cents: supplementCents } : null,
         gifts: [
           ...(hourRow ? [{ label: 'Heure offerte', detail: durationText(offeredHour.minutes) }] : []),
           ...(drinkRow ? [{ label: 'Boisson offerte', detail: null }] : []),
@@ -554,6 +558,10 @@ function createUseService({
     uses.heldOf(voucher.id).forEach((previous) => lapse(previous, 'replaced'));
     const composed = compose(voucher, contents, request);
     if (!composed.ok) return composed;
+    // The end the recap showed: when the offered hour (rule 17) was decided otherwise since — the doubled block taken meanwhile — the choice is not silently downgraded.
+    if (typeof request.end === 'string' && request.end && request.end !== composed.endTime) {
+      return refuse('RECAP_CHANGED', 'Le créneau a changé depuis le récapitulatif (heure offerte, durée) : relire le récapitulatif avant de confirmer.', 409);
+    }
     const visitor = request.visitor || {};
     const fields = {
       voucherId: voucher.id,

@@ -413,7 +413,7 @@ final class GF_Rest_Proxy
     {
         $body = (array) $request->get_json_params();
         return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/use/confirm', $this->voucher_fields($body, [
-            'code' => 'string', 'start' => 'string', 'extraMinutes' => 'int', 'addOns' => 'addons', 'email' => 'string', 'phone' => 'string',
+            'code' => 'string', 'start' => 'string', 'end' => 'string', 'extraMinutes' => 'int', 'addOns' => 'addons', 'email' => 'string', 'phone' => 'string',
             'name' => 'string', 'firstName' => 'string', 'lastName' => 'string', 'people' => 'int', 'termsVersionId' => 'int', 'returnPath' => 'path',
         ])));
     }

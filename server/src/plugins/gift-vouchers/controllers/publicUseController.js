@@ -69,6 +69,7 @@ function buildPublicUseController({
     const result = await useService.confirm({
       code: body.code,
       start: body.start,
+      end: body.end,
       extraMinutes: body.extraMinutes,
       addOns: body.addOns,
       email: body.email,

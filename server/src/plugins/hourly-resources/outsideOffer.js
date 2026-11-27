@@ -30,6 +30,7 @@ const {
 } = require('./availability');
 const { toMinutes, periodOf } = require('./hourlyPricing');
 const { sessionModesOf, isBanded } = require('./sessionQuote');
+const { rateGridOf } = require('./bookingPricing');
 const { horizonUntil } = require('./horizon');
 const { HOLD_MINUTES } = require('./holdsModel');
 const { bookedNotice } = require('./sessionNotices');
@@ -149,7 +150,22 @@ function createOutsideOffer({
     return { band, period };
   }
 
-  const SUPPLEMENT_CAUSES = Object.freeze({ evening: 'evening', weekend: 'weekend', eveningWeekend: 'eveningWeekend' });
+  // What the supplement is named by (rule 15): the evening when the slot's band costs more than the voucher's at that period, the weekend when its period costs more than the
+  // voucher's in that band, both for « soirée week-end », neither (an odd grid) for the plain « créneau ».
+  const SUPPLEMENT_CAUSES = Object.freeze({
+    evening: 'evening', weekend: 'weekend', eveningWeekend: 'eveningWeekend', slot: 'slot',
+  });
+  const firstHourOf = (resource, band, period) => {
+    const grid = rateGridOf(resource, { external: true, period });
+    return band === 'evening' ? grid.eveningRate : grid.dayRate;
+  };
+  function causeOf(resource, { coveredBand, period, slot }) {
+    const bandUp = slot.band !== coveredBand && firstHourOf(resource, slot.band, slot.period) > firstHourOf(resource, coveredBand, slot.period);
+    const periodUp = slot.period !== period && firstHourOf(resource, slot.band, slot.period) > firstHourOf(resource, slot.band, period);
+    if (bandUp && periodUp) return SUPPLEMENT_CAUSES.eveningWeekend;
+    if (bandUp) return SUPPLEMENT_CAUSES.evening;
+    return periodUp ? SUPPLEMENT_CAUSES.weekend : SUPPLEMENT_CAUSES.slot;
+  }
 
   function quote({
     resourceId, date, start, coveredBand, coveredMinutes, coveredPeriod = 'week', extraMinutes = 0, excludeHoldRef = null, now: at,
@@ -168,8 +184,6 @@ function createOutsideOffer({
     const coveredCents = Math.min(referenceCents, placed.line.totalCents);
     const supplementCents = placed.line.totalCents - coveredCents;
     const slot = placedOf(resource, date, placed.line);
-    const bandMoved = slot.band !== coveredBand;
-    const periodMoved = slot.period === 'weekend' && period === 'week';
     const result = {
       ok: true,
       endTime: timeOf(toMinutes(start) + covered + extra),
@@ -179,37 +193,47 @@ function createOutsideOffer({
         coveredCents,
         supplementCents,
         leftoverCents: Math.max(0, referenceCents - placed.line.totalCents),
-        supplementCause: supplementCents > 0 ? (bandMoved && periodMoved ? SUPPLEMENT_CAUSES.eveningWeekend : (periodMoved ? SUPPLEMENT_CAUSES.weekend : SUPPLEMENT_CAUSES.evening)) : null,
+        supplementCause: supplementCents > 0 ? causeOf(resource, { coveredBand, period, slot }) : null,
+        // The supplement is « soirée » only for an evening slot against a day voucher.
+        eveningOverDay: slot.band === 'evening' && coveredBand === 'day',
         slot,
       },
       twoHours: null,
       extra: null,
     };
-    // Rule 17 — a covered evening-weekend session on a day-week slot: the session is doubled when the doubled block is free and ends by closing time.
-    if (coveredBand === 'evening' && period === 'weekend' && slot.band === 'day' && slot.period === 'week') {
-      const endsAt = toMinutes(start) + 2 * covered + extra;
-      const clock = clockOf(at);
+    // Rule 17 — a covered evening-weekend session starting on a day-week slot (its band and period are those of its start): the session is doubled when the doubled block is free and
+    // ends by closing time. The offered hour is decided first; extra time is offered only within what fits after the doubled block, never by giving the hour up.
+    const clock = clockOf(at);
+    const eveningStart = eveningStartOf(resource);
+    const startBand = eveningStart !== null && toMinutes(start) >= eveningStart ? 'evening' : 'day';
+    const startPeriod = periodOf(date, start, eveningStart === null ? null : timeOf(eveningStart));
+    const blockFree = (endsAt) => {
+      if (endsAt > toMinutes(resource.closeTime || '23:59')) return false;
       const taken = occupancy.listForStay({
         resourceId: resource.id, startDate: date, endDate: date, excludeHoldRef,
       });
-      const verdict = endsAt <= toMinutes(resource.closeTime || '23:59')
-        ? validateBlock({
-          resource, block: { date, start, end: timeOf(endsAt) }, occupancy: taken, ...boundsOf(resource, clock),
-        })
-        : { ok: false };
+      return validateBlock({
+        resource, block: { date, start, end: timeOf(endsAt) }, occupancy: taken, ...boundsOf(resource, clock),
+      }).ok;
+    };
+    if (coveredBand === 'evening' && period === 'weekend' && startBand === 'day' && startPeriod === 'week') {
+      const free = blockFree(toMinutes(start) + 2 * covered);
       result.twoHours = {
-        free: Boolean(verdict.ok), minutes: covered, endTime: timeOf(toMinutes(start) + 2 * covered), line: null,
+        free, minutes: covered, endTime: timeOf(toMinutes(start) + 2 * covered), line: null,
       };
-      if (verdict.ok) {
+      if (free) {
         // The added time is priced like any other (so its value is the line's struck figure) and given away: a 0 € line of the booking.
         const added = priceSession(resource, {
-          band: slot.band, start, minutes: covered, rankOffsetMinutes: covered, date,
+          band: startBand, start, minutes: covered, rankOffsetMinutes: covered, date,
         });
         if (added.code) return added;
         result.twoHours.line = {
           ...added.line, label: 'Heure offerte', unitCents: 0, totalCents: 0, offered: true, catalogueCents: added.line.totalCents,
         };
         result.endTime = timeOf(toMinutes(start) + 2 * covered + extra);
+        if (extra > 0 && !blockFree(toMinutes(start) + 2 * covered + extra)) {
+          return refuse('EXTRA_TIME_UNAVAILABLE', 'Le temps supplémentaire ne tient pas après l’heure offerte à ce créneau.');
+        }
       }
     }
     if (extra > 0) {
