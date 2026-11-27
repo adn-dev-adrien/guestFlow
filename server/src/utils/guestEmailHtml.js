@@ -19,7 +19,7 @@
 
 const { resolveEmailIdentity, DEFAULT_SENDER_NAME } = require('./emailIdentity');
 const { resolveEmailColors, EMAIL_COLOR_DEFAULTS } = require('./emailColors');
-const { emailLogoPng, emailLogoDataUri } = require('./emailLogo');
+const { emailLogoPng, cachedEmailLogo } = require('./emailLogo');
 
 const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 const FONT_SERIF = "Georgia, 'Times New Roman', serif";
@@ -159,29 +159,31 @@ function textToHtmlBody(text, color = DEFAULT_LINK) {
 
 const NIGHT_LOGO_HIDDEN = 'display:none;max-height:0;overflow:hidden;mso-hide:all';
 
-function logoImg({ src, alt, className, hidden = false }) {
-  const style = hidden
-    ? `${NIGHT_LOGO_HIDDEN};height:72px;width:auto;margin:0 auto 10px`
-    : 'display:block;height:72px;width:auto;margin:0 auto 10px;box-sizing:content-box';
-  return `<img class="${className}" src="${src}" alt="${escapeHtml(alt)}" height="72" style="${style}">`;
+// `image` is `{ src, width, height }` of the 2× bytes: drawn at half size, never wider than the column.
+function logoImg({ image, alt, className, hidden = false }) {
+  const w = Math.round(image.width / 2);
+  const h = Math.round(image.height / 2);
+  const style = `${hidden ? `${NIGHT_LOGO_HIDDEN};` : 'display:block;box-sizing:content-box;'}width:${w}px;max-width:100%;height:auto;margin:0 auto 10px`;
+  const tag = `<img class="${className}" src="${image.src}" alt="${escapeHtml(alt)}" width="${w}" height="${h}" style="${style}">`;
+  return hidden ? `<!--[if !mso]><!-->${tag}<!--<![endif]-->` : tag;
 }
 
 /**
  * The full HTML document of a guest email: the letter (specs/emails/guest-email-branding.md rules 1–5).
  * @param {{ text: string, subject?: string, heading?: string, lang?: string,
  *           colors?: { page: string, accent: string, link: string },
- *           logo?: { day: string, night?: string } | null }} input
- *   `logo` carries the `src` of each image — `cid:…` in a sent email, a `data:` URI in the preview.
+ *           logo?: { day: { src, width, height }, night?: { src, width, height } } | null }} input
+ *   `logo` carries each image's `src` — `cid:…` in a sent email, a `data:` URI in the preview — and its size.
  */
 function renderGuestEmailHtml({ text, subject = '', heading = '', lang = 'fr', colors = EMAIL_COLOR_DEFAULTS, logo = null }) {
   const language = lang === 'en' ? 'en' : 'fr';
   const title = String(heading || '').trim();
-  const dayLogo = logo && logo.day ? logo.day : '';
-  const nightLogo = dayLogo && logo.night ? logo.night : '';
+  const dayLogo = logo && logo.day ? logo.day : null;
+  const nightLogo = dayLogo && logo.night ? logo.night : null;
   const head = dayLogo || title
     ? '<div style="text-align:center;margin:0 0 22px">'
-      + (dayLogo ? logoImg({ src: dayLogo, alt: title, className: nightLogo ? 'gf-logo gf-logo-day' : 'gf-logo gf-logo-tile' }) : '')
-      + (nightLogo ? logoImg({ src: nightLogo, alt: title, className: 'gf-logo gf-logo-night', hidden: true }) : '')
+      + (dayLogo ? logoImg({ image: dayLogo, alt: title, className: nightLogo ? 'gf-logo gf-logo-day' : 'gf-logo gf-logo-tile' }) : '')
+      + (nightLogo ? logoImg({ image: nightLogo, alt: title, className: 'gf-logo gf-logo-night', hidden: true }) : '')
       + (title ? `<h1 style="margin:0;font-family:${FONT_SERIF};font-size:21px;line-height:1.25;font-weight:400;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(title)}</h1>` : '')
       + `<div style="width:56px;height:2px;line-height:2px;font-size:2px;margin:14px auto 0;background:${colors.accent}">&nbsp;</div>`
       + '</div>\n'
@@ -197,7 +199,7 @@ function renderGuestEmailHtml({ text, subject = '', heading = '', lang = 'fr', c
     + '@media (max-width:600px){'
     + '.gf-page{padding:12px 6px 24px !important}'
     + '.gf-card{padding:20px !important}'
-    + '.gf-logo{height:56px !important}'
+    + '.gf-logo{width:auto !important;height:auto !important;max-height:56px !important}'
     + '}'
     + '@media (prefers-color-scheme: dark){'
     + '.gf-body,.gf-page{background:#161C16 !important}'
@@ -206,7 +208,7 @@ function renderGuestEmailHtml({ text, subject = '', heading = '', lang = 'fr', c
     + '.gf-rule{border-color:#2E3B2A !important}'
     + '.gf-card a{color:#E2B46A !important}'
     + '.gf-logo-day{display:none !important;max-height:0 !important}'
-    + '.gf-logo-night{display:block !important;max-height:none !important;overflow:visible !important}'
+    + '.gf-logo-night{display:block !important;max-height:72px !important;overflow:visible !important}'
     + '.gf-logo-tile{background:#FFFFFF !important;border-radius:8px !important;padding:10px !important}'
     + '}'
     + '</style></head>'
@@ -233,9 +235,11 @@ function renderForSettings({ text, subject, settings, lang, logo }) {
 async function guestEmailMessage({ to, subject, text, settings = {}, lang = 'fr' }) {
   const day = await emailLogoPng(settings && settings.companyLogoPath);
   const night = day ? await emailLogoPng(settings && settings.companyLogoDarkPath) : null;
-  const images = [day && { cid: CID_DAY, bytes: day }, night && { cid: CID_NIGHT, bytes: night }].filter(Boolean);
-  const logo = day ? { day: `cid:${CID_DAY}`, night: night ? `cid:${CID_NIGHT}` : undefined } : null;
-  const attachments = images.map(({ cid, bytes }) => ({
+  const logo = day ? {
+    day: { ...day, src: `cid:${CID_DAY}` },
+    ...(night ? { night: { ...night, src: `cid:${CID_NIGHT}` } } : {}),
+  } : null;
+  const attachments = [day && [CID_DAY, day], night && [CID_NIGHT, night]].filter(Boolean).map(([cid, { bytes }]) => ({
     filename: `${cid.split('@')[0]}.png`, content: bytes, contentType: 'image/png', cid, contentDisposition: 'inline',
   }));
   return {
@@ -247,11 +251,13 @@ async function guestEmailMessage({ to, subject, text, settings = {}, lang = 'fr'
   };
 }
 
-/** The same HTML for the preview: logos written in as `data:` URIs (guest-email-branding rule 8). */
+/** The same HTML for the preview: the same resized logos as `data:` URIs, read from the cache (see `warmEmailLogos`). */
 function guestEmailPreviewHtml({ subject, text, settings = {}, lang = 'fr' }) {
-  const day = emailLogoDataUri(settings && settings.companyLogoPath);
-  const night = day ? emailLogoDataUri(settings && settings.companyLogoDarkPath) : null;
-  return renderForSettings({ text, subject, settings, lang, logo: day ? { day, night: night || undefined } : null });
+  const uri = (logo) => ({ ...logo, src: `data:image/png;base64,${logo.bytes.toString('base64')}` });
+  const day = cachedEmailLogo(settings && settings.companyLogoPath);
+  const night = day ? cachedEmailLogo(settings && settings.companyLogoDarkPath) : null;
+  const logo = day ? { day: uri(day), ...(night ? { night: uri(night) } : {}) } : null;
+  return renderForSettings({ text, subject, settings, lang, logo });
 }
 
 module.exports = { guestEmailMessage, guestEmailPreviewHtml, renderGuestEmailHtml, textToHtmlBody, escapeHtml };

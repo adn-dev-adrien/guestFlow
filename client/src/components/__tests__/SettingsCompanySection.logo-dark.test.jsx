@@ -12,7 +12,7 @@ test('rule 4bis: the night logo has its own picker and says what happens without
   render(<SettingsCompanySection values={{}} onChange={() => {}} />);
   expect(screen.getByText('Logo sur fond sombre')).toBeInTheDocument();
   expect(screen.getByText('Aucun logo sombre')).toBeInTheDocument();
-  expect(screen.getByText(/sans lui, le logo s’affiche sur une pastille blanche/)).toBeInTheDocument();
+  expect(screen.getByText(/avec le logo principal ; sans lui, le logo principal s’affiche sur une pastille blanche/)).toBeInTheDocument();
 });
 
 test('rule 4bis: a picked file goes to the night-logo handler, never to the day-logo one; a stored one shows with its delete button', async () => {

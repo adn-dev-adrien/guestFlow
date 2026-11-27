@@ -1,61 +1,60 @@
 /**
  * The company logo as a guest email carries it (specs/emails/guest-email-branding.md rules 2–3).
  *
- * `emailLogoPng(storedPath)` → the stored logo (`/uploads/<file>`, day or night) resized to 144 px high
- * (a 2× image for the 72 px it is drawn at) and written as PNG, or null when nothing is stored or the file
- * cannot be read or decoded: an email without its logo still leaves. The result is cached by path and
- * modification time, so a sequence run decodes the file once and a re-upload is seen at once.
+ * `emailLogoPng(storedPath)` → `{ bytes, width, height }` or null: the stored logo (`/uploads/<file>`, day or night)
+ * fitted inside 1040×144 (a 2× image for the 520×72 it is drawn in) and written as PNG; `width` and `height` are
+ * those of the bytes. Null when nothing is stored or the file cannot be read or decoded: an email without its logo
+ * still leaves. Cached by path and modification time, so a sequence run decodes the file once and a re-upload is seen at once.
  *
- * `emailLogoDataUri(storedPath)` → the stored file itself as a `data:` URI, read synchronously, for the preview:
- * a sandboxed frame cannot resolve `cid:` (guest-email-branding rule 8), and the preview handlers stay synchronous.
+ * `cachedEmailLogo(storedPath)` → the cached result, read synchronously (null when cold), and `warmEmailLogos(settings)`
+ * → a promise filling the cache for both logos, or null when it is already warm: the preview handlers stay
+ * synchronous, and wait only when a logo has to be read first (a `data:` URI of these same bytes, never of the
+ * unresized file).
  */
 
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const { uploadsDir } = require('./instancePaths');
-const { imageFormatOf } = require('./uploadSafety');
 
+const MAX_WIDTH = 1040;
 const HEIGHT = 144;
 const cache = new Map();
-const dataUriCache = new Map();
+
+function keyOf(storedPath) {
+  const stored = String(storedPath || '').trim();
+  if (!stored) return null;
+  const file = path.join(uploadsDir(), path.basename(stored));
+  try { return { file, key: `${file}:${fs.statSync(file).mtimeMs}` }; } catch (_) { return null; }
+}
+
+function cachedEmailLogo(storedPath) {
+  const at = keyOf(storedPath);
+  return at && cache.has(at.key) ? cache.get(at.key) : null;
+}
 
 async function emailLogoPng(storedPath) {
-  const stored = String(storedPath || '').trim();
-  if (!stored) return null;
-  const file = path.join(uploadsDir(), path.basename(stored));
-  let mtimeMs;
-  try { mtimeMs = fs.statSync(file).mtimeMs; } catch (_) { return null; }
-  const key = `${file}:${mtimeMs}`;
-  if (cache.has(key)) return cache.get(key);
-  let bytes = null;
+  const at = keyOf(storedPath);
+  if (!at) return null;
+  if (cache.has(at.key)) return cache.get(at.key);
+  let logo = null;
   try {
-    bytes = await sharp(fs.readFileSync(file), { failOn: 'error' }).rotate()
-      .resize({ height: HEIGHT, withoutEnlargement: true }).png().toBuffer();
+    const { data, info } = await sharp(fs.readFileSync(at.file), { failOn: 'error' }).rotate()
+      .resize({ width: MAX_WIDTH, height: HEIGHT, fit: 'inside', withoutEnlargement: true })
+      .png().toBuffer({ resolveWithObject: true });
+    logo = { bytes: data, width: info.width, height: info.height };
   } catch (err) {
-    console.error('[guestEmail] logo unreadable, email without it:', path.basename(file), err && err.code);
+    console.error('[guestEmail] logo unreadable, email without it:', path.basename(at.file), err && err.code);
   }
-  for (const k of cache.keys()) if (k.startsWith(`${file}:`)) cache.delete(k);
-  cache.set(key, bytes);
-  return bytes;
+  for (const k of cache.keys()) if (k.startsWith(`${at.file}:`)) cache.delete(k);
+  cache.set(at.key, logo);
+  return logo;
 }
 
-function emailLogoDataUri(storedPath) {
-  const stored = String(storedPath || '').trim();
-  if (!stored) return null;
-  const file = path.join(uploadsDir(), path.basename(stored));
-  try {
-    const key = `${file}:${fs.statSync(file).mtimeMs}`;
-    if (dataUriCache.has(key)) return dataUriCache.get(key);
-    const bytes = fs.readFileSync(file);
-    const format = imageFormatOf(bytes);
-    const uri = format ? `data:image/${format};base64,${bytes.toString('base64')}` : null;
-    for (const k of dataUriCache.keys()) if (k.startsWith(`${file}:`)) dataUriCache.delete(k);
-    dataUriCache.set(key, uri);
-    return uri;
-  } catch (_) {
-    return null;
-  }
+function warmEmailLogos(settings) {
+  const paths = [settings && settings.companyLogoPath, settings && settings.companyLogoDarkPath].filter(Boolean);
+  const cold = paths.filter((p) => { const at = keyOf(p); return at && !cache.has(at.key); });
+  return cold.length ? Promise.all(cold.map(emailLogoPng)) : null;
 }
 
-module.exports = { emailLogoPng, emailLogoDataUri, LOGO_HEIGHT: HEIGHT };
+module.exports = { emailLogoPng, cachedEmailLogo, warmEmailLogos, LOGO_HEIGHT: HEIGHT };

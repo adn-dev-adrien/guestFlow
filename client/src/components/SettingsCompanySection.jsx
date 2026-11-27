@@ -76,7 +76,7 @@ export default function SettingsCompanySection({
               disabled={disabled}
               accept="image/png,image/jpeg"
               placeholder="Aucun logo sombre"
-              helperText="Facultatif. Utilisé dans les e-mails lus en mode sombre ; sans lui, le logo s’affiche sur une pastille blanche. PNG ou JPEG, 2 Mo maximum."
+              helperText="Facultatif. Utilisé en mode sombre, avec le logo principal ; sans lui, le logo principal s’affiche sur une pastille blanche. PNG ou JPEG, 2 Mo maximum."
             />
           </Box>
 

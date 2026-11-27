@@ -38,11 +38,11 @@ A guest opening any GuestFlow email sees a letter from the house: its logo, its 
    (32 px, 20 px on a phone). The text rules of rules 38 and 40 of `guest-email-texts-made-simple` are unchanged:
    the HTML still says what the text says and nothing more.
 2. **The logo heads the letter.** When a company logo is stored, it is drawn centred at the top of the card, 72 px
-   high (rendered from a 2× image), with the sender's name (`fromName`) under it in a serif, then a thin accent rule.
+   high (rendered from a 2× image; a wide logo is fitted inside 520×72 and never wider than the column), with the sender's name (`fromName`) under it in a serif, then a thin accent rule.
    No logo stored → the sender's name alone, as today. A logo the server cannot read (rule 8 of `settings.md`) →
    no logo, never no email.
 3. **The logo travels with the email.** It is an inline attachment (`Content-ID`, `cid:` reference), resized by
-   the server to 144 px high PNG. Nothing is loaded from the network: no remote image, font, stylesheet or pixel
+   the server to a PNG fitted inside 1040×144 (`width`/`height` attributes at half size for Outlook, `max-width:100%`). Nothing is loaded from the network: no remote image, font, stylesheet or pixel
    (rule 39's « self-contained » stands; only « no image » is lifted; rule 39's dark variant is replaced by rule 4).
    The `text/plain` part is unchanged.
 4. **A night variant** (Q1, 2026-11-27). The email declares `color-scheme: light dark` and carries a
@@ -77,9 +77,9 @@ A guest opening any GuestFlow email sees a letter from the house: its logo, its 
 ### Server
 | Layer | File | Responsibility |
 |---|---|---|
-| utils | `guestEmailHtml.js` (edit) | Letter layout, palette from settings, day/night logo slots (`cid:` or `data:`), night media block. `guestEmailMessage` (async, `cid:` + attachments) and `guestEmailPreviewHtml` (sync, `data:`) |
-| utils | `emailLogo.js` (new) | Stored company logo (day and night) → 144 px-high PNG bytes, cached by path + mtime; null when unreadable. `emailLogoDataUri`: the stored file as a `data:` URI, read synchronously, for the preview |
-| utils | `emailService.js` (edit) | Pass `attachments` (inline, `cid`) through to the transport |
+| utils | `guestEmailHtml.js` (edit) | Letter layout, palette from settings, day/night logo slots (`cid:` or `data:`), night media block. `guestEmailMessage` (async, `cid:` + attachments) and `guestEmailPreviewHtml` (sync, `data:`, from the cache) |
+| utils | `emailLogo.js` (new) | Stored company logo (day and night) → PNG fitted inside 1040×144 with its size, cached by path + mtime; null when unreadable. `cachedEmailLogo` / `warmEmailLogos`: the preview reads the same cached bytes as a `data:` URI, its handlers awaiting only a cold cache |
+| utils | `accountMailer.js` (edit) | « M'envoyer un test » goes through it: pass `attachments` (inline, `cid`) to the dev outbox and to the SMTP service (`emailService.js` already forwards them) |
 | utils | `emailColors.js` (new) | Hex validation + WCAG contrast ratio on white; the refusal message |
 | models | `settingsModel.js` (edit) | Three colour columns + `companyLogoDarkPath` |
 | controllers | `settingsController.js` (edit) | Night logo upload / delete (`POST/DELETE /api/settings/logo-dark`), same checks as the logo |
@@ -116,7 +116,7 @@ See the interactive summary. Phone: the card fills the width minus 12 px, paddin
 Settings fields stack on xs.
 
 ## 7. Test plan
-- Server unit (`tests/guest-email-branding.unit.test.js`, 21 tests): letter layout; logo present → `cid:` + attachment; absent or
+- Server unit (`tests/guest-email-branding.unit.test.js`, 23 tests): letter layout; logo present → `cid:` + attachment; absent or
   unreadable → heading only, email still built; night block present with the fixed palette; night logo stored → second
   `cid:` shown only in the dark block; no night logo → day logo on the white tile in the dark block; colours applied;
   invalid hex and low contrast refused with the ratio; text part byte-identical; night logo upload/delete.

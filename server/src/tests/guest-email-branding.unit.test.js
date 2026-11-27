@@ -36,14 +36,14 @@ test('rule 1: the HTML part is a white letter, 600 px, 1 px line, 4 px radius, 3
   assert.match(card, /border-radius:4px/);
   assert.match(html, /<div class="gf-page" style="[^"]*background:#F8F5EF"/);
   assert.match(html, /@media \(max-width:600px\)\{.*\.gf-card\{padding:20px !important\}/);
-  assert.match(html, /\.gf-logo\{height:56px !important\}/);
+  assert.match(html, /\.gf-logo\{width:auto !important;height:auto !important;max-height:56px !important\}/);
   assert.match(html, /color:#22271F/);
 });
 
 test('rule 2: with a stored logo the email carries it centred above the name, then the accent rule; no logo → the name alone', async () => {
   const logoPath = await writeLogo('company-logo.png');
   const msg = await guestEmailMessage({ to: 'g@example.com', subject: 's', text: TEXT, settings: { ...SETTINGS, companyLogoPath: logoPath } });
-  assert.match(msg.html, /<img class="gf-logo gf-logo-tile" src="cid:gf-logo-day@guestflow" alt="Domaine Solio" height="72"/);
+  assert.match(msg.html, /<img class="gf-logo gf-logo-tile" src="cid:gf-logo-day@guestflow" alt="Domaine Solio" width="144" height="72"/);
   assert.ok(msg.html.indexOf('<img') < msg.html.indexOf('<h1'), 'the logo sits above the name');
   assert.match(msg.html, /<h1 [^>]*font-family:Georgia[^>]*letter-spacing:\.08em;text-transform:uppercase">Domaine Solio<\/h1>/);
   assert.match(msg.html, /width:56px;height:2px;[^"]*background:#C99038/);
@@ -82,6 +82,16 @@ test('rule 3: the logo is an inline attachment (Content-ID), a 144 px-high PNG, 
   assert.doesNotMatch(msg.html, /url\(|@import|<link|<script|https?:\/\/[^"]*\.(?:png|jpe?g|gif)/i);
 });
 
+test('rule 3: a wide logo is fitted inside 1040×144, drawn at half size, and never wider than the column', async () => {
+  const wide = await writeLogo('company-logo.png', { width: 4000, height: 400 });
+  const { bytes, width, height } = await emailLogoPng(wide);
+  assert.deepEqual([width, height], [1040, 104]);
+  assert.deepEqual([(await sharp(bytes).metadata()).width, (await sharp(bytes).metadata()).height], [1040, 104]);
+  const msg = await guestEmailMessage({ to: 'g@example.com', subject: 's', text: TEXT, settings: { ...SETTINGS, companyLogoPath: wide } });
+  assert.match(msg.html, /<img [^>]*width="520" height="52" style="[^"]*width:520px;max-width:100%;height:auto/);
+  assert.match(msg.html, /@media \(max-width:600px\)\{.*\.gf-logo\{width:auto !important;height:auto !important;max-height:56px !important\}/);
+});
+
 test('rule 3: the text/plain part is the rendered text byte for byte, with or without a logo', async () => {
   const logoPath = await writeLogo('company-logo.png');
   for (const settings of [SETTINGS, { ...SETTINGS, companyLogoPath: logoPath, emailColorLink: '#2E3B2A' }]) {
@@ -94,12 +104,12 @@ test('rule 3: the text/plain part is the rendered text byte for byte, with or wi
 test('rule 3: the logo is cached by path and modification time, so a re-upload is seen at once', async () => {
   const logoPath = await writeLogo('company-logo.png', { height: 300 });
   const first = await emailLogoPng(logoPath);
-  assert.equal(await emailLogoPng(logoPath), first, 'same bytes object while the file is unchanged');
+  assert.equal(await emailLogoPng(logoPath), first, 'same object while the file is unchanged');
   const file = path.join(uploadsDir(), 'company-logo.png');
   await writeLogo('company-logo.png', { width: 300, height: 600 });
   const later = new Date(Date.now() + 5000);
   fs.utimesSync(file, later, later);
-  assert.equal((await sharp(await emailLogoPng(logoPath)).metadata()).width, 72);
+  assert.equal((await emailLogoPng(logoPath)).width, 72);
 });
 
 test('rule 4: the email declares light and dark, and the dark block carries the fixed night palette', () => {
@@ -118,6 +128,7 @@ test('rule 4bis: a stored night logo is a second inline image, hidden by default
   const nightImg = msg.html.match(/<img class="gf-logo gf-logo-night"[^>]*>/)[0];
   assert.match(nightImg, /src="cid:gf-logo-night@guestflow"/);
   assert.match(nightImg, /display:none;max-height:0;overflow:hidden;mso-hide:all/);
+  assert.match(msg.html, /<!--\[if !mso\]><!--><img class="gf-logo gf-logo-night"[^>]*><!--<!\[endif\]-->/, 'Outlook desktop never sees the night image');
   const dark = darkBlock(msg.html);
   assert.match(dark, /\.gf-logo-night\{display:block !important/);
   assert.match(dark, /\.gf-logo-day\{display:none !important/);
@@ -284,6 +295,8 @@ test('rule 8: the sent email carries the logo as cid, the preview as a data: URI
   const preview = await call(emails.preview, { query: { reservationId: String(reservationId), templateId: String(id) } });
   assert.equal(preview.status, 200);
   assert.match(preview.body.html, /<img [^>]*src="data:image\/png;base64,/);
+  const inlined = Buffer.from(preview.body.html.match(/src="data:image\/png;base64,([^"]+)"/)[1], 'base64');
+  assert.equal((await sharp(inlined).metadata()).height, 144, 'the preview inlines the resized bytes, never the stored file (a 300 px-high one here)');
   assert.doesNotMatch(preview.body.html, /cid:/);
   assert.match(preview.body.html, /style="color:#2E3B2A;/);
 
@@ -332,5 +345,23 @@ test('rule 3: the transport hands the inline attachments to the mail as they are
   await svc.send(msg);
   assert.equal(handed[0].text, TEXT);
   assert.equal(handed[0].html, msg.html);
+  assert.deepEqual(handed[0].attachments.map((a) => a.cid), ['gf-logo-day@guestflow']);
+});
+
+test('rule 3: « M’envoyer un test » through the real account mailer keeps the inline logo, in the dev outbox and on SMTP', async () => {
+  const { createAccountMailer } = require('../utils/accountMailer');
+  const logoPath = await writeLogo('company-logo.png');
+  const msg = await guestEmailMessage({ to: 'g@example.com', subject: '[Test] s', text: TEXT, settings: { ...SETTINGS, companyLogoPath: logoPath } });
+  const settingsModel = { smtpConfigured: () => true, publicUrl: () => '', decryptedSmtpSettings: () => ({}) };
+
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gf-branding-outbox-'));
+  await createAccountMailer({ settingsModel, env: { GUESTFLOW_MAIL_OUTBOX: dir } }).send(msg);
+  const [file] = fs.readdirSync(dir);
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+  assert.match(saved.mime, /Content-ID: <gf-logo-day@guestflow>/);
+  assert.match(saved.mime, /Content-Disposition: inline/);
+
+  const handed = [];
+  await createAccountMailer({ settingsModel, env: {}, buildEmailService: () => ({ send: async (m) => { handed.push(m); } }) }).send(msg);
   assert.deepEqual(handed[0].attachments.map((a) => a.cid), ['gf-logo-day@guestflow']);
 });

@@ -56,6 +56,7 @@ const { sequenceContextFor, nextSeasonDate } = require('../utils/sequenceRenderC
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { buildDraftPreview } = require('../utils/emailDraftPreview');
 const { guestEmailMessage, guestEmailPreviewHtml } = require('../utils/guestEmailHtml');
+const { warmEmailLogos } = require('../utils/emailLogo');
 const { displayNameOf } = require('../utils/emailTimeline');
 const { validityOf, lapsesAtArrival } = require('../utils/paymentLinkLifecycle');
 const { formatMomentLong } = require('../utils/dateFr');
@@ -309,7 +310,10 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
   // ---------- HTTP handlers ----------
 
-  function preview(req, res) {
+  // Synchronous unless a logo has to be decoded first: the `await` below runs only then, so a warm preview answers in the same tick.
+  async function preview(req, res) {
+    const warming = warmEmailLogos(readSettings());
+    if (warming) await warming;
     const { reservationId, templateId, lang, occurrenceKey } = req.query || {};
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: ['reservationId', 'templateId'] });
@@ -726,7 +730,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
   const draftPreview = buildDraftPreview({ database, templatesModel, buildPreview });
 
-  function previewDraft(req, res) {
+  async function previewDraft(req, res) {
+    const warming = warmEmailLogos(readSettings());
+    if (warming) await warming;
     const result = draftPreview.render(req.body || {});
     if (result.error) return res.status(result.status).json(result.body || { error: result.error, message: result.message });
     return res.json(result.payload);
