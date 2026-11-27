@@ -16,6 +16,7 @@
  *   pickLabel?:  string                       — default 'Choisir un logo'
  *   replaceLabel?: string                     — default 'Remplacer le logo'
  *   deleteTooltip?: string                    — default 'Supprimer le logo'
+ *   previewBg?:  string                       — theme colour behind the preview (default 'grey.50'; a dark one for a light logo)
  */
 import React, { useRef, useState } from 'react';
 import { Box, Button, IconButton, Tooltip, Stack, Typography } from '@mui/material';
@@ -28,6 +29,7 @@ export default function LogoUpload({
   accept = 'image/*',
   maxSizeMb = 2,
   placeholder = 'Aucun logo',
+  previewBg = 'grey.50',
   helperText,
   disabled = false,
   pickLabel = 'Choisir un logo',
@@ -99,7 +101,7 @@ export default function LogoUpload({
               borderColor: 'divider',
               borderRadius: 1,
               p: 0.5,
-              bgcolor: 'grey.50',
+              bgcolor: previewBg,
             }}
           />
         ) : (

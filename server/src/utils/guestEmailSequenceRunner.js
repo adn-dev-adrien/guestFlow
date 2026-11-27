@@ -183,7 +183,7 @@ async function sendSequenceMail(deps, plan, opts = {}) {
 
   try {
     const service = emailServiceFactory(settingsModel.decryptedSmtpSettings());
-    await service.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
+    await service.send(await guestEmailMessage({ to, subject, text: body, settings, lang }));
     const row = logModel.insert({
       templateId: template.id, reservationId: graph.reservation.id, status: 'sent', channel: 'smtp',
       errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to,

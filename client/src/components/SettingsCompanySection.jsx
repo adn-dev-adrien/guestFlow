@@ -4,13 +4,16 @@
  * Composes LogoUpload + identity fields + bank details.
  *
  * Props:
- *   values:      { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath, … }
+ *   values:      { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath, logoDarkPath, … }
  *                (plugin fields of the `settings.etablissement` slot read and write the same object)
  *   errors:      { companyEmail?, companySiret?, companyTva?, companyIban?, companyBic? }
  *   onChange:    (key, value) => void   — key is one of the `values` field names
  *   onUploadLogo: (file: File) => Promise
  *   onDeleteLogo: () => Promise
  *   logoVersion?: string — appended to the preview as `?v=` once a logo is uploaded (same path, new bytes)
+ *   onUploadLogoDark / onDeleteLogoDark: the optional « Logo sur fond sombre » of the guest emails' night variant
+ *                (specs/emails/guest-email-branding.md rule 4bis), same contract as the logo
+ *   logoDarkVersion?: string — same as `logoVersion`, for the night logo
  *   disabled:    boolean
  */
 import React from 'react';
@@ -26,6 +29,9 @@ export default function SettingsCompanySection({
   onUploadLogo,
   onDeleteLogo,
   logoVersion = '',
+  onUploadLogoDark,
+  onDeleteLogoDark,
+  logoDarkVersion = '',
   disabled = false,
 }) {
   const v = values || {};
@@ -56,6 +62,22 @@ export default function SettingsCompanySection({
               disabled={disabled}
               accept="image/png,image/jpeg"
               helperText="Affiché sur les devis et dans l’onglet du navigateur. PNG ou JPEG, 2 Mo maximum."
+            />
+          </Box>
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Logo sur fond sombre
+            </Typography>
+            <LogoUpload
+              value={v.logoDarkPath && logoDarkVersion ? `${v.logoDarkPath}?v=${logoDarkVersion}` : (v.logoDarkPath || '')}
+              onUpload={onUploadLogoDark}
+              onDelete={onDeleteLogoDark}
+              disabled={disabled}
+              accept="image/png,image/jpeg"
+              placeholder="Aucun logo sombre"
+              previewBg="grey.900"
+              helperText="Facultatif. Utilisé en mode sombre, avec le logo principal ; sans lui, le logo principal s’affiche sur une pastille blanche. PNG ou JPEG, 2 Mo maximum."
             />
           </Box>
 

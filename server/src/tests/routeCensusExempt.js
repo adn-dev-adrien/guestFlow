@@ -31,6 +31,7 @@ const EXEMPT = {
     'DELETE /api/resources/:id',
     'DELETE /api/school-holidays/:id',
     'DELETE /api/settings/logo',
+    'DELETE /api/settings/logo-dark',
     'DELETE /api/settings/vat-regime/periods/:id',
     'DELETE /api/stay-texts/:key',
     'DELETE /api/tariff-recipes/journal/:eventId',
@@ -57,6 +58,7 @@ const EXEMPT = {
     'POST /api/email-texts/import',
     'POST /api/properties/:id/documents',
     'POST /api/settings/logo',
+    'POST /api/settings/logo-dark',
     'POST /api/translations/import',
   ],
   'Runs a job or asks an outside service; never dialled from a baseline.': [

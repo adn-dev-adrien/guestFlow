@@ -8,8 +8,8 @@ vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => false }));
 
 import SettingsCompanySection from '../SettingsCompanySection';
 
-test('rule 8: the logo picker takes PNG and JPEG, and says so', () => {
+test('rule 8: the logo pickers (day and night) take PNG and JPEG, and say so', () => {
   const { container } = render(<SettingsCompanySection values={{}} onChange={() => {}} />);
-  expect(container.querySelector('input[type="file"]').getAttribute('accept')).toBe('image/png,image/jpeg');
-  expect(screen.getByText(/PNG ou JPEG, 2 Mo maximum\./)).toBeInTheDocument();
+  for (const input of container.querySelectorAll('input[type="file"]')) expect(input.getAttribute('accept')).toBe('image/png,image/jpeg');
+  expect(screen.getAllByText(/PNG ou JPEG, 2 Mo maximum\./)).toHaveLength(2);
 });

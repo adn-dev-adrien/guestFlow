@@ -24,12 +24,14 @@ function createAccountMailer({ settingsModel, env = process.env, buildEmailServi
       return url.replace(/\/+$/, '');
     },
 
-    // `html` only for the test of a guest email (specs/emails/guest-email-texts-made-simple.md rule 37); the
-    // account emails themselves stay plain text.
-    async send({ to, subject, text, html }) {
+    // `html` and its inline `attachments` (the logo, guest-email-branding rule 3) only for the test of a guest email
+    // (specs/emails/guest-email-texts-made-simple.md rule 37); the account emails themselves stay plain text.
+    async send({ to, subject, text, html, attachments }) {
       const dir = outboxDir(env);
-      if (dir) return { outbox: await writeMessageToOutbox(dir, { to, subject, text, html }, now()) };
-      return buildEmailService(settingsModel.decryptedSmtpSettings()).send({ to, subject, text, ...(html ? { html } : {}) });
+      if (dir) return { outbox: await writeMessageToOutbox(dir, { to, subject, text, html, attachments }, now()) };
+      return buildEmailService(settingsModel.decryptedSmtpSettings()).send({
+        to, subject, text, ...(html ? { html } : {}), ...(attachments ? { attachments } : {}),
+      });
     },
   };
 }

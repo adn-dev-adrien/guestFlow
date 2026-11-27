@@ -3,7 +3,7 @@
  *
  * Identity, logo, contact, bank details, gate code, the devis settings (validity, FR / EN
  * footers) and the online booking horizon. The contact email is also the source every sending address falls back to (rule 12).
- * The logo is written through its own endpoint, never through the page Save.
+ * The logos (day, and the night one of the guest emails) are written through their own endpoints, never through the page Save.
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -21,6 +21,7 @@ export default function EstablishmentSettingsPage() {
   const disabled = form.loading || form.saving;
   // Rule 18 (R25-C4) — a new file of the same format keeps the same path: the preview asks for the new bytes.
   const [logoVersion, setLogoVersion] = useState('');
+  const [logoDarkVersion, setLogoDarkVersion] = useState('');
 
   const handleUploadLogo = async (file) => {
     const formData = new FormData();
@@ -43,6 +44,23 @@ export default function EstablishmentSettingsPage() {
     setFavicon({ href: null });
   };
 
+  // specs/emails/guest-email-branding.md rule 4bis — the night logo of the guest emails: same flow, no tab icon.
+  const handleUploadLogoDark = async (file) => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    const res = await api.uploadCompanyLogoDark(formData);
+    const newPath = res && res.company && res.company.logoDarkPath;
+    if (newPath != null) {
+      form.replaceSaved('company', 'logoDarkPath', newPath);
+      setLogoDarkVersion(String(Date.now()));
+    }
+  };
+
+  const handleDeleteLogoDark = async () => {
+    const res = await api.deleteCompanyLogoDark();
+    form.replaceSaved('company', 'logoDarkPath', (res && res.company && res.company.logoDarkPath) || '');
+  };
+
   return (
     <SettingsFormPage title="Établissement" form={form}>
       <SettingsCompanySection
@@ -52,6 +70,9 @@ export default function EstablishmentSettingsPage() {
         onUploadLogo={handleUploadLogo}
         onDeleteLogo={handleDeleteLogo}
         logoVersion={logoVersion}
+        onUploadLogoDark={handleUploadLogoDark}
+        onDeleteLogoDark={handleDeleteLogoDark}
+        logoDarkVersion={logoDarkVersion}
         disabled={disabled}
       />
       <SettingsQuoteSection

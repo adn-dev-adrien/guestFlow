@@ -300,7 +300,7 @@ async function emailLink(saleId, linkId, { deps = {} } = {}) {
   }
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());
-    await svc.send(guestEmailMessage({ to, subject: rendered.subject, text: rendered.body, settings, lang }));
+    await svc.send(await guestEmailMessage({ to, subject: rendered.subject, text: rendered.body, settings, lang }));
   } catch (err) {
     const message = err && err.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : String((err && err.message) || 'unknown');
     logModel.insert({ ...entry, status: 'failed', errorMessage: message });
