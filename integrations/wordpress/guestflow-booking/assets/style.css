@@ -542,8 +542,8 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-v-code-label { position: absolute; left: calc(2.5 * var(--mm)); top: calc(2 * var(--mm)); font-size: calc(var(--p-code-label) * var(--pt)); color: var(--gfc-muted); text-align: left; }
 .gf-v-code { position: absolute; left: 0; right: 0; top: calc(var(--m-code-box) * var(--mm) / 2 - .5em * var(--lh-sans) + 1 * var(--mm)); font-weight: 700; font-size: calc(var(--p-code) * var(--pt)); letter-spacing: calc(var(--p-code-spacing) * var(--pt)); overflow-wrap: normal; white-space: nowrap; }
 .gf-v-code.is-wait { color: var(--gfc-wait); }
-.gf-v-includes { flex: none; font-size: calc(var(--p-small) * var(--pt)); margin-bottom: calc(var(--p-small-gap) * var(--pt)); -webkit-line-clamp: var(--l-includes); }
-.gf-v-message { flex: none; font-style: italic; color: var(--gfc-muted); font-size: calc(var(--p-small) * var(--pt)); margin-bottom: calc(var(--p-small-gap) * var(--pt)); -webkit-line-clamp: var(--l-message); }
+.gf-v-includes { flex: 0 3 auto; min-height: 0; /* the contents give way first, then the message; never the validity (rule 20) */ font-size: calc(var(--p-small) * var(--pt)); margin-bottom: calc(var(--p-small-gap) * var(--pt)); -webkit-line-clamp: var(--l-includes); }
+.gf-v-message { flex: 0 1 auto; min-height: 0; font-style: italic; color: var(--gfc-muted); font-size: calc(var(--p-small) * var(--pt)); margin-bottom: calc(var(--p-small-gap) * var(--pt)); -webkit-line-clamp: var(--l-message); }
 .gf-verso .gf-v-message { font-style: italic; }
 .gf-v-valid { flex: none; font-weight: 700; font-size: calc(var(--p-small) * var(--pt)); }
 .gf-v-foot { position: absolute; left: calc(var(--m-safe) * var(--mm)); right: calc((var(--m-safe) + var(--m-legal-strip)) * var(--mm)); bottom: calc(var(--m-safe) * var(--mm)); text-align: center; font-size: calc(var(--p-footer) * var(--pt)); }

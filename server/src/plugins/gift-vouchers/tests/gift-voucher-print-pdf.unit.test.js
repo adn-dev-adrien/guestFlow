@@ -79,6 +79,6 @@ test('F25 — the front price label is tall enough for « à partir de » and th
   }));
   const label = calls.roundedRect.find(([, , w, h, radius]) => radius > 5 && h < 60 && w < 120);
   assert.ok(label, 'the label is drawn');
-  const lines = pdf.BACK_LAYOUT.pt.frontSmall + pdf.BACK_LAYOUT.pt.frontPrice;
+  const lines = pdf.FRONT_PRICE_PT.small + pdf.FRONT_PRICE_PT.price;
   assert.ok(label[3] >= lines * 1.1 + 2 * 2 * MM, `height ${label[3]} holds both lines and the padding`);
 });

@@ -164,8 +164,8 @@
       title.textContent = s.title || back.title || '';
       var who = s.sender && s.recipient ? fill(fill(texts.subtitle, 'sender', s.sender), 'recipient', s.recipient)
         : (s.sender ? fill(texts.subtitleSender, 'sender', s.sender) : (s.recipient ? fill(texts.subtitleRecipient, 'recipient', s.recipient) : ''));
+      // Empty, the subtitle keeps its gap as the PDF does (rule 20): its margin stays, only the text goes.
       subtitle.textContent = who;
-      subtitle.hidden = !who;
       link.textContent = s.link || back.link || '';
       includes.textContent = (s.lines || []).length ? fill(texts.includes, 'lines', (s.lines || []).join(' · ')) : '';
       includes.hidden = !includes.textContent;

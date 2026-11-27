@@ -37,12 +37,15 @@ const BACK_LAYOUT = Object.freeze({
   lineHeight: Object.freeze({ sans: 1.326, serif: 1.371 }),
   pt: Object.freeze({
     logoGap: 6, logoName: 12, kicker: 8, kickerSpacing: 2.4, kickerGap: 3, title: 17, titleGap: 2, subtitle: 9, subtitleGap: 7, frameStroke: 1.1, scan: 8.5, scanGap: 1, link: 7.5, linkGap: 6,
-    step: 8.5, discNumber: 8, codeLabel: 6.5, code: 15, codeSpacing: 0.8, small: 7.5, smallGap: 2, footer: 8, legal: 7, frontSmall: 8.5, frontPrice: 19,
+    step: 8.5, discNumber: 8, codeLabel: 6.5, code: 15, codeSpacing: 0.8, small: 7.5, smallGap: 2, footer: 8, legal: 7
   }),
   lines: Object.freeze({
     logoName: 2, title: 2, subtitle: 2, step: 1, link: 1, includes: 3, message: 2,
   }),
 });
+
+// The « à partir de » label of the merchant card's front: the front is not drawn by the website, so its sizes are not part of the back's layout.
+const FRONT_PRICE_PT = Object.freeze({ small: 8.5, price: 19 });
 
 const MM = 72 / 25.4;
 const mm = (n) => n * MM;
@@ -230,13 +233,12 @@ function drawFront(sheet, { image, F, companyName }) {
 function drawFrontPrice(sheet, F, { cents, position }) {
   if (!cents || position === 'none' || !rules.FRONT_PRICE_POSITIONS.includes(position)) return;
   const { doc, safe } = sheet;
-  const { pt } = BACK_LAYOUT;
   const small = BACK_TEXTS.frontPrice.from;
   const price = `${cents % 100 === 0 ? String(cents / 100) : rules.formatEuros(cents).replace(' €', '')} €`;
-  doc.font(F.regular).fontSize(pt.frontSmall);
+  doc.font(F.regular).fontSize(FRONT_PRICE_PT.small);
   const smallW = doc.widthOfString(small);
   const smallH = doc.currentLineHeight();
-  doc.font(F.serif).fontSize(pt.frontPrice);
+  doc.font(F.serif).fontSize(FRONT_PRICE_PT.price);
   const priceW = doc.widthOfString(price);
   const priceH = doc.currentLineHeight();
   const padX = mm(4);
@@ -246,9 +248,9 @@ function drawFrontPrice(sheet, F, { cents, position }) {
   const x = position.endsWith('left') ? safe.left : safe.right - w;
   const y = position.startsWith('top') ? safe.top : safe.bottom - h;
   doc.save().roundedRect(x, y, w, h, mm(3)).fill('#ffffff').restore();
-  doc.font(F.regular).fontSize(pt.frontSmall).fillColor(FIR);
+  doc.font(F.regular).fontSize(FRONT_PRICE_PT.small).fillColor(FIR);
   plainText(doc, small, x, y + padY, { width: w, align: 'center' });
-  doc.font(F.serif).fontSize(pt.frontPrice).fillColor(FIR);
+  doc.font(F.serif).fontSize(FRONT_PRICE_PT.price).fillColor(FIR);
   plainText(doc, price, x, y + padY + smallH, { width: w, align: 'center' });
 }
 
@@ -617,6 +619,7 @@ module.exports = {
   offerUrl,
   shortLink,
   fitLines,
+  FRONT_PRICE_PT,
   CODE_BOX_HEIGHT,
   LEGAL_MENTION,
   BACK_LAYOUT,

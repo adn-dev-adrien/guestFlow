@@ -177,7 +177,7 @@ test('rule 66: the recipient\'s last name turns the card too, and the back print
   await screen.findByText('Le bon comprend');
   type(/^Nom/, 'Durand');
   expect(face()).toBe('back');
-  expect(document.querySelector('.gf-card-flip .gf-v-subtitle').hidden).toBe(true);
+  expect(document.querySelector('.gf-card-flip .gf-v-subtitle').textContent).toBe('');
   type(/^Prénom/, 'Marie');
   expect(texts('.gf-card-flip .gf-v-subtitle')).toEqual(['offert à Marie']);
   expect(document.querySelector('.gf-card-flip').textContent).not.toContain('Durand');
