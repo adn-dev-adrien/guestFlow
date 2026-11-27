@@ -32,7 +32,7 @@ h2{font:400 22px/1.2 var(--disp);margin:0 0 12px;color:var(--sapin)}
 .body{flex:1;overflow:auto;padding-bottom:20px}
 .hero{height:170px;background:linear-gradient(to top,rgba(10,14,10,.78),rgba(10,14,10,.15)),linear-gradient(135deg,#5A6B48,#2E3B2A 60%,#B87B2A);color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:16px}
 .hero.estiva{background:linear-gradient(to top,rgba(10,14,10,.78),rgba(10,14,10,.15)),linear-gradient(135deg,#B87B2A,#8A5816 50%,#2E3B2A)}
-.hero small{opacity:.85;font-size:12px;letter-spacing:.06em;text-transform:uppercase}.hero h4{margin:2px 0 0;font:400 26px var(--disp)}
+.hero small{opacity:.85;font-size:12px;letter-spacing:.06em;text-transform:uppercase}.hero h3{margin:2px 0 0;font:400 26px var(--disp)}
 .stay{margin:-14px 14px 0;position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:13.5px}
 .stay .top{display:flex;justify-content:space-between}.stay .top b{font-weight:600}
 .nights{display:flex;gap:4px;margin-top:8px}.nights i{flex:1;height:5px;border-radius:3px;background:var(--line)}.nights i.full{background:var(--ocre)}
@@ -59,7 +59,7 @@ h2{font:400 22px/1.2 var(--disp);margin:0 0 12px;color:var(--sapin)}
 .choice input{accent-color:var(--action);width:18px;height:18px}
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--soft)}
 .chip.demo{background:var(--warnSoft);color:#6F5112}.chip.ok{background:var(--okSoft);color:var(--ok)}
-.confirm{padding:30px 20px;text-align:center}.confirm .big{font-size:44px}.confirm h4{font:400 24px var(--disp);margin:8px 0 4px;color:var(--sapin)}
+.confirm{padding:30px 20px;text-align:center}.confirm .big{font-size:44px}.confirm h3{font:400 24px var(--disp);margin:8px 0 4px;color:var(--sapin)}
 .demoline{display:inline-block;margin-top:8px;padding:6px 10px;border-radius:10px;background:var(--warnSoft);color:#6F5112;font-size:13px}
 .light{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
 .sw{width:52px;height:32px;border-radius:16px;background:var(--line);position:relative;border:0;cursor:pointer;transition:background .2s}
@@ -67,13 +67,13 @@ h2{font:400 22px/1.2 var(--disp);margin:0 0 12px;color:var(--sapin)}
 .sw.on{background:var(--ok)}.sw.on::after{transform:translateX(20px)}.sw.pending{opacity:.6}
 .reading{display:flex;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
 .unknown{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--soft)}
-.unknown h4{font:400 22px var(--disp);color:var(--sapin);margin:0 0 6px}
+.unknown h3{font:400 22px var(--disp);color:var(--sapin);margin:0 0 6px}
 /* sheet */
 .scrim{position:absolute;inset:0;background:rgba(10,14,10,.4);opacity:0;pointer-events:none;transition:opacity .2s}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:20px 20px 0 0;padding:10px 16px 22px;transform:translateY(105%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
 .open .scrim{opacity:1;pointer-events:auto}.open .sheet{transform:none}
 .grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
-.sheet h5{margin:12px 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--lichen)}
+.sheet h4{margin:12px 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--lichen)}
 .opt{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:46px;border:0;border-bottom:1px solid var(--line);background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;padding:0 4px}
 .opt.on::after{content:'✓';color:var(--action);font-weight:700}
 .sheet .keypad{font:400 40px var(--disp);letter-spacing:.2em;text-align:center;margin:10px 0;color:var(--sapin)}
@@ -199,12 +199,12 @@ function render(){
  const b=$('#body');const back=$('#back');back.style.display=st.view==='home'?'none':'block';
  const cb=$('#cartbar');cb.style.display=(st.view==='shop'||st.view==='bath')&&count()?'block':'none';$('#cartbtn').textContent='Voir le panier · '+count()+' · '+eur(total());
  if(st.openedGen!==st.linkGen){$('#title').textContent='Mon séjour';$('#demobar').style.display='none';cb.style.display='none';back.style.display='none';
-  b.innerHTML='<div class="unknown" style="height:100%"><h4>Ce code n’est pas reconnu.</h4><p>Le lien de démo a été régénéré. Scanne le nouveau QR du Studio.</p><button class="btn fill" id="rescan">Ouvrir le nouveau lien</button></div>';
+  b.innerHTML='<div class="unknown" style="height:100%"><h3>Ce code n’est pas reconnu.</h3><p>Le lien de démo a été régénéré. Scanne le nouveau QR du Studio.</p><button class="btn fill" id="rescan">Ouvrir le nouveau lien</button></div>';
   $('#rescan').onclick=()=>{st.openedGen=st.linkGen;st.view='home';$('#demobar').style.display='flex';render()};return}
  const L=lodging();
  if(st.view==='home'){ $('#title').textContent='Mon séjour';
   const ended=st.moment==='ended',pre=st.moment==='preArrival';
-  let h='<div class="hero '+L.hero+'"><small>'+(ended?'Bienvenue':'Bonjour Camille')+'</small><h4>'+L.name+'</h4></div>';
+  let h='<div class="hero '+L.hero+'"><small>'+(ended?'Bienvenue':'Bonjour Camille')+'</small><h3>'+L.name+'</h3></div>';
   if(!ended)h+='<div class="stay"><div class="top"><b>'+datesLabel()+'</b><span>2 adultes</span></div><span>'+(pre?'Arrivée dans 5 jours, à partir de 16 h':'Départ dans 2 jours, avant 10 h')+'</span><div class="nights">'+[0,1,2].map(i=>'<i class="'+(!pre&&i<1?'full':'')+'"></i>').join('')+'</div></div>';
   else h+='<div class="note">Votre séjour est terminé. Le livret reste disponible.</div>';
   h+='<div class="tiles">';
@@ -232,7 +232,7 @@ function render(){
   h+='<div class="refus" id="refus"></div><div style="padding:0 14px"><button class="btn fill wide" id="order">Commander · '+eur(total())+'</button></div>';
   b.innerHTML=h;
  } else if(st.view==='confirm'){ $('#title').textContent='Commande';const o=st.orders[st.orders.length-1];
-  b.innerHTML='<div class="confirm"><div class="big">✓</div><h4>Commande confirmée</h4><p style="margin:0;color:var(--soft)">'+eur(o.total)+' · '+(o.pay==='card'?'payée par carte':'ajoutée à la note')+'</p><div class="demoline">Démo : rien n’a été commandé ni payé.</div><p><button class="btn" data-go="orders">Mes commandes</button> <button class="btn" data-go="home">Accueil</button></p></div>';
+  b.innerHTML='<div class="confirm"><div class="big">✓</div><h3>Commande confirmée</h3><p style="margin:0;color:var(--soft)">'+eur(o.total)+' · '+(o.pay==='card'?'payée par carte':'ajoutée à la note')+'</p><div class="demoline">Démo : rien n’a été commandé ni payé.</div><p><button class="btn" data-go="orders">Mes commandes</button> <button class="btn" data-go="home">Accueil</button></p></div>';
  } else if(st.view==='orders'){ $('#title').textContent='Mes commandes';
   b.innerHTML='<div class="list">'+(st.orders.length?st.orders.slice().reverse().map(o=>'<div class="prod"><div class="meta"><b>'+o.label+'</b><span>'+eur(o.total)+' · '+(o.pay==='card'?'carte':'note')+'</span></div><span class="chip demo">Démo</span></div>').join(''):'<p style="color:var(--soft)">Aucune commande pour l’instant.</p>')+'</div><p style="padding:0 14px;font-size:13px;color:var(--soft)">Ces commandes simulées disparaissent quand la session de démo se termine. Elles ne sont jamais sur la page « Commandes clients ».</p>';
  } else if(st.view==='home2'){ $('#title').textContent='Domotique';
@@ -243,11 +243,11 @@ function render(){
 }
 function openSheet(html){const s=$('#sheet');s.innerHTML='<div class="grab"></div>'+html;$('#screen').classList.add('open')}
 function closeSheet(){$('#screen').classList.remove('open')}
-function demoSheet(){openSheet('<h5>Logement</h5>'+LODGINGS.map((l,i)=>'<button class="opt '+(i===st.lod?'on':'')+'" data-lod="'+i+'">'+l.name+'</button>').join('')+'<h5>Moment</h5>'+Object.entries(MOMENTS).map(([k,v])=>'<button class="opt '+(k===st.moment?'on':'')+'" data-mom="'+k+'">'+v+'</button>').join(''))}
+function demoSheet(){openSheet('<h4>Logement</h4>'+LODGINGS.map((l,i)=>'<button class="opt '+(i===st.lod?'on':'')+'" data-lod="'+i+'">'+l.name+'</button>').join('')+'<h4>Moment</h4>'+Object.entries(MOMENTS).map(([k,v])=>'<button class="opt '+(k===st.moment?'on':'')+'" data-mom="'+k+'">'+v+'</button>').join(''))}
 $('#demobar').onclick=demoSheet;$('#scrim').onclick=closeSheet;$('#back').onclick=()=>go(st.view==='cart'?'shop':'home');$('#cartbtn').onclick=()=>go('cart');
 document.addEventListener('click',e=>{const t=e.target.closest('[data-go],[data-inc],[data-dec],[data-slot],[data-lod],[data-mom],[data-light],#order');if(!t)return;
- if(t.dataset.go){const g=t.dataset.go;if(g==='gate')return openSheet('<h5>Portail</h5><p>Ici, le voyageur ouvre le portail.</p><p style="margin:0;color:var(--soft)">Code du clavier</p><div class="keypad">1234</div><div class="demoline">Démo : aucun portail n’est ouvert.</div>');
-  if(g==='wifi')return openSheet('<h5>Wifi</h5><p><b>Solio-'+(st.lod?'Estiva':'Granja')+'</b></p><p style="color:var(--soft)">Le vrai mot de passe du logement, comme pour un voyageur.</p>');closeSheet();return go(g)}
+ if(t.dataset.go){const g=t.dataset.go;if(g==='gate')return openSheet('<h4>Portail</h4><p>Ici, le voyageur ouvre le portail.</p><p style="margin:0;color:var(--soft)">Code du clavier</p><div class="keypad">1234</div><div class="demoline">Démo : aucun portail n’est ouvert.</div>');
+  if(g==='wifi')return openSheet('<h4>Wifi</h4><p><b>Solio-'+(st.lod?'Estiva':'Granja')+'</b></p><p style="color:var(--soft)">Le vrai mot de passe du logement, comme pour un voyageur.</p>');closeSheet();return go(g)}
  if(t.dataset.inc){st.cart[t.dataset.inc]=(st.cart[t.dataset.inc]||0)+1;return render()}
  if(t.dataset.dec){st.cart[t.dataset.dec]--;if(!st.cart[t.dataset.dec])delete st.cart[t.dataset.dec];return render()}
  if(t.dataset.slot){st.bath=st.bath===t.dataset.slot?null:t.dataset.slot;return render()}
