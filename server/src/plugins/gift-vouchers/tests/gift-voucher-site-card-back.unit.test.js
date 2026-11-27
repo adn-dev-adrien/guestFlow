@@ -15,7 +15,10 @@ const fx = require('./campaignFixtures');
 const sale = require('./giftVoucherFixtures');
 const campaignRules = require('../campaignRules');
 const rules = require('../voucherRules');
-const { BACK_LAYOUT, BACK_TEXTS, redeemUrl } = require('../voucherPdf');
+const {
+  BACK_LAYOUT, VOUCHER_BACK_LAYOUT, BACK_TEXTS, redeemUrl,
+} = require('../voucherPdf');
+const { LEGACY_BACK_LAYOUT, LEGACY_BACK_TEXTS } = require('../legacyBack');
 const { contentLines } = require('../contentsText');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -68,8 +71,9 @@ async function buy(site, slug, extra = {}) {
 
 test('rule 66 — the offer sends the PDF\'s own dimensions and words, and the company the back prints', () => withServer(async (site) => {
   const { back } = await offerOf(site);
-  assert.deepEqual(back.layout, BACK_LAYOUT);
-  assert.deepEqual(back.texts, BACK_TEXTS);
+  assert.deepEqual(back.design, { layout: BACK_LAYOUT, voucherLayout: VOUCHER_BACK_LAYOUT, texts: BACK_TEXTS });
+  assert.deepEqual(back.layout, LEGACY_BACK_LAYOUT, 'K10 — the keys of 4.7.0 stay as they were');
+  assert.deepEqual(back.texts, LEGACY_BACK_TEXTS);
   assert.deepEqual([back.layout.safeMm, back.layout.legalStripMm, back.layout.qrMm, back.layout.logoMm], [5, 5, 23, 12]);
   assert.equal(back.companyName, 'Domaine Solio');
   assert.equal(back.identity, 'Domaine Solio · Saint-Cirq-Lapopie · Lot');

@@ -44,6 +44,20 @@ const BACK_LAYOUT = Object.freeze({
   }),
 });
 
+/**
+ * Rule 20 (K10) — the voucher's own back is drawn smaller than the merchant card's (the title, the QR code, the logo band and the steps), so that the validity, the contents and the
+ * message of the validated mock all fit under the code. Same keys as `BACK_LAYOUT`: the PDF draws from it and the website sends it under `back.design.voucherLayout`.
+ */
+const VOUCHER_BACK_LAYOUT = Object.freeze({
+  ...BACK_LAYOUT,
+  qrMm: 18,
+  qrFramePadMm: 2,
+  logoMm: 10,
+  stepGapMm: 1.5,
+  afterQrMm: 2.5,
+  pt: Object.freeze({ ...BACK_LAYOUT.pt, title: 14, subtitleGap: 5 }),
+});
+
 // The « à partir de » label of the merchant card's front: the front is not drawn by the website, so its sizes are not part of the back's layout.
 const FRONT_PRICE_PT = Object.freeze({ small: 8.5, price: 19 });
 
@@ -92,7 +106,6 @@ const MUTED = '#5c665f';
 const LINE = '#c9cfc9';
 const HONEY = '#b9822f';
 const FIR = '#2f5d50';
-const QR_SIZE = mm(BACK_LAYOUT.qrMm);
 // The strip along the right edge that the vertical legal mention occupies, inside the safe area.
 const LEGAL_STRIP = mm(BACK_LAYOUT.legalStripMm);
 const CODE_BOX_HEIGHT = mm(BACK_LAYOUT.codeBoxMm);
@@ -256,7 +269,7 @@ function drawFrontPrice(sheet, F, { cents, position }) {
 }
 
 /** A text pen over the back's frame: each call draws at the running `y` and moves it down. */
-function createPen(sheet, F) {
+function createPen(sheet, F, L) {
   const { doc, safe } = sheet;
   const left = safe.left;
   const right = safe.right - LEGAL_STRIP;
@@ -278,15 +291,15 @@ function createPen(sheet, F) {
     return y;
   }
   return {
-    doc, left, right, width, state, write, safe, F,
+    doc, left, right, width, state, write, safe, F, L,
   };
 }
 
 /** The top of both backs: the logo, or the company's name when there is no logo. */
 function drawHeader(pen, { company, F }) {
-  const { doc } = pen;
-  const height = mm(BACK_LAYOUT.logoMm);
-  const { pt } = BACK_LAYOUT;
+  const { doc, L } = pen;
+  const height = mm(L.logoMm);
+  const { pt } = L;
   if (company.logo) {
     try {
       doc.image(imageOf(doc, company.logo), pen.left, pen.state.y, {
@@ -299,7 +312,7 @@ function drawHeader(pen, { company, F }) {
     }
   }
   pen.write(company.name, {
-    font: F.serif, size: pt.logoName, align: 'center', maxLines: BACK_LAYOUT.lines.logoName, gap: pt.logoGap, color: MUTED,
+    font: F.serif, size: pt.logoName, align: 'center', maxLines: L.lines.logoName, gap: pt.logoGap, color: MUTED,
   });
 }
 
@@ -333,18 +346,18 @@ function drawFooter(pen, { company, F }) {
   const bottom = pen.safe.bottom;
   const identity = [company.name, company.town, company.department].filter(Boolean).join(' · ');
   const wasY = pen.state.y;
-  pen.state.y = bottom - mm(BACK_LAYOUT.footerLineMm);
+  pen.state.y = bottom - mm(pen.L.footerLineMm);
   pen.write(identity, {
-    font: F.italic, size: BACK_LAYOUT.pt.footer, align: 'center', color: HONEY, maxLines: 1, stay: true,
+    font: F.italic, size: pen.L.pt.footer, align: 'center', color: HONEY, maxLines: 1, stay: true,
   });
   pen.state.y = wasY;
 }
 
 /** The numbered honey discs and their one line each. */
 function drawSteps(pen, steps) {
-  const { doc, state } = pen;
-  const { pt } = BACK_LAYOUT;
-  const disc = mm(BACK_LAYOUT.discMm);
+  const { doc, state, L } = pen;
+  const { pt } = L;
+  const disc = mm(L.discMm);
   steps.forEach((text, index) => {
     const top = state.y;
     doc.save().circle(pen.left + disc / 2, top + disc / 2, disc / 2).fill(HONEY).restore();
@@ -352,24 +365,25 @@ function drawSteps(pen, steps) {
     plainText(doc, String(index + 1), pen.left, top + (disc - doc.currentLineHeight()) / 2 + 0.4, { width: disc, align: 'center' });
     state.y = top + (disc - doc.font(pen.F.regular).fontSize(pt.step).currentLineHeight()) / 2;
     pen.write(text, {
-      font: pen.F.regular, size: pt.step, x: pen.left + disc + mm(2.5), w: pen.width - disc - mm(2.5), maxLines: BACK_LAYOUT.lines.step, gap: 0,
+      font: pen.F.regular, size: pt.step, x: pen.left + disc + mm(2.5), w: pen.width - disc - mm(2.5), maxLines: L.lines.step, gap: 0,
     });
-    state.y = top + disc + mm(BACK_LAYOUT.stepGapMm);
+    state.y = top + disc + mm(L.stepGapMm);
   });
 }
 
 /** The one rectangle of the code, « Code du bon » inside at its top left; the voucher's code is printed in it, the merchant card's rectangle stays empty. */
 function drawCodeBox(pen, printed) {
-  const { doc, state } = pen;
-  const { pt } = BACK_LAYOUT;
+  const { doc, state, L } = pen;
+  const { pt } = L;
+  const boxHeight = mm(L.codeBoxMm);
   const top = state.y;
-  doc.save().roundedRect(pen.left, top, pen.width, CODE_BOX_HEIGHT, mm(1.5)).lineWidth(0.9).fillAndStroke('#ffffff', HONEY).restore();
+  doc.save().roundedRect(pen.left, top, pen.width, boxHeight, mm(1.5)).lineWidth(0.9).fillAndStroke('#ffffff', HONEY).restore();
   doc.font(pen.F.regular).fontSize(pt.codeLabel).fillColor(MUTED).text(BACK_TEXTS.codeLabel, pen.left + mm(2.5), top + mm(2), { lineBreak: false });
   if (printed) {
     doc.font(pen.F.bold).fontSize(pt.code).fillColor(INK);
-    plainText(doc, printed, pen.left, top + (CODE_BOX_HEIGHT - doc.currentLineHeight()) / 2 + mm(1), { width: pen.width, align: 'center', characterSpacing: pt.codeSpacing });
+    plainText(doc, printed, pen.left, top + (boxHeight - doc.currentLineHeight()) / 2 + mm(1), { width: pen.width, align: 'center', characterSpacing: pt.codeSpacing });
   }
-  state.y = top + CODE_BOX_HEIGHT + mm(BACK_LAYOUT.afterCodeMm);
+  state.y = top + boxHeight + mm(L.afterCodeMm);
 }
 
 /**
@@ -379,9 +393,10 @@ function drawCodeBox(pen, printed) {
 function drawBack(sheet, {
   F, company, spec, qrModules,
 }) {
-  const pen = createPen(sheet, F);
+  const L = spec.layout || BACK_LAYOUT;
+  const pen = createPen(sheet, F, L);
   const { doc, state } = pen;
-  const { pt, lines: most } = BACK_LAYOUT;
+  const { pt, lines: most } = L;
   drawHeader(pen, { company, F });
   pen.write(BACK_TEXTS.title, {
     font: F.bold, size: pt.kicker, align: 'center', color: HONEY, spacing: pt.kickerSpacing, gap: pt.kickerGap,
@@ -396,11 +411,12 @@ function drawBack(sheet, {
   } else {
     state.y += pt.subtitleGap;
   }
-  const frame = QR_SIZE + 2 * mm(BACK_LAYOUT.qrFramePadMm);
+  const qrSize = mm(L.qrMm);
+  const frame = qrSize + 2 * mm(L.qrFramePadMm);
   const frameLeft = pen.left + (pen.width - frame) / 2;
   doc.save().roundedRect(frameLeft, state.y, frame, frame, mm(2.5)).lineWidth(pt.frameStroke).strokeColor(HONEY).stroke().restore();
-  drawQr(doc, qrModules(spec.url), frameLeft + mm(BACK_LAYOUT.qrFramePadMm), state.y + mm(BACK_LAYOUT.qrFramePadMm), QR_SIZE);
-  state.y += frame + mm(BACK_LAYOUT.afterQrMm);
+  drawQr(doc, qrModules(spec.url), frameLeft + mm(L.qrFramePadMm), state.y + mm(L.qrFramePadMm), qrSize);
+  state.y += frame + mm(L.afterQrMm);
   pen.write(BACK_TEXTS.scan, {
     font: F.bold, size: pt.scan, align: 'center', gap: pt.scanGap,
   });
@@ -408,31 +424,58 @@ function drawBack(sheet, {
     font: F.regular, size: pt.link, align: 'center', color: MUTED, maxLines: most.link, gap: pt.linkGap,
   });
   drawSteps(pen, spec.steps);
-  state.y += mm(BACK_LAYOUT.afterStepsMm) - mm(BACK_LAYOUT.stepGapMm);
+  state.y += mm(L.afterStepsMm) - mm(L.stepGapMm);
   drawCodeBox(pen, spec.printedCode);
-  // The small lines under the code stop where the foot of the page begins. When room runs out the lines of lower priority give way, never the validity (rule 20, Q5):
-  // the room is shared out by priority (the spec's `priority`, lowest first; the order of the list by default) and the lines are drawn in the order of the list.
-  const floor = pen.safe.bottom - mm(BACK_LAYOUT.footerLineMm) - mm(1.5);
+  // The small lines under the code stop where the foot of the page begins. The room is shared out by priority (the spec's `priority`, lowest first; the order of the list by default),
+  // in two rounds: every line first gets its first line — the validity before the rest — then what is left goes to the lines that want more. A line that does not fit its room ends with an
+  // ellipsis; only when even the first lines do not fit does the last in priority give way, never the validity (rule 20, Q5).
+  const floor = pen.safe.bottom - mm(L.footerLineMm) - mm(1.5);
   let room = floor - state.y;
-  const wanted = spec.small.map((line, index) => ({ line, index, priority: line.priority === undefined ? index : line.priority }));
-  const allowed = new Map();
-  wanted.filter(({ line }) => line.text).sort((a, b) => a.priority - b.priority).forEach(({ line, index }) => {
-    doc.font(line.font).fontSize(pt.small);
-    const height = doc.currentLineHeight();
-    const need = fitLines(doc, line.text, pen.width, line.lines).length;
-    const fit = Math.max(0, Math.min(need, Math.floor((room - pt.smallGap) / height)));
-    allowed.set(index, fit);
-    if (fit > 0) room -= fit * height + pt.smallGap;
-  });
-  wanted.forEach(({ line, index }) => {
-    if (!allowed.get(index)) return;
-    pen.write(line.text, {
-      font: line.font, size: pt.small, color: line.color || INK, align: 'center', maxLines: allowed.get(index), gap: pt.smallGap,
+  const wanted = spec.small
+    .map((line, index) => ({ line, index, priority: line.priority === undefined ? index : line.priority }))
+    .filter(({ line }) => line.text || line.fit)
+    .sort((a, b) => a.priority - b.priority)
+    .map((entry) => {
+      doc.font(entry.line.font).fontSize(pt.small);
+      const text = entry.line.fit ? entry.line.fit(doc, pen.width) : entry.line.text;
+      return {
+        ...entry, text, height: doc.currentLineHeight(), need: fitLines(doc, text, pen.width, entry.line.lines).length, given: 0,
+      };
+    });
+  [1, Infinity].forEach((round) => wanted.forEach((entry) => {
+    for (;;) {
+      const cost = entry.given ? entry.height : entry.height + pt.smallGap;
+      if (entry.given >= Math.min(entry.need, round) || room < cost) break;
+      room -= cost;
+      entry.given += 1;
+    }
+  }));
+  wanted.slice().sort((a, b) => a.index - b.index).forEach(({ line, text, given }) => {
+    if (!given) return;
+    pen.write(text, {
+      font: line.font, size: pt.small, color: line.color || INK, align: 'center', maxLines: given, gap: pt.smallGap,
     });
   });
   drawFooter(pen, { company, F });
   drawLegalMention(sheet, F);
   return state.y;
+}
+
+/**
+ * « Votre bon comprend — <name> : <detail> · <period> · <other items> »: the name of the first item is cut with an ellipsis, when the line is too narrow for it, so that its detail and its
+ * period (after the colon) stay on the first line. The first item has no colon when it is a lodging voucher's one line, which is then cut like any text.
+ */
+function contentsText({
+  doc, width, first, others,
+}) {
+  const [lead, ...detail] = String(first || '').split(' : ');
+  const tail = detail.length ? ` : ${detail.join(' : ')}` : '';
+  const head = say(BACK_TEXTS.includes, { lines: tail ? lead : first });
+  const rest = others.length ? ` · ${others.join(' · ')}` : '';
+  if (!tail) return `${head}${rest}`;
+  let cut = head;
+  while (cut.length > BACK_TEXTS.includes.indexOf('{') + 3 && doc.widthOfString(`${cut}${tail}`) > width) cut = `${cut.slice(0, -2).trimEnd()}…`;
+  return `${cut}${tail}${rest}`;
 }
 
 const say = (template, values) => Object.entries(values).reduce((text, [key, value]) => text.replace(`{${key}}`, () => value), template);
@@ -452,7 +495,9 @@ function voucherBackSpec({
   if (sender && recipient) subtitle = say(BACK_TEXTS.subtitle, { sender, recipient });
   else if (sender) subtitle = say(BACK_TEXTS.subtitleSender, { sender });
   else if (recipient) subtitle = say(BACK_TEXTS.subtitleRecipient, { recipient });
+  const [first, ...others] = contentLines(voucher);
   return {
+    layout: VOUCHER_BACK_LAYOUT,
     title,
     subtitle,
     steps: stepsOf(contents),
@@ -460,8 +505,9 @@ function voucherBackSpec({
     link,
     printedCode: code.format(voucher.code),
     small: [
-      { text: say(BACK_TEXTS.includes, { lines: contentLines(voucher).join(' · ') }), font: F.regular, lines: BACK_LAYOUT.lines.includes, priority: 2 },
-      { text: voucher.message, font: F.italic, color: MUTED, lines: BACK_LAYOUT.lines.message, priority: 1 },
+      // The first item keeps its detail and its period (« : 1 h en soirée · week-end »): when the line is short of room it is the item's name that gives way, never the tail.
+      { fit: (doc, width) => contentsText({ doc, width, first, others }), font: F.regular, lines: VOUCHER_BACK_LAYOUT.lines.includes, priority: 2 },
+      { text: voucher.message, font: F.italic, color: MUTED, lines: VOUCHER_BACK_LAYOUT.lines.message, priority: 1 },
       { text: say(BACK_TEXTS.validUntil, { date: rules.formatLongFrDate(voucher.expiresOn) }), font: F.bold, lines: 1, priority: 0 },
     ],
   };
@@ -473,6 +519,7 @@ function merchantBackSpec({
 }) {
   const t = BACK_TEXTS.merchant;
   return {
+    layout: BACK_LAYOUT,
     title: t.title,
     subtitle: t.subtitle,
     steps: t.steps,
@@ -626,5 +673,6 @@ module.exports = {
   CODE_BOX_HEIGHT,
   LEGAL_MENTION,
   BACK_LAYOUT,
+  VOUCHER_BACK_LAYOUT,
   BACK_TEXTS,
 };

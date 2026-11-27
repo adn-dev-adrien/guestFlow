@@ -47,8 +47,9 @@ const TEXTS = {
   legal: 'Ne pas jeter sur la voie publique.',
 };
 const BACK = {
-  layout: LAYOUT,
-  texts: TEXTS,
+  layout: { trimMm: { width: 105, height: 148 }, pt: {}, lines: {} },
+  texts: { title: 'BON CADEAU' },
+  design: { layout: LAYOUT, voucherLayout: LAYOUT, texts: TEXTS },
   logoUrl: '/public/v1/gift-vouchers/logo?v=abc123def4567890',
   companyName: 'Domaine Solio',
   identity: 'Domaine Solio · Saint-Cirq-Lapopie · Lot',
@@ -367,9 +368,10 @@ test('rule 66: nothing can drift — every custom property the card code derives
   // voucherPdf.js needs pdfkit, which jsdom cannot load: the layout constant is read out of its source and evaluated alone.
   const source = fs.readFileSync(path.resolve(__dirname, '../../../server/src/plugins/gift-vouchers/voucherPdf.js'), 'utf8');
   const BACK_LAYOUT = new Function(`return ${source.slice(source.indexOf('const BACK_LAYOUT = ') + 20, source.indexOf('\n});', source.indexOf('const BACK_LAYOUT = ')) + 3)};`)(); // eslint-disable-line no-new-func
+  const VOUCHER_BACK_LAYOUT = new Function('BACK_LAYOUT', `return ${source.slice(source.indexOf('const VOUCHER_BACK_LAYOUT = ') + 28, source.indexOf('\n});', source.indexOf('const VOUCHER_BACK_LAYOUT = ')) + 3)};`)(BACK_LAYOUT); // eslint-disable-line no-new-func
   const BACK_TEXTS = TEXTS;
   const css = fs.readFileSync(path.resolve(__dirname, '../../../integrations/wordpress/guestflow-booking/assets/style.css'), 'utf8');
-  setup({ back: { ...BACK, layout: JSON.parse(JSON.stringify(BACK_LAYOUT)), texts: BACK_TEXTS } });
+  setup({ back: { ...BACK, design: { layout: BACK_LAYOUT, voucherLayout: JSON.parse(JSON.stringify(VOUCHER_BACK_LAYOUT)), texts: BACK_TEXTS } } });
   await screen.findByText('Le bon comprend');
   const verso = document.querySelector('.gf-card-flip .gf-verso');
   const produced = [...verso.style].filter((n) => /^--(m|p|l|lh)-/.test(n));

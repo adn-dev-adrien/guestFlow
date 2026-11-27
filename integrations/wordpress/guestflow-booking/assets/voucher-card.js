@@ -2,14 +2,15 @@
  * The voucher card that turns (specs/gift-vouchers/gift-voucher-campaigns.md rule 66, build-free plain ES): one A6 card, its front the campaign's picture (rule 62) and its back drawn in HTML
  * as GuestFlow's PDF draws it. Shared by the purchase form (the preview) and the page shown after payment (the real voucher).
  *
- * It writes nothing of the back itself. GuestFlow sends the dimensions (`layout`, turned here into CSS custom properties), the fixed words (`texts`), the logo, the company's
+ * It writes nothing of the back itself. GuestFlow sends the dimensions (`design.voucherLayout`, turned here into CSS custom properties), the fixed words (`design.texts`), the logo, the company's
  * name, town and website, the printed link, the QR code and the lines; the page hands over what the buyer typed. A back is drawn only when GuestFlow sent one; without it
- * the card is its front alone.
+ * the card is its front alone. `back.layout` and `back.texts` are the drawing of the connectors before 1.27.0 and are never read here (K10): a GuestFlow older than this
+ * connector sends no `design`, and the back is then drawn from the stylesheet's own defaults and the words below, never a literal « {lines} ».
  *
  *   GFBooking.voucherCard({
  *     title,                 string   alternative text of the front
  *     front,                 () → img node | null   called once per drawing of the front (the card, the zoom, the print sheet)
- *     back,                  the offer's `back` ({ layout, texts, logoUrl, companyName, identity, website, link, previewQrSvg }) | null
+ *     back,                  the offer's `back` ({ design: { layout, voucherLayout, texts }, logoUrl, companyName, identity, website, link, previewQrSvg }) | null
  *     preview,               true before payment: the « Aperçu » pill and the grey code
  *     print,                 true to allow print(): both faces side by side at 105 × 148 mm, laid on <body> only while the page is printed
  *     startOnBack,           true to open on the back (the page after payment)
@@ -26,6 +27,35 @@
   var PT_PER_MM = 0.35278;
 
   function kebab(key) { return key.replace(/[A-Z]/g, function (c) { return '-' + c.toLowerCase(); }); }
+
+  // The words of the back when GuestFlow is older than this connector and sends none of its own (K10): the same French as the PDF.
+  var FALLBACK_TEXTS = {
+    title: 'BON CADEAU',
+    lodgingTitle: 'Un séjour offert',
+    subtitle: 'offert par {sender} à {recipient}',
+    subtitleSender: 'offert par {sender}',
+    subtitleRecipient: 'offert à {recipient}',
+    scan: 'Scannez le QR code',
+    steps: ['Scannez le QR code avec votre téléphone', 'Choisissez votre créneau en ligne', 'Savourez votre parenthèse en Ardèche'],
+    codeLabel: 'Code du bon',
+    includes: 'Votre bon comprend — {lines}',
+    codePlaceholder: 'XXXX-XXXX-XXXX-XXXX',
+    validUntil: 'Valable jusqu’au {date}',
+    legal: 'Ne pas jeter sur la voie publique.'
+  };
+
+  // A word GuestFlow did not send falls back to the connector's own.
+  function textsOf(design) {
+    var sent = (design && design.texts) || {};
+    var out = {};
+    Object.keys(FALLBACK_TEXTS).forEach(function (key) { out[key] = sent[key] != null ? sent[key] : FALLBACK_TEXTS[key]; });
+    return out;
+  }
+
+  // The first `{key}` only, as GuestFlow's own filling does; the value is taken literally. A template with no such place (an older GuestFlow's) takes the value at its end.
+  function fillOrAppend(template, key, value) {
+    return String(template || '').indexOf('{' + key + '}') < 0 ? String(template || '') + ' ' + value : fill(template, key, value);
+  }
 
   // The first `{key}` only, as GuestFlow's own filling does; the value is taken literally.
   function fill(template, key, value) { return String(template || '').replace('{' + key + '}', function () { return value; }); }
@@ -64,20 +94,24 @@
 
   // ── The back: one drawing, repainted when the state changes ───────────────────────────────────
   function drawBack(back, preview) {
-    var layout = back.layout;
-    var texts = back.texts;
+    var design = back.design || null;
+    var layout = design ? (design.voucherLayout || design.layout || null) : null;
+    var texts = textsOf(design);
     var root = div('gf-verso');
-    root.style.setProperty('--m-trim', String(layout.trimMm.width));
-    Object.keys(layout).forEach(function (key) {
-      if (/Mm$/.test(key) && typeof layout[key] === 'number') root.style.setProperty('--m-' + kebab(key.replace(/Mm$/, '')), String(layout[key]));
-    });
-    ['pt', 'lines'].forEach(function (group) {
-      Object.keys(layout[group] || {}).forEach(function (key) {
-        root.style.setProperty('--' + (group === 'pt' ? 'p' : 'l') + '-' + kebab(key), String(layout[group][key]));
+    // Without a layout from GuestFlow every variable falls back to the stylesheet's own value (`var(--x, default)`).
+    if (layout) {
+      root.style.setProperty('--m-trim', String((layout.trimMm || { width: 105 }).width));
+      Object.keys(layout).forEach(function (key) {
+        if (/Mm$/.test(key) && typeof layout[key] === 'number') root.style.setProperty('--m-' + kebab(key.replace(/Mm$/, '')), String(layout[key]));
       });
-    });
-    root.style.setProperty('--lh-sans', String((layout.lineHeight || {}).sans || 1.326));
-    root.style.setProperty('--lh-serif', String((layout.lineHeight || {}).serif || 1.371));
+      ['pt', 'lines'].forEach(function (group) {
+        Object.keys(layout[group] || {}).forEach(function (key) {
+          root.style.setProperty('--' + (group === 'pt' ? 'p' : 'l') + '-' + kebab(key), String(layout[group][key]));
+        });
+      });
+      root.style.setProperty('--lh-sans', String((layout.lineHeight || {}).sans || 1.326));
+      root.style.setProperty('--lh-serif', String((layout.lineHeight || {}).serif || 1.371));
+    }
 
     var pill = preview ? span('gf-v-pill', GF.t('gvPreviewPill')) : null;
     var logo = div('gf-v-logo');
@@ -167,7 +201,7 @@
       // Empty, the subtitle keeps its gap as the PDF does (rule 20): its margin stays, only the text goes.
       subtitle.textContent = who;
       link.textContent = s.link || back.link || '';
-      includes.textContent = (s.lines || []).length ? fill(texts.includes, 'lines', (s.lines || []).join(' · ')) : '';
+      includes.textContent = (s.lines || []).length ? fillOrAppend(texts.includes, 'lines', (s.lines || []).join(' · ')) : '';
       includes.hidden = !includes.textContent;
       message.textContent = s.message || '';
       message.hidden = !s.message;

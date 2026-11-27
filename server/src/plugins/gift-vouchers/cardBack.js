@@ -1,6 +1,6 @@
 /**
  * The voucher's back for the website (specs/gift-vouchers/gift-voucher-campaigns.md rule 66). The site draws the back in HTML, millimetre for millimetre as `voucherPdf.js` draws it, and writes
- * nothing of it itself: this module sends the dimensions and the fixed words the PDF reads (`BACK_LAYOUT`, `BACK_TEXTS`), the company's logo, name, town and website, the link
+ * nothing of it itself: this module sends the dimensions and the fixed words the PDF reads (`design`: `BACK_LAYOUT`, `VOUCHER_BACK_LAYOUT`, `BACK_TEXTS`; `layout` and `texts` stay what 4.7.0 sent, K10), the company's logo, name, town and website, the link
  * printed beside the QR code, the lines « Votre bon comprend » (`contentLines`, the PDF's own function) and the validity (`rules.expiryFor`, the issuance's own). The page only
  * adds what the buyer types.
  *
@@ -18,8 +18,9 @@ const {
   contentLines, LODGING_LINE, extraTimeLine, countOf,
 } = require('./contentsText');
 const {
-  BACK_LAYOUT, BACK_TEXTS, redeemUrl, shortLink,
+  BACK_LAYOUT, VOUCHER_BACK_LAYOUT, BACK_TEXTS, redeemUrl, shortLink,
 } = require('./voucherPdf');
+const { LEGACY_BACK_LAYOUT, LEGACY_BACK_TEXTS } = require('./legacyBack');
 
 const LOGO_PATH = '/public/v1/gift-vouchers/logo';
 const COMPANY_KEPT_MS = 60 * 1000;
@@ -59,8 +60,10 @@ function createCardBack({
     const { company: who, origin } = site;
     const mark = who.logo ? hashOf(who.logo) : null;
     return {
-      layout: BACK_LAYOUT,
-      texts: BACK_TEXTS,
+      // K10 — `layout` and `texts` are what 4.7.0 sent, for a connector before 1.27.0; the redrawn back is `design`, read by 1.27.0 and after.
+      layout: LEGACY_BACK_LAYOUT,
+      texts: LEGACY_BACK_TEXTS,
+      design: { layout: BACK_LAYOUT, voucherLayout: VOUCHER_BACK_LAYOUT, texts: BACK_TEXTS },
       logoUrl: mark ? `${LOGO_PATH}?v=${mark}` : null,
       companyName: who.name,
       identity: [who.name, who.town, who.department].filter(Boolean).join(' · '),

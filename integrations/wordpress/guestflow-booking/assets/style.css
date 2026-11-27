@@ -518,39 +518,39 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-verso { --mm: calc(100cqw / var(--m-trim, 105)); --pt: calc(var(--mm) * .35278); position: absolute; inset: 0; background: #fff; color: var(--gfc-ink); font-family: "GF Card Sans", system-ui, sans-serif; font-weight: 400; font-style: normal; text-align: left; text-transform: none; letter-spacing: normal; }
 .gf-verso *, .gf-verso *::before, .gf-verso *::after { box-sizing: border-box; margin: 0; padding: 0; text-transform: none; }
 .gf-verso [hidden] { display: none !important; }
-.gf-verso .gf-v-t { line-height: var(--lh-sans); overflow-wrap: anywhere; font-style: normal; }
+.gf-verso .gf-v-t { line-height: var(--lh-sans, 1.326); overflow-wrap: anywhere; font-style: normal; }
 .gf-verso .gf-v-clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-.gf-v-safe { position: absolute; left: calc(var(--m-safe) * var(--mm)); top: calc(var(--m-safe) * var(--mm)); right: calc((var(--m-safe) + var(--m-legal-strip)) * var(--mm)); bottom: calc((var(--m-safe) + var(--m-footer-line) + 1.5) * var(--mm)); display: flex; flex-direction: column; align-items: center; text-align: center; overflow: hidden; }
-.gf-v-logo { flex: none; display: flex; align-items: center; justify-content: center; height: calc(var(--m-logo) * var(--mm)); margin-bottom: calc(var(--p-logo-gap) * var(--pt)); }
+.gf-v-safe { position: absolute; left: calc(var(--m-safe, 5) * var(--mm)); top: calc(var(--m-safe, 5) * var(--mm)); right: calc((var(--m-safe, 5) + var(--m-legal-strip, 5)) * var(--mm)); bottom: calc((var(--m-safe, 5) + var(--m-footer-line, 4) + 1.5) * var(--mm)); display: flex; flex-direction: column; align-items: center; text-align: center; overflow: hidden; }
+.gf-v-logo { flex: none; display: flex; align-items: center; justify-content: center; height: calc(var(--m-logo, 10) * var(--mm)); margin-bottom: calc(var(--p-logo-gap, 6) * var(--pt)); }
 .gf-v-logo img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
-.gf-v-logo.is-name { height: auto; font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-logo-name) * var(--pt)); color: var(--gfc-muted); text-align: center; }
-.gf-v-logo.is-name .gf-v-t { line-height: var(--lh-serif); -webkit-line-clamp: var(--l-logo-name); }
-.gf-v-kicker { flex: none; font-weight: 700; font-size: calc(var(--p-kicker) * var(--pt)); letter-spacing: calc(var(--p-kicker-spacing) * var(--pt)); color: var(--gfc-honey); margin-bottom: calc(var(--p-kicker-gap) * var(--pt)); }
-.gf-v-title { flex: none; font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-title) * var(--pt)); line-height: var(--lh-serif); margin-bottom: calc(var(--p-title-gap) * var(--pt)); -webkit-line-clamp: var(--l-title); }
-.gf-v-subtitle { flex: none; font-style: italic; font-size: calc(var(--p-subtitle) * var(--pt)); color: var(--gfc-muted); margin-bottom: calc(var(--p-subtitle-gap) * var(--pt)); -webkit-line-clamp: var(--l-subtitle); }
+.gf-v-logo.is-name { height: auto; font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-logo-name, 12) * var(--pt)); color: var(--gfc-muted); text-align: center; }
+.gf-v-logo.is-name .gf-v-t { line-height: var(--lh-serif, 1.371); -webkit-line-clamp: var(--l-logo-name, 2); }
+.gf-v-kicker { flex: none; font-weight: 700; font-size: calc(var(--p-kicker, 8) * var(--pt)); letter-spacing: calc(var(--p-kicker-spacing, 2.4) * var(--pt)); color: var(--gfc-honey); margin-bottom: calc(var(--p-kicker-gap, 3) * var(--pt)); }
+.gf-v-title { flex: none; font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-title, 14) * var(--pt)); line-height: var(--lh-serif, 1.371); margin-bottom: calc(var(--p-title-gap, 2) * var(--pt)); -webkit-line-clamp: var(--l-title, 2); }
+.gf-v-subtitle { flex: none; font-style: italic; font-size: calc(var(--p-subtitle, 9) * var(--pt)); color: var(--gfc-muted); margin-bottom: calc(var(--p-subtitle-gap, 5) * var(--pt)); -webkit-line-clamp: var(--l-subtitle, 2); }
 .gf-verso .gf-v-subtitle { font-style: italic; }
-.gf-v-qrframe { flex: none; padding: calc(var(--m-qr-frame-pad) * var(--mm)); border: calc(var(--p-frame-stroke) * var(--pt)) solid var(--gfc-honey); border-radius: calc(2.5 * var(--mm)); margin-bottom: calc(var(--m-after-qr) * var(--mm)); }
-.gf-v-qr { width: calc(var(--m-qr) * var(--mm)); height: calc(var(--m-qr) * var(--mm)); background: #fff; }
+.gf-v-qrframe { flex: none; padding: calc(var(--m-qr-frame-pad, 2) * var(--mm)); border: calc(var(--p-frame-stroke, 1.1) * var(--pt)) solid var(--gfc-honey); border-radius: calc(2.5 * var(--mm)); margin-bottom: calc(var(--m-after-qr, 2.5) * var(--mm)); }
+.gf-v-qr { width: calc(var(--m-qr, 18) * var(--mm)); height: calc(var(--m-qr, 18) * var(--mm)); background: #fff; }
 .gf-v-qr svg { display: block; width: 100%; height: 100%; }
-.gf-v-scan { flex: none; font-weight: 700; font-size: calc(var(--p-scan) * var(--pt)); margin-bottom: calc(var(--p-scan-gap) * var(--pt)); }
-.gf-v-link { flex: none; font-size: calc(var(--p-link) * var(--pt)); color: var(--gfc-muted); margin-bottom: calc(var(--p-link-gap) * var(--pt)); -webkit-line-clamp: var(--l-link); }
-.gf-v-steps { flex: none; align-self: stretch; margin-bottom: calc((var(--m-after-steps) - var(--m-step-gap)) * var(--mm)); }
-.gf-v-step { display: flex; align-items: center; gap: calc(2.5 * var(--mm)); min-height: calc(var(--m-disc) * var(--mm)); margin-bottom: calc(var(--m-step-gap) * var(--mm)); text-align: left; }
-.gf-v-disc { flex: none; display: flex; align-items: center; justify-content: center; width: calc(var(--m-disc) * var(--mm)); height: calc(var(--m-disc) * var(--mm)); border-radius: 50%; background: var(--gfc-honey); color: #fff; font-weight: 700; font-size: calc(var(--p-disc-number) * var(--pt)); line-height: 1; }
-.gf-v-step-text { font-size: calc(var(--p-step) * var(--pt)); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--l-step); overflow: hidden; min-width: 0; }
-.gf-v-codebox { flex: none; align-self: stretch; position: relative; height: calc(var(--m-code-box) * var(--mm)); border: calc(.9 * var(--pt)) solid var(--gfc-honey); border-radius: calc(1.5 * var(--mm)); background: #fff; margin-bottom: calc(var(--m-after-code) * var(--mm)); }
-.gf-v-code-label { position: absolute; left: calc(2.5 * var(--mm)); top: calc(2 * var(--mm)); font-size: calc(var(--p-code-label) * var(--pt)); color: var(--gfc-muted); text-align: left; }
-.gf-v-code { position: absolute; left: 0; right: 0; top: calc(var(--m-code-box) * var(--mm) / 2 - .5em * var(--lh-sans) + 1 * var(--mm)); font-weight: 700; font-size: calc(var(--p-code) * var(--pt)); letter-spacing: calc(var(--p-code-spacing) * var(--pt)); overflow-wrap: normal; white-space: nowrap; }
+.gf-v-scan { flex: none; font-weight: 700; font-size: calc(var(--p-scan, 8.5) * var(--pt)); margin-bottom: calc(var(--p-scan-gap, 1) * var(--pt)); }
+.gf-v-link { flex: none; font-size: calc(var(--p-link, 7.5) * var(--pt)); color: var(--gfc-muted); margin-bottom: calc(var(--p-link-gap, 6) * var(--pt)); -webkit-line-clamp: var(--l-link, 1); }
+.gf-v-steps { flex: none; align-self: stretch; margin-bottom: calc((var(--m-after-steps, 3) - var(--m-step-gap, 1.5)) * var(--mm)); }
+.gf-v-step { display: flex; align-items: center; gap: calc(2.5 * var(--mm)); min-height: calc(var(--m-disc, 4.6) * var(--mm)); margin-bottom: calc(var(--m-step-gap, 1.5) * var(--mm)); text-align: left; }
+.gf-v-disc { flex: none; display: flex; align-items: center; justify-content: center; width: calc(var(--m-disc, 4.6) * var(--mm)); height: calc(var(--m-disc, 4.6) * var(--mm)); border-radius: 50%; background: var(--gfc-honey); color: #fff; font-weight: 700; font-size: calc(var(--p-disc-number, 8) * var(--pt)); line-height: 1; }
+.gf-v-step-text { font-size: calc(var(--p-step, 8.5) * var(--pt)); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--l-step, 1); overflow: hidden; min-width: 0; }
+.gf-v-codebox { flex: none; align-self: stretch; position: relative; height: calc(var(--m-code-box, 16) * var(--mm)); border: calc(.9 * var(--pt)) solid var(--gfc-honey); border-radius: calc(1.5 * var(--mm)); background: #fff; margin-bottom: calc(var(--m-after-code, 2) * var(--mm)); }
+.gf-v-code-label { position: absolute; left: calc(2.5 * var(--mm)); top: calc(2 * var(--mm)); font-size: calc(var(--p-code-label, 6.5) * var(--pt)); color: var(--gfc-muted); text-align: left; }
+.gf-v-code { position: absolute; left: 0; right: 0; top: calc(var(--m-code-box, 16) * var(--mm) / 2 - .5em * var(--lh-sans, 1.326) + 1 * var(--mm)); font-weight: 700; font-size: calc(var(--p-code, 15) * var(--pt)); letter-spacing: calc(var(--p-code-spacing, 0.8) * var(--pt)); overflow-wrap: normal; white-space: nowrap; }
 .gf-v-code.is-wait { color: var(--gfc-wait); }
-.gf-v-includes { flex: 0 3 auto; min-height: 0; /* the contents give way first, then the message; never the validity (rule 20) */ font-size: calc(var(--p-small) * var(--pt)); margin-bottom: calc(var(--p-small-gap) * var(--pt)); -webkit-line-clamp: var(--l-includes); }
-.gf-v-message { flex: 0 1 auto; min-height: 0; font-style: italic; color: var(--gfc-muted); font-size: calc(var(--p-small) * var(--pt)); margin-bottom: calc(var(--p-small-gap) * var(--pt)); -webkit-line-clamp: var(--l-message); }
+.gf-v-includes { flex: 0 3 auto; min-height: calc(var(--p-small, 7.5) * var(--pt) * var(--lh-sans, 1.326)); /* the contents give way first, then the message, each keeping its first line; never the validity (rule 20) */ font-size: calc(var(--p-small, 7.5) * var(--pt)); margin-bottom: calc(var(--p-small-gap, 2) * var(--pt)); -webkit-line-clamp: var(--l-includes, 3); }
+.gf-v-message { flex: 0 1 auto; min-height: calc(var(--p-small, 7.5) * var(--pt) * var(--lh-sans, 1.326)); font-style: italic; color: var(--gfc-muted); font-size: calc(var(--p-small, 7.5) * var(--pt)); margin-bottom: calc(var(--p-small-gap, 2) * var(--pt)); -webkit-line-clamp: var(--l-message, 2); }
 .gf-verso .gf-v-message { font-style: italic; }
-.gf-v-valid { flex: none; font-weight: 700; font-size: calc(var(--p-small) * var(--pt)); }
-.gf-v-foot { position: absolute; left: calc(var(--m-safe) * var(--mm)); right: calc((var(--m-safe) + var(--m-legal-strip)) * var(--mm)); bottom: calc(var(--m-safe) * var(--mm)); text-align: center; font-size: calc(var(--p-footer) * var(--pt)); }
-.gf-v-foot .gf-v-t { line-height: calc(var(--m-footer-line) * var(--mm)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gf-v-valid { flex: none; font-weight: 700; font-size: calc(var(--p-small, 7.5) * var(--pt)); }
+.gf-v-foot { position: absolute; left: calc(var(--m-safe, 5) * var(--mm)); right: calc((var(--m-safe, 5) + var(--m-legal-strip, 5)) * var(--mm)); bottom: calc(var(--m-safe, 5) * var(--mm)); text-align: center; font-size: calc(var(--p-footer, 8) * var(--pt)); }
+.gf-v-foot .gf-v-t { line-height: calc(var(--m-footer-line, 4) * var(--mm)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gf-v-identity { font-style: italic; color: var(--gfc-honey); }
-.gf-v-legal { position: absolute; right: calc(var(--m-safe) * var(--mm)); top: 50%; width: calc(var(--m-legal-strip) * var(--mm)); height: 0; }
-.gf-v-legal .gf-v-t { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%) rotate(90deg); white-space: nowrap; font-size: calc(var(--p-legal) * var(--pt)); color: var(--gfc-muted); }
+.gf-v-legal { position: absolute; right: calc(var(--m-safe, 5) * var(--mm)); top: 50%; width: calc(var(--m-legal-strip, 5) * var(--mm)); height: 0; }
+.gf-v-legal .gf-v-t { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%) rotate(90deg); white-space: nowrap; font-size: calc(var(--p-legal, 7) * var(--pt)); color: var(--gfc-muted); }
 .gf-v-pill { position: absolute; z-index: 1; top: calc(3 * var(--mm)); right: calc(3 * var(--mm)); padding: calc(1 * var(--mm)) calc(1.6 * var(--mm)); border-radius: 99px; background: var(--gfc-chip); color: #fff; font: 600 calc(6.5 * var(--pt))/1 "GF Card Sans", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
 
 /* Printing the voucher page prints the voucher, nothing else. The card's print() lays a sheet on <body> (both faces side by side, 105 × 148 mm each) and sets the page to
