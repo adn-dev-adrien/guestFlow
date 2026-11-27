@@ -335,8 +335,13 @@
         });
       };
       drawIncludes();
+      // The fold opens on the figures of the period the page starts on (the server's, per period), not on the top-level ones.
+      var extraTimeOf = function (code) {
+        var by = campaign.extraTime && campaign.extraTime.pricesByPeriod;
+        return by && by[code] ? Object.assign({}, campaign.extraTime, { prices: by[code] }) : campaign.extraTime;
+      };
       extrasFold = GF.voucherExtrasFold({
-        extraTime: campaign.extraTime,
+        extraTime: extraTimeOf(period),
         addOns: campaign.addOns,
         onExtraTime: function (n) { extraMinutes = n; turnToBack(); changed(); },
         onAddOn: function (ref, n) { addOnQty[ref] = n; turnToBack(); changed(); },

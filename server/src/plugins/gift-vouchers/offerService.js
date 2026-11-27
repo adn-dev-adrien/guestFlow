@@ -353,7 +353,8 @@ function createOfferService({
         period, priceCents: priced.totalCents, label: rules.PERIOD_LABELS[period], hint: PERIOD_HINTS[period][campaign.composition.band] || null, base: base.contents,
       });
     }
-    return { ok: true, prices };
+    // The cheapest first, as the docstring says (ties keep the order week, weekend): the first period is the one the page opens on and the one the top-level `contents` and `extraTime.prices` are for.
+    return { ok: true, prices: prices.sort((a, b) => a.priceCents - b.priceCents) };
   }
 
   function describeResource(campaign) {

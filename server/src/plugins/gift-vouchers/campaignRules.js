@@ -112,7 +112,10 @@ function firstRefusal(periods, refusalOf) {
   const first = answers.find((answer) => answer.refusal);
   if (!first) return null;
   const same = answers.every((answer) => answer.refusal === first.refusal);
-  return same ? first.refusal : `(${rules.PERIOD_LABELS[first.period]}) ${first.refusal}`;
+  if (same) return first.refusal;
+  // A sentence that already says the period (« … pour la journée le week-end. ») is not prefixed with it again.
+  const label = rules.PERIOD_LABELS[first.period];
+  return first.refusal.toLowerCase().includes(label) ? first.refusal : `(${label}) ${first.refusal}`;
 }
 
 /** Rule 10 of the week-weekend spec — the periods a resource campaign sells: one or both, both when none is sent. */

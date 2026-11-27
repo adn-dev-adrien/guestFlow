@@ -64,7 +64,9 @@ test('a composition refusal that concerns one period names it; one that concerns
   try {
     const both = rulesOf.validateCampaign(require('./campaignFixtures').bathCampaign(s.ids, { slug: 'refus', periods: ['week', 'weekend'] }), ctx);
     assert.equal(both.ok, false);
-    assert.match(both.errors.find((e) => e.field === 'composition.minutes').message, /^Durée incluse : \(week-end\) « Bain nordique » n’a pas de tarif extérieur pour la journée le week-end\.$/);
+    const sentence = both.errors.find((e) => e.field === 'composition.minutes').message;
+    assert.match(sentence, /^Durée incluse : « Bain nordique » n’a pas de tarif extérieur pour la journée le week-end\.$/);
+    assert.equal(sentence.match(/week-end/g).length, 1, 'the period is named once');
     const week = rulesOf.validateCampaign(require('./campaignFixtures').bathCampaign(s.ids, { slug: 'refus-semaine', periods: ['week'] }), ctx);
     assert.equal(week.ok, true, JSON.stringify(week.errors));
   } finally {
