@@ -42,20 +42,22 @@ const SECTION_OF = { name: 'general', quantity: 'general', price: 'prices' };
 const sectionOf = (field, ownedFields = []) => SECTION_OF[field] || (ownedFields.includes(field) ? 'prices' : (EXTERNAL_FIELDS.includes(field) || field === 'sessionMaxPeople' ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices')));
 
 function PropertyPriceLines({ form, setForm, properties, errors }) {
-  const hourly = form.priceType === 'per_hour' && Boolean(form.showsPlanningCard);
+  // Two questions, two flags: a resource of the planning has no price per lodging (its grid applies); every resource sold by the hour may offer a lodging's first hour.
+  const lodgingPriceless = form.priceType === 'per_hour' && Boolean(form.showsPlanningCard);
+  const offersHour = form.priceType === 'per_hour';
   const scope = form.propertyIds.length > 0 ? properties.filter((p) => form.propertyIds.includes(Number(p.id))) : properties;
   const lineOf = (pid) => (form.propertyPricing || {})[String(pid)] || { price: '', freeMinutes: 0 };
   const update = (pid, patch) => {
     const next = { ...(form.propertyPricing || {}), [String(pid)]: { ...lineOf(pid), ...patch } };
     const line = next[String(pid)];
-    if ((hourly || isBlank(line.price)) && !Number(line.freeMinutes)) delete next[String(pid)];
+    if ((lodgingPriceless || isBlank(line.price)) && !Number(line.freeMinutes)) delete next[String(pid)];
     setForm({ ...form, propertyPricing: next });
   };
   if (scope.length === 0) return null;
   return (
     <Box sx={{ mt: 2 }}>
-      <Typography variant="body2" fontWeight={600}>{hourly ? 'Heure offerte par logement' : 'Prix par logement'}</Typography>
-      {!hourly && <FormHelperText sx={{ mt: 0, mb: 1 }}>Vide : prix de base.</FormHelperText>}
+      <Typography variant="body2" fontWeight={600}>{lodgingPriceless ? 'Heure offerte par logement' : 'Prix par logement'}</Typography>
+      {!lodgingPriceless && <FormHelperText sx={{ mt: 0, mb: 1 }}>Vide : prix de base.</FormHelperText>}
       {scope.map((p) => {
         const line = lineOf(p.id);
         const error = errors[`propertyPricing.${p.id}`];
@@ -67,7 +69,7 @@ function PropertyPriceLines({ form, setForm, properties, errors }) {
             sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, py: 1, borderTop: '1px solid', borderColor: 'divider' }}
           >
             <Typography variant="body2" fontWeight={600} sx={{ flex: '1 1 120px', minWidth: 0, overflowWrap: 'anywhere' }}>{p.name}</Typography>
-            {!hourly && (
+            {!lodgingPriceless && (
               <TextField
                 size="small"
                 value={line.price}
@@ -79,7 +81,7 @@ function PropertyPriceLines({ form, setForm, properties, errors }) {
                 slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `Prix · ${p.name}` } }}
               />
             )}
-            {hourly && (
+            {offersHour && (
               <FormControlLabel
                 sx={{ m: 0, minHeight: 44 }}
                 control={(

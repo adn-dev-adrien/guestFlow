@@ -120,6 +120,18 @@ test('rule 20: the per-property lines carry only « 1re heure offerte » for an 
   expect(within(screen.getByRole('group', { name: 'Granja' })).getByRole('checkbox', { name: '1re heure offerte' })).not.toBeChecked();
 });
 
+// G6 — two flags: the per-lodging price is hidden for a resource of the planning only; the offered hour shows for every resource sold by the hour.
+test('rule 20: an hourly resource with no planning card keeps its price per lodging beside « 1re heure offerte »', async () => {
+  const user = userEvent.setup();
+  api.getResource.mockResolvedValue(stored({ showsPlanningCard: 0, propertyPricing: { 2: { price: 40, freeMinutes: 60 } } }));
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Bain nordique' }));
+  expect(await screen.findByText('Prix par logement')).toBeInTheDocument();
+  const estiva = screen.getByRole('group', { name: 'Estiva' });
+  expect(within(estiva).getByLabelText('Prix · Estiva')).toHaveValue('40');
+  expect(within(estiva).getByRole('checkbox', { name: '1re heure offerte' })).toBeChecked();
+});
+
 test('rule 20: a plugin that has fields for the resource gets its own « Horaires » section', async () => {
   const user = userEvent.setup();
   slots = [{ key: 'hourly', pluginId: 'hourly-resources', appliesTo: () => true, Component: () => <div>champs horaires</div> }];
