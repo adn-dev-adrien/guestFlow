@@ -37,7 +37,7 @@ const BACK_LAYOUT = Object.freeze({
   lineHeight: Object.freeze({ sans: 1.326, serif: 1.371 }),
   pt: Object.freeze({
     logoGap: 6, logoName: 12, kicker: 8, kickerSpacing: 2.4, kickerGap: 3, title: 17, titleGap: 2, subtitle: 9, subtitleGap: 7, frameStroke: 1.1, scan: 8.5, scanGap: 1, link: 7.5, linkGap: 6,
-    step: 8.5, discNumber: 8, codeLabel: 6.5, code: 15, codeSpacing: 0.8, small: 7.5, smallGap: 2, footer: 8, legal: 7,
+    step: 8.5, discNumber: 8, codeLabel: 6.5, code: 15, codeSpacing: 0.8, small: 7.5, smallGap: 2, footer: 8, legal: 7, frontSmall: 8.5, frontPrice: 19,
   }),
   lines: Object.freeze({
     logoName: 2, title: 2, subtitle: 2, step: 1, link: 1, includes: 3, message: 2,
@@ -130,6 +130,26 @@ const shortLink = (url) => url.replace(/^https?:\/\//, '').replace(/#.*$/, '');
 
 const defaultQr = (url) => QRCode.create(url, { errorCorrectionLevel: 'M' }).modules;
 
+/**
+ * Text on one line, placed by hand: pdfkit wraps a text drawn with a width (even with `lineBreak: false`) at its hyphens and spaces, which would drop a long link or a name onto
+ * the line below. `align` is `left`, `center` or `right` inside `[x, x + width]`.
+ */
+function plainText(doc, str, x, y, { width = null, align = 'left', characterSpacing = 0 } = {}) {
+  let at = x;
+  if (width !== null && align !== 'left') {
+    const used = doc.widthOfString(str, { characterSpacing });
+    at = align === 'center' ? x + (width - used) / 2 : x + width - used;
+  }
+  return doc.text(str, at, y, { lineBreak: false, characterSpacing });
+}
+
+/** An image opened once per document: embedded once however many cards of a print sheet use it. */
+function imageOf(doc, bytes) {
+  if (!doc.gfImages) doc.gfImages = new Map();
+  if (!doc.gfImages.has(bytes)) doc.gfImages.set(bytes, doc.openImage(bytes));
+  return doc.gfImages.get(bytes);
+}
+
 /** A document and the promise of its bytes. */
 function newDocument({ title, width, height }) {
   const doc = new PDFDocument({
@@ -180,20 +200,14 @@ function drawCropMarks({ doc, trim }) {
 }
 
 /**
- * The front: the picked visual as uploaded, scaled to cover the bleed box and cropped to it (to the trim in a print sheet, where cards touch: `toTrim`); with none picked, a plain
- * card with the company's name.
+ * The front: the picked visual as uploaded, scaled to cover the bleed box and cropped to it (a print sheet clips each card to its trim, so a card of a sheet is the same crop as the
+ * single PDF's); with none picked, a plain card with the company's name.
  */
-function drawFront(sheet, {
-  image, F, companyName, toTrim = false,
-}) {
-  const {
-    doc, slug, trim,
-  } = sheet;
-  const box = toTrim
-    ? { x: trim.left, y: trim.top, w: TRIM.width, h: TRIM.height }
-    : { x: slug, y: slug, w: TRIM.width + 2 * BLEED, h: TRIM.height + 2 * BLEED };
+function drawFront(sheet, { image, F, companyName }) {
+  const { doc, slug, trim } = sheet;
+  const box = { x: slug, y: slug, w: TRIM.width + 2 * BLEED, h: TRIM.height + 2 * BLEED };
   if (image) {
-    const picture = doc.openImage(image);
+    const picture = imageOf(doc, image);
     const scale = Math.max(box.w / picture.width, box.h / picture.height);
     const w = picture.width * scale;
     const h = picture.height * scale;
@@ -203,32 +217,37 @@ function drawFront(sheet, {
   } else {
     doc.save().rect(box.x, box.y, box.w, box.h).clip();
     doc.rect(box.x, box.y, box.w, box.h).fill('#f4f1ea');
-    doc.font(F.serif).fontSize(22).fillColor(INK).text(companyName, trim.left + SAFE, trim.top + TRIM.height / 2 - 14, {
-      width: TRIM.width - 2 * SAFE, align: 'center', lineBreak: false,
-    });
+    doc.font(F.serif).fontSize(22).fillColor(INK);
+    plainText(doc, companyName, trim.left + SAFE, trim.top + TRIM.height / 2 - 14, { width: TRIM.width - 2 * SAFE, align: 'center' });
     doc.restore();
   }
-  if (sheet.marks && !toTrim) drawCropMarks(sheet);
+  if (sheet.marks) drawCropMarks(sheet);
 }
 
 /** Rule 21 of the week-weekend spec — the « à partir de » label GuestFlow draws over the merchant card's visual, in the corner the campaign chose, inside the safe area. */
 function drawFrontPrice(sheet, F, { cents, position }) {
   if (!cents || position === 'none' || !rules.FRONT_PRICE_POSITIONS.includes(position)) return;
   const { doc, safe } = sheet;
+  const { pt } = BACK_LAYOUT;
   const small = BACK_TEXTS.frontPrice.from;
   const price = `${cents % 100 === 0 ? String(cents / 100) : rules.formatEuros(cents).replace(' €', '')} €`;
-  doc.font(F.regular).fontSize(7);
+  doc.font(F.regular).fontSize(pt.frontSmall);
   const smallW = doc.widthOfString(small);
-  doc.font(F.serif).fontSize(15);
+  const smallH = doc.currentLineHeight();
+  doc.font(F.serif).fontSize(pt.frontPrice);
   const priceW = doc.widthOfString(price);
-  const pad = mm(2.5);
-  const w = Math.max(smallW, priceW) + 2 * pad;
-  const h = mm(2.6) + 15 * 1.1 + 2 * pad - mm(1);
+  const priceH = doc.currentLineHeight();
+  const padX = mm(4);
+  const padY = mm(2);
+  const w = Math.max(smallW, priceW) + 2 * padX;
+  const h = smallH + priceH + 2 * padY;
   const x = position.endsWith('left') ? safe.left : safe.right - w;
   const y = position.startsWith('top') ? safe.top : safe.bottom - h;
-  doc.save().roundedRect(x, y, w, h, mm(2)).fill('#ffffff').restore();
-  doc.font(F.regular).fontSize(7).fillColor(FIR).text(small, x, y + pad, { width: w, align: 'center', lineBreak: false });
-  doc.font(F.serif).fontSize(15).fillColor(FIR).text(price, x, y + pad + 9, { width: w, align: 'center', lineBreak: false });
+  doc.save().roundedRect(x, y, w, h, mm(3)).fill('#ffffff').restore();
+  doc.font(F.regular).fontSize(pt.frontSmall).fillColor(FIR);
+  plainText(doc, small, x, y + padY, { width: w, align: 'center' });
+  doc.font(F.serif).fontSize(pt.frontPrice).fillColor(FIR);
+  plainText(doc, price, x, y + padY + smallH, { width: w, align: 'center' });
 }
 
 /** A text pen over the back's frame: each call draws at the running `y` and moves it down. */
@@ -247,9 +266,7 @@ function createPen(sheet, F) {
     const lines = fitLines(doc, text, w, maxLines);
     let y = state.y;
     lines.forEach((line) => {
-      doc.text(line, x, y, {
-        width: w, align, lineBreak: false, characterSpacing: spacing,
-      });
+      plainText(doc, line, x, y, { width: w, align, characterSpacing: spacing });
       y += doc.currentLineHeight();
     });
     if (!stay) state.y = y + gap;
@@ -267,7 +284,7 @@ function drawHeader(pen, { company, F }) {
   const { pt } = BACK_LAYOUT;
   if (company.logo) {
     try {
-      doc.image(company.logo, pen.left, pen.state.y, {
+      doc.image(imageOf(doc, company.logo), pen.left, pen.state.y, {
         fit: [pen.width, height], align: 'center', valign: 'center',
       });
       pen.state.y += height + pt.logoGap;
@@ -326,7 +343,8 @@ function drawSteps(pen, steps) {
   steps.forEach((text, index) => {
     const top = state.y;
     doc.save().circle(pen.left + disc / 2, top + disc / 2, disc / 2).fill(HONEY).restore();
-    doc.font(pen.F.bold).fontSize(pt.discNumber).fillColor('#ffffff').text(String(index + 1), pen.left, top + (disc - doc.currentLineHeight()) / 2 + 0.4, { width: disc, align: 'center', lineBreak: false });
+    doc.font(pen.F.bold).fontSize(pt.discNumber).fillColor('#ffffff');
+    plainText(doc, String(index + 1), pen.left, top + (disc - doc.currentLineHeight()) / 2 + 0.4, { width: disc, align: 'center' });
     state.y = top + (disc - doc.font(pen.F.regular).fontSize(pt.step).currentLineHeight()) / 2;
     pen.write(text, {
       font: pen.F.regular, size: pt.step, x: pen.left + disc + mm(2.5), w: pen.width - disc - mm(2.5), maxLines: BACK_LAYOUT.lines.step, gap: 0,
@@ -344,9 +362,7 @@ function drawCodeBox(pen, printed) {
   doc.font(pen.F.regular).fontSize(pt.codeLabel).fillColor(MUTED).text(BACK_TEXTS.codeLabel, pen.left + mm(2.5), top + mm(2), { lineBreak: false });
   if (printed) {
     doc.font(pen.F.bold).fontSize(pt.code).fillColor(INK);
-    doc.text(printed, pen.left, top + (CODE_BOX_HEIGHT - doc.currentLineHeight()) / 2 + mm(1), {
-      width: pen.width, align: 'center', lineBreak: false, characterSpacing: pt.codeSpacing,
-    });
+    plainText(doc, printed, pen.left, top + (CODE_BOX_HEIGHT - doc.currentLineHeight()) / 2 + mm(1), { width: pen.width, align: 'center', characterSpacing: pt.codeSpacing });
   }
   state.y = top + CODE_BOX_HEIGHT + mm(BACK_LAYOUT.afterCodeMm);
 }
@@ -559,9 +575,7 @@ function voucherDrawing({
   voucher, front = null, company, origin, linkBase,
 }, { qr = defaultQr } = {}) {
   return {
-    front: (card, F) => drawFront(card, {
-      image: front, F, companyName: company.name, toTrim: true,
-    }),
+    front: (card, F) => drawFront(card, { image: front, F, companyName: company.name }),
     back: (card, F) => drawBack(card, {
       F, company, qrModules: qr, spec: voucherBackSpec({ F, voucher, url: redeemUrl({ origin, linkBase }, voucher.code), link: shortLink(redeemUrl({ origin, linkBase })) }),
     }),
@@ -573,9 +587,7 @@ function merchantDrawing({
 }, { qr = defaultQr } = {}) {
   return {
     front: (card, F) => {
-      drawFront(card, {
-        image: front, F, companyName: company.name, toTrim: true,
-      });
+      drawFront(card, { image: front, F, companyName: company.name });
       drawFrontPrice(card, F, { cents: fromCents, position: campaign.frontPricePosition || 'bottom-right' });
     },
     back: (card, F) => drawBack(card, {
