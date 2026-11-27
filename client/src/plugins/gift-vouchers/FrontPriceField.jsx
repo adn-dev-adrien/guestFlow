@@ -30,12 +30,12 @@ export default function FrontPriceField({
           <Box
             data-corner={corner}
             sx={{
-              position: 'absolute', bgcolor: '#fff', color: 'success.dark', borderRadius: 0.5, px: 0.5, textAlign: 'center', lineHeight: 1.1, fontSize: 7,
+              position: 'absolute', bgcolor: 'background.paper', color: 'success.dark', borderRadius: 0.5, px: 0.5, textAlign: 'center', lineHeight: 1.1, typography: 'caption', fontSize: '0.6em',
               ...(corner.startsWith('top') ? { top: 4 } : { bottom: 4 }),
               ...(corner.endsWith('left') ? { left: 4 } : { right: 4 }),
             }}
           >
-            <Box component="span" sx={{ display: 'block', fontSize: 5 }}>à partir de</Box>
+            <Box component="span" sx={{ display: 'block', fontSize: '0.7em' }}>à partir de</Box>
             {whole}
           </Box>
         ) : null}
