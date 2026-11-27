@@ -10,7 +10,7 @@
  */
 
 const sdk = require('../../sdk');
-const { priceSessions, bookingDeductions, toMinutes } = require('../hourlyPricing');
+const { priceSessions, bookingDeductions, toMinutes } = require('./masterHourlyPricing.oracle');
 
 const { splitTtc } = sdk.coreModule('vat');
 

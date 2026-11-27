@@ -131,7 +131,7 @@ function quoteSession(config, session) {
   const start = (placed ? toMinutes(session.start) : toMinutes(mode.from)) + offset;
   // A placed session is judged slice by slice: one slice in an outside band with no price refuses the whole session (rule 28), whatever band it was asked in.
   const unsold = placed ? unsoldSliceOf(resource, {
-    date, period, fromMin: start, toMin: start + minutes,
+    date, period, fromMin: start, toMin: start + minutes, anyStart: false,
   }) : null;
   if (unsold) return refuse('SESSION_BAND_NOT_SOLD', notSoldSentence(resource, unsold.band, unsold.period));
   const priced = priceSessions([{ date: date || PLACEHOLDER_DATE, start: formatTime(start), end: formatTime(start + minutes) }], {

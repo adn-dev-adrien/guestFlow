@@ -104,11 +104,12 @@ function rateAt(t, normCfg, paidFrom, date) {
   return rank === 1 ? grid.eveningRate : grid.eveningNextRate;
 }
 
-// The slices a range is priced in. On the grid a slice is one slot step from the start of the range; a session that starts off the grid (`anyStart`, a planning booking of an outside customer)
-// is cut where its price can change instead: at the evening switch (the band, and the period of a Friday or an eve of holiday), and at every whole hour from the first paid minute (the rank).
+// The slices a range is priced in. A range that starts and ends on the slot grid is walked as the engine walks it: one slice per slot step from its start, each priced as a whole in
+// the band, the period and the rank of its start. Only a session that starts or ends off the grid (`anyStart`, a planning booking of an outside customer) is cut where its price can
+// change instead: at the evening switch (the band, and the period of a Friday or an eve of holiday), and at every whole hour from the first paid minute (the rank).
 function slicesOf(fromMin, toMin, normCfg, paidFrom) {
   const out = [];
-  if (!normCfg.anyStart) {
+  if (!normCfg.anyStart || (fromMin % normCfg.slotMinutes === 0 && toMin % normCfg.slotMinutes === 0)) {
     for (let t = fromMin; t < toMin; t += normCfg.slotMinutes) out.push([t, Math.min(t + normCfg.slotMinutes, toMin)]);
     return out;
   }
@@ -122,6 +123,17 @@ function slicesOf(fromMin, toMin, normCfg, paidFrom) {
   const sorted = [...edges].sort((a, b) => a - b);
   for (let i = 0; i + 1 < sorted.length; i += 1) out.push([sorted[i], sorted[i + 1]]);
   return out;
+}
+
+/**
+ * The slices `priceSessions` prices a range in, with the band and the period each is priced on — the one walk a caller that judges a price (an outside band with no price) must use,
+ * never a walk of its own. `date` gives each slice its own period; none → `cfg.period`, or the week.
+ */
+function pricedSlices(fromMin, toMin, cfg = {}, date = null) {
+  const norm = normalizeConfig(cfg);
+  return slicesOf(fromMin, toMin, norm, fromMin).map(([from, to]) => ({
+    from, to, band: from < norm.eveningStart ? 'day' : 'evening', period: gridAt(from, norm, date).period,
+  }));
 }
 
 // Price the minutes [fromMin, toMin) over the banded grid, walking in slices so a slice that crosses the evening switch is
@@ -301,5 +313,5 @@ function eveningSupplement(blocks, cfg = {}) {
 }
 
 module.exports = {
-  toMinutes, periodOf, isPublicHoliday, isEveOfPublicHoliday, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
+  toMinutes, periodOf, pricedSlices, isPublicHoliday, isEveOfPublicHoliday, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
 };

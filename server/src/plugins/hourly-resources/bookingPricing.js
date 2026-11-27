@@ -10,7 +10,7 @@
 
 const sdk = require('../sdk');
 const {
-  priceSessions, bookingDeductions, toMinutes, periodOf,
+  priceSessions, bookingDeductions, toMinutes, pricedSlices,
 } = require('./hourlyPricing');
 
 const { splitTtc } = sdk.coreModule('vat');
@@ -115,21 +115,22 @@ const notSoldSentence = (resource, band, period) => `« ${resource.name} » n’
 
 /**
  * The first slice of [fromMin, toMin) that falls in an outside band with no first-hour price (a first hour that is 0 or empty is not sold: no fallback to another band, period
- * or the guests' rate), or null when every slice is sold. `date` gives each slice its own period; without it `period` applies to all. → `{ band, period }` | null.
+ * or the guests' rate), or null when every slice is sold. The slices are exactly the ones the pricer prices (`pricedSlices`): a session off the slot grid is judged where it is cut,
+ * not on a grid walked from its start. `date` gives each slice its own period; without it `period` applies to all. `anyStart: false` judges a session of the engine's grid.
+ * → `{ band, period }` | null.
  */
 function unsoldSliceOf(resource, {
-  date = null, period = 'week', fromMin, toMin,
+  date = null, period = 'week', fromMin, toMin, anyStart = true,
 }) {
-  const eveningStart = resource.hourlyEveningStart ? toMinutes(resource.hourlyEveningStart) : null;
-  const step = Math.max(1, Number(resource.slotDuration) || 30);
+  const cfg = {
+    ...rateConfigOf(resource, { external: true, period: date ? null : period }),
+    eveningStart: resource.hourlyEveningStart,
+    slotMinutes: resource.slotDuration,
+    anyStart,
+  };
   const grids = { week: rateGridOf(resource, { external: true, period: 'week' }), weekend: rateGridOf(resource, { external: true, period: 'weekend' }) };
-  for (let t = fromMin; t < toMin; t += step) {
-    const at = date ? periodOf(date, t, eveningStart === null ? null : resource.hourlyEveningStart) : period;
-    const band = eveningStart !== null && t >= eveningStart ? 'evening' : 'day';
-    const rate = band === 'evening' ? grids[at].eveningRate : grids[at].dayRate;
-    if (!(rate > 0)) return { band, period: at };
-  }
-  return null;
+  const unsold = pricedSlices(fromMin, toMin, cfg, date).find((slice) => !((slice.band === 'evening' ? grids[slice.period].eveningRate : grids[slice.period].dayRate) > 0));
+  return unsold ? { band: unsold.band, period: unsold.period } : null;
 }
 
 /**

@@ -20,7 +20,8 @@
  *   documentOf(row)                      the document payload with the legacy session, or null
  *   moneyOf(row)                         `{ totalCents, paidCents, remainingCents, payments }` of a booking whose money is on a document, else null
  *   draftMoneyOf(row, draft)             the same for the visit as a commit of `draft` would find it, nothing written (loop t2 B2-7)
- *   repriceSession(row)                  the session line of an unpaid visit follows its booking's new slot (a retired line and a new one, journaled)
+ *   repriceSession(row)                  the session lines of an unpaid visit follow its booking's new slot (retired lines and a new one, journaled)
+ *   sessionFigureOf(row)                 what the document charges for the booking's session `{ totalCents, lines }`, the one figure every reader of the booking gives; null while it is on no document
  *   notTaken(row, lineId, { actor })     an element a prepaid instrument paid that the client did not take (rules 15, 36 of the campaigns spec): marked, journaled,
  *                                        and the instrument told through its generic `unused` call
  *   history(row, text, actor)            one line of the visit's journal (rule 53), when the booking has a document
@@ -60,7 +61,7 @@ function createVisitModel({
     const minutes = offeredMinutes === undefined || offeredMinutes === null ? Number(row.offeredMinutes) || 0 : offeredMinutes;
     const priced = bookings().priceBooking({
       resourceId: row.resourceId, bookingId: row.id, date: row.date, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, offeredMinutes: minutes,
-    });
+    }, { fresh: true });
     if (priced.error) return { refusal: refuse(priced.status || 400, 'SESSION_REFUSED', priced.error, { field: 'offeredMinutes' }) };
     const totalCents = toCents(priced.total);
     const parts = partsOf(priced);
@@ -111,6 +112,31 @@ function createVisitModel({
   const storedSession = (document, row) => (document
     ? document.lines.find((line) => line.fulfilmentRef === sessionRefOf(row.id) && line.status !== 'cancelled' && line.id != null) || null
     : null);
+
+  // Every line of the document that sells the booking's session: the session itself and, when a voucher use made the booking, its added time and its offered hour.
+  const isSessionLine = (line, row) => line.id != null && line.status !== 'cancelled'
+    && [sessionRefOf(row.id), `${sessionRefOf(row.id)}:extra`, `${sessionRefOf(row.id)}:offered`].includes(line.fulfilmentRef);
+  const sessionLinesOf = (document, row) => (document ? document.lines.filter((line) => isSessionLine(line, row)) : []);
+
+  /**
+   * What the document charges for the booking's session, as the figure every reader of the booking gives (`totalCents`) and the lines that make it up — null while the session is not on a
+   * document. A session paid on the booking before its document is the booking's own figure (rule 37), so it has none here.
+   */
+  function sessionFigureOf(row) {
+    if (!row || paidOnBooking(row)) return null;
+    const lines = sessionLinesOf(documentOf(row), row);
+    if (!lines.length) return null;
+    return {
+      totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
+      lines: lines.flatMap((line) => {
+        const parts = Array.isArray(line.components) ? line.components : [];
+        const whole = parts.length > 0 && parts.reduce((sum, part) => sum + Number(part.amountCents || 0), 0) === line.totalCents;
+        return whole
+          ? parts.map((part) => ({ key: part.key, label: part.label, detail: part.detail || '', amount: Number(part.amountCents) / 100 }))
+          : [{ key: line.fulfilmentRef, label: line.label, detail: line.detail || '', amount: line.totalCents / 100 }];
+      }),
+    };
+  }
 
   // The session the visit still has to sell: none when it is paid on the booking, already on the document (even retired: a no-show, a re-priced slot), or
   // the client did not come.
@@ -503,15 +529,16 @@ function createVisitModel({
    */
   function repriceSession(row, { actor = null } = {}) {
     const saleId = saleIdOf(row);
-    const document = documentOf(row);
-    const line = storedSession(document, row);
-    if (!line) return { ok: true };
-    if (line.settledCents > 0) return refuse(409, 'BOOKING_PAID', 'Le prix change : la séance est déjà payée.');
-    const fresh = sessionDraft(row, { offered: line.offered });
+    const lines = sessionLinesOf(documentOf(row), row);
+    if (!lines.length) return { ok: true };
+    if (lines.some((line) => line.settledCents > 0)) return refuse(409, 'BOOKING_PAID', 'Le prix change : la séance est déjà payée.');
+    const fresh = sessionDraft(row, { offered: lines.some((line) => line.offered) });
     if (fresh.refusal) return fresh.refusal;
-    if (fresh.line.totalCents === line.catalogueCents) return { ok: true };
-    const removed = core().removeLine(saleId, line.id, {});
-    if (removed.status !== 200) return fromCore(removed);
+    if (fresh.line.totalCents === lines.reduce((sum, line) => sum + line.catalogueCents, 0)) return { ok: true };
+    for (const line of lines) {
+      const removed = core().removeLine(saleId, line.id, {});
+      if (removed.status !== 200) return fromCore(removed);
+    }
     const sold = core().sell({ saleId, lines: [], fulfilments: [fresh.line], originRef: originRefOf(row.id), source: 'visit' }, { actor, now: now() });
     return sold.status === 200 ? { ok: true } : fromCore(sold);
   }
@@ -529,7 +556,7 @@ function createVisitModel({
   }
 
   return {
-    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
+    view, commit, pay, patchLine, linePaid, noShow, notTaken, history, ensureDocument, documentOf, moneyOf, draftMoneyOf, repriceSession, sessionFigureOf, cancelDocument, windowOf, inTransaction, saleIdOf, paidOnBooking,
   };
 }
 

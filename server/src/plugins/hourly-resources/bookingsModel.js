@@ -9,7 +9,7 @@
 const crypto = require('node:crypto');
 const sdk = require('../sdk');
 const resourceOccupancyModel = require('./occupancyModel');
-const { priceBookingLines, offeredRefusal } = require('./bookingPricing');
+const { priceBookingLines, offeredRefusal, vatOf } = require('./bookingPricing');
 const { bookingCardState } = require('./planningCardsModel');
 
 // A slot a plugin holds before it reaches the planning, when its source names it in no words of its own.
@@ -238,12 +238,13 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   // `frozenVat` (rule 35): the rate a paid booking was sold with — `{ rate }`, `rate: null` when not subject.
   // `stored` (rule 74): the booking's own row, for a read of a booking already sold — a row priced before the one hourly grid keeps its free
   // hour on the band it fell in; a draft, a new booking or a booking whose slot or party moved is priced on the one grid.
-  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null, stored = null }) {
+  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null, stored = null, fresh = false }) {
     const pid = Number(propertyId || 0);
     const lodging = Boolean(reservationId) || pid > 0;
     const override = pid > 0 ? sdk.coreModule('catalogue').resourcePriceOverride(database, resource.id, pid) || null : null;
-    return priceBookingLines({
-      resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat: frozenVat || vatFor({ reservationId, date }),
+    const vat = frozenVat || vatFor({ reservationId, date });
+    const priced = priceBookingLines({
+      resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat,
       freeHourAtDayRate: stored ? Number(stored.freeHourAtDayRate) === 1 : true,
       // A booking that carries a lodging (with or without a stay) is priced on the week grid, its free minutes valued there — as before the weekend grid existed.
       date: lodging ? null : date,
@@ -252,6 +253,27 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       engineRated: stored ? Number(stored.engineRated) === 1 : true,
       judgeBands: !(stored && stored.id),
     });
+    // A booking sold on a document keeps that document's session figure wherever it is read, as long as it does not move (`fresh` asks what the slot is worth now).
+    const sold = !fresh && !priced.refusal && stored && stored.id ? documentFigureOf(stored.id) : null;
+    return sold ? withDocumentFigure(priced, sold, vat) : priced;
+  }
+
+  // The session of a booking sold on a document (a website session, a voucher use, an arrival visit): what the document charges for it, as the booking's one figure.
+  function documentFigureOf(id) {
+    const row = rawById(id);
+    const visit = visitsOf(row);
+    return visit && !isPaid(row) ? visit.sessionFigureOf(row) : null;
+  }
+
+  function withDocumentFigure(priced, figure, vat) {
+    const total = figure.totalCents / 100;
+    return {
+      ...priced,
+      total,
+      lines: figure.lines,
+      vat: vatOf(total, vat),
+      documentFigure: true,
+    };
   }
 
   // An outside band with no price (a first hour at 0 or empty) is refused by the save and the preview: the answer of a refused booking, never a 0 € price.
@@ -297,7 +319,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
    * `{ resourceId, bookingId, date, startTime, endTime, propertyId }` without writing anything.
    * Returns the breakdown, or `{ error, status }` with the very refusals the commit would give.
    */
-  function priceBooking(draft = {}) {
+  function priceBooking(draft = {}, { fresh = false } = {}) {
     const { resourceId, bookingId, date, startTime, endTime, propertyId, offeredMinutes = 0 } = draft;
     if (!resourceId || !date || !startTime || !endTime) {
       return { error: 'resourceId, date, startTime, endTime sont requis', status: 400 };
@@ -326,7 +348,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate, storedTimes })
       || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date });
     if (refusal) return refusal;
-    const priced = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat, stored });
+    const priced = breakdownOf({
+      resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat, stored, fresh,
+    });
     return priced.refusal ? notSold(priced) : priced;
   }
 
