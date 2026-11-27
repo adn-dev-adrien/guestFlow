@@ -389,14 +389,24 @@ function drawBack(sheet, {
   drawSteps(pen, spec.steps);
   state.y += mm(BACK_LAYOUT.afterStepsMm) - mm(BACK_LAYOUT.stepGapMm);
   drawCodeBox(pen, spec.printedCode);
+  // The small lines under the code stop where the foot of the page begins. When room runs out the lines of lower priority give way, never the validity (rule 20, Q5):
+  // the room is shared out by priority (the spec's `priority`, lowest first; the order of the list by default) and the lines are drawn in the order of the list.
   const floor = pen.safe.bottom - mm(BACK_LAYOUT.footerLineMm) - mm(1.5);
-  spec.small.forEach((line) => {
-    if (!line.text) return;
+  let room = floor - state.y;
+  const wanted = spec.small.map((line, index) => ({ line, index, priority: line.priority === undefined ? index : line.priority }));
+  const allowed = new Map();
+  wanted.filter(({ line }) => line.text).sort((a, b) => a.priority - b.priority).forEach(({ line, index }) => {
     doc.font(line.font).fontSize(pt.small);
-    const room = Math.floor((floor - state.y) / doc.currentLineHeight());
-    if (room < 1) return;
+    const height = doc.currentLineHeight();
+    const need = fitLines(doc, line.text, pen.width, line.lines).length;
+    const fit = Math.max(0, Math.min(need, Math.floor((room - pt.smallGap) / height)));
+    allowed.set(index, fit);
+    if (fit > 0) room -= fit * height + pt.smallGap;
+  });
+  wanted.forEach(({ line, index }) => {
+    if (!allowed.get(index)) return;
     pen.write(line.text, {
-      font: line.font, size: pt.small, color: line.color || INK, align: 'center', maxLines: Math.min(line.lines, room), gap: pt.smallGap,
+      font: line.font, size: pt.small, color: line.color || INK, align: 'center', maxLines: allowed.get(index), gap: pt.smallGap,
     });
   });
   drawFooter(pen, { company, F });
@@ -426,9 +436,9 @@ function voucherBackSpec({
     link,
     printedCode: code.format(voucher.code),
     small: [
-      { text: say(BACK_TEXTS.includes, { lines: contentLines(voucher).join(' · ') }), font: F.regular, lines: BACK_LAYOUT.lines.includes },
-      { text: voucher.message, font: F.italic, color: MUTED, lines: BACK_LAYOUT.lines.message },
-      { text: say(BACK_TEXTS.validUntil, { date: rules.formatFrDate(voucher.expiresOn) }), font: F.bold, lines: 1 },
+      { text: say(BACK_TEXTS.includes, { lines: contentLines(voucher).join(' · ') }), font: F.regular, lines: BACK_LAYOUT.lines.includes, priority: 2 },
+      { text: voucher.message, font: F.italic, color: MUTED, lines: BACK_LAYOUT.lines.message, priority: 1 },
+      { text: say(BACK_TEXTS.validUntil, { date: rules.formatFrDate(voucher.expiresOn) }), font: F.bold, lines: 1, priority: 0 },
     ],
   };
 }
@@ -501,21 +511,17 @@ async function renderMerchantCardPdf({
 
 const MM_TO_PT = mm(1);
 
-/** The dotted fold line and the crop marks around a pair (side by side), in the sheet's own points. */
-function drawPairMarks(doc, cell, folds) {
+/** The dotted fold line of a pair (side by side), in the sheet's own points. */
+function drawFolds(doc, folds) {
   doc.save().lineWidth(0.4).strokeColor('#000000').dash(2, { space: 2 });
   folds.forEach((fold) => doc.moveTo(fold.x1 * MM_TO_PT, fold.y1 * MM_TO_PT).lineTo(fold.x2 * MM_TO_PT, fold.y2 * MM_TO_PT).stroke());
   doc.undash().restore();
-  const mark = mm(3);
+}
+
+/** The crop marks the layout planned, at the cut lines of the grid and inside the printable area. */
+function drawSheetMarks(doc, marks) {
   doc.save().lineWidth(0.25).strokeColor('#000000');
-  const x1 = cell.xMm * MM_TO_PT;
-  const y1 = cell.yMm * MM_TO_PT;
-  const x2 = x1 + cell.widthMm * MM_TO_PT;
-  const y2 = y1 + cell.heightMm * MM_TO_PT;
-  [[x1, y1, -1, -1], [x2, y1, 1, -1], [x1, y2, -1, 1], [x2, y2, 1, 1]].forEach(([x, y, dx, dy]) => {
-    doc.moveTo(x + dx * mm(1), y).lineTo(x + dx * (mm(1) + mark), y).stroke();
-    doc.moveTo(x, y + dy * mm(1)).lineTo(x, y + dy * (mm(1) + mark)).stroke();
-  });
+  marks.forEach((mark) => doc.moveTo(mark.x1 * MM_TO_PT, mark.y1 * MM_TO_PT).lineTo(mark.x2 * MM_TO_PT, mark.y2 * MM_TO_PT).stroke());
   doc.restore();
 }
 
@@ -541,16 +547,8 @@ async function renderPrintSheets({ layout, title, draw }) {
       else draw.back(card, F);
       doc.restore();
     });
-    if (page.marks) {
-      const pairs = new Map();
-      page.cells.forEach((cell) => {
-        const at = pairs.get(cell.card) || { xMm: cell.xMm, yMm: cell.yMm, widthMm: 0, heightMm: cell.heightMm };
-        at.xMm = Math.min(at.xMm, cell.xMm);
-        at.widthMm += cell.widthMm;
-        pairs.set(cell.card, at);
-      });
-      pairs.forEach((cell) => drawPairMarks(doc, cell, page.folds.filter((f) => f.x1 >= cell.xMm && f.x1 <= cell.xMm + cell.widthMm && f.y1 === cell.yMm)));
-    }
+    drawFolds(doc, page.folds);
+    drawSheetMarks(doc, page.marks);
   });
   doc.end();
   return done;

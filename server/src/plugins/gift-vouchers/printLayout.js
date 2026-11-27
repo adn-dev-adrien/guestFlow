@@ -12,6 +12,12 @@
 const CARD = Object.freeze({ width: 105, height: 148 });
 const A4 = Object.freeze({ short: 210, long: 297 });
 const MAX_COUNT = 200;
+// Crop marks (rule 27): a mark starts MARK_GAP from the grid, is at most MARK_MAX long, and ends at least MARK_EDGE from the sheet's edge (a printer cannot print closer); a margin too
+// narrow for a mark of MARK_MIN leaves that side without one.
+const MARK_GAP = 1;
+const MARK_MAX = 4;
+const MARK_MIN = 1;
+const MARK_EDGE = 5;
 
 // Rule 26 — per mode and per sheet: the sheet's orientation, the grid of cards (or pairs) and their scale.
 const TABLE = Object.freeze({
@@ -99,7 +105,36 @@ function sideBySide(g, cards) {
 }
 
 /**
- * → `{ ok: true, layout }`: `layout = { mode, perSheet, count, flip, scale, sheetCount, pageCount, pages: [{ number, sheet: { orientation, widthMm, heightMm }, cells: [{ card, face, xMm, yMm, widthMm, heightMm }], folds: [...], marks }] }`
+ * The crop marks of a page, as segments in millimetres on the sheet: at each line of the grid (the cut lines between units — a card of a recto-verso sheet, a pair of a side-by-side
+ * one), above and below the grid for the vertical lines, left and right of it for the horizontal ones, each kept inside the printable area.
+ */
+function marksOf(g) {
+  const { cols, rows } = g.row;
+  const gridWidth = g.cell.width * cols;
+  const gridHeight = g.cell.height * rows;
+  const xs = Array.from({ length: cols + 1 }, (_, c) => round(g.left + c * g.cell.width));
+  const ys = Array.from({ length: rows + 1 }, (_, r) => round(g.top + r * g.cell.height));
+  const lengthIn = (margin) => Math.min(MARK_MAX, round(margin - MARK_GAP - MARK_EDGE));
+  const across = lengthIn(g.top);
+  const along = lengthIn(g.left);
+  const marks = [];
+  if (across >= MARK_MIN) {
+    xs.forEach((x) => {
+      marks.push({ x1: x, y1: round(g.top - MARK_GAP - across), x2: x, y2: round(g.top - MARK_GAP) });
+      marks.push({ x1: x, y1: round(g.top + gridHeight + MARK_GAP), x2: x, y2: round(g.top + gridHeight + MARK_GAP + across) });
+    });
+  }
+  if (along >= MARK_MIN) {
+    ys.forEach((y) => {
+      marks.push({ x1: round(g.left - MARK_GAP - along), y1: y, x2: round(g.left - MARK_GAP), y2: y });
+      marks.push({ x1: round(g.left + gridWidth + MARK_GAP), y1: y, x2: round(g.left + gridWidth + MARK_GAP + along), y2: y });
+    });
+  }
+  return marks;
+}
+
+/**
+ * → `{ ok: true, layout }`: `layout = { mode, perSheet, count, flip, scale, sheetCount, pageCount, pages: [{ number, sheet: { orientation, widthMm, heightMm }, cells: [{ card, face, xMm, yMm, widthMm, heightMm }], folds: [...], marks: [{ x1, y1, x2, y2 }] }] }` (millimetres on the sheet)
  * or `{ ok: false, field, message }` with the sentence the dialog shows under the field.
  */
 function plan(input) {
@@ -115,12 +150,12 @@ function plan(input) {
     const cards = Array.from({ length: Math.min(asked.perSheet, asked.count - first + 1) }, (_, i) => first + i);
     if (asked.mode === 'recto-verso') {
       rectoVerso(g, cards, asked.flip).forEach((cells) => pages.push({
-        number: pages.length + 1, sheet, cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })), folds: [], marks: false,
+        number: pages.length + 1, sheet, cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })), folds: [], marks: marksOf(g),
       }));
     } else {
       const { cells, folds } = sideBySide(g, cards);
       pages.push({
-        number: pages.length + 1, sheet, cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })), folds, marks: true,
+        number: pages.length + 1, sheet, cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })), folds, marks: marksOf(g),
       });
     }
   }
@@ -133,5 +168,5 @@ function plan(input) {
 }
 
 module.exports = {
-  plan, check, CARD, A4, MAX_COUNT, MODES, FLIPS, TABLE,
+  plan, check, CARD, A4, MAX_COUNT, MODES, FLIPS, TABLE, MARK_EDGE,
 };

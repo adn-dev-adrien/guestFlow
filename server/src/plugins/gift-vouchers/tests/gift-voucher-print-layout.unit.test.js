@@ -80,7 +80,7 @@ test('rule 25 — side by side: each card is its front and its back next to each
   const layout = ok({ mode: 'side-by-side', perSheet: 2, count: 3 });
   assert.deepEqual([layout.sheetCount, layout.pageCount], [2, 2]);
   const [first, second] = layout.pages;
-  assert.equal(first.marks, true);
+  assert.ok(first.marks.length > 0, 'crop marks at the cut lines');
   assert.deepEqual(first.cells.map((c) => [c.card, c.face]), [[1, 'front'], [1, 'back'], [2, 'front'], [2, 'back']]);
   assert.equal(first.folds.length, 2);
   const [front, back] = first.cells;
