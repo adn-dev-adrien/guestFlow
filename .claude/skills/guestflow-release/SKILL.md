@@ -240,8 +240,9 @@ this step is it.
 - merged with `--squash`,
 - **only once every check reports `pass`**.
 
-Any other PR in this repository — including a fix you had to make to unblock this release — is still
-the user's to merge. If you find yourself reaching for `gh pr merge` on anything else, stop.
+Any other PR — including a fix you had to make to unblock this release — follows `CLAUDE.md` §5.1:
+its own PR, its own green CI, then its own squash-merge (authorised 2026-11-27). Never fold it into the
+release PR.
 
 **Re-read the checks immediately before merging.** A green result from step 5 is a memory, not a
 fact: a check can be re-run, a branch can be updated, a required check can be added. Ask again.
@@ -274,7 +275,7 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-Verify by **content**, never by ancestry: the user squash-merges, so the branch's commits are never
+Verify by **content**, never by ancestry: PRs are squash-merged, so the branch's commits are never
 ancestors of master and `git branch --merged` lies (CLAUDE.md §5.5). The version reading X.Y.Z on
 master is the proof.
 

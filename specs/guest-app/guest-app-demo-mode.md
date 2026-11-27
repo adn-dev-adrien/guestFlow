@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
-Summary for review: `specs/guest-app/guest-app-demo-mode-resume.html` (interactive).
+Summary for review: `docs/specs/2026-11-27-guest-app-demo-mode.html` (interactive).
 
 ---
 
