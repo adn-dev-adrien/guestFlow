@@ -51,12 +51,22 @@ test('rule 11 — the offer shows one price per period and the lowest as « à p
 });
 
 test('rule 11 — the period is the giver\'s choice when the campaign offers two; one is implied; one that is not offered is refused', () => {
-  assert.equal(api.offerService.price({ slug: 'une-heure' }).code, 'PERIOD_REQUIRED');
+  assert.equal(api.offerService.price({ slug: 'une-heure' }, { admin: true }).code, 'PERIOD_REQUIRED');
+  assert.equal(api.offerService.price({ slug: 'une-heure' }).totalCents, 5000, 'K1: a public caller without a period gets the cheapest one');
   assert.equal(api.offerService.price({ slug: 'une-heure', period: 'weekend' }).totalCents, 7000);
   assert.equal(api.offerService.price({ slug: 'une-heure', period: 'week' }).totalCents, 5000);
   assert.equal(api.offerService.price({ slug: 'semaine' }).totalCents, 5000);
   assert.equal(api.offerService.price({ slug: 'semaine', period: 'weekend' }).code, 'PERIOD_NOT_OFFERED');
   assert.equal(api.offerService.price({ slug: 'une-heure', period: 'lundi' }).code, 'PERIOD_NOT_OFFERED');
+});
+
+test('K1 — a public order without a period freezes the cheapest period; an admin order without one is refused', () => {
+  const parties = { recipientFirstName: 'Marie', recipientLastName: 'Durand', senderName: 'Paul', message: '', email: 'p@x.test', language: 'fr' };
+  const site = api.offerService.createOrder({ request: { slug: 'une-heure' }, parties, source: 'site' });
+  assert.equal(site.ok, true, JSON.stringify(site));
+  assert.equal(contentsOf(site.order).resource.period, 'week');
+  assert.equal(api.offerService.createOrder({ request: { slug: 'une-heure' }, parties, source: 'manual', createdBy: 'admin', admin: true }).code, 'PERIOD_REQUIRED');
+  assert.equal(api.offerService.createOrder({ request: { slug: 'semaine', period: 'weekend' }, parties, source: 'site' }).code, 'PERIOD_NOT_OFFERED');
 });
 
 test('rule 12 — the period is frozen on the voucher, its title says it, and a later rate change moves nothing', () => {

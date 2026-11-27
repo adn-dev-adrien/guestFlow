@@ -183,17 +183,24 @@ function createOfferService({
   }
 
   /** Rules 10-12 — the period asked: the one a campaign offers alone, the one chosen among two (required then), never one it does not offer. */
-  function periodOf(campaign, asked) {
+  function periodOf(campaign, asked, { cheapestWhenMissing = false } = {}) {
     const offered = campaign.periods && campaign.periods.length ? campaign.periods : ['week'];
     if (asked === undefined || asked === null || asked === '') {
-      return offered.length === 1 ? { value: offered[0] } : { problem: refuse('PERIOD_REQUIRED', 'Période : semaine ou week-end est à choisir.') };
+      if (offered.length === 1) return { value: offered[0] };
+      // The public routes stay backward compatible (K1): a caller that predates the period gets the cheapest one, what an older connector shows as « à partir de ».
+      if (cheapestWhenMissing) {
+        const priced = periodPrices(campaign);
+        if (!priced.ok) return { problem: priced };
+        return { value: priced.prices.reduce((best, p) => (p.priceCents < best.priceCents ? p : best), priced.prices[0]).period };
+      }
+      return { problem: refuse('PERIOD_REQUIRED', 'Période : semaine ou week-end est à choisir.') };
     }
     if (!rules.PERIODS.includes(asked) || !offered.includes(asked)) return { problem: refuse('PERIOD_NOT_OFFERED', 'Période : ce bon ne se vend pas pour cette période.') };
     return { value: asked };
   }
 
   /** The frozen contents a campaign sells for a request: the composition, the extra time asked (within what is offered) and the add-ons chosen. */
-  function contentsFor(campaign, request) {
+  function contentsFor(campaign, request, { cheapestWhenMissing = false } = {}) {
     if (campaign.kind === 'lodging') return { ok: true, contents: { kind: 'lodging' } };
     const comp = campaign.composition;
     const extra = request.extraMinutes === undefined || request.extraMinutes === null ? 0 : asInt(request.extraMinutes);
@@ -205,7 +212,7 @@ function createOfferService({
     }
     const addOns = addOnsProblem(campaign, request.addOns);
     if (addOns.problem) return addOns.problem;
-    const period = periodOf(campaign, request.period);
+    const period = periodOf(campaign, request.period, { cheapestWhenMissing, campaign });
     if (period.problem) return period.problem;
     return {
       ok: true,
@@ -280,12 +287,12 @@ function createOfferService({
   // The validity an operator picked for this voucher is frozen with its contents; otherwise the voucher follows its campaign's.
   const validityOf = (campaign) => (campaign.validityAsked ? { validityMonths: campaign.validityMonths } : {});
 
-  function priceRequest(campaign, request) {
+  function priceRequest(campaign, request, { admin = false } = {}) {
     if (campaign.kind === 'lodging') {
       const priced = priceLodging(campaign, request.amountCents);
       return priced.ok ? { ...priced, contents: { kind: 'lodging', ...validityOf(campaign) } } : priced;
     }
-    const contents = contentsFor(campaign, request);
+    const contents = contentsFor(campaign, request, { cheapestWhenMissing: !admin });
     if (!contents.ok) return contents;
     const priced = priceContents(contents.contents);
     return priced.ok ? { ...priced, contents: { ...contents.contents, ...validityOf(campaign), lines: frozenLines(priced.lines) } } : priced;
@@ -296,7 +303,7 @@ function createOfferService({
     const body = request && typeof request === 'object' ? request : {};
     const found = campaignOf(body, { admin });
     if (!found.ok) return found;
-    const priced = priceRequest(found.campaign, body);
+    const priced = priceRequest(found.campaign, body, { admin });
     // Rule 13 — the end of the voucher is the server's to compute: the recap says « Valable jusqu'au … » from it.
     const validUntil = rules.expiryFor(rules.parisDate(now()), found.campaign.validityMonths);
     return priced.ok ? { ...priced, kind: found.campaign.kind, title: found.campaign.title, validUntil } : priced;
@@ -461,7 +468,7 @@ function createOfferService({
     const body = request && typeof request === 'object' ? request : {};
     const found = campaignOf(body, { admin });
     if (!found.ok) return found;
-    const priced = priceRequest(found.campaign, body);
+    const priced = priceRequest(found.campaign, body, { admin });
     if (!priced.ok) return priced;
     const vatLines = vatOverride === undefined ? priced.vatLines : vatOverride;
     const order = transaction(() => {

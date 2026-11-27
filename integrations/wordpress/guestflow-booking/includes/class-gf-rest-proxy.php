@@ -365,6 +365,7 @@ final class GF_Rest_Proxy
         $body = (array) $request->get_json_params();
         $forward = $this->voucher_fields($body, [
             'slug'            => 'string',
+            'period'          => 'string',
             'extraMinutes'    => 'int',
             'addOns'          => 'addons',
             'amountCents'     => 'int',
@@ -382,7 +383,7 @@ final class GF_Rest_Proxy
     public function post_voucher_price(WP_REST_Request $request): WP_REST_Response
     {
         $body = (array) $request->get_json_params();
-        $forward = $this->voucher_fields($body, ['slug' => 'string', 'amountCents' => 'int', 'extraMinutes' => 'int', 'addOns' => 'addons']);
+        $forward = $this->voucher_fields($body, ['slug' => 'string', 'period' => 'string', 'amountCents' => 'int', 'extraMinutes' => 'int', 'addOns' => 'addons']);
         return $this->relay(GF_Api_Client::instance()->post('/gift-vouchers/offer/price', $forward));
     }
 
