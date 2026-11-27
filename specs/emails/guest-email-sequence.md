@@ -166,6 +166,8 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     the site and was never the offer.
 24. Options are proposed only in the J-7, and worded as a way to travel lighter, never as a sale.
     None in the confirmation (the guest has just paid), none after the stay.
+    _Superseded for Solio's stored J-7 on 2026-11-27 (rule 39): the « Pour alléger les courses » paragraph is no longer in
+    its wording; options are reached through the stay app's shop._
 25. Review solicitation happens **once per stay**, in the J+1, never against any consideration:
     direct → Google only; Gîtes de France / Airbnb / Booking → the platform « si ce n'est pas déjà
     fait », then Google as an optional extra.
@@ -235,6 +237,19 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     as the shop (an order can be taken now), so the sentence never promises what the link does not give. The send mode, the subject
     and the eligibility (§3.2; not sent to a stay booked within the week) do not move; a template stays manual unless the operator
     chose otherwise. Plugin inactive → the paragraph renders nothing.
+39. **Solio's J-7 presents the stay app instead of three paragraphs** (2026-11-27, Adrien). The stored `arrival_reminder_7d`
+    (FR `body`, EN `bodyEn`; subject, send mode and eligibility untouched) loses « Pour alléger les courses » (`localProductsParagraph`),
+    « Vous fêtez un événement… » and « Pour commencer à rêver votre séjour… » with its map link. In their place, under `hasStayApp`, one
+    paragraph gives the stay app's link (`{{stayAppUrl}}`, « rien à installer ») and a list of what the guest finds there: the offered
+    nordic bath session to book now because the bath needs preparation time (line under `hasStayAppBath`), the events around the
+    domain, the shop to order ahead or on site (line under `hasStayAppShop`), the gate opener « active seulement pendant votre
+    séjour », the welcome booklet, and « quelques autres surprises ». It replaces rule 38's short paragraph, which
+    `scripts/guest-app-livret/import.mjs` does not re-insert since the body already holds `{{stayAppUrl}}`.
+    *Why the gate is a list line and not its link:* the house is told about a stay only 7 days ahead and creates its key at its next
+    read (`specs/guest-app/gate-access-sowel-connector.md` rule 2), so at J-7 `{{gateAccessUrl}}` is most often still empty; the
+    link itself stays in the J-2 (rule 34). Every block is flat (rule 38: the renderer's conditionals do not nest); the bath and
+    shop flags imply `hasStayApp`. This is operator wording in the database, not the core seed, which stays neutral.
+    > **Sans test** — operator wording stored in production, not code; verified on the preview of a real stay at J-7 (FR and EN).
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not
@@ -442,11 +457,17 @@ Dans vos bagages :
 [Parking > 0 : Un conseil pour les valises : voyagez léger. Le parking se trouve à 300 mètres de L'Estiva, et le dernier bout se fait à pied, à travers la prairie. Un sac souple se porte bien mieux qu'une grosse valise à roulettes.]
 [Pas de wifi : À L'Estiva, pas de wifi : c'est un choix, pour mieux profiter du reste. Le réseau mobile est en revanche disponible sur l'ensemble du domaine.]
 
-[Proposables : Pour alléger les courses, nous travaillons avec des producteurs locaux : les jus du Pressoir du Pilat (5 € le litre) et les bières de la Brasserie du Pilat (6,50 € la bouteille). Nous vous les proposons à leur prix de vente en magasin, et ils peuvent vous attendre au frais à votre arrivée. De la même façon, nous pouvons prévoir une planche du terroir pour le premier apéritif (à partir de 17 €)[, le repas des trappeurs (25 € par personne)][ et le petit-déjeuner, à retirer chaque matin au bâtiment d'accueil (8 € par personne et par jour)]. Il suffit de nous le dire d'ici le mercredi 7 juillet 2027.]
+[hasStayApp : Votre séjour, déjà dans votre poche : nous avons préparé pour vous une petite application de séjour. Rien à installer, elle s'ouvre depuis ce lien :
+https://sejour.domainesolio.com/…
 
-Vous fêtez un événement, vous aimeriez un coup de main pour les préparatifs, ou simplement vous alléger de l'intendance ? N'hésitez pas à nous en parler : nous avons plusieurs formules à vous proposer.
+Vous y trouverez :
+[hasStayAppBath : - votre séance de bain nordique offerte, à réserver dès maintenant : le bain demande un temps de préparation, mieux vaut choisir votre créneau à l'avance ;]
+- les événements organisés autour du domaine, pour trouver des idées de sorties ;
+[hasStayAppShop : - notre boutique, pour commander à l'avance ce que vous aimeriez trouver à votre arrivée, ou sur place pendant le séjour ;]
+- l'ouverture du portail, qui ne sera active que pendant votre séjour ;
+- le livret d'accueil, avec tout ce qu'il faut savoir sur le domaine ;
+- et quelques autres surprises, que nous vous laissons découvrir.]   ← rule 39 (2026-11-27)
 
-Pour commencer à rêver votre séjour, nous avons rassemblé nos adresses préférées autour du domaine : balades, baignades, marchés, villages, visites. Tout est sur https://map.domainesolio.com
 [Enfants : Et si vos enfants aiment les animaux, il y a aussi quelques beaux moments à partager avec ceux du domaine : nous vous en parlerons sur place.]
 
 Nous préparons tout pour vous accueillir. Une question ? Répondez simplement à ce mail, ou appelez-nous au {{companyPhone}}.
