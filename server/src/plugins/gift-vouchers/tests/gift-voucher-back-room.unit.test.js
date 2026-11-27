@@ -69,7 +69,7 @@ test('243 backs: the validity is always printed, the contents keep their first l
     if (!texts.some((t) => /^Valable jusqu’au 27 mai 2028$/.test(t))) missing.validity.push(label);
     const contents = texts.find((t) => /^Votre bon comprend — /.test(t));
     if (!contents) missing.contents.push(label);
-    else if (!/ : 1 h en soirée · week-end/.test(contents)) missing.period.push(`${label} → ${contents}`);
+    else if (!/\u00a0: 1 h en soirée · week-end/.test(contents)) missing.period.push(`${label} → ${contents}`);
     if (combo.message && !texts.some((t) => combo.message.startsWith(t.replace(/…$/, '').slice(0, 12)) && t.length > 5 && combo.message.includes(t.replace(/…$/, '').split(' ')[0]))) missing.message.push(label);
   }
   assert.deepEqual(missing.validity, [], 'validity 243/243');
@@ -82,7 +82,7 @@ test('the validated mock’s configuration (logo, a two-line title, « offert pa
   const texts = await backOf({
     mark: 'logo', title: FACTORS.title[1], parties: ['Claire', 'Julien'], message: 'Bon anniversaire, profite bien !', options: [],
   });
-  assert.ok(texts.includes('Votre bon comprend — Bain nordique : 1 h en soirée · week-end'));
+  assert.ok(texts.includes('Votre bon comprend — Bain nordique\u00a0: 1 h en soirée · week-end'));
   assert.ok(texts.includes('Bon anniversaire, profite bien !'));
   assert.ok(texts.includes('Valable jusqu’au 27 mai 2028'));
 });
@@ -91,7 +91,7 @@ test('a voucher with options lists them when the room allows, and ends the line 
   const roomy = await backOf({
     mark: 'no logo', title: FACTORS.title[0], parties: [null, null], message: '', options: [{ label: 'Boisson chaude', qty: 1 }],
   });
-  assert.ok(roomy.some((t) => /^Votre bon comprend — Bain nordique : 1 h en soirée · week-end · Boisson chaude$/.test(t)));
+  assert.ok(roomy.some((t) => /^Votre bon comprend — Bain nordique\u00a0: 1 h en soirée · week-end · Boisson chaude$/.test(t)));
   const crowded = await backOf({
     mark: 'logo', title: FACTORS.title[2], parties: FACTORS.parties[2], message: FACTORS.message[2], options: FACTORS.options[2],
   });
@@ -118,5 +118,5 @@ test('a roomy back with six options lists those that fit, in order, the last lin
   });
   const one = crowded.filter((t) => /^Votre bon comprend — /.test(t));
   assert.equal(one.length, 1);
-  assert.match(one[0], / : 1 h en soirée · week-end/);
+  assert.match(one[0], /\u00a0: 1 h en soirée · week-end/);
 });

@@ -51,7 +51,7 @@ test('rule 21 — after the payment, a bath voucher is drawn by its title and co
   const page = await site('GET', `/orders/${orderId}?token=${token}`);
   const { voucher } = page.body.data;
   assert.deepEqual([voucher.kind, voucher.title], ['resource', 'Un bain nordique']);
-  assert.deepEqual(voucher.contentLines, ['Bain nordique : 2 h en journée · semaine', 'Planche apéro']);
+  assert.deepEqual(voucher.contentLines, ['Bain nordique\u00a0: 2 h en journée · semaine', 'Planche apéro']);
   await api.receipt.idle();
 }));
 

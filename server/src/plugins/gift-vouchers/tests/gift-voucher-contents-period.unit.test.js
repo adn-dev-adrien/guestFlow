@@ -23,8 +23,14 @@ const cardBack = createCardBack({ company: async () => company, linkBase: () => 
 test('the frozen lines of a voucher name its period', () => {
   const week = s.api.vouchers.find(s.sell('une-heure', 'week').id);
   const weekend = s.api.vouchers.find(s.sell('une-heure', 'weekend').id);
-  assert.equal(contentLines(week)[0], 'Bain nordique : 1 h en journée · semaine');
-  assert.equal(contentLines(weekend)[0], 'Bain nordique : 1 h en journée · week-end');
+  assert.equal(contentLines(week)[0], 'Bain nordique\u00a0: 1 h en journée · semaine');
+  assert.equal(contentLines(weekend)[0], 'Bain nordique\u00a0: 1 h en journée · week-end');
+});
+
+test('a colon of the contents lines never starts a line: a non-breaking space comes before it', () => {
+  const lines = contentLines(s.api.vouchers.find(s.sell('une-heure', 'week').id));
+  assert.ok(lines.every((line) => !line.includes(' : ')), lines.join('|'));
+  assert.ok(lines[0].includes('\u00a0: '));
 });
 
 test('« Mon bain » and the offer list the session with its period', async () => {
@@ -38,8 +44,8 @@ test('« Mon bain » and the offer list the session with its period', async () =
 test('the back of a campaign that sells two periods has the lines of each, the cheapest as `lines`', async () => {
   const view = (await s.api.offerService.offer()).campaigns.find((c) => c.slug === 'une-heure');
   const back = cardBack.campaign(view, campaign);
-  assert.deepEqual(back.linesByPeriod.week, ['Bain nordique : 1 h en journée · semaine']);
-  assert.deepEqual(back.linesByPeriod.weekend, ['Bain nordique : 1 h en journée · week-end']);
+  assert.deepEqual(back.linesByPeriod.week, ['Bain nordique\u00a0: 1 h en journée · semaine']);
+  assert.deepEqual(back.linesByPeriod.weekend, ['Bain nordique\u00a0: 1 h en journée · week-end']);
   assert.deepEqual(back.lines, back.linesByPeriod.week);
 });
 
@@ -53,7 +59,7 @@ test('the PDF\'s contents line has a dash after « Votre bon comprend », never 
   } finally {
     PDFDocument.prototype.text = original;
   }
-  assert.ok(texts.some((t) => t === 'Votre bon comprend — Bain nordique : 1 h en journée · week-end'), texts.filter((t) => /comprend/.test(t)).join('|'));
+  assert.ok(texts.some((t) => t === 'Votre bon comprend — Bain nordique\u00a0: 1 h en journée · week-end'), texts.filter((t) => /comprend/.test(t)).join('|'));
   assert.ok(!texts.some((t) => /comprend : /.test(t)));
 });
 

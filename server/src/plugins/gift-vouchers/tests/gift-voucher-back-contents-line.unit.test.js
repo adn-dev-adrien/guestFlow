@@ -19,7 +19,7 @@ const BACKS = {
     message: 'Joyeux anniversaire ma chérie, que cette parenthèse te fasse le plus grand bien, nous t’aimons très fort, à très vite, et à l’année prochaine pour le prochain',
   },
 };
-const DETAIL = ' : 1 h en soirée · week-end';
+const DETAIL = '\u00a0: 1 h en soirée · week-end';
 
 let logo;
 test.before(async () => {
@@ -75,5 +75,5 @@ test('every name length × roomy / crowded × with / without another item: the v
 test('a crowded back cut to one line keeps room for « ·… » after the period when another item follows', async () => {
   const texts = await textsOf({ name: WORDS.slice(0, 12).join(' '), back: BACKS.crowded, withOther: true });
   const line = texts.find((t) => /^Votre bon comprend — /.test(t));
-  assert.match(line, /… : 1 h en soirée · week-end ·…$/);
+  assert.match(line, /…\u00a0: 1 h en soirée · week-end ·…$/);
 });

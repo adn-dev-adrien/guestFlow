@@ -121,7 +121,7 @@ function fitLines(doc, text, width, maxLines) {
   const lines = [];
   let line = '';
   const push = (next) => { lines.push(next); line = ''; };
-  const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  const words = String(text || '').replace(/[^\S\u00a0]+/g, ' ').trim().split(' ').filter(Boolean);
   words.forEach((word) => {
     let rest = word;
     while (rest) {
@@ -492,8 +492,8 @@ function drawBack(sheet, {
 function contentsText({
   doc, width, lines = 1, first, others,
 }) {
-  const [lead, ...detail] = String(first || '').split(' : ');
-  const tail = detail.length ? ` : ${detail.join(' : ')}` : '';
+  const [lead, ...detail] = String(first || '').split('\u00a0: ');
+  const tail = detail.length ? `\u00a0: ${detail.join('\u00a0: ')}` : '';
   const rest = others.length ? ` · ${others.join(' · ')}` : '';
   const whole = `${say(BACK_TEXTS.includes, { lines: tail ? lead : first })}${tail}${rest}`;
   const fits = (text) => fitLines(doc, text, width, lines + 1).length <= lines;

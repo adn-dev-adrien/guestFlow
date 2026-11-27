@@ -92,7 +92,7 @@ test('rule 66 — a campaign\'s lines are the PDF\'s own contentLines of a vouch
   const offered = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
   const voucher = (await buy(site, bath.slug)).voucher;
   assert.deepEqual(offered.back.lines, voucher.contentLines);
-  assert.deepEqual(offered.back.lines, ['Bain nordique : 2 h en journée · semaine', 'Planche apéro']);
+  assert.deepEqual(offered.back.lines, ['Bain nordique\u00a0: 2 h en journée · semaine', 'Planche apéro']);
 }));
 
 test('rule 66 — a lodging campaign sends a template; filled with the amount it is the PDF\'s line', () => withServer(async (site) => {
@@ -172,7 +172,7 @@ test('rule 66 — the line pitch the page uses is the one pdfkit sets for the PD
 
 test('rule 66 — the extra time and each quantity of an option come with their line, written by GuestFlow in the PDF\'s words', () => withServer(async (site) => {
   const view = (await offerOf(site)).campaigns.find((c) => c.slug === bath.slug);
-  view.extraTime.prices.forEach((p) => assert.equal(view.back.extraTime[p.minutes], `Temps supplémentaire : ${durationText(p.minutes)}`));
+  view.extraTime.prices.forEach((p) => assert.equal(view.back.extraTime[p.minutes], `Temps supplémentaire\u00a0: ${durationText(p.minutes)}`));
   const drink = view.addOns[0];
   drink.prices.forEach((p) => assert.equal(view.back.addOns[drink.articleRef][p.qty], p.qty > 1 ? `${p.qty} × ${drink.label}` : drink.label));
   // The same lines a voucher bought with them prints.

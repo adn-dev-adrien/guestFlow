@@ -6,13 +6,16 @@
 const rules = require('./voucherRules');
 const { durationText } = require('./offerService');
 
+// A non-breaking space before the colon: it never starts a line on the PDF's back or on the site's.
+const NBSP_COLON = '\u00a0:';
+
 const BAND_WORDS = Object.freeze({ day: 'en journée', evening: 'en soirée' });
 
 /** Rule 66 — the one line of a lodging voucher, with its amount left to fill: the site writes the amount the buyer types in `{amount}`. */
 const LODGING_LINE = 'Un séjour dans nos logements, d’une valeur de {amount}';
 
 /** « Temps supplémentaire : 1 h » — one line of the back, the same on the PDF, the mail and the site. */
-const extraTimeLine = (minutes) => `Temps supplémentaire : ${durationText(minutes)}`;
+const extraTimeLine = (minutes) => `Temps supplémentaire${NBSP_COLON} ${durationText(minutes)}`;
 
 const countOf = (qty, label) => (qty > 1 ? `${qty} × ${label}` : label);
 
@@ -22,7 +25,7 @@ function contentLines(voucher) {
   if (contents.kind === 'lodging') return [LODGING_LINE.replace('{amount}', rules.formatEuros(voucher.amountCents))];
   const { resource } = contents;
   return [
-    `${resource.name} : ${durationText(resource.includedMinutes)} ${BAND_WORDS[resource.band] || ''}`.trim() + rules.periodSuffix(resource),
+    `${resource.name}${NBSP_COLON} ${durationText(resource.includedMinutes)} ${BAND_WORDS[resource.band] || ''}`.trim() + rules.periodSuffix(resource),
     ...contents.options.map((o) => countOf(o.qty, o.label)),
     ...(resource.extraMinutes > 0 ? [extraTimeLine(resource.extraMinutes)] : []),
     ...contents.addOns.map((o) => countOf(o.qty, o.label)),
