@@ -5,11 +5,11 @@
  *
  *   open({ code, visitor })                           → the contents, the names, the validity, the add-ons and extra time on offer, each step
  *                                                       priced like the offer prices it (rule 64), the horizon (rule 24)
- *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement', supplementCents, dueCents, evening }] }] }` (rules 25, 14; `dueCents` is what the start costs above the voucher, extra time included, and `evening` whether
+ *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement' | 'drink' | 'twoHoursDrink' | 'twoHours', supplementCents, supplementLabel, dueCents, evening }] }] }` (rules 25, 14-17 of the week-weekend spec; `dueCents` is what the start costs above the voucher, extra time included, and `evening` whether
  *                                                       part of it is in the evening band: specs/site/site-outside-resource-booking.md rule 10)
- *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 64), what is still due, the VAT (rules 26-27)
+ *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: start, end (the doubled one when the offered hour applies), included, supplement, gifts, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 64), what is still due, the VAT (rules 26-27)
  *   confirm({ code, start, extraMinutes?, addOns?, email, phone, firstName?, lastName?, name?, people?, termsVersionId, visitor, returnUrl? }) → `{ booked: true }` | `{ payUrl, heldUntil }` (rules 28-29)
- *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book and settle in one transaction, or say the money is owed back (rule 29)
+ *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book exactly the composition that was confirmed (the offered hour decided then, rule 17) and settle in one transaction, or say the money is owed back (rule 29)
  *   lapseDue()                                        the job: 15 minutes ended unpaid, the slot and the voucher are free again
  *   lapseVoucher(voucherId)                           a voucher was cancelled: its pending uses end with it
  *   traceUnused({ ref, label, valueCents })           the arrival SAS marked an element « non pris »: the unused value is traced (rule 15)

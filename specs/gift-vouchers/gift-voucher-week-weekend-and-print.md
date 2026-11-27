@@ -131,7 +131,9 @@ to eight per sheet, two-sided or folded.
     - **« Inclus »** — the slot's price equals the reference;
     - **« + x € »** — it costs more; the supplement is paid as today's remainder (owner, Q2: a week
       voucher on a weekend slot pays the supplement). Its line is named « Supplément soirée »,
-      « Supplément week-end » or « Supplément soirée week-end »;
+      « Supplément week-end », « Supplément soirée week-end », or « Supplément créneau » when neither
+      explains it (an odd grid). The cause has a direction: « soirée » only when the slot is evening and the voucher day and the evening costs more at the slot's period, « week-end »
+      only when the slot is weekend and the voucher week and the weekend costs more in the slot's band; `evening` (the « dont soirée » flag) is true only when the slot is evening and the voucher day;
     - **« Inclus · boisson offerte »** — it costs less;
     - **« Inclus · 2 h + boisson offerte »** — rule 17.
 16. **A cheaper slot gives one free drink, whatever the difference** (owner, Q3). Nothing is kept
@@ -148,7 +150,12 @@ to eight per sheet, two-sided or folded.
     - The slot is tagged so only when the doubled session is free and ends by `closeTime`; the
       added time may run into the evening, at no charge (owner, R1).
     - Otherwise the slot gets rule 16 (1 h + drink).
-    - Extra time bought by the recipient (campaigns rule 27) starts after the offered hour.
+    - Extra time bought by the recipient (campaigns rule 27) starts after the offered hour; it is offered only within what fits after the doubled block — otherwise the quote refuses with
+      `EXTRA_TIME_UNAVAILABLE`, the offered hour is never traded for it.
+    - **The decision is the confirmation's** (G1): the offered hour is decided when the recipient confirms and stored with the use's recap; the payment of the remainder books exactly that
+      composition — the doubled span or not, whatever was freed or taken since — or, when it can no longer be booked, flags the money « à rembourser » and books nothing. No line of the sale and no
+      sentence of the mail lies outside the booking.
+    - The voucher's own hold on a slot never takes the slot from its own recap (the recipient back from the bank page).
 
 ### 3.F Card backs (amends campaigns rules 33 and 66)
 
@@ -177,8 +184,11 @@ to eight per sheet, two-sided or folded.
       — its use page shows a notice and a link to the booking page, where the code fills itself in
       (`BACK_TEXTS.lodgingSteps`, sent with the back by `cardBack.js`);
     - the rectangle holds the printed code (bold, large), labelled « Code du bon »;
-    - under it, small: the contents (« Votre bon comprend : … », at most 3 lines), the message in
-      italics (at most 2 lines), « Valable jusqu'au <date> ».
+    - under it, small: the contents (« Votre bon comprend — … », at most 3 lines: the first item keeps its detail and its period, it is the name that gives way), the message in
+      italics (at most 2 lines), « Valable jusqu'au <date> ». When room runs out the lines are shared in two rounds — each gets its first line, the validity first — and what does not fit ends
+      with an ellipsis; the validity is never the line that gives way.
+    - The voucher draws its own, smaller sizes than the merchant card (`VOUCHER_BACK_LAYOUT`: QR 18 mm, title 14 pt, logo band 10 mm), so the mock's own configuration — logo, a two-line
+      title, « offert par Claire à Julien », a one-line message — prints all three small lines in full.
     - The website draws the same back (`cardBack.js` layout + `blocks/gift-voucher/view.js`).
 
 ### 3.G Price on the merchant card front
@@ -214,7 +224,7 @@ to eight per sheet, two-sided or folded.
     after the flip (columns mirrored for « de gauche à droite », rows for « de haut en bas »). **With « De haut en bas », each back is rotated half a turn** (`cell.rotateDeg: 180`,
     K6): a cut card turned like a page then shows its back upright; the preview draws those backs upside down. The last sheet holds what remains.
 25. **Côte à côte**: each card is its front and its back side by side with a dotted fold line and
-    crop marks around the pair; folded, the paper gives a two-sided card.
+    crop marks around the pair (K11: at every cut line of the grid, starting 3 mm from the sheet's edge, at least 2 mm long and 1 mm from any card, at 94 % and 66 % too); folded, the paper gives a two-sided card.
 26. **Sizes and scale** (owner, Q8: reduced with crop marks):
 
     | Mode | Per sheet | Sheet | Card scale |
@@ -227,7 +237,7 @@ to eight per sheet, two-sided or folded.
     | Côte à côte | 2 | A4 portrait, pairs stacked | 94 % |
     | Côte à côte | 4 | A4 landscape, 2 × 2 pairs | 66 % |
 
-    No bleed between cards: the fronts are cropped to the trim, the backs are white.
+    No bleed between cards: the fronts are cropped to the trim, the backs are white. Crop marks (K11) are drawn on recto-verso sheets too, with the same rule.
 27. The PDF is built by the server (`…/print.pdf?mode=&perSheet=&count=&flip=`); the preview is the
     server's JSON layout (`…/print-layout`). Refusals (count outside 1–200, a per-sheet value the
     mode does not offer, an unknown flip) → 400 with the sentence under the field.
@@ -356,13 +366,14 @@ to eight per sheet, two-sided or folded.
 
 ### 4.4 API
 
-- `GET /public/v1/gift-vouchers/offer` — `periods: [{ period, priceCents, label }]` per resource
-  campaign.
+- `GET /public/v1/gift-vouchers/offer` — `periods: [{ period, priceCents, label, hint }]` per resource
+  campaign, cheapest first, with `contentsByPeriod` and `extraTime.pricesByPeriod`; `back.layout` and `back.texts` unchanged from 4.7.0 (K10), the redrawn back under `back.design`.
+- A public price or order request without `period` gets the campaign's cheapest offered period (K1); an unoffered period is refused on every public path.
 - Order creation (public and admin) — `period` required when the campaign offers two; admin
   `validityMonths` ∈ {3, 6, 12, 18, 24}.
-- `POST /use/slots` — `tag: 'in' | 'supplement' | 'drink' | 'twoHoursDrink'`, `dueCents`,
-  `supplementLabel`.
-- `POST /use/quote`, `/use/confirm` — drink and offered-hour lines.
+- `POST /use/slots` — `tag: 'in' | 'supplement' | 'drink' | 'twoHoursDrink' | 'twoHours'`, `dueCents`,
+  `supplementLabel`, `evening`, the doubled `end`. The site tags: « Inclus · 2 h + boisson offerte » / « + x € · 2 h + boisson offerte » (`twoHoursDrink`), « Inclus · 2 h » / « + x € · 2 h » (`twoHours`, no drink option set).
+- `POST /use/quote`, `/use/confirm` — drink and offered-hour lines; `/use/confirm` takes the `end` the recap showed and refuses with `RECAP_CHANGED` when it no longer holds — a connector before 1.27.0 sends no `end`, the check is then skipped.
 - Admin: `GET /campaigns/:id/print.pdf|print-layout`, `GET /:id/print.pdf|print-layout`
   (`mode`, `perSheet`, `count`, `flip`).
 
@@ -421,7 +432,7 @@ Implemented on `feature/gift-voucher-week-weekend` in five steps (engine and rat
 - **Validity.** An operator's choice on « Nouveau bon » for a named campaign is frozen in the order's `contents.validityMonths` (read by the issuance); the price answer carries `validUntil`. Existing campaigns whose validity is not on the list are moved to the nearest of 3/6/12/18/24 by `gift_voucher_week_weekend_v5`.
 - **Period title.** The voucher's title always ends « · semaine » or « · week-end », for a campaign that sells one period too. The offer's campaign view carries `periods` and `extraTime.pricesByPeriod`; the website's card back carries `back.titles` per period.
 - **Backs.** `BACK_LAYOUT` / `BACK_TEXTS` were rewritten (the four numbers `safeMm`, `legalStripMm`, `qrMm`, `logoMm` kept); the department of the footer is read from the postcode of the company address (`companyProfile.departmentOf`), none when it names none. The website draws the back in `voucher-card.js` / `style.css` from the same layout (a stylesheet-drift test holds the two together).
-- **Print.** `printLayout.plan` is the one layout; `voucherPdf.renderPrintSheets` draws each cell with a translated and scaled frame of the page (each card draws its front over the bleed box and is clipped to the trim, exactly as the single merchant PDF does; each image is embedded once per document; crop marks are planned by `printLayout` — recto-verso included — at the cut lines, never closer than 5 mm to the sheet's edge; with « De haut en bas » each back is rotated half a turn). The dialog previews the first four pages from the same JSON and downloads the PDF; printing a merchant card locks the slug like the merchant-card download.
+- **Print.** `printLayout.plan` is the one layout; `voucherPdf.renderPrintSheets` draws each cell with a translated and scaled frame of the page (each card draws its front over the bleed box and is clipped to the trim, exactly as the single merchant PDF does; each image is embedded once per document; crop marks are planned by `printLayout` — recto-verso included — at the cut lines, never closer than 3 mm to the sheet's edge (K11); with « De haut en bas » each back is rotated half a turn). The dialog previews the first four pages from the same JSON and downloads the PDF; printing a merchant card locks the slug like the merchant-card download.
 - **Test files** that read the gift-vouchers folder live in `server/src/plugins/gift-vouchers/tests/` (the removal matrix refuses such a test in `server/src/tests/`); the suites of rule 6 and 2 (`hourly-weekend-rates`, `hourly-public-holidays`) stay in `server/src/tests/`.
 - **Test counts (2026-11-27, before the review; the figures after it are the next bullet).** Server `npm test`: 15 245 tests, all green (the two price-gate suites carry the weekend first-hour columns the migration would copy, allowed in `scripts/price-gate/anonymise.js`); client `vitest`: 5 018 tests in 1 095 files, all green; `npm run build` green. New suites: `hourly-weekend-rates` (11), `public-holidays` (3), `gift-voucher-period-redemption` (14), `gift-voucher-hourly-off` (1), `gift-voucher-card-backs` (6), `gift-voucher-print-layout` (20) on the server; `HourlyPriceGrids` (9), `NewVoucherPage.period-validity` (4), `CampaignEditor.periods` (4), `CampaignEditor.front-price` (4), `PrintSheetsDialog` (6), the drink select (1), and three WordPress block files (3 + 2 + the updated card-back suite) on the client.
 - **Decisions of the review of 2026-11-27 (K1-K8, the owner's session).**
@@ -433,8 +444,14 @@ Implemented on `feature/gift-voucher-week-weekend` in five steps (engine and rat
   - **K6.** With « De haut en bas » each back is rotated half a turn (PDF and preview).
   - **K7.** On a phone the price fields stack, one per row, the refusal sentence the full width; the grid from `sm` up.
   - **K8.** An order keeps the period it was priced with, even when its campaign later stops offering it (`repriceOrder` reads the frozen contents); an amount (lodging) campaign prints no « à partir de ».
+- **Decisions of the second review (K9-K11).**
+  - **K9.** A booking that carries a lodging but no stay is priced exactly as on origin/master: on the outside grid, week period, where its band has an outside first hour, otherwise at the guests' live rate (`legacyGridOf`, kept for this kind of booking and the rows of before only, D6). Migration `explicit_hourly_rates_v13` fills an empty or 0 outside first hour with the guests' rate only for a resource sold outside (`sellableExternally = 1`), and copies the week grid to the weekend columns only where they are empty; an outside booking without a lodging on a band with no outside price stays refused (rule 2).
+  - **K10.** `/public/v1` stays backward compatible for the card back (CLAUDE.md §5.6): `back.layout` and `back.texts` are exactly what 4.7.0 sent (`legacyBack.js`), the redrawn back is `back.design = { layout, voucherLayout, texts }`; connector 1.27.0 reads `design`, with `var(--x, default)` for every stylesheet variable and its own words when GuestFlow is older (never a literal « {lines} »): either order of update works. A drift test holds the legacy variables, the fallbacks and the card drawn both ways.
+  - **K11.** Crop marks start 3 mm from the sheet's edge, are at least 2 mm long and keep 1 mm from any card; every cut line has its marks, at 94 % and 66 % too.
+- **One figure per booking (rule 29).** The price path of a booking is a fact stored on it, `resource_bookings.engineRated` (migration `resource_bookings_engine_rated_v14`, nullable): 1 for an outside session made or moved on the engine path, empty for every row of before — which keeps its stored figure and its way of pricing through any save that does not move it (a notes-only save of an off-grid outside booking keeps its 45 €). The fiche preview, the stored total, the visit's session line and the invoice basis all read it. An off-grid session is cut where its price can change: the evening switch, the period switches of a Friday or an eve of holiday, and each whole hour from the first paid minute; on every session of the slot grid it equals the engine's quote. A stored pair whose end does not follow its start prices 0 € (rule 23 exemption), never throws.
+- **Rule 30 readers.** `rateGridOf` (the strict grid: no fallback, an outside 0 is not sold) and `legacyGridOf` (K9) in `bookingPricing.js` are the only readers of the outside rate columns, besides the resource form's own model and the migration. The guest-side readers of the guests' day price are accepted exceptions: `scheduler.js`, `schedulingModel.js` and `hourlyFamily.js` (`config.price`, a stay line's unit) read `resources.price` for the guests, and `outsideOffer.freeSlots` passes it to the slot walk, which prices nothing.
 - **Read after the review.** « Mon bain » prices each distinct figure of a slot list once (`memo` of `outsideOffer.quote`); the offered hour (rule 17) survives the remainder being paid online (`excludeHoldRef`); `/use/confirm` refuses with `RECAP_CHANGED` when the end the recap showed no longer holds; the contents of every voucher face end with « · semaine » / « · week-end »; the website's back has `linesByPeriod`; the catalogue's modes carry `byPeriod`; a recipe carries `periods` and `frontPricePosition`; migration `gift_voucher_week_weekend_v5` moves a validity to the nearest allowed value, a tie going up, one log line per campaign.
-- **Test counts after the review (2026-11-27).** Server `npm test`: 15 321 tests, all green; client `vitest`: 5 051 tests in 1 105 files, all green. New server suites: `gift-voucher-rule17-paid-online` (3), `gift-voucher-rule15-17-edges` (8), `gift-voucher-slots-memo` (1), `gift-voucher-back-priority` (2), `gift-voucher-print-marks` (4), `gift-voucher-print-description` (3), `gift-voucher-print-pdf` (5), `gift-voucher-contents-period` (5), `gift-voucher-lodging-back-steps` (2), `gift-voucher-recipe.periods` (2), `gift-voucher-validity-migration` (1), `gift-voucher-order-period-kept` (2), `gift-voucher-long-date` (1), `gift-voucher-hourly-off.reason` (1), `hourly-outside-bands-sold` (6), `hourly-rates-partial-save` (3), `hourly-migration-planning-scope` (1), `hourly-public-holidays` (3, ported), `wordpress-voucher-proxy-period` (2). New client suites: `HourlyPriceGrids.layout` (4), `PrintSheetsDialog.behaviour` (5), `CompositionEditor.periods` (3), `CampaignEditor.stale-state` (3), `GiftVoucherSettings.drink` (2), `resourceToPayload.lodging-prices` (2), `ResourceEditorPanel.hourly-price` (1), `wordpress-gift-voucher-card.validity-priority` (3).
+- **Test counts after the review (2026-11-27).** Server `npm test`: 15 321 tests, all green; client `vitest`: 5 051 tests in 1 105 files, all green. New server suites: `gift-voucher-rule17-paid-online` (3), `gift-voucher-rule15-17-edges` (7), `gift-voucher-slots-memo` (1), `gift-voucher-back-priority` (2), `gift-voucher-print-marks` (4), `gift-voucher-print-description` (3), `gift-voucher-print-pdf` (5), `gift-voucher-contents-period` (5), `gift-voucher-lodging-back-steps` (2), `gift-voucher-recipe.periods` (2), `gift-voucher-validity-migration` (1), `gift-voucher-order-period-kept` (2), `gift-voucher-long-date` (1), `gift-voucher-hourly-off.reason` (1), `hourly-outside-bands-sold` (6), `hourly-rates-partial-save` (3), `hourly-migration-planning-scope` (1), `hourly-public-holidays` (3, ported), `wordpress-voucher-proxy-period` (2). New client suites: `HourlyPriceGrids.layout` (4), `PrintSheetsDialog.behaviour` (5), `CompositionEditor.periods` (3), `CampaignEditor.stale-state` (3), `GiftVoucherSettings.drink` (2), `resourceToPayload.lodging-prices` (2), `ResourceEditorPanel.hourly-price` (1), `wordpress-gift-voucher-card.validity-priority` (3).
 - **Not done / for the owner.** The print of 4 and 8 per sheet on a real printer and the fold of side-by-side sheets (manual plan); the sentence that says what the week-end is (« Week-end : du vendredi 20:00 au dimanche soir… ») is worded by the editor from the typed evening switch, not by the server; the SDK floor check (`scripts/check-plugin-versions.mjs`) does not follow client exports (it reads the server's core modules and the client files a plugin's apps build in), so `PrintSheetsDialog` is held by the manifest's `sdk` only.
 
 ## 9. Open questions
