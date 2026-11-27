@@ -1,5 +1,5 @@
 /**
- * `guest_sessions` — a session is a stay capability (specs/guest-app.md rules 4, 9). The cookie holds 32
+ * `guest_sessions` — a session is a stay capability (specs/guest-app/guest-app.md rules 4, 9). The cookie holds 32
  * random bytes; only their SHA-256 is stored, so a stolen backup opens nothing.
  */
 

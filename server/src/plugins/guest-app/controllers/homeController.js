@@ -1,5 +1,5 @@
 /**
- * The « Domotique » page (specs/guest-app-home-automation.md §3.C-§3.D, §4.3).
+ * The « Domotique » page (specs/guest-app/guest-app-home-automation.md §3.C-§3.D, §4.3).
  *
  * Guest side: the page ready to render, a tap on a light, the state of that tap. Studio side: the lodging's blocks,
  * the catalogue shaped as pickers, the preview. The house's data comes from the Sowel connector through

@@ -1,7 +1,7 @@
 /**
- * The refusals of the guest API, in the guest's language (specs/guest-app.md rules 19 and 56, audit R36-PUB-L1): the
+ * The refusals of the guest API, in the guest's language (specs/guest-app/guest-app.md rules 19 and 56, audit R36-PUB-L1): the
  * `code` never moves — the app branches on it — and the `message` follows the request's language, as the public API's
- * own envelope does (`publicHttp`, specs/site-english-version.md rule 8). A refusal is `{ status, code, key, params }`;
+ * own envelope does (`publicHttp`, specs/site/site-english-version.md rule 8). A refusal is `{ status, code, key, params }`;
  * its words are looked up here when it is answered.
  */
 
@@ -67,11 +67,11 @@ const TEXTS = Object.freeze({
     tooManyAttempts: 'Trop de tentatives, réessayez plus tard.',
     tooManyOrders: 'Trop de commandes en une heure, réessayez plus tard.',
     tooManyCardOrders: 'Trop de paiements par carte pour ce séjour en une heure : ajoutez la commande à votre note.',
-    // specs/guest-app-home-automation.md rules 7, 10, 22.
+    // specs/guest-app/guest-app-home-automation.md rules 7, 10, 22.
     lightNotPilotable: 'Cette lumière ne se commande pas depuis l’application.',
     commandNotFound: 'Demande introuvable.',
     tooManyLightCommands: 'Trop de demandes. Réessayer dans quelques minutes.',
-    // specs/gift-voucher-campaigns.md rules 37-38 — the terms of an activity the cart holds.
+    // specs/gift-vouchers/gift-voucher-campaigns.md rules 37-38 — the terms of an activity the cart holds.
     termsNotAccepted: 'Acceptez les conditions générales pour commander.',
     termsOutdated: 'Les conditions générales ont changé : relisez-les et acceptez-les pour commander.',
     termsNotFound: 'Ces conditions n’existent pas.',

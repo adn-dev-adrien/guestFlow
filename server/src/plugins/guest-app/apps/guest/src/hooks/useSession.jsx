@@ -1,5 +1,5 @@
 /**
- * The session of this device (specs/guest-app.md rules 1-9, 19, 53): how the app got in (stay link, lodging
+ * The session of this device (specs/guest-app/guest-app.md rules 1-9, 19, 53): how the app got in (stay link, lodging
  * poster, lookup), what `/me` and `/lodging` say, the language and the day / night register.
  *
  * The stay link is kept on the device and exchanged again whenever the server says the session is dead

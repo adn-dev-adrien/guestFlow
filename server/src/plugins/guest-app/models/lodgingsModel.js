@@ -1,5 +1,5 @@
 /**
- * `guest_app_lodgings` — what each lodging shows its guests (specs/guest-app.md rules 1, 11bis-11quater).
+ * `guest_app_lodgings` — what each lodging shows its guests (specs/guest-app/guest-app.md rules 1, 11bis-11quater).
  * A property without a row is off: a property created later needs no event to start off.
  *
  * The lodging code is the capability a printed QR code carries: never logged, never returned over the admin

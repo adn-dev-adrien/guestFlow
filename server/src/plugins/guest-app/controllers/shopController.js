@@ -1,6 +1,6 @@
 /**
  * `GET /public/v1/guest/shop` — the sellable catalogue of the stay's lodging, ready to render
- * (specs/guest-app.md rules 23-27). Prices and labels are GuestFlow's, per lodging, through the core
+ * (specs/guest-app/guest-app.md rules 23-27). Prices and labels are GuestFlow's, per lodging, through the core
  * projections the website shows; the free / included state is `sellable.js`'s; the shop is open exactly
  * when the fiche takes mid-stay extras; the service hours of §3.G come from `serviceHours.js`.
  *
@@ -382,7 +382,7 @@ function buildShopController({
     const opening = found.opening || { from: '00:00', to: '24:00' };
     return publicHttp.ok(res, {
       open: true,
-      // The last day the resource is offered (specs/gift-voucher-campaigns.md rule 51): the picker greys out the days after it.
+      // The last day the resource is offered (specs/gift-vouchers/gift-voucher-campaigns.md rule 51): the picker greys out the days after it.
       horizonUntil: found.horizonUntil,
       freeMinutesLeft: sold.freeMinutes ? sold.freeMinutes.left : 0,
       ...(freeLabel ? { freeLabel } : {}),
@@ -471,7 +471,7 @@ function buildShopController({
   };
 
   /**
-   * specs/guest-app-bath-home-scheduling.md rules 1-5 — the home's bath cards, one per hourly resource the stay's shop sells while
+   * specs/guest-app/guest-app-bath-home-scheduling.md rules 1-5 — the home's bath cards, one per hourly resource the stay's shop sells while
    * it takes orders: what the stay owns and has not placed (the hours it holds, then the offered minutes), its sessions to come, or
    * the offer when a slot is still bookable.
    */

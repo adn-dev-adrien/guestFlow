@@ -166,9 +166,11 @@ test('rule 5: demoStay is Camille, 2 adults, built never stored, with the lodgin
 });
 
 test('rule 5: the three moments hold their dates and derive the mode the real helpers give — around midnight and across a DST change', () => {
-  // date-literal-ok: instants handed to a pure function, compared with nothing but their own derived dates.
   const instants = [
-    '2026-10-24T21:59:00Z', '2026-10-24T22:01:00Z', '2026-10-25T00:30:00Z', '2026-10-25T23:30:00Z', '2026-03-28T22:30:00Z', '2026-03-29T00:30:00Z', '2026-03-29T22:30:00Z',
+    // date-literal-ok: instants handed to a pure function, compared with nothing but their own derived dates.
+    '2026-10-24T21:59:00Z', '2026-10-24T22:01:00Z', '2026-10-25T00:30:00Z', '2026-10-25T23:30:00Z',
+    // date-literal-ok: the spring DST change, same reason.
+    '2026-03-28T22:30:00Z', '2026-03-29T00:30:00Z', '2026-03-29T22:30:00Z',
   ];
   instants.forEach((iso) => {
     const now = new Date(iso);

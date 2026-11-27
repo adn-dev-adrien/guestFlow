@@ -1,5 +1,5 @@
 /**
- * The A4 poster of one lodging's QR code (specs/guest-app.md rules 1, 48): the app's name, the lodging, the
+ * The A4 poster of one lodging's QR code (specs/guest-app/guest-app.md rules 1, 48): the app's name, the lodging, the
  * code a phone scans to open `https://<guest host>/l/<lodgingCode>`, and one line in French and in English.
  * Regenerating the code makes every printed poster of that lodging obsolete: print a new one.
  */

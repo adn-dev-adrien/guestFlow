@@ -1,5 +1,5 @@
 /**
- * The guest app's own rate limits (specs/guest-app.md §4.3, rules 6, 37). A phone calls these routes directly — no
+ * The guest app's own rate limits (specs/guest-app/guest-app.md §4.3, rules 6, 37). A phone calls these routes directly — no
  * site proxy relays them — so the key is the caller's address. Windows and maxima follow `GUEST_*_RATELIMIT_*`.
  * - session: opening a stay link or a lodging poster creates a session row (default 30 / hour / IP);
  * - lookup: the name + reservation number fallback, a guessable pair (rule 6, default 5 / 15 min / IP);
@@ -48,7 +48,7 @@ function createGuestLimiters() {
       skipFailedRequests: true,
       message: tooMany('tooManyOrders'),
     }),
-    // specs/guest-app-home-automation.md rule 10 — the light taps of a stay: 6 in 10 minutes, a refused one is free.
+    // specs/guest-app/guest-app-home-automation.md rule 10 — the light taps of a stay: 6 in 10 minutes, a refused one is free.
     homeCommand: rateLimit({
       keyGenerator: stayKey,
       windowMs: Number(process.env.GUEST_HOME_COMMAND_RATELIMIT_WINDOW_MS) || 10 * 60 * 1000,

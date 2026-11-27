@@ -1,5 +1,5 @@
 /**
- * Reads `gf_guest`, loads the session and re-derives its stay's window on every request (specs/guest-app.md
+ * Reads `gf_guest`, loads the session and re-derives its stay's window on every request (specs/guest-app/guest-app.md
  * rules 1, 4, 9, 11quater). A dead session answers 401 `SESSION_EXPIRED` and loses its cookie; the app then
  * exchanges its stored stay link again, or falls back to the lodging's visitor mode. A session opened from a
  * stay link dies with that link (« Régénérer le lien »).

@@ -1,5 +1,5 @@
 /**
- * Orders (specs/guest-app.md rules 25, 29-38quater, 41-44): the quote, the order, its card payment, its follow-up.
+ * Orders (specs/guest-app/guest-app.md rules 25, 29-38quater, 41-44): the quote, the order, its card payment, its follow-up.
  *
  * Every amount is the core's own sale service (`extraSale.quote` plays the sale without writing it, `extraSale.sell` writes it,
  * `pricing-components.md` rules 27-30): the quote, the order and the lines written on the fiche cannot disagree (rule 24). What
@@ -11,7 +11,7 @@
  *                         (`Idempotency-Key` header: a replay within the session answers the first order again)
  *   GET  /orders · /orders/:id · POST /orders/:id/abandon
  *
- * Rules 37-38 of specs/gift-voucher-campaigns.md — a cart holding a bath owes the terms of the `resource` activity once per published version
+ * Rules 37-38 of specs/gift-vouchers/gift-voucher-campaigns.md — a cart holding a bath owes the terms of the `resource` activity once per published version
  * and per stay: the quote says which (`termsRequired`), the order carries `acceptedTerms: [{ activity, versionId }]` and is refused with
  * `TERMS_NOT_ACCEPTED` / `TERMS_OUTDATED` without it; an activity with nothing published asks nothing.
  *
@@ -353,7 +353,7 @@ function buildOrdersController({
   });
 
   /**
-   * specs/guest-app-bath-home-scheduling.md rule 15 — what a bath line's total is made of, read from what `price()` decided: the
+   * specs/guest-app/guest-app-bath-home-scheduling.md rule 15 — what a bath line's total is made of, read from what `price()` decided: the
    * hours the stay holds and the offered minutes cost nothing, the evening supplement is its own amount, the rest is the hours added.
    * Words only: the parts always add up to the line's total, never the other way round.
    */
@@ -403,7 +403,7 @@ function buildOrdersController({
    * Rule 55 — a priced article the engine adds nothing for (no free unit or minute left to explain it: a line the
    * fiche offers, for one) would be delivered at 0 €: refused, never confirmed free. Rule 60 — the free units or
    * minutes left explain only what they cover: the line's quantity, or its hours. Rule 82 (and
-   * specs/guest-app-bath-home-scheduling.md rule 17) — the hours the stay already holds explain a 0 € bath session too.
+   * specs/guest-app/guest-app-bath-home-scheduling.md rule 17) — the hours the stay already holds explain a 0 € bath session too.
    */
   const freeCovers = (line) => {
     const { freeUnits, freeMinutes } = line.item;

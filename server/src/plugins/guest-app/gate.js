@@ -1,5 +1,5 @@
 /**
- * The « Portail » tile (specs/guest-app.md rules 12-14): a door to the gate app that already exists, never a gate
+ * The « Portail » tile (specs/guest-app/guest-app.md rules 12-14): a door to the gate app that already exists, never a gate
  * screen. The URL is the stay's key link as `gate-access` holds it — the very `{{gateAccessUrl}}` of the e-mails,
  * read through the e-mail context that plugin declares, never from its tables. GuestFlow still never calls the house.
  *
