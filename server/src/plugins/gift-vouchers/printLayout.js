@@ -12,12 +12,12 @@
 const CARD = Object.freeze({ width: 105, height: 148 });
 const A4 = Object.freeze({ short: 210, long: 297 });
 const MAX_COUNT = 200;
-// Crop marks (rule 27): a mark starts MARK_GAP from the grid, is at most MARK_MAX long, and ends at least MARK_EDGE from the sheet's edge (a printer cannot print closer); a margin too
-// narrow for a mark of MARK_MIN leaves that side without one.
+// Crop marks (rule 27, K11): a mark starts MARK_GAP (1 mm) from the grid, is at most MARK_MAX long, and ends MARK_EDGE (3 mm, the usual unprintable margin: a printer with a wider one clips
+// their outer end) from the sheet's edge; every cut line gets marks, which need at least MARK_MIN (2 mm) to be worth drawing — the margins of the table of rule 26 all leave that.
 const MARK_GAP = 1;
 const MARK_MAX = 4;
-const MARK_MIN = 1;
-const MARK_EDGE = 5;
+const MARK_MIN = 2;
+const MARK_EDGE = 3;
 
 // Rule 26 — per mode and per sheet: the sheet's orientation, the grid of cards (or pairs) and their scale.
 const TABLE = Object.freeze({
@@ -184,5 +184,5 @@ function plan(input) {
 }
 
 module.exports = {
-  plan, check, CARD, A4, MAX_COUNT, MODES, FLIPS, TABLE, MARK_EDGE,
+  plan, check, CARD, A4, MAX_COUNT, MODES, FLIPS, TABLE, MARK_EDGE, MARK_GAP, MARK_MIN,
 };

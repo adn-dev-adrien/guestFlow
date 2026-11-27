@@ -1,49 +1,62 @@
-// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 27 — crop marks on every printed page (recto-verso included), at the cut lines of the grid, inside the printable area:
-// none closer than the minimum margin to the sheet's edge.
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 27 (K11) — crop marks on every printed page, recto-verso included: every cut line of the grid has its marks, each starting 3 mm
+// from the sheet's edge, at least 2 mm long and 1 mm from any card. A table over every mode × cards per sheet × flip × count.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const layout = require('../printLayout');
 
-const planOf = (mode, perSheet, count = perSheet, flip = 'left-right') => {
-  const planned = layout.plan({ mode, perSheet, count, flip });
-  assert.equal(planned.ok, true, JSON.stringify(planned));
-  return planned.layout;
+const COMBOS = Object.entries(layout.TABLE).flatMap(([mode, rows]) => Object.keys(rows).map((perSheet) => [mode, Number(perSheet)]));
+const COUNTS = [1, 2, 3, 4, 5, 7, 8, 9, 17];
+const EPS = 1e-6;
+
+// The cut lines of a page: every card edge of a recto-verso sheet; for a side-by-side sheet the edges of the pairs (the fold in the middle is not cut).
+function cutLines(page) {
+  const folds = new Set(page.folds.map((fold) => fold.x1));
+  const xs = new Set();
+  const ys = new Set();
+  page.cells.forEach((cell) => {
+    [cell.xMm, Number((cell.xMm + cell.widthMm).toFixed(2))].filter((x) => !folds.has(x)).forEach((x) => xs.add(x));
+    [cell.yMm, Number((cell.yMm + cell.heightMm).toFixed(2))].forEach((y) => ys.add(y));
+  });
+  return { xs: [...xs], ys: [...ys] };
+}
+
+// The distance from a segment (horizontal or vertical) to a rectangle.
+const distanceToRect = (mark, cell) => {
+  const lo = { x: Math.min(mark.x1, mark.x2), y: Math.min(mark.y1, mark.y2) };
+  const hi = { x: Math.max(mark.x1, mark.x2), y: Math.max(mark.y1, mark.y2) };
+  const dx = Math.max(cell.xMm - hi.x, lo.x - (cell.xMm + cell.widthMm), 0);
+  const dy = Math.max(cell.yMm - hi.y, lo.y - (cell.yMm + cell.heightMm), 0);
+  return Math.hypot(dx, dy);
 };
 
-const COMBOS = [['recto-verso', 1], ['recto-verso', 2], ['recto-verso', 4], ['recto-verso', 8], ['side-by-side', 1], ['side-by-side', 2], ['side-by-side', 4]];
-
-test('every page of every mode carries crop marks, each inside the sheet and at least MARK_EDGE from its edge', () => {
-  COMBOS.forEach(([mode, perSheet]) => {
-    planOf(mode, perSheet).pages.forEach((page) => {
-      assert.ok(page.marks.length > 0, `${mode} ${perSheet}: page ${page.number} has marks`);
-      page.marks.forEach((m) => {
-        [[m.x1, page.sheet.widthMm], [m.x2, page.sheet.widthMm]].forEach(([x, width]) => assert.ok(x >= layout.MARK_EDGE - 1e-6 && x <= width - layout.MARK_EDGE + 1e-6, `${mode} ${perSheet}: x ${x}`));
-        [[m.y1, page.sheet.heightMm], [m.y2, page.sheet.heightMm]].forEach(([y, height]) => assert.ok(y >= layout.MARK_EDGE - 1e-6 && y <= height - layout.MARK_EDGE + 1e-6, `${mode} ${perSheet}: y ${y}`));
+for (const [mode, perSheet] of COMBOS) {
+  for (const flip of mode === 'recto-verso' ? layout.FLIPS : [null]) {
+    test(`${mode}, ${perSheet} per sheet${flip ? `, ${flip}` : ''}: every cut line has marks, 3 mm from the edge, 2 mm long, 1 mm from any card, for every count`, () => {
+      COUNTS.forEach((count) => {
+        const planned = layout.plan({ mode, perSheet, count, flip });
+        assert.equal(planned.ok, true, JSON.stringify(planned));
+        planned.layout.pages.forEach((page) => {
+          const { xs, ys } = cutLines(page);
+          const where = `${mode} ${perSheet} ${flip} count ${count} page ${page.number}`;
+          assert.ok(page.marks.length > 0, `${where}: marks`);
+          page.marks.forEach((m) => {
+            [m.x1, m.x2].forEach((x) => assert.ok(x >= layout.MARK_EDGE - EPS && x <= page.sheet.widthMm - layout.MARK_EDGE + EPS, `${where}: x ${x} within 3 mm of the edge`));
+            [m.y1, m.y2].forEach((y) => assert.ok(y >= layout.MARK_EDGE - EPS && y <= page.sheet.heightMm - layout.MARK_EDGE + EPS, `${where}: y ${y} within 3 mm of the edge`));
+            assert.ok(Math.hypot(m.x2 - m.x1, m.y2 - m.y1) >= layout.MARK_MIN - EPS, `${where}: shorter than 2 mm`);
+            page.cells.forEach((cell) => assert.ok(distanceToRect(m, cell) >= layout.MARK_GAP - EPS, `${where}: a mark within 1 mm of a card`));
+          });
+          // Every cut line has a mark on each side of the grid.
+          const vertical = page.marks.filter((m) => m.x1 === m.x2);
+          const horizontal = page.marks.filter((m) => m.y1 === m.y2);
+          xs.forEach((x) => assert.ok(vertical.filter((m) => Math.abs(m.x1 - x) < 0.02).length >= 2, `${where}: vertical line ${x} marked above and below`));
+          ys.forEach((y) => assert.ok(horizontal.filter((m) => Math.abs(m.y1 - y) < 0.02).length >= 2, `${where}: horizontal line ${y} marked left and right`));
+        });
       });
     });
-  });
-});
-
-test('the marks sit on the grid lines: a vertical mark at the x of a card edge, a horizontal one at the y of a card edge', () => {
-  const page = planOf('recto-verso', 4).pages[0];
-  const xs = new Set(page.cells.flatMap((c) => [c.xMm, Number((c.xMm + c.widthMm).toFixed(2))]));
-  const ys = new Set(page.cells.flatMap((c) => [c.yMm, Number((c.yMm + c.heightMm).toFixed(2))]));
-  const near = (set, value) => [...set].some((v) => Math.abs(v - value) < 0.02);
-  const vertical = page.marks.filter((m) => m.x1 === m.x2);
-  assert.ok(vertical.length >= 6, 'three lines, above and below');
-  vertical.forEach((m) => assert.ok(near(xs, m.x1), `x ${m.x1}`));
-  page.marks.filter((m) => m.y1 === m.y2).forEach((m) => assert.ok(near(ys, m.y1), `y ${m.y1}`));
-});
-
-test('at 94 % the side margins are 6.3 mm: no mark fits there, the marks go above and below; at full size they go all around', () => {
-  const reduced = planOf('recto-verso', 4).pages[0];
-  assert.deepEqual(reduced.marks.filter((m) => m.y1 === m.y2), []);
-  assert.ok(reduced.marks.some((m) => m.x1 === m.x2));
-  const full = planOf('recto-verso', 1).pages[0];
-  assert.ok(full.marks.some((m) => m.y1 === m.y2) && full.marks.some((m) => m.x1 === m.x2));
-});
+  }
+}
 
 test('the verso page of a recto-verso sheet has the same marks as its recto', () => {
-  const [recto, verso] = planOf('recto-verso', 4).pages;
+  const [recto, verso] = layout.plan({ mode: 'recto-verso', perSheet: 4, count: 4, flip: 'left-right' }).layout.pages;
   assert.deepEqual(verso.marks, recto.marks);
 });
