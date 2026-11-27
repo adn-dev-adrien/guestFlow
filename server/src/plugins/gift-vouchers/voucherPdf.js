@@ -238,19 +238,22 @@ function drawFront(sheet, { image, F, companyName }) {
   } else {
     doc.save().rect(box.x, box.y, box.w, box.h).clip();
     doc.rect(box.x, box.y, box.w, box.h).fill('#f4f1ea');
-    // The name on up to three centred lines inside the safe area, the type shrinking (22 pt down to 12) until all of it fits.
-    const width = TRIM.width - 2 * SAFE;
-    let size = PLAIN_FRONT_PT.max;
-    let lines;
-    for (;;) {
-      doc.font(F.serif).fontSize(size);
-      lines = fitLines(doc, companyName, width, PLAIN_FRONT_PT.lines);
-      if (!lines[lines.length - 1].endsWith('…') || size <= PLAIN_FRONT_PT.min) break;
-      size -= 1;
+    // The name on up to three centred lines inside the safe area, the type shrinking (22 pt down to 12) until all of it fits; a blank name draws nothing.
+    const name = String(companyName || '').trim();
+    if (name) {
+      const width = TRIM.width - 2 * SAFE;
+      let size = PLAIN_FRONT_PT.max;
+      let lines;
+      for (;;) {
+        doc.font(F.serif).fontSize(size);
+        lines = fitLines(doc, name, width, PLAIN_FRONT_PT.lines);
+        if (!lines[lines.length - 1].endsWith('…') || size <= PLAIN_FRONT_PT.min) break;
+        size -= 1;
+      }
+      doc.fillColor(INK);
+      const pitch = doc.currentLineHeight();
+      lines.forEach((line, index) => plainText(doc, line, trim.left + SAFE, trim.top + TRIM.height / 2 - (pitch * lines.length) / 2 + index * pitch, { width, align: 'center' }));
     }
-    doc.fillColor(INK);
-    const pitch = doc.currentLineHeight();
-    lines.forEach((line, index) => plainText(doc, line, trim.left + SAFE, trim.top + TRIM.height / 2 - (pitch * lines.length) / 2 + index * pitch, { width, align: 'center' }));
     doc.restore();
   }
   if (sheet.marks) drawCropMarks(sheet);
@@ -450,7 +453,7 @@ function drawBack(sheet, {
     .sort((a, b) => a.priority - b.priority)
     .map((entry) => {
       doc.font(entry.line.font).fontSize(pt.small);
-      const text = entry.line.fit ? entry.line.fit(doc, pen.width) : entry.line.text;
+      const text = entry.line.fit ? entry.line.fit(doc, pen.width, entry.line.lines) : entry.line.text;
       return {
         ...entry, text, height: doc.currentLineHeight(), need: fitLines(doc, text, pen.width, entry.line.lines).length, given: 0,
       };
@@ -463,8 +466,14 @@ function drawBack(sheet, {
       entry.given += 1;
     }
   }));
-  wanted.slice().sort((a, b) => a.index - b.index).forEach(({ line, text, given }) => {
+  wanted.slice().sort((a, b) => a.index - b.index).forEach(({ line, text: wholeText, given }) => {
     if (!given) return;
+    // A line that builds its own text builds it again for the lines it was allotted: it is cut where it must, never at the end of its tail.
+    let text = wholeText;
+    if (line.fit) {
+      doc.font(line.font).fontSize(pt.small);
+      text = line.fit(doc, pen.width, given);
+    }
     pen.write(text, {
       font: line.font, size: pt.small, color: line.color || INK, align: 'center', maxLines: given, gap: pt.smallGap,
     });
@@ -475,20 +484,23 @@ function drawBack(sheet, {
 }
 
 /**
- * « Votre bon comprend — <name> : <detail> · <period> · <other items> »: the name of the first item is cut with an ellipsis, when the line is too narrow for it, so that its detail and its
- * period (after the colon) stay on the first line. The first item has no colon when it is a lodging voucher's one line, which is then cut like any text.
+ * « Votre bon comprend — <name> : <detail> · <period> · <other items> » on the `lines` it was allotted: the whole text when it fits them; otherwise the name of the first item gives way
+ * (an ellipsis) so that its detail and its period (after the colon) stay whole, with room kept for « ·… » when other items follow. The first item has no colon when it is a lodging
+ * voucher's one line, which is then cut like any text.
  */
 function contentsText({
-  doc, width, first, others,
+  doc, width, lines = 1, first, others,
 }) {
   const [lead, ...detail] = String(first || '').split(' : ');
   const tail = detail.length ? ` : ${detail.join(' : ')}` : '';
-  const head = say(BACK_TEXTS.includes, { lines: tail ? lead : first });
   const rest = others.length ? ` · ${others.join(' · ')}` : '';
-  if (!tail) return `${head}${rest}`;
-  let cut = head;
-  while (cut.length > BACK_TEXTS.includes.indexOf('{') + 3 && doc.widthOfString(`${cut}${tail}`) > width) cut = `${cut.slice(0, -2).trimEnd()}…`;
-  return `${cut}${tail}${rest}`;
+  const whole = `${say(BACK_TEXTS.includes, { lines: tail ? lead : first })}${tail}${rest}`;
+  if (!tail || fitLines(doc, whole, width, lines + 1).length <= lines) return whole;
+  const more = rest ? ' ·…' : '';
+  const fits = (text) => fitLines(doc, text, width, lines + 1).length <= lines;
+  let cut = lead;
+  while (cut.length > 1 && !fits(`${say(BACK_TEXTS.includes, { lines: cut })}${tail}${more}`)) cut = `${cut.slice(0, -2).trimEnd()}…`;
+  return `${say(BACK_TEXTS.includes, { lines: cut })}${tail}${more}`;
 }
 
 const say = (template, values) => Object.entries(values).reduce((text, [key, value]) => text.replace(`{${key}}`, () => value), template);
@@ -519,7 +531,7 @@ function voucherBackSpec({
     printedCode: code.format(voucher.code),
     small: [
       // The first item keeps its detail and its period (« : 1 h en soirée · week-end »): when the line is short of room it is the item's name that gives way, never the tail.
-      { fit: (doc, width) => contentsText({ doc, width, first, others }), font: F.regular, lines: VOUCHER_BACK_LAYOUT.lines.includes, priority: 2 },
+      { fit: (doc, width, lines) => contentsText({ doc, width, lines, first, others }), font: F.regular, lines: VOUCHER_BACK_LAYOUT.lines.includes, priority: 2 },
       { text: voucher.message, font: F.italic, color: MUTED, lines: VOUCHER_BACK_LAYOUT.lines.message, priority: 1 },
       { text: say(BACK_TEXTS.validUntil, { date: rules.formatLongFrDate(voucher.expiresOn) }), font: F.bold, lines: 1, priority: 0 },
     ],

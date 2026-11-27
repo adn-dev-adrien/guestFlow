@@ -60,3 +60,10 @@ test('a short name keeps its full size on one line', async () => {
   assert.equal(lines.length, 1);
   assert.equal(lines[0].size, 22);
 });
+
+test('a blank company name draws nothing on the front and throws nothing (L5)', async () => {
+  for (const name of ['', '   ', null, undefined]) {
+    const lines = await frontLinesOf(name);
+    assert.deepEqual(lines, [], JSON.stringify(name));
+  }
+});

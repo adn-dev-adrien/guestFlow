@@ -7,6 +7,8 @@ const layout = require('../printLayout');
 const COMBOS = Object.entries(layout.TABLE).flatMap(([mode, rows]) => Object.keys(rows).map((perSheet) => [mode, Number(perSheet)]));
 const COUNTS = [1, 2, 3, 4, 5, 7, 8, 9, 17];
 const EPS = 1e-6;
+// K11, written out literally: the rule is judged here, never against the module's own constants (a change of one must break this suite).
+const K11 = { edgeMm: 3, minLengthMm: 2, gapMm: 1 };
 
 // The cut lines of a page: every card edge of a recto-verso sheet; for a side-by-side sheet the edges of the pairs (the fold in the middle is not cut).
 function cutLines(page) {
@@ -40,10 +42,10 @@ for (const [mode, perSheet] of COMBOS) {
           const where = `${mode} ${perSheet} ${flip} count ${count} page ${page.number}`;
           assert.ok(page.marks.length > 0, `${where}: marks`);
           page.marks.forEach((m) => {
-            [m.x1, m.x2].forEach((x) => assert.ok(x >= layout.MARK_EDGE - EPS && x <= page.sheet.widthMm - layout.MARK_EDGE + EPS, `${where}: x ${x} within 3 mm of the edge`));
-            [m.y1, m.y2].forEach((y) => assert.ok(y >= layout.MARK_EDGE - EPS && y <= page.sheet.heightMm - layout.MARK_EDGE + EPS, `${where}: y ${y} within 3 mm of the edge`));
-            assert.ok(Math.hypot(m.x2 - m.x1, m.y2 - m.y1) >= layout.MARK_MIN - EPS, `${where}: shorter than 2 mm`);
-            page.cells.forEach((cell) => assert.ok(distanceToRect(m, cell) >= layout.MARK_GAP - EPS, `${where}: a mark within 1 mm of a card`));
+            [m.x1, m.x2].forEach((x) => assert.ok(x >= K11.edgeMm - EPS && x <= page.sheet.widthMm - K11.edgeMm + EPS, `${where}: x ${x} within 3 mm of the edge`));
+            [m.y1, m.y2].forEach((y) => assert.ok(y >= K11.edgeMm - EPS && y <= page.sheet.heightMm - K11.edgeMm + EPS, `${where}: y ${y} within 3 mm of the edge`));
+            assert.ok(Math.hypot(m.x2 - m.x1, m.y2 - m.y1) >= K11.minLengthMm - EPS, `${where}: shorter than 2 mm`);
+            page.cells.forEach((cell) => assert.ok(distanceToRect(m, cell) >= K11.gapMm - EPS, `${where}: a mark within 1 mm of a card`));
           });
           // Every cut line has a mark on each side of the grid.
           const vertical = page.marks.filter((m) => m.x1 === m.x2);
