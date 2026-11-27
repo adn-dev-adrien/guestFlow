@@ -37,7 +37,7 @@ const BATH = {
 const stored = (over = {}) => ({
   id: 2, name: 'Bain nordique', note: 'Chauffé au bois', quantity: 1, price: 30, basePrice: 30, priceType: 'per_hour',
   propertyIds: [], propertyPricing: { 2: { price: 40, freeMinutes: 60 } }, isComplex: 1, openTime: '11:00', closeTime: '22:00',
-  minimumUsageMinutes: 60, ...over,
+  minimumUsageMinutes: 60, showsPlanningCard: 1, ...over,
 });
 
 function renderPage() {
