@@ -202,14 +202,17 @@ to eight per sheet, two-sided or folded.
 23. The dialog offers:
     - **Mode**: « Recto-verso » or « Côte à côte, à plier »;
     - **Cartes par feuille** (A4): recto-verso 1, 2, 4 or 8; côte à côte 1, 2 or 4;
-    - **Nombre de cartes**: 1–200, default = cards per sheet;
+    - **Nombre de cartes**: 1–200; default = cards per sheet on a campaign (it follows « Cartes par feuille », after a change of mode too, until the operator types a number), **1 on a
+      voucher's fiche** (K5: a voucher is a single-use code, one copy);
     - **Retournement de la feuille** (recto-verso): « De gauche à droite » (default) or « De haut en
       bas » — named by the gesture, because printers use « long / short edge » inconsistently in
       landscape;
-    - a live preview of the first sheets, numbered so each back matches its front, drawn from the
-      server's layout.
+    - a live preview of the first sheets, numbered so each back matches its front, captioned « Feuille n · Recto » / « Feuille n · Verso », drawn from the server's layout, with the
+      crop marks and the sentence the server writes (`layout.description`): « Feuille A4 paysage, 4 × 2, cartes à 66 % (≈ 69 × 98 mm) ». The layout is fetched once per set of options,
+      never again because the parent re-rendered.
 24. **Recto-verso**: odd pages = fronts, even pages = backs; each back sits where its front lands
-    after the flip (columns mirrored for « de gauche à droite », rows for « de haut en bas »). The last sheet holds what remains.
+    after the flip (columns mirrored for « de gauche à droite », rows for « de haut en bas »). **With « De haut en bas », each back is rotated half a turn** (`cell.rotateDeg: 180`,
+    K6): a cut card turned like a page then shows its back upright; the preview draws those backs upside down. The last sheet holds what remains.
 25. **Côte à côte**: each card is its front and its back side by side with a dotted fold line and
     crop marks around the pair; folded, the paper gives a two-sided card.
 26. **Sizes and scale** (owner, Q8: reduced with crop marks):

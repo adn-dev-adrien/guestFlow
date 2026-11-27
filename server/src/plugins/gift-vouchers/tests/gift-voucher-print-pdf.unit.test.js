@@ -82,3 +82,21 @@ test('F25 — the front price label is tall enough for « à partir de » and th
   const lines = pdf.FRONT_PRICE_PT.small + pdf.FRONT_PRICE_PT.price;
   assert.ok(label[3] >= lines * 1.1 + 2 * 2 * MM, `height ${label[3]} holds both lines and the padding`);
 });
+
+test('K6 — flipped like a calendar page every back is drawn rotated half a turn about its cell; flipped like a book page none is', async () => {
+  const rotations = async (flip) => {
+    const original = PDFDocument.prototype.rotate;
+    const angles = [];
+    PDFDocument.prototype.rotate = function recorded(angle, ...rest) { angles.push(angle); return original.call(this, angle, ...rest); };
+    try {
+      const layout = printLayout.plan({ mode: 'recto-verso', perSheet: 4, count: 4, flip }).layout;
+      await pdf.renderPrintSheets({ layout, title: 'm', draw: pdf.merchantDrawing({ campaign, front: null, company, ...base }) });
+    } finally {
+      PDFDocument.prototype.rotate = original;
+    }
+    // The legal mention of each back is itself turned a quarter (90°): only the half turns count.
+    return angles.filter((angle) => angle === 180).length;
+  };
+  assert.equal(await rotations('top-bottom'), 4);
+  assert.equal(await rotations('left-right'), 0);
+});

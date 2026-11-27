@@ -564,6 +564,8 @@ async function renderPrintSheets({ layout, title, draw }) {
       const card = cardSheet(doc);
       const scale = (cell.widthMm * MM_TO_PT) / TRIM.width;
       doc.save();
+      // A back to be read upright once the sheet is turned like a calendar page (rule 24) is drawn half a turn round the centre of its cell.
+      if (cell.rotateDeg) doc.rotate(cell.rotateDeg, { origin: [(cell.xMm + cell.widthMm / 2) * MM_TO_PT, (cell.yMm + cell.heightMm / 2) * MM_TO_PT] });
       doc.translate(cell.xMm * MM_TO_PT - card.trim.left * scale, cell.yMm * MM_TO_PT - card.trim.top * scale);
       doc.scale(scale);
       doc.rect(card.trim.left, card.trim.top, TRIM.width, TRIM.height).clip();

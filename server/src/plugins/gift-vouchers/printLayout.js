@@ -76,8 +76,9 @@ function rectoVerso(g, cards, flip) {
     const col = i % cols;
     const rowIndex = Math.floor(i / cols);
     const at = flip === 'left-right' ? originOf(g, cols - 1 - col, rowIndex) : originOf(g, col, rows - 1 - rowIndex);
+    // Turned like the page of a calendar the back would be upside down: each back is drawn rotated by half a turn so it reads upright once the sheet is flipped (rule 24).
     return {
-      card, face: 'back', ...at, widthMm: round(CARD.width * g.row.scale), heightMm: round(CARD.height * g.row.scale),
+      card, face: 'back', ...at, widthMm: round(CARD.width * g.row.scale), heightMm: round(CARD.height * g.row.scale), rotateDeg: flip === 'top-bottom' ? 180 : 0,
     };
   });
   return [fronts, backs];
@@ -133,8 +134,18 @@ function marksOf(g) {
   return marks;
 }
 
+/** « Feuille A4 paysage, 4 × 2, cartes à 66 % (≈ 69 × 98 mm) » — what the sheet is, in the words the dialog shows under its fields. */
+function describe(g, mode) {
+  const { cols, rows, scale, orientation } = g.row;
+  const width = Math.round(CARD.width * scale);
+  const height = Math.round(CARD.height * scale);
+  const grid = `${cols} × ${rows}${mode === 'side-by-side' ? ' paires à plier' : ''}`;
+  const size = scale === 1 ? `cartes à taille réelle (${width} × ${height} mm)` : `cartes à ${Math.round(scale * 100)} % (≈ ${width} × ${height} mm)`;
+  return `Feuille A4 ${orientation === 'landscape' ? 'paysage' : 'portrait'}, ${grid}, ${size}`;
+}
+
 /**
- * → `{ ok: true, layout }`: `layout = { mode, perSheet, count, flip, scale, sheetCount, pageCount, pages: [{ number, sheet: { orientation, widthMm, heightMm }, cells: [{ card, face, xMm, yMm, widthMm, heightMm }], folds: [...], marks: [{ x1, y1, x2, y2 }] }] }` (millimetres on the sheet)
+ * → `{ ok: true, layout }`: `layout = { mode, perSheet, count, flip, scale, sheetCount, pageCount, pages: [{ number, sheet: { orientation, widthMm, heightMm }, cells: [{ card, face, xMm, yMm, widthMm, heightMm, rotateDeg? }], folds: [...], marks: [{ x1, y1, x2, y2 }] }] }` (millimetres on the sheet)
  * or `{ ok: false, field, message }` with the sentence the dialog shows under the field.
  */
 function plan(input) {
@@ -150,19 +161,24 @@ function plan(input) {
     const cards = Array.from({ length: Math.min(asked.perSheet, asked.count - first + 1) }, (_, i) => first + i);
     if (asked.mode === 'recto-verso') {
       rectoVerso(g, cards, asked.flip).forEach((cells) => pages.push({
-        number: pages.length + 1, sheet, cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })), folds: [], marks: marksOf(g),
+        number: pages.length + 1,
+        caption: `Feuille ${Math.ceil((pages.length + 1) / 2)} · ${cells[0].face === 'front' ? 'Recto' : 'Verso'}`,
+        sheet,
+        cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })),
+        folds: [],
+        marks: marksOf(g),
       }));
     } else {
       const { cells, folds } = sideBySide(g, cards);
       pages.push({
-        number: pages.length + 1, sheet, cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })), folds, marks: marksOf(g),
+        number: pages.length + 1, caption: `Feuille ${pages.length + 1}`, sheet, cells: cells.map(({ x, y, ...rest }) => ({ ...rest, xMm: x, yMm: y })), folds, marks: marksOf(g),
       });
     }
   }
   return {
     ok: true,
     layout: {
-      mode: asked.mode, perSheet: asked.perSheet, count: asked.count, flip: asked.flip, scale: g.row.scale, sheetCount: Math.ceil(asked.count / asked.perSheet), pageCount: pages.length, pages,
+      mode: asked.mode, perSheet: asked.perSheet, count: asked.count, flip: asked.flip, scale: g.row.scale, description: describe(g, asked.mode), sheetCount: Math.ceil(asked.count / asked.perSheet), pageCount: pages.length, pages,
     },
   };
 }

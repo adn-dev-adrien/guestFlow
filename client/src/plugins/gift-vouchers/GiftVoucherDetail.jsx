@@ -182,6 +182,7 @@ export default function GiftVoucherDetail({ voucher, onChange, onClose }) {
         open={dialog === 'print'}
         onClose={() => setDialog(null)}
         title={T.printTitle}
+        initialCount={1}
         fetchLayout={(options) => giftVouchersApi.voucherPrintLayout(voucher.id, options)}
         onPrint={(options) => giftVouchersApi.downloadVoucherPrint(voucher.id, voucher.number, options)}
       />

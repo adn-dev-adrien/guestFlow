@@ -14,7 +14,7 @@ const layoutFor = ({ mode, perSheet, count }) => {
     sheet: sheet('landscape'),
     cells: Array.from({ length: Math.min(perSheet, count) }, (__, i) => ({ card: i + 1, face: mode === 'recto-verso' && index === 1 ? 'back' : 'front', xMm: 10 + i * 20, yMm: 10, widthMm: 18, heightMm: 30 })),
     folds: mode === 'side-by-side' ? [{ x1: 105, y1: 10, x2: 105, y2: 140 }] : [],
-    marks: mode === 'side-by-side',
+    marks: mode === 'side-by-side' ? [{ x1: 10, y1: 5, x2: 10, y2: 8 }] : [],
   }));
   return { pages, pageCount: pages.length };
 };
