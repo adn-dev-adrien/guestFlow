@@ -1,7 +1,7 @@
 {
   "id": "gift-vouchers",
   "name": "Bons cadeaux",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Des bons cadeaux vendus en ligne, au téléphone ou par carte commerçant : un montant pour un séjour, ou un contenu composé (bain nordique et options) réservé en ligne par le bénéficiaire.",
   "icon": "gift",
   "surfaces": [
@@ -19,6 +19,14 @@
   "guestflow": ">=3.10.0",
   "sdk": "^2.36.0",
   "changelog": {
+    "1.10.0": [
+      "Un bon de bain se vend pour la semaine, pour le week-end ou pour les deux : le donateur choisit dans la campagne, chaque période a son prix, et la période est inscrite sur le bon (« · semaine », « · week-end »).",
+      "La validité se choisit dans un menu : 3, 6, 12, 18 ou 24 mois, dans la campagne, sur « Nouveau bon » et pour un bon sur mesure.",
+      "Le bénéficiaire peut réserver n’importe quel créneau : « Inclus » quand il coûte le prix du bon, « + x € » quand il coûte plus, une boisson offerte quand il coûte moins (une heure offerte en plus pour un bon soirée week-end pris en journée). L’écart est noté sur le bon. La boisson se choisit dans les réglages : « Boisson offerte sur l’écart ».",
+      "Les deux versos sont redessinés sur fond blanc ; le recto de la carte commerçant porte « à partir de » et le prix le plus bas, dans le coin choisi par campagne.",
+      "« Imprimer… » prépare des cartes sur des feuilles A4 : 1, 2, 4 ou 8 par feuille en recto-verso, 1, 2 ou 4 à plier côte à côte, avec un aperçu.",
+      "Demande le SDK 2.36 de GuestFlow."
+    ],
     "1.9.0": [
       "Le tableau de prix d’une option ajoutée à un bon vient de la fonction du cœur qu’utilise aussi la page des séances du site ; rien ne change pour le client.",
       "Demande le SDK 2.36 de GuestFlow."

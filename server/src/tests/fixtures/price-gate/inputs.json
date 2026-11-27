@@ -15874,7 +15874,9 @@
     "hourlyEveningStart": null,
     "hourlyEveningRate": 0,
     "hourlyExternalDayRate": 0,
+    "hourlyExternalWeekendDayRate": 0,
     "hourlyExternalEveningRate": 0,
+    "hourlyExternalWeekendEveningRate": 0,
     "heatUpMinutes": 0,
     "heatRetentionMinutes": 0
    },
@@ -15899,7 +15901,9 @@
     "hourlyEveningStart": "20:00",
     "hourlyEveningRate": 50,
     "hourlyExternalDayRate": 50,
+    "hourlyExternalWeekendDayRate": 50,
     "hourlyExternalEveningRate": 70,
+    "hourlyExternalWeekendEveningRate": 70,
     "heatUpMinutes": 0,
     "heatRetentionMinutes": 0
    }
@@ -22307,7 +22311,9 @@
      "hourlyEveningStart": null,
      "hourlyEveningRate": 0,
      "hourlyExternalDayRate": 0,
+     "hourlyExternalWeekendDayRate": 0,
      "hourlyExternalEveningRate": 0,
+     "hourlyExternalWeekendEveningRate": 0,
      "heatUpMinutes": 0,
      "heatRetentionMinutes": 0
     },
@@ -22332,7 +22338,9 @@
      "hourlyEveningStart": "18:00",
      "hourlyEveningRate": 31.5,
      "hourlyExternalDayRate": 27.3,
+     "hourlyExternalWeekendDayRate": 27.3,
      "hourlyExternalEveningRate": 38.9,
+     "hourlyExternalWeekendEveningRate": 38.9,
      "heatUpMinutes": 0,
      "heatRetentionMinutes": 0
     }

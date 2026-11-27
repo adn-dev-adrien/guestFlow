@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Owner** | Adrien |
 | **Created** | 2026-11-27 |
 | **Revised** | 2026-11-27 (owner's answers Q1–Q8 and second review: one external price grid, no duplicate price fields, validity menu, 2 h + drink, 8 per sheet, price on the merchant front) |
@@ -381,18 +381,18 @@ width; print dialog full screen with the preview under the fields.
 - `server/src/tests/hourly-weekend-rates.unit.test.js` — period of each slice (Friday day/evening,
   weekend, public holiday), guests untouched, required fields and refusals, migration of rule 4.
 - `server/src/tests/public-holidays.unit.test.js` — holidays of 2026 and 2027.
-- `server/src/tests/gift-voucher-period-redemption.unit.test.js` — offer per period, frozen period,
+- `server/src/plugins/gift-vouchers/tests/gift-voucher-period-redemption.unit.test.js` — offer per period, frozen period,
   tags in every direction, supplement labels, drink line and trace, 2 h + drink (free, not free,
   past close), validity choices.
-- `server/src/tests/gift-voucher-print-layout.unit.test.js` — every row of rule 26 × long/short,
+- `server/src/plugins/gift-vouchers/tests/gift-voucher-print-layout.unit.test.js` — every row of rule 26 × long/short,
   page count, refusals.
-- `server/src/tests/gift-voucher-card-backs.unit.test.js` — both backs and the front price drawn
+- `server/src/plugins/gift-vouchers/tests/gift-voucher-card-backs.unit.test.js` — both backs and the front price drawn
   (text extraction), corner « Aucun ».
-- Plugin off: `hourly-resources` off → resource editor, gift-vouchers offer and use answer without
-  throwing (extends the existing boundary tests).
-- Client: `HourlyPriceGrids.test.jsx`, `NewVoucherPage.period-validity.test.jsx`,
-  `CampaignEditor.front-price.test.jsx`, `PrintSheetsDialog.test.jsx`.
-- WordPress block tests: period control, slot tags, new back.
+- Plugin off: `server/src/plugins/gift-vouchers/tests/gift-voucher-hourly-off.unit.test.js` — `hourly-resources` off → the voucher offer, the use screen, the confirmation, the late payment and the lapse job answer without
+  throwing (the boundary suites `plugin-boundary-*`, `resource-offer-follows-plugin` and `gift-voucher-catalogue-view` still pass).
+- Client: `plugins/hourly-resources/__tests__/HourlyPriceGrids.test.jsx`, `plugins/gift-vouchers/__tests__/NewVoucherPage.period-validity.test.jsx`, `CampaignEditor.periods.test.jsx`,
+  `CampaignEditor.front-price.test.jsx`, `components/__tests__/PrintSheetsDialog.test.jsx`, and `GiftVoucherSettings.test.jsx` for the drink select.
+- WordPress block tests: `wordpress-gift-voucher.period.test.js` (period control), `wordpress-session-booking.voucher-tags.test.js` (slot tags, offered lines), `wordpress-gift-voucher-card-back.test.js` (new back, stylesheet drift).
 - Manual: print at 4 and 8 per sheet two-sided on a home printer, fold side by side; mobile check of
   the resource panel, « Nouveau bon » and the print dialog.
 
@@ -402,6 +402,22 @@ width; print dialog full screen with the preview under the fields.
 - A balance kept on a voucher; several drinks for a large difference.
 - Other paper sizes than A4.
 - A price on the voucher's front.
+
+## 8b. As built (2026-11-27)
+
+Implemented on `feature/gift-voucher-week-weekend` in five steps (engine and rates, campaigns and validity, redemption, backs and front price, print sheets). Where the code differs from the text above:
+
+- **Read-time defence for rows not saved through the form.** `rateGridOf` still reads a `null` following-hours rate as the first hour of its band (rule 2 withdraws it from the form, the validation and the stored data: the plugin's `resourceRates.js` refuses a blank, migration `explicit_hourly_rates_v13` fills every stored one). The outside first hour at 0 is *not sold* (no fallback to the guests' rate), and an unset weekend column reads 0, not the week rate: nothing is priced from a column nobody filled.
+- **Engine path (rule 30).** The date or period travels in the session of the standalone sale's quote (`session: { band, minutes, start?, date?, period?, rankOffsetMinutes? }`), the engine entry `outsideOffer.quote`, the public session check and the vouchers all use. `customerContext: 'external'` is tagged on the outside session line; `hourlyFamily.price` takes `request.customerContext`. The `outsideOffer.quote` answer carries `session.leftoverCents`, `session.supplementCause` (`evening` | `weekend` | `eveningWeekend`), `session.slot` and `twoHours: { free, minutes, endTime, line }`.
+- **SDK 2.38.0** (minor): the core module `publicHolidays` and `ctx.resourceValidator(validate)`; `hourly-resources` 1.13.0 asks `^2.38.0`. The price grids are a new client slot `resources.priceFields` (`{ key, appliesTo, Component, form: { fields, defaults, fromItem, payload, validate } }`); the core resource form only asks its contributions, and plugin off means no grid and no check.
+- **Per-lodging price (rule 3).** The editor no longer asks it and the payload never sends it for an hourly resource; the migration clears the stored ones. The read path of `property_resource_prices.price` is untouched.
+- **Redemption.** The tags are `in`, `supplement`, `drink`, `twoHoursDrink`, plus `twoHours` (an offered hour when no drink option is set — the spec's four tags assume a drink). With no drink option set `drink` becomes `in`. The drink line is the option's own `offered` line (0 €, its catalogue label shown struck), named « Boisson offerte » in the recap; the added hour is a fulfilment `hourly-slot:<id>:offered`. The gap is traced in the booking's transaction (`traceGap`), the voucher is settled whole as before.
+- **Validity.** An operator's choice on « Nouveau bon » for a named campaign is frozen in the order's `contents.validityMonths` (read by the issuance); the price answer carries `validUntil`. Existing campaigns whose validity is not on the list are moved to the nearest of 3/6/12/18/24 by `gift_voucher_week_weekend_v5`.
+- **Period title.** The voucher's title always ends « · semaine » or « · week-end », for a campaign that sells one period too. The offer's campaign view carries `periods` and `extraTime.pricesByPeriod`; the website's card back carries `back.titles` per period.
+- **Backs.** `BACK_LAYOUT` / `BACK_TEXTS` were rewritten (the four numbers `safeMm`, `legalStripMm`, `qrMm`, `logoMm` kept); the department of the footer is read from the postcode of the company address (`companyProfile.departmentOf`), none when it names none. The website draws the back in `voucher-card.js` / `style.css` from the same layout (a stylesheet-drift test holds the two together).
+- **Print.** `printLayout.plan` is the one layout; `voucherPdf.renderPrintSheets` draws each cell with a translated and scaled frame of the page (fronts cropped to the trim). The dialog previews the first four pages from the same JSON and downloads the PDF; printing a merchant card locks the slug like the merchant-card download.
+- **Test files** that read the gift-vouchers folder live in `server/src/plugins/gift-vouchers/tests/` (the removal matrix refuses such a test in `server/src/tests/`); the suites of rule 6 and 2 (`hourly-weekend-rates`, `public-holidays`) stay in `server/src/tests/`.
+- **Not done / for the owner.** The print of 4 and 8 per sheet on a real printer and the fold of side-by-side sheets (manual plan); the catalogue's « sellable » flag of a bath resource still reads the week grid only; `publicSessionService.resources()` announces `fromCents` from the week grid.
 
 ## 9. Open questions
 

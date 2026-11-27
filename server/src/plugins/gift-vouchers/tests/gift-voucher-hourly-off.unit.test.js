@@ -5,15 +5,15 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { requirePlugins } = require('../plugins/sdk/testing');
+const { requirePlugins } = require('../../sdk/testing');
 
 if (!requirePlugins(['hourly-resources'])) return;
 
-const fx = require('../plugins/gift-vouchers/tests/campaignFixtures');
-const use = require('../plugins/gift-vouchers/tests/useFixture');
-const sdk = require('../plugins/sdk');
-const campaignRules = require('../plugins/gift-vouchers/campaignRules');
-const { withdrawHourlyResources, liveHourlyResources } = require('./hourlyResourcesFixture');
+const fx = require('./campaignFixtures');
+const use = require('./useFixture');
+const sdk = require('../../sdk');
+const campaignRules = require('../campaignRules');
+const { withdrawHourlyResources, liveHourlyResources } = require('../../../tests/hourlyResourcesFixture');
 
 const ids = fx.seedCatalogue();
 const offerOfBath = use.bookingOffer();

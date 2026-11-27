@@ -132,7 +132,7 @@ function roundedBands(raw, grossTotal) {
     const amount = i === raw.length - 1 ? round2(grossTotal - spent) : round2(b.raw);
     spent = round2(spent + amount);
     return {
-      band: b.band, ...(b.period === 'weekend' ? { period: 'weekend' } : {}), from: formatTime(b.fromMin), to: formatTime(b.toMin),
+      band: b.band, from: formatTime(b.fromMin), to: formatTime(b.toMin),
       minutes: b.toMin - b.fromMin, rate: round2(b.rate), amount,
     };
   });

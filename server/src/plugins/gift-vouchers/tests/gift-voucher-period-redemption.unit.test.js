@@ -4,15 +4,15 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { requirePlugins } = require('../plugins/sdk/testing');
+const { requirePlugins } = require('../../sdk/testing');
 
 if (!requirePlugins(['hourly-resources'])) return;
 
-const fx = require('../plugins/gift-vouchers/tests/campaignFixtures');
-const use = require('../plugins/gift-vouchers/tests/useFixture');
-const rules = require('../plugins/gift-vouchers/voucherRules');
-const { memorySettings } = require('../plugins/gift-vouchers');
-const sdk = require('../plugins/sdk');
+const fx = require('./campaignFixtures');
+const use = require('./useFixture');
+const rules = require('../voucherRules');
+const { memorySettings } = require('..');
+const sdk = require('../../sdk');
 
 const ids = fx.seedCatalogue();
 const offerOfBath = use.bookingOffer();
@@ -23,7 +23,7 @@ const { api, db, clock } = shop;
 // Week 50 € / 70 €, weekend 70 € / 90 €, following hours 45 / 63 and 60 / 80.
 db.prepare(`UPDATE resources SET hourlyExternalWeekendDayRate = 70, hourlyExternalWeekendEveningRate = 90, hourlyExternalWeekendNextDayRate = 60, hourlyExternalWeekendNextEveningRate = 80 WHERE id = ?`).run(ids.bath);
 const create = (over) => {
-  const checked = require('../plugins/gift-vouchers/campaignRules').validateCampaign(fx.bathCampaign(ids, over), fx.rulesContext(api));
+  const checked = require('../campaignRules').validateCampaign(fx.bathCampaign(ids, over), fx.rulesContext(api));
   assert.equal(checked.ok, true, JSON.stringify(checked.errors));
   return api.campaigns.find(api.campaigns.insert(checked.value));
 };
@@ -33,7 +33,7 @@ const both = create({ ...hour, name: 'Une heure', slug: 'une-heure', periods: ['
 const weekOnly = create({ ...hour, name: 'Semaine', slug: 'semaine', periods: ['week'] });
 
 test('rule 10 — a campaign offers one or both periods, both by default; at least one, nothing else', () => {
-  const rulesOf = require('../plugins/gift-vouchers/campaignRules');
+  const rulesOf = require('../campaignRules');
   const checked = (periods) => rulesOf.validateCampaign(fx.bathCampaign(ids, { ...hour, slug: 'p', periods }), fx.rulesContext(api));
   assert.deepEqual(checked(undefined).value.periods, ['week', 'weekend']);
   assert.deepEqual(checked(['weekend']).value.periods, ['weekend']);
@@ -73,11 +73,11 @@ test('rule 12 — the period is frozen on the voucher, its title says it, and a 
 test('rule 13 — the validity is 3, 6, 12, 18 or 24 months and nothing else, on a campaign, « Nouveau bon » and « Sur mesure »', () => {
   assert.deepEqual(rules.VALIDITY_CHOICES, [3, 6, 12, 18, 24]);
   [3, 6, 12, 18, 24].forEach((months) => {
-    const checked = require('../plugins/gift-vouchers/campaignRules').validateCampaign(fx.bathCampaign(ids, { ...hour, slug: `v${months}`, validityMonths: months }), fx.rulesContext(api));
+    const checked = require('../campaignRules').validateCampaign(fx.bathCampaign(ids, { ...hour, slug: `v${months}`, validityMonths: months }), fx.rulesContext(api));
     assert.equal(checked.ok, true, String(months));
   });
   [1, 4, 36, 120].forEach((months) => {
-    const checked = require('../plugins/gift-vouchers/campaignRules').validateCampaign(fx.bathCampaign(ids, { ...hour, slug: 'v', validityMonths: months }), fx.rulesContext(api));
+    const checked = require('../campaignRules').validateCampaign(fx.bathCampaign(ids, { ...hour, slug: 'v', validityMonths: months }), fx.rulesContext(api));
     assert.deepEqual(checked.errors[0], { field: 'validityMonths', message: 'La validité doit être de 3, 6, 12, 18 ou 24 mois.' });
   });
   const named = (validityMonths) => api.offerService.createOrder({
@@ -160,7 +160,7 @@ test('rule 16 — a cheaper slot gives one drink whatever the gap, traced as « 
   assert.equal(recap.data.dueCents, 0);
   const booked = await confirm(v, TUESDAY, '10:00');
   assert.equal(booked.ok, true, JSON.stringify(booked));
-  const sale = require('../utils/standaloneSale').documentOf(Number(db.prepare('SELECT saleRef FROM resource_bookings WHERE id = ?').get(booked.data.bookingId).saleRef.split(':')[1]));
+  const sale = require('../../../utils/standaloneSale').documentOf(Number(db.prepare('SELECT saleRef FROM resource_bookings WHERE id = ?').get(booked.data.bookingId).saleRef.split(':')[1]));
   const drink = sale.lines.find((l) => l.articleKey === `option:${ids.drink}`);
   assert.deepEqual([drink.totalCents, drink.offered], [0, true], 'a 0 € line on the booking');
   assert.deepEqual(api.unused.listByVoucher(v.id).map((r) => [r.label, r.valueCents]), [['Écart de créneau', 2000]]);
@@ -189,7 +189,7 @@ test('rule 17 — an evening-weekend voucher on a free day-week slot gives 2 h a
   assert.equal(booked.ok, true, JSON.stringify(booked));
   const row = db.prepare('SELECT startTime, endTime FROM resource_bookings WHERE id = ?').get(booked.data.bookingId);
   assert.deepEqual([row.startTime, row.endTime], ['14:00', '16:00']);
-  const sale = require('../utils/standaloneSale').documentOf(Number(db.prepare('SELECT saleRef FROM resource_bookings WHERE id = ?').get(booked.data.bookingId).saleRef.split(':')[1]));
+  const sale = require('../../../utils/standaloneSale').documentOf(Number(db.prepare('SELECT saleRef FROM resource_bookings WHERE id = ?').get(booked.data.bookingId).saleRef.split(':')[1]));
   const hourLine = sale.lines.find((l) => l.label === 'Heure offerte');
   assert.deepEqual([hourLine.totalCents, hourLine.offered], [0, true]);
   assert.deepEqual(api.unused.listByVoucher(v.id).map((r) => [r.label, r.valueCents]), [['Écart de créneau', 4000]], '90 € of reference against the 50 € day hour');

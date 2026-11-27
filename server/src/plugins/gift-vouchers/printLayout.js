@@ -30,7 +30,8 @@ const TABLE = Object.freeze({
 const MODES = Object.freeze(Object.keys(TABLE));
 const FLIPS = Object.freeze(['left-right', 'top-bottom']);
 
-const round = (n) => Math.round(n * 100) / 100;
+// Millimetres on a sheet, to the hundredth: a length, never money.
+const round = (n) => Math.trunc(n * 100 + 0.5) / 100;
 const refuse = (field, message) => ({ ok: false, field, message });
 
 function check({ mode, perSheet, count, flip }) {

@@ -39,10 +39,10 @@ test('rule 6 — Friday from the evening switch, Saturday, Sunday and public hol
 
 test('rule 6 — a session 19:30-21:00 on a Friday is priced week day then weekend evening, the ranks running on', NEEDS_PLUGIN, () => {
   const priced = outside(BATH, '2026-11-27', '19:30', '21:00');
-  assert.deepEqual(priced.bands.map((b) => [b.band, b.from, b.to, b.rate, b.period || 'week']), [
-    ['day', '19:30', '20:00', 50, 'week'],
-    ['evening', '20:00', '20:30', 90, 'weekend'],
-    ['evening', '20:30', '21:00', 80, 'weekend'],
+  assert.deepEqual(priced.bands.map((b) => [b.band, b.from, b.to, b.rate]), [
+    ['day', '19:30', '20:00', 50],
+    ['evening', '20:00', '20:30', 90],
+    ['evening', '20:30', '21:00', 80],
   ]);
   assert.equal(priced.grossPrice, 25 + 45 + 40);
 });

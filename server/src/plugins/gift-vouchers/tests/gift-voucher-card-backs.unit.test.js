@@ -5,16 +5,16 @@ process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const PDFDocument = require('pdfkit');
-const { requirePlugins } = require('../plugins/sdk/testing');
+const { requirePlugins } = require('../../sdk/testing');
 
 if (!requirePlugins(['hourly-resources'])) return;
 
-const fx = require('../plugins/gift-vouchers/tests/campaignFixtures');
-const campaignRules = require('../plugins/gift-vouchers/campaignRules');
-const images = require('../plugins/gift-vouchers/visualImages');
-const { picture } = require('../plugins/gift-vouchers/tests/visualFixtures');
-const { filesDir } = require('../plugins/gift-vouchers/tests/visualFilesFixture');
-const { companyDepartment } = { companyDepartment: require('../plugins/gift-vouchers/companyProfile').departmentOf };
+const fx = require('./campaignFixtures');
+const campaignRules = require('../campaignRules');
+const images = require('../visualImages');
+const { picture } = require('./visualFixtures');
+const { filesDir } = require('./visualFilesFixture');
+const { companyDepartment } = { companyDepartment: require('../companyProfile').departmentOf };
 
 const MM = 72 / 25.4;
 const ids = fx.seedCatalogue();

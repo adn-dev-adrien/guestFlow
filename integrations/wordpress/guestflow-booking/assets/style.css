@@ -458,7 +458,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-gv-uselink { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; margin-top: 1rem; padding: .75rem .9rem; border: 1px solid var(--gfb-border); border-radius: 10px; background: var(--gfb-surface); }
 .gf-gv-uselink a { min-height: 44px; display: inline-flex; align-items: center; color: var(--gfb-fill); font-weight: 600; text-underline-offset: 3px; }
 /* The printed card's own colours (the PDF's), declared once: the back keeps them whatever the site's accent is. The zoom lives in <body>, outside the block. */
-:where(.gf-block, .gf-card-zoom, .gf-card-sheet) { --gfc-ink: #1f2a24; --gfc-muted: #5c665f; --gfc-line: #c9cfc9; --gfc-wait: #a9b0aa; --gfc-plain: #f4f1ea; --gfc-veil: rgba(20, 20, 18, .72); --gfc-chip: rgba(39, 37, 31, .6); --gfc-lift: rgba(0, 0, 0, .14); }
+:where(.gf-block, .gf-card-zoom, .gf-card-sheet) { --gfc-ink: #1f2a24; --gfc-muted: #5c665f; --gfc-line: #c9cfc9; --gfc-wait: #a9b0aa; --gfc-plain: #f4f1ea; --gfc-honey: #b9822f; --gfc-veil: rgba(20, 20, 18, .72); --gfc-chip: rgba(39, 37, 31, .6); --gfc-lift: rgba(0, 0, 0, .14); }
 /* ── Rule 66 — the voucher card that turns: its front (rule 62) and its back, drawn in millimetres as GuestFlow's PDF draws it ──────────────
    Fonts: the PDF's own faces, Latin subsets (assets/fonts, SIL OFL). The back's sizes are CSS custom properties set from the layout GuestFlow sends
    (--m-* millimetres, --p-* points, --l-* lines), so the page holds no dimension of its own. */
@@ -525,20 +525,20 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-v-logo img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 .gf-v-logo.is-name { height: auto; font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-logo-name) * var(--pt)); color: var(--gfc-muted); text-align: center; }
 .gf-v-logo.is-name .gf-v-t { line-height: var(--lh-serif); -webkit-line-clamp: var(--l-logo-name); }
-.gf-v-kicker { flex: none; font-weight: 700; font-size: calc(var(--p-kicker) * var(--pt)); letter-spacing: calc(var(--p-kicker-spacing) * var(--pt)); color: #b9822f; margin-bottom: calc(var(--p-kicker-gap) * var(--pt)); }
+.gf-v-kicker { flex: none; font-weight: 700; font-size: calc(var(--p-kicker) * var(--pt)); letter-spacing: calc(var(--p-kicker-spacing) * var(--pt)); color: var(--gfc-honey); margin-bottom: calc(var(--p-kicker-gap) * var(--pt)); }
 .gf-v-title { flex: none; font-family: "GF Card Serif", Georgia, serif; font-weight: 600; font-size: calc(var(--p-title) * var(--pt)); line-height: var(--lh-serif); margin-bottom: calc(var(--p-title-gap) * var(--pt)); -webkit-line-clamp: var(--l-title); }
 .gf-v-subtitle { flex: none; font-style: italic; font-size: calc(var(--p-subtitle) * var(--pt)); color: var(--gfc-muted); margin-bottom: calc(var(--p-subtitle-gap) * var(--pt)); -webkit-line-clamp: var(--l-subtitle); }
 .gf-verso .gf-v-subtitle { font-style: italic; }
-.gf-v-qrframe { flex: none; padding: calc(var(--m-qr-frame-pad) * var(--mm)); border: calc(var(--p-frame-stroke) * var(--pt)) solid #b9822f; border-radius: calc(2.5 * var(--mm)); margin-bottom: calc(var(--m-after-qr) * var(--mm)); }
+.gf-v-qrframe { flex: none; padding: calc(var(--m-qr-frame-pad) * var(--mm)); border: calc(var(--p-frame-stroke) * var(--pt)) solid var(--gfc-honey); border-radius: calc(2.5 * var(--mm)); margin-bottom: calc(var(--m-after-qr) * var(--mm)); }
 .gf-v-qr { width: calc(var(--m-qr) * var(--mm)); height: calc(var(--m-qr) * var(--mm)); background: #fff; }
 .gf-v-qr svg { display: block; width: 100%; height: 100%; }
 .gf-v-scan { flex: none; font-weight: 700; font-size: calc(var(--p-scan) * var(--pt)); margin-bottom: calc(var(--p-scan-gap) * var(--pt)); }
 .gf-v-link { flex: none; font-size: calc(var(--p-link) * var(--pt)); color: var(--gfc-muted); margin-bottom: calc(var(--p-link-gap) * var(--pt)); -webkit-line-clamp: var(--l-link); }
 .gf-v-steps { flex: none; align-self: stretch; margin-bottom: calc((var(--m-after-steps) - var(--m-step-gap)) * var(--mm)); }
 .gf-v-step { display: flex; align-items: center; gap: calc(2.5 * var(--mm)); min-height: calc(var(--m-disc) * var(--mm)); margin-bottom: calc(var(--m-step-gap) * var(--mm)); text-align: left; }
-.gf-v-disc { flex: none; display: flex; align-items: center; justify-content: center; width: calc(var(--m-disc) * var(--mm)); height: calc(var(--m-disc) * var(--mm)); border-radius: 50%; background: #b9822f; color: #fff; font-weight: 700; font-size: calc(var(--p-disc-number) * var(--pt)); line-height: 1; }
+.gf-v-disc { flex: none; display: flex; align-items: center; justify-content: center; width: calc(var(--m-disc) * var(--mm)); height: calc(var(--m-disc) * var(--mm)); border-radius: 50%; background: var(--gfc-honey); color: #fff; font-weight: 700; font-size: calc(var(--p-disc-number) * var(--pt)); line-height: 1; }
 .gf-v-step-text { font-size: calc(var(--p-step) * var(--pt)); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--l-step); overflow: hidden; min-width: 0; }
-.gf-v-codebox { flex: none; align-self: stretch; position: relative; height: calc(var(--m-code-box) * var(--mm)); border: calc(.9 * var(--pt)) solid #b9822f; border-radius: calc(1.5 * var(--mm)); background: #fff; margin-bottom: calc(var(--m-after-code) * var(--mm)); }
+.gf-v-codebox { flex: none; align-self: stretch; position: relative; height: calc(var(--m-code-box) * var(--mm)); border: calc(.9 * var(--pt)) solid var(--gfc-honey); border-radius: calc(1.5 * var(--mm)); background: #fff; margin-bottom: calc(var(--m-after-code) * var(--mm)); }
 .gf-v-code-label { position: absolute; left: calc(2.5 * var(--mm)); top: calc(2 * var(--mm)); font-size: calc(var(--p-code-label) * var(--pt)); color: var(--gfc-muted); text-align: left; }
 .gf-v-code { position: absolute; left: 0; right: 0; top: calc(var(--m-code-box) * var(--mm) / 2 - .5em * var(--lh-sans) + 1 * var(--mm)); font-weight: 700; font-size: calc(var(--p-code) * var(--pt)); letter-spacing: calc(var(--p-code-spacing) * var(--pt)); overflow-wrap: normal; white-space: nowrap; }
 .gf-v-code.is-wait { color: var(--gfc-wait); }
@@ -548,7 +548,7 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-v-valid { flex: none; font-weight: 700; font-size: calc(var(--p-small) * var(--pt)); }
 .gf-v-foot { position: absolute; left: calc(var(--m-safe) * var(--mm)); right: calc((var(--m-safe) + var(--m-legal-strip)) * var(--mm)); bottom: calc(var(--m-safe) * var(--mm)); text-align: center; font-size: calc(var(--p-footer) * var(--pt)); }
 .gf-v-foot .gf-v-t { line-height: calc(var(--m-footer-line) * var(--mm)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gf-v-identity { font-style: italic; color: #b9822f; }
+.gf-v-identity { font-style: italic; color: var(--gfc-honey); }
 .gf-v-legal { position: absolute; right: calc(var(--m-safe) * var(--mm)); top: 50%; width: calc(var(--m-legal-strip) * var(--mm)); height: 0; }
 .gf-v-legal .gf-v-t { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%) rotate(90deg); white-space: nowrap; font-size: calc(var(--p-legal) * var(--pt)); color: var(--gfc-muted); }
 .gf-v-pill { position: absolute; z-index: 1; top: calc(3 * var(--mm)); right: calc(3 * var(--mm)); padding: calc(1 * var(--mm)) calc(1.6 * var(--mm)); border-radius: 99px; background: var(--gfc-chip); color: #fff; font: 600 calc(6.5 * var(--pt))/1 "GF Card Sans", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }

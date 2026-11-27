@@ -195,6 +195,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
       and the remainder is the difference with the day price the voucher covers.
     - An **evening** voucher is offered evening slots only: a session starting at or after
       `hourlyEveningStart`. The evening-to-day direction does not exist and is not modelled.
+    > *Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rule 15 (15).*
 15. **Unused value is traced.** When part of a voucher is not used — an option the operator marks
     « non pris » in the arrival SAS — nothing is kept as a balance. The settle movement records the
     unused part and its value at the day's prices. The admin detail shows « Écart non utilisé : … »
@@ -344,6 +345,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 ### 3.F The merchant card
 
 33. When a campaign has a merchant card front, its page offers the printable PDF (rule 49).
+    > *Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rule 19, 21 (19, 21).*
     - The PDF is A6 two-sided, with 3 mm bleed and crop marks.
     - **Front**: the picked front.
     - **Back**, drawn by GuestFlow:
@@ -776,6 +778,7 @@ Rules are identities: a rule is never renumbered, new rules are appended
 ### 3.V The whole card on the website, front and back (added 2026-11-26)
 
 66. **The site shows the card the buyer will receive: its front and its back, as the PDF draws them**
+    > *Amended 2026-11-27 by `specs/gift-vouchers/gift-voucher-week-weekend-and-print.md` rule 18, 20 (18, 20).*
     (owner request of 2026-11-26; mock-up and the owner's six choices: `docs/specs/2026-11-26-gift-voucher-site-card-back.html`;
     amends rule 62).
     - **Before:** the front stood beside the form, and an « Aperçu du bon » — a grey ticket with no logo, no

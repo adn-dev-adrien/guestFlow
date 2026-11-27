@@ -4,7 +4,7 @@ process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { plan } = require('../plugins/gift-vouchers/printLayout');
+const { plan } = require('../printLayout');
 
 const ok = (input) => {
   const planned = plan(input);
@@ -104,14 +104,14 @@ test('rule 23, 27 — the refusals name their field with the sentence the dialog
 });
 
 // ── served ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-const { requirePlugins } = require('../plugins/sdk/testing');
+const { requirePlugins } = require('../../sdk/testing');
 
 if (requirePlugins(['hourly-resources'])) {
-  const fx = require('../plugins/gift-vouchers/tests/campaignFixtures');
-  const campaignRules = require('../plugins/gift-vouchers/campaignRules');
-  const images = require('../plugins/gift-vouchers/visualImages');
-  const { picture } = require('../plugins/gift-vouchers/tests/visualFixtures');
-  const { filesDir } = require('../plugins/gift-vouchers/tests/visualFilesFixture');
+  const fx = require('./campaignFixtures');
+  const campaignRules = require('../campaignRules');
+  const images = require('../visualImages');
+  const { picture } = require('./visualFixtures');
+  const { filesDir } = require('./visualFilesFixture');
 
   const ids = fx.seedCatalogue();
   const { api } = fx.openShop();
