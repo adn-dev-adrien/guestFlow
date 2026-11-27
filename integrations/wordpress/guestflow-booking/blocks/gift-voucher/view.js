@@ -1,5 +1,5 @@
 /**
- * Gift voucher tunnel frontend (build-free, plain ES) — specs/gift-vouchers.md §3.C, §3.D and §6.
+ * Gift voucher tunnel frontend (build-free, plain ES) — specs/gift-vouchers/gift-vouchers.md §3.C, §3.D and §6.
  *
  * Its own small state machine, independent of the booking block (rule 12): it shares only the runtime
  * (`GF.api`, `GF.el`, `GF.t`), `assets/voucher-parts.js` (proof of work, stepper, amounts) and the field styles.
@@ -7,7 +7,7 @@
  *   loading → [campaign choice] → form ─(pay)→ [redirect to the hosted payment page]
  *   ?gf_voucher=<id>&gf_token=<t> → waiting (poll) → voucher | failed | link expired (« Recommencer ») | still pending
  *
- * specs/gift-voucher-campaigns.md rules 16-19: the page lists the campaigns on sale grouped by kind; a card address
+ * specs/gift-vouchers/gift-voucher-campaigns.md rules 16-19: the page lists the campaigns on sale grouped by kind; a card address
  * (`#campagne=<slug>`) opens one directly. EVERY way into a campaign — the address, a click on the chooser, a single
  * offer — goes through `open()`, the one place that builds the form, so a campaign opened by its card address works
  * exactly like one chosen on the site. A `lodging` campaign keeps the free-amount tunnel; a `resource` campaign
@@ -39,7 +39,7 @@
 
   var money = GF.voucherMoney;
 
-  // The address of a printed card: `#campagne=<slug>` (specs/gift-voucher-campaigns.md rule 9).
+  // The address of a printed card: `#campagne=<slug>` (specs/gift-vouchers/gift-voucher-campaigns.md rule 9).
   function hashCampaign() {
     var found = /[#&]campagne=([^&]+)/.exec(window.location.hash || '');
     if (!found) return '';
@@ -548,7 +548,7 @@
       return a.cents;
     }
 
-    // ── Proof of work: the same challenge the booking request solves (specs/gift-vouchers.md rule 15) ──
+    // ── Proof of work: the same challenge the booking request solves (specs/gift-vouchers/gift-vouchers.md rule 15) ──
     var proof = GF.voucherProof();
     // The work starts when the form is in front of the visitor or touched, never on a mere page view.
     if (available) proof.observe(root);

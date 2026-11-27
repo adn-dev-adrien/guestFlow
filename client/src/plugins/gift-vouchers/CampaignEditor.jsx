@@ -1,5 +1,5 @@
 /**
- * CampaignEditor — one campaign (specs/gift-voucher-campaigns.md rules 2-10, 46-47, 49, 59, §4.2): general, content (a composition for a `resource` campaign, the free
+ * CampaignEditor — one campaign (specs/gift-vouchers/gift-voucher-campaigns.md rules 2-10, 46-47, 49, 59, §4.2): general, content (a composition for a `resource` campaign, the free
  * amount, VAT and ideas for a `lodging` one), add-ons, extra time, visuals, permanent links, downloads. On `md+` the right column shows the price the server computes for the
  * content being edited; on `xs` everything is one column. The server judges the form: each refusal is shown on the field it names, and nothing here prices or validates.
  *

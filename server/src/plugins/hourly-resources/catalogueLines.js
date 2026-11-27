@@ -1,6 +1,6 @@
 /**
  * What the hourly plugin adds to a resource's card on Options & ressources
- * (specs/options-resources-ux.md rule 19): the evening, following-hours and external rates, the free first hour and a
+ * (specs/options/options-resources-ux.md rule 19): the evening, following-hours and external rates, the free first hour and a
  * footer that sums the schedule up. A resource not sold by the hour gets nothing. Pure.
  */
 
@@ -29,7 +29,7 @@ function eveningLine(resource) {
   return { label: 'Soir', value: `${hourly(guest.eveningRate)} après ${resource.hourlyEveningStart}` };
 }
 
-// specs/hourly-extra-hour-rates.md rule 6 — « puis X € / h » where the following hours cost something else than the first one. `null` stored = same as the first hour.
+// specs/resources/hourly-extra-hour-rates.md rule 6 — « puis X € / h » where the following hours cost something else than the first one. `null` stored = same as the first hour.
 const differs = (next, first) => next !== null && Number.isFinite(next) && Math.round(next * 100) !== Math.round(Number(first) * 100);
 const thenText = (next, first) => (differs(next, first) ? ` puis ${hourly(next)}` : '');
 

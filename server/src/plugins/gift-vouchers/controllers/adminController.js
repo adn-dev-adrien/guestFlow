@@ -1,7 +1,7 @@
 /**
- * `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers.md rules 24-28, §4.3). Thin handlers over the models
+ * `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers/gift-vouchers.md rules 24-28, §4.3). Thin handlers over the models
  * and rules: they validate the shape of what they receive, ask the models, and answer. Every action that changes a voucher
- * writes a movement carrying its author (rule 25). A voucher is sold through the same `offerService` as on the site (specs/gift-voucher-campaigns.md
+ * writes a movement carrying its author (rule 25). A voucher is sold through the same `offerService` as on the site (specs/gift-vouchers/gift-voucher-campaigns.md
  * rules 41, 52): this side adds the session and the three outcomes — « Payé », « Offert », « Envoyer un lien ».
  */
 

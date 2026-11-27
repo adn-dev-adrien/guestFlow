@@ -1,4 +1,4 @@
-/** `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers.md §4.3, specs/gift-voucher-campaigns.md §4.4). Admin only: no reception entry is declared. */
+/** `/api/gift-vouchers/**` — the operator's side (specs/gift-vouchers/gift-vouchers.md §4.3, specs/gift-vouchers/gift-voucher-campaigns.md §4.4). Admin only: no reception entry is declared. */
 
 const express = require('express');
 
@@ -11,7 +11,7 @@ function buildAdminRouter({
   router.post('/stays/:reservationId/pay', stays.pay);
   router.post('/stays/:reservationId/recredit', stays.recredit);
   router.delete('/stays/:reservationId/payments/:ref', stays.undo);
-  // The campaigns and the offer (specs/gift-voucher-campaigns.md §4.4): declared before `/:id` too.
+  // The campaigns and the offer (specs/gift-vouchers/gift-voucher-campaigns.md §4.4): declared before `/:id` too.
   router.get('/catalogue', campaigns.catalogue);
   router.get('/campaigns', campaigns.list);
   router.post('/campaigns', campaigns.create);

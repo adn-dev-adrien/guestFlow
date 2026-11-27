@@ -1,4 +1,4 @@
-// French copy and presentation maps of the « Bons cadeaux » screens (specs/gift-vouchers.md §6). The server decides each
+// French copy and presentation maps of the « Bons cadeaux » screens (specs/gift-vouchers/gift-vouchers.md §6). The server decides each
 // voucher's state; these maps only give it a label and a colour.
 export const STATE_BADGES = Object.freeze({
   pending: { label: 'En attente', status: 'neutral' },
@@ -114,7 +114,7 @@ export const SETTINGS_TEXTS = Object.freeze({
   },
 });
 
-// Lodging fields of a campaign (specs/gift-voucher-campaigns.md rule 3): the amount bounds, the VAT rate and the price ideas moved here from the settings.
+// Lodging fields of a campaign (specs/gift-vouchers/gift-voucher-campaigns.md rule 3): the amount bounds, the VAT rate and the price ideas moved here from the settings.
 export const LODGING_TEXTS = Object.freeze({
   title: 'Montant libre',
   help: 'Bornes du montant, TVA et idées de séjour du bon séjour.',

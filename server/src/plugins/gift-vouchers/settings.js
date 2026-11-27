@@ -1,6 +1,6 @@
 /**
- * The plugin's settings (specs/gift-vouchers.md rules 22, 23), each with the check `PUT /api/plugins/:id/settings` runs. The bounds, the validity, the VAT rate and the ideas of the
- * lodging voucher are a campaign's now (specs/gift-voucher-campaigns.md rule 3, `campaignRules.js`), and the e-mail of a voucher is built from the voucher itself (rule 20): no template.
+ * The plugin's settings (specs/gift-vouchers/gift-vouchers.md rules 22, 23), each with the check `PUT /api/plugins/:id/settings` runs. The bounds, the validity, the VAT rate and the ideas of the
+ * lodging voucher are a campaign's now (specs/gift-vouchers/gift-voucher-campaigns.md rule 3, `campaignRules.js`), and the e-mail of a voucher is built from the voucher itself (rule 20): no template.
  * `pageUrl` is the site page holding the voucher (the link of the e-mail), falling back to the site's origin. `linkBase` is the first segment of the two permanent paths printed on the
  * cards, `/<linkBase>/offrir/<slug>` and `/<linkBase>/utiliser` (rule 9).
  */

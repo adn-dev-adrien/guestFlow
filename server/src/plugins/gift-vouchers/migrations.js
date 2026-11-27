@@ -1,5 +1,5 @@
 /**
- * The tables of the plugin (specs/gift-vouchers.md §5), in one idempotent migration. No core column and no
+ * The tables of the plugin (specs/gift-vouchers/gift-vouchers.md §5), in one idempotent migration. No core column and no
  * foreign key into the core: a voucher outlives a deleted reservation and a deactivated plugin keeps its rows (rule 4).
  * `publicTokenEncrypted` keeps the voucher link (rule 21) re-sendable, like `guest_stay_links.tokenEncrypted`.
  * The ledger is append-only (rule 31): the triggers refuse an update and a delete.
@@ -81,7 +81,7 @@ const TABLES = ['gift_voucher_orders', 'gift_vouchers', 'gift_voucher_movements'
 // Rule 43 — the VAT rate frozen on a voucher when it is sold; the vouchers sold before it existed were sold at 10 %.
 const VAT_SQL = 'ALTER TABLE gift_vouchers ADD COLUMN vatRatePercent REAL NOT NULL DEFAULT 10';
 
-// specs/gift-voucher-campaigns.md §5 — the campaigns, and the campaign, frozen contents and VAT lines every order and voucher carries. A voucher or an order
+// specs/gift-vouchers/gift-voucher-campaigns.md §5 — the campaigns, and the campaign, frozen contents and VAT lines every order and voucher carries. A voucher or an order
 // sold before it is a `lodging` one: `contents` defaults to that kind, `campaignId` is filled by the data move below.
 const CAMPAIGNS_SQL = `
   CREATE TABLE IF NOT EXISTS gift_voucher_campaigns (
@@ -163,7 +163,7 @@ function campaignsMigration(db) {
   moveSettingsToLodgingCampaign(db);
 }
 
-// specs/gift-voucher-campaigns.md §5 — the visual library with its versions, the refund lines of cancelled vouchers, and what a voucher freezes of
+// specs/gift-vouchers/gift-voucher-campaigns.md §5 — the visual library with its versions, the refund lines of cancelled vouchers, and what a voucher freezes of
 // them (the version of its front, rule 48). The first spec stored no voucher image, so there is nothing to carry into the library.
 const VISUALS_SQL = `
   CREATE TABLE IF NOT EXISTS gift_voucher_visuals (
@@ -219,7 +219,7 @@ function visualsMigration(db) {
   moveOrderTermsToAcceptances(db);
 }
 
-// specs/gift-voucher-campaigns.md rules 15, 29 — a recipient's use of a composed voucher on « Mon bain » (held 15 minutes while a remainder is paid, then booked or lapsed),
+// specs/gift-vouchers/gift-voucher-campaigns.md rules 15, 29 — a recipient's use of a composed voucher on « Mon bain » (held 15 minutes while a remainder is paid, then booked or lapsed),
 // and what a voucher paid for that was not taken. The ledger itself is untouched: a use writes its own `hold` / `release` / `redeem` movements by key.
 const USES_SQL = `
   CREATE TABLE IF NOT EXISTS gift_voucher_uses (
@@ -260,12 +260,12 @@ const USES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_gift_voucher_unused_voucher ON gift_voucher_unused(voucherId);
 `;
 
-// specs/site-outside-resource-booking.md rule 26 — the people declared with a session booked with a voucher. NULL for every existing use.
+// specs/site/site-outside-resource-booking.md rule 26 — the people declared with a session booked with a voucher. NULL for every existing use.
 const usesPeople = (db) => {
   if (!db.prepare('PRAGMA table_info(gift_voucher_uses)').all().some((c) => c.name === 'people')) db.exec('ALTER TABLE gift_voucher_uses ADD COLUMN people INTEGER');
 };
 
-// specs/site-outside-resource-booking.md rule 16 — the return page of a voucher's remainder reads its use by an unguessable ref and shows the recap chosen. NULL for every existing use.
+// specs/site/site-outside-resource-booking.md rule 16 — the return page of a voucher's remainder reads its use by an unguessable ref and shows the recap chosen. NULL for every existing use.
 const usesRef = (db) => {
   const cols = db.prepare('PRAGMA table_info(gift_voucher_uses)').all().map((c) => c.name);
   if (!cols.includes('ref')) db.exec('ALTER TABLE gift_voucher_uses ADD COLUMN ref TEXT');
@@ -273,7 +273,7 @@ const usesRef = (db) => {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_voucher_uses_ref ON gift_voucher_uses(ref)');
 };
 
-// specs/site-outside-resource-booking.md rules 32-33 — the recipient in two fields. `recipientName` stays, as the first name, for every reader that prints it; an order made before keeps its name as the first name and has no last name.
+// specs/site/site-outside-resource-booking.md rules 32-33 — the recipient in two fields. `recipientName` stays, as the first name, for every reader that prints it; an order made before keeps its name as the first name and has no last name.
 const recipientNames = (db) => {
   addColumn(db, 'gift_voucher_orders', 'recipientFirstName', "TEXT NOT NULL DEFAULT ''");
   addColumn(db, 'gift_voucher_orders', 'recipientLastName', "TEXT NOT NULL DEFAULT ''");

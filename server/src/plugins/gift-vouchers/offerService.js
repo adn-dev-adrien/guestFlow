@@ -1,5 +1,5 @@
 /**
- * The one path of the sale (specs/gift-voucher-campaigns.md rule 52): what is on offer, what it costs, the order, the payment link and the issue. The public controllers
+ * The one path of the sale (specs/gift-vouchers/gift-voucher-campaigns.md rule 52): what is on offer, what it costs, the order, the payment link and the issue. The public controllers
  * (the site key, the proof of work, the per-visitor limits) and the admin controllers (the session, the « Payé » / « Offert » / « Envoyer un lien » outcomes) are thin
  * wrappers over it; neither re-implements a rule, so a voucher composed at the counter and one bought on the site are the same thing.
  *
@@ -109,7 +109,7 @@ function createOfferService({
     return { lines, descriptors };
   }
 
-  /** The priced lines a voucher keeps with its contents: the invoice-style recap of its mail reads them, never the engine (specs/gift-voucher-campaigns.md rule 20). */
+  /** The priced lines a voucher keeps with its contents: the invoice-style recap of its mail reads them, never the engine (specs/gift-vouchers/gift-voucher-campaigns.md rule 20). */
   const frozenLines = (lines) => lines.map(({
     label, qty, unitCents, totalCents, vatRate,
   }) => ({

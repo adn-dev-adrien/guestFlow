@@ -1,5 +1,5 @@
 /**
- * What a voucher contains, written the way the buyer reads it (specs/gift-voucher-campaigns.md rules 20, 21): read from the contents frozen on the voucher, never from the
+ * What a voucher contains, written the way the buyer reads it (specs/gift-vouchers/gift-voucher-campaigns.md rules 20, 21): read from the contents frozen on the voucher, never from the
  * catalogue, so a resource renamed later changes nothing on a printed card. The same lines head the PDF's back and the mail.
  */
 

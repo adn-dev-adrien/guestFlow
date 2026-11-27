@@ -39,7 +39,7 @@ function toMinutes(timeStr) {
   return (hours * 60) + (minutes || 0);
 }
 
-// The request's shape, judged where the model takes it (specs/resource-supplements-total-server-side.md rule 23). A plugin
+// The request's shape, judged where the model takes it (specs/resources/resource-supplements-total-server-side.md rule 23). A plugin
 // reads no core helper for this: the checks are the ones of `utils/bodyText` (hosting-h2 rule 68).
 const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const isClockTime = (value) => typeof value === 'string' && CLOCK_TIME.test(value);
@@ -51,7 +51,7 @@ function positiveId(value) {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 const refused = (message) => ({ error: message, status: 400 });
-// The people declared for a session (specs/site-outside-resource-booking.md rule 26): a whole number from 1 to 100, informational.
+// The people declared for a session (specs/site/site-outside-resource-booking.md rule 26): a whole number from 1 to 100, informational.
 const peopleOf = (value) => {
   const n = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
   return Number.isInteger(n) && n >= 1 && n <= 100 ? n : null;
@@ -199,7 +199,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   }
 
   /**
-   * The preparation ticket of an outside booking's planning card (specs/gift-voucher-campaigns.md rule 35): every option of the booking's sale, whoever paid it, and a
+   * The preparation ticket of an outside booking's planning card (specs/gift-vouchers/gift-voucher-campaigns.md rule 35): every option of the booking's sale, whoever paid it, and a
    * badge per instrument that paid in advance — the instrument's own label, read from its tender, never named here. Empty for a booking with no sale document.
    */
   function preparationOf(b, money) {
@@ -213,7 +213,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
 
   /**
    * The price of a booking and how it is made up — the one function behind the preview and the stored
-   * `totalPrice` (specs/resource-supplements-total-server-side.md rule 1). Pure read.
+   * `totalPrice` (specs/resources/resource-supplements-total-server-side.md rule 1). Pure read.
    */
   // Rule 5 — the VAT a booking is sold with: none when the instance is out of VAT, the « TVA des ventes hors séjour »
   // setting for a guest with no lodging reservation, the stay's own rate otherwise.
@@ -234,7 +234,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
 
   /**
    * The price of a booking and how it is made up — the one function behind the preview, the stored `totalPrice` and
-   * the invoice (specs/resource-booking-pricing-and-invoicing.md rules 3-10). Pure read.
+   * the invoice (specs/resources/resource-booking-pricing-and-invoicing.md rules 3-10). Pure read.
    */
   // `frozenVat` (rule 35): the rate a paid booking was sold with — `{ rate }`, `rate: null` when not subject.
   // `stored` (rule 74): the booking's own row, for a read of a booking already sold — a row priced before the one hourly grid keeps its free
@@ -269,7 +269,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   }
 
   // The refusals shared by the preview and the commit: a real day inside the date window (unless it is the
-  // edited booking's stored day, specs/reservations-backend-mvc.md rule 13, reading of 2026-11-02), minimum
+  // edited booking's stored day, specs/tech/reservations-backend-mvc.md rule 13, reading of 2026-11-02), minimum
   // duration, then capacity — the booking itself excluded when it is edited.
   function checkBookable({ resource, date, startTime, endTime, excludeId = null, storedDate, storedTimes, excludeHoldRef = null }) {
     const dateError = sdk.coreModule('stayDates').entryDateMessage(date, { stored: storedDate });
@@ -292,7 +292,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   }
 
   /**
-   * specs/resource-supplements-total-server-side.md rules 1, 4, 5 — prices a booking draft
+   * specs/resources/resource-supplements-total-server-side.md rules 1, 4, 5 — prices a booking draft
    * `{ resourceId, bookingId, date, startTime, endTime, propertyId }` without writing anything.
    * Returns the breakdown, or `{ error, status }` with the very refusals the commit would give.
    */
@@ -347,7 +347,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   // Count everything overlapping (turnover buffer included) on a date, optionally excluding one
   // booking. Delegates to `resourceOccupancyModel` so guest sessions count too: this predicate used to
   // read `resource_bookings` alone, which let a standalone booking be created straight on top of a
-  // reservation's session (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 4).
+  // reservation's session (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §1 defect 4).
   function countConflicts(resourceId, date, startTime, endTime, turnover, excludeId, excludeHoldRef = null) {
     return occupancyModel.countConflicts({
       resourceId, date, startTime, endTime, turnover, excludeBookingId: excludeId, excludeHoldRef,
@@ -416,7 +416,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
    * them in React (a fat-backend violation, and a second definition of « occupied » that could drift
    * from the one the writer enforces). Reservation sessions come back read-only: they belong to a
    * booking, and are edited from its fiche or from the arrival SAS.
-   * See specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 rule 29.
+   * See specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.5 rule 29.
    */
   function listForResource({ resourceId, date, weekStart }) {
     const from = weekStart || date;
@@ -479,7 +479,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   }
 
   /**
-   * The slots a guest order awaiting payment holds (specs/guest-app.md rule 35), shaped like a guest session —
+   * The slots a guest order awaiting payment holds (specs/guest-app/guest-app.md rule 35), shaped like a guest session —
    * read-only, opening the stay's fiche — so the operator sees the slot taken before the money arrives.
    */
   function listHeldSlots({ resourceId, from, to }) {
@@ -508,7 +508,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     return booking ? enrich(booking) : null;
   }
 
-  // `excludeHoldRef` (specs/gift-voucher-campaigns.md rule 29): the hold this booking consumes does not block it. Never read from a request body.
+  // `excludeHoldRef` (specs/gift-vouchers/gift-voucher-campaigns.md rule 29): the hold this booking consumes does not block it. Never read from a request body.
   function createBooking(payload, { excludeHoldRef = null } = {}) {
     const { resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes } = payload;
     const offeredMinutes = Number(payload.offeredMinutes) || 0;
@@ -572,7 +572,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id, storedDate: existing.date, storedTimes: existing })
         || offeredCheck({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate });
       if (refusal) return refusal;
-      // Specs/pricing-components.md §3 rule 74 — only the operator moving the slot or the party puts a booking on the one hourly grid; any other
+      // specs/pricing/pricing-components.md §3 rule 74 — only the operator moving the slot or the party puts a booking on the one hourly grid; any other
       // save of an unpaid booking re-prices it as before (rule 36 reading), its free hour still valued as it was sold.
       if (pricedMoved) freeHourAtDayRate = 1;
       const priced = breakdownOf({

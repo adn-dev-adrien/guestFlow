@@ -1,6 +1,6 @@
 /**
  * Issuing a voucher: one transaction that draws the code, writes the voucher and its `issue` movement and closes the
- * order (specs/gift-vouchers.md rules 17, 24, 30-32, 43). What the order fixed is frozen on the voucher with its expiry (specs/gift-voucher-campaigns.md rule 11): the
+ * order (specs/gift-vouchers/gift-vouchers.md rules 17, 24, 30-32, 43). What the order fixed is frozen on the voucher with its expiry (specs/gift-vouchers/gift-voucher-campaigns.md rule 11): the
  * campaign, the contents and the VAT lines — a lodging voucher takes the campaign's VAT rate in force when it is issued, a composed one the lines the order was priced with.
  * The code is shown by the caller once; only its hash and its encrypted copy are stored.
  */

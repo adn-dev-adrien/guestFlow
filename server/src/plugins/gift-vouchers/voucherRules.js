@@ -1,5 +1,5 @@
 /**
- * What a voucher is, as pure rules (specs/gift-vouchers.md rules 5-11, 28, 31). No database, no clock: the caller
+ * What a voucher is, as pure rules (specs/gift-vouchers/gift-vouchers.md rules 5-11, 28, 31). No database, no clock: the caller
  * hands the dates in, a suite moves them.
  */
 

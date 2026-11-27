@@ -1,5 +1,5 @@
 /**
- * The two printed documents, assembled from what is stored (specs/gift-voucher-campaigns.md rules 21, 33, 48-50): the voucher's PDF — the front frozen on the voucher when it
+ * The two printed documents, assembled from what is stored (specs/gift-vouchers/gift-voucher-campaigns.md rules 21, 33, 48-50): the voucher's PDF — the front frozen on the voucher when it
  * was issued, the back from the voucher, the company's settings and the permanent paths — and the merchant card of a campaign, from the campaign's current merchant visual.
  * The drawing is `voucherPdf`; this reads the voucher's code back, the image bytes and the company, and refuses with a code the controllers word.
  */

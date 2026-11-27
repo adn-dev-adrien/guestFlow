@@ -1,4 +1,4 @@
-// The hourly block of the resource form (specs/plugins-phase-3c-hourly-resources.md rule 21), drawn
+// The hourly block of the resource form (specs/plugins/plugins-phase-3c-hourly-resources.md rule 21), drawn
 // under the base fields through the `resources.fields` slot, for a resource sold by the hour: the
 // slots, the opening, the heat-up and the planning card with its evening switch. The prices left it for the « Prix » section
 // (`HourlyPriceGrids`, specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 1).
@@ -102,7 +102,7 @@ export default function HourlyResourceFields({ draft, onChange, errors = {} }) {
             fullWidth
             slotProps={{ htmlInput: { min: 0, step: 5 } }}
           />
-          {/* Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11). Left
+          {/* Thermal model (specs/resources/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11). Left
               at 0 the resource behaves exactly as before: only the opening window, the capacity and
               the turnover gate a slot. */}
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
@@ -141,7 +141,7 @@ export default function HourlyResourceFields({ draft, onChange, errors = {} }) {
             </FormGroup>
           </Box>
 
-          {/* Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1): the
+          {/* Hourly scheduling + time-banded grid (specs/resources/resource-hourly-scheduling.md §3.1): the
               planning card + the evening switch the price grids are banded by. */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px dashed', borderColor: 'divider', pt: 1.5 }}>
             <FormControlLabel

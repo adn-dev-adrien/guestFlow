@@ -1,4 +1,4 @@
-// What a plugin's client files may import from the core (specs/plugins-phase-1-sdk.md rule 16).
+// What a plugin's client files may import from the core (specs/plugins/plugins-phase-1-sdk.md rule 16).
 // A plugin file imports its own folder, this module or an npm package — nothing else (rule 3).
 
 export { default as api } from '../../api';
@@ -14,19 +14,19 @@ export { default as LoadingState } from '../../components/LoadingState';
 export { default as ErrorAlert } from '../../components/ErrorAlert';
 export { default as EmptyState } from '../../components/EmptyState';
 export { default as StatusBadge } from '../../components/StatusBadge';
-// One subject of the home's attention (specs/shell-and-home-day-first.md rules 9, 13) — SDK 1.4.0.
+// One subject of the home's attention (specs/planning/shell-and-home-day-first.md rules 9, 13) — SDK 1.4.0.
 export { default as AttentionCard } from '../../components/AttentionCard';
 export { default as SummaryItem } from '../../components/SummaryItem';
 export { default as MaskedTextField } from '../../components/MaskedTextField';
 export { default as SecretRevealField } from '../../components/SecretRevealField';
 export { default as SasKeypadCode } from '../../components/sas/SasKeypadCode';
-// The identity line of a row about one reservation, linking to its fiche (specs/mobile-dashboard-exercise-cash.md rule 8) — SDK 2.34.0.
+// The identity line of a row about one reservation, linking to its fiche (specs/planning/mobile-dashboard-exercise-cash.md rule 8) — SDK 2.34.0.
 export { default as ReservationLinkLine } from '../../components/ReservationLinkLine';
-// The banner every intake plugin shows on the fiche (specs/airbnb-mail-intake.md §4.1).
+// The banner every intake plugin shows on the fiche (specs/platforms/airbnb-mail-intake.md §4.1).
 export { default as IntakeBanner } from '../../components/IntakeBanner';
 export { displayDate } from '../../utils/formatters';
 // sas — what the guided arrival/departure dialog and its « Facturables » tab render with
-// (specs/plugins-phase-2-hosts.md rule 8). The steps of other plugins reach it through the slots.
+// (specs/plugins/plugins-phase-2-hosts.md rule 8). The steps of other plugins reach it through the slots.
 export { default as Slot, Contribution } from './Slot';
 export { useSlot } from './useSlot';
 export { default as OccurrenceGrid } from '../../components/OccurrenceGrid';
@@ -38,7 +38,7 @@ export { formatCurrency, displayDateLong } from '../../utils/formatters';
 export { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 export { PRICE_TYPE_LABELS } from '../../components/reservation/extrasLabels';
 export { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
-// hourly-resources (specs/plugins-phase-3c-hourly-resources.md §3.E) — its planning cards and pages.
+// hourly-resources (specs/plugins/plugins-phase-3c-hourly-resources.md §3.E) — its planning cards and pages.
 export { default as OptionDayCard } from '../../components/OptionDayCard';
 export { withFrom } from '../../utils/navigation';
 // accounting-export
@@ -47,54 +47,54 @@ export { default as PlatformChip } from '../../components/PlatformChip';
 export { default as TableCard } from '../../components/TableCard';
 export { default as PageTabs } from '../../components/PageTabs';
 export { ADMIN, userHasRole } from '../../constants/roles';
-// The report grammar (specs/report-grammar.md) — the accounting synthesis renders with it
-// (specs/accounting-synthesis.md rules 23-33) — SDK 2.23.0.
+// The report grammar (specs/design-system/report-grammar.md) — the accounting synthesis renders with it
+// (specs/accounting/accounting-synthesis.md rules 23-33) — SDK 2.23.0.
 export { default as SelectableTile } from '../../components/SelectableTile';
 export { default as NoComparisonNotice } from '../../components/NoComparisonNotice';
 export { default as Panel } from '../../components/Panel';
-// The charts load Recharts on first use, never with the shell (specs/report-grammar.md rule 20).
+// The charts load Recharts on first use, never with the shell (specs/design-system/report-grammar.md rule 20).
 export { LazyTrendChart as TrendChart, LazyAlignedDailyCumulativeCharts as AlignedDailyCumulativeCharts } from '../../components/LazyReportCharts';
 export { default as ShareTable } from '../../components/ShareTable';
 export { default as useServerToday } from '../../hooks/useServerToday';
 export { customWindowError } from '../../components/PeriodSelector';
 export { formatCurrencyRounded } from '../../utils/formatters';
-// linen (specs/plugins-phase-2-hosts.md §3.D)
+// linen (specs/plugins/plugins-phase-2-hosts.md §3.D)
 export { default as DateField } from '../../components/DateField';
 export { default as QuantityField } from '../../components/QuantityField';
 export { default as CollapsibleSection } from '../../components/CollapsibleSection';
 export { isReceptionOnly } from '../../constants/roles';
-// online-payment (specs/plugins-phase-3a-online-payment.md rule 17) — its pages import `./ui`.
+// online-payment (specs/plugins/plugins-phase-3a-online-payment.md rule 17) — its pages import `./ui`.
 export { default as HelpedTextField } from '../../components/HelpedTextField';
-// gift-vouchers — the visual library's image upload field (specs/gift-voucher-campaigns.md rule 47).
+// gift-vouchers — the visual library's image upload field (specs/gift-vouchers/gift-voucher-campaigns.md rule 47).
 export { default as ImageDropField } from '../../components/ImageDropField';
-// The debounced, latest-wins server preview hook (specs/resource-supplements-total-server-side.md Q5) — SDK 2.1.0.
+// The debounced, latest-wins server preview hook (specs/resources/resource-supplements-total-server-side.md Q5) — SDK 2.1.0.
 export { default as useLatestPreview } from '../../hooks/useLatestPreview';
 // reconciliation-assisted-matching (rule 11) — the active-filter chip — SDK 2.9.0.
 export { default as FilterChip } from '../../components/FilterChip';
 // reconciliation-assisted-matching (rule 24) — the platform penalty dialog, opened from a gap — SDK 2.9.0.
 export { default as PlatformPenaltyDialog } from '../../components/reservation/PlatformPenaltyDialog';
-// sas — one payment split over several methods (specs/mixed-method-payments.md rule 32) — SDK 2.24.0.
+// sas — one payment split over several methods (specs/payments/mixed-method-payments.md rule 32) — SDK 2.24.0.
 export { default as TenderLines } from '../../components/TenderLines';
 export { TENDER_TEXTS } from '../../constants/tenderMethods';
-// sas — the lines' report a commit may send: only the one answering the due on screen (specs/mixed-method-payments.md rule 59, loop t25) — SDK 2.32.0.
+// sas — the lines' report a commit may send: only the one answering the due on screen (specs/payments/mixed-method-payments.md rule 59, loop t25) — SDK 2.32.0.
 export { tendersForDue } from '../../components/TenderLines';
-// hourly-resources — the communes of a postcode (specs/resource-booking-pricing-and-invoicing.md rule 27) — SDK 2.25.0.
+// hourly-resources — the communes of a postcode (specs/resources/resource-booking-pricing-and-invoicing.md rule 27) — SDK 2.25.0.
 export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';
-// hourly-resources — the client picker ordered by stay (specs/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
+// hourly-resources — the client picker ordered by stay (specs/resources/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
 export { default as ClientPickerField } from '../../components/ClientPickerField';
-// online-payment — an external identifier shortened in the middle, with a copy button (specs/mollie-rolling-reserve-and-incoming-payments.md rule 12) — SDK 2.29.0.
+// online-payment — an external identifier shortened in the middle, with a copy button (specs/payments/mollie-rolling-reserve-and-incoming-payments.md rule 12) — SDK 2.29.0.
 export { default as TransactionRef } from '../../components/TransactionRef';
-// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing-components.md rules 31, 37) — SDK 2.30.0.
-// The four sale blocks load apart from the shell, started when their dialog opens (specs/plugins-phase-1-sdk.md rule 54, loops t19 A19-1, t20 UI20-1).
+// sas — the sale lines of a stay, offered / moved / removed from the SAS (specs/pricing/pricing-components.md rules 31, 37) — SDK 2.30.0.
+// The four sale blocks load apart from the shell, started when their dialog opens (specs/plugins/plugins-phase-1-sdk.md rule 54, loops t19 A19-1, t20 UI20-1).
 export { LazyStaySalesSection as StaySalesSection } from '../../components/LazySaleComponents';
-// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.32.0.
+// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/sas/outside-booking-sas.md rules 35, 39-42) — SDK 2.32.0.
 export { LazySuggestedArticlesStep as SuggestedArticlesStep, LazySalePaymentLink as SalePaymentLink } from '../../components/LazySaleComponents';
-// hourly-resources — « Nouvelle vente » on the client of an invoiced visit (specs/outside-booking-sas.md rule 24, loop t1 AV-8) — SDK 2.32.0.
+// hourly-resources — « Nouvelle vente » on the client of an invoiced visit (specs/sas/outside-booking-sas.md rule 24, loop t1 AV-8) — SDK 2.32.0.
 export { LazyStandaloneSaleDialog as StandaloneSaleDialog } from '../../components/LazySaleComponents';
-// sas, hourly-resources — a dialog that renders a sale block starts its code when it opens and shows its content once it is there (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t20 UI20-1) — SDK 2.32.0.
+// sas, hourly-resources — a dialog that renders a sale block starts its code when it opens and shows its content once it is there (specs/plugins/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t20 UI20-1) — SDK 2.32.0.
 export { useSaleComponentsReady } from '../../components/LazySaleComponents';
-// sas, hourly-resources — a region that keeps the focus when a server answer removes the control holding it (specs/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t22 UI22-1) — SDK 2.32.0.
+// sas, hourly-resources — a region that keeps the focus when a server answer removes the control holding it (specs/plugins/plugins-phase-1-sdk.md rule 54, reading 2026-11-18, loop t22 UI22-1) — SDK 2.32.0.
 export { default as FocusKeeper } from '../../components/FocusKeeper';
 // sas, hourly-resources, online-payment — the money-dialog contract in one module: commit gating, typed lines kept, failure with its way
-// out, the actions row as a focus region (specs/plugins-phase-1-sdk.md rule 58, loop t26) — SDK 2.32.0.
+// out, the actions row as a focus region (specs/plugins/plugins-phase-1-sdk.md rule 58, loop t26) — SDK 2.32.0.
 export { default as useMoneyCommit, PreviewFailure, MoneyActions, useTenderDraft, isRetryable } from '../../hooks/useMoneyCommit';

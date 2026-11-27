@@ -1,5 +1,5 @@
 /**
- * What a campaign may be (specs/gift-voucher-campaigns.md rules 2-6, 9, 46): one judgement shared by the campaign form, « Sur mesure » and, later, the recipe
+ * What a campaign may be (specs/gift-vouchers/gift-voucher-campaigns.md rules 2-6, 9, 46): one judgement shared by the campaign form, « Sur mesure » and, later, the recipe
  * import. Every refusal names its field and says why in French; nothing is written when one field fails.
  *
  *   validateCampaign(input, { catalogue, campaigns, existing, oneShot }) → { ok: true, value } | { ok: false, errors: [{ field, message }] }
@@ -43,7 +43,7 @@ function parseIdeas(value) {
   }
 }
 
-/** Rule 3 (specs/gift-vouchers.md rule 14) — an idea is always a stay to price, never a bare amount (Adrien, 2026-11-15). */
+/** Rule 3 (specs/gift-vouchers/gift-vouchers.md rule 14) — an idea is always a stay to price, never a bare amount (Adrien, 2026-11-15). */
 function ideasError(value) {
   const list = parseIdeas(value);
   if (!list) return 'Les idées doivent être une liste de séjours.';

@@ -1,5 +1,5 @@
 /**
- * A campaign as a recipe (specs/gift-voucher-campaigns.md rule 10): a `.zip` holding `campaign.json` and its images. The recipe names what the campaign contains — the resource, the
+ * A campaign as a recipe (specs/gift-vouchers/gift-voucher-campaigns.md rule 10): a `.zip` holding `campaign.json` and its images. The recipe names what the campaign contains — the resource, the
  * options, the add-ons — by their names in GuestFlow and the tariff mode by its band, never by a price or an internal id, so it can be read, edited and carried to another instance.
  * An import is all-or-nothing: the names are resolved to the catalogue, the whole campaign goes through the same `campaignRules` as the form, the images through the same judgement as
  * the visual library, and only when every field passes is anything written — the campaign as a draft, its images joining the library.

@@ -1,5 +1,5 @@
 /**
- * The mail a recipient gets when the bath is booked on « Mon bain » (specs/gift-voucher-campaigns.md rule 31): the day, the hours, the address, what is included and what was paid. It
+ * The mail a recipient gets when the bath is booked on « Mon bain » (specs/gift-vouchers/gift-voucher-campaigns.md rule 31): the day, the hours, the address, what is included and what was paid. It
  * answers the recipient's own action, so it leaves by itself (the same exception as the receipt of a purchase, rule 20). French — the recipient's language is not known. → `{ subject, text, html }`.
  */
 

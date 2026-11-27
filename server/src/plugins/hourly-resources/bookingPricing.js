@@ -1,5 +1,5 @@
 /**
- * The price of a resource booking, line by line (specs/resource-booking-pricing-and-invoicing.md rules 3-10).
+ * The price of a resource booking, line by line (specs/resources/resource-booking-pricing-and-invoicing.md rules 3-10).
  *
  * Pure: the caller resolves the resource, the property's price override and the VAT in force; this module returns the
  * whole breakdown the preview shows, the commit stores and the invoice copies. No DB, no clock.
@@ -32,7 +32,7 @@ const BAND_LABELS = { day: 'Jour', evening: 'Soir' };
 /**
  * One band of a priced session as the lines of a price breakdown print it: « Jour · 18:00–19:00 », « 1 h × 50,00 € ».
  * `clock: false` is a session with no time yet (a gift voucher's dateless quote): its label names the band only, never the
- * placeholder hours it was priced on (specs/gift-voucher-campaigns.md rule 17).
+ * placeholder hours it was priced on (specs/gift-vouchers/gift-voucher-campaigns.md rule 17).
  */
 const bandLineOf = (b, { clock = true } = {}) => ({
   key: `band:${b.band}:${b.from}`,
@@ -175,7 +175,7 @@ function priceBookingLines({
   const freeApplied = Math.min(durationMinutes, freeMinutes);
   const offeredApplied = Math.min(offered, Math.max(0, durationMinutes - freeApplied));
 
-  // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5).
+  // Hourly-scheduled resource: time-banded grid (specs/resources/resource-hourly-scheduling.md §3.5).
   if (Number(resource.showsPlanningCard || 0) === 1) {
     // An outside band with no price is refused, never priced 0 € nor at another rate (the caller turns `refusal` into the answer of the save or the preview).
     const unsold = external && judgeBands ? unsoldSliceOf(resource, {
@@ -191,7 +191,7 @@ function priceBookingLines({
       ...(outsideSession ? { anyStart: true } : {}),
     };
     const sessionDate = date || '2000-01-01';
-    // The free minutes are not a rank (specs/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
+    // The free minutes are not a rank (specs/resources/hourly-extra-hour-rates.md rule 3): the gross counts the ranks from the first paid minute.
     const priced = priceSessions([{ date: sessionDate, start: startTime, end: endTime }], cfg, freeApplied);
     if (priced.validSessions.length) {
       const { freeValue, offeredValue } = bookingDeductions({

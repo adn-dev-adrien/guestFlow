@@ -1,5 +1,5 @@
 /**
- * CompositionEditor — what a voucher contains (specs/gift-voucher-campaigns.md rules 4, 46): one hourly resource with its tariff mode and included minutes, and any
+ * CompositionEditor — what a voucher contains (specs/gift-vouchers/gift-voucher-campaigns.md rules 4, 46): one hourly resource with its tariff mode and included minutes, and any
  * options with a quantity, all picked in the server's catalogue. Used by the campaign editor and by « Sur mesure ». It holds no price and judges nothing: the modes, their
  * rates, hours and following-hours rate, the elements that cannot be sold and the refusal of a value all come from the server.
  *

@@ -1,4 +1,4 @@
-// The gift-vouchers plugin's admin endpoints (`/api/gift-vouchers/**`, specs/gift-vouchers.md §4.3, specs/gift-voucher-campaigns.md §4.4), kept in the plugin
+// The gift-vouchers plugin's admin endpoints (`/api/gift-vouchers/**`, specs/gift-vouchers/gift-vouchers.md §4.3, specs/gift-vouchers/gift-voucher-campaigns.md §4.4), kept in the plugin
 // and reached through the core's generic `api.pluginRequest` (same session, errors and data-changed event).
 import { api } from '../sdk';
 
@@ -73,7 +73,7 @@ const giftVouchersApi = {
   undoStayPayment: (reservationId, ref) => call(`/stays/${reservationId}/payments/${ref}`, { method: 'DELETE' }),
   recreditStay: (reservationId) => call(`/stays/${reservationId}/recredit`, { method: 'POST', body: {} }),
 
-  // Campaigns, catalogue and offer (specs/gift-voucher-campaigns.md rules 2-10, 41, 46).
+  // Campaigns, catalogue and offer (specs/gift-vouchers/gift-voucher-campaigns.md rules 2-10, 41, 46).
   catalogue: () => call('/catalogue'),
   listCampaigns: () => call('/campaigns'),
   getCampaign: (id) => call(`/campaigns/${id}`),

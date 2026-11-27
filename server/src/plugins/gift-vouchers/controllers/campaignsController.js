@@ -1,5 +1,5 @@
 /**
- * `/api/gift-vouchers/{catalogue,campaigns,offer}` — the operator's campaigns (specs/gift-voucher-campaigns.md rules 2-9, 46, 52, §4.4). Thin: the form is judged by
+ * `/api/gift-vouchers/{catalogue,campaigns,offer}` — the operator's campaigns (specs/gift-vouchers/gift-voucher-campaigns.md rules 2-9, 46, 52, §4.4). Thin: the form is judged by
  * `campaignRules`, stored by `campaignsModel`, priced and described by `offerService` — the same service the site's controllers call, so the operator reads what the
  * giver will read.
  */

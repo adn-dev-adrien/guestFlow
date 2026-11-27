@@ -1,5 +1,5 @@
 /**
- * The `hourly-resources` plugin's migrations (specs/plugins-phase-3c-hourly-resources.md rules 7, 16,
+ * The `hourly-resources` plugin's migrations (specs/plugins/plugins-phase-3c-hourly-resources.md rules 7, 16,
  * 25 and §5).
  *
  * `resource_bookings` left the core baseline: on an existing database it is already there and
@@ -101,7 +101,7 @@ function countHourlySettings(db) {
   return db.prepare(`SELECT COUNT(*) AS n FROM resources WHERE ${differs.join(' OR ')}`).get().n;
 }
 
-// specs/resource-booking-pricing-and-invoicing.md §5 — offered time, the payment (the fiches' tender lines), the arrival,
+// specs/resources/resource-booking-pricing-and-invoicing.md §5 — offered time, the payment (the fiches' tender lines), the arrival,
 // the billing address of a guest with no client record, and the Qonto invoice with its attachment. Every column is
 // nullable or defaulted: an existing booking keeps its price (`offeredMinutes = 0`).
 const BOOKING_COLUMNS_V2 = [
@@ -142,7 +142,7 @@ function bookingsV2(db) {
   db.exec(`UPDATE resource_bookings SET paidAt = ${day} WHERE paid = 1 AND paidAt IS NULL`);
 }
 
-// specs/resource-booking-pricing-and-invoicing.md rules 34-36 — the VAT rate is frozen with the payment (`paidVatRate`,
+// specs/resources/resource-booking-pricing-and-invoicing.md rules 34-36 — the VAT rate is frozen with the payment (`paidVatRate`,
 // NULL = not subject), and an invoice whose « marquer payée » Qonto did not take is retried (`invoiceMarkPending`).
 // A booking paid before this migration gets the rate in force now — the rate its sale was journaled with until then;
 // an invoiced one keeps the rate its invoice states.
@@ -164,7 +164,7 @@ function bookingsV3(db, rateOf) {
   });
 }
 
-// specs/resource-booking-pricing-and-invoicing.md rule 50 — the identity (name and billing address) a booking's Qonto
+// specs/resources/resource-booking-pricing-and-invoicing.md rule 50 — the identity (name and billing address) a booking's Qonto
 // client was created with: a later invoice reuses that client only for the same identity. NULL on a booking invoiced
 // before: its Qonto client is not reused, the next invoice creates one with what the record holds.
 const BOOKING_COLUMNS_V4 = [
@@ -178,7 +178,7 @@ function bookingsV4(db) {
   });
 }
 
-// specs/pricing-components.md §3 rule 24 (E4): NULL marks a booking priced before the one hourly grid — its free hour stays valued on the
+// specs/pricing/pricing-components.md §3 rule 24 (E4): NULL marks a booking priced before the one hourly grid — its free hour stays valued on the
 // band it falls in, as stored; 1 marks a booking priced since (the free hour is worth the day rate).
 const BOOKING_COLUMNS_V5 = [
   ['freeHourAtDayRate', 'INTEGER'],
@@ -204,21 +204,21 @@ function bookingsV6(db) {
   });
 }
 
-// specs/site-outside-resource-booking.md rule 26 — the people declared at booking, for information. NULL for every existing row.
+// specs/site/site-outside-resource-booking.md rule 26 — the people declared at booking, for information. NULL for every existing row.
 function bookingsV7(db) {
   if (!hasTable(db, 'resource_bookings')) return;
   if (!hasColumn(db, 'resource_bookings', 'people')) db.exec('ALTER TABLE resource_bookings ADD COLUMN people INTEGER');
 }
 
-// specs/site-outside-resource-booking.md rule 12 — a session ordered on the website, held while it is paid. Nothing to carry: the table starts empty.
+// specs/site/site-outside-resource-booking.md rule 12 — a session ordered on the website, held while it is paid. Nothing to carry: the table starts empty.
 const createSessionOrdersTable = (db) => db.exec(require('./sessionOrdersModel').CREATE_SQL);
 
-// specs/gift-voucher-campaigns.md rule 29 — the slot held while a remainder is being paid. Nothing to carry: the table starts empty.
+// specs/gift-vouchers/gift-voucher-campaigns.md rule 29 — the slot held while a remainder is being paid. Nothing to carry: the table starts empty.
 const createHoldsTable = (db) => db.exec(require('./holdsModel').CREATE_SQL);
 // Rule 36 — the elements a prepaid instrument paid that the client did not take.
 const createLineMarksTable = (db) => db.exec(require('./lineMarksModel').CREATE_SQL);
 
-// specs/hourly-extra-hour-rates.md rules 1, 7 — the price of the following hours, per audience and band (NULL = same as the first hour). The percent
+// specs/resources/hourly-extra-hour-rates.md rules 1, 7 — the price of the following hours, per audience and band (NULL = same as the first hour). The percent
 // table (`hourlyDegressiveTiers`) is withdrawn: a resource that had one gets the rate its 2nd hour was worth, rounded to the cent; the later
 // rows are dropped. The column stays in the table, unread.
 const NEXT_RATE_COLUMNS = ['hourlyNextDayRate', 'hourlyNextEveningRate', 'hourlyExternalNextDayRate', 'hourlyExternalNextEveningRate'];
@@ -305,7 +305,7 @@ function explicitHourlyRates(db) {
 }
 
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
-// specs/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
+// specs/plugins/plugin-removal-resilience.md rule 22 — after an erase and a reinstall the id counter restarts above the visits the sales still cite.
 function keepBookingIdsCited(db) {
   const { highestCitedId, raiseCounter } = require('../sdk/citedIdCounterFloor');
   raiseCounter(db, 'resource_bookings', highestCitedId(db, 'resource-booking:', [{ table: 'standalone_sales', column: 'originRef' }]));

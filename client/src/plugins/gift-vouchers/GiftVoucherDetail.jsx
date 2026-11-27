@@ -1,9 +1,9 @@
 /**
- * GiftVoucherDetail — one voucher (specs/gift-vouchers.md rules 25-28): its figures, the code (masked until « Afficher
+ * GiftVoucherDetail — one voucher (specs/gift-vouchers/gift-vouchers.md rules 25-28): its figures, the code (masked until « Afficher
  * le code »), its movements and the actions. Rendered in the side panel on `lg`, in a dialog below.
  *
  * Cancelling follows the 14-day withdrawal the server reports (`withdrawal.open`): a confirmation naming the voucher and the amount to refund within it, a forcing
- * dialog with a mandatory reason after it (specs/gift-voucher-campaigns.md rule 54); a cancelled voucher carries its refund line, marked settled from here.
+ * dialog with a mandatory reason after it (specs/gift-vouchers/gift-voucher-campaigns.md rule 54); a cancelled voucher carries its refund line, marked settled from here.
  *
  * Props: voucher (the server's detail payload), onChange(voucher), onClose (shown as « Fermer » when given)
  */

@@ -1,5 +1,5 @@
 /**
- * Gift vouchers (specs/gift-vouchers.md, specs/gift-voucher-campaigns.md). Owns `/public/v1/gift-vouchers/**`, `/api/gift-vouchers/**`, its tables and
+ * Gift vouchers (specs/gift-vouchers/gift-vouchers.md, specs/gift-vouchers/gift-voucher-campaigns.md). Owns `/public/v1/gift-vouchers/**`, `/api/gift-vouchers/**`, its tables and
  * its settings. Nothing in the core behaves differently while it is absent (rule 1); a voucher is an amount in euros
  * whose balance is the sum of its ledger (rules 5, 11), sold from a campaign — a free amount for a stay, or a composed content.
  */

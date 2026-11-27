@@ -1,4 +1,4 @@
-// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 2, 28, 30 (K2-K4) — an outside band with no first-hour price is not sold on EVERY placed path (never 0 €, never
+// specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 2, 28, 29, 30 (K2-K4) — an outside band with no first-hour price is not sold on EVERY placed path (never 0 €, never
 // another rate); a booking that carries a lodging keeps the week grid and its free hour; an outside planning session is priced by the hourly engine off the slot grid too.
 const test = require('node:test');
 const assert = require('node:assert/strict');

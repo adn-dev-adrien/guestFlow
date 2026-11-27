@@ -1,12 +1,12 @@
 /**
- * The recipient's use of a composed voucher on « Mon bain » (specs/gift-voucher-campaigns.md rules 12-15, 23-32, 44-45, 51): what the voucher holds, the free slots tagged by what they
+ * The recipient's use of a composed voucher on « Mon bain » (specs/gift-vouchers/gift-voucher-campaigns.md rules 12-15, 23-32, 44-45, 51): what the voucher holds, the free slots tagged by what they
  * cost the recipient, the recap of a choice, and the confirmation — which books at once when nothing is due, and otherwise holds the slot and the voucher for 15 minutes while the
  * remainder is paid.
  *
  *   open({ code, visitor })                           → the contents, the names, the validity, the add-ons and extra time on offer, each step
  *                                                       priced like the offer prices it (rule 64), the horizon (rule 24)
  *   slots({ code, from, to, extraMinutes?, visitor }) → `{ days: [{ date, slots: [{ start, end, tag: 'in' | 'supplement', supplementCents, dueCents, evening }] }] }` (rules 25, 14; `dueCents` is what the start costs above the voucher, extra time included, and `evening` whether
- *                                                       part of it is in the evening band: specs/site-outside-resource-booking.md rule 10)
+ *                                                       part of it is in the evening band: specs/site/site-outside-resource-booking.md rule 10)
  *   quote({ code, start, extraMinutes?, addOns?, visitor }) → the recap: included, supplement, extras (and `extrasCents`, their sum, and `extraTimePrices`, the extra-time steps priced at that start, rule 64), what is still due, the VAT (rules 26-27)
  *   confirm({ code, start, extraMinutes?, addOns?, email, phone, firstName?, lastName?, name?, people?, termsVersionId, visitor, returnUrl? }) → `{ booked: true }` | `{ payUrl, heldUntil }` (rules 28-29)
  *   paid({ ref, linkId, amountCents })                the bank confirmed the remainder: book and settle in one transaction, or say the money is owed back (rule 29)

@@ -1,5 +1,5 @@
 /**
- * `gift_voucher_campaigns` — the offers the operator configures (specs/gift-voucher-campaigns.md §5, rules 2, 8, 9, 46). A row holds no price: a composed campaign
+ * `gift_voucher_campaigns` — the offers the operator configures (specs/gift-vouchers/gift-voucher-campaigns.md §5, rules 2, 8, 9, 46). A row holds no price: a composed campaign
  * names what it contains and the pricing engine reads the prices when asked (rule 5). JSON columns are parsed on the way out and written on the way in; a campaign
  * is never deleted — it is closed, and its vouchers stay valid. A one-shot campaign (« Sur mesure ») is bound to its only voucher: no slug, never on sale, left out of every list.
  */

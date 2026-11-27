@@ -1,5 +1,5 @@
 /**
- * NewVoucherPage — « Bons cadeaux › Nouveau bon » (specs/gift-voucher-campaigns.md rules 41, 46, 52): a voucher sold outside the site, through the same server path as the
+ * NewVoucherPage — « Bons cadeaux › Nouveau bon » (specs/gift-vouchers/gift-voucher-campaigns.md rules 41, 46, 52): a voucher sold outside the site, through the same server path as the
  * giver's tunnel and in the same order — the offer (a campaign on sale, or « Sur mesure »), who it is for, then one of three outcomes: « Payé », « Offert »,
  * « Envoyer un lien de paiement ». Nothing is priced or judged here: the contents, the band, the extra time, the add-ons, the recap with its VAT per rate and every refusal
  * come from the server, and a refusal is shown on the field it names. Admin only.
@@ -98,7 +98,7 @@ export default function NewVoucherPage() {
 
   const priceable = Boolean(request) && (isCustom ? Boolean(custom.composition && custom.composition.resourceId) : ((campaign.kind !== 'lodging' || request.amountCents !== null) && (campaign.kind === 'lodging' || campaignPeriods.length === 0 || Boolean(chosenPeriod))));
   // The price draft holds what changes the price only: a « Sur mesure » is priced on its composition (the campaign preview), so its validity,
-  // its visual and what it offers the recipient never ask the server again (useLatestPreview, specs/plugins-phase-1-sdk.md rule 54).
+  // its visual and what it offers the recipient never ask the server again (useLatestPreview, specs/plugins/plugins-phase-1-sdk.md rule 54).
   const priceDraft = useMemo(() => (request && isCustom ? { composition: request.composition, period: request.period, validityMonths: request.validityMonths } : request), [request, isCustom]);
   const recap = useLatestPreview({
     fetcher: (body, { signal }) => (body.composition
@@ -158,7 +158,7 @@ export default function NewVoucherPage() {
   return (
     <Box>
       {bar}
-      {/* A stepper at its bound, an answer swapping the recap, « Réessayer » gone: the focus stays in the page (specs/plugins-phase-1-sdk.md rule 58, I4). */}
+      {/* A stepper at its bound, an answer swapping the recap, « Réessayer » gone: the focus stays in the page (specs/plugins/plugins-phase-1-sdk.md rule 58, I4). */}
       <FocusKeeper>
         <Stack spacing={2.5} sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 760 }}>
           <FormSection title={T.steps.offer}>

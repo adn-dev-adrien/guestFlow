@@ -1,5 +1,5 @@
 /**
- * `POST /public/v1/gift-vouchers/use`, `/use/slots`, `/use/quote`, `/use/confirm` and `GET /use/status/:ref` (the return page of a remainder, specs/site-outside-resource-booking.md rule 16) (specs/gift-voucher-campaigns.md rules 23-32, §4.4): « Mon bain », where the recipient of a composed
+ * `POST /public/v1/gift-vouchers/use`, `/use/slots`, `/use/quote`, `/use/confirm` and `GET /use/status/:ref` (the return page of a remainder, specs/site/site-outside-resource-booking.md rule 16) (specs/gift-vouchers/gift-voucher-campaigns.md rules 23-32, §4.4): « Mon bain », where the recipient of a composed
  * voucher chooses a slot. Behind the public key and the visitor context (the router). The code is always in the body, never in a URL, so no log keeps it; a wrong code counts against the
  * same per-visitor limits as the public check, and the two calls that open or write — the first read of a code and the confirmation — ask for the signed proof of work. Thin: parse,
  * guard, call `useService`, answer. Every rule, price and sentence is the service's.

@@ -1,5 +1,5 @@
 /**
- * GiftVoucherSettings — Paramètres › Bons cadeaux (specs/gift-vouchers.md rule 22, specs/gift-voucher-campaigns.md rules 9, 56): the page of the voucher on the site and the
+ * GiftVoucherSettings — Paramètres › Bons cadeaux (specs/gift-vouchers/gift-vouchers.md rule 22, specs/gift-vouchers/gift-voucher-campaigns.md rules 9, 56): the page of the voucher on the site and the
  * base of the two permanent links printed on the cards. Validity, amounts, VAT and ideas are a campaign's now, and the e-mail is built from the voucher: nothing else is
  * declared by the plugin, so nothing else is sent. Saved by the page bar through the plugin's settings route; the server judges every key and its message is shown on the field.
  */

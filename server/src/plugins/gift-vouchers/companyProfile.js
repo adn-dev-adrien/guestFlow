@@ -1,5 +1,5 @@
 /**
- * What the printed cards say of the company (specs/gift-voucher-campaigns.md rule 50): its name, its town and its logo, read from the company settings the operator already
+ * What the printed cards say of the company (specs/gift-vouchers/gift-voucher-campaigns.md rule 50): its name, its town and its logo, read from the company settings the operator already
  * filled — never typed a second time. The town is the last line of the address, without its postcode.
  */
 

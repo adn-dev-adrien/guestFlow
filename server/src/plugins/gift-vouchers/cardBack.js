@@ -1,5 +1,5 @@
 /**
- * The voucher's back for the website (specs/gift-voucher-campaigns.md rule 66). The site draws the back in HTML, millimetre for millimetre as `voucherPdf.js` draws it, and writes
+ * The voucher's back for the website (specs/gift-vouchers/gift-voucher-campaigns.md rule 66). The site draws the back in HTML, millimetre for millimetre as `voucherPdf.js` draws it, and writes
  * nothing of it itself: this module sends the dimensions and the fixed words the PDF reads (`BACK_LAYOUT`, `BACK_TEXTS`), the company's logo, name, town and website, the link
  * printed beside the QR code, the lines « Votre bon comprend » (`contentLines`, the PDF's own function) and the validity (`rules.expiryFor`, the issuance's own). The page only
  * adds what the buyer types.

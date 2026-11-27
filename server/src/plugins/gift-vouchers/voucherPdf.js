@@ -1,5 +1,5 @@
 /**
- * The printed cards of the plugin (specs/gift-voucher-campaigns.md rules 21, 22, 33, 34, 49, 50; the backs redrawn by specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 18-21):
+ * The printed cards of the plugin (specs/gift-vouchers/gift-voucher-campaigns.md rules 21, 22, 33, 34, 49, 50; the backs redrawn by specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rules 18-21):
  * the voucher the giver receives and the merchant card a printer produces. Both are A6 portrait, 105 × 148 mm, with a 3 mm bleed, two pages — the front, then the back. The front is
  * the visual picked in the library, embedded as uploaded (never resampled) and scaled to cover the bleed; on the merchant card GuestFlow adds the « à partir de » price in the corner
  * the campaign chose. The back is drawn here on a white ground, text and QR code as vectors with the fonts embedded: the company's logo or name, « BON CADEAU », a title and a
