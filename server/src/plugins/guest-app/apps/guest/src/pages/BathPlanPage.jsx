@@ -2,7 +2,7 @@
  * Scheduling the bath from the home (specs/guest-app-bath-home-scheduling.md rules 8-19, §6): what the stay owns, « À la suite » /
  * « Réparties » when there are two hours or more, the server's blocks or the slot grid with its counter, the stepper « Heures en
  * plus », and the server's quote line by line under a sticky button that carries its total. At 0 € the sessions are placed at once
- * (`POST /orders`, nothing sold); above, the line goes to the cart, whose payment choice is the app's own.
+ * (`POST /orders`, nothing sold) once the terms the quote says are owed are ticked (rule 37 of specs/gift-vouchers/gift-voucher-campaigns.md, as in the cart); above, the line goes to the cart, whose payment choice is the app's own.
  *
  * Route: `/bain/programmer/:id`, `?ajout=1` opens it with one extra hour (« Ajouter une heure », « Réserver »).
  */
@@ -17,6 +17,7 @@ import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import Banner from '../components/Banner';
 import Skeleton from '../components/Skeleton';
+import TermsAcceptance from '../components/TermsAcceptance';
 import { newKey } from '../components/CartBody';
 import { NeedNetwork, cartInfo, useShop } from './ShopPage';
 import { useCart } from '../hooks/useCart';
@@ -87,6 +88,7 @@ export default function BathPlanPage() {
   const [refused, setRefused] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [ticked, setTicked] = useState(() => new Set());
   const attempt = useRef(null);
 
   const slots = useLoad(() => (card && mode === 'spread' ? api.slots(card.resourceId) : Promise.resolve(null)), [card && card.resourceId, mode, lang]);
@@ -102,7 +104,7 @@ export default function BathPlanPage() {
   const sessions = mode === 'suite' ? (block ? [block] : []) : picked;
   const placedHours = sessions.reduce((sum, s) => sum + (Number(s.end.slice(0, 2)) * 60 + Number(s.end.slice(3)) - Number(s.start.slice(0, 2)) * 60 - Number(s.start.slice(3))) / 60, 0);
   const line = card && sessions.length ? { kind: 'resource', id: card.resourceId, sessions } : null;
-  const { quote, loading: quoting, error: quoteError } = useLineQuote(line, Boolean(line));
+  const { quote, loading: quoting, error: quoteError, reload: requote } = useLineQuote(line, Boolean(line));
   const quoted = quote && quote.lines && quote.lines[0];
   const unavailable = quoted && quoted.sessions ? quoted.sessions.filter((s) => s.unavailable) : [];
   const selected = useMemo(() => new Set(picked.map(keyOf)), [picked]);
@@ -135,8 +137,18 @@ export default function BathPlanPage() {
   // The order places the held hours first, then the offered minutes, and buys only what is placed beyond them.
   const leftToPlace = Math.max(0, ownedHours - placedHours);
 
+  // Rule 37 — at 0 € the order goes straight from here, so the terms it owes are asked here; each tick is for the version named.
+  const free = Boolean(quote) && quote.total === 0;
+  const termsRequired = free ? quote.termsRequired || [] : [];
+  const termsOpen = termsRequired.some((r) => !ticked.has(r.versionId));
+  const toggleTerms = (versionId) => setTicked((prev) => {
+    const next = new Set(prev);
+    if (next.has(versionId)) next.delete(versionId); else next.add(versionId);
+    return next;
+  });
+
   const confirm = async () => {
-    if (!ready) return;
+    if (!ready || termsOpen) return;
     setError(null);
     if (quote.total > 0) {
       cart.replace(line, shopItem ? cartInfo(shopItem) : { title: card.name, item: { id: card.resourceId, scheduling: 'hourly' } });
@@ -146,13 +158,15 @@ export default function BathPlanPage() {
     setBusy(true);
     attempt.current = attempt.current || newKey();
     try {
-      const done = await api.order({ lines: [line], payment: 'none' }, { key: attempt.current });
+      const acceptedTerms = termsRequired.map(({ activity, versionId }) => ({ activity, versionId }));
+      const done = await api.order({ lines: [line], payment: 'none', ...(acceptedTerms.length ? { acceptedTerms } : {}) }, { key: attempt.current });
       attempt.current = null;
       reload();
       navigate(`/commandes/${done.orderId}`);
     } catch (err) {
       attempt.current = null;
       setError(err);
+      if (err.code === 'TERMS_OUTDATED') requote();
       slots.reload();
       blocks.reload();
     } finally {
@@ -226,6 +240,7 @@ export default function BathPlanPage() {
               <div className="tot"><span>{t('bathPlan.due')}</span><b>{quote.totalLabel}</b></div>
             </div>
           ) : null}
+          {free ? <TermsAcceptance required={termsRequired} accepted={quote.termsAccepted || []} checked={ticked} onToggle={toggleTerms} /> : null}
           {/* §6.5 « never a dead end » — a quote the server refuses says why, the button stays closed. */}
           {line && quoteError && !quoting ? <Banner tone="bad" role="alert">{quoteError.message || t('err.generic')}</Banner> : null}
           {error ? <Banner tone="bad" role="alert">{error.message || t('err.generic')}</Banner> : null}
@@ -233,7 +248,8 @@ export default function BathPlanPage() {
       </div>
       <div className="sticky-cta">
         {mode === 'spread' && line && leftToPlace > 0 ? <p className="hint" style={{ margin: '0 0 8px' }}>{t('bathPlan.left', { n: leftToPlace })}</p> : null}
-        <button type="button" className="btn block" onClick={confirm} disabled={!ready || busy}>{busy ? t('common.loading') : label}</button>
+        {ready && termsOpen ? <p className="hint" style={{ margin: '0 0 8px' }}>{t('cart.termsNeeded')}</p> : null}
+        <button type="button" className="btn block" onClick={confirm} disabled={!ready || termsOpen || busy}>{busy ? t('common.loading') : label}</button>
       </div>
     </>
   );

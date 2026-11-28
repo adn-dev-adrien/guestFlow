@@ -230,7 +230,7 @@ is pushed every order.
 18. **Block types** (closed list, each with a dedicated renderer): `text` (rich text: paragraphs, bold,
     lists, links), `image`, `gallery`, `callout` (info / warning), `steps` (numbered how-to with optional
     photo per step), `wifi` (network + password + « Copier », QR to join), `contact` (name, role, phone →
-    `tel:`, WhatsApp, email), `place` (address + « Itinéraire » → maps link), `faq` (accordion),
+    `tel:`, WhatsApp, email), `place` (address + « Itinéraire » → the directions links, same behaviour as « Pratique » rule 7 of `guest-app-local-amenities.md`), `faq` (accordion),
     `button` (label + target `{ kind:'page', slug }` | `{ kind:'item', itemKind, itemId }` | `{ kind:'places', category? }` | `{ kind:'url', href }`), `hours` (opening times table). A `button`
     whose target is not available to the session (module off, item not sold here, a shop or bath target for a
     visitor or a pre-arrival session) is not rendered. _(Amended 2026-11-26 by specs/guest-app/guest-app-local-amenities.md rule 18: the `places` target opens the « Pratique » page,

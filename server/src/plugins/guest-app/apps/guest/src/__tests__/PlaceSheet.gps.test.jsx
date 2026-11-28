@@ -1,13 +1,15 @@
 // specs/guest-app/guest-app-local-amenities.md rules 6, 7 — the place sheet: what it shows (absent fields are absent, today in bold), and
-// « Itinéraire »: Plans (Apple devices only), Google Maps and Waze on the first tap with the server's three links, the choice
-// remembered on the device, then opened directly with « Changer d'appli » under the button.
-import { render, screen, within } from '@testing-library/react';
+// « Itinéraire » (amended 2026-11-27): one button, no chooser, nothing remembered; Google Maps link, or the Apple chain.
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import PlaceSheet from '../components/PlaceSheet';
 import { device } from '../services/device';
 import { LangContext } from '../i18n';
+import { openDirectionsOnApple } from '../utils/openDirections';
 import { BAKERY, BAKERY_2, BINS } from './placesFixtures';
+
+vi.mock('../utils/openDirections', async (original) => ({ ...(await original()), openDirectionsOnApple: vi.fn() }));
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148';
 const ANDROID = 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36';
@@ -62,55 +64,35 @@ describe('PlaceSheet — what it shows (rule 6)', () => {
   it('reads in English', () => {
     renderSheet({ ...BAKERY, driveLabel: '4 min drive', open: { state: 'open', label: 'Open · closes at 1 pm' } }, { lang: 'en' });
     expect(screen.getByText('Checked on 1 July 2099')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Directions' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Directions' })).toBeInTheDocument();
   });
 });
 
 describe('PlaceSheet — « Itinéraire » (rule 7)', () => {
-  it('the first tap offers Plans, Google Maps and Waze on an Apple device, with the links the server built', async () => {
-    renderSheet(BAKERY);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Itinéraire' }));
-    const chooser = screen.getByRole('group', { name: 'Ouvrir l’itinéraire avec' });
-    const links = within(chooser).getAllByRole('link');
-    expect(links.map((a) => a.textContent)).toEqual(['Plans', 'Google Maps', 'Waze']);
-    expect(links.map((a) => a.getAttribute('href'))).toEqual([BAKERY.links.apple, BAKERY.links.google, BAKERY.links.waze]);
-    links.forEach((a) => expect(a).toHaveAttribute('target', '_blank'));
-  });
-
-  it('Plans is offered on Apple devices only', async () => {
+  it('is one link to the Google Maps directions, with no chooser, no « Changer d\'appli », nothing remembered', async () => {
     renderSheet(BAKERY, { agent: ANDROID });
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Itinéraire' }));
-    expect(within(screen.getByRole('group', { name: 'Ouvrir l’itinéraire avec' })).getAllByRole('link').map((a) => a.textContent)).toEqual(['Google Maps', 'Waze']);
-  });
-
-  it('the choice is remembered on the device: later taps open it directly, « Changer d\'appli » asks again', async () => {
-    const first = renderSheet(BAKERY);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Itinéraire' }));
-    const waze = within(screen.getByRole('group', { name: 'Ouvrir l’itinéraire avec' })).getByRole('link', { name: 'Waze' });
-    waze.addEventListener('click', (e) => e.preventDefault());
-    await user.click(waze);
-    expect(device.get('gps')).toBe('waze');
-    expect(window.localStorage.getItem('gf-guest')).toContain('"gps":"waze"');
-    expect(first.onClose).not.toHaveBeenCalled();
-
-    // Back on the sheet later (another place, same device): the button is the link itself.
-    document.body.innerHTML = '';
-    renderSheet(BAKERY_2);
-    const direct = screen.getByRole('link', { name: /Itinéraire/ });
-    expect(direct).toHaveAttribute('href', BAKERY_2.links.waze);
-    expect(screen.queryByRole('group', { name: 'Ouvrir l’itinéraire avec' })).toBeNull();
-
-    await user.click(screen.getByRole('button', { name: 'Changer d’appli' }));
+    const link = screen.getByRole('link', { name: 'Itinéraire' });
+    expect(link).toHaveAttribute('href', BAKERY.links.google);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.queryByRole('group')).toBeNull();
+    expect(screen.queryByText(/Changer d/)).toBeNull();
+    expect(screen.queryByText(/Waze/)).toBeNull();
+    link.addEventListener('click', (e) => e.preventDefault());
+    await userEvent.setup().click(link);
     expect(device.get('gps')).toBeUndefined();
-    expect(within(screen.getByRole('group', { name: 'Ouvrir l’itinéraire avec' })).getAllByRole('link')).toHaveLength(3);
   });
 
-  it('Plans remembered on an Apple device is not used on another one', () => {
-    device.set('gps', 'apple');
+  it('on an Apple device the tap runs the Apple chain with the server\'s links instead of following the link', () => {
+    renderSheet(BAKERY);
+    fireEvent.click(screen.getByRole('link', { name: 'Itinéraire' }));
+    expect(openDirectionsOnApple).toHaveBeenCalledExactlyOnceWith(BAKERY.links);
+  });
+
+  it('elsewhere the chain is never run', () => {
     renderSheet(BAKERY, { agent: ANDROID });
-    expect(screen.getByRole('button', { name: 'Itinéraire' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Itinéraire/ })).toBeNull();
+    const link = screen.getByRole('link', { name: 'Itinéraire' });
+    link.addEventListener('click', (e) => e.preventDefault());
+    fireEvent.click(link);
+    expect(openDirectionsOnApple).not.toHaveBeenCalled();
   });
 });

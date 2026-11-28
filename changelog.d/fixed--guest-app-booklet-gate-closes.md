@@ -1,0 +1,1 @@
+- Guest app booklet source (`scripts/guest-app-livret`): the arrival page no longer says the gate does not close by itself (it now only points to the « Portail » tile) and the departure page no longer asks to close the gate; a published booklet needs re-importing to pick this up.

@@ -122,6 +122,12 @@ exact amount due (evening supplement, extra hours), computed by the server.
     join the stay's line (guest-app rule 82, `placeOnHeld`), the offered minutes price at 0 €; nothing is sold. The 0 €
     guard (guest-app rule 55, `freeCovers`) counts the held hours as well as the offered minutes _(fix, 2026-11-15:
     placing a held hour in the day was refused « ne se commande pas dans l'application »)_.
+    _(Amended 2026-11-27 by Adrien: the terms owed are shown and ticked on the page.)_ This path skips the cart, so the page
+    itself asks the terms the quote says are owed (`quote.termsRequired`), as the cart does (rule 37 of
+    `specs/gift-vouchers/gift-voucher-campaigns.md`): `TermsAcceptance` above the sticky button (checkbox + « Lire »), the button
+    closed with « Acceptez les conditions générales pour commander. » until each owed version is ticked, `acceptedTerms` sent with
+    the order; `TERMS_OUTDATED` re-asks the quote so the new version shows. Nothing owed (already accepted) → nothing asked. The paid
+    path goes to the cart, which asks them.
 18. **Total > 0 €** → button « Confirmer · 20 € »: the line goes to the cart (`cart.replace`), whose payment choice is
     the app's own (card first, « sur la note »; specs/guest-app/guest-app.md). Placement and sale are **one** order, the existing
     one: the held hours placed, the evening supplement a line of its own (rules 81-83), the extra hours a new resource
@@ -160,6 +166,8 @@ dropped for that reason)_.
 | components | `BathPlanCard.jsx` | **new**, specific: the home card, three states (rule 5), buttons stacked. |
 | components | `Segmented.jsx` | **new**, generic: a two-or-more-way switch with a sliding thumb. |
 | components | `QuantityStepper.jsx` | reused for « Heures en plus ». |
+| components | `TermsAcceptance.jsx` | reused above the sticky button at 0 € (rule 17). |
+| hooks | `useLineQuote.js` | `reload()` asks the same line again (after `TERMS_OUTDATED`). |
 | components | `SlotGrid.jsx` | optional `refusedKey` (the refused slot shakes); a day chip holding a selected slot carries a dot. |
 | pages | `BathPlanPage.jsx` | **new**, route `/bain/programmer/:id` (`?ajout=1` opens it with one extra hour). |
 | pages | `HomePage.jsx` | renders the cards (Q2 place); the `bath` highlight branch removed. |
@@ -221,12 +229,14 @@ Server (`server/src/plugins/guest-app/tests/`, 20 cases):
 - Existing suites moved to the card: `guest-app-home` (the bath has no highlight), `guest-app-slots` rule 11 (the card's
   « aujourd'hui / ce soir »), `guest-app-first-bath-slot-heat` (`firstSlotToday` counts the heat-up from now).
 
-Guest app (Vitest, `apps/guest/src/__tests__/`, 10 cases, fixtures in `bathPlanFixtures.jsx`):
+Guest app (Vitest, `apps/guest/src/__tests__/`, 15 cases, fixtures in `bathPlanFixtures.jsx`):
 - `BathPlanCard.states.test.jsx` (3) — states, place above or below the tiles, stacked buttons, contacts sheet.
 - `BathPlanPage.modes.test.jsx` (4) — no switch at 1 h, blocks asked with `hours=N`, no block → « Réparties », the
   over-count refusal and « ajoutez une heure » (the mode stays « Réparties »).
 - `BathPlanPage.quote.test.jsx` (3) — the server total on the button and the cart, the 0 € order sent with
   `payment: 'none'`, a refused quote said with the button closed.
+- `BathPlanPage.terms.test.jsx` (5) — rule 17 (2026-11-27): the terms shown and the button closed until ticked, `acceptedTerms` sent, « Lire »,
+  nothing owed → nothing asked, `TERMS_OUTDATED` re-asks, above 0 € the page asks nothing.
 
 E2E: none. The Playwright suite does not serve the guest app (a separate Vite app); the scenario was played instead in a
 real browser against the guest API on an isolated database (2026-11-15): offered hour in the evening → 20 €, 2 held

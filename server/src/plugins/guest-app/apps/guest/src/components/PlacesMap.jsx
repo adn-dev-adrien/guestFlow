@@ -34,7 +34,7 @@ const nameMarker = (marker, text) => {
 const reducedMotion = () => typeof window !== 'undefined' && Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 const pinIcon = (place, selected) => {
-  const { color, data } = styleOf(place.category);
+  const { color, data } = styleOf(place.category, place.glyph);
   return L.divIcon({
     className: 'pl-mk-wrap',
     html: `<span class="pl-mk${selected ? ' sel' : ''}" style="--pl-c:${color}">${glyphSvg(data, 18)}</span>`,

@@ -54,7 +54,7 @@ describe('BlockRenderer', () => {
 
   it('place, faq, hours: the server\'s words', () => {
     render(<BlockList blocks={[
-      { type: 'place', name: 'Déchetterie', address: '07270 Lamastre', mapsUrl: 'https://maps.example/x' },
+      { type: 'place', name: 'Déchetterie', address: '07270 Lamastre', links: { google: 'https://maps.example/x', googleApp: 'comgooglemaps://x', appleApp: 'maps://x' } },
       { type: 'faq', items: [{ question: 'Combien de temps ?', answer: 'Trois heures.' }] },
       { type: 'hours', title: 'Horaires', rows: [{ label: 'Départ', value: 'avant 10 h' }] },
     ]} />);

@@ -2,72 +2,22 @@
  * PlaceSheet — the sheet of one « Pratique » place (specs/guest-app/guest-app-local-amenities.md rules 6, 7): its category, name,
  * commune and drive time, whether it is open and the week's hours (today in bold), what can be dropped or which fuels
  * are sold, the note, « Vérifié le … », then « Itinéraire » and « Appeler ». Everything is read from the server's
- * payload: an absent field is absent. « Itinéraire » offers Plans (Apple devices only), Google Maps and Waze on the first
- * tap; the choice stays on the device and later taps open it directly, « Changer d'appli » asking again. The three links
- * come from the server.
+ * payload: an absent field is absent. « Itinéraire » opens navigation directly (DirectionsLink), with the server's links.
  *
  * Props: `place` (an entry of `/places`), `open`, `onClose`, `stateShown` (false → no open / closed line and no « today » mark:
  * the payload is older than its `until` or was read without network, rule 13).
  */
-import { useState } from 'react';
 import BottomSheet from './BottomSheet';
+import DirectionsLink from './DirectionsLink';
 import Icon from './Icon';
 import { styleOf } from '../constants/placeCategories';
-import { device } from '../services/device';
 import { calendarDay } from '../utils/format';
 import { useLang, useT } from '../i18n';
-
-export const GPS_APPS = Object.freeze(['apple', 'google', 'waze']);
-const GPS_KEY = 'gps';
-
-/** Plans exists on Apple devices only (iPadOS answers as a Mac, hence the touch check). */
-export function isAppleDevice() {
-  if (typeof navigator === 'undefined') return false;
-  const platform = String(navigator.userAgentData && navigator.userAgentData.platform || navigator.platform || '');
-  const agent = String(navigator.userAgent || '');
-  return /iPhone|iPad|iPod/.test(agent) || /^(iPhone|iPad|iPod)/.test(platform) || (/Mac/.test(platform) && navigator.maxTouchPoints > 1);
-}
-
-const available = () => GPS_APPS.filter((app) => app !== 'apple' || isAppleDevice());
-
-/** The app remembered on this device, if it still can be used here. */
-function remembered() {
-  const app = device.get(GPS_KEY);
-  return available().includes(app) ? app : null;
-}
-
-const APP_LABEL_KEY = { apple: 'places.gps.apple', google: 'places.gps.google', waze: 'places.gps.waze' };
 
 export default function PlaceSheet({ place, open, onClose, stateShown = true }) {
   const t = useT();
   const lang = useLang();
-  const [choice, setChoice] = useState(remembered);
-  const [choosing, setChoosing] = useState(false);
-  const { color, Glyph } = styleOf(place.category);
-
-  const pick = (app) => {
-    device.set(GPS_KEY, app);
-    setChoice(app);
-    setChoosing(false);
-  };
-  const change = () => {
-    device.set(GPS_KEY, null);
-    setChoice(null);
-    setChoosing(true);
-  };
-
-  const route = choice && !choosing ? (
-    <a className="btn" href={place.links[choice]} target="_blank" rel="noopener noreferrer">
-      <Icon name="nav" />
-      {t('places.route')}
-      <span className="sr-only"> — {t(APP_LABEL_KEY[choice])}</span>
-    </a>
-  ) : (
-    <button type="button" className="btn" aria-expanded={choosing} onClick={() => setChoosing((v) => !v)}>
-      <Icon name="nav" />
-      {t('places.route')}
-    </button>
-  );
+  const { color, Glyph } = styleOf(place.category, place.glyph);
 
   return (
     <BottomSheet open={open} onClose={onClose} label={place.name}>
@@ -102,23 +52,9 @@ export default function PlaceSheet({ place, open, onClose, stateShown = true }) 
         {place.note ? <p className="pl-note">{place.note}</p> : null}
         {place.verifiedOn ? <p className="pl-verified">{t('places.verified', { date: calendarDay(place.verifiedOn, lang) })}</p> : null}
         <div className="pl-acts">
-          {route}
+          <DirectionsLink links={place.links}>{t('places.route')}</DirectionsLink>
           {place.telUrl ? <a className="btn ghost" href={place.telUrl}><Icon name="phone" />{t('common.call')}<span className="sr-only"> {place.phone}</span></a> : null}
         </div>
-        {choice && !choosing ? (
-          <button type="button" className="btn text pl-change" onClick={change}>{t('places.changeApp')}</button>
-        ) : null}
-        {choosing ? (
-          <div className="pl-chooser" role="group" aria-label={t('places.chooseApp')}>
-            {available().map((app) => (
-              <a key={app} href={place.links[app]} target="_blank" rel="noopener noreferrer" onClick={() => pick(app)}>
-                <Icon name="nav" />
-                {t(APP_LABEL_KEY[app])}
-              </a>
-            ))}
-            <small>{t('places.rememberHint')}</small>
-          </div>
-        ) : null}
       </div>
     </BottomSheet>
   );

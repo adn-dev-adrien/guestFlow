@@ -1,12 +1,14 @@
 /**
  * The server's price of one prospective line (rule 24, §6.5 « show the real price before every commitment »):
  * the sheet's « AJOUTER · 12,00 € » is the quote of exactly that line, never a multiplication in the app.
+ * `reload()` asks the same line again (a version of the terms changed under the guest's feet).
  */
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
 
 export function useLineQuote(line, enabled) {
   const [state, setState] = useState({ quote: null, loading: false, error: null });
+  const [nonce, setNonce] = useState(0);
   const body = JSON.stringify(line);
   useEffect(() => {
     if (!enabled || !line) { setState({ quote: null, loading: false, error: null }); return undefined; }
@@ -19,6 +21,6 @@ export function useLineQuote(line, enabled) {
     }, 200);
     return () => { live = false; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [body, enabled]);
-  return state;
+  }, [body, enabled, nonce]);
+  return { ...state, reload: () => setNonce((n) => n + 1) };
 }

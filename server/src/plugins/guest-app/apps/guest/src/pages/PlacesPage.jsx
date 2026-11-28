@@ -27,8 +27,8 @@ import { useT } from '../i18n';
 // Leaflet only loads with this screen: the home and the shop do not pay for it.
 const PlacesMap = lazy(() => import('../components/PlacesMap'));
 
-function CategoryDot({ category, size = 18 }) {
-  const { color, Glyph: Mark } = styleOf(category);
+function CategoryDot({ category, glyph, size = 18 }) {
+  const { color, Glyph: Mark } = styleOf(category, glyph);
   return <span className="pl-dot" style={{ background: color }}><Mark size={size} strokeWidth={2.25} color="#FFFFFF" aria-hidden="true" focusable="false" /></span>;
 }
 
@@ -42,7 +42,7 @@ function PlaceRow({ place, stale, onOpen }) {
   return (
     <li>
       <button type="button" className="pl-row" onClick={() => onOpen(place.id)}>
-        <CategoryDot category={place.category} />
+        <CategoryDot category={place.category} glyph={place.glyph} />
         <span className="pl-row-main">
           <b>{place.name}</b>
           <span>{place.commune} · {place.driveLabel}</span>

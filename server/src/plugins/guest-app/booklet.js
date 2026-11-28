@@ -6,6 +6,7 @@
  */
 
 const { plainText } = require('./bookletBlocks');
+const { directionsLinks } = require('./directions');
 
 const MIN_QUERY = 2;
 const MAX_QUERY = 100;
@@ -33,11 +34,6 @@ function contactView(contact, lang) {
     email: contact.email,
     mailto: contact.email ? `mailto:${contact.email}` : null,
   });
-}
-
-function mapsUrl(place) {
-  const destination = Number.isFinite(place.lat) ? `${place.lat},${place.lng}` : place.address;
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
 
 /**
@@ -74,7 +70,7 @@ function blockView(block, context) {
       return contacts.length ? { type: 'contact', contacts: contacts.map((c) => contactView(c, lang)) } : null;
     }
     case 'place':
-      return { type: 'place', name: pick(d.name, lang), address: d.address, mapsUrl: mapsUrl(d) };
+      return { type: 'place', name: pick(d.name, lang), address: d.address, links: directionsLinks(d) };
     case 'faq':
       return { type: 'faq', items: d.items.map((item) => ({ question: pick(item.question, lang), answer: pick(item.answer, lang) })) };
     // Rule 18 — a target the session cannot follow is not rendered.

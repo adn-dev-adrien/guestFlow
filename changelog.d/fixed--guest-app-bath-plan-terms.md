@@ -1,0 +1,1 @@
+- Guest app: scheduling the bath at 0 € now shows the terms owed (checkbox and « Lire ») above the button and sends `acceptedTerms`; before, the order was refused with `TERMS_NOT_ACCEPTED` and the guest could neither read nor accept the terms. A changed version (`TERMS_OUTDATED`) re-asks the quote.
