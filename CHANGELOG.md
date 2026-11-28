@@ -4,6 +4,24 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [4.9.0] - 2026-11-28
+
+### Summary
+- Appli séjour : « Itinéraire » ouvre directement la navigation, sans choisir d’application (Google Maps, ou Plans sur iPhone sans Google Maps).
+- Appli séjour : dans « Pratique », une borne de recharge seule a sa propre icône, distincte des stations essence.
+- Appli séjour : programmer un bain offert affiche enfin les conditions générales à lire et cocher ; la réservation était refusée sans elles.
+- Bons cadeaux : le recto garde les proportions du visuel (plus rien de rogné en haut ni en bas) et le prix « à partir de » devient un médaillon sapin.
+
+### Changed
+- Gift vouchers: the « à partir de » price on the merchant card's front is a round fir medallion at 60 % opacity with white text, instead of a white rounded label that echoed the logo's frame; the campaign editor's miniature shows the same medallion.
+- Guest app: « Itinéraire » opens navigation directly, with no app chooser and nothing remembered. Android and others open the Google Maps directions link; iPhone and iPad try the Google Maps app, then Plans, then Google Maps on the web. The server sends `links: { google, googleApp, appleApp }` for « Pratique » places and booklet `place` blocks (`mapsUrl` and the Waze and `apple` links are gone).
+- Guest app « Pratique »: a fuel place that only offers electric charging is drawn with a charging-station icon (the server sends `glyph: 'charging'`); places selling petrol or diesel keep the pump. Guest app 1.8.0.
+
+### Fixed
+- Gift vouchers: the front of the merchant card, of the voucher PDF and of the print sheets keeps the visual's proportions — it covers the 105 × 148 mm trim instead of being enlarged by 5.7 % to cover the bleed (which cut about 4 mm off its top and bottom); the 3 mm bleed mirrors the visual's edges.
+- Guest app: scheduling the bath at 0 € now shows the terms owed (checkbox and « Lire ») above the button and sends `acceptedTerms`; before, the order was refused with `TERMS_NOT_ACCEPTED` and the guest could neither read nor accept the terms. A changed version (`TERMS_OUTDATED`) re-asks the quote.
+- Guest app booklet source (`scripts/guest-app-livret`): the arrival page no longer says the gate does not close by itself — it closes on its own; the page now only points to the « Portail » tile — and the departure page no longer asks to close the gate. Domaine Solio's published booklet was corrected the same way in the Studio.
+
 ## [4.8.0] - 2026-11-27
 
 ### Summary

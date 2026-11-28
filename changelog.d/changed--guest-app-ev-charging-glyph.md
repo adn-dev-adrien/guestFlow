@@ -1,1 +1,0 @@
-- Guest app « Pratique »: a fuel place that only offers electric charging is drawn with a charging-station icon (the server sends `glyph: 'charging'`); places selling petrol or diesel keep the pump. Guest app 1.8.0.
