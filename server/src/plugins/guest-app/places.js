@@ -6,6 +6,7 @@
 const sdk = require('../sdk');
 const { clockLabel } = require('./homeHighlight');
 const { CATEGORIES, CATEGORY_KEYS } = require('./placeCategories');
+const { directionsLinks } = require('./directions');
 
 const { toParisIso, wallClockToDate } = sdk.coreModule('stayWindow');
 
@@ -248,15 +249,10 @@ function hoursTable(hours, now, lang = 'fr') {
   }));
 }
 
-// --- Rule 7 : the three GPS links, built from the stored coordinates ------------------------------------------
+// --- Rule 10 : the charging-station glyph ---------------------------------------------------------------------
 
-function gpsLinks({ lat, lng }) {
-  return {
-    apple: `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`,
-    google: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
-    waze: `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
-  };
-}
+/** Rule 10 — a fuel place that sells no petrol nor diesel, only charging, is drawn as a charging station. */
+const isChargingOnly = (place) => place.category === 'carburant' && Array.isArray(place.energies) && place.energies.length > 0 && place.energies.every((e) => e === 'recharge');
 
 // --- Phone ---------------------------------------------------------------------------------------------------
 
@@ -411,11 +407,12 @@ function guestPlace(place, { now, lang }) {
     wasteKind: place.wasteKind ? { key: place.wasteKind, label: WASTE_KINDS[place.wasteKind][lang] || WASTE_KINDS[place.wasteKind].fr } : null,
     accepts: labelled(place.accepts, ACCEPTS, lang),
     energies: labelled(place.energies, ENERGIES, lang),
+    ...(isChargingOnly(place) ? { glyph: 'charging' } : {}),
     note: noteIn(place, lang) || null,
     phone: place.phone ? phoneText(place.phone) : null,
     telUrl: place.phone ? `tel:${place.phone}` : null,
     verifiedOn: place.verifiedOn,
-    links: gpsLinks(place),
+    links: directionsLinks(place),
   };
 }
 
@@ -500,7 +497,6 @@ module.exports = {
   distanceKm,
   estateError,
   estateOf,
-  gpsLinks,
   guestPayload,
   hoursTable,
   isStale,

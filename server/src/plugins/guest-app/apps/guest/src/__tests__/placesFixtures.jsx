@@ -3,9 +3,9 @@
 import { baseRoutes, LODGING, ME_STAY } from './guestFixtures';
 
 const links = (lat, lng) => ({
-  apple: `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`,
-  google: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
-  waze: `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
+  google: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
+  googleApp: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+  appleApp: `maps://?daddr=${lat},${lng}&dirflg=d`,
 });
 
 const WEEK = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'].map((day) => ({

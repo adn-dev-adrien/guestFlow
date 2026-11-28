@@ -23,7 +23,7 @@ What the guest app offers today does not answer them:
   colour-validated set that comes with a drive time, a time on site and free / paid (Soliomap
   the interactive-map spec of Soliomap's own repository, rule 4). A bakery or a glass bank has none of these, and fourteen categories would
   break the palette. Soliomap stays as it is.
-- The **booklet** has `place` blocks (`guest-app.md` rule 18): one address and « Itinéraire » each, no map, no
+- The **booklet** has `place` blocks (`guest-app.md` rule 18): one address and « Itinéraire » each (the same behaviour as the sheet, rule 7), no map, no
   filter, no opening hours.
 
 Decided with Adrien on 2026-11-26: a **native page in the guest app**, its places entered in the **Studio**; reached
@@ -60,12 +60,21 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
 6. **Place sheet.** A tap on a marker or a row opens a bottom sheet (centred dialog from 900 px): category,
    name, commune · drive time, open state and the week's hours with today in bold (rule 13), what can be dropped
    (waste places, rule 10), what is sold (fuel places, rule 10), the note, « Vérifié le <date> », then « Itinéraire » and « Appeler » when a phone is
-   known. Absent fields are absent, never « N/A ».
-7. **Itinéraire.** The first tap offers **Plans** (Apple devices only), **Google Maps** and
-   **Waze**; the choice is remembered on the device (`localStorage`) and later taps open it directly, with
-   « Changer d'appli » under the button. Links: `https://maps.apple.com/?daddr=<lat>,<lng>&dirflg=d`,
-   `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`, `https://waze.com/ul?ll=<lat>,<lng>&navigate=yes`.
-   Built by the server from the stored coordinates, never by the client.
+   known. A charging-only fuel place wears the charging-station glyph (rule 10). Absent fields are absent, never « N/A ».
+7. **Itinéraire.** One button, no chooser, nothing remembered, and the same behaviour in the sheet and in the booklet's `place`
+   block (one shared `DirectionsLink` + `utils/openDirections.js`). _(Amended 2026-11-27 by Adrien: no chooser, Google Maps
+   app → Plans → Google Maps web on Apple devices; the Google Maps link elsewhere, as map.domainesolio.com. The Plans /
+   Google Maps / Waze chooser, « Changer d’appli » and the remembered `gps` choice are gone, Waze with them.)_
+   - **Android and everything not Apple:** the link is
+     `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>&travelmode=driving` (opens the installed navigation app).
+   - **iPhone / iPad** (`isAppleDevice()`): the tap tries the Google Maps app (`comgooglemaps://?daddr=<lat>,<lng>&directionsmode=driving`);
+     if the page was not left within 1.5 s (`visibilitychange` to hidden or `pagehide`; a lost focus is not an opening, since Safari's « adresse non valide » alert causes one), Plans
+     (`maps://?daddr=<lat>,<lng>&dirflg=d`); if that did not open either, the Google Maps web URL above.
+   - The three URLs come from the server (`links: { google, googleApp, appleApp }`), built from the stored coordinates (the
+     address when a booklet place has none), never by the client. A payload cached before these links (the service worker keeps
+     data across releases) degrades: no `links` → no button; no app schemes → the web link straight away. A second tap while the
+     chain runs does nothing. The CSP needs no change: navigation is governed by
+     `form-action` only, and the app sets no `navigate-to`.
 8. **« Me localiser ».** A map button shows the device's position as a blue dot, after the browser's own
    permission prompt on the first tap. The position never leaves the phone: no request carries it. The core sends
    `Permissions-Policy` with `geolocation=()` on every response; the guest app's own answers (and only those) re-send the
@@ -86,7 +95,10 @@ Satillieu, Saint-Romain-d'Ay and Saint-Alban-d'Ay, filters them by kind, and ope
       `accepts` list among `om` (ordures ménagères), `emballages`, `verre`, `papier`, `textile`, `vegetaux`,
       `encombrants`. One « Déchets » chip only (decided 2026-11-26); the sheet lists what can be dropped.
     - A `carburant` place has a non-empty `energies` list among `essence`, `gazole`, `recharge` (recharge
-      électrique), shown as tags in the sheet.
+      électrique), shown as tags in the sheet. _(Amended 2026-11-27 by Adrien:)_ a place whose energies are **only** `recharge` is a
+      charging station: the server sends `glyph: 'charging'` and the app draws Lucide `ev-charger` instead of `fuel` (map
+      marker, list row, sheet); a place selling essence or gazole keeps `fuel`, recharge or not. Same category, colour and
+      filter chip; the grouping bubble's colours are unchanged.
 11. **One list for the estate.** Places are not per lodging: every lodging with the module on shows the same
     list.
 12. **Drive time.** Each place carries `driveMinutes`, entered in the Studio (integer 1–60, required): the
@@ -174,7 +186,7 @@ The `places` tile makes a stay home show seven tiles by default (nine with `home
 |---|---|---|---|
 | plugin | `migrations.js` | T | Table `guest_app_places` (§5) |
 | plugin | `modules.js` | T | Module `places`, default on after `soliomap` (and for a stored list that lacks it: after the nearest preceding module it holds), prerequisite `publishedPlaces > 0`, every mode |
-| plugin | `places.js` | C | Pure: validation (rule 16), Google Maps link parsing, 15 km check, drive-time label, open state and its `until` from weekly hours at Paris time (stretches across midnight merged), the Studio's labelled closed sets, the three GPS links, server order, the guest payload and the Studio's grouped list |
+| plugin | `places.js` | C | Pure: validation (rule 16), Google Maps link parsing, 15 km check, drive-time label, open state and its `until` from weekly hours at Paris time (stretches across midnight merged), the Studio's labelled closed sets, the directions links and the charging glyph (rules 7, 10), server order, the guest payload and the Studio's grouped list |
 | plugin | `placeCategories.js` | C | The closed set of rule 10 with its FR / EN labels, no dependency (the booklet's button target and `places.js` both read it) |
 | models | `placesModel.js` | C | Prepared statements: list (published / all), get, insert, update, delete, count published |
 | controllers | `placesController.js` | C | Guest payload (rules 4-7, 12-13) and Studio CRUD |
@@ -194,8 +206,9 @@ The `places` tile makes a stay home show seven tiles by default (nine with `home
 |---|---|---|---|
 | guest | `pages/PlacesPage.jsx` | C | Chips, map / list switch, offline banner, deep-link category; hides a state past its `until` or offline, refetches at `until` and on `visibilitychange` (rule 13) |
 | guest | `components/PlacesMap.jsx` | C | Leaflet map: tiles, estate marker, category markers, grouping and fan-out, zoom, « Me localiser » |
-| guest | `components/PlaceSheet.jsx` | C | The sheet of rule 6 on the existing `BottomSheet`; the GPS chooser and its remembered choice (`device` store, key `gps`) |
-| guest | `constants/placeCategories.js` | C | The one palette of category colours and their Lucide glyphs (component for the page, drawing data for the markers) |
+| guest | `components/PlaceSheet.jsx` | C | The sheet of rule 6 on the existing `BottomSheet`; « Itinéraire » is a `DirectionsLink` |
+| guest | `components/DirectionsLink.jsx`, `utils/openDirections.js` | C | The one « Itinéraire » (sheet and booklet `place` block): Google Maps link, or on Apple devices the chain Google Maps app → Plans → web (rule 7) |
+| guest | `constants/placeCategories.js` | C | The one palette of category colours and their Lucide glyphs (component for the page, drawing data for the markers); `styleOf(category, glyph)` swaps in the charging icon |
 | guest | `utils/clusterPoints.js`, `utils/glyphSvg.js` | C | Pure: pixel-distance grouping and fan-out of rule 3; a Lucide glyph as an SVG string for Leaflet's HTML markers |
 | guest | `components/blocks/ButtonBlock.jsx` | T | Target `places` → `/pratique?c=<category>` |
 | guest | `App.jsx`, `pages/HomePage.jsx`, `components/Icon.jsx`, `hooks/useActions.js`, `services/api.js`, `i18n/`, `styles.css` | T | Route `/pratique` (module guard), tile icon and action, `api.places()`, the `places` button target, FR / EN strings, the page's styles |
@@ -218,10 +231,10 @@ No GuestFlow admin client change.
     "open": { "state": "open", "label": "Ouvert · ferme à 13 h", "until": "2026-11-26T12:00:00.000Z" },
     "hours": [ { "day": "lundi", "ranges": "7 h – 13 h", "today": false } ],
     "accepts": null, "energies": null, "note": null, "phone": null, "telUrl": null, "verifiedOn": "2026-11-26",
-    "links": { "apple": "…", "google": "…", "waze": "…" } } ] }
+    "links": { "google": "…", "googleApp": "…", "appleApp": "…" } } ] }
 ```
 Places in server order (category order of rule 10, then drive time, then name). As built, a place also carries
-`categoryLabel` (singular, for the sheet), `wasteKind` (`{ key, label }` or null), `accepts` and `energies` as lists of
+`glyph` (`'charging'` for a charging-only fuel place, absent otherwise), `categoryLabel` (singular, for the sheet), `wasteKind` (`{ key, label }` or null), `accepts` and `energies` as lists of
 `{ key, label }` (or null), `phone` (« +33 (0)4 … » is accepted, the bracketed zero dropped) written in groups of two (`04 75 12 34 56`), `telUrl` (`tel:0475123456`); `hours` is the
 week Monday first and null when no hours are known; the language is `?lang=` / the stay's / the browser's, and a missing
 English name or note falls back to French. The route reads for a session or, in visitor mode, `?lodgingCode=` (the booklet's reader).
@@ -256,17 +269,17 @@ the pane. Touch targets ≥ 44 px (map controls included). `prefers-reduced-moti
 
 ## 7. Test plan
 
-- Server unit — `server/src/plugins/guest-app/tests/guest-app-local-amenities.unit.test.js` (37 tests): validation and refusals (rule 16), phone with « +33 (0) »,
+- Server unit — `server/src/plugins/guest-app/tests/guest-app-local-amenities.unit.test.js` (37 tests, plus 3 in `guest-app-ev-charging-glyph.unit.test.js` and 2 in `guest-app-directions.unit.test.js`): validation and refusals (rule 16), phone with « +33 (0) »,
   link parsing (3 Google formats + plain coordinates), 15 km check, drive-time labels, `energies` / `accepts`
   required by category, open state across midday break, Sunday,
-  next-day opening, stretches across midnight, `until` (rule 13), geolocation header (rule 8), modules missing from a stored list (rule 1), GPS links (rule 7), module prerequisite (rule 1), button target hidden
+  next-day opening, stretches across midnight, `until` (rule 13), geolocation header (rule 8), modules missing from a stored list (rule 1), directions links (rule 7), the charging glyph (rule 10), module prerequisite (rule 1), button target hidden
   when off (rule 18), visitor access.
 - Guest client — `apps/guest/src/__tests__/PlacesPage.filters.test.jsx` (12): chips, empty category hidden, deep-link category, list, offline list, home tile,
-  button target; `PlaceSheet.gps.test.jsx` (9): the sheet's content and the remembered GPS choice; `PlacesPage.freshness.test.jsx` (5): a state is hidden past its `until` or without network (the week's table stays), refetched when an `until` passes and on return to the foreground; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
+  button target; `PlaceSheet.gps.test.jsx` (8): the sheet's content, « Itinéraire » as one link and the Apple chain run on Apple devices only; `openDirections.test.js` (5): the chain, the page hidden / pagehide, a blur not counted, a cached payload without app links, listeners removed; `PlaceSheet.charging-glyph.test.jsx` (3); `PlacesPage.freshness.test.jsx` (5): a state is hidden past its `until` or without network (the week's table stays), refetched when an `until` passes and on return to the foreground; `PlacesMap.leaflet.test.jsx` (7, Leaflet replaced by a stand-in):
   tiles and their referrer policy, redraw on zoom only, estate marker, grouping bubble, fan-out, « Me localiser »; `PlacesMap.grouping.test.js` (4): pure grouping and the palette's contrast;
   `sw.offline.test.js` (+2): `/places` cached like the booklet; `TileCarousel.endless.test.jsx` (18, rules 19-23, layout sizes mocked in jsdom): up to six tiles keep the grid; more than six under 900 px draw five copies, only the middle one reachable (repeats `aria-hidden`, out of the tab order, still tappable), the row is a labelled `group`; the 2nd tile of the middle copy is centred on arrival and the column formula shows three whole + two partial tiles; the row jumps by whole copies only once the scroll has settled (`scrollend`, else 120 ms after the last scroll), never while a finger is down; a new list or a width change re-centres, a height change does not; focus scrolls the tile into view (`nearest`); safe-area padding; 900-1199 px two lines of `ceil(n / 2)` columns, from 1200 px one line of `n` columns.
 - Studio client — `apps/studio/src/__tests__/PlacesPage.test.jsx` (14): the list and the server's wording, « À revérifier », the switch, delete, refusals shown under their field, the week sent as minutes, Monday copied to Tuesday–Saturday, 23:59 kept at 1439 and midnight at 1440, closed sets from the server, the estate position; `ButtonEditor.places.test.jsx` (1): the button's categories come from the server.
-- Manual: iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night.
+- Manual: iPhone (Google Maps installed or not, Plans), Android, offline after a first load, night.
 
 ## 8. Out of scope
 
@@ -284,7 +297,7 @@ None open.
 - Where: a native page in the guest app, places entered in the Studio (not a Soliomap view, not booklet blocks).
 - Entry: home tile + booklet button (rules 1, 18).
 - Q1 Name: « Pratique » / « Essentials » (rule 1).
-- Q2 Itinéraire: chooser Plans / Google Maps / Waze, remembered on the device (rule 7).
+- Q2 Itinéraire: chooser Plans / Google Maps / Waze, remembered on the device (rule 7). _Superseded 2026-11-27 by Adrien: no chooser; Google Maps app → Plans → Google Maps web on Apple devices, the Google Maps link elsewhere._
 - Q3 Waste: one « Déchets » chip (rule 10).
 - Q4 Hours: weekly ranges with « Ouvert · ferme à 13 h » (rule 13).
 - Q5 Distance: drive minutes entered per place in the Studio, not a computed distance (rule 12).
@@ -297,10 +310,10 @@ None open.
 
 Done 2026-11-26 on `feature/guest-app-local-amenities-map`:
 - Server: table, module, `places.js`, model, controller, routes, button target, CSP, setting, plugin 1.6.0 — 37 tests.
-- Guest app: page, map (Leaflet, lazy chunk), sheet with GPS chooser, offline cache, tile, button target — 37 tests (+2 in `sw.offline.test.js`).
+- Guest app: page, map (Leaflet, lazy chunk), sheet with « Itinéraire », offline cache, tile, button target — 37 tests (+2 in `sw.offline.test.js`).
 - Studio: Réglages › Pratique, dialog, button editor target — 15 tests.
 - Home tiles beyond six (§3.E, rules 19-23): `components/TileCarousel.jsx` (five copies, recentring by whole copies once the scroll has settled and no finger is down, `ResizeObserver` re-measure on width changes, fractional measures, safe-area padding), `QuickTile` passes the repeats' DOM props through (repeats are not `inert`, so a tap on one opens its module), `HomePage` picks grid / carousel / two lines / one line (`--cols`, `--n`), CSS `.tiles.loop` and `.tiles.many`, i18n `tile.row` — 18 tests. Manual check left to Adrien: swipe on a real iPhone.
 Review fixes 2026-11-26: geolocation opened on the guest build's answers (rule 8), tile referrer (rule 2), module slotted after `soliomap`
 for existing lodgings (rule 1), `open.until` and stale-state handling (rule 13), closed sets and labels served to the Studio, hours at
 midnight, phone, name type, Monday copy.
-- Manual checks left to Adrien (§7): iPhone (Plans, Google Maps, Waze installed or not), Android, offline after a first load, night, the map in a real browser.
+- Manual checks left to Adrien (§7): iPhone (Google Maps installed or not, Plans), Android, a charging-only place's icon, offline after a first load, night, the map in a real browser.

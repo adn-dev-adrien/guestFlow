@@ -533,7 +533,7 @@ summary::-webkit-details-marker{display:none}
 .bathplan .quote{display:grid;gap:2px;font-size:14px;font-variant-numeric:tabular-nums}
 .bathplan .quote>div{display:flex;justify-content:space-between;gap:12px;padding:4px 0}
 .bathplan .quote .tot{border-top:1px solid var(--line);margin-top:4px;padding-top:9px;font-weight:700;font-size:15px}
-.bathplan .pad{padding-bottom:150px}
+.bathplan .pad{padding-bottom:190px}
 .app.wide .bathplan .slots{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media (prefers-reduced-motion:reduce){
   .app *,.app *::before,.app *::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
@@ -693,11 +693,6 @@ summary::-webkit-details-marker{display:none}
 .pl-verified{font-size:12.5px}
 .pl-acts{display:flex;gap:8px;flex-wrap:wrap}
 .pl-acts .btn{flex:1;min-width:140px}
-.pl-change{justify-self:start}
-.pl-chooser{display:grid;gap:8px}
-.pl-chooser a{display:flex;align-items:center;gap:12px;min-height:50px;padding:0 14px;border:1px solid var(--line);border-radius:4px;color:var(--ink);text-decoration:none;font-weight:600}
-.pl-chooser a svg{width:20px;height:20px;color:var(--lichen)}
-.pl-chooser small{color:var(--ink-soft)}
 .app.wide .pl-switch,.app.wide .pl-offline{padding-left:32px;padding-right:32px}
 .app.wide .pl-list h2,.app.wide .pl-row{padding-left:32px;padding-right:32px}
 @media (prefers-reduced-motion:reduce){.pl-mk{transition:none}}

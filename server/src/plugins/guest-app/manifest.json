@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -141,6 +141,12 @@
       "Lien de démo (Studio › Réglages) : un séjour fictif, « Camille », qui ouvre l’application comme un voyageur la voit, sans réservation, sans paiement et sans effet réel. Un bandeau « Démo » change de logement et de moment du séjour (avant l’arrivée, pendant, après le départ) en un toucher.",
       "Dans la démo, le panier, le bain, la commande et le choix du paiement vont jusqu’à la confirmation sans rien écrire : ni fiche, ni planning, ni lien de paiement, ni stock, ni notification. Les commandes simulées se listent dans « Mes commandes » le temps de la démo ; le portail affiche un code de clavier fictif ; les lumières sont simulées, les mesures restent réelles.",
       "« Régénérer le lien » remplace le lien de démo et ferme les démos en cours. Migration additive : une table pour le lien, deux colonnes sur les sessions (la table des sessions est reconstruite en gardant ses lignes).",
+      "Compatible avec GuestFlow 4 (SDK 2.34.0)."
+    ],
+    "1.8.0": [
+      "« Itinéraire » ouvre directement la navigation, sans choix d’application ni mémoire : le lien Google Maps (Android et ailleurs), ou sur iPhone et iPad l’application Google Maps, puis Plans, puis la page Google Maps. Même comportement dans « Pratique » et dans le livret ; Waze n’est plus proposé.",
+      "Dans « Pratique », une borne de recharge seule (sans essence ni gazole) a sa propre icône.",
+      "Programmer le bain à 0 € : les conditions générales dues s’affichent et se cochent sur la page, comme dans le panier ; sans cette case la programmation était refusée sans que l’on puisse lire ni accepter les conditions.",
       "Compatible avec GuestFlow 4 (SDK 2.34.0)."
     ]
   }

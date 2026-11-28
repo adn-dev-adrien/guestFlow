@@ -12,6 +12,7 @@ import Banknote, { __iconData as banknote } from 'lucide-react/icons/banknote';
 import Beef, { __iconData as beef } from 'lucide-react/icons/beef';
 import Croissant, { __iconData as croissant } from 'lucide-react/icons/croissant';
 import Cross, { __iconData as cross } from 'lucide-react/icons/cross';
+import EvCharger, { __iconData as evCharger } from 'lucide-react/icons/ev-charger';
 import Fuel, { __iconData as fuel } from 'lucide-react/icons/fuel';
 import Mail, { __iconData as mail } from 'lucide-react/icons/mail';
 import Newspaper, { __iconData as newspaper } from 'lucide-react/icons/newspaper';
@@ -32,7 +33,13 @@ export const PLACE_STYLE = Object.freeze({
 
 const FALLBACK = Object.freeze({ color: '#4A5560', Glyph: ShoppingBasket, data: shoppingBasket });
 
-export const styleOf = (category) => PLACE_STYLE[category] || FALLBACK;
+/** The glyph the server names for a place of the category (rule 10: charging-only fuel place → `charging`); same colour. */
+const GLYPHS = Object.freeze({ charging: { Glyph: EvCharger, data: evCharger } });
+
+export const styleOf = (category, glyph) => {
+  const style = PLACE_STYLE[category] || FALLBACK;
+  return GLYPHS[glyph] ? { ...style, ...GLYPHS[glyph] } : style;
+};
 
 /** The dot « Me localiser » draws for the device's position (rule 8): the usual map blue, with its halo. */
 export const LOCATION_COLOR = '#2A6BB8';

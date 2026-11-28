@@ -1,5 +1,5 @@
 // specs/guest-app/guest-app-local-amenities.md — « Pratique »: the shops, services and waste points around the estate.
-// The pure rules (position parsing, the 15 km check, the closed categories, hours and the open state, the GPS links, the
+// The pure rules (position parsing, the 15 km check, the closed categories, hours and the open state, the directions links, the
 // order), then the routes: the module and its prerequisite, the guest payload for a stay and a visitor, the Studio's CRUD and
 // its refusals, the estate setting, the booklet's button target.
 const test = require('node:test');
@@ -9,6 +9,7 @@ const {
   addStay, enable, freshDb, openStay, paris, startApi,
 } = require('./guestAppFixtures');
 const places = require('../places');
+const { directionsLinks } = require('../directions');
 const { CATEGORY_KEYS } = require('../placeCategories');
 const { MIGRATIONS, TABLES } = require('../migrations');
 
@@ -193,11 +194,11 @@ test(`${SPEC} rule 6: the week's hours read Monday first, today flagged, a day w
   assert.deepEqual(row.hours.map((d) => d.today), [false, true, false, false, false, false, false]);
 });
 
-test(`${SPEC} rule 7: the three GPS links are built from the stored coordinates`, () => {
-  assert.deepEqual(places.gpsLinks({ lat: 45.1502, lng: 4.6151 }), {
-    apple: 'https://maps.apple.com/?daddr=45.1502,4.6151&dirflg=d',
-    google: 'https://www.google.com/maps/dir/?api=1&destination=45.1502,4.6151',
-    waze: 'https://waze.com/ul?ll=45.1502,4.6151&navigate=yes',
+test(`${SPEC} rule 7: the directions links are built from the stored coordinates, with no chooser and no Waze`, () => {
+  assert.deepEqual(directionsLinks({ lat: 45.1502, lng: 4.6151 }), {
+    google: 'https://www.google.com/maps/dir/?api=1&destination=45.1502,4.6151&travelmode=driving',
+    googleApp: 'comgooglemaps://?daddr=45.1502,4.6151&directionsmode=driving',
+    appleApp: 'maps://?daddr=45.1502,4.6151&dirflg=d',
   });
 });
 
@@ -377,7 +378,8 @@ withPlaces(`${SPEC} rule 1: a stay session, a visitor and the other lodging read
   const stay = (await ctx.call('GET', `${PUBLIC}/places`)).body.data;
   assert.deepEqual(stay.places.map((p) => p.name), ['Point de collecte du bourg', 'Maison Roux']);
   assert.deepEqual(stay.estate, ESTATE);
-  assert.equal(stay.places[0].links.waze, 'https://waze.com/ul?ll=45.1502,4.6151&navigate=yes');
+  assert.equal(stay.places[0].links.google, 'https://www.google.com/maps/dir/?api=1&destination=45.1502,4.6151&travelmode=driving');
+  assert.deepEqual(Object.keys(stay.places[0].links), ['google', 'googleApp', 'appleApp']);
   assert.deepEqual((await visitor(1)).body.data, (await visitor(2)).body.data, 'rule 11: one list for the estate');
   assert.deepEqual((await visitor(1)).body.data.places.map((p) => p.id), stay.places.map((p) => p.id), 'rule 1: nothing in it is private');
 });

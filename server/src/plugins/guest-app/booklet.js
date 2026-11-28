@@ -1,11 +1,12 @@
 /**
- * The booklet a guest reads (specs/guest-app.md rules 16-20). Pure: a lodging's pages in their stored,
+ * The booklet a guest reads (specs/guest-app/guest-app.md rules 16-20). Pure: a lodging's pages in their stored,
  * bilingual shape come in — the draft for the studio, the last published snapshot for a guest — and the
  * payload to render goes out, in one language with the French as fallback per field, the lodging's facts in
  * the `wifi` and `contact` blocks, and the buttons the session cannot follow dropped.
  */
 
 const { plainText } = require('./bookletBlocks');
+const { directionsLinks } = require('./directions');
 
 const MIN_QUERY = 2;
 const MAX_QUERY = 100;
@@ -33,11 +34,6 @@ function contactView(contact, lang) {
     email: contact.email,
     mailto: contact.email ? `mailto:${contact.email}` : null,
   });
-}
-
-function mapsUrl(place) {
-  const destination = Number.isFinite(place.lat) ? `${place.lat},${place.lng}` : place.address;
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
 
 /**
@@ -74,7 +70,7 @@ function blockView(block, context) {
       return contacts.length ? { type: 'contact', contacts: contacts.map((c) => contactView(c, lang)) } : null;
     }
     case 'place':
-      return { type: 'place', name: pick(d.name, lang), address: d.address, mapsUrl: mapsUrl(d) };
+      return { type: 'place', name: pick(d.name, lang), address: d.address, links: directionsLinks(d) };
     case 'faq':
       return { type: 'faq', items: d.items.map((item) => ({ question: pick(item.question, lang), answer: pick(item.answer, lang) })) };
     // Rule 18 — a target the session cannot follow is not rendered.
