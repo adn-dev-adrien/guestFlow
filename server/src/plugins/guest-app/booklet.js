@@ -1,5 +1,5 @@
 /**
- * The booklet a guest reads (specs/guest-app.md rules 16-20). Pure: a lodging's pages in their stored,
+ * The booklet a guest reads (specs/guest-app/guest-app.md rules 16-20). Pure: a lodging's pages in their stored,
  * bilingual shape come in — the draft for the studio, the last published snapshot for a guest — and the
  * payload to render goes out, in one language with the French as fallback per field, the lodging's facts in
  * the `wifi` and `contact` blocks, and the buttons the session cannot follow dropped.

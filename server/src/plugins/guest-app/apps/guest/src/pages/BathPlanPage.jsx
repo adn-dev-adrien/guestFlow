@@ -1,5 +1,5 @@
 /**
- * Scheduling the bath from the home (specs/guest-app-bath-home-scheduling.md rules 8-19, §6): what the stay owns, « À la suite » /
+ * Scheduling the bath from the home (specs/guest-app/guest-app-bath-home-scheduling.md rules 8-19, §6): what the stay owns, « À la suite » /
  * « Réparties » when there are two hours or more, the server's blocks or the slot grid with its counter, the stepper « Heures en
  * plus », and the server's quote line by line under a sticky button that carries its total. At 0 € the sessions are placed at once
  * (`POST /orders`, nothing sold) once the terms the quote says are owed are ticked (rule 37 of specs/gift-vouchers/gift-voucher-campaigns.md, as in the cart); above, the line goes to the cart, whose payment choice is the app's own.
