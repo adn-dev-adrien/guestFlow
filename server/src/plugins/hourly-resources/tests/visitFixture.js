@@ -32,8 +32,10 @@ registry.configure({ isActive: () => true, allows: () => true });
 plugin.register(createContext(plugin.id, { db }));
 
 const newResource = () => Number(db.prepare(`INSERT INTO resources (name, quantity, price, priceType, turnoverMinutes, minimumUsageMinutes, slotDuration, isComplex, openTime, closeTime,
-  showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate)
-  VALUES ('Bain fictif', 1, 25, 'per_hour', 0, 60, 30, 1, '10:00', '22:00', 1, '19:00', 35, 50, 70)`).run().lastInsertRowid);
+  showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate, hourlyExternalWeekendDayRate, hourlyExternalWeekendEveningRate)
+  VALUES ('Bain fictif', 1, 25, 'per_hour', 0, 60, 30, 1, '10:00', '22:00', 1, '19:00', 35, 50, 70, 50, 70)`).run().lastInsertRowid);
+// The weekend grid repeats the week's: the suites that book « today » would otherwise be refused on a Saturday or a Sunday
+// (specs/gift-vouchers/gift-voucher-week-weekend-and-print.md rule 6).
 const resourceId = newResource();
 const option = (title, price, extra = {}) => Number(db.prepare('INSERT INTO options (title, price, priceType, sellableExternally, vatClass) VALUES (?, ?, ?, ?, ?)')
   .run(title, price, extra.priceType || 'per_stay', extra.sellable === false ? 0 : 1, extra.vatClass || 'drinks').lastInsertRowid);
