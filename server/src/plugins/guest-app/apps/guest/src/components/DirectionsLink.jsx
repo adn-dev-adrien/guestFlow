@@ -19,7 +19,7 @@ export default function DirectionsLink({ links, className = 'btn', icon = 'nav',
     event.preventDefault();
     if (running.current) return;
     running.current = true;
-    openDirectionsOnApple(links).finally(() => { running.current = false; });
+    Promise.resolve(openDirectionsOnApple(links)).finally(() => { running.current = false; });
   };
   return (
     <a className={className} href={links.google} target="_blank" rel="noopener noreferrer" onClick={onClick}>
